@@ -5,8 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PlatformSelector } from "./PlatformSelector";
 import { BudgetAllocation } from "./BudgetAllocation";
-import { Calendar, Download, Rocket } from "lucide-react";
+import { Calendar, Download, Rocket, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 interface Platform {
   id: string;
@@ -16,10 +18,13 @@ interface Platform {
 }
 
 export function MediaPlanEditor() {
+  const { user } = useAuth();
+  const [campaignName, setCampaignName] = useState<string>("");
   const [totalBudget, setTotalBudget] = useState<string>("10000");
   const [objective, setObjective] = useState<string>("Brand Awareness");
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
+  const [saving, setSaving] = useState(false);
   const [platforms, setPlatforms] = useState<Platform[]>([
     { id: "meta", name: "Meta", enabled: true, budgetPercentage: 30 },
     { id: "google", name: "Google Ads", enabled: true, budgetPercentage: 25 },
@@ -30,11 +35,60 @@ export function MediaPlanEditor() {
   ]);
 
   const handleExport = () => {
+    const campaignData = {
+      name: campaignName,
+      objective,
+      totalBudget,
+      startDate,
+      endDate,
+      platforms: platforms.filter(p => p.enabled),
+      budgetAllocation: platforms
+        .filter(p => p.enabled)
+        .reduce((acc, p) => ({ ...acc, [p.id]: p.budgetPercentage }), {}),
+    };
+    
+    const blob = new Blob([JSON.stringify(campaignData, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `campaign-${campaignName || 'plan'}.json`;
+    a.click();
     toast.success("Media plan exported successfully!");
   };
 
-  const handleLaunch = () => {
-    toast.success("Campaign ready to launch across selected platforms!");
+  const handleLaunch = async () => {
+    if (!campaignName.trim()) {
+      toast.error("Please enter a campaign name");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const budgetAllocation = platforms
+        .filter(p => p.enabled)
+        .reduce((acc, p) => ({ ...acc, [p.id]: p.budgetPercentage }), {});
+
+      const { error } = await supabase.from("campaigns").insert({
+        user_id: user?.id,
+        name: campaignName,
+        objective,
+        total_budget: parseFloat(totalBudget) || 0,
+        start_date: startDate || null,
+        end_date: endDate || null,
+        platforms: platforms.filter(p => p.enabled).map(p => ({ id: p.id, name: p.name })),
+        budget_allocation: budgetAllocation,
+        status: "active",
+      });
+
+      if (error) throw error;
+      
+      toast.success("Campaign launched successfully!");
+      setCampaignName("");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to launch campaign");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -45,6 +99,15 @@ export function MediaPlanEditor() {
           <CardDescription>Define your campaign's core parameters</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
+          <div className="space-y-2">
+            <Label htmlFor="name">Campaign Name</Label>
+            <Input
+              id="name"
+              value={campaignName}
+              onChange={(e) => setCampaignName(e.target.value)}
+              placeholder="e.g., Q1 2024 Brand Campaign"
+            />
+          </div>
           <div className="grid gap-6 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="budget">Total Budget ($)</Label>
@@ -107,9 +170,18 @@ export function MediaPlanEditor() {
               <Download className="h-4 w-4" />
               Export Media Plan
             </Button>
-            <Button variant="gradient" onClick={handleLaunch} className="gap-2">
-              <Rocket className="h-4 w-4" />
-              Launch Campaign
+            <Button variant="gradient" onClick={handleLaunch} className="gap-2" disabled={saving}>
+              {saving ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Launching...
+                </>
+              ) : (
+                <>
+                  <Rocket className="h-4 w-4" />
+                  Launch Campaign
+                </>
+              )}
             </Button>
           </div>
         </CardContent>

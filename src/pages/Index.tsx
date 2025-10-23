@@ -1,7 +1,32 @@
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { MediaPlanEditor } from "@/components/MediaPlanEditor";
-import { Target, TrendingUp, Zap } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { Button } from "@/components/ui/button";
+import { Target, TrendingUp, Zap, LogOut, Loader2 } from "lucide-react";
 
 const Index = () => {
+  const { user, loading, signOut } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate("/auth");
+    }
+  }, [user, loading, navigate]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/20">
       {/* Header */}
@@ -29,6 +54,10 @@ const Index = () => {
               <button className="px-4 py-2 text-sm font-medium text-foreground hover:text-primary transition-colors">
                 Analytics
               </button>
+              <Button variant="outline" size="sm" onClick={signOut} className="gap-2 ml-2">
+                <LogOut className="h-4 w-4" />
+                Sign Out
+              </Button>
             </nav>
           </div>
         </div>
