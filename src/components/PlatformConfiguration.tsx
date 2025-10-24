@@ -28,7 +28,6 @@ export interface Campaign {
   campaignType?: string;
   optimizationGoal?: string;
   targeting?: {
-    locations: string[];
     ageMin?: number;
     ageMax?: number;
     genders?: string[];
@@ -305,7 +304,6 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
         c.objective &&
         c.campaignType &&
         c.optimizationGoal &&
-        c.targeting?.locations?.length &&
         c.targeting?.ageMin &&
         c.targeting?.ageMax
       );
@@ -513,14 +511,6 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
                             </Select>
                           </div>
 
-                          <div className="space-y-2">
-                            <Label>Target Locations</Label>
-                            <Input
-                              value={campaign.targeting?.locations?.join(", ") || ""}
-                              onChange={(e) => updateCampaignTargeting(platform.id, campaign.id, "locations", e.target.value.split(",").map(s => s.trim()).filter(Boolean))}
-                              placeholder="e.g., United States, Canada"
-                            />
-                          </div>
                         </div>
 
                         <div className="space-y-4">

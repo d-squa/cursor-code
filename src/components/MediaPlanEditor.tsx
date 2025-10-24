@@ -63,7 +63,6 @@ export function MediaPlanEditor() {
 
   const isTargetingComplete = () => {
     return !!(
-      genericConfig.targeting?.locations?.length &&
       genericConfig.targeting?.ageMin &&
       genericConfig.targeting?.ageMax
     );
@@ -105,7 +104,6 @@ export function MediaPlanEditor() {
         c.objective &&
         c.campaignType &&
         c.optimizationGoal &&
-        c.targeting?.locations?.length &&
         c.targeting?.ageMin &&
         c.targeting?.ageMax
       ));

@@ -105,7 +105,7 @@ export function TargetingConfigComponent({ targeting, onUpdate, platformName }: 
               <SelectValue placeholder="Select placements" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="automatic">Automatic</SelectItem>
+              <SelectItem value="automatic">Automatic (based on selected ad formats)</SelectItem>
               <SelectItem value="manual">Manual</SelectItem>
             </SelectContent>
           </Select>

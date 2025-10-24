@@ -13,7 +13,6 @@ export interface GenericConfig {
   phases?: Phase[];
   campaigns?: Campaign[];
   targeting?: {
-    locations: string[];
     ageMin?: number;
     ageMax?: number;
     genders?: string[];
@@ -106,15 +105,6 @@ export function GenericStrategyConfig({
             </div>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="space-y-2">
-              <Label>Target Locations</Label>
-              <Input
-                value={config.targeting?.locations?.join(", ") || ""}
-                onChange={(e) => updateTargeting("locations", e.target.value.split(",").map(s => s.trim()).filter(Boolean))}
-                placeholder="e.g., United States, Canada, United Kingdom"
-              />
-            </div>
-
             <div className="space-y-4">
               <h4 className="font-medium">Demographics</h4>
               <div className="grid gap-6 md:grid-cols-3">
@@ -239,15 +229,6 @@ export function GenericStrategyConfig({
               <CardDescription>Define your target audience</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <Label>Target Locations</Label>
-                <Input
-                  value={config.targeting?.locations?.join(", ") || ""}
-                  onChange={(e) => updateTargeting("locations", e.target.value.split(",").map(s => s.trim()).filter(Boolean))}
-                  placeholder="e.g., United States, Canada, United Kingdom"
-                />
-              </div>
-
               <div className="space-y-4">
                 <h4 className="font-medium">Demographics</h4>
                 <div className="grid gap-6 md:grid-cols-3">
