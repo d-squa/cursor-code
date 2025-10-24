@@ -337,31 +337,31 @@ export function MediaPlanEditor() {
         </Card>
       )}
 
-      {/* Step 3: Phase Scheduler */}
+      {/* Step 3: Targeting */}
       {currentStep >= 3 && (
         <GenericStrategyConfig
           config={genericConfig}
           setConfig={setGenericConfig}
           startDate={startDate}
           endDate={endDate}
-          showOnlyPhaseScheduler={currentStep === 3}
+          showOnlyTargeting={currentStep === 3}
           onNext={() => setCurrentStep(4)}
           onBack={() => setCurrentStep(2)}
-          isPhaseSchedulerComplete={isPhaseSchedulerComplete()}
+          isTargetingComplete={isTargetingComplete()}
         />
       )}
 
-      {/* Step 4: Targeting */}
+      {/* Step 4: Phase Scheduling */}
       {currentStep >= 4 && (
         <GenericStrategyConfig
           config={genericConfig}
           setConfig={setGenericConfig}
           startDate={startDate}
           endDate={endDate}
-          showOnlyTargeting={currentStep === 4}
+          showOnlyPhaseScheduler={currentStep === 4}
           onNext={() => setCurrentStep(5)}
           onBack={() => setCurrentStep(3)}
-          isTargetingComplete={isTargetingComplete()}
+          isPhaseSchedulerComplete={isPhaseSchedulerComplete()}
         />
       )}
 

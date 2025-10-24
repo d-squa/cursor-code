@@ -95,71 +95,12 @@ export function GenericStrategyConfig({
 
   return (
     <>
-      {showOnlyPhaseScheduler ? (
+      {showOnlyTargeting ? (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Step 3: Phase Scheduler</CardTitle>
-                <CardDescription>Configure phase timing for your strategy</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {config.strategy === "partial" && (
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="phases-step3"
-                  checked={config.hasPhases || false}
-                  onChange={(e) => {
-                    const hasPhases = e.target.checked;
-                    updateConfig("hasPhases", hasPhases);
-                    if (hasPhases && (!config.phases || config.phases.length === 0)) {
-                      updateConfig("phases", [{
-                        id: `phase-${Date.now()}`,
-                        name: "Phase 1",
-                        startDate: startDate,
-                        endDate: endDate,
-                        budgetPercentage: 100,
-                      }]);
-                    }
-                  }}
-                  className="w-4 h-4"
-                />
-                <Label htmlFor="phases-step3">Enable phasing schedule</Label>
-              </div>
-            )}
-
-            {config.hasPhases && startDate && endDate ? (
-              <PhaseScheduler
-                phases={config.phases || []}
-                onPhasesChange={(phases) => updateConfig("phases", phases)}
-                startDate={startDate}
-                endDate={endDate}
-              />
-            ) : (
-              config.hasPhases ? (
-                <p className="text-sm text-muted-foreground">Set activation start and end dates to schedule phases.</p>
-              ) : null
-            )}
-
-            <div className="flex justify-between pt-4">
-              <Button variant="outline" onClick={onBack}>
-                Back
-              </Button>
-              <Button onClick={onNext} disabled={!isPhaseSchedulerComplete}>
-                Next: Targeting
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      ) : showOnlyTargeting ? (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Step 4: Targeting</CardTitle>
+                <CardTitle>Step 3: Targeting</CardTitle>
                 <CardDescription>Define your target audience</CardDescription>
               </div>
             </div>
@@ -210,20 +151,80 @@ export function GenericStrategyConfig({
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label>Placements</Label>
-              <Input
-                value={config.targeting?.placements?.join(", ") || ""}
-                onChange={(e) => updateTargeting("placements", e.target.value.split(",").map(s => s.trim()).filter(Boolean))}
-                placeholder="e.g., Feed, Stories, Reels, Search, Display"
-              />
-            </div>
-
             <div className="flex justify-between pt-4">
               <Button variant="outline" onClick={onBack}>
                 Back
               </Button>
               <Button onClick={onNext} disabled={!isTargetingComplete}>
+                Next: Phase Scheduling
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : showOnlyPhaseScheduler ? (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Step 4: Phase Scheduling</CardTitle>
+                <CardDescription>Configure phase timing for your strategy</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {config.strategy === "full-funnel" && (
+              <p className="text-sm text-muted-foreground">
+                Full-funnel strategies require phase scheduling to be enabled.
+              </p>
+            )}
+            
+            {config.strategy === "partial" && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="phases-step4"
+                  checked={config.hasPhases || false}
+                  onChange={(e) => {
+                    const hasPhases = e.target.checked;
+                    updateConfig("hasPhases", hasPhases);
+                    if (hasPhases && (!config.phases || config.phases.length === 0)) {
+                      updateConfig("phases", [{
+                        id: `phase-${Date.now()}`,
+                        name: "Phase 1",
+                        startDate: startDate,
+                        endDate: endDate,
+                        budgetPercentage: 100,
+                      }]);
+                    }
+                  }}
+                  className="w-4 h-4"
+                />
+                <Label htmlFor="phases-step4">Enable phasing schedule</Label>
+              </div>
+            )}
+
+            {config.hasPhases && startDate && endDate ? (
+              <PhaseScheduler
+                phases={config.phases || []}
+                onPhasesChange={(phases) => updateConfig("phases", phases)}
+                startDate={startDate}
+                endDate={endDate}
+              />
+            ) : (
+              config.hasPhases ? (
+                <p className="text-sm text-muted-foreground">Set activation start and end dates to schedule phases.</p>
+              ) : (
+                config.strategy === "partial" ? (
+                  <p className="text-sm text-muted-foreground">Enable phasing to schedule multiple phases for your campaign.</p>
+                ) : null
+              )
+            )}
+
+            <div className="flex justify-between pt-4">
+              <Button variant="outline" onClick={onBack}>
+                Back
+              </Button>
+              <Button onClick={onNext} disabled={!isPhaseSchedulerComplete}>
                 Next: Platform Selection
               </Button>
             </div>
@@ -280,15 +281,6 @@ export function GenericStrategyConfig({
                     />
                   </div>
                 </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Placements</Label>
-                <Input
-                  value={config.targeting?.placements?.join(", ") || ""}
-                  onChange={(e) => updateTargeting("placements", e.target.value.split(",").map(s => s.trim()).filter(Boolean))}
-                  placeholder="e.g., Feed, Stories, Reels, Search, Display"
-                />
               </div>
             </CardContent>
           </Card>
