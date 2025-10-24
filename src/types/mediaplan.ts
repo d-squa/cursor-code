@@ -3,6 +3,15 @@ export interface Market {
   name: string;
   budgetPercentage: number;
   phases?: Phase[];
+  useGlobalFunnel?: boolean;
+}
+
+export interface FunnelStage {
+  id: string;
+  name: 'Awareness' | 'Consideration' | 'Conversion' | 'Loyalty';
+  startDate: string;
+  endDate: string;
+  budgetPercentage: number;
 }
 
 export interface Phase {

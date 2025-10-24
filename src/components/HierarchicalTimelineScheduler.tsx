@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Slider } from "@/components/ui/slider";
-import { Plus, X, Copy, ChevronDown, ChevronRight } from "lucide-react";
-import { PlatformWithMarkets, Market, Phase, Campaign } from "@/types/mediaplan";
+import { Plus, X, Copy, ChevronDown, ChevronRight, RotateCcw } from "lucide-react";
+import { PlatformWithMarkets, Market, Phase, Campaign, FunnelStage } from "@/types/mediaplan";
 import { format, parseISO, addDays, differenceInDays } from "date-fns";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
@@ -14,6 +14,7 @@ interface HierarchicalTimelineSchedulerProps {
   setPlatforms: (platforms: PlatformWithMarkets[]) => void;
   startDate: string;
   endDate: string;
+  globalFunnel: FunnelStage[];
 }
 
 export function HierarchicalTimelineScheduler({
@@ -21,9 +22,60 @@ export function HierarchicalTimelineScheduler({
   setPlatforms,
   startDate,
   endDate,
+  globalFunnel,
 }: HierarchicalTimelineSchedulerProps) {
   const [expandedPlatforms, setExpandedPlatforms] = useState<Set<string>>(new Set());
   const [expandedMarkets, setExpandedMarkets] = useState<Set<string>>(new Set());
+
+  const applyGlobalFunnelToMarket = (platformId: string, marketId: string) => {
+    setPlatforms(
+      platforms.map(p => {
+        if (p.id === platformId) {
+          return {
+            ...p,
+            markets: p.markets.map(m => {
+              if (m.id === marketId) {
+                const phases: Phase[] = globalFunnel.map(stage => ({
+                  id: `phase-${stage.id}-${Date.now()}`,
+                  name: stage.name,
+                  startDate: stage.startDate,
+                  endDate: stage.endDate,
+                  budgetPercentage: stage.budgetPercentage,
+                  campaigns: []
+                }));
+                return { ...m, phases, useGlobalFunnel: true };
+              }
+              return m;
+            })
+          };
+        }
+        return p;
+      })
+    );
+  };
+
+  const resetToGlobalFunnel = (platformId: string, marketId: string) => {
+    applyGlobalFunnelToMarket(platformId, marketId);
+  };
+
+  const markAsCustom = (platformId: string, marketId: string) => {
+    setPlatforms(
+      platforms.map(p => {
+        if (p.id === platformId) {
+          return {
+            ...p,
+            markets: p.markets.map(m => {
+              if (m.id === marketId) {
+                return { ...m, useGlobalFunnel: false };
+              }
+              return m;
+            })
+          };
+        }
+        return p;
+      })
+    );
+  };
 
   const enabledPlatforms = platforms.filter(p => p.id !== "");
 
@@ -79,7 +131,7 @@ export function HierarchicalTimelineScheduler({
                   budgetPercentage: 0,
                   campaigns: []
                 };
-                return { ...m, phases: [...(m.phases || []), newPhase] };
+                return { ...m, phases: [...(m.phases || []), newPhase], useGlobalFunnel: false };
               }
               return m;
             })
@@ -138,6 +190,7 @@ export function HierarchicalTimelineScheduler({
   };
 
   const updatePhaseName = (platformId: string, marketId: string, phaseId: string, name: string) => {
+    markAsCustom(platformId, marketId);
     setPlatforms(
       platforms.map(p => {
         if (p.id === platformId) {
@@ -160,6 +213,7 @@ export function HierarchicalTimelineScheduler({
   };
 
   const updatePhaseBudget = (platformId: string, marketId: string, phaseId: string, percentage: number) => {
+    markAsCustom(platformId, marketId);
     setPlatforms(
       platforms.map(p => {
         if (p.id === platformId) {
@@ -364,20 +418,43 @@ export function HierarchicalTimelineScheduler({
                                 <Badge variant="outline" className="text-xs">
                                   {market.budgetPercentage.toFixed(1)}%
                                 </Badge>
+                                {market.useGlobalFunnel && (
+                                  <Badge variant="secondary" className="text-xs">
+                                    Global Strategy
+                                  </Badge>
+                                )}
                               </div>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  addPhase(platform.id, market.id);
-                                }}
-                                className="h-6 gap-1"
-                              >
-                                <Plus className="h-3 w-3" />
-                                Add Phase
-                              </Button>
+                              <div className="flex gap-1">
+                                {market.useGlobalFunnel === false && (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      resetToGlobalFunnel(platform.id, market.id);
+                                    }}
+                                    className="h-6 gap-1"
+                                    title="Reset to global funnel"
+                                  >
+                                    <RotateCcw className="h-3 w-3" />
+                                    Reset
+                                  </Button>
+                                )}
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    addPhase(platform.id, market.id);
+                                  }}
+                                  className="h-6 gap-1"
+                                >
+                                  <Plus className="h-3 w-3" />
+                                  Add Phase
+                                </Button>
+                              </div>
                             </div>
                           </CollapsibleTrigger>
                           

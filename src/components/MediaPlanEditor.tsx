@@ -10,12 +10,13 @@ import { CampaignMetrics } from "./CampaignMetrics";
 import { GenericStrategyConfig, GenericConfig } from "./GenericStrategyConfig";
 import { PlatformMarketBudgetSelector } from "./PlatformMarketBudgetSelector";
 import { HierarchicalTimelineScheduler } from "./HierarchicalTimelineScheduler";
+import { GlobalFunnelPhasing } from "./GlobalFunnelPhasing";
 import { Calendar, Download, Rocket, Loader2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { PlatformWithMarkets } from "@/types/mediaplan";
+import { PlatformWithMarkets, FunnelStage } from "@/types/mediaplan";
 import { Platform, PlatformConfiguration } from "./PlatformConfiguration";
 
 
@@ -31,6 +32,7 @@ export function MediaPlanEditor() {
   const [platformsWithMarkets, setPlatformsWithMarkets] = useState<PlatformWithMarkets[]>([
     { id: "", name: "", enabled: true, budgetPercentage: 0, markets: [{ id: "market-1", name: "Market 1", budgetPercentage: 100, phases: [] }] },
   ]);
+  const [globalFunnel, setGlobalFunnel] = useState<FunnelStage[]>([]);
   
   // Legacy platforms for step 5 (Platform Configuration)
   const [platforms, setPlatforms] = useState<Platform[]>([
@@ -325,11 +327,39 @@ export function MediaPlanEditor() {
                 </div>
               </div>
 
+              <GlobalFunnelPhasing
+                startDate={startDate}
+                endDate={endDate}
+                globalFunnel={globalFunnel}
+                onGlobalFunnelChange={setGlobalFunnel}
+                onSaveGlobal={() => {
+                  // Apply global funnel to all platforms and markets
+                  setPlatformsWithMarkets(
+                    platformsWithMarkets.map(p => ({
+                      ...p,
+                      markets: p.markets.map(m => {
+                        const phases = globalFunnel.map(stage => ({
+                          id: `phase-${stage.id}-${Date.now()}-${Math.random()}`,
+                          name: stage.name,
+                          startDate: stage.startDate,
+                          endDate: stage.endDate,
+                          budgetPercentage: stage.budgetPercentage,
+                          campaigns: []
+                        }));
+                        return { ...m, phases, useGlobalFunnel: true };
+                      })
+                    }))
+                  );
+                  toast.success("Global funnel phasing applied to all platforms and markets");
+                }}
+              />
+
               <HierarchicalTimelineScheduler
                 platforms={platformsWithMarkets}
                 setPlatforms={setPlatformsWithMarkets}
                 startDate={startDate}
                 endDate={endDate}
+                globalFunnel={globalFunnel}
               />
 
               <div className="flex justify-between pt-4">
