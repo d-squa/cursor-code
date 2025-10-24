@@ -204,7 +204,7 @@ export function MediaPlanEditor() {
           <PlatformSelector platforms={platforms} setPlatforms={handlePlatformToggle} />
 
           {platforms.some(p => p.enabled) && (
-            <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
               <div className="space-y-6">
                 <PlatformConfiguration 
                   platforms={platforms} 
@@ -243,7 +243,13 @@ export function MediaPlanEditor() {
               </div>
 
               <div className="lg:block hidden">
-                <BudgetSummary platforms={platforms} setPlatforms={setPlatforms} totalBudget={parseFloat(totalBudget) || 0} />
+                <BudgetSummary 
+                  platforms={platforms} 
+                  setPlatforms={setPlatforms} 
+                  totalBudget={parseFloat(totalBudget) || 0}
+                  startDate={startDate}
+                  endDate={endDate}
+                />
               </div>
             </div>
           )}

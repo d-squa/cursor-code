@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
-import { Plus, X, GripVertical } from "lucide-react";
+import { Plus, X, GripVertical, Link2 } from "lucide-react";
 import { Phase } from "./PlatformConfiguration";
 import { format, addDays, differenceInDays, parseISO } from "date-fns";
 
@@ -159,6 +159,17 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate }: P
     onPhasesChange(phases.map(p => p.id === phaseId ? { ...p, budgetPercentage: budget } : p));
   };
 
+  const snapToPreviousPhase = (phaseId: string) => {
+    const currentIndex = phases.findIndex(p => p.id === phaseId);
+    if (currentIndex <= 0) return; // Can't snap first phase
+
+    const previousPhase = phases[currentIndex - 1];
+    const updatedPhases = phases.map(p => 
+      p.id === phaseId ? { ...p, startDate: previousPhase.endDate } : p
+    );
+    onPhasesChange(updatedPhases);
+  };
+
   const getPhaseColor = (index: number) => {
     const colors = [
       "bg-blue-500/20 border-blue-500",
@@ -186,7 +197,7 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate }: P
       <CardContent>
         <div
           ref={containerRef}
-          className="relative h-40 bg-muted/30 rounded-lg border"
+          className="relative h-48 bg-muted/30 rounded-lg border"
           onMouseMove={handleMouseMove}
         >
           {/* Timeline markers */}
@@ -205,6 +216,7 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate }: P
             const startPos = dateToPosition(phase.startDate);
             const endPos = dateToPosition(phase.endDate);
             const width = endPos - startPos;
+            const canSnap = index > 0;
 
             return (
               <div
@@ -213,7 +225,7 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate }: P
                 style={{
                   left: `${startPos}%`,
                   width: `${width}%`,
-                  top: `${28 + index * 20}px`,
+                  top: `${28 + index * 24}px`,
                   zIndex: dragging?.phaseId === phase.id ? 20 : 10,
                 }}
               >
@@ -228,6 +240,18 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate }: P
                 {/* Phase content */}
                 <div className="px-3 py-1 flex items-center justify-between h-full">
                   <div className="flex items-center gap-2 flex-1 min-w-0">
+                    {canSnap && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-5 w-5 p-0"
+                        onClick={() => snapToPreviousPhase(phase.id)}
+                        title="Snap to previous phase"
+                      >
+                        <Link2 className="h-3 w-3" />
+                      </Button>
+                    )}
                     {editingName === phase.id ? (
                       <Input
                         value={phase.name}

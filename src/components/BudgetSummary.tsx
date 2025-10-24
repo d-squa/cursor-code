@@ -2,15 +2,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import { Platform } from "./PlatformConfiguration";
+import { format, parseISO } from "date-fns";
 
 interface BudgetSummaryProps {
   platforms: Platform[];
   setPlatforms: (platforms: Platform[]) => void;
   totalBudget: number;
+  startDate?: string;
+  endDate?: string;
 }
 
-export function BudgetSummary({ platforms, setPlatforms, totalBudget }: BudgetSummaryProps) {
+export function BudgetSummary({ platforms, setPlatforms, totalBudget, startDate, endDate }: BudgetSummaryProps) {
   const enabledPlatforms = platforms.filter((p) => p.enabled);
   const totalAllocated = enabledPlatforms.reduce((sum, p) => sum + p.budgetPercentage, 0);
   const remaining = 100 - totalAllocated;
@@ -41,16 +45,39 @@ export function BudgetSummary({ platforms, setPlatforms, totalBudget }: BudgetSu
   return (
     <Card className="sticky top-4">
       <CardHeader className="pb-3">
-        <CardTitle className="text-base">Budget Split</CardTitle>
-        <p className="text-sm text-muted-foreground">${totalBudget.toLocaleString()}</p>
+        <CardTitle className="text-base">Budget Allocation</CardTitle>
+        <div className="text-xs text-muted-foreground space-y-1">
+          <div className="flex items-center justify-between">
+            <span>Total Budget:</span>
+            <span className="font-semibold">${totalBudget.toLocaleString()}</span>
+          </div>
+          {startDate && endDate && (
+            <div className="flex items-center justify-between">
+              <span>Duration:</span>
+              <span className="font-medium">
+                {format(parseISO(startDate), "MMM d")} - {format(parseISO(endDate), "MMM d, yyyy")}
+              </span>
+            </div>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {enabledPlatforms.map((platform) => {
           const platformBudget = (totalBudget * platform.budgetPercentage) / 100;
+          const platformStartDate = platform.config?.phases?.[0]?.startDate || startDate;
+          const platformEndDate = platform.config?.phases?.[platform.config.phases.length - 1]?.endDate || endDate;
+
           return (
             <div key={platform.id} className="space-y-2 pb-3 border-b last:border-b-0 last:pb-0">
               <div className="flex items-center justify-between text-sm">
-                <span className="font-medium">{platform.name}</span>
+                <div className="flex flex-col gap-1">
+                  <span className="font-medium">{platform.name}</span>
+                  {platformStartDate && platformEndDate && (
+                    <span className="text-[10px] text-muted-foreground">
+                      {format(parseISO(platformStartDate), "MMM d")} - {format(parseISO(platformEndDate), "MMM d")}
+                    </span>
+                  )}
+                </div>
                 <Badge variant="secondary" className="text-xs">
                   {platform.budgetPercentage.toFixed(1)}%
                 </Badge>
@@ -65,15 +92,25 @@ export function BudgetSummary({ platforms, setPlatforms, totalBudget }: BudgetSu
                 className="w-full"
               />
 
-              <div className="flex items-center justify-between text-xs gap-2">
-                <span className="text-muted-foreground">Platform Budget</span>
-                <div className="flex items-center">
-                  <span className="text-xs text-muted-foreground mr-1">$</span>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="space-y-1">
+                  <Label className="text-[10px]">Percentage</Label>
+                  <Input
+                    type="number"
+                    value={platform.budgetPercentage.toFixed(1)}
+                    onChange={(e) => updateBudgetPercentage(platform.id, parseFloat(e.target.value) || 0)}
+                    className="h-7 text-xs p-1"
+                    min="0"
+                    max="100"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px]">Amount ($)</Label>
                   <Input
                     type="number"
                     value={Math.round(platformBudget)}
                     onChange={(e) => updateBudgetAmount(platform.id, parseFloat(e.target.value) || 0)}
-                    className="w-24 h-6 text-xs text-right p-1"
+                    className="h-7 text-xs p-1"
                     min="0"
                   />
                 </div>
@@ -86,9 +123,16 @@ export function BudgetSummary({ platforms, setPlatforms, totalBudget }: BudgetSu
                     const phaseBudget = (platformBudget * phase.budgetPercentage) / 100;
                     return (
                       <div key={phase.id} className="flex items-center justify-between text-xs">
-                        <span className="text-muted-foreground truncate max-w-[120px]" title={phase.name}>
-                          {phase.name}
-                        </span>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-muted-foreground truncate max-w-[120px]" title={phase.name}>
+                            {phase.name}
+                          </span>
+                          {phase.startDate && phase.endDate && (
+                            <span className="text-[10px] text-muted-foreground/70">
+                              {format(parseISO(phase.startDate), "MMM d")} - {format(parseISO(phase.endDate), "MMM d")}
+                            </span>
+                          )}
+                        </div>
                         <div className="flex items-center gap-1">
                           <span className="font-medium">{phase.budgetPercentage}%</span>
                           <span className="text-muted-foreground">${Math.round(phaseBudget).toLocaleString()}</span>
@@ -113,9 +157,16 @@ export function BudgetSummary({ platforms, setPlatforms, totalBudget }: BudgetSu
                   {platform.config.campaigns.map((campaign) => (
                     <div key={campaign.id} className="text-xs space-y-0.5">
                       <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground truncate max-w-[140px]" title={campaign.name}>
-                          {campaign.name}
-                        </span>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-muted-foreground truncate max-w-[140px]" title={campaign.name}>
+                            {campaign.name}
+                          </span>
+                          {startDate && endDate && (
+                            <span className="text-[10px] text-muted-foreground/70">
+                              {format(parseISO(startDate), "MMM d")} - {format(parseISO(endDate), "MMM d")}
+                            </span>
+                          )}
+                        </div>
                         {campaign.funnelStage && (
                           <Badge variant="outline" className="text-[10px] h-4 px-1">
                             {campaign.funnelStage}
@@ -139,12 +190,12 @@ export function BudgetSummary({ platforms, setPlatforms, totalBudget }: BudgetSu
           <div className="flex items-center justify-between text-sm font-semibold">
             <span>Total</span>
             <span className={remaining < 0 ? "text-destructive" : remaining > 0 ? "text-accent" : "text-primary"}>
-              {totalAllocated}%
+              {totalAllocated.toFixed(1)}%
             </span>
           </div>
           {remaining !== 0 && (
             <p className="text-xs text-muted-foreground mt-1">
-              {remaining > 0 ? `${remaining}% unallocated` : `${Math.abs(remaining)}% over budget`}
+              {remaining > 0 ? `${remaining.toFixed(1)}% unallocated` : `${Math.abs(remaining).toFixed(1)}% over budget`}
             </p>
           )}
         </div>
