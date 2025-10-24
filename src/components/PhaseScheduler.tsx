@@ -28,8 +28,41 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate }: P
   const [budgetPopover, setBudgetPopover] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const campaignStart = startDate ? parseISO(startDate) : new Date();
-  const campaignEnd = endDate ? parseISO(endDate) : addDays(campaignStart, 90);
+  // Validate dates
+  if (!startDate || !endDate) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Phase Timeline</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            Please select activation start and end dates first to enable phase scheduling.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const campaignStart = parseISO(startDate);
+  const campaignEnd = parseISO(endDate);
+  
+  // Check if dates are valid
+  if (isNaN(campaignStart.getTime()) || isNaN(campaignEnd.getTime())) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Phase Timeline</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            Invalid dates selected. Please check your activation dates.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+  
   const totalDays = differenceInDays(campaignEnd, campaignStart);
 
   const dateToPosition = (dateStr: string): number => {
@@ -218,7 +251,9 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate }: P
                             <span className="text-sm text-muted-foreground">%</span>
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            {format(parseISO(phase.startDate), "MMM d")} - {format(parseISO(phase.endDate), "MMM d, yyyy")}
+                            {phase.startDate && phase.endDate ? 
+                              `${format(parseISO(phase.startDate), "MMM d")} - ${format(parseISO(phase.endDate), "MMM d, yyyy")}`
+                              : "Dates not set"}
                           </div>
                         </div>
                       </PopoverContent>
@@ -256,7 +291,11 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate }: P
                 <span className="font-medium">{phase.name}</span>
               </div>
               <div className="flex items-center gap-3 text-muted-foreground">
-                <span>{format(parseISO(phase.startDate), "MMM d")} - {format(parseISO(phase.endDate), "MMM d")}</span>
+                <span>
+                  {phase.startDate && phase.endDate ? 
+                    `${format(parseISO(phase.startDate), "MMM d")} - ${format(parseISO(phase.endDate), "MMM d")}` 
+                    : "Dates not set"}
+                </span>
                 <span className="font-semibold text-foreground">{phase.budgetPercentage}%</span>
               </div>
             </div>

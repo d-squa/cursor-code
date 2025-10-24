@@ -45,7 +45,7 @@ export function GenericStrategyConfig({ config, setConfig, startDate, endDate }:
         ];
         // Auto-enable phasing for full-funnel
         updatedConfig.hasPhases = true;
-        if (!updatedConfig.phases || updatedConfig.phases.length === 0) {
+        if ((!updatedConfig.phases || updatedConfig.phases.length === 0) && startDate && endDate) {
           updatedConfig.phases = [{
             id: `phase-${Date.now()}`,
             name: "Phase 1",
@@ -87,7 +87,7 @@ export function GenericStrategyConfig({ config, setConfig, startDate, endDate }:
             <div className="space-y-2">
               <Label>Strategy Type</Label>
               <Select
-                value={config.strategy}
+                value={config.strategy || ""}
                 onValueChange={(value) => updateConfig("strategy", value)}
               >
                 <SelectTrigger>
@@ -103,7 +103,7 @@ export function GenericStrategyConfig({ config, setConfig, startDate, endDate }:
             <div className="space-y-2">
               <Label>Strategy Focus</Label>
               <Select
-                value={config.strategyFocus}
+                value={config.strategyFocus || ""}
                 onValueChange={(value) => updateConfig("strategyFocus", value)}
               >
                 <SelectTrigger>
