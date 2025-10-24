@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Progress } from "@/components/ui/progress";
+import { Slider } from "@/components/ui/slider";
+import { Badge } from "@/components/ui/badge";
 import { Platform } from "./PlatformConfiguration";
 
 interface BudgetSummaryProps {
@@ -43,38 +44,68 @@ export function BudgetSummary({ platforms, setPlatforms, totalBudget }: BudgetSu
         <CardTitle className="text-base">Budget Split</CardTitle>
         <p className="text-sm text-muted-foreground">${totalBudget.toLocaleString()}</p>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-4">
         {enabledPlatforms.map((platform) => {
           const platformBudget = (totalBudget * platform.budgetPercentage) / 100;
           return (
-            <div key={platform.id} className="space-y-1">
+            <div key={platform.id} className="space-y-2 pb-3 border-b last:border-b-0 last:pb-0">
               <div className="flex items-center justify-between text-sm">
                 <span className="font-medium">{platform.name}</span>
-                <div className="flex items-center gap-1">
-                  <Input
-                    type="number"
-                    value={platform.budgetPercentage}
-                    onChange={(e) => updateBudgetPercentage(platform.id, parseFloat(e.target.value) || 0)}
-                    className="w-14 h-7 text-xs text-right p-1"
-                    min="0"
-                    max="100"
-                  />
-                  <span className="text-xs text-muted-foreground">%</span>
-                </div>
+                <Badge variant="secondary" className="text-xs">
+                  {platform.budgetPercentage.toFixed(1)}%
+                </Badge>
               </div>
+              
+              <Slider
+                value={[platform.budgetPercentage]}
+                onValueChange={([value]) => updateBudgetPercentage(platform.id, value)}
+                min={0}
+                max={100}
+                step={0.5}
+                className="w-full"
+              />
+
               <div className="flex items-center justify-between text-xs gap-2">
-                <Progress value={platform.budgetPercentage} className="h-1 flex-1" />
+                <span className="text-muted-foreground">Platform Budget</span>
                 <div className="flex items-center">
                   <span className="text-xs text-muted-foreground mr-1">$</span>
                   <Input
                     type="number"
                     value={Math.round(platformBudget)}
                     onChange={(e) => updateBudgetAmount(platform.id, parseFloat(e.target.value) || 0)}
-                    className="w-20 h-6 text-xs text-right p-1"
+                    className="w-24 h-6 text-xs text-right p-1"
                     min="0"
                   />
                 </div>
               </div>
+
+              {platform.config?.hasPhases && platform.config.phases && platform.config.phases.length > 0 && (
+                <div className="mt-2 space-y-1 pl-2 border-l-2 border-muted">
+                  <p className="text-xs font-medium text-muted-foreground">Phases</p>
+                  {platform.config.phases.map((phase) => {
+                    const phaseBudget = (platformBudget * phase.budgetPercentage) / 100;
+                    return (
+                      <div key={phase.id} className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground truncate max-w-[120px]" title={phase.name}>
+                          {phase.name}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <span className="font-medium">{phase.budgetPercentage}%</span>
+                          <span className="text-muted-foreground">${Math.round(phaseBudget).toLocaleString()}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div className="pt-1 border-t border-muted/50">
+                    <div className="flex items-center justify-between text-xs font-medium">
+                      <span>Total Phases</span>
+                      <span>
+                        {platform.config.phases.reduce((sum, p) => sum + p.budgetPercentage, 0)}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}
