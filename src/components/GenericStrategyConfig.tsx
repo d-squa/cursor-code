@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { PhaseScheduler } from "./PhaseScheduler";
 import { Phase, Campaign } from "./PlatformConfiguration";
+import { TargetingConfig } from "./TargetingConfig";
 
 export interface GenericConfig {
   strategy?: "full-funnel" | "partial";
@@ -12,12 +13,7 @@ export interface GenericConfig {
   hasPhases?: boolean;
   phases?: Phase[];
   campaigns?: Campaign[];
-  targeting?: {
-    ageMin?: number;
-    ageMax?: number;
-    genders?: string[];
-    placements?: string[];
-  };
+  targeting?: TargetingConfig;
 }
 
 interface GenericStrategyConfigProps {

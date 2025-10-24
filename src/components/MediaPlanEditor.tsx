@@ -25,14 +25,77 @@ import { Platform, PlatformConfiguration } from "./PlatformConfiguration";
 export function MediaPlanEditor() {
   const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
-  const [campaignName, setCampaignName] = useState<string>("");
-  const [totalBudget, setTotalBudget] = useState<string>("10000");
-  const [startDate, setStartDate] = useState<string>("");
-  const [endDate, setEndDate] = useState<string>("");
+  const [campaignName, setCampaignName] = useState<string>("Q1 2024 Campaign");
+  const [totalBudget, setTotalBudget] = useState<string>("100000");
+  const [startDate, setStartDate] = useState<string>("2024-01-01");
+  const [endDate, setEndDate] = useState<string>("2024-03-31");
   const [saving, setSaving] = useState(false);
-  const [genericConfig, setGenericConfig] = useState<GenericConfig>({});
+  const [genericConfig, setGenericConfig] = useState<GenericConfig>({
+    strategy: "full-funnel",
+    strategyFocus: "purchase",
+    targeting: {
+      ageMin: 25,
+      ageMax: 45,
+      genders: ["all"],
+      devices: ["Mobile", "Desktop"],
+      placements: "automatic",
+      targetingExpansion: true,
+      os: ["iOS", "Android"],
+      language: "en",
+      interests: "Technology, Shopping, Fashion",
+      websiteAudience: "Website Visitors - Last 30 Days",
+      keywordList: "buy online\npurchase products\nshop now\nbest deals",
+      customerList: "Existing Customers 2023",
+      lookalikeAudience: "Lookalike - Top Purchasers (1%)"
+    }
+  });
   const [platformsWithMarkets, setPlatformsWithMarkets] = useState<PlatformWithMarkets[]>([
-    { id: "", name: "", enabled: true, budgetPercentage: 0, markets: [{ id: "market-1", name: "Market 1", budgetPercentage: 100, phases: [] }] },
+    { 
+      id: "facebook", 
+      name: "Facebook (Meta)", 
+      enabled: true, 
+      budgetPercentage: 60, 
+      markets: [
+        { 
+          id: "market-1", 
+          name: "United States", 
+          budgetPercentage: 60,
+          accountName: "Main Ad Account",
+          page: "Company Page",
+          pixel: "Main Pixel",
+          catalog: "Product Catalog 2024",
+          adFormats: ["Image ads", "Video ads", "Carousel ads"],
+          phases: [] 
+        },
+        { 
+          id: "market-2", 
+          name: "United Kingdom", 
+          budgetPercentage: 40,
+          accountName: "EMEA Ad Account",
+          page: "Company Page UK",
+          pixel: "UK Pixel",
+          catalog: "Product Catalog UK",
+          adFormats: ["Image ads", "Stories ads"],
+          phases: [] 
+        }
+      ] 
+    },
+    { 
+      id: "google", 
+      name: "Google Ads", 
+      enabled: true, 
+      budgetPercentage: 40, 
+      markets: [
+        { 
+          id: "market-3", 
+          name: "United States", 
+          budgetPercentage: 100,
+          accountName: "Google Main Account",
+          adFormats: ["Skippable In-Stream ads", "In-Feed video ads"],
+          phases: [] 
+        }
+      ] 
+    },
   ]);
   const [globalFunnel, setGlobalFunnel] = useState<FunnelStage[]>([]);
   
