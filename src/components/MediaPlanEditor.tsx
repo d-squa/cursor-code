@@ -11,12 +11,8 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
-interface Platform {
-  id: string;
-  name: string;
-  enabled: boolean;
-  budgetPercentage: number;
-}
+import { Platform, PlatformConfiguration } from "./PlatformConfiguration";
+
 
 export function MediaPlanEditor() {
   const { user } = useAuth();
@@ -27,13 +23,30 @@ export function MediaPlanEditor() {
   const [endDate, setEndDate] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [platforms, setPlatforms] = useState<Platform[]>([
-    { id: "meta", name: "Meta", enabled: true, budgetPercentage: 30 },
-    { id: "google", name: "Google Ads", enabled: true, budgetPercentage: 25 },
-    { id: "linkedin", name: "LinkedIn", enabled: true, budgetPercentage: 20 },
-    { id: "tiktok", name: "TikTok", enabled: false, budgetPercentage: 10 },
-    { id: "snapchat", name: "Snapchat", enabled: false, budgetPercentage: 10 },
-    { id: "pinterest", name: "Pinterest", enabled: false, budgetPercentage: 5 },
+    { id: "meta", name: "Meta", enabled: true, budgetPercentage: 30, config: undefined },
+    { id: "google", name: "Google Ads", enabled: true, budgetPercentage: 25, config: undefined },
+    { id: "linkedin", name: "LinkedIn", enabled: true, budgetPercentage: 20, config: undefined },
+    { id: "tiktok", name: "TikTok", enabled: false, budgetPercentage: 10, config: undefined },
+    { id: "snapchat", name: "Snapchat", enabled: false, budgetPercentage: 10, config: undefined },
+    { id: "pinterest", name: "Pinterest", enabled: false, budgetPercentage: 5, config: undefined },
   ]);
+
+  const isAllPlatformsConfigured = () => {
+    const enabledPlatforms = platforms.filter(p => p.enabled);
+    if (enabledPlatforms.length === 0) return false;
+    return enabledPlatforms.every(p => {
+      if (!p.config) return false;
+      const { objective, campaignType, optimizationGoal, targeting } = p.config;
+      return !!(
+        objective &&
+        campaignType &&
+        optimizationGoal &&
+        targeting?.locations?.length &&
+        targeting?.ageMin &&
+        targeting?.ageMax
+      );
+    });
+  };
 
   const handleExport = () => {
     const campaignData = {
@@ -162,9 +175,18 @@ export function MediaPlanEditor() {
 
       <PlatformSelector platforms={platforms} setPlatforms={setPlatforms} />
 
+      <PlatformConfiguration 
+        platforms={platforms} 
+        setPlatforms={setPlatforms} 
+        startDate={startDate}
+        endDate={endDate}
+      />
+
       <BudgetAllocation platforms={platforms} setPlatforms={setPlatforms} totalBudget={parseFloat(totalBudget) || 0} />
 
-      <CampaignMetrics platforms={platforms} totalBudget={parseFloat(totalBudget) || 0} />
+      {isAllPlatformsConfigured() && (
+        <CampaignMetrics platforms={platforms} totalBudget={parseFloat(totalBudget) || 0} />
+      )}
 
       <Card>
         <CardContent className="pt-6">

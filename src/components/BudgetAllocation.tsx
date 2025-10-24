@@ -3,12 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 
-interface Platform {
-  id: string;
-  name: string;
-  enabled: boolean;
-  budgetPercentage: number;
-}
+import { Platform } from "./PlatformConfiguration";
 
 interface BudgetAllocationProps {
   platforms: Platform[];

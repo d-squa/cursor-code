@@ -2,12 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Checkbox } from "@/components/ui/checkbox";
 import { Facebook, Linkedin } from "lucide-react";
 
-interface Platform {
-  id: string;
-  name: string;
-  enabled: boolean;
-  budgetPercentage: number;
-}
+import { Platform } from "./PlatformConfiguration";
 
 interface PlatformSelectorProps {
   platforms: Platform[];

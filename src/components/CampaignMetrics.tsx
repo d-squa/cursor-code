@@ -8,13 +8,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-
-interface Platform {
-  id: string;
-  name: string;
-  enabled: boolean;
-  budgetPercentage: number;
-}
+import { Platform } from "./PlatformConfiguration";
 
 interface CampaignMetricsProps {
   platforms: Platform[];
