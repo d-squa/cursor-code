@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PhaseScheduler } from "./PhaseScheduler";
+import { getObjectiveForAssetTypes } from "@/utils/adFormats";
 
 export interface Phase {
   id: string;
@@ -13,6 +14,8 @@ export interface Phase {
   startDate: string;
   endDate: string;
   budgetPercentage: number;
+  assetTypes?: string[];
+  isLoyaltyPhase?: boolean;
 }
 
 export interface Campaign {
@@ -117,6 +120,27 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
                 { id: `campaign-${Date.now()}`, name: "Campaign 1" },
               ];
             }
+          }
+
+          // Update campaign objectives when phases change (to reflect asset types)
+          if (field === "phases" && updatedConfig.strategy === "full-funnel" && updatedConfig.strategyFocus) {
+            const phases = value as Phase[];
+            updatedConfig.campaigns = updatedConfig.campaigns?.map(campaign => {
+              const phase = phases.find(ph => 
+                ph.name.toLowerCase() === campaign.funnelStage?.toLowerCase()
+              );
+              
+              if (phase && phase.assetTypes && phase.assetTypes.length > 0) {
+                const newObjective = getObjectiveForAssetTypes(
+                  platformId,
+                  phase.assetTypes,
+                  campaign.funnelStage || "",
+                  updatedConfig.strategyFocus || ""
+                );
+                return { ...campaign, objective: newObjective };
+              }
+              return campaign;
+            });
           }
           
           return { ...p, config: updatedConfig };
@@ -391,6 +415,7 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
                     onPhasesChange={(phases) => updatePlatformConfig(platform.id, "phases", phases)}
                     startDate={startDate}
                     endDate={endDate}
+                    platformId={platform.id}
                   />
                 )}
               </div>

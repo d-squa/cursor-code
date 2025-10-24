@@ -5,15 +5,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, X, GripVertical, Link2 } from "lucide-react";
 import { Phase } from "./PlatformConfiguration";
 import { format, addDays, differenceInDays, parseISO } from "date-fns";
+import { platformAdFormats } from "@/utils/adFormats";
 
 interface PhaseSchedulerProps {
   phases: Phase[];
   onPhasesChange: (phases: Phase[]) => void;
   startDate: string;
   endDate: string;
+  platformId?: string;
 }
 
 interface DraggingState {
@@ -22,11 +25,63 @@ interface DraggingState {
   initialX: number;
 }
 
-export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate }: PhaseSchedulerProps) {
+export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate, platformId = "meta" }: PhaseSchedulerProps) {
   const [dragging, setDragging] = useState<DraggingState | null>(null);
   const [editingName, setEditingName] = useState<string | null>(null);
   const [budgetPopover, setBudgetPopover] = useState<string | null>(null);
+  const [editingBudget, setEditingBudget] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Initialize default phases if empty
+  useEffect(() => {
+    if (phases.length === 0 && startDate && endDate) {
+      const campaignStart = parseISO(startDate);
+      const campaignEnd = parseISO(endDate);
+      const totalDays = differenceInDays(campaignEnd, campaignStart);
+      
+      if (totalDays > 0) {
+        const defaultPhases: Phase[] = [
+          {
+            id: "phase-awareness",
+            name: "Awareness",
+            startDate: format(campaignStart, "yyyy-MM-dd"),
+            endDate: format(addDays(campaignStart, Math.floor(totalDays * 0.5)), "yyyy-MM-dd"),
+            budgetPercentage: 50,
+            assetTypes: [],
+            isLoyaltyPhase: false,
+          },
+          {
+            id: "phase-consideration",
+            name: "Consideration",
+            startDate: format(addDays(campaignStart, Math.floor(totalDays * 0.5)), "yyyy-MM-dd"),
+            endDate: format(addDays(campaignStart, Math.floor(totalDays * 0.8)), "yyyy-MM-dd"),
+            budgetPercentage: 30,
+            assetTypes: [],
+            isLoyaltyPhase: false,
+          },
+          {
+            id: "phase-conversion",
+            name: "Conversion",
+            startDate: format(addDays(campaignStart, Math.floor(totalDays * 0.8)), "yyyy-MM-dd"),
+            endDate: format(campaignEnd, "yyyy-MM-dd"),
+            budgetPercentage: 20,
+            assetTypes: [],
+            isLoyaltyPhase: false,
+          },
+          {
+            id: "phase-loyalty",
+            name: "Loyalty",
+            startDate: format(campaignStart, "yyyy-MM-dd"),
+            endDate: format(campaignEnd, "yyyy-MM-dd"),
+            budgetPercentage: 0,
+            assetTypes: [],
+            isLoyaltyPhase: true,
+          },
+        ];
+        onPhasesChange(defaultPhases);
+      }
+    }
+  }, [startDate, endDate]);
 
   // Validate dates
   if (!startDate || !endDate) {
@@ -161,13 +216,33 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate }: P
 
   const snapToPreviousPhase = (phaseId: string) => {
     const currentIndex = phases.findIndex(p => p.id === phaseId);
-    if (currentIndex <= 0) return; // Can't snap first phase
+    if (currentIndex <= 0) return;
 
     const previousPhase = phases[currentIndex - 1];
     const updatedPhases = phases.map(p => 
       p.id === phaseId ? { ...p, startDate: previousPhase.endDate } : p
     );
     onPhasesChange(updatedPhases);
+  };
+
+  const toggleAssetType = (phaseId: string, assetType: string) => {
+    onPhasesChange(phases.map(p => {
+      if (p.id === phaseId) {
+        const currentTypes = p.assetTypes || [];
+        const newTypes = currentTypes.includes(assetType)
+          ? currentTypes.filter(t => t !== assetType)
+          : [...currentTypes, assetType];
+        return { ...p, assetTypes: newTypes };
+      }
+      return p;
+    }));
+  };
+
+  const updateBudgetValue = (phaseId: string, value: string) => {
+    const numValue = parseFloat(value);
+    if (!isNaN(numValue) && numValue >= 0 && numValue <= 100) {
+      updatePhaseBudget(phaseId, numValue);
+    }
   };
 
   const getPhaseColor = (index: number) => {
@@ -212,7 +287,7 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate }: P
           </div>
 
           {/* Phase bars */}
-          {phases.map((phase, index) => {
+          {phases.filter(p => !p.isLoyaltyPhase).map((phase, index) => {
             const startPos = dateToPosition(phase.startDate);
             const endPos = dateToPosition(phase.endDate);
             const width = endPos - startPos;
@@ -270,27 +345,60 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate }: P
                         {phase.name}
                       </span>
                     )}
+                    {editingBudget === phase.id ? (
+                      <div className="flex items-center gap-1">
+                        <Input
+                          type="number"
+                          value={phase.budgetPercentage}
+                          onChange={(e) => updateBudgetValue(phase.id, e.target.value)}
+                          onBlur={() => setEditingBudget(null)}
+                          onKeyDown={(e) => e.key === "Enter" && setEditingBudget(null)}
+                          className="h-6 w-16 text-xs px-1 py-0"
+                          min="0"
+                          max="100"
+                          autoFocus
+                        />
+                        <span className="text-[10px]">%</span>
+                      </div>
+                    ) : (
+                      <Badge 
+                        variant="secondary" 
+                        className="text-[10px] cursor-pointer"
+                        onClick={() => setEditingBudget(phase.id)}
+                      >
+                        {phase.budgetPercentage}%
+                      </Badge>
+                    )}
                     <Popover open={budgetPopover === phase.id} onOpenChange={(open) => !open && setBudgetPopover(null)}>
                       <PopoverTrigger asChild>
-                        <Badge variant="secondary" className="text-[10px] cursor-pointer">
-                          {phase.budgetPercentage}%
-                        </Badge>
+                        <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]">
+                          Assets
+                        </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-64 p-3" align="start">
-                        <div className="space-y-2">
-                          <Label className="text-xs">Phase Budget Allocation</Label>
-                          <div className="flex items-center gap-2">
-                            <Input
-                              type="number"
-                              value={phase.budgetPercentage}
-                              onChange={(e) => updatePhaseBudget(phase.id, parseFloat(e.target.value) || 0)}
-                              className="h-8 text-sm"
-                              min="0"
-                              max="100"
-                            />
-                            <span className="text-sm text-muted-foreground">%</span>
+                        <div className="space-y-3">
+                          <div>
+                            <Label className="text-xs font-semibold">Asset Types</Label>
+                            <p className="text-[10px] text-muted-foreground mt-1">Select formats for this phase</p>
                           </div>
-                          <div className="text-xs text-muted-foreground">
+                          <div className="space-y-2 max-h-48 overflow-y-auto">
+                            {platformAdFormats[platformId]?.map((format) => (
+                              <div key={format} className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={`${phase.id}-${format}`}
+                                  checked={phase.assetTypes?.includes(format)}
+                                  onCheckedChange={() => toggleAssetType(phase.id, format)}
+                                />
+                                <label
+                                  htmlFor={`${phase.id}-${format}`}
+                                  className="text-xs cursor-pointer leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                >
+                                  {format}
+                                </label>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="pt-2 border-t text-xs text-muted-foreground">
                             {phase.startDate && phase.endDate ? 
                               `${format(parseISO(phase.startDate), "MMM d")} - ${format(parseISO(phase.endDate), "MMM d, yyyy")}`
                               : "Dates not set"}
@@ -320,23 +428,136 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate }: P
               </div>
             );
           })}
+
+          {/* Loyalty phase - full timeline */}
+          {phases.filter(p => p.isLoyaltyPhase).map((phase, index) => {
+            const actualIndex = phases.findIndex(p => p.id === phase.id);
+            return (
+              <div
+                key={phase.id}
+                className="absolute h-8 bg-amber-500/10 border border-amber-500 border-dashed rounded-md"
+                style={{
+                  left: '0%',
+                  width: '100%',
+                  top: `${28 + (phases.filter(p => !p.isLoyaltyPhase).length) * 24}px`,
+                  zIndex: 5,
+                }}
+              >
+                <div className="px-3 py-1 flex items-center justify-between h-full">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    {editingName === phase.id ? (
+                      <Input
+                        value={phase.name}
+                        onChange={(e) => onPhasesChange(phases.map(p => p.id === phase.id ? { ...p, name: e.target.value } : p))}
+                        onBlur={() => setEditingName(null)}
+                        onKeyDown={(e) => e.key === "Enter" && setEditingName(null)}
+                        className="h-5 text-xs px-1 py-0"
+                        autoFocus
+                      />
+                    ) : (
+                      <span
+                        className="text-xs font-medium truncate cursor-pointer hover:underline"
+                        onClick={() => setEditingName(phase.id)}
+                        title={phase.name}
+                      >
+                        {phase.name}
+                      </span>
+                    )}
+                    {editingBudget === phase.id ? (
+                      <div className="flex items-center gap-1">
+                        <Input
+                          type="number"
+                          value={phase.budgetPercentage}
+                          onChange={(e) => updateBudgetValue(phase.id, e.target.value)}
+                          onBlur={() => setEditingBudget(null)}
+                          onKeyDown={(e) => e.key === "Enter" && setEditingBudget(null)}
+                          className="h-5 w-16 text-xs px-1 py-0"
+                          min="0"
+                          max="100"
+                          autoFocus
+                        />
+                        <span className="text-[10px]">%</span>
+                      </div>
+                    ) : (
+                      <Badge 
+                        variant="secondary" 
+                        className="text-[10px] cursor-pointer"
+                        onClick={() => setEditingBudget(phase.id)}
+                      >
+                        {phase.budgetPercentage}%
+                      </Badge>
+                    )}
+                    <Popover open={budgetPopover === phase.id} onOpenChange={(open) => !open && setBudgetPopover(null)}>
+                      <PopoverTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-5 px-2 text-[10px]">
+                          Assets
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-64 p-3" align="start">
+                        <div className="space-y-3">
+                          <div>
+                            <Label className="text-xs font-semibold">Asset Types</Label>
+                            <p className="text-[10px] text-muted-foreground mt-1">Select formats for loyalty phase</p>
+                          </div>
+                          <div className="space-y-2 max-h-48 overflow-y-auto">
+                            {platformAdFormats[platformId]?.map((format) => (
+                              <div key={format} className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={`${phase.id}-${format}`}
+                                  checked={phase.assetTypes?.includes(format)}
+                                  onCheckedChange={() => toggleAssetType(phase.id, format)}
+                                />
+                                <label
+                                  htmlFor={`${phase.id}-${format}`}
+                                  className="text-xs cursor-pointer leading-none"
+                                >
+                                  {format}
+                                </label>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-5 w-5 p-0 hover:bg-destructive/20"
+                    onClick={() => removePhase(phase.id)}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         {/* Phase list summary */}
         <div className="mt-4 space-y-2">
           {phases.map((phase, index) => (
             <div key={phase.id} className="flex items-center justify-between text-xs p-2 rounded bg-muted/30">
-              <div className="flex items-center gap-2">
-                <div className={`w-3 h-3 rounded ${getPhaseColor(index).split(" ")[0]}`} />
+              <div className="flex items-center gap-2 flex-1">
+                <div className={`w-3 h-3 rounded ${phase.isLoyaltyPhase ? 'bg-amber-500/40' : getPhaseColor(index).split(" ")[0]}`} />
                 <span className="font-medium">{phase.name}</span>
+                {phase.assetTypes && phase.assetTypes.length > 0 && (
+                  <Badge variant="outline" className="text-[10px]">
+                    {phase.assetTypes.length} format{phase.assetTypes.length !== 1 ? 's' : ''}
+                  </Badge>
+                )}
               </div>
               <div className="flex items-center gap-3 text-muted-foreground">
                 <span>
-                  {phase.startDate && phase.endDate ? 
-                    `${format(parseISO(phase.startDate), "MMM d")} - ${format(parseISO(phase.endDate), "MMM d")}` 
-                    : "Dates not set"}
+                  {phase.isLoyaltyPhase ? 
+                    "Full timeline" :
+                    (phase.startDate && phase.endDate ? 
+                      `${format(parseISO(phase.startDate), "MMM d")} - ${format(parseISO(phase.endDate), "MMM d")}` 
+                      : "Dates not set")
+                  }
                 </span>
-                <span className="font-semibold text-foreground">{phase.budgetPercentage}%</span>
+                <span className="font-semibold text-foreground w-12 text-right">{phase.budgetPercentage}%</span>
               </div>
             </div>
           ))}

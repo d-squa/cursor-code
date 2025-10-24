@@ -209,6 +209,7 @@ export function GenericStrategyConfig({
                 onPhasesChange={(phases) => updateConfig("phases", phases)}
                 startDate={startDate}
                 endDate={endDate}
+                platformId="meta"
               />
             ) : (
               <p className="text-sm text-muted-foreground">
