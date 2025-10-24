@@ -4,6 +4,7 @@ export interface Market {
   budgetPercentage: number;
   phases?: Phase[];
   useGlobalFunnel?: boolean;
+  adFormats?: string[];
 }
 
 export interface FunnelStage {
@@ -39,4 +40,9 @@ export interface PlatformWithMarkets {
   enabled: boolean;
   budgetPercentage: number;
   markets: Market[];
+  accountName?: string;
+  accountId?: string;
+  page?: string;
+  pixel?: string;
+  catalog?: string;
 }

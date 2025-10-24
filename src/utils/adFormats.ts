@@ -1,16 +1,17 @@
+// Platform ad formats mapping
 export const platformAdFormats: Record<string, string[]> = {
-  meta: [
+  "Facebook (Meta)": [
     "Image ads",
     "Video ads",
     "Carousel ads",
     "Collection ads",
-    "Instant Experience ads",
+    "Instant Experience ads (formerly Canvas)",
     "Stories ads",
     "Lead ads",
     "Messenger ads",
     "Dynamic ads",
   ],
-  instagram: [
+  "Instagram (Meta)": [
     "Image ads",
     "Video ads",
     "Carousel ads",
@@ -19,170 +20,161 @@ export const platformAdFormats: Record<string, string[]> = {
     "Collection ads",
     "Shopping tags",
   ],
-  x: [
-    "Promoted ads",
+  "X (formerly Twitter)": [
+    "Promoted ads (text, image, video)",
     "Image ads",
     "Video ads",
     "Carousel ads",
     "Timeline Takeover",
     "Trend Takeover",
     "Amplify Pre-Roll",
-    "Dynamic Product Ads",
+    "Dynamic Product Ads (DPAs)",
   ],
-  linkedin: [
-    "Sponsored Content (Single Image)",
-    "Sponsored Content (Video)",
-    "Sponsored Content (Carousel)",
-    "Sponsored Content (Document)",
-    "Sponsored Messaging (Message ads)",
-    "Sponsored Messaging (Conversation ads)",
-    "Dynamic ads (Follower ads)",
-    "Dynamic ads (Spotlight ads)",
+  "LinkedIn": [
+    "Sponsored Content (Single Image, Video, Carousel, Document)",
+    "Sponsored Messaging (Message ads, Conversation ads)",
+    "Dynamic ads (Follower ads, Spotlight ads)",
     "Text ads",
     "Lead Generation Forms",
   ],
-  tiktok: [
+  "TikTok": [
     "In-Feed ads",
-    "TopView ads",
-    "Brand Takeover ads",
+    "TopView and Brand Takeover ads",
     "Branded Hashtag Challenge",
     "Spark ads",
     "Branded Effects",
     "Video Shopping ads",
   ],
-  pinterest: [
+  "Pinterest": [
     "Standard (Static Image) ads",
-    "Video ads (Standard)",
-    "Video ads (Max Width)",
+    "Video ads (Standard, Max. Width)",
     "Carousel ads",
     "Collection ads",
     "Idea ads",
     "Shopping ads",
   ],
-  snapchat: [
-    "Single Image ads",
-    "Video ads",
+  "Snapchat": [
+    "Single Image or Video ads",
     "Commercials",
     "Story ads",
     "Collection ads",
     "AR Lenses",
-    "Filters",
-    "Geo-Filters",
+    "Filters (including Geo-Filters)",
   ],
-  google: [
+  "YouTube (Google)": [
     "Skippable In-Stream ads",
     "Non-Skippable In-Stream ads",
     "Bumper ads",
     "In-Feed video ads",
     "Outstream ads",
     "Masthead",
-    "Search ads",
-    "Display ads",
-    "Shopping ads",
+    "Text Ads",
   ],
 };
 
-export const getObjectiveForAssetTypes = (
-  platformId: string,
-  assetTypes: string[],
-  stage: string,
-  focus: string
-): string => {
-  const hasVideo = assetTypes.some(type => 
-    type.toLowerCase().includes("video") || type.toLowerCase().includes("reels")
-  );
-  
-  const hasStatic = assetTypes.some(type => 
-    type.toLowerCase().includes("image") || type.toLowerCase().includes("static")
-  );
+// Ad format to funnel stage and objective mapping
+interface AdFormatMapping {
+  funnelStage: 'Awareness' | 'Consideration' | 'Conversion' | 'Loyalty';
+  objective: string;
+}
 
-  const objectives: Record<string, Record<string, Record<string, string>>> = {
-    meta: {
-      awareness: { 
-        default: "Brand Awareness",
-        video: "Video Views",
-      },
-      consideration: { 
-        default: "Traffic",
-        video: "Video Views",
-        purchase: "Traffic",
-        leads: "Lead Generation",
-        "app-installs": "App Installs",
-      },
-      conversion: { 
-        default: "Conversions",
-        purchase: "Conversions",
-        leads: "Lead Generation",
-        "app-installs": "App Installs",
-      },
-      loyalty: { 
-        default: "Engagement",
-        purchase: "Conversions",
-      },
-    },
-    google: {
-      awareness: { 
-        default: "Display",
-        video: "Video",
-      },
-      consideration: { 
-        default: "Search",
-        video: "Video",
-        "app-installs": "App",
-      },
-      conversion: { 
-        default: "Performance Max",
-        purchase: "Shopping",
-        leads: "Search",
-        "app-installs": "App",
-      },
-      loyalty: { 
-        default: "Performance Max",
-      },
-    },
-    tiktok: {
-      awareness: {
-        default: "Reach",
-        video: "Video Views",
-      },
-      consideration: {
-        default: "Traffic",
-        video: "Video Views",
-      },
-      conversion: {
-        default: "Conversions",
-      },
-      loyalty: {
-        default: "Community Interaction",
-      },
-    },
-    linkedin: {
-      awareness: {
-        default: "Brand Awareness",
-        video: "Video Views",
-      },
-      consideration: {
-        default: "Website Visits",
-        video: "Video Views",
-      },
-      conversion: {
-        default: "Conversions",
-        leads: "Lead Generation",
-      },
-      loyalty: {
-        default: "Engagement",
-      },
-    },
-  };
+export const adFormatMatrix: Record<string, Record<string, AdFormatMapping>> = {
+  "Facebook (Meta)": {
+    "Image ads": { funnelStage: "Awareness", objective: "Reach / Brand Awareness" },
+    "Video ads": { funnelStage: "Awareness", objective: "Video Views / Reach" },
+    "Carousel ads": { funnelStage: "Consideration", objective: "Traffic / Engagement" },
+    "Collection ads": { funnelStage: "Consideration", objective: "Traffic / Product Discovery" },
+    "Instant Experience ads (formerly Canvas)": { funnelStage: "Awareness", objective: "Immersive Branding / Storytelling" },
+    "Stories ads": { funnelStage: "Awareness", objective: "Reach / Impressions" },
+    "Lead ads": { funnelStage: "Conversion", objective: "Lead Generation" },
+    "Messenger ads": { funnelStage: "Consideration", objective: "Engagement / Conversation" },
+    "Dynamic ads": { funnelStage: "Conversion", objective: "Sales / Retargeting" },
+  },
+  "Instagram (Meta)": {
+    "Image ads": { funnelStage: "Awareness", objective: "Reach / Brand Awareness" },
+    "Video ads": { funnelStage: "Awareness", objective: "Video Views / Engagement" },
+    "Carousel ads": { funnelStage: "Consideration", objective: "Engagement / Product Exploration" },
+    "Stories ads": { funnelStage: "Awareness", objective: "Reach / Impressions" },
+    "Reels ads": { funnelStage: "Awareness", objective: "Engagement / Discovery" },
+    "Collection ads": { funnelStage: "Conversion", objective: "Purchases / Traffic" },
+    "Shopping tags": { funnelStage: "Conversion", objective: "Product Sales / Catalog" },
+  },
+  "X (formerly Twitter)": {
+    "Promoted ads (text, image, video)": { funnelStage: "Awareness", objective: "Reach / Engagement" },
+    "Image ads": { funnelStage: "Awareness", objective: "Brand Awareness" },
+    "Video ads": { funnelStage: "Awareness", objective: "Video Views" },
+    "Carousel ads": { funnelStage: "Consideration", objective: "Engagement / Traffic" },
+    "Timeline Takeover": { funnelStage: "Awareness", objective: "Mass Reach / Visibility" },
+    "Trend Takeover": { funnelStage: "Awareness", objective: "Brand Awareness / Buzz" },
+    "Amplify Pre-Roll": { funnelStage: "Awareness", objective: "Video Views / Brand Lift" },
+    "Dynamic Product Ads (DPAs)": { funnelStage: "Conversion", objective: "Retargeting / Sales" },
+  },
+  "LinkedIn": {
+    "Sponsored Content (Single Image, Video, Carousel, Document)": { funnelStage: "Awareness", objective: "Brand Awareness / Engagement" },
+    "Sponsored Messaging (Message ads, Conversation ads)": { funnelStage: "Consideration", objective: "Engagement / Retention" },
+    "Dynamic ads (Follower ads, Spotlight ads)": { funnelStage: "Awareness", objective: "Brand Awareness / Follows" },
+    "Text ads": { funnelStage: "Consideration", objective: "Traffic / Awareness" },
+    "Lead Generation Forms": { funnelStage: "Conversion", objective: "Lead Collection" },
+  },
+  "TikTok": {
+    "In-Feed ads": { funnelStage: "Awareness", objective: "Reach / Engagement" },
+    "TopView and Brand Takeover ads": { funnelStage: "Awareness", objective: "Mass Reach / Video Views" },
+    "Branded Hashtag Challenge": { funnelStage: "Awareness", objective: "Engagement / UGC" },
+    "Spark ads": { funnelStage: "Consideration", objective: "Engagement / Sales" },
+    "Branded Effects": { funnelStage: "Awareness", objective: "Brand Interaction" },
+    "Video Shopping ads": { funnelStage: "Conversion", objective: "Direct Sales" },
+  },
+  "Pinterest": {
+    "Standard (Static Image) ads": { funnelStage: "Awareness", objective: "Reach / Discovery" },
+    "Video ads (Standard, Max. Width)": { funnelStage: "Awareness", objective: "Views / Brand Recall" },
+    "Carousel ads": { funnelStage: "Consideration", objective: "Product Discovery" },
+    "Collection ads": { funnelStage: "Consideration", objective: "Traffic / Purchases" },
+    "Idea ads": { funnelStage: "Awareness", objective: "Engagement / Inspiration" },
+    "Shopping ads": { funnelStage: "Conversion", objective: "Sales / Retargeting" },
+  },
+  "Snapchat": {
+    "Single Image or Video ads": { funnelStage: "Awareness", objective: "Reach / Impressions" },
+    "Commercials": { funnelStage: "Awareness", objective: "Video Views / Brand Lift" },
+    "Story ads": { funnelStage: "Consideration", objective: "Engagement / Traffic" },
+    "Collection ads": { funnelStage: "Conversion", objective: "Product Sales / Retargeting" },
+    "AR Lenses": { funnelStage: "Awareness", objective: "Interaction / Engagement" },
+    "Filters (including Geo-Filters)": { funnelStage: "Awareness", objective: "Local Reach / Brand Engagement" },
+  },
+  "YouTube (Google)": {
+    "Skippable In-Stream ads": { funnelStage: "Awareness", objective: "Views / Remarketing" },
+    "Non-Skippable In-Stream ads": { funnelStage: "Awareness", objective: "Reach / Brand Recall" },
+    "Bumper ads": { funnelStage: "Awareness", objective: "Short-Form Brand Recall" },
+    "In-Feed video ads": { funnelStage: "Consideration", objective: "Engagement / Direct Response" },
+    "Outstream ads": { funnelStage: "Awareness", objective: "Reach (Mobile)" },
+    "Masthead": { funnelStage: "Awareness", objective: "Mass Reach / Product Launch" },
+    "Text Ads": { funnelStage: "Conversion", objective: "Search-Based Action / Sales" },
+  },
+};
 
-  const stageObjectives = objectives[platformId]?.[stage];
-  if (!stageObjectives) return "";
+// Get phases from selected ad formats
+export const getPhasesFromAdFormats = (
+  platformName: string,
+  adFormats: string[]
+): { name: string; funnelStage: string; objective: string }[] => {
+  const platformMatrix = adFormatMatrix[platformName];
+  if (!platformMatrix) return [];
 
-  // If video assets, prioritize video objective
-  if (hasVideo && stageObjectives.video) {
-    return stageObjectives.video;
-  }
+  const stageGroups: Record<string, { objective: string; count: number }> = {};
 
-  // Otherwise use focus-specific or default
-  return stageObjectives[focus] || stageObjectives.default || "";
+  adFormats.forEach(format => {
+    const mapping = platformMatrix[format];
+    if (mapping) {
+      const stage = mapping.funnelStage;
+      if (!stageGroups[stage]) {
+        stageGroups[stage] = { objective: mapping.objective, count: 0 };
+      }
+      stageGroups[stage].count++;
+    }
+  });
+
+  return Object.entries(stageGroups).map(([stage, data]) => ({
+    name: stage,
+    funnelStage: stage,
+    objective: data.objective,
+  }));
 };

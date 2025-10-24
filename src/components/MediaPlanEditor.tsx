@@ -11,6 +11,10 @@ import { GenericStrategyConfig, GenericConfig } from "./GenericStrategyConfig";
 import { PlatformMarketBudgetSelector } from "./PlatformMarketBudgetSelector";
 import { HierarchicalTimelineScheduler } from "./HierarchicalTimelineScheduler";
 import { GlobalFunnelPhasing } from "./GlobalFunnelPhasing";
+import { PlatformConfigFields } from "./PlatformConfigFields";
+import { AdFormatSelector } from "./AdFormatSelector";
+import { TargetingConfigComponent } from "./TargetingConfig";
+import { getPhasesFromAdFormats } from "@/utils/adFormats";
 import { Calendar, Download, Rocket, Loader2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
@@ -353,6 +357,66 @@ export function MediaPlanEditor() {
                   toast.success("Global funnel phasing applied to all platforms and markets");
                 }}
               />
+
+              {/* Platform Configuration & Ad Formats */}
+              <div className="space-y-4">
+                {platformsWithMarkets.filter(p => p.id !== "").map((platform) => (
+                  <div key={platform.id} className="space-y-4">
+                    <PlatformConfigFields
+                      platformName={platform.name}
+                      accountName={platform.accountName}
+                      accountId={platform.accountId}
+                      page={platform.page}
+                      pixel={platform.pixel}
+                      catalog={platform.catalog}
+                      onUpdate={(field, value) => {
+                        setPlatformsWithMarkets(
+                          platformsWithMarkets.map(p => 
+                            p.id === platform.id ? { ...p, [field]: value } : p
+                          )
+                        );
+                      }}
+                    />
+                    
+                    {platform.markets.map((market) => (
+                      <AdFormatSelector
+                        key={market.id}
+                        platformName={platform.name}
+                        selectedFormats={market.adFormats || []}
+                        onFormatsChange={(formats) => {
+                          setPlatformsWithMarkets(
+                            platformsWithMarkets.map(p => {
+                              if (p.id === platform.id) {
+                                return {
+                                  ...p,
+                                  markets: p.markets.map(m => {
+                                    if (m.id === market.id) {
+                                      // Auto-generate phases from ad formats
+                                      const generatedPhases = getPhasesFromAdFormats(platform.name, formats);
+                                      const phases = generatedPhases.map((gp, idx) => ({
+                                        id: `phase-${Date.now()}-${idx}`,
+                                        name: gp.name,
+                                        startDate: startDate,
+                                        endDate: endDate,
+                                        budgetPercentage: 100 / generatedPhases.length,
+                                        objective: gp.objective,
+                                        campaigns: []
+                                      }));
+                                      return { ...m, adFormats: formats, phases, useGlobalFunnel: false };
+                                    }
+                                    return m;
+                                  })
+                                };
+                              }
+                              return p;
+                            })
+                          );
+                        }}
+                      />
+                    ))}
+                  </div>
+                ))}
+              </div>
 
               <HierarchicalTimelineScheduler
                 platforms={platformsWithMarkets}

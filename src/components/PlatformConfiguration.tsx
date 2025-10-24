@@ -6,7 +6,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PhaseScheduler } from "./PhaseScheduler";
-import { getObjectiveForAssetTypes } from "@/utils/adFormats";
+import { PlatformConfigFields } from "./PlatformConfigFields";
+import { AdFormatSelector } from "./AdFormatSelector";
+import { getPhasesFromAdFormats } from "@/utils/adFormats";
 
 export interface Phase {
   id: string;
@@ -123,22 +125,14 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
           }
 
           // Update campaign objectives when phases change (to reflect asset types)
-          if (field === "phases" && updatedConfig.strategy === "full-funnel" && updatedConfig.strategyFocus) {
+          if (field === "phases") {
             const phases = value as Phase[];
             updatedConfig.campaigns = updatedConfig.campaigns?.map(campaign => {
               const phase = phases.find(ph => 
                 ph.name.toLowerCase() === campaign.funnelStage?.toLowerCase()
               );
               
-              if (phase && phase.assetTypes && phase.assetTypes.length > 0) {
-                const newObjective = getObjectiveForAssetTypes(
-                  platformId,
-                  phase.assetTypes,
-                  campaign.funnelStage || "",
-                  updatedConfig.strategyFocus || ""
-                );
-                return { ...campaign, objective: newObjective };
-              }
+              // Keep existing objective or use default
               return campaign;
             });
           }

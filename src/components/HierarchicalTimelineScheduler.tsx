@@ -365,7 +365,7 @@ export function HierarchicalTimelineScheduler({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Phase & Campaign Timeline</CardTitle>
+        <CardTitle>Phasing</CardTitle>
         <p className="text-xs text-muted-foreground">
           {format(campaignStart, "MMM d, yyyy")} - {format(campaignEnd, "MMM d, yyyy")} ({totalDays + 1} days)
         </p>
