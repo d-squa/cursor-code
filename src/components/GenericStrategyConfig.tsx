@@ -145,13 +145,17 @@ export function GenericStrategyConfig({ config, setConfig, startDate, endDate }:
             </div>
           )}
 
-          {config.hasPhases && (
+          {config.hasPhases && startDate && endDate ? (
             <PhaseScheduler
               phases={config.phases || []}
               onPhasesChange={(phases) => updateConfig("phases", phases)}
               startDate={startDate}
               endDate={endDate}
             />
+          ) : (
+            config.hasPhases ? (
+              <p className="text-sm text-muted-foreground">Set activation start and end dates to schedule phases.</p>
+            ) : null
           )}
         </CardContent>
       </Card>
