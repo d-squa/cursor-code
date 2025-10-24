@@ -43,10 +43,25 @@ export function GenericStrategyConfig({ config, setConfig, startDate, endDate }:
           { id: "conversion", name: "Conversion Campaign", funnelStage: "conversion" },
           { id: "loyalty", name: "Loyalty Campaign", funnelStage: "loyalty" },
         ];
+        // Auto-enable phasing for full-funnel
+        updatedConfig.hasPhases = true;
+        if (!updatedConfig.phases || updatedConfig.phases.length === 0) {
+          updatedConfig.phases = [{
+            id: `phase-${Date.now()}`,
+            name: "Phase 1",
+            startDate: startDate,
+            endDate: endDate,
+            budgetPercentage: 100,
+          }];
+        }
       } else if (strategy === "partial" && !updatedConfig.campaigns?.length) {
         updatedConfig.campaigns = [
           { id: `campaign-${Date.now()}`, name: "Campaign 1" },
         ];
+        // Keep phasing optional for partial strategy
+        if (!config.hasPhases) {
+          updatedConfig.hasPhases = false;
+        }
       }
     }
     
@@ -124,8 +139,14 @@ export function GenericStrategyConfig({ config, setConfig, startDate, endDate }:
                 }
               }}
               className="w-4 h-4"
+              disabled={config.strategy === "full-funnel"}
             />
-            <Label htmlFor="phases">Enable phasing schedule</Label>
+            <Label htmlFor="phases" className={config.strategy === "full-funnel" ? "text-muted-foreground" : ""}>
+              Enable phasing schedule
+              {config.strategy === "full-funnel" && (
+                <span className="text-xs ml-2">(Required for full-funnel)</span>
+              )}
+            </Label>
           </div>
 
           {config.hasPhases && (
