@@ -5,6 +5,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { AdFormatSelector } from "./AdFormatSelector";
+import { MultiSelect } from "@/components/ui/multi-select";
+import { getPlacementsForSelection } from "@/utils/placements";
+import { useMemo } from "react";
 
 export interface TargetingConfig {
   adFormats?: string[];
@@ -35,6 +38,11 @@ export function TargetingConfigComponent({ targeting, onUpdate, platformName }: 
   };
 
   const ageOptions = Array.from({ length: 53 }, (_, i) => 13 + i); // Ages 13-65
+
+  const dynamicPlacements = useMemo(
+    () => getPlacementsForSelection(platformName, targeting.adFormats || []),
+    [platformName, targeting.adFormats]
+  );
 
   return (
     <Card>
@@ -127,11 +135,21 @@ export function TargetingConfigComponent({ targeting, onUpdate, platformName }: 
         {/* Placements */}
         <div className="space-y-2">
           <Label htmlFor="placements">Placements</Label>
-          <Input
-            id="placements"
-            value={targeting.placements?.join(", ") || ""}
-            onChange={(e) => updateField("placements", e.target.value.split(",").map(s => s.trim()).filter(Boolean))}
-            placeholder="Automatic (based on selected ad formats) or enter custom placements"
+          <MultiSelect
+            options={["Automatic", ...dynamicPlacements].map((p) => ({ value: p, label: p }))}
+            value={(targeting.placements && targeting.placements.length ? targeting.placements : ["Automatic"]) as string[]}
+            onChange={(vals) => {
+              let next = vals;
+              if (next.length > 1 && next.includes("Automatic")) {
+                next = next.filter((v) => v !== "Automatic");
+              }
+              if (next.length === 0) {
+                next = ["Automatic"];
+              }
+              updateField("placements", next);
+            }}
+            placeholder="Automatic or select placements"
+            emptyText={dynamicPlacements.length ? "No more placements" : "No placements available"}
           />
         </div>
 
