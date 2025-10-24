@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, X, Copy } from "lucide-react";
 import { PlatformWithMarkets, Market } from "@/types/mediaplan";
 
@@ -14,47 +14,92 @@ interface PlatformMarketBudgetSelectorProps {
   totalBudget: number;
 }
 
+const AVAILABLE_PLATFORMS = [
+  { id: "meta", name: "Meta" },
+  { id: "google", name: "Google Ads" },
+  { id: "linkedin", name: "LinkedIn" },
+  { id: "tiktok", name: "TikTok" },
+  { id: "snapchat", name: "Snapchat" },
+  { id: "pinterest", name: "Pinterest" },
+];
+
 export function PlatformMarketBudgetSelector({ 
   platforms, 
   setPlatforms,
   totalBudget 
 }: PlatformMarketBudgetSelectorProps) {
-  const enabledPlatforms = platforms.filter(p => p.enabled);
-  const totalAllocated = enabledPlatforms.reduce((sum, p) => sum + p.budgetPercentage, 0);
+  const totalAllocated = platforms.reduce((sum, p) => sum + p.budgetPercentage, 0);
+  const usedPlatformIds = platforms.map(p => p.id).filter(id => id !== "");
 
-  const togglePlatform = (platformId: string) => {
-    setPlatforms(
-      platforms.map(p => 
-        p.id === platformId 
-          ? { 
-              ...p, 
-              enabled: !p.enabled,
-              markets: !p.enabled && p.markets.length === 0 
-                ? [{ id: `${platformId}-market-1`, name: "Market 1", budgetPercentage: 100, phases: [] }]
-                : p.markets
-            }
-          : p
-      )
-    );
+  const addPlatform = () => {
+    const newPlatform: PlatformWithMarkets = {
+      id: "",
+      name: "",
+      enabled: true,
+      budgetPercentage: 0,
+      markets: [{ id: `market-1-${Date.now()}`, name: "Market 1", budgetPercentage: 100, phases: [] }]
+    };
+    setPlatforms([...platforms, newPlatform]);
   };
 
-  const updatePlatformBudget = (platformId: string, percentage: number) => {
+  const removePlatform = (index: number) => {
+    setPlatforms(platforms.filter((_, i) => i !== index));
+  };
+
+  const updatePlatformSelection = (index: number, platformId: string) => {
+    const selectedPlatform = AVAILABLE_PLATFORMS.find(p => p.id === platformId);
+    if (selectedPlatform) {
+      setPlatforms(
+        platforms.map((p, i) => 
+          i === index 
+            ? { ...p, id: selectedPlatform.id, name: selectedPlatform.name }
+            : p
+        )
+      );
+    }
+  };
+
+  const duplicatePlatform = (index: number) => {
+    const platformToDup = platforms[index];
+    const newPlatform: PlatformWithMarkets = {
+      id: "",
+      name: "",
+      enabled: true,
+      budgetPercentage: platformToDup.budgetPercentage,
+      markets: platformToDup.markets.map(m => ({
+        ...m,
+        id: `${m.id}-dup-${Date.now()}`
+      }))
+    };
+    setPlatforms([...platforms, newPlatform]);
+  };
+
+  const updatePlatformBudget = (index: number, percentage: number) => {
     setPlatforms(
-      platforms.map(p => 
-        p.id === platformId 
+      platforms.map((p, i) => 
+        i === index 
           ? { ...p, budgetPercentage: Math.max(0, Math.min(100, percentage)) }
           : p
       )
     );
   };
 
-  const addMarket = (platformId: string) => {
+  const addMarket = (index: number) => {
     setPlatforms(
-      platforms.map(p => {
-        if (p.id === platformId) {
+      platforms.map((p, i) => {
+        if (i === index) {
+          const usedMarketNames = p.markets.map(m => m.name.toLowerCase());
+          let marketNum = p.markets.length + 1;
+          let marketName = `Market ${marketNum}`;
+          
+          while (usedMarketNames.includes(marketName.toLowerCase())) {
+            marketNum++;
+            marketName = `Market ${marketNum}`;
+          }
+          
           const newMarket: Market = {
-            id: `${platformId}-market-${p.markets.length + 1}-${Date.now()}`,
-            name: `Market ${p.markets.length + 1}`,
+            id: `market-${Date.now()}`,
+            name: marketName,
             budgetPercentage: 0,
             phases: []
           };
@@ -65,16 +110,25 @@ export function PlatformMarketBudgetSelector({
     );
   };
 
-  const duplicateMarket = (platformId: string, marketId: string) => {
+  const duplicateMarket = (platformIndex: number, marketId: string) => {
     setPlatforms(
-      platforms.map(p => {
-        if (p.id === platformId) {
+      platforms.map((p, i) => {
+        if (i === platformIndex) {
           const marketToDup = p.markets.find(m => m.id === marketId);
           if (marketToDup) {
+            const usedMarketNames = p.markets.map(m => m.name.toLowerCase());
+            let newName = `${marketToDup.name} (Copy)`;
+            let counter = 1;
+            
+            while (usedMarketNames.includes(newName.toLowerCase())) {
+              counter++;
+              newName = `${marketToDup.name} (Copy ${counter})`;
+            }
+            
             const newMarket: Market = {
               ...marketToDup,
-              id: `${platformId}-market-dup-${Date.now()}`,
-              name: `${marketToDup.name} (Copy)`,
+              id: `market-dup-${Date.now()}`,
+              name: newName,
             };
             return { ...p, markets: [...p.markets, newMarket] };
           }
@@ -84,20 +138,20 @@ export function PlatformMarketBudgetSelector({
     );
   };
 
-  const removeMarket = (platformId: string, marketId: string) => {
+  const removeMarket = (platformIndex: number, marketId: string) => {
     setPlatforms(
-      platforms.map(p => 
-        p.id === platformId 
+      platforms.map((p, i) => 
+        i === platformIndex 
           ? { ...p, markets: p.markets.filter(m => m.id !== marketId) }
           : p
       )
     );
   };
 
-  const updateMarketName = (platformId: string, marketId: string, name: string) => {
+  const updateMarketName = (platformIndex: number, marketId: string, name: string) => {
     setPlatforms(
-      platforms.map(p => 
-        p.id === platformId 
+      platforms.map((p, i) => 
+        i === platformIndex 
           ? { 
               ...p, 
               markets: p.markets.map(m => 
@@ -109,10 +163,10 @@ export function PlatformMarketBudgetSelector({
     );
   };
 
-  const updateMarketBudget = (platformId: string, marketId: string, percentage: number) => {
+  const updateMarketBudget = (platformIndex: number, marketId: string, percentage: number) => {
     setPlatforms(
-      platforms.map(p => 
-        p.id === platformId 
+      platforms.map((p, i) => 
+        i === platformIndex 
           ? { 
               ...p, 
               markets: p.markets.map(m => 
@@ -126,166 +180,185 @@ export function PlatformMarketBudgetSelector({
     );
   };
 
-  const duplicatePlatform = (platformId: string) => {
-    const platformToDup = platforms.find(p => p.id === platformId);
-    if (platformToDup) {
-      const newPlatform: PlatformWithMarkets = {
-        ...platformToDup,
-        id: `${platformId}-dup-${Date.now()}`,
-        name: `${platformToDup.name} (Copy)`,
-        budgetPercentage: 0,
-        markets: platformToDup.markets.map(m => ({
-          ...m,
-          id: `${platformId}-dup-${Date.now()}-${m.id}`
-        }))
-      };
-      setPlatforms([...platforms, newPlatform]);
-    }
+  const getAvailablePlatforms = (currentPlatformId: string) => {
+    return AVAILABLE_PLATFORMS.filter(
+      ap => !usedPlatformIds.includes(ap.id) || ap.id === currentPlatformId
+    );
   };
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Platform & Market Selection</CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle>Platform & Market Selection</CardTitle>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={addPlatform}
+            className="gap-1"
+            disabled={platforms.length >= AVAILABLE_PLATFORMS.length}
+          >
+            <Plus className="h-3 w-3" />
+            Add Platform
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="space-y-4">
-          {platforms.map((platform) => (
-            <div key={platform.id} className="space-y-3 p-4 border rounded-lg">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Checkbox
-                    id={platform.id}
-                    checked={platform.enabled}
-                    onCheckedChange={() => togglePlatform(platform.id)}
-                  />
-                  <Label htmlFor={platform.id} className="text-base font-medium cursor-pointer">
-                    {platform.name}
-                  </Label>
-                  {platform.enabled && (
+          {platforms.map((platform, platformIndex) => {
+            const availablePlatforms = getAvailablePlatforms(platform.id);
+            
+            return (
+              <div key={platformIndex} className="space-y-3 p-4 border rounded-lg">
+                <div className="flex items-center justify-between gap-3">
+                  <Select
+                    value={platform.id}
+                    onValueChange={(value) => updatePlatformSelection(platformIndex, value)}
+                  >
+                    <SelectTrigger className="w-[200px]">
+                      <SelectValue placeholder="Select platform" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availablePlatforms.map((ap) => (
+                        <SelectItem key={ap.id} value={ap.id}>
+                          {ap.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary">
+                      {platform.budgetPercentage.toFixed(1)}% (${((totalBudget * platform.budgetPercentage) / 100).toLocaleString()})
+                    </Badge>
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      onClick={() => duplicatePlatform(platform.id)}
-                      className="h-7 gap-1"
+                      onClick={() => duplicatePlatform(platformIndex)}
+                      className="h-7 w-7 p-0"
+                      disabled={platforms.length >= AVAILABLE_PLATFORMS.length}
                     >
                       <Copy className="h-3 w-3" />
-                      Duplicate
                     </Button>
-                  )}
-                </div>
-                {platform.enabled && (
-                  <Badge variant="secondary">
-                    {platform.budgetPercentage.toFixed(1)}% (${((totalBudget * platform.budgetPercentage) / 100).toLocaleString()})
-                  </Badge>
-                )}
-              </div>
-
-              {platform.enabled && (
-                <div className="space-y-4 ml-6">
-                  <div className="space-y-2">
-                    <Label className="text-sm">Platform Budget Allocation</Label>
-                    <Slider
-                      value={[platform.budgetPercentage]}
-                      onValueChange={([value]) => updatePlatformBudget(platform.id, value)}
-                      min={0}
-                      max={100}
-                      step={0.5}
-                      className="w-full"
-                    />
-                    <Input
-                      type="number"
-                      value={platform.budgetPercentage.toFixed(1)}
-                      onChange={(e) => updatePlatformBudget(platform.id, parseFloat(e.target.value) || 0)}
-                      className="h-8 text-sm"
-                      min="0"
-                      max="100"
-                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removePlatform(platformIndex)}
+                      className="h-7 w-7 p-0"
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
                   </div>
+                </div>
 
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-sm">Markets</Label>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => addMarket(platform.id)}
-                        className="h-7 gap-1"
-                      >
-                        <Plus className="h-3 w-3" />
-                        Add Market
-                      </Button>
+                {platform.id && (
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label className="text-sm">Platform Budget Allocation</Label>
+                      <Slider
+                        value={[platform.budgetPercentage]}
+                        onValueChange={([value]) => updatePlatformBudget(platformIndex, value)}
+                        min={0}
+                        max={100}
+                        step={0.5}
+                        className="w-full"
+                      />
+                      <Input
+                        type="number"
+                        value={platform.budgetPercentage.toFixed(1)}
+                        onChange={(e) => updatePlatformBudget(platformIndex, parseFloat(e.target.value) || 0)}
+                        className="h-8 text-sm"
+                        min="0"
+                        max="100"
+                      />
                     </div>
 
-                    {platform.markets.map((market) => {
-                      const marketBudget = (totalBudget * platform.budgetPercentage * market.budgetPercentage) / 10000;
-                      const marketAllocated = platform.markets.reduce((sum, m) => sum + m.budgetPercentage, 0);
-
-                      return (
-                        <div key={market.id} className="p-3 bg-muted/50 rounded-md space-y-2">
-                          <div className="flex items-center justify-between gap-2">
-                            <Input
-                              value={market.name}
-                              onChange={(e) => updateMarketName(platform.id, market.id, e.target.value)}
-                              className="h-7 text-sm flex-1"
-                              placeholder="Market name"
-                            />
-                            <div className="flex items-center gap-1">
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => duplicateMarket(platform.id, market.id)}
-                                className="h-7 w-7 p-0"
-                              >
-                                <Copy className="h-3 w-3" />
-                              </Button>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => removeMarket(platform.id, market.id)}
-                                className="h-7 w-7 p-0"
-                              >
-                                <X className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          </div>
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="text-muted-foreground">Market Budget</span>
-                              <Badge variant="outline" className="text-xs">
-                                {market.budgetPercentage.toFixed(1)}% (${marketBudget.toLocaleString()})
-                              </Badge>
-                            </div>
-                            <Slider
-                              value={[market.budgetPercentage]}
-                              onValueChange={([value]) => updateMarketBudget(platform.id, market.id, value)}
-                              min={0}
-                              max={100}
-                              step={0.5}
-                              className="w-full"
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
-
-                    {platform.markets.length > 0 && (
-                      <div className="text-xs text-muted-foreground">
-                        Total market allocation: {platform.markets.reduce((sum, m) => sum + m.budgetPercentage, 0).toFixed(1)}%
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm">Markets</Label>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => addMarket(platformIndex)}
+                          className="h-7 gap-1"
+                        >
+                          <Plus className="h-3 w-3" />
+                          Add Market
+                        </Button>
                       </div>
-                    )}
+
+                      {platform.markets.map((market) => {
+                        const marketBudget = (totalBudget * platform.budgetPercentage * market.budgetPercentage) / 10000;
+
+                        return (
+                          <div key={market.id} className="p-3 bg-muted/50 rounded-md space-y-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <Input
+                                value={market.name}
+                                onChange={(e) => updateMarketName(platformIndex, market.id, e.target.value)}
+                                className="h-7 text-sm flex-1"
+                                placeholder="Market name"
+                              />
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => duplicateMarket(platformIndex, market.id)}
+                                  className="h-7 w-7 p-0"
+                                >
+                                  <Copy className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => removeMarket(platformIndex, market.id)}
+                                  className="h-7 w-7 p-0"
+                                  disabled={platform.markets.length === 1}
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </div>
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-muted-foreground">Market Budget</span>
+                                <Badge variant="outline" className="text-xs">
+                                  {market.budgetPercentage.toFixed(1)}% (${marketBudget.toLocaleString()})
+                                </Badge>
+                              </div>
+                              <Slider
+                                value={[market.budgetPercentage]}
+                                onValueChange={([value]) => updateMarketBudget(platformIndex, market.id, value)}
+                                min={0}
+                                max={100}
+                                step={0.5}
+                                className="w-full"
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {platform.markets.length > 0 && (
+                        <div className="text-xs text-muted-foreground">
+                          Total market allocation: {platform.markets.reduce((sum, m) => sum + m.budgetPercentage, 0).toFixed(1)}%
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-          ))}
+                )}
+              </div>
+            );
+          })}
         </div>
 
-        {enabledPlatforms.length > 0 && (
+        {platforms.length > 0 && (
           <div className="pt-4 border-t space-y-2">
             <div className="flex items-center justify-between text-sm font-medium">
               <span>Total Platform Budget</span>

@@ -25,7 +25,7 @@ export function HierarchicalTimelineScheduler({
   const [expandedPlatforms, setExpandedPlatforms] = useState<Set<string>>(new Set());
   const [expandedMarkets, setExpandedMarkets] = useState<Set<string>>(new Set());
 
-  const enabledPlatforms = platforms.filter(p => p.enabled);
+  const enabledPlatforms = platforms.filter(p => p.id !== "");
 
   if (!startDate || !endDate) {
     return (

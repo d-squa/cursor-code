@@ -29,12 +29,7 @@ export function MediaPlanEditor() {
   const [saving, setSaving] = useState(false);
   const [genericConfig, setGenericConfig] = useState<GenericConfig>({});
   const [platformsWithMarkets, setPlatformsWithMarkets] = useState<PlatformWithMarkets[]>([
-    { id: "meta", name: "Meta", enabled: false, budgetPercentage: 0, markets: [] },
-    { id: "google", name: "Google Ads", enabled: false, budgetPercentage: 0, markets: [] },
-    { id: "linkedin", name: "LinkedIn", enabled: false, budgetPercentage: 0, markets: [] },
-    { id: "tiktok", name: "TikTok", enabled: false, budgetPercentage: 0, markets: [] },
-    { id: "snapchat", name: "Snapchat", enabled: false, budgetPercentage: 0, markets: [] },
-    { id: "pinterest", name: "Pinterest", enabled: false, budgetPercentage: 0, markets: [] },
+    { id: "", name: "", enabled: true, budgetPercentage: 0, markets: [{ id: "market-1", name: "Market 1", budgetPercentage: 100, phases: [] }] },
   ]);
   
   // Legacy platforms for step 5 (Platform Configuration)
@@ -48,11 +43,9 @@ export function MediaPlanEditor() {
   ]);
 
   const isActivationDetailsComplete = () => {
-    const hasEnabledPlatforms = platformsWithMarkets.some(p => p.enabled);
-    const allEnabledHaveMarkets = platformsWithMarkets
-      .filter(p => p.enabled)
-      .every(p => p.markets.length > 0);
-    return !!(campaignName.trim() && totalBudget && startDate && endDate && hasEnabledPlatforms && allEnabledHaveMarkets);
+    const allPlatformsSelected = platformsWithMarkets.every(p => p.id !== "");
+    const allHaveMarkets = platformsWithMarkets.every(p => p.markets.length > 0);
+    return !!(campaignName.trim() && totalBudget && startDate && endDate && allPlatformsSelected && allHaveMarkets);
   };
 
   const isStrategyComplete = () => {
@@ -116,15 +109,15 @@ export function MediaPlanEditor() {
   };
 
   const handleExport = () => {
+    const selectedPlatforms = platformsWithMarkets.filter(p => p.id !== "");
     const campaignData = {
       name: campaignName,
       objective: genericConfig.strategyFocus,
       totalBudget,
       startDate,
       endDate,
-      platforms: platformsWithMarkets.filter(p => p.enabled),
-      budgetAllocation: platformsWithMarkets
-        .filter(p => p.enabled)
+      platforms: selectedPlatforms,
+      budgetAllocation: selectedPlatforms
         .reduce((acc, p) => ({ ...acc, [p.id]: p.budgetPercentage }), {}),
     };
     
@@ -145,8 +138,8 @@ export function MediaPlanEditor() {
 
     setSaving(true);
     try {
-      const budgetAllocation = platformsWithMarkets
-        .filter(p => p.enabled)
+      const selectedPlatforms = platformsWithMarkets.filter(p => p.id !== "");
+      const budgetAllocation = selectedPlatforms
         .reduce((acc, p) => ({ ...acc, [p.id]: p.budgetPercentage }), {});
 
       const { error } = await supabase.from("campaigns").insert({
@@ -156,7 +149,7 @@ export function MediaPlanEditor() {
         total_budget: parseFloat(totalBudget) || 0,
         start_date: startDate || null,
         end_date: endDate || null,
-        platforms: platformsWithMarkets.filter(p => p.enabled).map(p => ({ id: p.id, name: p.name })),
+        platforms: selectedPlatforms.map(p => ({ id: p.id, name: p.name })),
         budget_allocation: budgetAllocation,
         status: "active",
       });
