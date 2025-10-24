@@ -156,7 +156,7 @@ export function GenericStrategyConfig({
                 Back
               </Button>
               <Button onClick={onNext} disabled={!isTargetingComplete}>
-                Next: Phase Scheduling
+                Next: Platform Selection
               </Button>
             </div>
           </CardContent>
@@ -166,7 +166,7 @@ export function GenericStrategyConfig({
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Step 4: Phase Scheduling</CardTitle>
+                <CardTitle>Phase Scheduling</CardTitle>
                 <CardDescription>Configure phase timing for your strategy</CardDescription>
               </div>
             </div>
@@ -203,7 +203,7 @@ export function GenericStrategyConfig({
               </div>
             )}
 
-            {config.hasPhases && startDate && endDate ? (
+            {(startDate && endDate && (config.hasPhases || config.strategy === "full-funnel")) ? (
               <PhaseScheduler
                 phases={config.phases || []}
                 onPhasesChange={(phases) => updateConfig("phases", phases)}
@@ -211,13 +211,13 @@ export function GenericStrategyConfig({
                 endDate={endDate}
               />
             ) : (
-              config.hasPhases ? (
-                <p className="text-sm text-muted-foreground">Set activation start and end dates to schedule phases.</p>
-              ) : (
-                config.strategy === "partial" ? (
-                  <p className="text-sm text-muted-foreground">Enable phasing to schedule multiple phases for your campaign.</p>
-                ) : null
-              )
+              <p className="text-sm text-muted-foreground">
+                {startDate && endDate
+                  ? (config.strategy === "partial"
+                      ? "Enable phasing to schedule multiple phases for your campaign."
+                      : "Phase scheduling is required for full-funnel strategies.")
+                  : "Set activation start and end dates to schedule phases."}
+              </p>
             )}
 
             <div className="flex justify-between pt-4">
@@ -225,7 +225,7 @@ export function GenericStrategyConfig({
                 Back
               </Button>
               <Button onClick={onNext} disabled={!isPhaseSchedulerComplete}>
-                Next: Platform Selection
+                Next
               </Button>
             </div>
           </CardContent>

@@ -316,7 +316,7 @@ export function MediaPlanEditor() {
                   onClick={() => setCurrentStep(3)} 
                   disabled={!isStrategyComplete()}
                 >
-                  Next: Targeting
+                  Next: Phase Scheduling
                 </Button>
               </div>
             </CardContent>
@@ -337,31 +337,31 @@ export function MediaPlanEditor() {
         </Card>
       )}
 
-      {/* Step 3: Targeting */}
-      {currentStep >= 3 && (
+      {/* Step 3: Phase Scheduling */}
+      {currentStep === 3 && (
         <GenericStrategyConfig
           config={genericConfig}
           setConfig={setGenericConfig}
           startDate={startDate}
           endDate={endDate}
-          showOnlyTargeting={currentStep === 3}
+          showOnlyPhaseScheduler
           onNext={() => setCurrentStep(4)}
           onBack={() => setCurrentStep(2)}
-          isTargetingComplete={isTargetingComplete()}
+          isPhaseSchedulerComplete={isPhaseSchedulerComplete()}
         />
       )}
 
-      {/* Step 4: Phase Scheduling */}
-      {currentStep >= 4 && (
+      {/* Step 4: Targeting */}
+      {currentStep === 4 && (
         <GenericStrategyConfig
           config={genericConfig}
           setConfig={setGenericConfig}
           startDate={startDate}
           endDate={endDate}
-          showOnlyPhaseScheduler={currentStep === 4}
+          showOnlyTargeting
           onNext={() => setCurrentStep(5)}
           onBack={() => setCurrentStep(3)}
-          isPhaseSchedulerComplete={isPhaseSchedulerComplete()}
+          isTargetingComplete={isTargetingComplete()}
         />
       )}
 
