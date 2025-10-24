@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PlatformSelector } from "./PlatformSelector";
 import { BudgetAllocation } from "./BudgetAllocation";
+import { CampaignMetrics } from "./CampaignMetrics";
 import { Calendar, Download, Rocket, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -162,6 +163,8 @@ export function MediaPlanEditor() {
       <PlatformSelector platforms={platforms} setPlatforms={setPlatforms} />
 
       <BudgetAllocation platforms={platforms} setPlatforms={setPlatforms} totalBudget={parseFloat(totalBudget) || 0} />
+
+      <CampaignMetrics platforms={platforms} totalBudget={parseFloat(totalBudget) || 0} />
 
       <Card>
         <CardContent className="pt-6">
