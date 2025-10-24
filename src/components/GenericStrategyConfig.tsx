@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { PhaseScheduler } from "./PhaseScheduler";
+import { HierarchicalPhaseScheduler } from "./HierarchicalPhaseScheduler";
 import { Phase, Campaign } from "./PlatformConfiguration";
 
 export interface GenericConfig {
@@ -26,6 +27,8 @@ interface GenericStrategyConfigProps {
   setConfig: (config: GenericConfig) => void;
   startDate: string;
   endDate: string;
+  platforms?: any[];
+  setPlatforms?: (platforms: any[]) => void;
   showOnlyTargeting?: boolean;
   showOnlyPhaseScheduler?: boolean;
   onNext?: () => void;
@@ -39,6 +42,8 @@ export function GenericStrategyConfig({
   setConfig, 
   startDate, 
   endDate,
+  platforms,
+  setPlatforms,
   showOnlyTargeting = false,
   showOnlyPhaseScheduler = false,
   onNext,
@@ -100,8 +105,8 @@ export function GenericStrategyConfig({
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Step 3: Targeting</CardTitle>
-                <CardDescription>Define your target audience</CardDescription>
+                <CardTitle>Step 4: Targeting</CardTitle>
+                <CardDescription>Define your target audience (applies generically across all platforms)</CardDescription>
               </div>
             </div>
           </CardHeader>
@@ -156,7 +161,7 @@ export function GenericStrategyConfig({
                 Back
               </Button>
               <Button onClick={onNext} disabled={!isTargetingComplete}>
-                Next: Platform Selection
+                Next: Platform Customization
               </Button>
             </div>
           </CardContent>
@@ -166,8 +171,8 @@ export function GenericStrategyConfig({
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Phase Scheduling</CardTitle>
-                <CardDescription>Configure phase timing for your strategy</CardDescription>
+                <CardTitle>Step 3: Phase Scheduling</CardTitle>
+                <CardDescription>Configure phase timing and budget allocation hierarchy</CardDescription>
               </div>
             </div>
           </CardHeader>
@@ -204,13 +209,24 @@ export function GenericStrategyConfig({
             )}
 
             {(startDate && endDate && (config.hasPhases || config.strategy === "full-funnel")) ? (
-              <PhaseScheduler
-                phases={config.phases || []}
-                onPhasesChange={(phases) => updateConfig("phases", phases)}
-                startDate={startDate}
-                endDate={endDate}
-                platformId="meta"
-              />
+              platforms && platforms.length > 0 && setPlatforms ? (
+                <HierarchicalPhaseScheduler
+                  platforms={platforms}
+                  setPlatforms={setPlatforms}
+                  phases={config.phases || []}
+                  onPhasesChange={(phases) => updateConfig("phases", phases)}
+                  startDate={startDate}
+                  endDate={endDate}
+                />
+              ) : (
+                <PhaseScheduler
+                  phases={config.phases || []}
+                  onPhasesChange={(phases) => updateConfig("phases", phases)}
+                  startDate={startDate}
+                  endDate={endDate}
+                  platformId="meta"
+                />
+              )
             ) : (
               <p className="text-sm text-muted-foreground">
                 {startDate && endDate

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PlatformSelector } from "./PlatformSelector";
+import { PlatformMarketSelector, PlatformWithMarkets } from "./PlatformMarketSelector";
 import { BudgetSummary } from "./BudgetSummary";
 import { CampaignMetrics } from "./CampaignMetrics";
 import { GenericStrategyConfig, GenericConfig } from "./GenericStrategyConfig";
@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
 import { Platform, PlatformConfiguration } from "./PlatformConfiguration";
+import { mapObjectiveToPlatform } from "@/utils/objectiveMapping";
 
 
 export function MediaPlanEditor() {
@@ -26,17 +27,29 @@ export function MediaPlanEditor() {
   const [endDate, setEndDate] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [genericConfig, setGenericConfig] = useState<GenericConfig>({});
-  const [platforms, setPlatforms] = useState<Platform[]>([
-    { id: "meta", name: "Meta", enabled: false, budgetPercentage: 0 },
-    { id: "google", name: "Google Ads", enabled: false, budgetPercentage: 0 },
-    { id: "linkedin", name: "LinkedIn", enabled: false, budgetPercentage: 0 },
-    { id: "tiktok", name: "TikTok", enabled: false, budgetPercentage: 0 },
-    { id: "snapchat", name: "Snapchat", enabled: false, budgetPercentage: 0 },
-    { id: "pinterest", name: "Pinterest", enabled: false, budgetPercentage: 0 },
+  const [platforms, setPlatforms] = useState<PlatformWithMarkets[]>([
+    { id: "meta", name: "Meta", enabled: false, budgetPercentage: 0, markets: [] },
+    { id: "google", name: "Google Ads", enabled: false, budgetPercentage: 0, markets: [] },
+    { id: "linkedin", name: "LinkedIn", enabled: false, budgetPercentage: 0, markets: [] },
+    { id: "tiktok", name: "TikTok", enabled: false, budgetPercentage: 0, markets: [] },
+    { id: "snapchat", name: "Snapchat", enabled: false, budgetPercentage: 0, markets: [] },
+    { id: "pinterest", name: "Pinterest", enabled: false, budgetPercentage: 0, markets: [] },
   ]);
+  const [platformConfigs, setPlatformConfigs] = useState<Platform[]>([]);
 
   const isActivationDetailsComplete = () => {
-    return !!(campaignName.trim() && totalBudget && startDate && endDate);
+    const hasEnabledPlatforms = platforms.some(p => p.enabled);
+    const allEnabledPlatformsHaveMarkets = platforms
+      .filter(p => p.enabled)
+      .every(p => p.markets.length > 0 && p.markets.every(m => m.name.trim()));
+    return !!(
+      campaignName.trim() && 
+      totalBudget && 
+      startDate && 
+      endDate && 
+      hasEnabledPlatforms && 
+      allEnabledPlatformsHaveMarkets
+    );
   };
 
   const isStrategyComplete = () => {
@@ -56,24 +69,26 @@ export function MediaPlanEditor() {
     );
   };
 
-  const handlePlatformToggle = (updatedPlatforms: Platform[]) => {
-    // When a platform is enabled, copy generic config to it
-    const newPlatforms = updatedPlatforms.map((platform, idx) => {
-      const oldPlatform = platforms[idx];
-      if (platform.enabled && !oldPlatform.enabled && genericConfig.strategy) {
-        // Platform just got enabled, copy generic config
-        return {
-          ...platform,
-          config: {
-            ...genericConfig,
-            campaigns: genericConfig.campaigns?.map(c => ({ ...c })),
-            phases: genericConfig.phases?.map(p => ({ ...p })),
-          }
-        };
-      }
-      return platform;
-    });
-    setPlatforms(newPlatforms);
+  const handlePlatformConfigInit = () => {
+    // Initialize platform configs from platforms with markets
+    const configs: Platform[] = platforms
+      .filter(p => p.enabled)
+      .map(p => ({
+        id: p.id,
+        name: p.name,
+        enabled: true,
+        budgetPercentage: p.budgetPercentage,
+        config: {
+          ...genericConfig,
+          campaigns: genericConfig.campaigns?.map(c => ({
+            ...c,
+            // Auto-map objectives to platform-specific values
+            objective: c.objective ? mapObjectiveToPlatform(c.objective, p.id) : undefined,
+          })),
+          phases: genericConfig.phases?.map(phase => ({ ...phase })),
+        },
+      }));
+    setPlatformConfigs(configs);
   };
 
   const isGenericConfigComplete = () => {
@@ -81,9 +96,8 @@ export function MediaPlanEditor() {
   };
 
   const isAllPlatformsConfigured = () => {
-    const enabledPlatforms = platforms.filter(p => p.enabled);
-    if (enabledPlatforms.length === 0) return false;
-    return enabledPlatforms.every(p => {
+    if (platformConfigs.length === 0) return false;
+    return platformConfigs.every(p => {
       if (!p.config) return false;
       const { strategy, strategyFocus, campaigns } = p.config;
       if (!strategy || !strategyFocus) return false;
@@ -222,6 +236,8 @@ export function MediaPlanEditor() {
               </div>
             </div>
 
+            <PlatformMarketSelector platforms={platforms} setPlatforms={setPlatforms} />
+
             <div className="flex justify-end pt-4">
               <Button 
                 onClick={() => setCurrentStep(2)} 
@@ -246,6 +262,12 @@ export function MediaPlanEditor() {
                 <span>Duration:</span>
                 <span className="font-medium text-foreground">
                   {startDate && endDate && `${format(parseISO(startDate), "MMM d")} - ${format(parseISO(endDate), "MMM d, yyyy")}`}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span>Platforms:</span>
+                <span className="font-medium text-foreground">
+                  {platforms.filter(p => p.enabled).map(p => p.name).join(", ")}
                 </span>
               </div>
             </div>
@@ -338,50 +360,56 @@ export function MediaPlanEditor() {
       )}
 
       {/* Step 3: Phase Scheduling */}
-      {currentStep === 3 && (
+      {currentStep >= 3 && (
         <GenericStrategyConfig
           config={genericConfig}
           setConfig={setGenericConfig}
           startDate={startDate}
           endDate={endDate}
-          showOnlyPhaseScheduler
-          onNext={() => setCurrentStep(4)}
-          onBack={() => setCurrentStep(2)}
+          platforms={platforms}
+          setPlatforms={setPlatforms}
+          showOnlyPhaseScheduler={currentStep === 3}
+          showOnlyTargeting={currentStep === 4}
+          onNext={() => setCurrentStep(currentStep + 1)}
+          onBack={() => setCurrentStep(currentStep - 1)}
           isPhaseSchedulerComplete={isPhaseSchedulerComplete()}
-        />
-      )}
-
-      {/* Step 4: Targeting */}
-      {currentStep === 4 && (
-        <GenericStrategyConfig
-          config={genericConfig}
-          setConfig={setGenericConfig}
-          startDate={startDate}
-          endDate={endDate}
-          showOnlyTargeting
-          onNext={() => setCurrentStep(5)}
-          onBack={() => setCurrentStep(3)}
           isTargetingComplete={isTargetingComplete()}
         />
       )}
 
-      {/* Step 5: Platform Selection & Configuration */}
-      {currentStep >= 5 && isGenericConfigComplete() && (
+      {/* Step 5: Platform Customization */}
+      {currentStep === 5 && isGenericConfigComplete() && (
         <>
-          <PlatformSelector platforms={platforms} setPlatforms={handlePlatformToggle} />
+          <Card>
+            <CardHeader>
+              <CardTitle>Step 5: Platform Customization</CardTitle>
+              <CardDescription>Review and customize platform-specific settings inherited from your strategy</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {platformConfigs.length === 0 && (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground mb-4">Initialize platform configurations based on your generic strategy</p>
+                  <Button onClick={handlePlatformConfigInit}>
+                    Initialize Platform Configurations
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
-          {platforms.some(p => p.enabled) && (
+          {platformConfigs.length > 0 && (
             <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
               <div className="space-y-6">
                 <PlatformConfiguration 
-                  platforms={platforms} 
-                  setPlatforms={setPlatforms} 
+                  platforms={platformConfigs} 
+                  setPlatforms={setPlatformConfigs} 
                   startDate={startDate}
                   endDate={endDate}
+                  genericConfig={genericConfig}
                 />
 
                 {isAllPlatformsConfigured() && (
-                  <CampaignMetrics platforms={platforms} totalBudget={parseFloat(totalBudget) || 0} />
+                  <CampaignMetrics platforms={platformConfigs} totalBudget={parseFloat(totalBudget) || 0} />
                 )}
 
                 <Card>
@@ -411,8 +439,8 @@ export function MediaPlanEditor() {
 
               <div className="lg:block hidden">
                 <BudgetSummary 
-                  platforms={platforms} 
-                  setPlatforms={setPlatforms} 
+                  platforms={platformConfigs} 
+                  setPlatforms={setPlatformConfigs} 
                   totalBudget={parseFloat(totalBudget) || 0}
                   startDate={startDate}
                   endDate={endDate}
