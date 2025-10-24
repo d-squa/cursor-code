@@ -109,39 +109,28 @@ export function MediaPlanEditor() {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Campaign Details</CardTitle>
-          <CardDescription>Define your campaign's core parameters</CardDescription>
+          <CardTitle>Activation Details</CardTitle>
+          <CardDescription>Define your activation's core parameters</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-2">
-            <Label htmlFor="name">Campaign Name</Label>
+            <Label htmlFor="name">Activation Name</Label>
             <Input
               id="name"
               value={campaignName}
               onChange={(e) => setCampaignName(e.target.value)}
-              placeholder="e.g., Q1 2024 Brand Campaign"
+              placeholder="e.g., Q1 2024 Brand Activation"
             />
           </div>
-          <div className="grid gap-6 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="budget">Total Budget ($)</Label>
-              <Input
-                id="budget"
-                type="number"
-                value={totalBudget}
-                onChange={(e) => setTotalBudget(e.target.value)}
-                placeholder="Enter total budget"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="objective">Campaign Objective</Label>
-              <Input
-                id="objective"
-                value={objective}
-                onChange={(e) => setObjective(e.target.value)}
-                placeholder="e.g., Brand Awareness, Conversions"
-              />
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="budget">Total Activation Budget ($)</Label>
+            <Input
+              id="budget"
+              type="number"
+              value={totalBudget}
+              onChange={(e) => setTotalBudget(e.target.value)}
+              placeholder="Enter total budget"
+            />
           </div>
 
           <div className="grid gap-6 md:grid-cols-2">
@@ -175,14 +164,14 @@ export function MediaPlanEditor() {
 
       <PlatformSelector platforms={platforms} setPlatforms={setPlatforms} />
 
+      <BudgetAllocation platforms={platforms} setPlatforms={setPlatforms} totalBudget={parseFloat(totalBudget) || 0} />
+
       <PlatformConfiguration 
         platforms={platforms} 
         setPlatforms={setPlatforms} 
         startDate={startDate}
         endDate={endDate}
       />
-
-      <BudgetAllocation platforms={platforms} setPlatforms={setPlatforms} totalBudget={parseFloat(totalBudget) || 0} />
 
       {isAllPlatformsConfigured() && (
         <CampaignMetrics platforms={platforms} totalBudget={parseFloat(totalBudget) || 0} />

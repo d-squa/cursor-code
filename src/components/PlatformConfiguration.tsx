@@ -4,8 +4,21 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+
+export interface Phase {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  budgetPercentage: number;
+}
 
 export interface PlatformConfig {
+  strategy?: "full-funnel" | "partial";
+  strategyFocus?: "purchase" | "leads" | "app-installs" | "conversions" | "brand-awareness";
+  hasPhases?: boolean;
+  phases?: Phase[];
   objective?: string;
   campaignType?: string;
   optimizationGoal?: string;
@@ -80,10 +93,81 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
     );
   };
 
+  const addPhase = (platformId: string) => {
+    setPlatforms(
+      platforms.map(p => {
+        if (p.id === platformId) {
+          const phases = p.config?.phases || [];
+          const newPhase: Phase = {
+            id: `phase-${Date.now()}`,
+            name: `Phase ${phases.length + 1}`,
+            startDate: "",
+            endDate: "",
+            budgetPercentage: 0,
+          };
+          return {
+            ...p,
+            config: {
+              ...p.config,
+              phases: [...phases, newPhase],
+            }
+          };
+        }
+        return p;
+      })
+    );
+  };
+
+  const updatePhase = (platformId: string, phaseId: string, field: keyof Phase, value: any) => {
+    setPlatforms(
+      platforms.map(p => {
+        if (p.id === platformId && p.config?.phases) {
+          return {
+            ...p,
+            config: {
+              ...p.config,
+              phases: p.config.phases.map(phase =>
+                phase.id === phaseId ? { ...phase, [field]: value } : phase
+              ),
+            }
+          };
+        }
+        return p;
+      })
+    );
+  };
+
+  const removePhase = (platformId: string, phaseId: string) => {
+    setPlatforms(
+      platforms.map(p => {
+        if (p.id === platformId && p.config?.phases) {
+          return {
+            ...p,
+            config: {
+              ...p.config,
+              phases: p.config.phases.filter(phase => phase.id !== phaseId),
+            }
+          };
+        }
+        return p;
+      })
+    );
+  };
+
   const isConfigComplete = (platform: Platform): boolean => {
     if (!platform.config) return false;
-    const { objective, campaignType, optimizationGoal, targeting } = platform.config;
-    return !!(
+    const { strategy, strategyFocus, hasPhases, phases, objective, campaignType, optimizationGoal, targeting } = platform.config;
+    
+    const basicComplete = !!(strategy && strategyFocus);
+    
+    if (hasPhases) {
+      const phasesComplete = phases && phases.length > 0 && phases.every(p => 
+        p.name && p.startDate && p.endDate && p.budgetPercentage > 0
+      );
+      if (!phasesComplete) return false;
+    }
+    
+    const detailsComplete = !!(
       objective &&
       campaignType &&
       optimizationGoal &&
@@ -91,6 +175,8 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
       targeting?.ageMin &&
       targeting?.ageMax
     );
+    
+    return basicComplete && detailsComplete;
   };
 
   if (enabledPlatforms.length === 0) {
@@ -118,7 +204,129 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
 
           {enabledPlatforms.map(platform => (
             <TabsContent key={platform.id} value={platform.id} className="space-y-6 mt-6">
-              <div className="grid gap-6 md:grid-cols-2">
+              {/* Strategy Selection */}
+              <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
+                <h4 className="font-semibold text-lg">Strategy Selection</h4>
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Strategy Type</Label>
+                    <Select
+                      value={platform.config?.strategy}
+                      onValueChange={(value) => updatePlatformConfig(platform.id, "strategy", value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select strategy" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="full-funnel">Full-Funnel</SelectItem>
+                        <SelectItem value="partial">Partial Strategy</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Strategy Focus</Label>
+                    <Select
+                      value={platform.config?.strategyFocus}
+                      onValueChange={(value) => updatePlatformConfig(platform.id, "strategyFocus", value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select focus" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="purchase">Purchase</SelectItem>
+                        <SelectItem value="leads">Leads</SelectItem>
+                        <SelectItem value="app-installs">App Installs</SelectItem>
+                        <SelectItem value="conversions">Conversions</SelectItem>
+                        <SelectItem value="brand-awareness">Brand Awareness</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id={`phases-${platform.id}`}
+                    checked={platform.config?.hasPhases || false}
+                    onChange={(e) => updatePlatformConfig(platform.id, "hasPhases", e.target.checked)}
+                    className="w-4 h-4"
+                  />
+                  <Label htmlFor={`phases-${platform.id}`}>Split strategy into phases</Label>
+                </div>
+
+                {platform.config?.hasPhases && (
+                  <div className="space-y-4 mt-4">
+                    <div className="flex items-center justify-between">
+                      <h5 className="font-medium">Phases</h5>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => addPhase(platform.id)}
+                      >
+                        Add Phase
+                      </Button>
+                    </div>
+
+                    {platform.config.phases?.map((phase, index) => (
+                      <div key={phase.id} className="p-4 border rounded-lg space-y-4 bg-background">
+                        <div className="flex items-center justify-between">
+                          <Input
+                            value={phase.name}
+                            onChange={(e) => updatePhase(platform.id, phase.id, "name", e.target.value)}
+                            placeholder="Phase name"
+                            className="max-w-xs"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removePhase(platform.id, phase.id)}
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                        
+                        <div className="grid gap-4 md:grid-cols-3">
+                          <div className="space-y-2">
+                            <Label>Start Date</Label>
+                            <Input
+                              type="date"
+                              value={phase.startDate}
+                              onChange={(e) => updatePhase(platform.id, phase.id, "startDate", e.target.value)}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>End Date</Label>
+                            <Input
+                              type="date"
+                              value={phase.endDate}
+                              onChange={(e) => updatePhase(platform.id, phase.id, "endDate", e.target.value)}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Budget %</Label>
+                            <Input
+                              type="number"
+                              value={phase.budgetPercentage}
+                              onChange={(e) => updatePhase(platform.id, phase.id, "budgetPercentage", parseFloat(e.target.value) || 0)}
+                              placeholder="0"
+                              min="0"
+                              max="100"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Detailed Configuration */}
+              <div className="space-y-4">
+                <h4 className="font-semibold text-lg">Campaign Configuration</h4>
+                <div className="grid gap-6 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Campaign Objective</Label>
                   <Select
@@ -206,26 +414,27 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
                     />
                   </div>
                 </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label>Placements</Label>
-                <Input
-                  value={platform.config?.targeting?.placements?.join(", ") || ""}
-                  onChange={(e) => updateTargeting(platform.id, "placements", e.target.value.split(",").map(s => s.trim()).filter(Boolean))}
-                  placeholder="e.g., Feed, Stories, Reels"
-                />
-              </div>
+                <div className="space-y-2">
+                  <Label>Placements</Label>
+                  <Input
+                    value={platform.config?.targeting?.placements?.join(", ") || ""}
+                    onChange={(e) => updateTargeting(platform.id, "placements", e.target.value.split(",").map(s => s.trim()).filter(Boolean))}
+                    placeholder="e.g., Feed, Stories, Reels"
+                  />
+                </div>
 
-              <div className="grid gap-6 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Start Date</Label>
-                  <Input type="date" value={startDate} disabled className="bg-muted" />
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Start Date</Label>
+                    <Input type="date" value={startDate} disabled className="bg-muted" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>End Date</Label>
+                    <Input type="date" value={endDate} disabled className="bg-muted" />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>End Date</Label>
-                  <Input type="date" value={endDate} disabled className="bg-muted" />
-                </div>
+              </div>
               </div>
             </TabsContent>
           ))}
