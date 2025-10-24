@@ -4,13 +4,15 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { AdFormatSelector } from "./AdFormatSelector";
 
 export interface TargetingConfig {
+  adFormats?: string[];
   ageMin?: number;
   ageMax?: number;
   genders?: string[];
   devices?: string[];
-  placements?: string;
+  placements?: string[];
   targetingExpansion?: boolean;
   os?: string[];
   language?: string;
@@ -32,6 +34,8 @@ export function TargetingConfigComponent({ targeting, onUpdate, platformName }: 
     onUpdate({ ...targeting, [field]: value });
   };
 
+  const ageOptions = Array.from({ length: 53 }, (_, i) => 13 + i); // Ages 13-65
+
   return (
     <Card>
       <CardHeader>
@@ -39,31 +43,49 @@ export function TargetingConfigComponent({ targeting, onUpdate, platformName }: 
         <CardDescription className="text-sm">Define audience targeting for {platformName}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Ad Formats */}
+        <div className="space-y-2">
+          <Label>Ad Formats</Label>
+          <AdFormatSelector
+            platformName={platformName}
+            selectedFormats={targeting.adFormats || []}
+            onFormatsChange={(formats) => updateField("adFormats", formats)}
+          />
+        </div>
+
         {/* Age & Gender */}
         <div className="grid gap-4 md:grid-cols-3">
           <div className="space-y-2">
             <Label htmlFor="age-min">Min Age</Label>
-            <Input
-              id="age-min"
-              type="number"
-              value={targeting.ageMin || ""}
-              onChange={(e) => updateField("ageMin", parseInt(e.target.value) || undefined)}
-              placeholder="18"
-              min="13"
-              max="65"
-            />
+            <Select
+              value={targeting.ageMin?.toString() || ""}
+              onValueChange={(value) => updateField("ageMin", value ? parseInt(value) : undefined)}
+            >
+              <SelectTrigger id="age-min">
+                <SelectValue placeholder="Select min age" />
+              </SelectTrigger>
+              <SelectContent className="max-h-60">
+                {ageOptions.map(age => (
+                  <SelectItem key={age} value={age.toString()}>{age}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-2">
             <Label htmlFor="age-max">Max Age</Label>
-            <Input
-              id="age-max"
-              type="number"
-              value={targeting.ageMax || ""}
-              onChange={(e) => updateField("ageMax", parseInt(e.target.value) || undefined)}
-              placeholder="65"
-              min="13"
-              max="65"
-            />
+            <Select
+              value={targeting.ageMax?.toString() || ""}
+              onValueChange={(value) => updateField("ageMax", value ? parseInt(value) : undefined)}
+            >
+              <SelectTrigger id="age-max">
+                <SelectValue placeholder="Select max age" />
+              </SelectTrigger>
+              <SelectContent className="max-h-60">
+                {ageOptions.map(age => (
+                  <SelectItem key={age} value={age.toString()}>{age}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-2">
             <Label htmlFor="gender">Gender</Label>
@@ -86,29 +108,31 @@ export function TargetingConfigComponent({ targeting, onUpdate, platformName }: 
         {/* Devices */}
         <div className="space-y-2">
           <Label htmlFor="devices">Devices</Label>
-          <Input
-            id="devices"
-            value={targeting.devices?.join(", ") || ""}
-            onChange={(e) => updateField("devices", e.target.value.split(",").map(s => s.trim()).filter(Boolean))}
-            placeholder="Mobile, Desktop, Tablet"
-          />
+          <Select
+            value={targeting.devices?.[0] || "all"}
+            onValueChange={(value) => updateField("devices", value === "all" ? [] : [value])}
+          >
+            <SelectTrigger id="devices">
+              <SelectValue placeholder="Select device" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="mobile">Mobile</SelectItem>
+              <SelectItem value="desktop">Desktop</SelectItem>
+              <SelectItem value="tablet">Tablet</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Placements */}
         <div className="space-y-2">
           <Label htmlFor="placements">Placements</Label>
-          <Select
-            value={targeting.placements || "automatic"}
-            onValueChange={(value) => updateField("placements", value)}
-          >
-            <SelectTrigger id="placements">
-              <SelectValue placeholder="Select placements" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="automatic">Automatic (based on selected ad formats)</SelectItem>
-              <SelectItem value="manual">Manual</SelectItem>
-            </SelectContent>
-          </Select>
+          <Input
+            id="placements"
+            value={targeting.placements?.join(", ") || ""}
+            onChange={(e) => updateField("placements", e.target.value.split(",").map(s => s.trim()).filter(Boolean))}
+            placeholder="Automatic (based on selected ad formats) or enter custom placements"
+          />
         </div>
 
         {/* Targeting Expansion */}
