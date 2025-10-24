@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { X } from "lucide-react";
-import { platformAdFormats } from "@/utils/adFormats";
+import { platformAdFormats, platformIdToAdFormatKey } from "@/utils/adFormats";
 import { MultiSelect } from "@/components/ui/multi-select";
 
 interface AdFormatSelectorProps {
@@ -10,7 +10,9 @@ interface AdFormatSelectorProps {
 }
 
 export function AdFormatSelector({ platformName, selectedFormats, onFormatsChange }: AdFormatSelectorProps) {
-  const availableFormats = platformAdFormats[platformName] || [];
+  // Map platform name to correct ad format key
+  const adFormatKey = platformIdToAdFormatKey[platformName] || platformName;
+  const availableFormats = platformAdFormats[adFormatKey] || [];
 
   const options = availableFormats.map((f) => ({ value: f, label: f }));
 

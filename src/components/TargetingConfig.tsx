@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { AdFormatSelector } from "./AdFormatSelector";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { getPlacementsForSelection } from "@/utils/placements";
+import { platformIdToAdFormatKey } from "@/utils/adFormats";
 import { useMemo } from "react";
 
 export interface TargetingConfig {
@@ -39,9 +40,11 @@ export function TargetingConfigComponent({ targeting, onUpdate, platformName }: 
 
   const ageOptions = Array.from({ length: 53 }, (_, i) => 13 + i); // Ages 13-65
 
+  // Map platform name to correct ad format key for placements
+  const adFormatKey = platformIdToAdFormatKey[platformName] || platformName;
   const dynamicPlacements = useMemo(
-    () => getPlacementsForSelection(platformName, targeting.adFormats || []),
-    [platformName, targeting.adFormats]
+    () => getPlacementsForSelection(adFormatKey, targeting.adFormats || []),
+    [adFormatKey, targeting.adFormats]
   );
 
   return (

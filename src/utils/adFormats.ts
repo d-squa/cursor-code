@@ -1,3 +1,23 @@
+// Platform ID to ad format platform name mapping
+export const platformIdToAdFormatKey: Record<string, string> = {
+  "meta": "Facebook (Meta)",
+  "Meta": "Facebook (Meta)",
+  "instagram": "Instagram (Meta)",
+  "Instagram": "Instagram (Meta)",
+  "google": "YouTube (Google)",
+  "Google Ads": "YouTube (Google)",
+  "x": "X (formerly Twitter)",
+  "twitter": "X (formerly Twitter)",
+  "linkedin": "LinkedIn",
+  "LinkedIn": "LinkedIn",
+  "tiktok": "TikTok",
+  "TikTok": "TikTok",
+  "snapchat": "Snapchat",
+  "Snapchat": "Snapchat",
+  "pinterest": "Pinterest",
+  "Pinterest": "Pinterest",
+};
+
 // Platform ad formats mapping
 export const platformAdFormats: Record<string, string[]> = {
   "Facebook (Meta)": [

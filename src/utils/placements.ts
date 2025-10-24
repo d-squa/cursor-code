@@ -1,3 +1,5 @@
+import { platformIdToAdFormatKey } from "./adFormats";
+
 // Platform + AdFormat -> Placements mapping
 export const placementsByPlatformAndFormat: Record<string, Record<string, string[]>> = {
   "Facebook (Meta)": {
@@ -73,7 +75,9 @@ export const placementsByPlatformAndFormat: Record<string, Record<string, string
 };
 
 export const getPlacementsForSelection = (platformName: string, adFormats: string[]): string[] => {
-  const platformMap = placementsByPlatformAndFormat[platformName];
+  // Map platform name to correct ad format key
+  const adFormatKey = platformIdToAdFormatKey[platformName] || platformName;
+  const platformMap = placementsByPlatformAndFormat[adFormatKey];
   if (!platformMap) return [];
   const set = new Set<string>();
   adFormats.forEach((f) => {
