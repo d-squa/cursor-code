@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { PlatformSelector } from "./PlatformSelector";
 import { BudgetSummary } from "./BudgetSummary";
 import { CampaignMetrics } from "./CampaignMetrics";
+import { GenericStrategyConfig, GenericConfig } from "./GenericStrategyConfig";
 import { Calendar, Download, Rocket, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,18 +19,45 @@ export function MediaPlanEditor() {
   const { user } = useAuth();
   const [campaignName, setCampaignName] = useState<string>("");
   const [totalBudget, setTotalBudget] = useState<string>("10000");
-  const [objective, setObjective] = useState<string>("Brand Awareness");
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
   const [saving, setSaving] = useState(false);
+  const [genericConfig, setGenericConfig] = useState<GenericConfig>({});
   const [platforms, setPlatforms] = useState<Platform[]>([
-    { id: "meta", name: "Meta", enabled: true, budgetPercentage: 30, config: undefined },
-    { id: "google", name: "Google Ads", enabled: true, budgetPercentage: 25, config: undefined },
-    { id: "linkedin", name: "LinkedIn", enabled: true, budgetPercentage: 20, config: undefined },
-    { id: "tiktok", name: "TikTok", enabled: false, budgetPercentage: 10, config: undefined },
-    { id: "snapchat", name: "Snapchat", enabled: false, budgetPercentage: 10, config: undefined },
-    { id: "pinterest", name: "Pinterest", enabled: false, budgetPercentage: 5, config: undefined },
+    { id: "meta", name: "Meta", enabled: false, budgetPercentage: 0 },
+    { id: "google", name: "Google Ads", enabled: false, budgetPercentage: 0 },
+    { id: "linkedin", name: "LinkedIn", enabled: false, budgetPercentage: 0 },
+    { id: "tiktok", name: "TikTok", enabled: false, budgetPercentage: 0 },
+    { id: "snapchat", name: "Snapchat", enabled: false, budgetPercentage: 0 },
+    { id: "pinterest", name: "Pinterest", enabled: false, budgetPercentage: 0 },
   ]);
+
+  const handlePlatformToggle = (updatedPlatforms: Platform[]) => {
+    // When a platform is enabled, copy generic config to it
+    const newPlatforms = updatedPlatforms.map((platform, idx) => {
+      const oldPlatform = platforms[idx];
+      if (platform.enabled && !oldPlatform.enabled && genericConfig.strategy) {
+        // Platform just got enabled, copy generic config
+        return {
+          ...platform,
+          config: {
+            ...genericConfig,
+            campaigns: genericConfig.campaigns?.map(c => ({ ...c })),
+            phases: genericConfig.phases?.map(p => ({ ...p })),
+          }
+        };
+      }
+      return platform;
+    });
+    setPlatforms(newPlatforms);
+  };
+
+  const isGenericConfigComplete = () => {
+    if (!genericConfig.strategy || !genericConfig.strategyFocus) return false;
+    if (!genericConfig.targeting?.locations?.length) return false;
+    if (!genericConfig.targeting?.ageMin || !genericConfig.targeting?.ageMax) return false;
+    return true;
+  };
 
   const isAllPlatformsConfigured = () => {
     const enabledPlatforms = platforms.filter(p => p.enabled);
@@ -53,7 +81,7 @@ export function MediaPlanEditor() {
   const handleExport = () => {
     const campaignData = {
       name: campaignName,
-      objective,
+      objective: genericConfig.strategyFocus,
       totalBudget,
       startDate,
       endDate,
@@ -87,7 +115,7 @@ export function MediaPlanEditor() {
       const { error } = await supabase.from("campaigns").insert({
         user_id: user?.id,
         name: campaignName,
-        objective,
+        objective: genericConfig.strategyFocus || "conversions",
         total_budget: parseFloat(totalBudget) || 0,
         start_date: startDate || null,
         end_date: endDate || null,
@@ -108,14 +136,13 @@ export function MediaPlanEditor() {
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6">
-      <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Activation Details</CardTitle>
-            <CardDescription>Define your activation's core parameters</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Activation Details</CardTitle>
+          <CardDescription>Define your activation's core parameters</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
           <div className="space-y-2">
             <Label htmlFor="name">Activation Name</Label>
             <Input
@@ -163,49 +190,65 @@ export function MediaPlanEditor() {
             </div>
           </div>
         </CardContent>
-        </Card>
+      </Card>
 
-        <PlatformSelector platforms={platforms} setPlatforms={setPlatforms} />
+      <GenericStrategyConfig
+        config={genericConfig}
+        setConfig={setGenericConfig}
+        startDate={startDate}
+        endDate={endDate}
+      />
 
-        <PlatformConfiguration 
-          platforms={platforms} 
-          setPlatforms={setPlatforms} 
-          startDate={startDate}
-          endDate={endDate}
-        />
+      {isGenericConfigComplete() && (
+        <>
+          <PlatformSelector platforms={platforms} setPlatforms={handlePlatformToggle} />
 
-        {isAllPlatformsConfigured() && (
-          <CampaignMetrics platforms={platforms} totalBudget={parseFloat(totalBudget) || 0} />
-        )}
+          {platforms.some(p => p.enabled) && (
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6">
+              <div className="space-y-6">
+                <PlatformConfiguration 
+                  platforms={platforms} 
+                  setPlatforms={setPlatforms} 
+                  startDate={startDate}
+                  endDate={endDate}
+                />
 
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex flex-col sm:flex-row gap-4 justify-end">
-              <Button variant="outline" onClick={handleExport} className="gap-2">
-                <Download className="h-4 w-4" />
-                Export Media Plan
-              </Button>
-              <Button variant="gradient" onClick={handleLaunch} className="gap-2" disabled={saving}>
-                {saving ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Launching...
-                  </>
-                ) : (
-                  <>
-                    <Rocket className="h-4 w-4" />
-                    Launch Campaign
-                  </>
+                {isAllPlatformsConfigured() && (
+                  <CampaignMetrics platforms={platforms} totalBudget={parseFloat(totalBudget) || 0} />
                 )}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
 
-      <div className="lg:block hidden">
-        <BudgetSummary platforms={platforms} setPlatforms={setPlatforms} totalBudget={parseFloat(totalBudget) || 0} />
-      </div>
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex flex-col sm:flex-row gap-4 justify-end">
+                      <Button variant="outline" onClick={handleExport} className="gap-2">
+                        <Download className="h-4 w-4" />
+                        Export Media Plan
+                      </Button>
+                      <Button variant="gradient" onClick={handleLaunch} className="gap-2" disabled={saving}>
+                        {saving ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Launching...
+                          </>
+                        ) : (
+                          <>
+                            <Rocket className="h-4 w-4" />
+                            Launch Campaign
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="lg:block hidden">
+                <BudgetSummary platforms={platforms} setPlatforms={setPlatforms} totalBudget={parseFloat(totalBudget) || 0} />
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
