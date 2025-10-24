@@ -28,7 +28,6 @@ interface DraggingState {
 export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate, platformId = "meta" }: PhaseSchedulerProps) {
   const [dragging, setDragging] = useState<DraggingState | null>(null);
   const [editingName, setEditingName] = useState<string | null>(null);
-  const [budgetPopover, setBudgetPopover] = useState<string | null>(null);
   const [editingBudget, setEditingBudget] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -176,9 +175,6 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate, pla
   };
 
   const handleMouseUp = () => {
-    if (dragging) {
-      setBudgetPopover(dragging.phaseId);
-    }
     setDragging(null);
   };
 
@@ -266,7 +262,7 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate, pla
           </Button>
         </div>
         <p className="text-xs text-muted-foreground mt-1">
-          {format(campaignStart, "MMM d, yyyy")} - {format(campaignEnd, "MMM d, yyyy")}
+          {format(campaignStart, "MMM d, yyyy")} - {format(campaignEnd, "MMM d, yyyy")} ({totalDays + 1} days)
         </p>
       </CardHeader>
       <CardContent>
@@ -292,6 +288,9 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate, pla
             const endPos = dateToPosition(phase.endDate);
             const width = endPos - startPos;
             const canSnap = index > 0;
+            const phaseDays = phase.startDate && phase.endDate ? 
+              differenceInDays(parseISO(phase.endDate), parseISO(phase.startDate)) + 1 : 0;
+            const timePercentage = totalDays > 0 ? Math.round((phaseDays / (totalDays + 1)) * 100) : 0;
 
             return (
               <div
@@ -345,6 +344,9 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate, pla
                         {phase.name}
                       </span>
                     )}
+                    <Badge variant="outline" className="text-[10px]">
+                      {timePercentage}%
+                    </Badge>
                     {editingBudget === phase.id ? (
                       <div className="flex items-center gap-1">
                         <Input
@@ -366,10 +368,10 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate, pla
                         className="text-[10px] cursor-pointer"
                         onClick={() => setEditingBudget(phase.id)}
                       >
-                        {phase.budgetPercentage}%
+                        Budget: {phase.budgetPercentage}%
                       </Badge>
                     )}
-                    <Popover open={budgetPopover === phase.id} onOpenChange={(open) => !open && setBudgetPopover(null)}>
+                    <Popover>
                       <PopoverTrigger asChild>
                         <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]">
                           Assets
@@ -429,20 +431,33 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate, pla
             );
           })}
 
-          {/* Loyalty phase - full timeline */}
-          {phases.filter(p => p.isLoyaltyPhase).map((phase, index) => {
-            const actualIndex = phases.findIndex(p => p.id === phase.id);
+          {/* Loyalty phase - editable timeline */}
+          {phases.filter(p => p.isLoyaltyPhase).map((phase) => {
+            const startPos = dateToPosition(phase.startDate);
+            const endPos = dateToPosition(phase.endDate);
+            const width = endPos - startPos;
+            const phaseDays = phase.startDate && phase.endDate ? 
+              differenceInDays(parseISO(phase.endDate), parseISO(phase.startDate)) + 1 : 0;
+            const timePercentage = totalDays > 0 ? Math.round((phaseDays / (totalDays + 1)) * 100) : 0;
+            
             return (
               <div
                 key={phase.id}
                 className="absolute h-8 bg-amber-500/10 border border-amber-500 border-dashed rounded-md"
                 style={{
-                  left: '0%',
-                  width: '100%',
+                  left: `${startPos}%`,
+                  width: `${width}%`,
                   top: `${28 + (phases.filter(p => !p.isLoyaltyPhase).length) * 24}px`,
-                  zIndex: 5,
+                  zIndex: dragging?.phaseId === phase.id ? 20 : 5,
                 }}
               >
+                {/* Start handle */}
+                <div
+                  className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize bg-amber-500 opacity-50 hover:opacity-100 transition-opacity"
+                  onMouseDown={(e) => handleMouseDown(phase.id, true, e)}
+                >
+                  <GripVertical className="h-3 w-3 text-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                </div>
                 <div className="px-3 py-1 flex items-center justify-between h-full">
                   <div className="flex items-center gap-2 flex-1 min-w-0">
                     {editingName === phase.id ? (
@@ -463,6 +478,9 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate, pla
                         {phase.name}
                       </span>
                     )}
+                    <Badge variant="outline" className="text-[10px]">
+                      {timePercentage}%
+                    </Badge>
                     {editingBudget === phase.id ? (
                       <div className="flex items-center gap-1">
                         <Input
@@ -484,10 +502,10 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate, pla
                         className="text-[10px] cursor-pointer"
                         onClick={() => setEditingBudget(phase.id)}
                       >
-                        {phase.budgetPercentage}%
+                        Budget: {phase.budgetPercentage}%
                       </Badge>
                     )}
-                    <Popover open={budgetPopover === phase.id} onOpenChange={(open) => !open && setBudgetPopover(null)}>
+                    <Popover>
                       <PopoverTrigger asChild>
                         <Button variant="ghost" size="sm" className="h-5 px-2 text-[10px]">
                           Assets
@@ -530,6 +548,14 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate, pla
                     <X className="h-3 w-3" />
                   </Button>
                 </div>
+
+                {/* End handle */}
+                <div
+                  className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize bg-amber-500 opacity-50 hover:opacity-100 transition-opacity"
+                  onMouseDown={(e) => handleMouseDown(phase.id, false, e)}
+                >
+                  <GripVertical className="h-3 w-3 text-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                </div>
               </div>
             );
           })}
@@ -550,12 +576,12 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate, pla
               </div>
               <div className="flex items-center gap-3 text-muted-foreground">
                 <span>
-                  {phase.isLoyaltyPhase ? 
-                    "Full timeline" :
-                    (phase.startDate && phase.endDate ? 
-                      `${format(parseISO(phase.startDate), "MMM d")} - ${format(parseISO(phase.endDate), "MMM d")}` 
-                      : "Dates not set")
-                  }
+                  {phase.startDate && phase.endDate ? (
+                    <>
+                      {format(parseISO(phase.startDate), "MMM d")} - {format(parseISO(phase.endDate), "MMM d")}
+                      {" "}({differenceInDays(parseISO(phase.endDate), parseISO(phase.startDate)) + 1} days)
+                    </>
+                  ) : "Dates not set"}
                 </span>
                 <span className="font-semibold text-foreground w-12 text-right">{phase.budgetPercentage}%</span>
               </div>
