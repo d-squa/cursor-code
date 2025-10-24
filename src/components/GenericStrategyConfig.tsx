@@ -120,34 +120,30 @@ export function GenericStrategyConfig({ config, setConfig, startDate, endDate }:
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              id="phases"
-              checked={config.hasPhases || false}
-              onChange={(e) => {
-                const hasPhases = e.target.checked;
-                updateConfig("hasPhases", hasPhases);
-                if (hasPhases && (!config.phases || config.phases.length === 0)) {
-                  updateConfig("phases", [{
-                    id: `phase-${Date.now()}`,
-                    name: "Phase 1",
-                    startDate: startDate,
-                    endDate: endDate,
-                    budgetPercentage: 100,
-                  }]);
-                }
-              }}
-              className="w-4 h-4"
-              disabled={config.strategy === "full-funnel"}
-            />
-            <Label htmlFor="phases" className={config.strategy === "full-funnel" ? "text-muted-foreground" : ""}>
-              Enable phasing schedule
-              {config.strategy === "full-funnel" && (
-                <span className="text-xs ml-2">(Required for full-funnel)</span>
-              )}
-            </Label>
-          </div>
+          {config.strategy === "partial" && (
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="phases"
+                checked={config.hasPhases || false}
+                onChange={(e) => {
+                  const hasPhases = e.target.checked;
+                  updateConfig("hasPhases", hasPhases);
+                  if (hasPhases && (!config.phases || config.phases.length === 0)) {
+                    updateConfig("phases", [{
+                      id: `phase-${Date.now()}`,
+                      name: "Phase 1",
+                      startDate: startDate,
+                      endDate: endDate,
+                      budgetPercentage: 100,
+                    }]);
+                  }
+                }}
+                className="w-4 h-4"
+              />
+              <Label htmlFor="phases">Enable phasing schedule</Label>
+            </div>
+          )}
 
           {config.hasPhases && (
             <PhaseScheduler
