@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { PhaseScheduler } from "./PhaseScheduler";
 import { Phase, Campaign } from "./PlatformConfiguration";
 
@@ -25,9 +26,22 @@ interface GenericStrategyConfigProps {
   setConfig: (config: GenericConfig) => void;
   startDate: string;
   endDate: string;
+  showOnlyTargeting?: boolean;
+  onNext?: () => void;
+  onBack?: () => void;
+  isTargetingComplete?: boolean;
 }
 
-export function GenericStrategyConfig({ config, setConfig, startDate, endDate }: GenericStrategyConfigProps) {
+export function GenericStrategyConfig({ 
+  config, 
+  setConfig, 
+  startDate, 
+  endDate,
+  showOnlyTargeting = false,
+  onNext,
+  onBack,
+  isTargetingComplete = false
+}: GenericStrategyConfigProps) {
   const updateConfig = (field: keyof GenericConfig, value: any) => {
     const updatedConfig = { ...config, [field]: value };
     
@@ -76,11 +90,68 @@ export function GenericStrategyConfig({ config, setConfig, startDate, endDate }:
   };
 
   return (
-    <div className="space-y-6">
+    <>
+      {!showOnlyTargeting && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Phase Scheduling</CardTitle>
+            <CardDescription>Configure phase timing for your strategy</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {config.strategy === "partial" && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="phases"
+                  checked={config.hasPhases || false}
+                  onChange={(e) => {
+                    const hasPhases = e.target.checked;
+                    updateConfig("hasPhases", hasPhases);
+                    if (hasPhases && (!config.phases || config.phases.length === 0)) {
+                      updateConfig("phases", [{
+                        id: `phase-${Date.now()}`,
+                        name: "Phase 1",
+                        startDate: startDate,
+                        endDate: endDate,
+                        budgetPercentage: 100,
+                      }]);
+                    }
+                  }}
+                  className="w-4 h-4"
+                />
+                <Label htmlFor="phases">Enable phasing schedule</Label>
+              </div>
+            )}
+
+            {config.hasPhases && startDate && endDate ? (
+              <PhaseScheduler
+                phases={config.phases || []}
+                onPhasesChange={(phases) => updateConfig("phases", phases)}
+                startDate={startDate}
+                endDate={endDate}
+              />
+            ) : (
+              config.hasPhases ? (
+                <p className="text-sm text-muted-foreground">Set activation start and end dates to schedule phases.</p>
+              ) : null
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
-          <CardTitle>Strategy Configuration</CardTitle>
-          <CardDescription>Define your campaign strategy approach</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>{showOnlyTargeting ? "Step 3: Targeting & Campaign Setup" : "Targeting"}</CardTitle>
+              <CardDescription>Define your target audience</CardDescription>
+            </div>
+            {!showOnlyTargeting && onBack && (
+              <Button variant="ghost" size="sm" onClick={onBack}>
+                Edit
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="grid gap-6 md:grid-cols-2">
@@ -219,8 +290,19 @@ export function GenericStrategyConfig({ config, setConfig, startDate, endDate }:
               placeholder="e.g., Feed, Stories, Reels, Search, Display"
             />
           </div>
+
+          {showOnlyTargeting && (
+            <div className="flex justify-between pt-4">
+              <Button variant="outline" onClick={onBack}>
+                Back
+              </Button>
+              <Button onClick={onNext} disabled={!isTargetingComplete}>
+                Next: Platform Selection
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
-    </div>
+    </>
   );
 }

@@ -3,11 +3,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PlatformSelector } from "./PlatformSelector";
 import { BudgetSummary } from "./BudgetSummary";
 import { CampaignMetrics } from "./CampaignMetrics";
 import { GenericStrategyConfig, GenericConfig } from "./GenericStrategyConfig";
 import { Calendar, Download, Rocket, Loader2 } from "lucide-react";
+import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -17,6 +19,7 @@ import { Platform, PlatformConfiguration } from "./PlatformConfiguration";
 
 export function MediaPlanEditor() {
   const { user } = useAuth();
+  const [currentStep, setCurrentStep] = useState(1);
   const [campaignName, setCampaignName] = useState<string>("");
   const [totalBudget, setTotalBudget] = useState<string>("10000");
   const [startDate, setStartDate] = useState<string>("");
@@ -31,6 +34,22 @@ export function MediaPlanEditor() {
     { id: "snapchat", name: "Snapchat", enabled: false, budgetPercentage: 0 },
     { id: "pinterest", name: "Pinterest", enabled: false, budgetPercentage: 0 },
   ]);
+
+  const isActivationDetailsComplete = () => {
+    return !!(campaignName.trim() && totalBudget && startDate && endDate);
+  };
+
+  const isStrategyComplete = () => {
+    return !!(genericConfig.strategy && genericConfig.strategyFocus);
+  };
+
+  const isTargetingComplete = () => {
+    return !!(
+      genericConfig.targeting?.locations?.length &&
+      genericConfig.targeting?.ageMin &&
+      genericConfig.targeting?.ageMax
+    );
+  };
 
   const handlePlatformToggle = (updatedPlatforms: Platform[]) => {
     // When a platform is enabled, copy generic config to it
@@ -53,10 +72,7 @@ export function MediaPlanEditor() {
   };
 
   const isGenericConfigComplete = () => {
-    if (!genericConfig.strategy || !genericConfig.strategyFocus) return false;
-    if (!genericConfig.targeting?.locations?.length) return false;
-    if (!genericConfig.targeting?.ageMin || !genericConfig.targeting?.ageMax) return false;
-    return true;
+    return isStrategyComplete() && isTargetingComplete();
   };
 
   const isAllPlatformsConfigured = () => {
@@ -137,69 +153,201 @@ export function MediaPlanEditor() {
 
   return (
     <div className="space-y-6">
+      {/* Step 1: Activation Details */}
       <Card>
         <CardHeader>
-          <CardTitle>Activation Details</CardTitle>
-          <CardDescription>Define your activation's core parameters</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Step 1: Activation Details</CardTitle>
+              <CardDescription>Define your activation's core parameters</CardDescription>
+            </div>
+            {currentStep > 1 && (
+              <Button variant="ghost" size="sm" onClick={() => setCurrentStep(1)}>
+                Edit
+              </Button>
+            )}
+          </div>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-2">
-            <Label htmlFor="name">Activation Name</Label>
-            <Input
-              id="name"
-              value={campaignName}
-              onChange={(e) => setCampaignName(e.target.value)}
-              placeholder="e.g., Q1 2024 Brand Activation"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="budget">Total Activation Budget ($)</Label>
-            <Input
-              id="budget"
-              type="number"
-              value={totalBudget}
-              onChange={(e) => setTotalBudget(e.target.value)}
-              placeholder="Enter total budget"
-            />
-          </div>
+        {currentStep === 1 ? (
+          <CardContent className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="name">Activation Name</Label>
+              <Input
+                id="name"
+                value={campaignName}
+                onChange={(e) => setCampaignName(e.target.value)}
+                placeholder="e.g., Q1 2024 Brand Activation"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="budget">Total Activation Budget ($)</Label>
+              <Input
+                id="budget"
+                type="number"
+                value={totalBudget}
+                onChange={(e) => setTotalBudget(e.target.value)}
+                placeholder="Enter total budget"
+              />
+            </div>
 
-          <div className="grid gap-6 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="start-date" className="flex items-center gap-2">
-                <Calendar className="h-4 w-4" />
-                Start Date
-              </Label>
-              <Input
-                id="start-date"
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-              />
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="start-date" className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  Start Date
+                </Label>
+                <Input
+                  id="start-date"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="end-date" className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  End Date
+                </Label>
+                <Input
+                  id="end-date"
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="end-date" className="flex items-center gap-2">
-                <Calendar className="h-4 w-4" />
-                End Date
-              </Label>
-              <Input
-                id="end-date"
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-              />
+
+            <div className="flex justify-end pt-4">
+              <Button 
+                onClick={() => setCurrentStep(2)} 
+                disabled={!isActivationDetailsComplete()}
+              >
+                Next: Strategy Configuration
+              </Button>
             </div>
-          </div>
-        </CardContent>
+          </CardContent>
+        ) : (
+          <CardContent className="py-4">
+            <div className="text-sm text-muted-foreground space-y-1">
+              <div className="flex justify-between">
+                <span>Name:</span>
+                <span className="font-medium text-foreground">{campaignName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Budget:</span>
+                <span className="font-medium text-foreground">${parseFloat(totalBudget).toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Duration:</span>
+                <span className="font-medium text-foreground">
+                  {startDate && endDate && `${format(parseISO(startDate), "MMM d")} - ${format(parseISO(endDate), "MMM d, yyyy")}`}
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        )}
       </Card>
 
-      <GenericStrategyConfig
-        config={genericConfig}
-        setConfig={setGenericConfig}
-        startDate={startDate}
-        endDate={endDate}
-      />
+      {/* Step 2: Strategy Configuration */}
+      {currentStep >= 2 && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Step 2: Strategy Configuration</CardTitle>
+                <CardDescription>Define your campaign strategy approach</CardDescription>
+              </div>
+              {currentStep > 2 && (
+                <Button variant="ghost" size="sm" onClick={() => setCurrentStep(2)}>
+                  Edit
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          {currentStep === 2 ? (
+            <CardContent className="space-y-6">
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Strategy Type</Label>
+                  <Select
+                    value={genericConfig.strategy || ""}
+                    onValueChange={(value) => setGenericConfig({ ...genericConfig, strategy: value as any })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select strategy" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="full-funnel">Full-Funnel</SelectItem>
+                      <SelectItem value="partial">Partial Strategy</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-      {isGenericConfigComplete() && (
+                <div className="space-y-2">
+                  <Label>Strategy Focus</Label>
+                  <Select
+                    value={genericConfig.strategyFocus || ""}
+                    onValueChange={(value) => setGenericConfig({ ...genericConfig, strategyFocus: value as any })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select focus" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="purchase">Purchase</SelectItem>
+                      <SelectItem value="leads">Leads</SelectItem>
+                      <SelectItem value="app-installs">App Installs</SelectItem>
+                      <SelectItem value="conversions">Conversions</SelectItem>
+                      <SelectItem value="brand-awareness">Brand Awareness</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="flex justify-between pt-4">
+                <Button variant="outline" onClick={() => setCurrentStep(1)}>
+                  Back
+                </Button>
+                <Button 
+                  onClick={() => setCurrentStep(3)} 
+                  disabled={!isStrategyComplete()}
+                >
+                  Next: Targeting
+                </Button>
+              </div>
+            </CardContent>
+          ) : (
+            <CardContent className="py-4">
+              <div className="text-sm text-muted-foreground space-y-1">
+                <div className="flex justify-between">
+                  <span>Strategy:</span>
+                  <span className="font-medium text-foreground capitalize">{genericConfig.strategy?.replace('-', ' ')}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Focus:</span>
+                  <span className="font-medium text-foreground capitalize">{genericConfig.strategyFocus?.replace('-', ' ')}</span>
+                </div>
+              </div>
+            </CardContent>
+          )}
+        </Card>
+      )}
+
+      {/* Step 3: Targeting */}
+      {currentStep >= 3 && (
+        <GenericStrategyConfig
+          config={genericConfig}
+          setConfig={setGenericConfig}
+          startDate={startDate}
+          endDate={endDate}
+          showOnlyTargeting={currentStep === 3}
+          onNext={() => setCurrentStep(4)}
+          onBack={() => setCurrentStep(2)}
+          isTargetingComplete={isTargetingComplete()}
+        />
+      )}
+
+      {/* Step 4: Platform Selection & Configuration */}
+      {currentStep >= 4 && isGenericConfigComplete() && (
         <>
           <PlatformSelector platforms={platforms} setPlatforms={handlePlatformToggle} />
 
