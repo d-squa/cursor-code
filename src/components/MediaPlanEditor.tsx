@@ -43,6 +43,11 @@ export function MediaPlanEditor() {
     return !!(genericConfig.strategy && genericConfig.strategyFocus);
   };
 
+  const isPhaseSchedulerComplete = () => {
+    // Always allow proceeding - phasing is optional
+    return true;
+  };
+
   const isTargetingComplete = () => {
     return !!(
       genericConfig.targeting?.locations?.length &&
@@ -332,22 +337,36 @@ export function MediaPlanEditor() {
         </Card>
       )}
 
-      {/* Step 3: Targeting */}
+      {/* Step 3: Phase Scheduler */}
       {currentStep >= 3 && (
         <GenericStrategyConfig
           config={genericConfig}
           setConfig={setGenericConfig}
           startDate={startDate}
           endDate={endDate}
-          showOnlyTargeting={currentStep === 3}
+          showOnlyPhaseScheduler={currentStep === 3}
           onNext={() => setCurrentStep(4)}
           onBack={() => setCurrentStep(2)}
+          isPhaseSchedulerComplete={isPhaseSchedulerComplete()}
+        />
+      )}
+
+      {/* Step 4: Targeting */}
+      {currentStep >= 4 && (
+        <GenericStrategyConfig
+          config={genericConfig}
+          setConfig={setGenericConfig}
+          startDate={startDate}
+          endDate={endDate}
+          showOnlyTargeting={currentStep === 4}
+          onNext={() => setCurrentStep(5)}
+          onBack={() => setCurrentStep(3)}
           isTargetingComplete={isTargetingComplete()}
         />
       )}
 
-      {/* Step 4: Platform Selection & Configuration */}
-      {currentStep >= 4 && isGenericConfigComplete() && (
+      {/* Step 5: Platform Selection & Configuration */}
+      {currentStep >= 5 && isGenericConfigComplete() && (
         <>
           <PlatformSelector platforms={platforms} setPlatforms={handlePlatformToggle} />
 

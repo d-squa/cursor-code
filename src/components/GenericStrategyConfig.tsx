@@ -27,9 +27,11 @@ interface GenericStrategyConfigProps {
   startDate: string;
   endDate: string;
   showOnlyTargeting?: boolean;
+  showOnlyPhaseScheduler?: boolean;
   onNext?: () => void;
   onBack?: () => void;
   isTargetingComplete?: boolean;
+  isPhaseSchedulerComplete?: boolean;
 }
 
 export function GenericStrategyConfig({ 
@@ -38,9 +40,11 @@ export function GenericStrategyConfig({
   startDate, 
   endDate,
   showOnlyTargeting = false,
+  showOnlyPhaseScheduler = false,
   onNext,
   onBack,
-  isTargetingComplete = false
+  isTargetingComplete = false,
+  isPhaseSchedulerComplete = false
 }: GenericStrategyConfigProps) {
   const updateConfig = (field: keyof GenericConfig, value: any) => {
     const updatedConfig = { ...config, [field]: value };
@@ -91,124 +95,140 @@ export function GenericStrategyConfig({
 
   return (
     <>
-      {showOnlyTargeting ? (
-        <>
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Step 3: Targeting & Campaign Setup</CardTitle>
-                  <CardDescription>Define your target audience and schedule phases</CardDescription>
-                </div>
+      {showOnlyPhaseScheduler ? (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Step 3: Phase Scheduler</CardTitle>
+                <CardDescription>Configure phase timing for your strategy</CardDescription>
               </div>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <Label>Target Locations</Label>
-                <Input
-                  value={config.targeting?.locations?.join(", ") || ""}
-                  onChange={(e) => updateTargeting("locations", e.target.value.split(",").map(s => s.trim()).filter(Boolean))}
-                  placeholder="e.g., United States, Canada, United Kingdom"
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {config.strategy === "partial" && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="phases-step3"
+                  checked={config.hasPhases || false}
+                  onChange={(e) => {
+                    const hasPhases = e.target.checked;
+                    updateConfig("hasPhases", hasPhases);
+                    if (hasPhases && (!config.phases || config.phases.length === 0)) {
+                      updateConfig("phases", [{
+                        id: `phase-${Date.now()}`,
+                        name: "Phase 1",
+                        startDate: startDate,
+                        endDate: endDate,
+                        budgetPercentage: 100,
+                      }]);
+                    }
+                  }}
+                  className="w-4 h-4"
                 />
+                <Label htmlFor="phases-step3">Enable phasing schedule</Label>
               </div>
+            )}
 
-              <div className="space-y-4">
-                <h4 className="font-medium">Demographics</h4>
-                <div className="grid gap-6 md:grid-cols-3">
-                  <div className="space-y-2">
-                    <Label>Age Min</Label>
-                    <Input
-                      type="number"
-                      value={config.targeting?.ageMin || ""}
-                      onChange={(e) => updateTargeting("ageMin", parseInt(e.target.value))}
-                      placeholder="18"
-                      min="13"
-                      max="65"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Age Max</Label>
-                    <Input
-                      type="number"
-                      value={config.targeting?.ageMax || ""}
-                      onChange={(e) => updateTargeting("ageMax", parseInt(e.target.value))}
-                      placeholder="65"
-                      min="13"
-                      max="65"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Genders</Label>
-                    <Input
-                      value={config.targeting?.genders?.join(", ") || ""}
-                      onChange={(e) => updateTargeting("genders", e.target.value.split(",").map(s => s.trim()).filter(Boolean))}
-                      placeholder="All, Male, Female"
-                    />
-                  </div>
-                </div>
+            {config.hasPhases && startDate && endDate ? (
+              <PhaseScheduler
+                phases={config.phases || []}
+                onPhasesChange={(phases) => updateConfig("phases", phases)}
+                startDate={startDate}
+                endDate={endDate}
+              />
+            ) : (
+              config.hasPhases ? (
+                <p className="text-sm text-muted-foreground">Set activation start and end dates to schedule phases.</p>
+              ) : null
+            )}
+
+            <div className="flex justify-between pt-4">
+              <Button variant="outline" onClick={onBack}>
+                Back
+              </Button>
+              <Button onClick={onNext} disabled={!isPhaseSchedulerComplete}>
+                Next: Targeting
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : showOnlyTargeting ? (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Step 4: Targeting</CardTitle>
+                <CardDescription>Define your target audience</CardDescription>
               </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-2">
+              <Label>Target Locations</Label>
+              <Input
+                value={config.targeting?.locations?.join(", ") || ""}
+                onChange={(e) => updateTargeting("locations", e.target.value.split(",").map(s => s.trim()).filter(Boolean))}
+                placeholder="e.g., United States, Canada, United Kingdom"
+              />
+            </div>
 
-              <div className="space-y-2">
-                <Label>Placements</Label>
-                <Input
-                  value={config.targeting?.placements?.join(", ") || ""}
-                  onChange={(e) => updateTargeting("placements", e.target.value.split(",").map(s => s.trim()).filter(Boolean))}
-                  placeholder="e.g., Feed, Stories, Reels, Search, Display"
-                />
-              </div>
-
-              {config.strategy === "partial" && (
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="phases-targeting"
-                    checked={config.hasPhases || false}
-                    onChange={(e) => {
-                      const hasPhases = e.target.checked;
-                      updateConfig("hasPhases", hasPhases);
-                      if (hasPhases && (!config.phases || config.phases.length === 0)) {
-                        updateConfig("phases", [{
-                          id: `phase-${Date.now()}`,
-                          name: "Phase 1",
-                          startDate: startDate,
-                          endDate: endDate,
-                          budgetPercentage: 100,
-                        }]);
-                      }
-                    }}
-                    className="w-4 h-4"
-                  />
-                  <Label htmlFor="phases-targeting">Enable phasing schedule</Label>
-                </div>
-              )}
-
-              {config.hasPhases && startDate && endDate ? (
+            <div className="space-y-4">
+              <h4 className="font-medium">Demographics</h4>
+              <div className="grid gap-6 md:grid-cols-3">
                 <div className="space-y-2">
-                  <h4 className="font-medium">Phase Schedule</h4>
-                  <PhaseScheduler
-                    phases={config.phases || []}
-                    onPhasesChange={(phases) => updateConfig("phases", phases)}
-                    startDate={startDate}
-                    endDate={endDate}
+                  <Label>Age Min</Label>
+                  <Input
+                    type="number"
+                    value={config.targeting?.ageMin || ""}
+                    onChange={(e) => updateTargeting("ageMin", parseInt(e.target.value))}
+                    placeholder="18"
+                    min="13"
+                    max="65"
                   />
                 </div>
-              ) : (
-                config.hasPhases ? (
-                  <p className="text-sm text-muted-foreground">Set activation start and end dates to schedule phases.</p>
-                ) : null
-              )}
-
-              <div className="flex justify-between pt-4">
-                <Button variant="outline" onClick={onBack}>
-                  Back
-                </Button>
-                <Button onClick={onNext} disabled={!isTargetingComplete}>
-                  Next: Platform Selection
-                </Button>
+                <div className="space-y-2">
+                  <Label>Age Max</Label>
+                  <Input
+                    type="number"
+                    value={config.targeting?.ageMax || ""}
+                    onChange={(e) => updateTargeting("ageMax", parseInt(e.target.value))}
+                    placeholder="65"
+                    min="13"
+                    max="65"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Genders</Label>
+                  <Input
+                    value={config.targeting?.genders?.join(", ") || ""}
+                    onChange={(e) => updateTargeting("genders", e.target.value.split(",").map(s => s.trim()).filter(Boolean))}
+                    placeholder="All, Male, Female"
+                  />
+                </div>
               </div>
-            </CardContent>
-          </Card>
-        </>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Placements</Label>
+              <Input
+                value={config.targeting?.placements?.join(", ") || ""}
+                onChange={(e) => updateTargeting("placements", e.target.value.split(",").map(s => s.trim()).filter(Boolean))}
+                placeholder="e.g., Feed, Stories, Reels, Search, Display"
+              />
+            </div>
+
+            <div className="flex justify-between pt-4">
+              <Button variant="outline" onClick={onBack}>
+                Back
+              </Button>
+              <Button onClick={onNext} disabled={!isTargetingComplete}>
+                Next: Platform Selection
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       ) : (
         <>
           <Card>
