@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PhaseScheduler } from "./PhaseScheduler";
 
 export interface Phase {
   id: string;
@@ -365,77 +366,32 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
                     type="checkbox"
                     id={`phases-${platform.id}`}
                     checked={platform.config?.hasPhases || false}
-                    onChange={(e) => updatePlatformConfig(platform.id, "hasPhases", e.target.checked)}
+                    onChange={(e) => {
+                      const hasPhases = e.target.checked;
+                      updatePlatformConfig(platform.id, "hasPhases", hasPhases);
+                      if (hasPhases && (!platform.config?.phases || platform.config.phases.length === 0)) {
+                        // Initialize with one phase if enabling for the first time
+                        updatePlatformConfig(platform.id, "phases", [{
+                          id: `phase-${Date.now()}`,
+                          name: "Phase 1",
+                          startDate: startDate,
+                          endDate: endDate,
+                          budgetPercentage: 100,
+                        }]);
+                      }
+                    }}
                     className="w-4 h-4"
                   />
-                  <Label htmlFor={`phases-${platform.id}`}>Split strategy into phases</Label>
+                  <Label htmlFor={`phases-${platform.id}`}>Enable phasing schedule</Label>
                 </div>
 
                 {platform.config?.hasPhases && (
-                  <div className="space-y-4 mt-4">
-                    <div className="flex items-center justify-between">
-                      <h5 className="font-medium">Phases</h5>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => addPhase(platform.id)}
-                      >
-                        Add Phase
-                      </Button>
-                    </div>
-
-                    {platform.config.phases?.map((phase, index) => (
-                      <div key={phase.id} className="p-4 border rounded-lg space-y-4 bg-background">
-                        <div className="flex items-center justify-between">
-                          <Input
-                            value={phase.name}
-                            onChange={(e) => updatePhase(platform.id, phase.id, "name", e.target.value)}
-                            placeholder="Phase name"
-                            className="max-w-xs"
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removePhase(platform.id, phase.id)}
-                          >
-                            Remove
-                          </Button>
-                        </div>
-                        
-                        <div className="grid gap-4 md:grid-cols-3">
-                          <div className="space-y-2">
-                            <Label>Start Date</Label>
-                            <Input
-                              type="date"
-                              value={phase.startDate}
-                              onChange={(e) => updatePhase(platform.id, phase.id, "startDate", e.target.value)}
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>End Date</Label>
-                            <Input
-                              type="date"
-                              value={phase.endDate}
-                              onChange={(e) => updatePhase(platform.id, phase.id, "endDate", e.target.value)}
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Budget %</Label>
-                            <Input
-                              type="number"
-                              value={phase.budgetPercentage}
-                              onChange={(e) => updatePhase(platform.id, phase.id, "budgetPercentage", parseFloat(e.target.value) || 0)}
-                              placeholder="0"
-                              min="0"
-                              max="100"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  <PhaseScheduler
+                    phases={platform.config.phases || []}
+                    onPhasesChange={(phases) => updatePlatformConfig(platform.id, "phases", phases)}
+                    startDate={startDate}
+                    endDate={endDate}
+                  />
                 )}
               </div>
 
