@@ -55,7 +55,6 @@ interface PlatformConfigurationProps {
   setPlatforms: (platforms: Platform[]) => void;
   startDate: string;
   endDate: string;
-  genericConfig?: any;
 }
 
 const platformObjectives: Record<string, string[]> = {
@@ -95,7 +94,7 @@ const getFunnelObjectives = (platformId: string, stage: string, focus: string): 
   return objectives[platformId]?.[stage]?.[focus] || platformObjectives[platformId]?.[0] || "";
 };
 
-export function PlatformConfiguration({ platforms, setPlatforms, startDate, endDate, genericConfig }: PlatformConfigurationProps) {
+export function PlatformConfiguration({ platforms, setPlatforms, startDate, endDate }: PlatformConfigurationProps) {
   const enabledPlatforms = platforms.filter(p => p.enabled);
 
   const updatePlatformConfig = (platformId: string, field: keyof PlatformConfig, value: any) => {
@@ -328,11 +327,8 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Platform Customization</CardTitle>
-        <CardDescription>
-          Platform-specific settings inherited from your generic strategy. 
-          {genericConfig && <span className="block mt-1 text-xs">Auto-mapped from: {genericConfig.strategy} strategy with {genericConfig.strategyFocus} focus</span>}
-        </CardDescription>
+        <CardTitle>Platform Configuration</CardTitle>
+        <CardDescription>Configure detailed settings for each platform</CardDescription>
       </CardHeader>
       <CardContent>
         <Tabs defaultValue={enabledPlatforms[0]?.id} className="w-full">
