@@ -65,14 +65,30 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate }: P
   
   const totalDays = differenceInDays(campaignEnd, campaignStart);
 
+  if (totalDays <= 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Phase Timeline</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            End date must be after start date to schedule phases.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   const dateToPosition = (dateStr: string): number => {
-    if (!dateStr) return 0;
+    if (!dateStr || totalDays <= 0) return 0;
     const date = parseISO(dateStr);
     const days = differenceInDays(date, campaignStart);
     return (days / totalDays) * 100;
   };
 
   const positionToDate = (position: number): string => {
+    if (totalDays <= 0) return format(campaignStart, "yyyy-MM-dd");
     const days = Math.round((position / 100) * totalDays);
     return format(addDays(campaignStart, days), "yyyy-MM-dd");
   };
