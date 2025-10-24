@@ -12,6 +12,8 @@ import { PlatformMarketBudgetSelector } from "./PlatformMarketBudgetSelector";
 import { HierarchicalTimelineScheduler } from "./HierarchicalTimelineScheduler";
 import { GlobalFunnelPhasing } from "./GlobalFunnelPhasing";
 import { TargetingConfigComponent } from "./TargetingConfig";
+import { PlatformCustomization } from "./PlatformCustomization";
+import { CampaignForecast } from "./CampaignForecast";
 import { getDefaultPhases } from "@/utils/funnelPhases";
 import { Calendar, Download, Rocket, Loader2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
@@ -480,62 +482,26 @@ export function MediaPlanEditor() {
         />
       )}
 
-      {/* Step 4: Platform Selection & Configuration */}
-      {currentStep >= 4 && isGenericConfigComplete() && (
-        <>
-          <PlatformSelector platforms={platforms} setPlatforms={handlePlatformToggle} />
+      {/* Step 4: Platform Customization */}
+      {currentStep >= 4 && currentStep === 4 && (
+        <PlatformCustomization
+          platforms={platformsWithMarkets}
+          genericConfig={genericConfig}
+          onPlatformsUpdate={setPlatformsWithMarkets}
+          onNext={() => setCurrentStep(5)}
+          onBack={() => setCurrentStep(3)}
+        />
+      )}
 
-          {platforms.some(p => p.enabled) && (
-            <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] gap-6">
-              <div className="space-y-6">
-                <PlatformConfiguration 
-                  platforms={platforms} 
-                  setPlatforms={setPlatforms} 
-                  startDate={startDate}
-                  endDate={endDate}
-                />
-
-                {isAllPlatformsConfigured() && (
-                  <CampaignMetrics platforms={platforms} totalBudget={parseFloat(totalBudget) || 0} />
-                )}
-
-                <Card>
-                  <CardContent className="pt-6">
-                    <div className="flex flex-col sm:flex-row gap-4 justify-end">
-                      <Button variant="outline" onClick={handleExport} className="gap-2">
-                        <Download className="h-4 w-4" />
-                        Export Media Plan
-                      </Button>
-                      <Button variant="gradient" onClick={handleLaunch} className="gap-2" disabled={saving}>
-                        {saving ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Launching...
-                          </>
-                        ) : (
-                          <>
-                            <Rocket className="h-4 w-4" />
-                            Launch Campaign
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              <div className="lg:block hidden">
-                <BudgetSummary 
-                  platforms={platforms} 
-                  setPlatforms={setPlatforms} 
-                  totalBudget={parseFloat(totalBudget) || 0}
-                  startDate={startDate}
-                  endDate={endDate}
-                />
-              </div>
-            </div>
-          )}
-        </>
+      {/* Step 5: Campaign Forecast */}
+      {currentStep >= 5 && currentStep === 5 && (
+        <CampaignForecast
+          platforms={platformsWithMarkets}
+          totalBudget={parseFloat(totalBudget) || 0}
+          genericConfig={genericConfig}
+          onBack={() => setCurrentStep(4)}
+          onFinalize={handleLaunch}
+        />
       )}
     </div>
   );

@@ -1,0 +1,295 @@
+import { useState } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { PlatformWithMarkets } from "@/types/mediaplan";
+import { GenericConfig } from "./GenericStrategyConfig";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { CheckCircle2, Edit } from "lucide-react";
+
+interface PlatformCustomizationProps {
+  platforms: PlatformWithMarkets[];
+  genericConfig: GenericConfig;
+  onPlatformsUpdate: (platforms: PlatformWithMarkets[]) => void;
+  onNext: () => void;
+  onBack: () => void;
+}
+
+// Platform-specific objective mappings
+const platformObjectiveMapping: Record<string, Record<string, string[]>> = {
+  "Facebook (Meta)": {
+    "Awareness": ["Brand Awareness", "Reach"],
+    "Consideration": ["Traffic", "Engagement", "App Installs", "Video Views", "Lead Generation"],
+    "Conversion": ["Conversions", "Catalog Sales"],
+  },
+  "Instagram (Meta)": {
+    "Awareness": ["Brand Awareness", "Reach"],
+    "Consideration": ["Traffic", "Engagement", "Video Views"],
+    "Conversion": ["Conversions", "Shopping"],
+  },
+  "Google Ads": {
+    "Awareness": ["Display", "Video", "Discovery"],
+    "Consideration": ["Search", "Shopping", "Video"],
+    "Conversion": ["Performance Max", "Shopping", "Search"],
+  },
+  "YouTube (Google)": {
+    "Awareness": ["Video Reach", "Brand Awareness"],
+    "Consideration": ["Video Views", "Consideration"],
+    "Conversion": ["Conversions", "Action"],
+  },
+  "LinkedIn": {
+    "Awareness": ["Brand Awareness", "Reach"],
+    "Consideration": ["Website Visits", "Engagement", "Video Views"],
+    "Conversion": ["Lead Generation", "Conversions"],
+  },
+  "TikTok": {
+    "Awareness": ["Reach", "Video Views"],
+    "Consideration": ["Traffic", "Community Interaction"],
+    "Conversion": ["Conversions", "App Installs"],
+  },
+};
+
+export function PlatformCustomization({
+  platforms,
+  genericConfig,
+  onPlatformsUpdate,
+  onNext,
+  onBack,
+}: PlatformCustomizationProps) {
+  const [editingMode, setEditingMode] = useState<{ [key: string]: boolean }>({});
+
+  const mapGenericToPlatformObjective = (
+    platformName: string,
+    genericFocus?: string
+  ): string => {
+    const mapping: Record<string, string> = {
+      "Purchases": "Conversion",
+      "Conversions": "Conversion",
+      "Leads": "Conversion",
+      "Awareness": "Awareness",
+      "Market Presence": "Awareness",
+      "In-App Actions": "Consideration",
+      "Actions": "Consideration",
+      "Revenue": "Conversion",
+    };
+    
+    const funnelStage = mapping[genericFocus || ""] || "Consideration";
+    const objectives = platformObjectiveMapping[platformName]?.[funnelStage];
+    return objectives?.[0] || "Traffic";
+  };
+
+  const updateMarketField = (
+    platformId: string,
+    marketId: string,
+    field: string,
+    value: any
+  ) => {
+    const updatedPlatforms = platforms.map((p) => {
+      if (p.id === platformId) {
+        return {
+          ...p,
+          markets: p.markets.map((m) =>
+            m.id === marketId ? { ...m, [field]: value } : m
+          ),
+        };
+      }
+      return p;
+    });
+    onPlatformsUpdate(updatedPlatforms);
+  };
+
+  const isCustomizationComplete = () => {
+    return platforms.every((platform) =>
+      platform.markets.every(
+        (market) => market.accountName && market.adFormats && market.adFormats.length > 0
+      )
+    );
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle>Step 4: Platform Customization</CardTitle>
+            <CardDescription>
+              Review and customize campaign structures for each platform
+            </CardDescription>
+          </div>
+          <Badge variant="outline" className="gap-1">
+            {isCustomizationComplete() ? (
+              <>
+                <CheckCircle2 className="h-3 w-3" />
+                Ready
+              </>
+            ) : (
+              "Customize campaigns"
+            )}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <Tabs defaultValue={platforms[0]?.id} className="w-full">
+          <TabsList className="grid w-full" style={{ gridTemplateColumns: `repeat(${platforms.length}, 1fr)` }}>
+            {platforms.map((platform) => (
+              <TabsTrigger key={platform.id} value={platform.id}>
+                {platform.name}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+
+          {platforms.map((platform) => (
+            <TabsContent key={platform.id} value={platform.id} className="space-y-4">
+              <div className="text-sm text-muted-foreground mb-4">
+                <p><strong>Strategy:</strong> {genericConfig.strategy?.replace("-", " ").toUpperCase()}</p>
+                <p><strong>Focus:</strong> {genericConfig.strategyFocus}</p>
+              </div>
+
+              <Accordion type="single" collapsible className="w-full">
+                {platform.markets.map((market) => (
+                  <AccordionItem key={market.id} value={market.id}>
+                    <AccordionTrigger className="hover:no-underline">
+                      <div className="flex items-center justify-between w-full pr-4">
+                        <span className="font-medium">{market.name}</span>
+                        <Badge variant="secondary">
+                          {market.budgetPercentage}% of platform budget
+                        </Badge>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <div className="space-y-4 pt-4">
+                        {/* Platform-specific fields */}
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label>Ad Account Name</Label>
+                            <Input
+                              value={market.accountName || ""}
+                              onChange={(e) =>
+                                updateMarketField(
+                                  platform.id,
+                                  market.id,
+                                  "accountName",
+                                  e.target.value
+                                )
+                              }
+                              placeholder="Select or enter account name"
+                            />
+                          </div>
+
+                          {platform.name.includes("Meta") && (
+                            <>
+                              <div className="space-y-2">
+                                <Label>Page</Label>
+                                <Input
+                                  value={market.page || ""}
+                                  onChange={(e) =>
+                                    updateMarketField(
+                                      platform.id,
+                                      market.id,
+                                      "page",
+                                      e.target.value
+                                    )
+                                  }
+                                  placeholder="Select Facebook/Instagram Page"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Pixel</Label>
+                                <Input
+                                  value={market.pixel || ""}
+                                  onChange={(e) =>
+                                    updateMarketField(
+                                      platform.id,
+                                      market.id,
+                                      "pixel",
+                                      e.target.value
+                                    )
+                                  }
+                                  placeholder="Select Meta Pixel"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Catalog</Label>
+                                <Input
+                                  value={market.catalog || ""}
+                                  onChange={(e) =>
+                                    updateMarketField(
+                                      platform.id,
+                                      market.id,
+                                      "catalog",
+                                      e.target.value
+                                    )
+                                  }
+                                  placeholder="Select Product Catalog"
+                                />
+                              </div>
+                            </>
+                          )}
+                        </div>
+
+                        {/* Campaign Structure Preview */}
+                        <div className="border rounded-lg p-4 bg-muted/30 space-y-3">
+                          <h4 className="font-medium text-sm">Campaign Structure</h4>
+                          
+                          {market.phases && market.phases.length > 0 ? (
+                            <div className="space-y-2">
+                              {market.phases.map((phase) => (
+                                <div key={phase.id} className="text-xs space-y-1 bg-background p-2 rounded">
+                                  <div className="flex justify-between items-center">
+                                    <span className="font-medium">{phase.name}</span>
+                                    <Badge variant="outline" className="text-xs">
+                                      {phase.budgetPercentage}%
+                                    </Badge>
+                                  </div>
+                                  <div className="text-muted-foreground">
+                                    {phase.startDate} → {phase.endDate}
+                                  </div>
+                                  {phase.campaigns && phase.campaigns.length > 0 && (
+                                    <div className="pl-3 space-y-1 mt-2">
+                                      {phase.campaigns.map((campaign) => (
+                                        <div key={campaign.id} className="text-xs">
+                                          • {campaign.name} ({campaign.budgetPercentage}%)
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-xs text-muted-foreground">
+                              <p>Campaign will be created based on:</p>
+                              <ul className="list-disc list-inside mt-2 space-y-1">
+                                <li>Objective: {mapGenericToPlatformObjective(platform.name, genericConfig.strategyFocus)}</li>
+                                <li>Ad Formats: {market.adFormats?.join(", ") || "Not selected"}</li>
+                                <li>Targeting: Age {genericConfig.targeting?.ageMin}-{genericConfig.targeting?.ageMax}</li>
+                                <li>Placements: {genericConfig.targeting?.placements?.join(", ") || "Automatic"}</li>
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                ))}
+              </Accordion>
+            </TabsContent>
+          ))}
+        </Tabs>
+
+        <div className="flex justify-between pt-4 border-t">
+          <Button variant="outline" onClick={onBack}>
+            Back
+          </Button>
+          <Button onClick={onNext} disabled={!isCustomizationComplete()}>
+            Next: Forecast & Metrics
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
