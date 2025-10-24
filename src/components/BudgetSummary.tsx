@@ -14,12 +14,23 @@ export function BudgetSummary({ platforms, setPlatforms, totalBudget }: BudgetSu
   const totalAllocated = enabledPlatforms.reduce((sum, p) => sum + p.budgetPercentage, 0);
   const remaining = 100 - totalAllocated;
 
-  const updateBudget = (platformId: string, percentage: number) => {
+  const updateBudgetPercentage = (platformId: string, percentage: number) => {
     setPlatforms(
       platforms.map((p) =>
         p.id === platformId ? { ...p, budgetPercentage: Math.max(0, Math.min(100, percentage)) } : p
       )
     );
+  };
+
+  const updateBudgetAmount = (platformId: string, amount: number) => {
+    if (totalBudget > 0) {
+      const percentage = (amount / totalBudget) * 100;
+      setPlatforms(
+        platforms.map((p) =>
+          p.id === platformId ? { ...p, budgetPercentage: Math.max(0, Math.min(100, percentage)) } : p
+        )
+      );
+    }
   };
 
   if (enabledPlatforms.length === 0) {
@@ -43,7 +54,7 @@ export function BudgetSummary({ platforms, setPlatforms, totalBudget }: BudgetSu
                   <Input
                     type="number"
                     value={platform.budgetPercentage}
-                    onChange={(e) => updateBudget(platform.id, parseFloat(e.target.value) || 0)}
+                    onChange={(e) => updateBudgetPercentage(platform.id, parseFloat(e.target.value) || 0)}
                     className="w-14 h-7 text-xs text-right p-1"
                     min="0"
                     max="100"
@@ -51,9 +62,18 @@ export function BudgetSummary({ platforms, setPlatforms, totalBudget }: BudgetSu
                   <span className="text-xs text-muted-foreground">%</span>
                 </div>
               </div>
-              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                <Progress value={platform.budgetPercentage} className="h-1 flex-1 mr-2" />
-                <span className="whitespace-nowrap">${platformBudget.toLocaleString()}</span>
+              <div className="flex items-center justify-between text-xs gap-2">
+                <Progress value={platform.budgetPercentage} className="h-1 flex-1" />
+                <div className="flex items-center">
+                  <span className="text-xs text-muted-foreground mr-1">$</span>
+                  <Input
+                    type="number"
+                    value={Math.round(platformBudget)}
+                    onChange={(e) => updateBudgetAmount(platform.id, parseFloat(e.target.value) || 0)}
+                    className="w-20 h-6 text-xs text-right p-1"
+                    min="0"
+                  />
+                </div>
               </div>
             </div>
           );
