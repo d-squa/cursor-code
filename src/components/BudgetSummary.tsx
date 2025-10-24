@@ -106,6 +106,31 @@ export function BudgetSummary({ platforms, setPlatforms, totalBudget }: BudgetSu
                   </div>
                 </div>
               )}
+
+              {platform.config?.campaigns && platform.config.campaigns.length > 0 && (
+                <div className="mt-2 space-y-1 pl-2 border-l-2 border-primary/30">
+                  <p className="text-xs font-medium text-muted-foreground">Campaigns</p>
+                  {platform.config.campaigns.map((campaign) => (
+                    <div key={campaign.id} className="text-xs space-y-0.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground truncate max-w-[140px]" title={campaign.name}>
+                          {campaign.name}
+                        </span>
+                        {campaign.funnelStage && (
+                          <Badge variant="outline" className="text-[10px] h-4 px-1">
+                            {campaign.funnelStage}
+                          </Badge>
+                        )}
+                      </div>
+                      {campaign.objective && (
+                        <div className="text-[10px] text-muted-foreground/80 truncate" title={campaign.objective}>
+                          {campaign.objective}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           );
         })}

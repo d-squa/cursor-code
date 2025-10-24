@@ -14,11 +14,10 @@ export interface Phase {
   budgetPercentage: number;
 }
 
-export interface PlatformConfig {
-  strategy?: "full-funnel" | "partial";
-  strategyFocus?: "purchase" | "leads" | "app-installs" | "conversions" | "brand-awareness";
-  hasPhases?: boolean;
-  phases?: Phase[];
+export interface Campaign {
+  id: string;
+  name: string;
+  funnelStage?: "awareness" | "consideration" | "conversion" | "loyalty";
   objective?: string;
   campaignType?: string;
   optimizationGoal?: string;
@@ -29,6 +28,14 @@ export interface PlatformConfig {
     genders?: string[];
     placements?: string[];
   };
+}
+
+export interface PlatformConfig {
+  strategy?: "full-funnel" | "partial";
+  strategyFocus?: "purchase" | "leads" | "app-installs" | "conversions" | "brand-awareness";
+  hasPhases?: boolean;
+  phases?: Phase[];
+  campaigns?: Campaign[];
 }
 
 export interface Platform {
@@ -64,32 +71,136 @@ const optimizationGoals: Record<string, string[]> = {
   pinterest: ["Awareness", "Consideration", "Conversions"],
 };
 
+const getFunnelObjectives = (platformId: string, stage: string, focus: string): string => {
+  const objectives: Record<string, Record<string, Record<string, string>>> = {
+    meta: {
+      awareness: { purchase: "Brand Awareness", leads: "Brand Awareness", "app-installs": "Brand Awareness", conversions: "Brand Awareness" },
+      consideration: { purchase: "Traffic", leads: "Lead Generation", "app-installs": "App Installs", conversions: "Traffic" },
+      conversion: { purchase: "Conversions", leads: "Lead Generation", "app-installs": "App Installs", conversions: "Conversions" },
+      loyalty: { purchase: "Conversions", leads: "Engagement", "app-installs": "Engagement", conversions: "Conversions" },
+    },
+    google: {
+      awareness: { purchase: "Display", leads: "Display", "app-installs": "App", conversions: "Display" },
+      consideration: { purchase: "Search", leads: "Search", "app-installs": "App", conversions: "Search" },
+      conversion: { purchase: "Shopping", leads: "Search", "app-installs": "App", conversions: "Performance Max" },
+      loyalty: { purchase: "Performance Max", leads: "Search", "app-installs": "App", conversions: "Performance Max" },
+    },
+  };
+  
+  return objectives[platformId]?.[stage]?.[focus] || platformObjectives[platformId]?.[0] || "";
+};
+
 export function PlatformConfiguration({ platforms, setPlatforms, startDate, endDate }: PlatformConfigurationProps) {
   const enabledPlatforms = platforms.filter(p => p.enabled);
 
   const updatePlatformConfig = (platformId: string, field: keyof PlatformConfig, value: any) => {
     setPlatforms(
-      platforms.map(p =>
-        p.id === platformId
-          ? { ...p, config: { ...p.config, [field]: value } }
-          : p
-      )
+      platforms.map(p => {
+        if (p.id === platformId) {
+          const updatedConfig = { ...p.config, [field]: value };
+          
+          // Auto-generate campaigns when strategy changes
+          if (field === "strategy" || field === "strategyFocus") {
+            const strategy = field === "strategy" ? value : p.config?.strategy;
+            const focus = field === "strategyFocus" ? value : p.config?.strategyFocus;
+            
+            if (strategy === "full-funnel" && focus) {
+              updatedConfig.campaigns = [
+                { id: "awareness", name: "Awareness Campaign", funnelStage: "awareness", objective: getFunnelObjectives(platformId, "awareness", focus) },
+                { id: "consideration", name: "Consideration Campaign", funnelStage: "consideration", objective: getFunnelObjectives(platformId, "consideration", focus) },
+                { id: "conversion", name: "Conversion Campaign", funnelStage: "conversion", objective: getFunnelObjectives(platformId, "conversion", focus) },
+                { id: "loyalty", name: "Loyalty Campaign", funnelStage: "loyalty", objective: getFunnelObjectives(platformId, "loyalty", focus) },
+              ];
+            } else if (strategy === "partial" && !updatedConfig.campaigns?.length) {
+              updatedConfig.campaigns = [
+                { id: `campaign-${Date.now()}`, name: "Campaign 1" },
+              ];
+            }
+          }
+          
+          return { ...p, config: updatedConfig };
+        }
+        return p;
+      })
     );
   };
 
-  const updateTargeting = (platformId: string, field: string, value: any) => {
+  const addCampaign = (platformId: string) => {
     setPlatforms(
-      platforms.map(p =>
-        p.id === platformId
-          ? {
-              ...p,
-              config: {
-                ...p.config,
-                targeting: { ...p.config?.targeting, [field]: value }
-              }
+      platforms.map(p => {
+        if (p.id === platformId) {
+          const campaigns = p.config?.campaigns || [];
+          const newCampaign: Campaign = {
+            id: `campaign-${Date.now()}`,
+            name: `Campaign ${campaigns.length + 1}`,
+          };
+          return {
+            ...p,
+            config: {
+              ...p.config,
+              campaigns: [...campaigns, newCampaign],
             }
-          : p
-      )
+          };
+        }
+        return p;
+      })
+    );
+  };
+
+  const removeCampaign = (platformId: string, campaignId: string) => {
+    setPlatforms(
+      platforms.map(p => {
+        if (p.id === platformId && p.config?.campaigns) {
+          return {
+            ...p,
+            config: {
+              ...p.config,
+              campaigns: p.config.campaigns.filter(c => c.id !== campaignId),
+            }
+          };
+        }
+        return p;
+      })
+    );
+  };
+
+  const updateCampaign = (platformId: string, campaignId: string, field: keyof Campaign, value: any) => {
+    setPlatforms(
+      platforms.map(p => {
+        if (p.id === platformId && p.config?.campaigns) {
+          return {
+            ...p,
+            config: {
+              ...p.config,
+              campaigns: p.config.campaigns.map(c =>
+                c.id === campaignId ? { ...c, [field]: value } : c
+              ),
+            }
+          };
+        }
+        return p;
+      })
+    );
+  };
+
+  const updateCampaignTargeting = (platformId: string, campaignId: string, field: string, value: any) => {
+    setPlatforms(
+      platforms.map(p => {
+        if (p.id === platformId && p.config?.campaigns) {
+          return {
+            ...p,
+            config: {
+              ...p.config,
+              campaigns: p.config.campaigns.map(c =>
+                c.id === campaignId
+                  ? { ...c, targeting: { ...c.targeting, [field]: value } }
+                  : c
+              ),
+            }
+          };
+        }
+        return p;
+      })
     );
   };
 
@@ -156,7 +267,7 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
 
   const isConfigComplete = (platform: Platform): boolean => {
     if (!platform.config) return false;
-    const { strategy, strategyFocus, hasPhases, phases, objective, campaignType, optimizationGoal, targeting } = platform.config;
+    const { strategy, strategyFocus, hasPhases, phases, campaigns } = platform.config;
     
     const basicComplete = !!(strategy && strategyFocus);
     
@@ -167,16 +278,21 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
       if (!phasesComplete) return false;
     }
     
-    const detailsComplete = !!(
-      objective &&
-      campaignType &&
-      optimizationGoal &&
-      targeting?.locations?.length &&
-      targeting?.ageMin &&
-      targeting?.ageMax
-    );
+    if (!campaigns || campaigns.length === 0) return false;
     
-    return basicComplete && detailsComplete;
+    const campaignsComplete = campaigns.every(c => {
+      return !!(
+        c.name &&
+        c.objective &&
+        c.campaignType &&
+        c.optimizationGoal &&
+        c.targeting?.locations?.length &&
+        c.targeting?.ageMin &&
+        c.targeting?.ageMax
+      );
+    });
+    
+    return basicComplete && campaignsComplete;
   };
 
   if (enabledPlatforms.length === 0) {
@@ -323,119 +439,175 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
                 )}
               </div>
 
-              {/* Detailed Configuration */}
-              <div className="space-y-4">
-                <h4 className="font-semibold text-lg">Campaign Configuration</h4>
-                <div className="grid gap-6 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Campaign Objective</Label>
-                  <Select
-                    value={platform.config?.objective}
-                    onValueChange={(value) => updatePlatformConfig(platform.id, "objective", value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select objective" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {platformObjectives[platform.id]?.map(obj => (
-                        <SelectItem key={obj} value={obj}>{obj}</SelectItem>
+              {/* Campaign Configuration */}
+              {platform.config?.campaigns && platform.config.campaigns.length > 0 && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-semibold text-lg">Campaign Configuration</h4>
+                    {platform.config.strategy === "partial" && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => addCampaign(platform.id)}
+                      >
+                        Add Campaign
+                      </Button>
+                    )}
+                  </div>
+
+                  <Tabs defaultValue={platform.config.campaigns[0]?.id} className="w-full">
+                    <TabsList className="grid w-full" style={{ gridTemplateColumns: `repeat(${platform.config.campaigns.length}, 1fr)` }}>
+                      {platform.config.campaigns.map(campaign => (
+                        <TabsTrigger key={campaign.id} value={campaign.id}>
+                          {campaign.name}
+                        </TabsTrigger>
                       ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                    </TabsList>
 
-                <div className="space-y-2">
-                  <Label>Campaign Type</Label>
-                  <Input
-                    value={platform.config?.campaignType || ""}
-                    onChange={(e) => updatePlatformConfig(platform.id, "campaignType", e.target.value)}
-                    placeholder="e.g., Awareness, Consideration"
-                  />
-                </div>
+                    {platform.config.campaigns.map(campaign => (
+                      <TabsContent key={campaign.id} value={campaign.id} className="space-y-4 mt-4">
+                        {platform.config?.strategy === "partial" && (
+                          <div className="flex items-center justify-between pb-2 border-b">
+                            <Input
+                              value={campaign.name}
+                              onChange={(e) => updateCampaign(platform.id, campaign.id, "name", e.target.value)}
+                              placeholder="Campaign name"
+                              className="max-w-xs"
+                            />
+                            {platform.config.campaigns && platform.config.campaigns.length > 1 && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => removeCampaign(platform.id, campaign.id)}
+                              >
+                                Remove Campaign
+                              </Button>
+                            )}
+                          </div>
+                        )}
 
-                <div className="space-y-2">
-                  <Label>Optimization Goal</Label>
-                  <Select
-                    value={platform.config?.optimizationGoal}
-                    onValueChange={(value) => updatePlatformConfig(platform.id, "optimizationGoal", value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select goal" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {optimizationGoals[platform.id]?.map(goal => (
-                        <SelectItem key={goal} value={goal}>{goal}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                        {campaign.funnelStage && (
+                          <Badge variant="outline" className="mb-2">
+                            {campaign.funnelStage.charAt(0).toUpperCase() + campaign.funnelStage.slice(1)} Stage
+                          </Badge>
+                        )}
 
-                <div className="space-y-2">
-                  <Label>Target Locations</Label>
-                  <Input
-                    value={platform.config?.targeting?.locations?.join(", ") || ""}
-                    onChange={(e) => updateTargeting(platform.id, "locations", e.target.value.split(",").map(s => s.trim()).filter(Boolean))}
-                    placeholder="e.g., United States, Canada"
-                  />
-                </div>
-              </div>
+                        <div className="grid gap-6 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label>Campaign Objective</Label>
+                            <Select
+                              value={campaign.objective}
+                              onValueChange={(value) => updateCampaign(platform.id, campaign.id, "objective", value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select objective" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {platformObjectives[platform.id]?.map(obj => (
+                                  <SelectItem key={obj} value={obj}>{obj}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
 
-              <div className="space-y-4">
-                <h4 className="font-medium">Demographics</h4>
-                <div className="grid gap-6 md:grid-cols-3">
-                  <div className="space-y-2">
-                    <Label>Age Min</Label>
-                    <Input
-                      type="number"
-                      value={platform.config?.targeting?.ageMin || ""}
-                      onChange={(e) => updateTargeting(platform.id, "ageMin", parseInt(e.target.value))}
-                      placeholder="18"
-                      min="13"
-                      max="65"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Age Max</Label>
-                    <Input
-                      type="number"
-                      value={platform.config?.targeting?.ageMax || ""}
-                      onChange={(e) => updateTargeting(platform.id, "ageMax", parseInt(e.target.value))}
-                      placeholder="65"
-                      min="13"
-                      max="65"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Genders</Label>
-                    <Input
-                      value={platform.config?.targeting?.genders?.join(", ") || ""}
-                      onChange={(e) => updateTargeting(platform.id, "genders", e.target.value.split(",").map(s => s.trim()).filter(Boolean))}
-                      placeholder="All, Male, Female"
-                    />
-                  </div>
-                </div>
+                          <div className="space-y-2">
+                            <Label>Campaign Type</Label>
+                            <Input
+                              value={campaign.campaignType || ""}
+                              onChange={(e) => updateCampaign(platform.id, campaign.id, "campaignType", e.target.value)}
+                              placeholder="e.g., Awareness, Consideration"
+                            />
+                          </div>
 
-                <div className="space-y-2">
-                  <Label>Placements</Label>
-                  <Input
-                    value={platform.config?.targeting?.placements?.join(", ") || ""}
-                    onChange={(e) => updateTargeting(platform.id, "placements", e.target.value.split(",").map(s => s.trim()).filter(Boolean))}
-                    placeholder="e.g., Feed, Stories, Reels"
-                  />
-                </div>
+                          <div className="space-y-2">
+                            <Label>Optimization Goal</Label>
+                            <Select
+                              value={campaign.optimizationGoal}
+                              onValueChange={(value) => updateCampaign(platform.id, campaign.id, "optimizationGoal", value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select goal" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {optimizationGoals[platform.id]?.map(goal => (
+                                  <SelectItem key={goal} value={goal}>{goal}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
 
-                <div className="grid gap-6 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>Start Date</Label>
-                    <Input type="date" value={startDate} disabled className="bg-muted" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>End Date</Label>
-                    <Input type="date" value={endDate} disabled className="bg-muted" />
-                  </div>
+                          <div className="space-y-2">
+                            <Label>Target Locations</Label>
+                            <Input
+                              value={campaign.targeting?.locations?.join(", ") || ""}
+                              onChange={(e) => updateCampaignTargeting(platform.id, campaign.id, "locations", e.target.value.split(",").map(s => s.trim()).filter(Boolean))}
+                              placeholder="e.g., United States, Canada"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-4">
+                          <h4 className="font-medium">Demographics</h4>
+                          <div className="grid gap-6 md:grid-cols-3">
+                            <div className="space-y-2">
+                              <Label>Age Min</Label>
+                              <Input
+                                type="number"
+                                value={campaign.targeting?.ageMin || ""}
+                                onChange={(e) => updateCampaignTargeting(platform.id, campaign.id, "ageMin", parseInt(e.target.value))}
+                                placeholder="18"
+                                min="13"
+                                max="65"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Age Max</Label>
+                              <Input
+                                type="number"
+                                value={campaign.targeting?.ageMax || ""}
+                                onChange={(e) => updateCampaignTargeting(platform.id, campaign.id, "ageMax", parseInt(e.target.value))}
+                                placeholder="65"
+                                min="13"
+                                max="65"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Genders</Label>
+                              <Input
+                                value={campaign.targeting?.genders?.join(", ") || ""}
+                                onChange={(e) => updateCampaignTargeting(platform.id, campaign.id, "genders", e.target.value.split(",").map(s => s.trim()).filter(Boolean))}
+                                placeholder="All, Male, Female"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>Placements</Label>
+                            <Input
+                              value={campaign.targeting?.placements?.join(", ") || ""}
+                              onChange={(e) => updateCampaignTargeting(platform.id, campaign.id, "placements", e.target.value.split(",").map(s => s.trim()).filter(Boolean))}
+                              placeholder="e.g., Feed, Stories, Reels"
+                            />
+                          </div>
+
+                          <div className="grid gap-6 md:grid-cols-2">
+                            <div className="space-y-2">
+                              <Label>Start Date</Label>
+                              <Input type="date" value={startDate} disabled className="bg-muted" />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>End Date</Label>
+                              <Input type="date" value={endDate} disabled className="bg-muted" />
+                            </div>
+                          </div>
+                        </div>
+                      </TabsContent>
+                    ))}
+                  </Tabs>
                 </div>
-              </div>
-              </div>
+              )}
             </TabsContent>
           ))}
         </Tabs>

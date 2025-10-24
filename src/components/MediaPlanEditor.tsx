@@ -36,15 +36,17 @@ export function MediaPlanEditor() {
     if (enabledPlatforms.length === 0) return false;
     return enabledPlatforms.every(p => {
       if (!p.config) return false;
-      const { objective, campaignType, optimizationGoal, targeting } = p.config;
-      return !!(
-        objective &&
-        campaignType &&
-        optimizationGoal &&
-        targeting?.locations?.length &&
-        targeting?.ageMin &&
-        targeting?.ageMax
-      );
+      const { strategy, strategyFocus, campaigns } = p.config;
+      if (!strategy || !strategyFocus) return false;
+      if (!campaigns || campaigns.length === 0) return false;
+      return campaigns.every(c => !!(
+        c.objective &&
+        c.campaignType &&
+        c.optimizationGoal &&
+        c.targeting?.locations?.length &&
+        c.targeting?.ageMin &&
+        c.targeting?.ageMax
+      ));
     });
   };
 
