@@ -2,11 +2,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Checkbox } from "@/components/ui/checkbox";
 import { Facebook, Linkedin } from "lucide-react";
 
-import { PlatformHierarchy } from "@/types/hierarchy";
+import { Platform } from "./PlatformConfiguration";
 
 interface PlatformSelectorProps {
-  platforms: PlatformHierarchy[];
-  setPlatforms: (platforms: PlatformHierarchy[]) => void;
+  platforms: Platform[];
+  setPlatforms: (platforms: Platform[]) => void;
 }
 
 const platformIcons: Record<string, string> = {
