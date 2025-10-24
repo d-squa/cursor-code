@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, X, Copy } from "lucide-react";
 import { PlatformWithMarkets, Market } from "@/types/mediaplan";
+import { AdFormatSelector } from "./AdFormatSelector";
 
 interface PlatformMarketBudgetSelectorProps {
   platforms: PlatformWithMarkets[];
@@ -180,6 +181,21 @@ export function PlatformMarketBudgetSelector({
     );
   };
 
+  const updateMarketField = (platformIndex: number, marketId: string, field: keyof Market, value: any) => {
+    setPlatforms(
+      platforms.map((p, i) => 
+        i === platformIndex 
+          ? { 
+              ...p, 
+              markets: p.markets.map(m => 
+                m.id === marketId ? { ...m, [field]: value } : m
+              )
+            }
+          : p
+      )
+    );
+  };
+
   const getAvailablePlatforms = (currentPlatformId: string) => {
     return AVAILABLE_PLATFORMS.filter(
       ap => !usedPlatformIds.includes(ap.id) || ap.id === currentPlatformId
@@ -295,7 +311,7 @@ export function PlatformMarketBudgetSelector({
                         const marketBudget = (totalBudget * platform.budgetPercentage * market.budgetPercentage) / 10000;
 
                         return (
-                          <div key={market.id} className="p-3 bg-muted/50 rounded-md space-y-2">
+                          <div key={market.id} className="p-3 bg-muted/50 rounded-md space-y-3">
                             <div className="flex items-center justify-between gap-2">
                               <Input
                                 value={market.name}
@@ -325,6 +341,82 @@ export function PlatformMarketBudgetSelector({
                                 </Button>
                               </div>
                             </div>
+
+                            {/* Platform Configuration Fields */}
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="space-y-1">
+                                <Label className="text-xs">Account Name</Label>
+                                <Select
+                                  value={market.accountName || ""}
+                                  onValueChange={(value) => updateMarketField(platformIndex, market.id, 'accountName', value)}
+                                >
+                                  <SelectTrigger className="h-7 text-xs">
+                                    <SelectValue placeholder="Select account" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="account-1">Account 1 (API)</SelectItem>
+                                    <SelectItem value="account-2">Account 2 (API)</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+
+                              <div className="space-y-1">
+                                <Label className="text-xs">Page</Label>
+                                <Select
+                                  value={market.page || ""}
+                                  onValueChange={(value) => updateMarketField(platformIndex, market.id, 'page', value)}
+                                >
+                                  <SelectTrigger className="h-7 text-xs">
+                                    <SelectValue placeholder="Select page" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="page-1">Page 1 (API)</SelectItem>
+                                    <SelectItem value="page-2">Page 2 (API)</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+
+                              <div className="space-y-1">
+                                <Label className="text-xs">Pixel</Label>
+                                <Select
+                                  value={market.pixel || ""}
+                                  onValueChange={(value) => updateMarketField(platformIndex, market.id, 'pixel', value)}
+                                >
+                                  <SelectTrigger className="h-7 text-xs">
+                                    <SelectValue placeholder="Select pixel" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="pixel-1">Pixel 1 (API)</SelectItem>
+                                    <SelectItem value="pixel-2">Pixel 2 (API)</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+
+                              <div className="space-y-1">
+                                <Label className="text-xs">Catalog</Label>
+                                <Select
+                                  value={market.catalog || ""}
+                                  onValueChange={(value) => updateMarketField(platformIndex, market.id, 'catalog', value)}
+                                >
+                                  <SelectTrigger className="h-7 text-xs">
+                                    <SelectValue placeholder="Select catalog" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="catalog-1">Catalog 1 (API)</SelectItem>
+                                    <SelectItem value="catalog-2">Catalog 2 (API)</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+
+                            {/* Ad Formats */}
+                            <AdFormatSelector
+                              platformName={platform.name}
+                              selectedFormats={market.adFormats || []}
+                              onFormatsChange={(formats) => updateMarketField(platformIndex, market.id, 'adFormats', formats)}
+                            />
+
+                            {/* Market Budget */}
                             <div className="space-y-1">
                               <div className="flex items-center justify-between text-xs">
                                 <span className="text-muted-foreground">Market Budget</span>

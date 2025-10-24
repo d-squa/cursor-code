@@ -5,6 +5,10 @@ export interface Market {
   phases?: Phase[];
   useGlobalFunnel?: boolean;
   adFormats?: string[];
+  accountName?: string;
+  page?: string;
+  pixel?: string;
+  catalog?: string;
 }
 
 export interface FunnelStage {
@@ -40,9 +44,4 @@ export interface PlatformWithMarkets {
   enabled: boolean;
   budgetPercentage: number;
   markets: Market[];
-  accountName?: string;
-  accountId?: string;
-  page?: string;
-  pixel?: string;
-  catalog?: string;
 }

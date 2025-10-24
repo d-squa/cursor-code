@@ -1,7 +1,10 @@
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { X } from "lucide-react";
 import { platformAdFormats } from "@/utils/adFormats";
+import { useState } from "react";
 
 interface AdFormatSelectorProps {
   platformName: string;
@@ -10,45 +13,63 @@ interface AdFormatSelectorProps {
 }
 
 export function AdFormatSelector({ platformName, selectedFormats, onFormatsChange }: AdFormatSelectorProps) {
+  const [open, setOpen] = useState(false);
   const availableFormats = platformAdFormats[platformName] || [];
 
-  const toggleFormat = (format: string) => {
-    if (selectedFormats.includes(format)) {
-      onFormatsChange(selectedFormats.filter(f => f !== format));
-    } else {
+  const addFormat = (format: string) => {
+    if (!selectedFormats.includes(format)) {
       onFormatsChange([...selectedFormats, format]);
     }
+    setOpen(false);
+  };
+
+  const removeFormat = (format: string) => {
+    onFormatsChange(selectedFormats.filter(f => f !== format));
   };
 
   if (availableFormats.length === 0) {
     return null;
   }
 
+  const availableToSelect = availableFormats.filter(f => !selectedFormats.includes(f));
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Ad Formats</CardTitle>
-        <CardDescription className="text-sm">Select the ad formats for this market</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {availableFormats.map((format) => (
-            <div key={format} className="flex items-center space-x-2">
-              <Checkbox
-                id={`format-${format}`}
-                checked={selectedFormats.includes(format)}
-                onCheckedChange={() => toggleFormat(format)}
-              />
-              <Label
-                htmlFor={`format-${format}`}
-                className="text-sm font-normal cursor-pointer"
-              >
+    <div className="space-y-2">
+      <Label>Ad Formats</Label>
+      <Select open={open} onOpenChange={setOpen} onValueChange={addFormat}>
+        <SelectTrigger>
+          <SelectValue placeholder="Select ad formats" />
+        </SelectTrigger>
+        <SelectContent>
+          {availableToSelect.length > 0 ? (
+            availableToSelect.map((format) => (
+              <SelectItem key={format} value={format}>
                 {format}
-              </Label>
+              </SelectItem>
+            ))
+          ) : (
+            <div className="py-2 px-2 text-sm text-muted-foreground">
+              All formats selected
             </div>
+          )}
+        </SelectContent>
+      </Select>
+      
+      {selectedFormats.length > 0 && (
+        <div className="flex flex-wrap gap-2 mt-2">
+          {selectedFormats.map((format) => (
+            <Badge key={format} variant="secondary" className="gap-1">
+              {format}
+              <button
+                onClick={() => removeFormat(format)}
+                className="ml-1 hover:bg-muted rounded-full"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
           ))}
         </div>
-      </CardContent>
-    </Card>
+      )}
+    </div>
   );
 }
