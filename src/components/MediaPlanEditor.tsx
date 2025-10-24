@@ -15,6 +15,7 @@ import { PlatformConfigFields } from "./PlatformConfigFields";
 import { AdFormatSelector } from "./AdFormatSelector";
 import { TargetingConfigComponent } from "./TargetingConfig";
 import { getPhasesFromAdFormats } from "@/utils/adFormats";
+import { getDefaultPhases } from "@/utils/funnelPhases";
 import { Calendar, Download, Rocket, Loader2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
@@ -294,74 +295,12 @@ export function MediaPlanEditor() {
           </CardHeader>
           {currentStep === 2 ? (
             <CardContent className="space-y-6">
-              <div className="grid gap-6 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Strategy Type</Label>
-                  <Select
-                    value={genericConfig.strategy || ""}
-                    onValueChange={(value) => setGenericConfig({ ...genericConfig, strategy: value as any })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select strategy" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="full-funnel">Full-Funnel</SelectItem>
-                      <SelectItem value="partial">Partial Strategy</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Strategy Focus</Label>
-                  <Select
-                    value={genericConfig.strategyFocus || ""}
-                    onValueChange={(value) => setGenericConfig({ ...genericConfig, strategyFocus: value as any })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select focus" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="purchase">Purchase</SelectItem>
-                      <SelectItem value="leads">Leads</SelectItem>
-                      <SelectItem value="app-installs">App Installs</SelectItem>
-                      <SelectItem value="conversions">Conversions</SelectItem>
-                      <SelectItem value="brand-awareness">Brand Awareness</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <GlobalFunnelPhasing
-                startDate={startDate}
-                endDate={endDate}
-                globalFunnel={globalFunnel}
-                onGlobalFunnelChange={setGlobalFunnel}
-                onSaveGlobal={() => {
-                  // Apply global funnel to all platforms and markets
-                  setPlatformsWithMarkets(
-                    platformsWithMarkets.map(p => ({
-                      ...p,
-                      markets: p.markets.map(m => {
-                        const phases = globalFunnel.map(stage => ({
-                          id: `phase-${stage.id}-${Date.now()}-${Math.random()}`,
-                          name: stage.name,
-                          startDate: stage.startDate,
-                          endDate: stage.endDate,
-                          budgetPercentage: stage.budgetPercentage,
-                          campaigns: []
-                        }));
-                        return { ...m, phases, useGlobalFunnel: true };
-                      })
-                    }))
-                  );
-                  toast.success("Global funnel phasing applied to all platforms and markets");
-                }}
-              />
-
-              {/* Platform Configuration & Ad Formats */}
+              {/* Platform Configuration & Ad Formats - Show first */}
               <div className="space-y-4">
                 {platformsWithMarkets.filter(p => p.id !== "").map((platform) => (
-                  <div key={platform.id} className="space-y-4">
+                  <div key={platform.id} className="space-y-4 p-4 border rounded-lg">
+                    <h3 className="font-semibold text-lg">{platform.name}</h3>
+                    
                     <PlatformConfigFields
                       platformName={platform.name}
                       accountName={platform.accountName}
@@ -417,6 +356,80 @@ export function MediaPlanEditor() {
                   </div>
                 ))}
               </div>
+
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Strategy Type</Label>
+                  <Select
+                    value={genericConfig.strategy || ""}
+                    onValueChange={(value) => setGenericConfig({ ...genericConfig, strategy: value as any })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select strategy" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="full-funnel">Full-Funnel</SelectItem>
+                      <SelectItem value="partial">Partial Strategy</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Strategy Focus</Label>
+                  <Select
+                    value={genericConfig.strategyFocus || ""}
+                    onValueChange={(value) => {
+                      setGenericConfig({ ...genericConfig, strategyFocus: value as any });
+                      // Auto-generate global funnel phases based on strategy focus
+                      if (startDate && endDate) {
+                        const phases = getDefaultPhases(value, startDate, endDate);
+                        setGlobalFunnel(phases);
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select focus" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Awareness">Awareness</SelectItem>
+                      <SelectItem value="Market Presence">Market Presence</SelectItem>
+                      <SelectItem value="In-App Actions">In-App Actions</SelectItem>
+                      <SelectItem value="Purchases">Purchases</SelectItem>
+                      <SelectItem value="Actions">Actions</SelectItem>
+                      <SelectItem value="Conversions">Conversions</SelectItem>
+                      <SelectItem value="Leads">Leads</SelectItem>
+                      <SelectItem value="Revenue">Revenue</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <GlobalFunnelPhasing
+                startDate={startDate}
+                endDate={endDate}
+                globalFunnel={globalFunnel}
+                onGlobalFunnelChange={setGlobalFunnel}
+                onSaveGlobal={() => {
+                  // Apply global funnel to all platforms and markets
+                  setPlatformsWithMarkets(
+                    platformsWithMarkets.map(p => ({
+                      ...p,
+                      markets: p.markets.map(m => {
+                        const phases = globalFunnel.map(stage => ({
+                          id: `phase-${stage.id}-${Date.now()}-${Math.random()}`,
+                          name: stage.name,
+                          startDate: stage.startDate,
+                          endDate: stage.endDate,
+                          budgetPercentage: stage.budgetPercentage,
+                          campaigns: []
+                        }));
+                        return { ...m, phases, useGlobalFunnel: true };
+                      })
+                    }))
+                  );
+                  toast.success("Global funnel phasing applied to all platforms and markets");
+                }}
+              />
 
               <HierarchicalTimelineScheduler
                 platforms={platformsWithMarkets}

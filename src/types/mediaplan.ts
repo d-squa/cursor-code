@@ -9,7 +9,7 @@ export interface Market {
 
 export interface FunnelStage {
   id: string;
-  name: 'Awareness' | 'Consideration' | 'Conversion' | 'Loyalty';
+  name: string;
   startDate: string;
   endDate: string;
   budgetPercentage: number;
