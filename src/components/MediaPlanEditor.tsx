@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PlatformSelector } from "./PlatformSelector";
-import { BudgetAllocation } from "./BudgetAllocation";
+import { BudgetSummary } from "./BudgetSummary";
 import { CampaignMetrics } from "./CampaignMetrics";
 import { Calendar, Download, Rocket, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -106,13 +106,14 @@ export function MediaPlanEditor() {
   };
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Activation Details</CardTitle>
-          <CardDescription>Define your activation's core parameters</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
+    <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6">
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Activation Details</CardTitle>
+            <CardDescription>Define your activation's core parameters</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
           <div className="space-y-2">
             <Label htmlFor="name">Activation Name</Label>
             <Input
@@ -160,46 +161,49 @@ export function MediaPlanEditor() {
             </div>
           </div>
         </CardContent>
-      </Card>
+        </Card>
 
-      <PlatformSelector platforms={platforms} setPlatforms={setPlatforms} />
+        <PlatformSelector platforms={platforms} setPlatforms={setPlatforms} />
 
-      <BudgetAllocation platforms={platforms} setPlatforms={setPlatforms} totalBudget={parseFloat(totalBudget) || 0} />
+        <PlatformConfiguration 
+          platforms={platforms} 
+          setPlatforms={setPlatforms} 
+          startDate={startDate}
+          endDate={endDate}
+        />
 
-      <PlatformConfiguration 
-        platforms={platforms} 
-        setPlatforms={setPlatforms} 
-        startDate={startDate}
-        endDate={endDate}
-      />
+        {isAllPlatformsConfigured() && (
+          <CampaignMetrics platforms={platforms} totalBudget={parseFloat(totalBudget) || 0} />
+        )}
 
-      {isAllPlatformsConfigured() && (
-        <CampaignMetrics platforms={platforms} totalBudget={parseFloat(totalBudget) || 0} />
-      )}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex flex-col sm:flex-row gap-4 justify-end">
+              <Button variant="outline" onClick={handleExport} className="gap-2">
+                <Download className="h-4 w-4" />
+                Export Media Plan
+              </Button>
+              <Button variant="gradient" onClick={handleLaunch} className="gap-2" disabled={saving}>
+                {saving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Launching...
+                  </>
+                ) : (
+                  <>
+                    <Rocket className="h-4 w-4" />
+                    Launch Campaign
+                  </>
+                )}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col sm:flex-row gap-4 justify-end">
-            <Button variant="outline" onClick={handleExport} className="gap-2">
-              <Download className="h-4 w-4" />
-              Export Media Plan
-            </Button>
-            <Button variant="gradient" onClick={handleLaunch} className="gap-2" disabled={saving}>
-              {saving ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Launching...
-                </>
-              ) : (
-                <>
-                  <Rocket className="h-4 w-4" />
-                  Launch Campaign
-                </>
-              )}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="lg:block hidden">
+        <BudgetSummary platforms={platforms} setPlatforms={setPlatforms} totalBudget={parseFloat(totalBudget) || 0} />
+      </div>
     </div>
   );
 }
