@@ -8,12 +8,14 @@ import { PlatformSelector } from "./PlatformSelector";
 import { BudgetSummary } from "./BudgetSummary";
 import { CampaignMetrics } from "./CampaignMetrics";
 import { GenericStrategyConfig, GenericConfig } from "./GenericStrategyConfig";
+import { PlatformMarketBudgetSelector } from "./PlatformMarketBudgetSelector";
+import { HierarchicalTimelineScheduler } from "./HierarchicalTimelineScheduler";
 import { Calendar, Download, Rocket, Loader2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-
+import { PlatformWithMarkets } from "@/types/mediaplan";
 import { Platform, PlatformConfiguration } from "./PlatformConfiguration";
 
 
@@ -26,6 +28,16 @@ export function MediaPlanEditor() {
   const [endDate, setEndDate] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [genericConfig, setGenericConfig] = useState<GenericConfig>({});
+  const [platformsWithMarkets, setPlatformsWithMarkets] = useState<PlatformWithMarkets[]>([
+    { id: "meta", name: "Meta", enabled: false, budgetPercentage: 0, markets: [] },
+    { id: "google", name: "Google Ads", enabled: false, budgetPercentage: 0, markets: [] },
+    { id: "linkedin", name: "LinkedIn", enabled: false, budgetPercentage: 0, markets: [] },
+    { id: "tiktok", name: "TikTok", enabled: false, budgetPercentage: 0, markets: [] },
+    { id: "snapchat", name: "Snapchat", enabled: false, budgetPercentage: 0, markets: [] },
+    { id: "pinterest", name: "Pinterest", enabled: false, budgetPercentage: 0, markets: [] },
+  ]);
+  
+  // Legacy platforms for step 5 (Platform Configuration)
   const [platforms, setPlatforms] = useState<Platform[]>([
     { id: "meta", name: "Meta", enabled: false, budgetPercentage: 0 },
     { id: "google", name: "Google Ads", enabled: false, budgetPercentage: 0 },
@@ -36,7 +48,11 @@ export function MediaPlanEditor() {
   ]);
 
   const isActivationDetailsComplete = () => {
-    return !!(campaignName.trim() && totalBudget && startDate && endDate);
+    const hasEnabledPlatforms = platformsWithMarkets.some(p => p.enabled);
+    const allEnabledHaveMarkets = platformsWithMarkets
+      .filter(p => p.enabled)
+      .every(p => p.markets.length > 0);
+    return !!(campaignName.trim() && totalBudget && startDate && endDate && hasEnabledPlatforms && allEnabledHaveMarkets);
   };
 
   const isStrategyComplete = () => {
@@ -106,8 +122,8 @@ export function MediaPlanEditor() {
       totalBudget,
       startDate,
       endDate,
-      platforms: platforms.filter(p => p.enabled),
-      budgetAllocation: platforms
+      platforms: platformsWithMarkets.filter(p => p.enabled),
+      budgetAllocation: platformsWithMarkets
         .filter(p => p.enabled)
         .reduce((acc, p) => ({ ...acc, [p.id]: p.budgetPercentage }), {}),
     };
@@ -129,7 +145,7 @@ export function MediaPlanEditor() {
 
     setSaving(true);
     try {
-      const budgetAllocation = platforms
+      const budgetAllocation = platformsWithMarkets
         .filter(p => p.enabled)
         .reduce((acc, p) => ({ ...acc, [p.id]: p.budgetPercentage }), {});
 
@@ -140,7 +156,7 @@ export function MediaPlanEditor() {
         total_budget: parseFloat(totalBudget) || 0,
         start_date: startDate || null,
         end_date: endDate || null,
-        platforms: platforms.filter(p => p.enabled).map(p => ({ id: p.id, name: p.name })),
+        platforms: platformsWithMarkets.filter(p => p.enabled).map(p => ({ id: p.id, name: p.name })),
         budget_allocation: budgetAllocation,
         status: "active",
       });
@@ -222,6 +238,14 @@ export function MediaPlanEditor() {
               </div>
             </div>
 
+            <div className="pt-4">
+              <PlatformMarketBudgetSelector
+                platforms={platformsWithMarkets}
+                setPlatforms={setPlatformsWithMarkets}
+                totalBudget={parseFloat(totalBudget) || 0}
+              />
+            </div>
+
             <div className="flex justify-end pt-4">
               <Button 
                 onClick={() => setCurrentStep(2)} 
@@ -260,7 +284,7 @@ export function MediaPlanEditor() {
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>Step 2: Strategy Configuration</CardTitle>
-                <CardDescription>Define your campaign strategy approach</CardDescription>
+                <CardDescription>Define your campaign strategy, phases, and campaigns</CardDescription>
               </div>
               {currentStep > 2 && (
                 <Button variant="ghost" size="sm" onClick={() => setCurrentStep(2)}>
@@ -308,6 +332,13 @@ export function MediaPlanEditor() {
                 </div>
               </div>
 
+              <HierarchicalTimelineScheduler
+                platforms={platformsWithMarkets}
+                setPlatforms={setPlatformsWithMarkets}
+                startDate={startDate}
+                endDate={endDate}
+              />
+
               <div className="flex justify-between pt-4">
                 <Button variant="outline" onClick={() => setCurrentStep(1)}>
                   Back
@@ -316,7 +347,7 @@ export function MediaPlanEditor() {
                   onClick={() => setCurrentStep(3)} 
                   disabled={!isStrategyComplete()}
                 >
-                  Next: Phase Scheduling
+                  Next: Targeting
                 </Button>
               </div>
             </CardContent>
@@ -337,36 +368,22 @@ export function MediaPlanEditor() {
         </Card>
       )}
 
-      {/* Step 3: Phase Scheduling */}
+      {/* Step 3: Targeting */}
       {currentStep === 3 && (
         <GenericStrategyConfig
           config={genericConfig}
           setConfig={setGenericConfig}
           startDate={startDate}
           endDate={endDate}
-          showOnlyPhaseScheduler
+          showOnlyTargeting
           onNext={() => setCurrentStep(4)}
           onBack={() => setCurrentStep(2)}
-          isPhaseSchedulerComplete={isPhaseSchedulerComplete()}
-        />
-      )}
-
-      {/* Step 4: Targeting */}
-      {currentStep === 4 && (
-        <GenericStrategyConfig
-          config={genericConfig}
-          setConfig={setGenericConfig}
-          startDate={startDate}
-          endDate={endDate}
-          showOnlyTargeting
-          onNext={() => setCurrentStep(5)}
-          onBack={() => setCurrentStep(3)}
           isTargetingComplete={isTargetingComplete()}
         />
       )}
 
-      {/* Step 5: Platform Selection & Configuration */}
-      {currentStep >= 5 && isGenericConfigComplete() && (
+      {/* Step 4: Platform Selection & Configuration */}
+      {currentStep >= 4 && isGenericConfigComplete() && (
         <>
           <PlatformSelector platforms={platforms} setPlatforms={handlePlatformToggle} />
 
