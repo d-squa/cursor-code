@@ -476,6 +476,7 @@ export function MediaPlanEditor() {
           onNext={() => setCurrentStep(4)}
           onBack={() => setCurrentStep(2)}
           isTargetingComplete={isTargetingComplete()}
+          platformName={(platformsWithMarkets.find(p => p.id !== "")?.name) || platformsWithMarkets[0]?.name || "Facebook (Meta)"}
         />
       )}
 

@@ -31,9 +31,10 @@ interface TargetingConfigProps {
   targeting: TargetingConfig;
   onUpdate: (targeting: TargetingConfig) => void;
   platformName: string;
+  showAdFormats?: boolean;
 }
 
-export function TargetingConfigComponent({ targeting, onUpdate, platformName }: TargetingConfigProps) {
+export function TargetingConfigComponent({ targeting, onUpdate, platformName, showAdFormats = true }: TargetingConfigProps) {
   const updateField = (field: keyof TargetingConfig, value: any) => {
     onUpdate({ ...targeting, [field]: value });
   };
@@ -55,14 +56,16 @@ export function TargetingConfigComponent({ targeting, onUpdate, platformName }: 
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Ad Formats */}
-        <div className="space-y-2">
-          <Label>Ad Formats</Label>
-          <AdFormatSelector
-            platformName={platformName}
-            selectedFormats={targeting.adFormats || []}
-            onFormatsChange={(formats) => updateField("adFormats", formats)}
-          />
-        </div>
+        {showAdFormats && (
+          <div className="space-y-2">
+            <Label>Ad Formats</Label>
+            <AdFormatSelector
+              platformName={platformName}
+              selectedFormats={targeting.adFormats || []}
+              onFormatsChange={(formats) => updateField("adFormats", formats)}
+            />
+          </div>
+        )}
 
         {/* Age & Gender */}
         <div className="grid gap-4 md:grid-cols-3">

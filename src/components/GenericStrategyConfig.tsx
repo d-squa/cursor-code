@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { PhaseScheduler } from "./PhaseScheduler";
 import { Phase, Campaign } from "./PlatformConfiguration";
-import { TargetingConfig } from "./TargetingConfig";
+import { TargetingConfig, TargetingConfigComponent } from "./TargetingConfig";
 
 export interface GenericConfig {
   strategy?: "full-funnel" | "partial";
@@ -27,6 +27,7 @@ interface GenericStrategyConfigProps {
   onBack?: () => void;
   isTargetingComplete?: boolean;
   isPhaseSchedulerComplete?: boolean;
+  platformName?: string;
 }
 
 export function GenericStrategyConfig({ 
@@ -39,7 +40,8 @@ export function GenericStrategyConfig({
   onNext,
   onBack,
   isTargetingComplete = false,
-  isPhaseSchedulerComplete = false
+  isPhaseSchedulerComplete = false,
+  platformName,
 }: GenericStrategyConfigProps) {
   const updateConfig = (field: keyof GenericConfig, value: any) => {
     const updatedConfig = { ...config, [field]: value };
@@ -101,41 +103,12 @@ export function GenericStrategyConfig({
             </div>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="space-y-4">
-              <h4 className="font-medium">Demographics</h4>
-              <div className="grid gap-6 md:grid-cols-3">
-                <div className="space-y-2">
-                  <Label>Age Min</Label>
-                  <Input
-                    type="number"
-                    value={config.targeting?.ageMin || ""}
-                    onChange={(e) => updateTargeting("ageMin", parseInt(e.target.value))}
-                    placeholder="18"
-                    min="13"
-                    max="65"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Age Max</Label>
-                  <Input
-                    type="number"
-                    value={config.targeting?.ageMax || ""}
-                    onChange={(e) => updateTargeting("ageMax", parseInt(e.target.value))}
-                    placeholder="65"
-                    min="13"
-                    max="65"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Genders</Label>
-                  <Input
-                    value={config.targeting?.genders?.join(", ") || ""}
-                    onChange={(e) => updateTargeting("genders", e.target.value.split(",").map(s => s.trim()).filter(Boolean))}
-                    placeholder="All, Male, Female"
-                  />
-                </div>
-              </div>
-            </div>
+            <TargetingConfigComponent
+              platformName={platformName || "Facebook (Meta)"}
+              targeting={config.targeting || {}}
+              onUpdate={(t) => setConfig({ ...config, targeting: t })}
+              showAdFormats={false}
+            />
 
             <div className="flex justify-between pt-4">
               <Button variant="outline" onClick={onBack}>
