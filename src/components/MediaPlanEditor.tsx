@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +22,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { PlatformWithMarkets, FunnelStage } from "@/types/mediaplan";
 import { Platform, PlatformConfiguration } from "./PlatformConfiguration";
+import { determineStrategyFocus } from "@/utils/strategyFocusMapping";
 
 
 export function MediaPlanEditor() {
@@ -111,6 +112,24 @@ export function MediaPlanEditor() {
     { id: "snapchat", name: "Snapchat", enabled: false, budgetPercentage: 0 },
     { id: "pinterest", name: "Pinterest", enabled: false, budgetPercentage: 0 },
   ]);
+
+  // Auto-update strategy focus based on pixel/catalog in markets
+  useEffect(() => {
+    const hasPixel = platformsWithMarkets.some(p => p.markets.some(m => m.pixel));
+    const hasCatalog = platformsWithMarkets.some(p => p.markets.some(m => m.catalog));
+    
+    if (hasPixel || hasCatalog) {
+      const determinedFocus = determineStrategyFocus({
+        adFormats: genericConfig.targeting?.adFormats || [],
+        hasPixel,
+        hasCatalog,
+      });
+      
+      if (determinedFocus && determinedFocus !== genericConfig.strategyFocus) {
+        setGenericConfig(prev => ({ ...prev, strategyFocus: determinedFocus }));
+      }
+    }
+  }, [platformsWithMarkets]);
 
   const isActivationDetailsComplete = () => {
     const allPlatformsSelected = platformsWithMarkets.every(p => p.id !== "");
@@ -400,6 +419,11 @@ export function MediaPlanEditor() {
                       <SelectItem value="Revenue">Revenue</SelectItem>
                     </SelectContent>
                   </Select>
+                  {(platformsWithMarkets.some(p => p.markets.some(m => m.pixel || m.catalog))) && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      💡 Auto-detected based on pixel/catalog configuration
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -479,6 +503,8 @@ export function MediaPlanEditor() {
           onBack={() => setCurrentStep(2)}
           isTargetingComplete={isTargetingComplete()}
           platformName={(platformsWithMarkets.find(p => p.id !== "")?.name) || platformsWithMarkets[0]?.name || "Facebook (Meta)"}
+          hasPixel={platformsWithMarkets.some(p => p.markets.some(m => m.pixel))}
+          hasCatalog={platformsWithMarkets.some(p => p.markets.some(m => m.catalog))}
         />
       )}
 

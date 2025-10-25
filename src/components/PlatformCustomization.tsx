@@ -10,6 +10,7 @@ import { PlatformWithMarkets } from "@/types/mediaplan";
 import { GenericConfig } from "./GenericStrategyConfig";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { CheckCircle2, Edit } from "lucide-react";
+import { determineStrategyFocus, getOptimizationGoalForFocus } from "@/utils/strategyFocusMapping";
 
 interface PlatformCustomizationProps {
   platforms: PlatformWithMarkets[];
@@ -64,8 +65,33 @@ export function PlatformCustomization({
 
   const mapGenericToPlatformObjective = (
     platformName: string,
-    genericFocus?: string
+    genericFocus?: string,
+    market?: any
   ): string => {
+    // First, try to determine focus from market-specific ad formats and config
+    if (market) {
+      const determinedFocus = determineStrategyFocus({
+        adFormats: market.adFormats || genericConfig.targeting?.adFormats || [],
+        hasPixel: !!market.pixel,
+        hasCatalog: !!market.catalog,
+      });
+      
+      if (determinedFocus) {
+        // Map the platform ID from platform name
+        const platformIdMap: Record<string, string> = {
+          "Facebook (Meta)": "meta",
+          "Instagram (Meta)": "meta",
+          "Google Ads": "google",
+          "YouTube (Google)": "google",
+          "LinkedIn": "linkedin",
+          "TikTok": "tiktok",
+        };
+        const platformId = platformIdMap[platformName] || "meta";
+        return getOptimizationGoalForFocus(determinedFocus, platformId, !!market.pixel);
+      }
+    }
+    
+    // Fallback to original mapping
     const mapping: Record<string, string> = {
       "Purchases": "Conversion",
       "Conversions": "Conversion",
@@ -264,7 +290,7 @@ export function PlatformCustomization({
                             <div className="text-xs text-muted-foreground">
                               <p>Campaign will be created based on:</p>
                               <ul className="list-disc list-inside mt-2 space-y-1">
-                                <li>Objective: {mapGenericToPlatformObjective(platform.name, genericConfig.strategyFocus)}</li>
+                                <li>Objective: {mapGenericToPlatformObjective(platform.name, genericConfig.strategyFocus, market)}</li>
                                 <li>Ad Formats: {market.adFormats?.join(", ") || "Not selected"}</li>
                                 <li>Targeting: Age {genericConfig.targeting?.ageMin}-{genericConfig.targeting?.ageMax}</li>
                                 <li>Placements: {genericConfig.targeting?.placements?.join(", ") || "Automatic"}</li>

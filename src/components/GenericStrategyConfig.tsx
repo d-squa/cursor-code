@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { PhaseScheduler } from "./PhaseScheduler";
 import { Phase, Campaign } from "./PlatformConfiguration";
 import { TargetingConfig, TargetingConfigComponent } from "./TargetingConfig";
+import { determineStrategyFocus } from "@/utils/strategyFocusMapping";
+import { useEffect } from "react";
 
 export interface GenericConfig {
   strategy?: "full-funnel" | "partial";
@@ -28,6 +30,8 @@ interface GenericStrategyConfigProps {
   isTargetingComplete?: boolean;
   isPhaseSchedulerComplete?: boolean;
   platformName?: string;
+  hasPixel?: boolean;
+  hasCatalog?: boolean;
 }
 
 export function GenericStrategyConfig({ 
@@ -42,7 +46,27 @@ export function GenericStrategyConfig({
   isTargetingComplete = false,
   isPhaseSchedulerComplete = false,
   platformName,
+  hasPixel = false,
+  hasCatalog = false,
 }: GenericStrategyConfigProps) {
+  
+  // Auto-determine strategy focus based on ad formats and platform config
+  useEffect(() => {
+    const adFormats = config.targeting?.adFormats || [];
+    
+    if (adFormats.length > 0 || hasPixel || hasCatalog) {
+      const determinedFocus = determineStrategyFocus({
+        adFormats,
+        hasPixel,
+        hasCatalog,
+      });
+      
+      // Only update if we have a determined focus and it's different from current
+      if (determinedFocus && determinedFocus !== config.strategyFocus) {
+        updateConfig("strategyFocus", determinedFocus);
+      }
+    }
+  }, [config.targeting?.adFormats, hasPixel, hasCatalog]);
   const updateConfig = (field: keyof GenericConfig, value: any) => {
     const updatedConfig = { ...config, [field]: value };
     
