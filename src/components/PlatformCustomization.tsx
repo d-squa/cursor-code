@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import { GenericConfig } from "./GenericStrategyConfig";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { CheckCircle2, Edit } from "lucide-react";
 import { determineStrategyFocus, getOptimizationGoalForFocus } from "@/utils/strategyFocusMapping";
+import { generateAutoDetectPhases } from "@/utils/funnelPhases";
 
 interface PlatformCustomizationProps {
   platforms: PlatformWithMarkets[];
@@ -18,6 +19,8 @@ interface PlatformCustomizationProps {
   onPlatformsUpdate: (platforms: PlatformWithMarkets[]) => void;
   onNext: () => void;
   onBack: () => void;
+  startDate: string;
+  endDate: string;
 }
 
 // Platform-specific objective mappings
@@ -60,6 +63,8 @@ export function PlatformCustomization({
   onPlatformsUpdate,
   onNext,
   onBack,
+  startDate,
+  endDate,
 }: PlatformCustomizationProps) {
   const [editingMode, setEditingMode] = useState<{ [key: string]: boolean }>({});
 
@@ -136,8 +141,60 @@ export function PlatformCustomization({
     );
   };
 
-  return (
-    <Card>
+// Auto-generate market phases for Auto-Detect when entering customization
+useEffect(() => {
+  if (genericConfig.strategy !== "auto-detect") return;
+  if (!startDate || !endDate) return;
+
+  let changed = false;
+  const updated = platforms.map((platform) => {
+    const updatedMarkets = platform.markets.map((market) => {
+      const hasPhases = Array.isArray(market.phases) && market.phases.length > 0;
+      const adFormats = market.adFormats || genericConfig.targeting?.adFormats || [];
+      const hasPixel = !!market.pixel;
+      const hasCatalog = !!market.catalog;
+
+      if (hasPhases || (!adFormats.length && !hasPixel && !hasCatalog)) {
+        return market;
+      }
+
+      const detectedFocus = determineStrategyFocus({
+        adFormats,
+        hasPixel,
+        hasCatalog,
+      });
+
+      const phases = generateAutoDetectPhases(
+        adFormats,
+        hasPixel,
+        hasCatalog,
+        startDate,
+        endDate
+      );
+
+      if (!phases || phases.length === 0) return market;
+      changed = true;
+
+      return {
+        ...market,
+        strategyFocus: detectedFocus || "conversions",
+        phases: phases.map((p) => ({
+          ...p,
+          id: `phase-${market.id}-${p.id}`,
+          campaigns: [],
+        })),
+      };
+    });
+    return { ...platform, markets: updatedMarkets };
+  });
+
+  if (changed) {
+    onPlatformsUpdate(updated);
+  }
+}, [platforms, genericConfig.strategy, genericConfig.targeting?.adFormats, startDate, endDate, onPlatformsUpdate]);
+
+return (
+  <Card>
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>

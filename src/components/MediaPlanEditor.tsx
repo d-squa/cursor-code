@@ -646,6 +646,8 @@ export function MediaPlanEditor() {
           onPlatformsUpdate={setPlatformsWithMarkets}
           onNext={() => setCurrentStep(5)}
           onBack={() => setCurrentStep(3)}
+          startDate={startDate}
+          endDate={endDate}
         />
       )}
 
