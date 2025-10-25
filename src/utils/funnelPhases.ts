@@ -92,6 +92,9 @@ export const funnelTemplates: Record<string, FunnelTemplate> = {
   },
 };
 
+/**
+ * Generates default phases based on strategy focus
+ */
 export const getDefaultPhases = (strategyFocus: string, startDate: string, endDate: string) => {
   const template = funnelTemplates[strategyFocus];
   if (!template) return [];
@@ -117,4 +120,38 @@ export const getDefaultPhases = (strategyFocus: string, startDate: string, endDa
       budgetPercentage: 20, // Equal 20% split for 5 phases
     };
   });
+};
+
+/**
+ * Generates phases for auto-detect strategy based on platform/market configuration
+ */
+export const generateAutoDetectPhases = (
+  adFormats: string[],
+  hasPixel: boolean,
+  hasCatalog: boolean,
+  startDate: string,
+  endDate: string
+) => {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const totalDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+  
+  // Determine which template to use based on ad formats and pixel/catalog
+  let strategyFocus = "Conversions"; // default
+  
+  const formatString = adFormats.join(" ").toLowerCase();
+  
+  if (formatString.includes("lead") || formatString.includes("instant form")) {
+    strategyFocus = "Leads";
+  } else if (formatString.includes("dynamic") || formatString.includes("catalog") || formatString.includes("shopping") || hasCatalog) {
+    strategyFocus = "Purchases";
+  } else if (formatString.includes("app")) {
+    strategyFocus = "In-App Actions";
+  } else if (formatString.includes("video views") || formatString.includes("brand awareness")) {
+    strategyFocus = "Awareness";
+  } else if (hasPixel) {
+    strategyFocus = "Conversions";
+  }
+  
+  return getDefaultPhases(strategyFocus, startDate, endDate);
 };

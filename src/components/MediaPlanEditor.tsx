@@ -14,7 +14,7 @@ import { GlobalFunnelPhasing } from "./GlobalFunnelPhasing";
 import { TargetingConfigComponent } from "./TargetingConfig";
 import { PlatformCustomization } from "./PlatformCustomization";
 import { CampaignForecast } from "./CampaignForecast";
-import { getDefaultPhases } from "@/utils/funnelPhases";
+import { getDefaultPhases, generateAutoDetectPhases } from "@/utils/funnelPhases";
 import { Calendar, Download, Rocket, Loader2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
@@ -510,7 +510,66 @@ export function MediaPlanEditor() {
           startDate={startDate}
           endDate={endDate}
           showOnlyTargeting
-          onNext={() => setCurrentStep(4)}
+          onNext={() => {
+            // Generate phases per platform/market based on strategy type
+            if (genericConfig.strategy === "auto-detect") {
+              // Auto-detect: Generate phases based on market-specific configuration
+              const updatedPlatforms = platformsWithMarkets.map(platform => ({
+                ...platform,
+                markets: platform.markets.map(market => {
+                  const phases = generateAutoDetectPhases(
+                    market.adFormats || genericConfig.targeting?.adFormats || [],
+                    !!market.pixel,
+                    !!market.catalog,
+                    startDate,
+                    endDate
+                  );
+                  return {
+                    ...market,
+                    phases: phases.map(p => ({
+                      ...p,
+                      id: `phase-${market.id}-${p.id}`,
+                      campaigns: []
+                    }))
+                  };
+                })
+              }));
+              setPlatformsWithMarkets(updatedPlatforms);
+            } else if (genericConfig.strategy === "full-funnel" && genericConfig.strategyFocus && genericConfig.strategyFocus !== "auto") {
+              // Full-funnel: Apply the global funnel phases to all markets
+              const phases = getDefaultPhases(genericConfig.strategyFocus, startDate, endDate);
+              const updatedPlatforms = platformsWithMarkets.map(platform => ({
+                ...platform,
+                markets: platform.markets.map(market => ({
+                  ...market,
+                  phases: phases.map(p => ({
+                    ...p,
+                    id: `phase-${market.id}-${p.id}`,
+                    campaigns: []
+                  }))
+                }))
+              }));
+              setPlatformsWithMarkets(updatedPlatforms);
+            } else if (genericConfig.strategy === "manual") {
+              // Manual: Create empty phase structure for user to fill
+              const updatedPlatforms = platformsWithMarkets.map(platform => ({
+                ...platform,
+                markets: platform.markets.map(market => ({
+                  ...market,
+                  phases: [{
+                    id: `phase-${market.id}-${Date.now()}`,
+                    name: "Phase 1",
+                    startDate: startDate,
+                    endDate: endDate,
+                    budgetPercentage: 100,
+                    campaigns: []
+                  }]
+                }))
+              }));
+              setPlatformsWithMarkets(updatedPlatforms);
+            }
+            setCurrentStep(4);
+          }}
           onBack={() => setCurrentStep(2)}
           isTargetingComplete={isTargetingComplete()}
           platformName={(platformsWithMarkets.find(p => p.id !== "")?.name) || platformsWithMarkets[0]?.name || "Facebook (Meta)"}
