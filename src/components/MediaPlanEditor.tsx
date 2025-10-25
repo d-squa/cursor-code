@@ -131,55 +131,6 @@ export function MediaPlanEditor() {
     }
   }, [platformsWithMarkets]);
 
-  // Auto-generate market phasing when using Auto-Detect strategy
-  useEffect(() => {
-    if (genericConfig.strategy !== "auto-detect") return;
-    if (!startDate || !endDate) return;
-
-    let changed = false;
-    const updated = platformsWithMarkets.map(platform => {
-      const updatedMarkets = platform.markets.map(market => {
-        const hasPhases = Array.isArray(market.phases) && market.phases.length > 0;
-        if (hasPhases) return market;
-        
-        const adFormats = market.adFormats || genericConfig.targeting?.adFormats || [];
-        const hasPixel = !!market.pixel;
-        const hasCatalog = !!market.catalog;
-        
-        // Determine strategy focus for this market
-        const detectedFocus = determineStrategyFocus({
-          adFormats,
-          hasPixel,
-          hasCatalog
-        });
-        
-        const phases = generateAutoDetectPhases(
-          adFormats,
-          hasPixel,
-          hasCatalog,
-          startDate,
-          endDate
-        );
-        if (!phases || phases.length === 0) return market;
-        changed = true;
-        return {
-          ...market,
-          strategyFocus: detectedFocus || "conversions",
-          phases: phases.map(p => ({
-            ...p,
-            id: `phase-${market.id}-${p.id}`,
-            campaigns: []
-          }))
-        };
-      });
-      return { ...platform, markets: updatedMarkets };
-    });
-
-    if (changed) {
-      setPlatformsWithMarkets(updated);
-    }
-  }, [genericConfig.strategy, genericConfig.targeting?.adFormats, startDate, endDate, platformsWithMarkets]);
-
   const isActivationDetailsComplete = () => {
     const allPlatformsSelected = platformsWithMarkets.every(p => p.id !== "");
     const allHaveMarkets = platformsWithMarkets.every(p => p.markets.length > 0);

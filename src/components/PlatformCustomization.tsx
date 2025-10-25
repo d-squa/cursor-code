@@ -68,6 +68,60 @@ export function PlatformCustomization({
 }: PlatformCustomizationProps) {
   const [editingMode, setEditingMode] = useState<{ [key: string]: boolean }>({});
 
+  // Auto-generate phases on mount if using auto-detect and phases are missing
+  useEffect(() => {
+    if (genericConfig.strategy !== "auto-detect") return;
+    if (!startDate || !endDate) return;
+
+    let changed = false;
+    const updated = platforms.map((platform) => {
+      const updatedMarkets = platform.markets.map((market) => {
+        // Only generate if phases are truly empty or missing
+        const hasValidPhases = Array.isArray(market.phases) && market.phases.length > 0;
+        if (hasValidPhases) return market;
+
+        const adFormats = market.adFormats || genericConfig.targeting?.adFormats || [];
+        const hasPixel = !!market.pixel;
+        const hasCatalog = !!market.catalog;
+
+        // Skip if no configuration to detect from
+        if (!adFormats.length && !hasPixel && !hasCatalog) return market;
+
+        const detectedFocus = determineStrategyFocus({
+          adFormats,
+          hasPixel,
+          hasCatalog,
+        });
+
+        const phases = generateAutoDetectPhases(
+          adFormats,
+          hasPixel,
+          hasCatalog,
+          startDate,
+          endDate
+        );
+
+        if (!phases || phases.length === 0) return market;
+        changed = true;
+
+        return {
+          ...market,
+          strategyFocus: detectedFocus || "conversions",
+          phases: phases.map((p) => ({
+            ...p,
+            id: `phase-${market.id}-${p.id}`,
+            campaigns: [],
+          })),
+        };
+      });
+      return { ...platform, markets: updatedMarkets };
+    });
+
+    if (changed) {
+      onPlatformsUpdate(updated);
+    }
+  }, []); // Only run once on mount
+
   const mapGenericToPlatformObjective = (
     platformName: string,
     genericFocus?: string,
