@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, X, Copy } from "lucide-react";
 import { PlatformWithMarkets, Market } from "@/types/mediaplan";
 import { AdFormatSelector } from "./AdFormatSelector";
+import { getTestPresets } from "@/utils/testPresets";
 
 interface PlatformMarketBudgetSelectorProps {
   platforms: PlatformWithMarkets[];
@@ -41,6 +42,10 @@ export function PlatformMarketBudgetSelector({
       markets: [{ id: `market-1-${Date.now()}`, name: "Market 1", budgetPercentage: 100, phases: [] }]
     };
     setPlatforms([...platforms, newPlatform]);
+  };
+
+  const loadTestPresets = () => {
+    setPlatforms(getTestPresets());
   };
 
   const removePlatform = (index: number) => {
@@ -207,17 +212,29 @@ export function PlatformMarketBudgetSelector({
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle>Platform & Market Selection</CardTitle>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={addPlatform}
-            className="gap-1"
-            disabled={platforms.length >= AVAILABLE_PLATFORMS.length}
-          >
-            <Plus className="h-3 w-3" />
-            Add Platform
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={loadTestPresets}
+              className="gap-1"
+            >
+              <Copy className="h-3 w-3" />
+              Load Test Presets
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={addPlatform}
+              className="gap-1"
+              disabled={platforms.length >= AVAILABLE_PLATFORMS.length}
+            >
+              <Plus className="h-3 w-3" />
+              Add Platform
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
