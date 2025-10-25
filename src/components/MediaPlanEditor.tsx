@@ -34,8 +34,8 @@ export function MediaPlanEditor() {
   const [endDate, setEndDate] = useState<string>("2024-03-31");
   const [saving, setSaving] = useState(false);
   const [genericConfig, setGenericConfig] = useState<GenericConfig>({
-    strategy: "full-funnel",
-    strategyFocus: "purchase",
+    strategy: "auto-detect",
+    strategyFocus: "auto",
     targeting: {
       adFormats: [],
       ageMin: 25,
@@ -386,45 +386,56 @@ export function MediaPlanEditor() {
                       <SelectValue placeholder="Select strategy" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="full-funnel">Full-Funnel</SelectItem>
-                      <SelectItem value="partial">Partial Strategy</SelectItem>
+                      <SelectItem value="auto-detect">Auto-Detect (Based on selections)</SelectItem>
+                      <SelectItem value="full-funnel">Pre-Defined Full-Funnel</SelectItem>
+                      <SelectItem value="manual">Manual Strategy</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Strategy Focus</Label>
-                  <Select
-                    value={genericConfig.strategyFocus || ""}
-                    onValueChange={(value) => {
-                      setGenericConfig({ ...genericConfig, strategyFocus: value as any });
-                      // Auto-generate global funnel phases based on strategy focus
-                      if (startDate && endDate) {
-                        const phases = getDefaultPhases(value, startDate, endDate);
-                        setGlobalFunnel(phases);
-                      }
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select focus" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Awareness">Awareness</SelectItem>
-                      <SelectItem value="Market Presence">Market Presence</SelectItem>
-                      <SelectItem value="In-App Actions">In-App Actions</SelectItem>
-                      <SelectItem value="Purchases">Purchases</SelectItem>
-                      <SelectItem value="Actions">Actions</SelectItem>
-                      <SelectItem value="Conversions">Conversions</SelectItem>
-                      <SelectItem value="Leads">Leads</SelectItem>
-                      <SelectItem value="Revenue">Revenue</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {(platformsWithMarkets.some(p => p.markets.some(m => m.pixel || m.catalog))) && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      💡 Auto-detected based on pixel/catalog configuration
-                    </p>
-                  )}
-                </div>
+                {genericConfig.strategy !== "manual" && (
+                  <div className="space-y-2">
+                    <Label>Strategy Focus</Label>
+                    {genericConfig.strategy === "auto-detect" ? (
+                      <Input
+                        value="Auto"
+                        disabled
+                        className="bg-muted"
+                      />
+                    ) : (
+                      <Select
+                        value={genericConfig.strategyFocus || ""}
+                        onValueChange={(value) => {
+                          setGenericConfig({ ...genericConfig, strategyFocus: value as any });
+                          // Auto-generate global funnel phases based on strategy focus
+                          if (startDate && endDate) {
+                            const phases = getDefaultPhases(value, startDate, endDate);
+                            setGlobalFunnel(phases);
+                          }
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select focus" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Awareness">Awareness</SelectItem>
+                          <SelectItem value="Market Presence">Market Presence</SelectItem>
+                          <SelectItem value="In-App Actions">In-App Actions</SelectItem>
+                          <SelectItem value="Purchases">Purchases</SelectItem>
+                          <SelectItem value="Actions">Actions</SelectItem>
+                          <SelectItem value="Conversions">Conversions</SelectItem>
+                          <SelectItem value="Leads">Leads</SelectItem>
+                          <SelectItem value="Revenue">Revenue</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                    {(platformsWithMarkets.some(p => p.markets.some(m => m.pixel || m.catalog))) && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        💡 Auto-detected based on pixel/catalog configuration
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
 
               <GlobalFunnelPhasing

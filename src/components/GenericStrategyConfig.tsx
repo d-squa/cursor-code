@@ -10,8 +10,8 @@ import { determineStrategyFocus } from "@/utils/strategyFocusMapping";
 import { useEffect } from "react";
 
 export interface GenericConfig {
-  strategy?: "full-funnel" | "partial";
-  strategyFocus?: "purchase" | "leads" | "app-installs" | "conversions" | "brand-awareness";
+  strategy?: "auto-detect" | "full-funnel" | "manual";
+  strategyFocus?: "purchase" | "leads" | "app-installs" | "conversions" | "brand-awareness" | "auto";
   hasPhases?: boolean;
   phases?: Phase[];
   campaigns?: Campaign[];
@@ -52,21 +52,30 @@ export function GenericStrategyConfig({
   
   // Auto-determine strategy focus based on ad formats and platform config
   useEffect(() => {
-    const adFormats = config.targeting?.adFormats || [];
-    
-    if (adFormats.length > 0 || hasPixel || hasCatalog) {
-      const determinedFocus = determineStrategyFocus({
-        adFormats,
-        hasPixel,
-        hasCatalog,
-      });
+    // Only auto-set if strategy is "auto-detect"
+    if (config.strategy === "auto-detect") {
+      const adFormats = config.targeting?.adFormats || [];
       
-      // Only update if we have a determined focus and it's different from current
-      if (determinedFocus && determinedFocus !== config.strategyFocus) {
-        updateConfig("strategyFocus", determinedFocus);
+      if (adFormats.length > 0 || hasPixel || hasCatalog) {
+        const determinedFocus = determineStrategyFocus({
+          adFormats,
+          hasPixel,
+          hasCatalog,
+        });
+        
+        // For auto-detect, set to "auto" or the determined focus
+        const focusValue = determinedFocus || "auto";
+        if (focusValue !== config.strategyFocus) {
+          updateConfig("strategyFocus", focusValue);
+        }
+      } else {
+        // No selection yet, set to "auto"
+        if (config.strategyFocus !== "auto") {
+          updateConfig("strategyFocus", "auto");
+        }
       }
     }
-  }, [config.targeting?.adFormats, hasPixel, hasCatalog]);
+  }, [config.strategy, config.targeting?.adFormats, hasPixel, hasCatalog]);
   const updateConfig = (field: keyof GenericConfig, value: any) => {
     const updatedConfig = { ...config, [field]: value };
     
@@ -75,7 +84,7 @@ export function GenericStrategyConfig({
       const strategy = field === "strategy" ? value : config.strategy;
       const focus = field === "strategyFocus" ? value : config.strategyFocus;
       
-      if (strategy === "full-funnel" && focus) {
+      if (strategy === "full-funnel") {
         updatedConfig.campaigns = [
           { id: "awareness", name: "Awareness Campaign", funnelStage: "awareness" },
           { id: "consideration", name: "Consideration Campaign", funnelStage: "consideration" },
@@ -93,14 +102,24 @@ export function GenericStrategyConfig({
             budgetPercentage: 100,
           }];
         }
-      } else if (strategy === "partial" && !updatedConfig.campaigns?.length) {
-        updatedConfig.campaigns = [
-          { id: `campaign-${Date.now()}`, name: "Campaign 1" },
-        ];
-        // Keep phasing optional for partial strategy
-        if (!config.hasPhases) {
-          updatedConfig.hasPhases = false;
+      } else if (strategy === "manual") {
+        // Manual strategy: no pre-defined campaigns, empty phasing timeline
+        updatedConfig.campaigns = [];
+        updatedConfig.hasPhases = true;
+        if ((!updatedConfig.phases || updatedConfig.phases.length === 0) && startDate && endDate) {
+          updatedConfig.phases = [{
+            id: `phase-${Date.now()}`,
+            name: "Phase 1",
+            startDate: startDate,
+            endDate: endDate,
+            budgetPercentage: 100,
+          }];
         }
+      } else if (strategy === "auto-detect") {
+        // Auto-detect: set strategyFocus to "auto"
+        updatedConfig.strategyFocus = "auto";
+        updatedConfig.campaigns = [];
+        updatedConfig.hasPhases = false;
       }
     }
     
@@ -161,32 +180,19 @@ export function GenericStrategyConfig({
               </p>
             )}
             
-            {config.strategy === "partial" && (
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="phases-step4"
-                  checked={config.hasPhases || false}
-                  onChange={(e) => {
-                    const hasPhases = e.target.checked;
-                    updateConfig("hasPhases", hasPhases);
-                    if (hasPhases && (!config.phases || config.phases.length === 0)) {
-                      updateConfig("phases", [{
-                        id: `phase-${Date.now()}`,
-                        name: "Phase 1",
-                        startDate: startDate,
-                        endDate: endDate,
-                        budgetPercentage: 100,
-                      }]);
-                    }
-                  }}
-                  className="w-4 h-4"
-                />
-                <Label htmlFor="phases-step4">Enable phasing schedule</Label>
-              </div>
+            {config.strategy === "manual" && (
+              <p className="text-sm text-muted-foreground">
+                Manual strategy allows you to create custom phases for your campaign timeline.
+              </p>
+            )}
+            
+            {config.strategy === "auto-detect" && (
+              <p className="text-sm text-muted-foreground">
+                Auto-detect strategy will automatically configure campaigns based on your selections.
+              </p>
             )}
 
-            {(startDate && endDate && (config.hasPhases || config.strategy === "full-funnel")) ? (
+            {(startDate && endDate && (config.strategy === "full-funnel" || config.strategy === "manual")) ? (
               <PhaseScheduler
                 phases={config.phases || []}
                 onPhasesChange={(phases) => updateConfig("phases", phases)}
@@ -194,12 +200,14 @@ export function GenericStrategyConfig({
                 endDate={endDate}
                 platformId="meta"
               />
+            ) : config.strategy === "auto-detect" ? (
+              <p className="text-sm text-muted-foreground">
+                Auto-detect strategy does not require phase scheduling.
+              </p>
             ) : (
               <p className="text-sm text-muted-foreground">
                 {startDate && endDate
-                  ? (config.strategy === "partial"
-                      ? "Enable phasing to schedule multiple phases for your campaign."
-                      : "Phase scheduling is required for full-funnel strategies.")
+                  ? "Phase scheduling is available for full-funnel and manual strategies."
                   : "Set activation start and end dates to schedule phases."}
               </p>
             )}
@@ -266,43 +274,18 @@ export function GenericStrategyConfig({
               <CardDescription>Configure phase timing for your strategy</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {config.strategy === "partial" && (
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="phases"
-                    checked={config.hasPhases || false}
-                    onChange={(e) => {
-                      const hasPhases = e.target.checked;
-                      updateConfig("hasPhases", hasPhases);
-                      if (hasPhases && (!config.phases || config.phases.length === 0)) {
-                        updateConfig("phases", [{
-                          id: `phase-${Date.now()}`,
-                          name: "Phase 1",
-                          startDate: startDate,
-                          endDate: endDate,
-                          budgetPercentage: 100,
-                        }]);
-                      }
-                    }}
-                    className="w-4 h-4"
-                  />
-                  <Label htmlFor="phases">Enable phasing schedule</Label>
-                </div>
-              )}
-
-              {config.hasPhases && startDate && endDate ? (
-                <PhaseScheduler
-                  phases={config.phases || []}
-                  onPhasesChange={(phases) => updateConfig("phases", phases)}
-                  startDate={startDate}
-                  endDate={endDate}
-                />
-              ) : (
-                config.hasPhases ? (
-                  <p className="text-sm text-muted-foreground">Set activation start and end dates to schedule phases.</p>
-                ) : null
-              )}
+            {(config.strategy === "full-funnel" || config.strategy === "manual") && startDate && endDate ? (
+              <PhaseScheduler
+                phases={config.phases || []}
+                onPhasesChange={(phases) => updateConfig("phases", phases)}
+                startDate={startDate}
+                endDate={endDate}
+              />
+            ) : config.strategy === "auto-detect" ? (
+              <p className="text-sm text-muted-foreground">Auto-detect strategy does not require phase scheduling.</p>
+            ) : (
+              <p className="text-sm text-muted-foreground">Set activation start and end dates to schedule phases.</p>
+            )}
             </CardContent>
           </Card>
         </>

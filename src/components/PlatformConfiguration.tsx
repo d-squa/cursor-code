@@ -36,8 +36,8 @@ export interface Campaign {
 }
 
 export interface PlatformConfig {
-  strategy?: "full-funnel" | "partial";
-  strategyFocus?: "purchase" | "leads" | "app-installs" | "conversions" | "brand-awareness";
+  strategy?: "auto-detect" | "full-funnel" | "manual";
+  strategyFocus?: "purchase" | "leads" | "app-installs" | "conversions" | "brand-awareness" | "auto";
   hasPhases?: boolean;
   phases?: Phase[];
   campaigns?: Campaign[];
@@ -417,7 +417,7 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <h4 className="font-semibold text-lg">Campaign Configuration</h4>
-                    {platform.config.strategy === "partial" && (
+                    {platform.config.strategy === "manual" && (
                       <Button
                         type="button"
                         variant="outline"
@@ -440,7 +440,7 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
 
                     {platform.config.campaigns.map(campaign => (
                       <TabsContent key={campaign.id} value={campaign.id} className="space-y-4 mt-4">
-                        {platform.config?.strategy === "partial" && (
+                        {platform.config?.strategy === "manual" && (
                           <div className="flex items-center justify-between pb-2 border-b">
                             <Input
                               value={campaign.name}
