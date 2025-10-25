@@ -9,6 +9,7 @@ export interface Market {
   page?: string;
   pixel?: string;
   catalog?: string;
+  strategyFocus?: string;
 }
 
 export interface FunnelStage {

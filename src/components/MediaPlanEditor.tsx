@@ -141,10 +141,22 @@ export function MediaPlanEditor() {
       const updatedMarkets = platform.markets.map(market => {
         const hasPhases = Array.isArray(market.phases) && market.phases.length > 0;
         if (hasPhases) return market;
+        
+        const adFormats = market.adFormats || genericConfig.targeting?.adFormats || [];
+        const hasPixel = !!market.pixel;
+        const hasCatalog = !!market.catalog;
+        
+        // Determine strategy focus for this market
+        const detectedFocus = determineStrategyFocus({
+          adFormats,
+          hasPixel,
+          hasCatalog
+        });
+        
         const phases = generateAutoDetectPhases(
-          market.adFormats || genericConfig.targeting?.adFormats || [],
-          !!market.pixel,
-          !!market.catalog,
+          adFormats,
+          hasPixel,
+          hasCatalog,
           startDate,
           endDate
         );
@@ -152,6 +164,7 @@ export function MediaPlanEditor() {
         changed = true;
         return {
           ...market,
+          strategyFocus: detectedFocus || "conversions",
           phases: phases.map(p => ({
             ...p,
             id: `phase-${market.id}-${p.id}`,

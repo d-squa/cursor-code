@@ -180,7 +180,14 @@ export function PlatformCustomization({
                   <AccordionItem key={market.id} value={market.id}>
                     <AccordionTrigger className="hover:no-underline">
                       <div className="flex items-center justify-between w-full pr-4">
-                        <span className="font-medium">{market.name}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{market.name}</span>
+                          {market.strategyFocus && (
+                            <Badge variant="outline" className="text-xs">
+                              {market.strategyFocus.replace("-", " ").toUpperCase()}
+                            </Badge>
+                          )}
+                        </div>
                         <Badge variant="secondary">
                           {market.budgetPercentage}% of platform budget
                         </Badge>
