@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { MediaPlanEditor } from "@/components/MediaPlanEditor";
+import { GoogleAdsForecastTest } from "@/components/GoogleAdsForecastTest";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Target, TrendingUp, Zap, LogOut, Loader2 } from "lucide-react";
@@ -108,6 +109,11 @@ const Index = () => {
             </div>
           </div>
         </div>
+      </section>
+
+      {/* Google Ads API Test */}
+      <section className="container mx-auto px-4 pb-8">
+        <GoogleAdsForecastTest />
       </section>
 
       {/* Main Editor */}
