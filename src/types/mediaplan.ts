@@ -26,9 +26,10 @@ export interface Phase {
   startDate: string;
   endDate: string;
   budgetPercentage: number;
-  campaigns?: Campaign[];
   assetTypes?: string[];
   isLoyaltyPhase?: boolean;
+  objective?: string;
+  funnelStage?: string;
 }
 
 export interface Campaign {

@@ -493,11 +493,10 @@ export function MediaPlanEditor() {
                             return {
                               ...market,
                               strategyFocus: detectedFocus || "conversions",
-                              phases: phases.map((p) => ({
-                                ...p,
-                                id: `phase-${market.id}-${p.id}`,
-                                campaigns: [],
-                              })),
+                            phases: phases.map((p) => ({
+                              ...p,
+                              id: `phase-${market.id}-${p.id}`,
+                            })),
                             };
                           }),
                         }));
@@ -528,7 +527,6 @@ export function MediaPlanEditor() {
                               startDate: stage.startDate,
                               endDate: stage.endDate,
                               budgetPercentage: stage.budgetPercentage,
-                              campaigns: []
                             }));
                             return { ...m, phases, useGlobalFunnel: true };
                           })
@@ -612,11 +610,10 @@ export function MediaPlanEditor() {
                   return {
                     ...market,
                     strategyFocus: detectedFocus || "conversions",
-                    phases: phases.map(p => ({
-                      ...p,
-                      id: `phase-${market.id}-${p.id}`,
-                      campaigns: []
-                    }))
+                  phases: phases.map(p => ({
+                    ...p,
+                    id: `phase-${market.id}-${p.id}`,
+                  }))
                   };
                 })
               }));
@@ -628,11 +625,10 @@ export function MediaPlanEditor() {
                 ...platform,
                 markets: platform.markets.map(market => ({
                   ...market,
-                  phases: phases.map(p => ({
-                    ...p,
-                    id: `phase-${market.id}-${p.id}`,
-                    campaigns: []
-                  }))
+                phases: phases.map(p => ({
+                  ...p,
+                  id: `phase-${market.id}-${p.id}`,
+                }))
                 }))
               }));
               setPlatformsWithMarkets(updatedPlatforms);
@@ -644,11 +640,10 @@ export function MediaPlanEditor() {
                   ...market,
                   phases: [{
                     id: `phase-${market.id}-${Date.now()}`,
-                    name: "Phase 1",
+                    name: "Campaign 1",
                     startDate: startDate,
                     endDate: endDate,
                     budgetPercentage: 100,
-                    campaigns: []
                   }]
                 }))
               }));

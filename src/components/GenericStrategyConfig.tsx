@@ -103,13 +103,13 @@ export function GenericStrategyConfig({
           }];
         }
       } else if (strategy === "manual") {
-        // Manual strategy: no pre-defined campaigns, empty phasing timeline
+        // Manual strategy: user creates custom phases/campaigns
         updatedConfig.campaigns = [];
         updatedConfig.hasPhases = true;
         if ((!updatedConfig.phases || updatedConfig.phases.length === 0) && startDate && endDate) {
           updatedConfig.phases = [{
             id: `phase-${Date.now()}`,
-            name: "Phase 1",
+            name: "Campaign 1",
             startDate: startDate,
             endDate: endDate,
             budgetPercentage: 100,
@@ -182,7 +182,7 @@ export function GenericStrategyConfig({
             
             {config.strategy === "manual" && (
               <p className="text-sm text-muted-foreground">
-                Manual strategy allows you to create custom phases for your campaign timeline.
+                Manual strategy allows you to create custom campaigns on the timeline.
               </p>
             )}
             

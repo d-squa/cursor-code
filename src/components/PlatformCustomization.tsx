@@ -110,7 +110,6 @@ export function PlatformCustomization({
           phases: phases.map((p) => ({
             ...p,
             id: `phase-${market.id}-${p.id}`,
-            campaigns: [],
           })),
         };
       });
@@ -235,7 +234,6 @@ useEffect(() => {
         phases: phases.map((p) => ({
           ...p,
           id: `phase-${market.id}-${p.id}`,
-          campaigns: [],
         })),
       };
     });
@@ -392,15 +390,6 @@ return (
                                   <div className="text-muted-foreground">
                                     {phase.startDate} → {phase.endDate}
                                   </div>
-                                  {phase.campaigns && phase.campaigns.length > 0 && (
-                                    <div className="pl-3 space-y-1 mt-2">
-                                      {phase.campaigns.map((campaign) => (
-                                        <div key={campaign.id} className="text-xs">
-                                          • {campaign.name} ({campaign.budgetPercentage}%)
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
                                 </div>
                               ))}
                             </div>

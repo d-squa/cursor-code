@@ -41,7 +41,6 @@ export function HierarchicalTimelineScheduler({
                   startDate: stage.startDate,
                   endDate: stage.endDate,
                   budgetPercentage: stage.budgetPercentage,
-                  campaigns: []
                 }));
                 return { ...m, phases, useGlobalFunnel: true };
               }
@@ -129,7 +128,6 @@ export function HierarchicalTimelineScheduler({
                   startDate: format(campaignStart, "yyyy-MM-dd"),
                   endDate: format(addDays(campaignStart, 7), "yyyy-MM-dd"),
                   budgetPercentage: 0,
-                  campaigns: []
                 };
                 return { ...m, phases: [...(m.phases || []), newPhase], useGlobalFunnel: false };
               }
@@ -156,7 +154,6 @@ export function HierarchicalTimelineScheduler({
                     ...phaseToDup,
                     id: `phase-${Date.now()}`,
                     name: `${phaseToDup.name} (Copy)`,
-                    campaigns: phaseToDup.campaigns?.map(c => ({ ...c, id: `campaign-${Date.now()}-${c.id}` }))
                   };
                   return { ...m, phases: [...(m.phases || []), newPhase] };
                 }
@@ -239,128 +236,7 @@ export function HierarchicalTimelineScheduler({
     );
   };
 
-  const addCampaign = (platformId: string, marketId: string, phaseId: string) => {
-    setPlatforms(
-      platforms.map(p => {
-        if (p.id === platformId) {
-          return {
-            ...p,
-            markets: p.markets.map(m => {
-              if (m.id === marketId) {
-                return {
-                  ...m,
-                  phases: m.phases?.map(ph => {
-                    if (ph.id === phaseId) {
-                      const newCampaign: Campaign = {
-                        id: `campaign-${Date.now()}`,
-                        name: `Campaign ${(ph.campaigns?.length || 0) + 1}`,
-                        budgetPercentage: 0
-                      };
-                      return { ...ph, campaigns: [...(ph.campaigns || []), newCampaign] };
-                    }
-                    return ph;
-                  })
-                };
-              }
-              return m;
-            })
-          };
-        }
-        return p;
-      })
-    );
-  };
-
-  const removeCampaign = (platformId: string, marketId: string, phaseId: string, campaignId: string) => {
-    setPlatforms(
-      platforms.map(p => {
-        if (p.id === platformId) {
-          return {
-            ...p,
-            markets: p.markets.map(m => {
-              if (m.id === marketId) {
-                return {
-                  ...m,
-                  phases: m.phases?.map(ph => {
-                    if (ph.id === phaseId) {
-                      return { ...ph, campaigns: ph.campaigns?.filter(c => c.id !== campaignId) };
-                    }
-                    return ph;
-                  })
-                };
-              }
-              return m;
-            })
-          };
-        }
-        return p;
-      })
-    );
-  };
-
-  const updateCampaignName = (platformId: string, marketId: string, phaseId: string, campaignId: string, name: string) => {
-    setPlatforms(
-      platforms.map(p => {
-        if (p.id === platformId) {
-          return {
-            ...p,
-            markets: p.markets.map(m => {
-              if (m.id === marketId) {
-                return {
-                  ...m,
-                  phases: m.phases?.map(ph => {
-                    if (ph.id === phaseId) {
-                      return {
-                        ...ph,
-                        campaigns: ph.campaigns?.map(c => c.id === campaignId ? { ...c, name } : c)
-                      };
-                    }
-                    return ph;
-                  })
-                };
-              }
-              return m;
-            })
-          };
-        }
-        return p;
-      })
-    );
-  };
-
-  const updateCampaignBudget = (platformId: string, marketId: string, phaseId: string, campaignId: string, percentage: number) => {
-    setPlatforms(
-      platforms.map(p => {
-        if (p.id === platformId) {
-          return {
-            ...p,
-            markets: p.markets.map(m => {
-              if (m.id === marketId) {
-                return {
-                  ...m,
-                  phases: m.phases?.map(ph => {
-                    if (ph.id === phaseId) {
-                      return {
-                        ...ph,
-                        campaigns: ph.campaigns?.map(c => 
-                          c.id === campaignId 
-                            ? { ...c, budgetPercentage: Math.max(0, Math.min(100, percentage)) }
-                            : c
-                        )
-                      };
-                    }
-                    return ph;
-                  })
-                };
-              }
-              return m;
-            })
-          };
-        }
-        return p;
-      })
-    );
-  };
+  // Campaign management removed - phases ARE campaigns
 
   return (
     <Card>
@@ -460,101 +336,47 @@ export function HierarchicalTimelineScheduler({
                           
                           <CollapsibleContent>
                             <div className="p-2 space-y-2 border-t">
-                              {market.phases?.map((phase) => {
-                                const campaignAllocated = phase.campaigns?.reduce((sum, c) => sum + c.budgetPercentage, 0) || 0;
-                                
-                                return (
-                                  <div key={phase.id} className="p-2 bg-background rounded border space-y-2">
-                                    <div className="flex items-center justify-between gap-2">
-                                      <Input
-                                        value={phase.name}
-                                        onChange={(e) => updatePhaseName(platform.id, market.id, phase.id, e.target.value)}
-                                        className="h-7 text-sm flex-1"
-                                      />
-                                      <Badge variant="secondary" className="text-xs">
-                                        {phase.budgetPercentage.toFixed(1)}%
-                                      </Badge>
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => duplicatePhase(platform.id, market.id, phase.id)}
-                                        className="h-6 w-6 p-0"
-                                      >
-                                        <Copy className="h-3 w-3" />
-                                      </Button>
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => removePhase(platform.id, market.id, phase.id)}
-                                        className="h-6 w-6 p-0"
-                                      >
-                                        <X className="h-3 w-3" />
-                                      </Button>
-                                    </div>
-                                    
-                                    <Slider
-                                      value={[phase.budgetPercentage]}
-                                      onValueChange={([value]) => updatePhaseBudget(platform.id, market.id, phase.id, value)}
-                                      min={0}
-                                      max={100}
-                                      step={0.5}
-                                      className="w-full"
+                              {market.phases?.map((phase) => (
+                                <div key={phase.id} className="p-2 bg-background rounded border space-y-2">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <Input
+                                      value={phase.name}
+                                      onChange={(e) => updatePhaseName(platform.id, market.id, phase.id, e.target.value)}
+                                      className="h-7 text-sm flex-1"
                                     />
-                                    
-                                    <div className="space-y-2 pl-4 border-l-2">
-                                      <div className="flex items-center justify-between">
-                                        <span className="text-xs text-muted-foreground">Campaigns</span>
-                                        <Button
-                                          type="button"
-                                          variant="ghost"
-                                          size="sm"
-                                          onClick={() => addCampaign(platform.id, market.id, phase.id)}
-                                          className="h-5 gap-1 text-xs"
-                                        >
-                                          <Plus className="h-2 w-2" />
-                                          Add
-                                        </Button>
-                                      </div>
-                                      
-                                      {phase.campaigns?.map((campaign) => (
-                                        <div key={campaign.id} className="flex items-center gap-2">
-                                          <Input
-                                            value={campaign.name}
-                                            onChange={(e) => updateCampaignName(platform.id, market.id, phase.id, campaign.id, e.target.value)}
-                                            className="h-6 text-xs flex-1"
-                                          />
-                                          <Input
-                                            type="number"
-                                            value={campaign.budgetPercentage.toFixed(1)}
-                                            onChange={(e) => updateCampaignBudget(platform.id, market.id, phase.id, campaign.id, parseFloat(e.target.value) || 0)}
-                                            className="h-6 w-16 text-xs"
-                                            min="0"
-                                            max="100"
-                                          />
-                                          <span className="text-xs">%</span>
-                                          <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => removeCampaign(platform.id, market.id, phase.id, campaign.id)}
-                                            className="h-6 w-6 p-0"
-                                          >
-                                            <X className="h-3 w-3" />
-                                          </Button>
-                                        </div>
-                                      ))}
-                                      
-                                      {phase.campaigns && phase.campaigns.length > 0 && (
-                                        <div className="text-xs text-muted-foreground">
-                                          Campaign allocation: {campaignAllocated.toFixed(1)}%
-                                        </div>
-                                      )}
-                                    </div>
+                                    <Badge variant="secondary" className="text-xs">
+                                      {phase.budgetPercentage.toFixed(1)}%
+                                    </Badge>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => duplicatePhase(platform.id, market.id, phase.id)}
+                                      className="h-6 w-6 p-0"
+                                    >
+                                      <Copy className="h-3 w-3" />
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => removePhase(platform.id, market.id, phase.id)}
+                                      className="h-6 w-6 p-0"
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </Button>
                                   </div>
-                                );
-                              })}
+                                  
+                                  <Slider
+                                    value={[phase.budgetPercentage]}
+                                    onValueChange={([value]) => updatePhaseBudget(platform.id, market.id, phase.id, value)}
+                                    min={0}
+                                    max={100}
+                                    step={0.5}
+                                    className="w-full"
+                                  />
+                                </div>
+                              ))}
                               
                               {market.phases && market.phases.length > 0 && (
                                 <div className="text-xs text-muted-foreground pt-1">
