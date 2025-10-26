@@ -127,7 +127,7 @@ serve(async (req) => {
         ],
       },
       plannedProducts: body.adProducts.map((product) => ({
-        plannableProductCode: product,
+        plannableProductCode: product === 'SKIPPABLE_IN_STREAM' ? 'TRUEVIEW_IN_STREAM' : product,
         budgetMicros: Math.round((body.budget * 1_000_000) / Math.max(body.adProducts.length, 1)),
       })),
     };
