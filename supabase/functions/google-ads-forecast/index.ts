@@ -119,7 +119,7 @@ serve(async (req) => {
       },
       targeting: {
         plannableLocationId: body.locationId,
-        plannableAgeRange: ageRangeMap[body.targeting.ageRange] ?? 'AGE_RANGE_18_24',
+        ageRanges: [ageRangeMap[body.targeting.ageRange] ?? 'AGE_RANGE_18_24'],
         genders: [
           {
             type: body.targeting.gender?.toUpperCase() === 'FEMALE' ? 'FEMALE' : 'MALE',
