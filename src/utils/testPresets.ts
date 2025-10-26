@@ -53,8 +53,7 @@ export const getTestPresets = (): PlatformWithMarkets[] => [
         name: "United States",
         budgetPercentage: 100,
         accountName: "account-1",
-        // Pixel/Catalog are N/A but we set pixel-like flag to test conversions fallback
-        pixel: "pixel-1",
+        // Video formats without pixel/catalog to test awareness focus
         adFormats: ["Skippable In-Stream ads", "In-Feed video ads"],
         phases: [],
       },
@@ -126,7 +125,8 @@ export const getTestPresets = (): PlatformWithMarkets[] => [
         name: "Italy",
         budgetPercentage: 100,
         accountName: "account-2",
-        // Catalog present to test purchase focus
+        // Catalog requires pixel - both present to test purchase focus
+        pixel: "pixel-1",
         catalog: "catalog-2",
         adFormats: ["Shopping ads", "Carousel ads"],
         phases: [],

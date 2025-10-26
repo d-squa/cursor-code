@@ -56,9 +56,18 @@ export function determineStrategyFocus(input: StrategyFocusInput): StrategyFocus
   if (
     formatString.includes("video views") ||
     formatString.includes("brand awareness") ||
-    formatString.includes("reach")
+    formatString.includes("reach") ||
+    formatString.includes("video ads") ||
+    formatString.includes("in-stream") ||
+    formatString.includes("in-feed video") ||
+    formatString.includes("story ads")
   ) {
     return "brand-awareness";
+  }
+
+  // Collection ads indicate purchase focus
+  if (formatString.includes("collection")) {
+    return "purchase";
   }
 
   // Priority 2: Check for pixel/catalog presence
