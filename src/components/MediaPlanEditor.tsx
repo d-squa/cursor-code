@@ -23,6 +23,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { PlatformWithMarkets, FunnelStage } from "@/types/mediaplan";
 import { Platform, PlatformConfiguration } from "./PlatformConfiguration";
 import { determineStrategyFocus } from "@/utils/strategyFocusMapping";
+import { Badge } from "@/components/ui/badge";
 
 
 export function MediaPlanEditor() {
@@ -438,40 +439,114 @@ export function MediaPlanEditor() {
                 )}
               </div>
 
-              <GlobalFunnelPhasing
-                startDate={startDate}
-                endDate={endDate}
-                globalFunnel={globalFunnel}
-                onGlobalFunnelChange={setGlobalFunnel}
-                onSaveGlobal={() => {
-                  // Apply global funnel to all platforms and markets
-                  setPlatformsWithMarkets(
-                    platformsWithMarkets.map(p => ({
-                      ...p,
-                      markets: p.markets.map(m => {
-                        const phases = globalFunnel.map(stage => ({
-                          id: `phase-${stage.id}-${Date.now()}-${Math.random()}`,
-                          name: stage.name,
-                          startDate: stage.startDate,
-                          endDate: stage.endDate,
-                          budgetPercentage: stage.budgetPercentage,
-                          campaigns: []
-                        }));
-                        return { ...m, phases, useGlobalFunnel: true };
-                      })
-                    }))
-                  );
-                  toast.success("Global funnel phasing applied to all platforms and markets");
-                }}
-              />
+{genericConfig.strategy === "auto-detect" ? (
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    Auto-detect previews per platform/market based on selected ad formats, pixel and catalog.
+                  </p>
+                  <div className="space-y-3">
+                    {platformsWithMarkets.map((p) => (
+                      <div key={p.id} className="border rounded-lg p-3">
+                        <h4 className="font-medium text-sm">{p.name}</h4>
+                        <div className="mt-2 space-y-2">
+                          {p.markets.map((m) => {
+                            const adFormats = m.adFormats || genericConfig.targeting?.adFormats || [];
+                            const hasPixel = !!m.pixel;
+                            const hasCatalog = !!m.catalog;
+                            const focus = (determineStrategyFocus({ adFormats, hasPixel, hasCatalog }) || "conversions").replace("-", " ").toUpperCase();
+                            const phasesPreview = (startDate && endDate)
+                              ? generateAutoDetectPhases(adFormats, hasPixel, hasCatalog, startDate, endDate)
+                              : [];
+                            return (
+                              <div key={m.id} className="text-xs bg-muted/30 rounded p-2">
+                                <div className="flex justify-between items-center">
+                                  <span className="font-medium">{m.name}</span>
+                                  <Badge variant="outline" className="text-[10px]">{focus}</Badge>
+                                </div>
+                                <div className="text-muted-foreground mt-1">
+                                  Formats: {adFormats.length ? adFormats.join(", ") : "—"} • Pixel: {hasPixel ? "Yes" : "No"} • Catalog: {hasCatalog ? "Yes" : "No"}
+                                </div>
+                                {phasesPreview && phasesPreview.length > 0 && (
+                                  <div className="mt-1 text-muted-foreground">
+                                    Preview phases: {phasesPreview.map((ph) => ph.name).join(" → ")}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
 
-              <HierarchicalTimelineScheduler
-                platforms={platformsWithMarkets}
-                setPlatforms={setPlatformsWithMarkets}
-                startDate={startDate}
-                endDate={endDate}
-                globalFunnel={globalFunnel}
-              />
+                  <div className="flex justify-end">
+                    <Button
+                      onClick={() => {
+                        const updatedPlatforms = platformsWithMarkets.map((platform) => ({
+                          ...platform,
+                          markets: platform.markets.map((market) => {
+                            const adFormats = market.adFormats || genericConfig.targeting?.adFormats || [];
+                            const hasPixel = !!market.pixel;
+                            const hasCatalog = !!market.catalog;
+                            const detectedFocus = determineStrategyFocus({ adFormats, hasPixel, hasCatalog });
+                            const phases = generateAutoDetectPhases(adFormats, hasPixel, hasCatalog, startDate, endDate);
+                            return {
+                              ...market,
+                              strategyFocus: detectedFocus || "conversions",
+                              phases: phases.map((p) => ({
+                                ...p,
+                                id: `phase-${market.id}-${p.id}`,
+                                campaigns: [],
+                              })),
+                            };
+                          }),
+                        }));
+                        setPlatformsWithMarkets(updatedPlatforms);
+                        toast.success("Auto-detected phases applied to all markets");
+                      }}
+                    >
+                      Apply Auto-Detected Phases
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <GlobalFunnelPhasing
+                    startDate={startDate}
+                    endDate={endDate}
+                    globalFunnel={globalFunnel}
+                    onGlobalFunnelChange={setGlobalFunnel}
+                    onSaveGlobal={() => {
+                      // Apply global funnel to all platforms and markets
+                      setPlatformsWithMarkets(
+                        platformsWithMarkets.map(p => ({
+                          ...p,
+                          markets: p.markets.map(m => {
+                            const phases = globalFunnel.map(stage => ({
+                              id: `phase-${stage.id}-${Date.now()}-${Math.random()}`,
+                              name: stage.name,
+                              startDate: stage.startDate,
+                              endDate: stage.endDate,
+                              budgetPercentage: stage.budgetPercentage,
+                              campaigns: []
+                            }));
+                            return { ...m, phases, useGlobalFunnel: true };
+                          })
+                        }))
+                      );
+                      toast.success("Global funnel phasing applied to all platforms and markets");
+                    }}
+                  />
+
+                  <HierarchicalTimelineScheduler
+                    platforms={platformsWithMarkets}
+                    setPlatforms={setPlatformsWithMarkets}
+                    startDate={startDate}
+                    endDate={endDate}
+                    globalFunnel={globalFunnel}
+                  />
+                </>
+              )}
 
               <div className="flex justify-between pt-4">
                 <Button variant="outline" onClick={() => setCurrentStep(1)}>
