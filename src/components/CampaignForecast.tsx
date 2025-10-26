@@ -85,8 +85,12 @@ export function CampaignForecast({
       } catch (error: any) {
         console.error('Meta forecast error:', error);
         
-        // Check if it's a permission error
-        if (error?.message?.includes('PERMISSION_ERROR')) {
+        // Check for specific error types
+        if (error?.message?.includes('INVALID_TOKEN')) {
+          toast.error('Meta access token is invalid or expired. Please update it in settings.', {
+            duration: 6000,
+          });
+        } else if (error?.message?.includes('PERMISSION_ERROR')) {
           toast.error('Meta API permission error. Please check your access token has ads_read permission.', {
             duration: 5000,
           });

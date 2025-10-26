@@ -18,8 +18,11 @@ serve(async (req) => {
     const adAccountId = Deno.env.get('META_AD_ACCOUNT_ID');
 
     if (!accessToken || !adAccountId) {
+      console.error('Missing credentials - accessToken:', !!accessToken, 'adAccountId:', !!adAccountId);
       throw new Error('Meta credentials not configured. Need META_ACCESS_TOKEN and META_AD_ACCOUNT_ID');
     }
+
+    console.log('Using ad account:', adAccountId);
 
     // Build targeting spec
     const targetingSpec: any = {
@@ -63,7 +66,9 @@ serve(async (req) => {
       currency: body.currency || 'USD',
     });
 
-    console.log('Calling Reach Estimate API with params:', reachParams.toString());
+    // Mask token in logs for security
+    const maskedParams = reachParams.toString().replace(/access_token=[^&]+/, 'access_token=***');
+    console.log('Calling Reach Estimate API with params:', maskedParams);
 
     const reachResponse = await fetch(
       `https://graph.facebook.com/v21.0/act_${adAccountId}/reachestimate?${reachParams.toString()}`
@@ -76,6 +81,9 @@ serve(async (req) => {
       // Parse error to provide better messages
       try {
         const errorData = JSON.parse(errorText);
+        if (errorData.error?.code === 190) {
+          throw new Error('INVALID_TOKEN: Meta access token is invalid or expired. Please generate a new user access token with ads_read permission.');
+        }
         if (errorData.error?.code === 200 && errorData.error?.message?.includes('NOT grant ads_management or ads_read permission')) {
           throw new Error('PERMISSION_ERROR: Meta access token does not have ads_read permission. Please generate a user access token with ads_read permission from the Meta Business Suite.');
         }
