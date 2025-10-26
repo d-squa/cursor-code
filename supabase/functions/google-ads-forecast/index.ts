@@ -93,27 +93,43 @@ serve(async (req) => {
     
     console.log("Calling Google Ads ReachPlanService...");
     
-    // Build the reach plan request
+    // Build the reach plan request using proper camelCase fields per Google Ads v18 REST
+    const durationInDays = Math.ceil(
+      (new Date(body.campaignDuration.endDate).getTime() -
+        new Date(body.campaignDuration.startDate).getTime()) /
+        (1000 * 60 * 60 * 24)
+    );
+
+    // Map UI age range to plannableAgeRange enum
+    const ageRangeMap: Record<string, string> = {
+      '18-24': 'AGE_RANGE_18_24',
+      '18-34': 'AGE_RANGE_18_34',
+      '25-34': 'AGE_RANGE_25_34',
+      '35-44': 'AGE_RANGE_35_44',
+      '45-54': 'AGE_RANGE_45_54',
+      '55-64': 'AGE_RANGE_55_64',
+      '65+': 'AGE_RANGE_65_UP',
+    };
+
     const reachPlanRequest = {
-      plannable_location_id: body.locationId,
-      currency_code: body.currencyCode,
-      budget_micros: body.budget * 1000000, // Convert to micros
-      campaign_duration: {
-        duration_in_days: Math.ceil(
-          (new Date(body.campaignDuration.endDate).getTime() - 
-           new Date(body.campaignDuration.startDate).getTime()) / 
-          (1000 * 60 * 60 * 24)
-        )
+      customerId: formattedCustomerId, // not used by REST body but useful for logging
+      currencyCode: body.currencyCode,
+      campaignDuration: {
+        durationInDays,
       },
       targeting: {
-        plannable_location_ids: [body.locationId],
-        age_ranges: [body.targeting.ageRange.toUpperCase().replace('-', '_')],
-        genders: [body.targeting.gender.toUpperCase()]
+        plannableLocationId: body.locationId,
+        plannableAgeRange: ageRangeMap[body.targeting.ageRange] ?? 'AGE_RANGE_18_24',
+        genders: [
+          {
+            type: body.targeting.gender?.toUpperCase() === 'FEMALE' ? 'FEMALE' : 'MALE',
+          },
+        ],
       },
-      planned_products: body.adProducts.map(product => ({
-        plannable_product_code: product,
-        budget_micros: (body.budget * 1000000) / body.adProducts.length
-      }))
+      plannedProducts: body.adProducts.map((product) => ({
+        plannableProductCode: product,
+        budgetMicros: Math.round((body.budget * 1_000_000) / Math.max(body.adProducts.length, 1)),
+      })),
     };
 
     console.log("Reach plan request:", JSON.stringify(reachPlanRequest, null, 2));
@@ -142,18 +158,21 @@ serve(async (req) => {
 
     const forecastData = JSON.parse(responseText);
 
-    // Extract metrics from response
-    const onTargetMetrics = forecastData.reach_curve?.reach_forecasts?.[0]?.on_target_reach_metrics;
-    const totalMetrics = forecastData.reach_curve?.reach_forecasts?.[0]?.total_reach_metrics;
-    
+    // Extract metrics from response (camelCase per REST/JSON mapping)
+    const onTargetMetrics = forecastData.reachCurve?.reachForecasts?.[0]?.onTargetReachMetrics;
+    const totalMetrics = forecastData.reachCurve?.reachForecasts?.[0]?.totalReachMetrics;
+
+    const totalImpressions = totalMetrics?.impressions ?? totalMetrics?.totalImpressions ?? 0;
+    const totalReach = totalMetrics?.reach ?? totalMetrics?.totalReach ?? 0;
+
     const metrics = {
-      onTargetReach: onTargetMetrics?.on_target_reach || 0,
-      onTargetImpressions: onTargetMetrics?.on_target_impressions || 0,
-      totalReach: totalMetrics?.total_reach || 0,
-      totalImpressions: totalMetrics?.total_impressions || 0,
-      cpm: forecastData.cost_micros ? (forecastData.cost_micros / 1000000) / (totalMetrics?.total_impressions || 1) * 1000 : 0,
-      frequency: totalMetrics?.total_reach ? (totalMetrics?.total_impressions || 0) / totalMetrics.total_reach : 0,
-      rawResponse: forecastData
+      onTargetReach: onTargetMetrics?.reach ?? onTargetMetrics?.onTargetReach ?? 0,
+      onTargetImpressions: onTargetMetrics?.impressions ?? onTargetMetrics?.onTargetImpressions ?? 0,
+      totalReach,
+      totalImpressions,
+      cpm: forecastData.costMicros ? ((forecastData.costMicros / 1_000_000) / Math.max(totalImpressions, 1)) * 1000 : 0,
+      frequency: totalReach ? totalImpressions / totalReach : 0,
+      rawResponse: forecastData,
     };
 
     console.log("Processed metrics:", metrics);
