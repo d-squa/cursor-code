@@ -82,9 +82,18 @@ export function CampaignForecast({
           costPerResult: parseFloat(data.costPerConversion),
           resultRate: parseFloat(data.conversionRate),
         };
-      } catch (error) {
+      } catch (error: any) {
         console.error('Meta forecast error:', error);
-        toast.error('Meta forecast failed, using estimates');
+        
+        // Check if it's a permission error
+        if (error?.message?.includes('PERMISSION_ERROR')) {
+          toast.error('Meta API permission error. Please check your access token has ads_read permission.', {
+            duration: 5000,
+          });
+        } else {
+          toast.error('Meta forecast failed, using estimates');
+        }
+        
         // Fall through to mock data
       }
     }

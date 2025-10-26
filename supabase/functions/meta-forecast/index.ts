@@ -14,26 +14,12 @@ serve(async (req) => {
     const body = await req.json();
     console.log('Meta forecast request:', JSON.stringify(body, null, 2));
 
-    const appId = Deno.env.get('META_APP_ID');
-    const appSecret = Deno.env.get('META_APP_SECRET');
+    const accessToken = Deno.env.get('META_ACCESS_TOKEN');
     const adAccountId = Deno.env.get('META_AD_ACCOUNT_ID');
 
-    if (!appId || !appSecret || !adAccountId) {
-      throw new Error('Meta credentials not configured');
+    if (!accessToken || !adAccountId) {
+      throw new Error('Meta credentials not configured. Need META_ACCESS_TOKEN and META_AD_ACCOUNT_ID');
     }
-
-    // Get access token
-    const tokenResponse = await fetch(
-      `https://graph.facebook.com/oauth/access_token?client_id=${appId}&client_secret=${appSecret}&grant_type=client_credentials`
-    );
-    
-    if (!tokenResponse.ok) {
-      const errorText = await tokenResponse.text();
-      console.error('Token error:', errorText);
-      throw new Error(`Failed to get access token: ${errorText}`);
-    }
-
-    const { access_token } = await tokenResponse.json();
 
     // Build targeting spec
     const targetingSpec: any = {
@@ -71,7 +57,7 @@ serve(async (req) => {
 
     // Call Reach Estimate API
     const reachParams = new URLSearchParams({
-      access_token,
+      access_token: accessToken,
       targeting_spec: JSON.stringify(targetingSpec),
       optimization_goal,
       currency: body.currency || 'USD',
@@ -86,6 +72,17 @@ serve(async (req) => {
     if (!reachResponse.ok) {
       const errorText = await reachResponse.text();
       console.error('Reach estimate error:', errorText);
+      
+      // Parse error to provide better messages
+      try {
+        const errorData = JSON.parse(errorText);
+        if (errorData.error?.code === 200 && errorData.error?.message?.includes('NOT grant ads_management or ads_read permission')) {
+          throw new Error('PERMISSION_ERROR: Meta access token does not have ads_read permission. Please generate a user access token with ads_read permission from the Meta Business Suite.');
+        }
+      } catch (parseErr) {
+        // If we can't parse, continue with generic error
+      }
+      
       throw new Error(`Reach estimate failed: ${errorText}`);
     }
 
