@@ -24,17 +24,27 @@ serve(async (req) => {
 
     console.log('Using ad account:', adAccountId);
 
-    // Build targeting spec
+    // Validate and normalize markets to ISO-2 country codes
+    const validatedMarkets: string[] = [];
+    for (const market of body.markets) {
+      const normalized = market.trim().toUpperCase();
+      // ISO-2 country codes are exactly 2 uppercase letters
+      if (!/^[A-Z]{2}$/.test(normalized)) {
+        throw new Error(`Invalid country code: "${market}". Must be 2-letter ISO code (e.g., US, CA, GB).`);
+      }
+      validatedMarkets.push(normalized);
+    }
+    
+    console.log('Validated markets:', validatedMarkets);
+
+    // Build targeting spec with validated markets
     const targetingSpec: any = {
-      geo_locations: {},
+      geo_locations: {
+        countries: validatedMarkets,
+      },
       age_min: 18,
       age_max: 65,
     };
-
-    // Add geographic targeting
-    if (body.markets && body.markets.length > 0) {
-      targetingSpec.geo_locations.countries = body.markets;
-    }
 
     // Add gender targeting
     if (body.gender && body.gender !== 'all') {
@@ -59,11 +69,12 @@ serve(async (req) => {
     const optimization_goal = strategyConfig.goal;
 
     // Call Reach Estimate API
+    // Note: reachestimate API does NOT support currency parameter
+    // It returns estimates based on the ad account's currency
     const reachParams = new URLSearchParams({
       access_token: accessToken,
       targeting_spec: JSON.stringify(targetingSpec),
       optimization_goal,
-      currency: body.currency || 'USD',
     });
 
     // Mask token in logs for security

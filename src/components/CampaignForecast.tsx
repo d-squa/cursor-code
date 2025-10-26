@@ -53,12 +53,20 @@ export function CampaignForecast({
         
         const strategyFocus = market.strategyFocus || genericConfig.strategyFocus || 'conversions';
         
+        // Validate and normalize market code
+        const marketCode = market.name.substring(0, 2).trim().toUpperCase();
+        if (!/^[A-Z]{2}$/.test(marketCode)) {
+          toast.error(`Invalid country code: "${marketCode}". Use 2-letter ISO codes (e.g., US, CA, GB).`, {
+            duration: 5000,
+          });
+          throw new Error(`Invalid country code: ${marketCode}`);
+        }
+        
         const { data, error } = await supabase.functions.invoke('meta-forecast', {
           body: {
-            markets: [market.name.substring(0, 2)], // Extract country code
+            markets: [marketCode],
             budget,
             strategyFocus,
-            currency: 'USD',
           }
         });
 
