@@ -56,17 +56,18 @@ serve(async (req) => {
     if (body.ageMin) targetingSpec.age_min = body.ageMin;
     if (body.ageMax) targetingSpec.age_max = body.ageMax;
 
-    // Build optimization goal mapping
-    const optimizationGoalMap: Record<string, string> = {
-      'Conversions': 'OFFSITE_CONVERSIONS',
-      'Link Clicks': 'LINK_CLICKS',
-      'Landing Page Views': 'LANDING_PAGE_VIEWS',
-      'Lead Generation': 'LEAD_GENERATION',
-      'Impressions': 'IMPRESSIONS',
-      'Reach': 'REACH',
+    // Map strategy focus to Meta optimization goals
+    const strategyFocusMap: Record<string, { goal: string; metric: string; metricName: string }> = {
+      'purchase': { goal: 'OFFSITE_CONVERSIONS', metric: 'conversions', metricName: 'Conversions' },
+      'leads': { goal: 'LEAD_GENERATION', metric: 'leads', metricName: 'Leads' },
+      'app-installs': { goal: 'APP_INSTALLS', metric: 'app_installs', metricName: 'App Installs' },
+      'conversions': { goal: 'OFFSITE_CONVERSIONS', metric: 'conversions', metricName: 'Conversions' },
+      'brand-awareness': { goal: 'REACH', metric: 'reach', metricName: 'Reach' },
+      'traffic': { goal: 'LINK_CLICKS', metric: 'clicks', metricName: 'Link Clicks' },
     };
 
-    const optimization_goal = optimizationGoalMap[body.objective] || 'LINK_CLICKS';
+    const strategyConfig = strategyFocusMap[body.strategyFocus] || strategyFocusMap['conversions'];
+    const optimization_goal = strategyConfig.goal;
 
     // Call Reach Estimate API
     const reachParams = new URLSearchParams({
@@ -96,26 +97,49 @@ serve(async (req) => {
     const users = estimateData.users || estimateData.estimate_ready || 0;
     const budget = body.budget || 0;
 
-    // Calculate estimates based on industry benchmarks
+    // Calculate estimates based on industry benchmarks and optimization goal
     const avgCPM = 10; // $10 CPM average
     const avgCTR = 0.9; // 0.9% CTR average
-    const avgConversionRate = 2; // 2% conversion rate average
-
+    
     const impressions = Math.round((budget / avgCPM) * 1000);
     const reach = Math.min(users, Math.round(impressions * 0.7)); // Reach is typically 70% of impressions
     const clicks = Math.round(impressions * (avgCTR / 100));
-    const conversions = Math.round(clicks * (avgConversionRate / 100));
+    
+    // Calculate results based on optimization goal
+    let results = 0;
+    let resultRate = 0;
+    
+    if (strategyConfig.metric === 'reach') {
+      results = reach;
+      resultRate = (reach / impressions) * 100;
+    } else if (strategyConfig.metric === 'clicks') {
+      results = clicks;
+      resultRate = avgCTR;
+    } else if (strategyConfig.metric === 'leads') {
+      const leadRate = 3; // 3% lead rate for lead gen campaigns
+      results = Math.round(clicks * (leadRate / 100));
+      resultRate = leadRate;
+    } else if (strategyConfig.metric === 'app_installs') {
+      const installRate = 4; // 4% install rate for app campaigns
+      results = Math.round(clicks * (installRate / 100));
+      resultRate = installRate;
+    } else { // conversions
+      const conversionRate = 2; // 2% conversion rate average
+      results = Math.round(clicks * (conversionRate / 100));
+      resultRate = conversionRate;
+    }
 
     const forecast = {
       reach,
       impressions,
       clicks,
-      conversions,
+      conversions: results,
+      resultMetric: strategyConfig.metricName,
       cpm: avgCPM,
       cpc: clicks > 0 ? (budget / clicks).toFixed(2) : '0',
       ctr: avgCTR.toFixed(2),
-      conversionRate: avgConversionRate.toFixed(2),
-      costPerConversion: conversions > 0 ? (budget / conversions).toFixed(2) : '0',
+      conversionRate: resultRate.toFixed(2),
+      costPerConversion: results > 0 ? (budget / results).toFixed(2) : '0',
     };
 
     console.log('Final forecast:', forecast);

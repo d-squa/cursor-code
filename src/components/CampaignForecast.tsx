@@ -30,6 +30,7 @@ interface ForecastMetrics {
   ctr: number;
   cpc: number;
   results: number;
+  resultMetric?: string;
   costPerResult: number;
   resultRate: number;
 }
@@ -50,13 +51,13 @@ export function CampaignForecast({
       try {
         const { supabase } = await import("@/integrations/supabase/client");
         
+        const strategyFocus = market.strategyFocus || genericConfig.strategyFocus || 'conversions';
+        
         const { data, error } = await supabase.functions.invoke('meta-forecast', {
           body: {
             markets: [market.name.substring(0, 2)], // Extract country code
             budget,
-            objective: market.strategyFocus === 'purchase' ? 'Conversions' : 
-                      market.strategyFocus === 'leads' ? 'Lead Generation' :
-                      market.strategyFocus === 'brand-awareness' ? 'Reach' : 'Link Clicks',
+            strategyFocus,
             currency: 'USD',
           }
         });
@@ -77,6 +78,7 @@ export function CampaignForecast({
           ctr: parseFloat(data.ctr),
           cpc: parseFloat(data.cpc),
           results: data.conversions,
+          resultMetric: data.resultMetric || 'Conversions',
           costPerResult: parseFloat(data.costPerConversion),
           resultRate: parseFloat(data.conversionRate),
         };
@@ -99,8 +101,38 @@ export function CampaignForecast({
     const avgCTR = 1.5;
     const clicks = Math.floor(impressions * (avgCTR / 100));
     const cpc = budget / clicks;
-    const avgConversionRate = 2.5;
-    const results = Math.floor(clicks * (avgConversionRate / 100));
+    
+    // Determine result metric based on strategy focus
+    const strategyFocus = market.strategyFocus || genericConfig.strategyFocus || 'conversions';
+    let results = 0;
+    let resultRate = 0;
+    let resultMetric = 'Conversions';
+    
+    if (strategyFocus === 'brand-awareness') {
+      results = reach;
+      resultRate = (reach / impressions) * 100;
+      resultMetric = 'Reach';
+    } else if (strategyFocus === 'traffic') {
+      results = clicks;
+      resultRate = avgCTR;
+      resultMetric = 'Link Clicks';
+    } else if (strategyFocus === 'leads') {
+      const leadRate = 3;
+      results = Math.floor(clicks * (leadRate / 100));
+      resultRate = leadRate;
+      resultMetric = 'Leads';
+    } else if (strategyFocus === 'app-installs') {
+      const installRate = 4;
+      results = Math.floor(clicks * (installRate / 100));
+      resultRate = installRate;
+      resultMetric = 'App Installs';
+    } else { // purchase or conversions
+      const avgConversionRate = 2.5;
+      results = Math.floor(clicks * (avgConversionRate / 100));
+      resultRate = avgConversionRate;
+      resultMetric = 'Conversions';
+    }
+    
     const costPerResult = budget / results;
 
     return {
@@ -116,8 +148,9 @@ export function CampaignForecast({
       ctr: avgCTR,
       cpc,
       results,
+      resultMetric,
       costPerResult,
-      resultRate: avgConversionRate,
+      resultRate,
     };
   };
 
@@ -286,7 +319,7 @@ export function CampaignForecast({
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm font-medium flex items-center gap-2">
                       <DollarSign className="h-4 w-4" />
-                      Results
+                      {getTotalMetrics()!.resultMetric || 'Results'}
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -325,6 +358,7 @@ export function CampaignForecast({
                           <TableHead className="text-right">Clicks</TableHead>
                           <TableHead className="text-right">CTR</TableHead>
                           <TableHead className="text-right">CPC</TableHead>
+                          <TableHead className="text-right">Result Metric</TableHead>
                           <TableHead className="text-right">Results</TableHead>
                           <TableHead className="text-right">Cost/Result</TableHead>
                         </TableRow>
@@ -346,6 +380,7 @@ export function CampaignForecast({
                               <TableCell className="text-right">{formatNumber(forecast.clicks)}</TableCell>
                               <TableCell className="text-right">{forecast.ctr.toFixed(2)}%</TableCell>
                               <TableCell className="text-right">${forecast.cpc.toFixed(2)}</TableCell>
+                              <TableCell className="text-right">{forecast.resultMetric || 'Conversions'}</TableCell>
                               <TableCell className="text-right">{formatNumber(forecast.results)}</TableCell>
                               <TableCell className="text-right">${forecast.costPerResult.toFixed(2)}</TableCell>
                             </TableRow>
