@@ -2,3 +2,6 @@ project_id = "tewjsubccoizrjroaydy"
 
 [functions.google-ads-forecast]
 verify_jwt = false
+
+[functions.meta-forecast]
+verify_jwt = false

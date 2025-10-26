@@ -44,35 +44,72 @@ export function CampaignForecast({
   const [loading, setLoading] = useState(false);
   const [forecasts, setForecasts] = useState<Record<string, Record<string, ForecastMetrics>>>({});
 
-  const fetchForecast = async (platformId: string, marketId: string, budget: number) => {
-    // Simulate API call - In production, this would call actual platform APIs
-    // For Meta: use Marketing API reach estimate endpoint
-    // For Google Ads: use Keyword Planner or Reach Planner API
-    
+  const fetchForecast = async (platformId: string, marketId: string, budget: number, market: any) => {
+    // Call actual platform APIs for Meta, use mock for others
+    if (platformId.includes("facebook") || platformId.includes("instagram") || platformId.includes("meta")) {
+      try {
+        const { supabase } = await import("@/integrations/supabase/client");
+        
+        const { data, error } = await supabase.functions.invoke('meta-forecast', {
+          body: {
+            markets: [market.name.substring(0, 2)], // Extract country code
+            budget,
+            objective: market.strategyFocus === 'purchase' ? 'Conversions' : 
+                      market.strategyFocus === 'leads' ? 'Lead Generation' :
+                      market.strategyFocus === 'brand-awareness' ? 'Reach' : 'Link Clicks',
+            currency: 'USD',
+          }
+        });
+
+        if (error) throw error;
+
+        // Transform Meta API response to our format
+        return {
+          audienceSize: data.reach * 15,
+          impressions: data.impressions,
+          cpm: parseFloat(data.cpm),
+          reach: data.reach,
+          cpr: budget / data.reach,
+          sov: 5.2,
+          frequency: data.impressions / data.reach,
+          cost: budget,
+          clicks: data.clicks,
+          ctr: parseFloat(data.ctr),
+          cpc: parseFloat(data.cpc),
+          results: data.conversions,
+          costPerResult: parseFloat(data.costPerConversion),
+          resultRate: parseFloat(data.conversionRate),
+        };
+      } catch (error) {
+        console.error('Meta forecast error:', error);
+        toast.error('Meta forecast failed, using estimates');
+        // Fall through to mock data
+      }
+    }
+
+    // Mock forecast calculation for non-Meta platforms or fallback
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    // Mock forecast calculation based on platform and budget
-    const baseCPM = platformId.includes("facebook") ? 10 : 
-                    platformId.includes("google") ? 8 :
+    const baseCPM = platformId.includes("google") ? 8 :
                     platformId.includes("linkedin") ? 25 : 12;
     
     const impressions = Math.floor((budget / baseCPM) * 1000);
     const avgFrequency = 3.5;
     const reach = Math.floor(impressions / avgFrequency);
-    const avgCTR = 1.5; // 1.5%
+    const avgCTR = 1.5;
     const clicks = Math.floor(impressions * (avgCTR / 100));
     const cpc = budget / clicks;
-    const avgConversionRate = 2.5; // 2.5%
+    const avgConversionRate = 2.5;
     const results = Math.floor(clicks * (avgConversionRate / 100));
     const costPerResult = budget / results;
 
     return {
-      audienceSize: reach * 10, // Potential audience is larger than reach
+      audienceSize: reach * 10,
       impressions,
       cpm: baseCPM,
       reach,
       cpr: budget / reach,
-      sov: 5.2, // Share of Voice percentage
+      sov: 5.2,
       frequency: avgFrequency,
       cost: budget,
       clicks,
@@ -94,7 +131,7 @@ export function CampaignForecast({
         
         for (const market of platform.markets) {
           const marketBudget = (totalBudget * platform.budgetPercentage / 100) * (market.budgetPercentage / 100);
-          const forecast = await fetchForecast(platform.id, market.id, marketBudget);
+          const forecast = await fetchForecast(platform.id, market.id, marketBudget, market);
           newForecasts[platform.id][market.id] = forecast;
         }
       }
