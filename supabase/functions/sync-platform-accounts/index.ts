@@ -40,46 +40,52 @@ serve(async (req) => {
 
     // Fetch accounts based on platform type
     if (platform.platform_type === "meta") {
-      // Fetch Facebook Pages
+      // Fetch Facebook Pages owned/managed by the user
       const pagesResponse = await fetch(
-        `https://graph.facebook.com/v21.0/${platform.ad_account_id}?fields=promote_pages.limit(100){id,name}&access_token=${platform.access_token}`
+        `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token,instagram_business_account{id,username,name,profile_picture_url}&limit=100&access_token=${platform.access_token}`
       );
 
       if (pagesResponse.ok) {
         const pagesData = await pagesResponse.json();
-        const pages = pagesData.promote_pages?.data || [];
+        const pages = pagesData.data || [];
         
-        accounts.push(...pages.map((page: any) => ({
-          connected_platform_id: connectedPlatformId,
-          account_type: "facebook_page",
-          account_id: page.id,
-          account_name: page.name,
-          metadata: { page }
-        })));
-      }
-
-      // Fetch Instagram accounts
-      const igResponse = await fetch(
-        `https://graph.facebook.com/v21.0/${platform.ad_account_id}?fields=instagram_accounts.limit(100){id,username,name,profile_picture_url}&access_token=${platform.access_token}`
-      );
-
-      if (igResponse.ok) {
-        const igData = await igResponse.json();
-        const igAccounts = igData.instagram_accounts?.data || [];
+        console.log(`Found ${pages.length} Facebook Pages`);
         
-        accounts.push(...igAccounts.map((account: any) => ({
-          connected_platform_id: connectedPlatformId,
-          account_type: "instagram_account",
-          account_id: account.id,
-          account_name: account.name || account.username,
-          metadata: { 
-            username: account.username,
-            profile_picture_url: account.profile_picture_url 
+        for (const page of pages) {
+          // Add Facebook Page
+          accounts.push({
+            connected_platform_id: connectedPlatformId,
+            account_type: "facebook_page",
+            account_id: page.id,
+            account_name: page.name,
+            metadata: { 
+              page_access_token: page.access_token 
+            }
+          });
+          
+          // Add Instagram Business Account if connected to this page
+          if (page.instagram_business_account) {
+            const ig = page.instagram_business_account;
+            accounts.push({
+              connected_platform_id: connectedPlatformId,
+              account_type: "instagram_account",
+              account_id: ig.id,
+              account_name: ig.name || ig.username,
+              metadata: { 
+                username: ig.username,
+                profile_picture_url: ig.profile_picture_url,
+                connected_facebook_page_id: page.id,
+                connected_facebook_page_name: page.name
+              }
+            });
           }
-        })));
+        }
+      } else {
+        const errorText = await pagesResponse.text();
+        console.error("Failed to fetch pages:", errorText);
       }
 
-      console.log(`Found ${accounts.length} accounts for Meta platform`);
+      console.log(`Total accounts found: ${accounts.length} (Pages + Instagram)`);
     }
 
     // Insert accounts into database
