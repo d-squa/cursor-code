@@ -70,11 +70,12 @@ serve(async (req) => {
       targetSpec.locales = body.languages;
     }
 
-    // Add publisher platforms if specified (filter out messenger and handle instagram exclusion)
+    // Add publisher platforms if specified
+    // For R&F with REACH objective: exclude messenger and audience_network to avoid placement restrictions
     if (body.publisherPlatforms && Array.isArray(body.publisherPlatforms) && body.publisherPlatforms.length > 0) {
       if (!body.publisherPlatforms.includes("instagram")) {
         targetSpec.publisher_platforms = body.publisherPlatforms.filter(
-          (platform: string) => platform !== "messenger"
+          (platform: string) => platform !== "messenger" && platform !== "audience_network"
         );
       }
     }
