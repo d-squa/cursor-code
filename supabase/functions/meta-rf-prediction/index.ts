@@ -70,20 +70,41 @@ serve(async (req) => {
       targetSpec.locales = body.languages;
     }
 
-    // Add publisher platforms if specified
+    // Add publisher platforms if specified (filter out messenger and handle instagram exclusion)
     if (body.publisherPlatforms && Array.isArray(body.publisherPlatforms) && body.publisherPlatforms.length > 0) {
-      targetSpec.publisher_platforms = body.publisherPlatforms;
+      if (!body.publisherPlatforms.includes("instagram")) {
+        targetSpec.publisher_platforms = body.publisherPlatforms.filter(
+          (platform: string) => platform !== "messenger"
+        );
+      }
     }
 
-    // Add placements for each platform
-    if (body.positions) {
-      if (body.positions.facebook && body.positions.facebook.length > 0) {
-        targetSpec.facebook_positions = body.positions.facebook;
+    // Add placements for each platform with proper mapping
+    if (body.publisherPlatforms && Array.isArray(body.publisherPlatforms) && body.publisherPlatforms.length > 0) {
+      // Facebook positions
+      if (body.positions?.facebook && body.positions.facebook.length > 0) {
+        targetSpec.facebook_positions = body.positions.facebook.map((pos: string) =>
+          pos === "fb_story"
+            ? "story"
+            : pos === "profile_feed_fb"
+              ? "profile_feed"
+              : pos
+        );
       }
-      if (body.positions.instagram && body.positions.instagram.length > 0) {
-        targetSpec.instagram_positions = body.positions.instagram;
+
+      // Instagram positions
+      if (body.positions?.instagram && body.positions.instagram.length > 0) {
+        targetSpec.instagram_positions = body.positions.instagram.map((pos: string) =>
+          pos === "ig_story"
+            ? "story"
+            : pos === "profile_feed_ig"
+              ? "profile_feed"
+              : pos
+        );
       }
-      if (body.positions.audience_network && body.positions.audience_network.length > 0) {
+
+      // Audience Network positions
+      if (body.positions?.audience_network && body.positions.audience_network.length > 0) {
         targetSpec.audience_network_positions = body.positions.audience_network;
       }
     }
