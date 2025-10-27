@@ -1,32 +1,33 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
     const body = await req.json();
-    console.log('Meta forecast request:', JSON.stringify(body, null, 2));
+    console.log("Meta forecast request:", JSON.stringify(body, null, 2));
 
-    const accessToken = Deno.env.get('META_ACCESS_TOKEN');
-    const adAccountId = Deno.env.get('META_AD_ACCOUNT_ID');
+    const accessToken = Deno.env.get("META_ACCESS_TOKEN");
+    const adAccountId = Deno.env.get("META_AD_ACCOUNT_ID");
 
     if (!accessToken || !adAccountId) {
-      console.error('Missing credentials - accessToken:', !!accessToken, 'adAccountId:', !!adAccountId);
-      throw new Error('Meta credentials not configured. Need META_ACCESS_TOKEN and META_AD_ACCOUNT_ID');
+      console.error("Missing credentials - accessToken:", !!accessToken, "adAccountId:", !!adAccountId);
+      throw new Error("Meta credentials not configured. Need META_ACCESS_TOKEN and META_AD_ACCOUNT_ID");
     }
 
-    console.log('Using ad account:', adAccountId);
+    console.log("Using ad account:", adAccountId);
 
     // Validate and normalize markets to ISO-2 country codes
     const validatedMarkets: string[] = [];
     for (const market of body.markets) {
+      console.log("Validated markets Before Normalizing:", market);
       const normalized = market.trim().toUpperCase();
       // ISO-2 country codes are exactly 2 uppercase letters
       if (!/^[A-Z]{2}$/.test(normalized)) {
@@ -34,8 +35,8 @@ serve(async (req) => {
       }
       validatedMarkets.push(normalized);
     }
-    
-    console.log('Validated markets:', validatedMarkets);
+
+    console.log("Validated markets:", validatedMarkets);
 
     // Build targeting spec with validated markets
     const targetingSpec: any = {
@@ -47,8 +48,8 @@ serve(async (req) => {
     };
 
     // Add gender targeting
-    if (body.gender && body.gender !== 'all') {
-      targetingSpec.genders = body.gender === 'male' ? [1] : [2];
+    if (body.gender && body.gender !== "all") {
+      targetingSpec.genders = body.gender === "male" ? [1] : [2];
     }
 
     // Add age targeting
@@ -57,15 +58,15 @@ serve(async (req) => {
 
     // Map strategy focus to Meta optimization goals
     const strategyFocusMap: Record<string, { goal: string; metric: string; metricName: string }> = {
-      'purchase': { goal: 'OFFSITE_CONVERSIONS', metric: 'conversions', metricName: 'Conversions' },
-      'leads': { goal: 'LEAD_GENERATION', metric: 'leads', metricName: 'Leads' },
-      'app-installs': { goal: 'APP_INSTALLS', metric: 'app_installs', metricName: 'App Installs' },
-      'conversions': { goal: 'OFFSITE_CONVERSIONS', metric: 'conversions', metricName: 'Conversions' },
-      'brand-awareness': { goal: 'REACH', metric: 'reach', metricName: 'Reach' },
-      'traffic': { goal: 'LINK_CLICKS', metric: 'clicks', metricName: 'Link Clicks' },
+      purchase: { goal: "OFFSITE_CONVERSIONS", metric: "conversions", metricName: "Conversions" },
+      leads: { goal: "LEAD_GENERATION", metric: "leads", metricName: "Leads" },
+      "app-installs": { goal: "APP_INSTALLS", metric: "app_installs", metricName: "App Installs" },
+      conversions: { goal: "OFFSITE_CONVERSIONS", metric: "conversions", metricName: "Conversions" },
+      "brand-awareness": { goal: "REACH", metric: "reach", metricName: "Reach" },
+      traffic: { goal: "LINK_CLICKS", metric: "clicks", metricName: "Link Clicks" },
     };
 
-    const strategyConfig = strategyFocusMap[body.strategyFocus] || strategyFocusMap['conversions'];
+    const strategyConfig = strategyFocusMap[body.strategyFocus] || strategyFocusMap["conversions"];
     const optimization_goal = strategyConfig.goal;
 
     // Call Reach Estimate API
@@ -78,35 +79,42 @@ serve(async (req) => {
     });
 
     // Mask token in logs for security
-    const maskedParams = reachParams.toString().replace(/access_token=[^&]+/, 'access_token=***');
-    console.log('Calling Reach Estimate API with params:', maskedParams);
+    const maskedParams = reachParams.toString().replace(/access_token=[^&]+/, "access_token=***");
+    console.log("Calling Reach Estimate API with params:", maskedParams);
 
     const reachResponse = await fetch(
-      `https://graph.facebook.com/v21.0/act_${adAccountId}/reachestimate?${reachParams.toString()}`
+      `https://graph.facebook.com/v21.0/act_${adAccountId}/reachestimate?${reachParams.toString()}`,
     );
 
     if (!reachResponse.ok) {
       const errorText = await reachResponse.text();
-      console.error('Reach estimate error:', errorText);
-      
+      console.error("Reach estimate error:", errorText);
+
       // Parse error to provide better messages
       try {
         const errorData = JSON.parse(errorText);
         if (errorData.error?.code === 190) {
-          throw new Error('INVALID_TOKEN: Meta access token is invalid or expired. Please generate a new user access token with ads_read permission.');
+          throw new Error(
+            "INVALID_TOKEN: Meta access token is invalid or expired. Please generate a new user access token with ads_read permission.",
+          );
         }
-        if (errorData.error?.code === 200 && errorData.error?.message?.includes('NOT grant ads_management or ads_read permission')) {
-          throw new Error('PERMISSION_ERROR: Meta access token does not have ads_read permission. Please generate a user access token with ads_read permission from the Meta Business Suite.');
+        if (
+          errorData.error?.code === 200 &&
+          errorData.error?.message?.includes("NOT grant ads_management or ads_read permission")
+        ) {
+          throw new Error(
+            "PERMISSION_ERROR: Meta access token does not have ads_read permission. Please generate a user access token with ads_read permission from the Meta Business Suite.",
+          );
         }
       } catch (parseErr) {
         // If we can't parse, continue with generic error
       }
-      
+
       throw new Error(`Reach estimate failed: ${errorText}`);
     }
 
     const reachData = await reachResponse.json();
-    console.log('Reach estimate response:', JSON.stringify(reachData, null, 2));
+    console.log("Reach estimate response:", JSON.stringify(reachData, null, 2));
 
     // Parse response and calculate metrics
     const estimateData = reachData.data?.[0] || reachData;
@@ -116,30 +124,31 @@ serve(async (req) => {
     // Calculate estimates based on industry benchmarks and optimization goal
     const avgCPM = 10; // $10 CPM average
     const avgCTR = 0.9; // 0.9% CTR average
-    
+
     const impressions = Math.round((budget / avgCPM) * 1000);
     const reach = Math.min(users, Math.round(impressions * 0.7)); // Reach is typically 70% of impressions
     const clicks = Math.round(impressions * (avgCTR / 100));
-    
+
     // Calculate results based on optimization goal
     let results = 0;
     let resultRate = 0;
-    
-    if (strategyConfig.metric === 'reach') {
+
+    if (strategyConfig.metric === "reach") {
       results = reach;
       resultRate = (reach / impressions) * 100;
-    } else if (strategyConfig.metric === 'clicks') {
+    } else if (strategyConfig.metric === "clicks") {
       results = clicks;
       resultRate = avgCTR;
-    } else if (strategyConfig.metric === 'leads') {
+    } else if (strategyConfig.metric === "leads") {
       const leadRate = 3; // 3% lead rate for lead gen campaigns
       results = Math.round(clicks * (leadRate / 100));
       resultRate = leadRate;
-    } else if (strategyConfig.metric === 'app_installs') {
+    } else if (strategyConfig.metric === "app_installs") {
       const installRate = 4; // 4% install rate for app campaigns
       results = Math.round(clicks * (installRate / 100));
       resultRate = installRate;
-    } else { // conversions
+    } else {
+      // conversions
       const conversionRate = 2; // 2% conversion rate average
       results = Math.round(clicks * (conversionRate / 100));
       resultRate = conversionRate;
@@ -152,29 +161,28 @@ serve(async (req) => {
       conversions: results,
       resultMetric: strategyConfig.metricName,
       cpm: avgCPM,
-      cpc: clicks > 0 ? (budget / clicks).toFixed(2) : '0',
+      cpc: clicks > 0 ? (budget / clicks).toFixed(2) : "0",
       ctr: avgCTR.toFixed(2),
       conversionRate: resultRate.toFixed(2),
-      costPerConversion: results > 0 ? (budget / results).toFixed(2) : '0',
+      costPerConversion: results > 0 ? (budget / results).toFixed(2) : "0",
     };
 
-    console.log('Final forecast:', forecast);
+    console.log("Final forecast:", forecast);
 
     return new Response(JSON.stringify(forecast), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-
   } catch (error) {
-    console.error('Meta forecast error:', error);
+    console.error("Meta forecast error:", error);
     return new Response(
-      JSON.stringify({ 
-        error: error instanceof Error ? error.message : 'Unknown error',
-        details: 'Check edge function logs for more information'
+      JSON.stringify({
+        error: error instanceof Error ? error.message : "Unknown error",
+        details: "Check edge function logs for more information",
       }),
       {
         status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
     );
   }
 });
