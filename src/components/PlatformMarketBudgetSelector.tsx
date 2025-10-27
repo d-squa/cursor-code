@@ -9,6 +9,9 @@ import { Plus, X, Copy } from "lucide-react";
 import { PlatformWithMarkets, Market } from "@/types/mediaplan";
 import { AdFormatSelector } from "./AdFormatSelector";
 import { getTestPresets } from "@/utils/testPresets";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { useState, useEffect } from "react";
 
 interface PlatformMarketBudgetSelectorProps {
   platforms: PlatformWithMarkets[];
@@ -30,8 +33,35 @@ export function PlatformMarketBudgetSelector({
   setPlatforms,
   totalBudget 
 }: PlatformMarketBudgetSelectorProps) {
+  const [instagramAccounts, setInstagramAccounts] = useState<Array<{ id: string; username: string; name: string }>>([]);
+  const [isLoadingAccounts, setIsLoadingAccounts] = useState(false);
+  
   const totalAllocated = platforms.reduce((sum, p) => sum + p.budgetPercentage, 0);
   const usedPlatformIds = platforms.map(p => p.id).filter(id => id !== "");
+
+  // Fetch Instagram accounts on mount
+  useEffect(() => {
+    const fetchInstagramAccounts = async () => {
+      setIsLoadingAccounts(true);
+      try {
+        const { data, error } = await supabase.functions.invoke("meta-accounts");
+        
+        if (error) throw error;
+        
+        if (data?.instagramAccounts) {
+          setInstagramAccounts(data.instagramAccounts);
+          console.log("Fetched Instagram accounts:", data.instagramAccounts);
+        }
+      } catch (error: any) {
+        console.error("Failed to fetch Instagram accounts:", error);
+        toast.error("Failed to load Instagram accounts");
+      } finally {
+        setIsLoadingAccounts(false);
+      }
+    };
+
+    fetchInstagramAccounts();
+  }, []);
 
   const addPlatform = () => {
     const newPlatform: PlatformWithMarkets = {
@@ -389,6 +419,26 @@ export function PlatformMarketBudgetSelector({
                                   <SelectContent>
                                     <SelectItem value="page-1">Page 1 (API)</SelectItem>
                                     <SelectItem value="page-2">Page 2 (API)</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+
+                              <div className="space-y-1">
+                                <Label className="text-xs">Instagram Account</Label>
+                                <Select
+                                  value={market.instagramActorId || ""}
+                                  onValueChange={(value) => updateMarketField(platformIndex, market.id, 'instagramActorId', value)}
+                                  disabled={isLoadingAccounts}
+                                >
+                                  <SelectTrigger className="h-7 text-xs">
+                                    <SelectValue placeholder={isLoadingAccounts ? "Loading..." : "Select Instagram account"} />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {instagramAccounts.map((account) => (
+                                      <SelectItem key={account.id} value={account.id}>
+                                        @{account.username} - {account.name}
+                                      </SelectItem>
+                                    ))}
                                   </SelectContent>
                                 </Select>
                               </div>
