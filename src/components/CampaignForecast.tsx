@@ -63,21 +63,43 @@ export function CampaignForecast({
           throw new Error(`Invalid country code: ${marketCode}`);
         }
         
-        // Get connected Meta platform to use its credentials
-        const { data: connectedPlatforms } = await supabase
-          .from('connected_platforms')
-          .select('id')
-          .eq('platform_type', 'meta')
-          .order('created_at', { ascending: false })
-          .limit(1);
+        // Resolve the correct Meta connection to use its credentials
+        // 1) Prefer the connection that owns the selected Instagram account
+        // 2) Fallback to the most recent Meta connection
+        const instagramActorId = market.instagramActorId as string | undefined;
+        let connectedPlatformId: string | null = null;
 
-        if (!connectedPlatforms || connectedPlatforms.length === 0) {
+        if (instagramActorId) {
+          const { data: igAccounts } = await supabase
+            .from('platform_accounts')
+            .select('connected_platform_id')
+            .eq('account_type', 'instagram_account')
+            .eq('account_id', instagramActorId)
+            .limit(1);
+
+          if (igAccounts && igAccounts.length > 0) {
+            connectedPlatformId = igAccounts[0].connected_platform_id as unknown as string;
+          }
+        }
+
+        if (!connectedPlatformId) {
+          const { data: connectedPlatforms } = await supabase
+            .from('connected_platforms')
+            .select('id')
+            .eq('platform_type', 'meta')
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+          connectedPlatformId = connectedPlatforms?.[0]?.id ?? null;
+        }
+
+        if (!connectedPlatformId) {
           throw new Error('No Meta platform connected. Please connect Meta in Platform Connections.');
         }
 
         const { data, error } = await supabase.functions.invoke('meta-rf-prediction', {
           body: {
-            connectedPlatformId: connectedPlatforms[0].id,
+            connectedPlatformId: connectedPlatformId,
             countries: [marketCode],
             budget,
             strategyFocus,
