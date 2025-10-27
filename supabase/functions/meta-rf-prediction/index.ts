@@ -70,14 +70,15 @@ serve(async (req) => {
       targetSpec.locales = body.languages;
     }
 
-    // Add publisher platforms if specified - exclude messenger and audience_network for R&F
+    // Add publisher platforms - default to FB+IG for R&F REACH and exclude unsupported ones
     if (body.publisherPlatforms && Array.isArray(body.publisherPlatforms) && body.publisherPlatforms.length > 0) {
       const filteredPlatforms = body.publisherPlatforms.filter(
         (platform: string) => platform !== "messenger" && platform !== "audience_network"
       );
-      if (filteredPlatforms.length > 0) {
-        targetSpec.publisher_platforms = filteredPlatforms;
-      }
+      targetSpec.publisher_platforms = filteredPlatforms.length > 0 ? filteredPlatforms : ["facebook", "instagram"];
+    } else {
+      // Explicitly set defaults to avoid Audience Network being auto-included by API
+      targetSpec.publisher_platforms = ["facebook", "instagram"];
     }
 
     // Add placements for each platform with proper mapping (Audience Network excluded for RESERVED/REACH)
