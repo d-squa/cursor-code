@@ -70,17 +70,17 @@ serve(async (req) => {
       targetSpec.locales = body.languages;
     }
 
-    // Add publisher platforms if specified
-    // For R&F with REACH objective: exclude messenger and audience_network to avoid placement restrictions
+    // Add publisher platforms if specified - exclude messenger and audience_network for R&F
     if (body.publisherPlatforms && Array.isArray(body.publisherPlatforms) && body.publisherPlatforms.length > 0) {
-      if (!body.publisherPlatforms.includes("instagram")) {
-        targetSpec.publisher_platforms = body.publisherPlatforms.filter(
-          (platform: string) => platform !== "messenger" && platform !== "audience_network"
-        );
+      const filteredPlatforms = body.publisherPlatforms.filter(
+        (platform: string) => platform !== "messenger" && platform !== "audience_network"
+      );
+      if (filteredPlatforms.length > 0) {
+        targetSpec.publisher_platforms = filteredPlatforms;
       }
     }
 
-    // Add placements for each platform with proper mapping
+    // Add placements for each platform with proper mapping (Audience Network excluded for RESERVED/REACH)
     if (body.publisherPlatforms && Array.isArray(body.publisherPlatforms) && body.publisherPlatforms.length > 0) {
       // Facebook positions
       if (body.positions?.facebook && body.positions.facebook.length > 0) {
@@ -104,10 +104,7 @@ serve(async (req) => {
         );
       }
 
-      // Audience Network positions
-      if (body.positions?.audience_network && body.positions.audience_network.length > 0) {
-        targetSpec.audience_network_positions = body.positions.audience_network;
-      }
+      // Audience Network positions intentionally ignored for R&F RESERVED REACH
     }
 
     // Add detailed targeting (interests, behaviors, demographics)
