@@ -105,6 +105,30 @@ serve(async (req) => {
 
     // Step 1: Create Reach & Frequency prediction
     // API: POST https://graph.facebook.com/v21.0/act_{ad_account_id}/reachfrequencypredictions
+    
+    // Prepare start and end times (REQUIRED for R&F)
+    // Set time to 9:00 AM UTC to ensure it's after 6:00 AM requirement
+    if (!body.startDate || !body.endDate) {
+      throw new Error("startDate and endDate are required for R&F predictions");
+    }
+
+    const startDate = new Date(body.startDate);
+    const endDate = new Date(body.endDate);
+    
+    // Set to 9:00 AM UTC to be safe (Meta requires time after ~6:00 AM)
+    startDate.setUTCHours(9, 0, 0, 0);
+    endDate.setUTCHours(23, 59, 59, 999); // End of day
+    
+    const startTimeUnix = Math.floor(startDate.getTime() / 1000);
+    const endTimeUnix = Math.floor(endDate.getTime() / 1000);
+    
+    console.log("Campaign time window:", {
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      startTimeUnix,
+      endTimeUnix,
+    });
+
     const predictionParams: Record<string, string> = {
       access_token: accessToken,
       target_spec: JSON.stringify(targetSpec),
@@ -112,11 +136,9 @@ serve(async (req) => {
       buying_type: "RESERVED", // Required for R&F
       objective: body.objective || "REACH",
       prediction_mode: "1", // 0 = reach, 1 = r&f
-      // Add frequency cap if provided (default to 2 for R&F campaigns)
       frequency_cap: String(body.frequencyCap || 2),
-      // Add start/end dates if provided
-      ...(body.startDate && { start_time: String(Math.floor(new Date(body.startDate).getTime() / 1000)) }),
-      ...(body.endDate && { end_time: String(Math.floor(new Date(body.endDate).getTime() / 1000)) }),
+      start_time: String(startTimeUnix), // REQUIRED
+      end_time: String(endTimeUnix), // REQUIRED
     };
 
     const maskedParams = new URLSearchParams(predictionParams)

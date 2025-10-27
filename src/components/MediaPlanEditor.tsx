@@ -678,6 +678,8 @@ export function MediaPlanEditor() {
           platforms={platformsWithMarkets}
           totalBudget={parseFloat(totalBudget) || 0}
           genericConfig={genericConfig}
+          startDate={startDate}
+          endDate={endDate}
           onBack={() => setCurrentStep(4)}
           onFinalize={handleLaunch}
         />

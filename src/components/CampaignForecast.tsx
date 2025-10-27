@@ -13,6 +13,8 @@ interface CampaignForecastProps {
   platforms: PlatformWithMarkets[];
   totalBudget: number;
   genericConfig: GenericConfig;
+  startDate: string;
+  endDate: string;
   onBack: () => void;
   onFinalize: () => void;
 }
@@ -35,6 +37,8 @@ export function CampaignForecast({
   platforms,
   totalBudget,
   genericConfig,
+  startDate,
+  endDate,
   onBack,
   onFinalize,
 }: CampaignForecastProps) {
@@ -67,8 +71,8 @@ export function CampaignForecast({
             // Add campaign configuration from market
             isCBOEnabled: market.isCBOEnabled || false,
             isLifetimeBudget: market.isLifetimeBudget || false,
-            startDate: market.startDate,
-            endDate: market.endDate,
+            startDate, // Campaign start date (required)
+            endDate, // Campaign end date (required)
             // Add targeting parameters
             ageMin: market.ageMin || 18,
             ageMax: market.ageMax || 65,
