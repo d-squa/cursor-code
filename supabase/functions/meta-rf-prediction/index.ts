@@ -109,6 +109,21 @@ serve(async (req) => {
       // Audience Network positions intentionally ignored for R&F RESERVED REACH
     }
 
+    // Ensure Instagram actor is set when IG placements are requested, otherwise drop IG to avoid Meta error 1885237
+    const includesIG = Array.isArray(targetSpec.publisher_platforms) && targetSpec.publisher_platforms.includes("instagram");
+    if (includesIG && !body.instagramActorId) {
+      console.warn(
+        "Instagram placements requested but no instagramActorId provided. Excluding Instagram from publisher_platforms."
+      );
+      targetSpec.publisher_platforms = targetSpec.publisher_platforms.filter((p: string) => p !== "instagram");
+      if (targetSpec.instagram_positions) delete targetSpec.instagram_positions;
+    }
+    
+    // Fallback: ensure at least Facebook remains
+    if (!targetSpec.publisher_platforms || targetSpec.publisher_platforms.length === 0) {
+      targetSpec.publisher_platforms = ["facebook"];
+    }
+
     // Add detailed targeting (interests, behaviors, demographics)
     if (body.detailedTargeting && Array.isArray(body.detailedTargeting) && body.detailedTargeting.length > 0) {
       targetSpec.flexible_spec = [
