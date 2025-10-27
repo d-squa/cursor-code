@@ -134,7 +134,7 @@ serve(async (req) => {
       target_spec: JSON.stringify(targetSpec),
       budget: String(body.budget),
       buying_type: "RESERVED", // Required for R&F
-      objective: body.objective || "REACH",
+      objective: "REACH",
       prediction_mode: "1", // 0 = reach, 1 = r&f
       frequency_cap: String(body.frequencyCap || 2),
       start_time: String(startTimeUnix), // REQUIRED
