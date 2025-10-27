@@ -63,8 +63,21 @@ export function CampaignForecast({
           throw new Error(`Invalid country code: ${marketCode}`);
         }
         
+        // Get connected Meta platform to use its credentials
+        const { data: connectedPlatforms } = await supabase
+          .from('connected_platforms')
+          .select('id')
+          .eq('platform_type', 'meta')
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (!connectedPlatforms || connectedPlatforms.length === 0) {
+          throw new Error('No Meta platform connected. Please connect Meta in Platform Connections.');
+        }
+
         const { data, error } = await supabase.functions.invoke('meta-rf-prediction', {
           body: {
+            connectedPlatformId: connectedPlatforms[0].id,
             countries: [marketCode],
             budget,
             strategyFocus,

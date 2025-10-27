@@ -16,12 +16,37 @@ serve(async (req) => {
     const body = await req.json();
     console.log("Meta R&F prediction request (keys):", Object.keys(body));
 
-    const accessToken = Deno.env.get("META_ACCESS_TOKEN");
-    const adAccountId = Deno.env.get("META_AD_ACCOUNT_ID");
+    // Get credentials from connected platform
+    const connectedPlatformId = body.connectedPlatformId;
+    if (!connectedPlatformId) {
+      throw new Error("connectedPlatformId is required");
+    }
+
+    // Initialize Supabase client
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    
+    const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Fetch platform credentials
+    const { data: platform, error: platformError } = await supabase
+      .from('connected_platforms')
+      .select('access_token, ad_account_id')
+      .eq('id', connectedPlatformId)
+      .single();
+
+    if (platformError || !platform) {
+      console.error("Failed to fetch platform:", platformError);
+      throw new Error("Connected platform not found");
+    }
+
+    const accessToken = platform.access_token;
+    const adAccountId = platform.ad_account_id.replace('act_', ''); // Remove act_ prefix if present
 
     if (!accessToken || !adAccountId) {
       console.error("Missing credentials - accessToken:", !!accessToken, "adAccountId:", !!adAccountId);
-      throw new Error("Meta credentials not configured. Need META_ACCESS_TOKEN and META_AD_ACCOUNT_ID");
+      throw new Error("Meta credentials not configured for this platform");
     }
 
     console.log("Using ad account for R&F:", adAccountId);
