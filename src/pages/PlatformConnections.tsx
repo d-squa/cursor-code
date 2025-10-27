@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
+import { PLATFORM_CONFIG } from "@/config/platforms";
 
 interface ConnectedPlatform {
   id: string;
@@ -35,11 +36,6 @@ export default function PlatformConnections() {
   const navigate = useNavigate();
   const [platforms, setPlatforms] = useState<ConnectedPlatform[]>([]);
   const [loading, setLoading] = useState(true);
-  const [connectDialogOpen, setConnectDialogOpen] = useState(false);
-  const [selectedPlatform, setSelectedPlatform] = useState<string>("");
-  const [adAccountId, setAdAccountId] = useState("");
-  const [adAccountName, setAdAccountName] = useState("");
-  const [accessToken, setAccessToken] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -71,49 +67,23 @@ export default function PlatformConnections() {
     }
   };
 
-  const handleConnectPlatform = async () => {
-    if (!selectedPlatform || !adAccountId || !adAccountName || !accessToken) {
-      toast.error("Please fill in all required fields");
-      return;
-    }
-
-    setSaving(true);
-    try {
-      // Insert connected platform
-      const { data: platformData, error: platformError } = await supabase
-        .from("connected_platforms")
-        .insert({
-          user_id: user?.id,
-          platform_type: selectedPlatform,
-          platform_name: PLATFORM_TYPES.find(p => p.id === selectedPlatform)?.name || selectedPlatform,
-          access_token: accessToken,
-          ad_account_id: adAccountId,
-          ad_account_name: adAccountName,
-        })
-        .select()
-        .single();
-
-      if (platformError) throw platformError;
-
-      // Sync platform accounts (pages, Instagram accounts, etc.)
-      try {
-        await supabase.functions.invoke("sync-platform-accounts", {
-          body: { connectedPlatformId: platformData.id }
-        });
-      } catch (syncError) {
-        console.error("Failed to sync platform accounts:", syncError);
-        // Don't fail the connection if sync fails
+  const handleConnectPlatform = async (platformType: string) => {
+    if (platformType === "meta") {
+      // Redirect to Meta OAuth
+      const redirectUri = `${window.location.origin}/platforms`;
+      const clientId = PLATFORM_CONFIG.meta.appId;
+      
+      if (!clientId) {
+        toast.error("Meta App ID not configured. Please add VITE_META_APP_ID to your environment variables.");
+        return;
       }
 
-      toast.success("Platform connected successfully!");
-      setConnectDialogOpen(false);
-      resetForm();
-      fetchConnectedPlatforms();
-    } catch (error: any) {
-      console.error("Error connecting platform:", error);
-      toast.error(error.message || "Failed to connect platform");
-    } finally {
-      setSaving(false);
+      const scope = PLATFORM_CONFIG.meta.oauthScopes;
+      const oauthUrl = `https://www.facebook.com/${PLATFORM_CONFIG.meta.apiVersion}/dialog/oauth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&state=${platformType}`;
+      
+      window.location.href = oauthUrl;
+    } else {
+      toast.error("This platform is not yet supported");
     }
   };
 
@@ -135,12 +105,42 @@ export default function PlatformConnections() {
     }
   };
 
-  const resetForm = () => {
-    setSelectedPlatform("");
-    setAdAccountId("");
-    setAdAccountName("");
-    setAccessToken("");
-  };
+  // Handle OAuth callback
+  useEffect(() => {
+    const handleOAuthCallback = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get("code");
+      const state = urlParams.get("state");
+
+      if (code && state) {
+        setSaving(true);
+        try {
+          const redirectUri = `${window.location.origin}/platforms`;
+          const { data, error } = await supabase.functions.invoke("meta-oauth-callback", {
+            body: { code, platformType: state, redirectUri }
+          });
+
+          if (error) throw error;
+
+          toast.success("Platform connected! Please select an ad account to link.");
+          
+          // Clear URL parameters
+          window.history.replaceState({}, document.title, window.location.pathname);
+          
+          await fetchConnectedPlatforms();
+        } catch (error: any) {
+          console.error("OAuth callback error:", error);
+          toast.error(error.message || "Failed to complete authentication");
+        } finally {
+          setSaving(false);
+        }
+      }
+    };
+
+    if (user) {
+      handleOAuthCallback();
+    }
+  }, [user]);
 
   if (authLoading || loading) {
     return (
@@ -178,88 +178,21 @@ export default function PlatformConnections() {
                 <CardTitle>Connected Platforms</CardTitle>
                 <CardDescription>Manage your advertising platform connections</CardDescription>
               </div>
-              <Dialog open={connectDialogOpen} onOpenChange={setConnectDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Connect Platform
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[500px]">
-                  <DialogHeader>
-                    <DialogTitle>Connect Advertising Platform</DialogTitle>
-                    <DialogDescription>
-                      Enter your platform credentials to connect your ad account
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="platform">Platform</Label>
-                      <Select value={selectedPlatform} onValueChange={setSelectedPlatform}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select platform" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {PLATFORM_TYPES.map((platform) => (
-                            <SelectItem key={platform.id} value={platform.id}>
-                              {platform.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="adAccountId">Ad Account ID</Label>
-                      <Input
-                        id="adAccountId"
-                        value={adAccountId}
-                        onChange={(e) => setAdAccountId(e.target.value)}
-                        placeholder="e.g., act_1234567890"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="adAccountName">Ad Account Name</Label>
-                      <Input
-                        id="adAccountName"
-                        value={adAccountName}
-                        onChange={(e) => setAdAccountName(e.target.value)}
-                        placeholder="e.g., My Business Account"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="accessToken">Access Token</Label>
-                      <Input
-                        id="accessToken"
-                        type="password"
-                        value={accessToken}
-                        onChange={(e) => setAccessToken(e.target.value)}
-                        placeholder="Enter your platform access token"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Get your access token from your platform's developer settings
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex justify-end gap-2">
-                    <Button variant="outline" onClick={() => setConnectDialogOpen(false)}>
-                      Cancel
+              <div className="flex gap-2">
+                {PLATFORM_TYPES.map((platform) => {
+                  const Icon = platform.icon;
+                  return (
+                    <Button
+                      key={platform.id}
+                      onClick={() => handleConnectPlatform(platform.id)}
+                      disabled={saving}
+                    >
+                      {Icon && <Icon className="h-4 w-4 mr-2" />}
+                      Connect {platform.name}
                     </Button>
-                    <Button onClick={handleConnectPlatform} disabled={saving}>
-                      {saving ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Connecting...
-                        </>
-                      ) : (
-                        "Connect"
-                      )}
-                    </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
+                  );
+                })}
+              </div>
             </div>
           </CardHeader>
           <CardContent>
@@ -272,10 +205,20 @@ export default function PlatformConnections() {
                 <p className="text-muted-foreground mb-4">
                   Connect your first advertising platform to get started
                 </p>
-                <Button onClick={() => setConnectDialogOpen(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Connect Platform
-                </Button>
+                <div className="flex gap-2 justify-center">
+                  {PLATFORM_TYPES.map((platform) => {
+                    const Icon = platform.icon;
+                    return (
+                      <Button
+                        key={platform.id}
+                        onClick={() => handleConnectPlatform(platform.id)}
+                      >
+                        {Icon && <Icon className="h-4 w-4 mr-2" />}
+                        {platform.name}
+                      </Button>
+                    );
+                  })}
+                </div>
               </div>
             ) : (
               <div className="space-y-4">
