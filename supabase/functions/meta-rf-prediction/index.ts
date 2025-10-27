@@ -162,6 +162,12 @@ serve(async (req) => {
       end_time: String(endTimeUnix), // REQUIRED
     };
 
+    // Add Instagram actor ID if Instagram placements are included (REQUIRED for R&F with Instagram)
+    if (body.instagramActorId && targetSpec.publisher_platforms?.includes("instagram")) {
+      predictionParams.instagram_actor_id = String(body.instagramActorId);
+      console.log("Adding Instagram actor ID:", body.instagramActorId);
+    }
+
     const maskedParams = new URLSearchParams(predictionParams)
       .toString()
       .replace(/access_token=[^&]+/, "access_token=***");
