@@ -10,6 +10,22 @@ export interface Market {
   pixel?: string;
   catalog?: string;
   strategyFocus?: string;
+  // Campaign settings
+  isCBOEnabled?: boolean;
+  isLifetimeBudget?: boolean;
+  // Targeting settings
+  countries?: string[];
+  gender?: string;
+  languages?: number[];
+  ageMin?: number;
+  ageMax?: number;
+  publisherPlatforms?: string[];
+  positions?: {
+    facebook?: string[];
+    instagram?: string[];
+    audience_network?: string[];
+  };
+  detailedTargeting?: Array<{ id: string; type: string; name?: string }>;
 }
 
 export interface FunnelStage {

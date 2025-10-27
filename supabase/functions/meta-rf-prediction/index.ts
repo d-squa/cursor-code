@@ -14,7 +14,7 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    console.log("Meta R&F prediction request:", JSON.stringify(body, null, 2));
+    console.log("Meta R&F prediction request (keys):", Object.keys(body));
 
     const accessToken = Deno.env.get("META_ACCESS_TOKEN");
     const adAccountId = Deno.env.get("META_AD_ACCOUNT_ID");
@@ -26,33 +26,95 @@ serve(async (req) => {
 
     console.log("Using ad account for R&F:", adAccountId);
 
-    // Validate and normalize markets to ISO-2 country codes
-    const validatedMarkets: string[] = [];
-    for (const market of body.markets) {
-      console.log("*RF*Selected Market Before Normilization:", market);
+    // Extract countries from body - support both formats
+    let validatedMarkets: string[] = [];
+    
+    if (body.countries && Array.isArray(body.countries)) {
+      // New format: countries array directly
+      validatedMarkets = body.countries;
+    } else if (body.markets && Array.isArray(body.markets)) {
+      // Legacy format: markets array
+      validatedMarkets = body.markets;
+    } else {
+      throw new Error("No markets/countries provided. Please specify countries array.");
+    }
 
+    // Validate and normalize to ISO-2 country codes
+    const normalizedMarkets: string[] = [];
+    for (const market of validatedMarkets) {
       const normalized = market.trim().toUpperCase();
       if (!/^[A-Z]{2}$/.test(normalized)) {
         throw new Error(`Invalid country code: "${market}". Must be 2-letter ISO code (e.g., US, CA, GB).`);
       }
-      validatedMarkets.push(normalized);
+      normalizedMarkets.push(normalized);
     }
+
+    console.log("Normalized markets for R&F:", normalizedMarkets);
+
+    // Build target_spec from body parameters
+    const targetSpec: any = {
+      geo_locations: {
+        countries: normalizedMarkets,
+      },
+      age_min: body.ageMin || 18,
+      age_max: body.ageMax || 65,
+    };
+
+    // Add gender if specified
+    if (body.gender && body.gender !== "all") {
+      targetSpec.genders = [body.gender === "male" ? 1 : 2];
+    }
+
+    // Add languages/locales if specified
+    if (body.languages && Array.isArray(body.languages) && body.languages.length > 0) {
+      targetSpec.locales = body.languages;
+    }
+
+    // Add publisher platforms if specified
+    if (body.publisherPlatforms && Array.isArray(body.publisherPlatforms) && body.publisherPlatforms.length > 0) {
+      targetSpec.publisher_platforms = body.publisherPlatforms;
+    }
+
+    // Add placements for each platform
+    if (body.positions) {
+      if (body.positions.facebook && body.positions.facebook.length > 0) {
+        targetSpec.facebook_positions = body.positions.facebook;
+      }
+      if (body.positions.instagram && body.positions.instagram.length > 0) {
+        targetSpec.instagram_positions = body.positions.instagram;
+      }
+      if (body.positions.audience_network && body.positions.audience_network.length > 0) {
+        targetSpec.audience_network_positions = body.positions.audience_network;
+      }
+    }
+
+    // Add detailed targeting (interests, behaviors, demographics)
+    if (body.detailedTargeting && Array.isArray(body.detailedTargeting) && body.detailedTargeting.length > 0) {
+      targetSpec.flexible_spec = [
+        body.detailedTargeting.reduce((acc: any, target: any) => {
+          if (!acc[target.type]) {
+            acc[target.type] = [];
+          }
+          acc[target.type].push({ id: target.id });
+          return acc;
+        }, {}),
+      ];
+    }
+
+    console.log("Target spec for R&F:", JSON.stringify(targetSpec, null, 2));
 
     // Step 1: Create Reach & Frequency prediction
     // API: POST https://graph.facebook.com/v21.0/act_{ad_account_id}/reachfrequencypredictions
     const predictionParams: Record<string, string> = {
       access_token: accessToken,
-      target_spec: JSON.stringify({
-        geo_locations: {
-          countries: validatedMarkets,
-        },
-        age_min: body.ageMin || 18,
-        age_max: body.ageMax || 65,
-      }),
+      target_spec: JSON.stringify(targetSpec),
       budget: String(body.budget),
       buying_type: "RESERVED", // Required for R&F
       objective: body.objective || "REACH",
       prediction_mode: "1", // 0 = reach, 1 = r&f
+      // Add start/end dates if provided
+      ...(body.startDate && { start_time: String(Math.floor(new Date(body.startDate).getTime() / 1000)) }),
+      ...(body.endDate && { end_time: String(Math.floor(new Date(body.endDate).getTime() / 1000)) }),
     };
 
     const maskedParams = new URLSearchParams(predictionParams)

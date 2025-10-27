@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { PlatformWithMarkets } from "@/types/mediaplan";
 import { GenericConfig } from "./GenericStrategyConfig";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -372,6 +373,35 @@ return (
                             </>
                           )}
                         </div>
+
+                        {/* Campaign Settings for Meta */}
+                        {platform.name.includes("Meta") && (
+                          <div className="border rounded-lg p-4 space-y-4 bg-muted/20">
+                            <h4 className="font-medium text-sm">Campaign Settings</h4>
+                            <div className="grid gap-4 md:grid-cols-2">
+                              <div className="flex items-center justify-between">
+                                <Label htmlFor={`cbo-${market.id}`}>Campaign Budget Optimization (CBO)</Label>
+                                <Switch
+                                  id={`cbo-${market.id}`}
+                                  checked={market.isCBOEnabled || false}
+                                  onCheckedChange={(checked) =>
+                                    updateMarketField(platform.id, market.id, "isCBOEnabled", checked)
+                                  }
+                                />
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <Label htmlFor={`lifetime-${market.id}`}>Lifetime Budget</Label>
+                                <Switch
+                                  id={`lifetime-${market.id}`}
+                                  checked={market.isLifetimeBudget || false}
+                                  onCheckedChange={(checked) =>
+                                    updateMarketField(platform.id, market.id, "isLifetimeBudget", checked)
+                                  }
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        )}
 
                         {/* Campaign Structure Preview */}
                         <div className="border rounded-lg p-4 bg-muted/30 space-y-3">
