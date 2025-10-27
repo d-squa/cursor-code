@@ -21,41 +21,45 @@ serve(async (req) => {
 
     console.log("Fetching Facebook Pages and Instagram accounts for ad account:", adAccountId);
 
-    // Fetch Facebook Pages connected to the ad account
+    // Fetch Facebook Pages (using the ad account's promoted_objects endpoint)
     const pagesResponse = await fetch(
-      `https://graph.facebook.com/v21.0/act_${adAccountId}/agencies?fields=id,name&access_token=${accessToken}`
+      `https://graph.facebook.com/v21.0/act_${adAccountId}?fields=promote_pages.limit(100){id,name}&access_token=${accessToken}`
     );
 
     if (!pagesResponse.ok) {
       const errorText = await pagesResponse.text();
       console.error("Failed to fetch pages:", errorText);
-      throw new Error(`Failed to fetch pages: ${errorText}`);
+      // Don't throw, just log and continue with empty pages
+      console.log("Continuing without pages data");
     }
 
-    const pagesData = await pagesResponse.json();
+    const pagesData = pagesResponse.ok ? await pagesResponse.json() : { promote_pages: { data: [] } };
+    const pages = pagesData.promote_pages?.data || [];
 
     // Fetch Instagram accounts connected to the ad account
     const igAccountsResponse = await fetch(
-      `https://graph.facebook.com/v21.0/act_${adAccountId}/instagram_accounts?fields=id,username,name,profile_picture_url&access_token=${accessToken}`
+      `https://graph.facebook.com/v21.0/act_${adAccountId}?fields=instagram_accounts.limit(100){id,username,name,profile_picture_url}&access_token=${accessToken}`
     );
 
     if (!igAccountsResponse.ok) {
       const errorText = await igAccountsResponse.text();
       console.error("Failed to fetch Instagram accounts:", errorText);
-      throw new Error(`Failed to fetch Instagram accounts: ${errorText}`);
+      // Don't throw, just log and continue with empty accounts
+      console.log("Continuing without Instagram accounts data");
     }
 
-    const igAccountsData = await igAccountsResponse.json();
+    const igAccountsData = igAccountsResponse.ok ? await igAccountsResponse.json() : { instagram_accounts: { data: [] } };
+    const instagramAccounts = igAccountsData.instagram_accounts?.data || [];
 
     console.log("Fetched accounts:", {
-      pages: pagesData.data?.length || 0,
-      instagramAccounts: igAccountsData.data?.length || 0,
+      pages: pages.length,
+      instagramAccounts: instagramAccounts.length,
     });
 
     return new Response(
       JSON.stringify({
-        pages: pagesData.data || [],
-        instagramAccounts: igAccountsData.data || [],
+        pages: pages,
+        instagramAccounts: instagramAccounts,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
