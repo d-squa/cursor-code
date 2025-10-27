@@ -59,11 +59,25 @@ export function CampaignForecast({
           throw new Error(`Invalid country code: ${marketCode}`);
         }
         
-        const { data, error } = await supabase.functions.invoke('meta-forecast', {
+        const { data, error } = await supabase.functions.invoke('meta-rf-prediction', {
           body: {
-            markets: [marketCode],
+            countries: [marketCode],
             budget,
             strategyFocus,
+            // Add campaign configuration from market
+            isCBOEnabled: market.isCBOEnabled || false,
+            isLifetimeBudget: market.isLifetimeBudget || false,
+            startDate: market.startDate,
+            endDate: market.endDate,
+            // Add targeting parameters
+            ageMin: market.ageMin || 18,
+            ageMax: market.ageMax || 65,
+            gender: market.gender || 'all',
+            languages: market.languages || [],
+            publisherPlatforms: market.publisherPlatforms || [],
+            positions: market.positions || {},
+            detailedTargeting: market.detailedTargeting || [],
+            frequencyCap: market.frequencyCap || 2,
           }
         });
 
