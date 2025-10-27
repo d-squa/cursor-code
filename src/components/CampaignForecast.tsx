@@ -22,17 +22,13 @@ interface ForecastMetrics {
   impressions: number;
   cpm: number;
   reach: number;
-  cpr: number;
-  sov: number;
-  frequency: number;
-  cost: number;
   clicks: number;
   ctr: number;
   cpc: number;
   results: number;
-  resultMetric?: string;
+  resultType?: string;
   costPerResult: number;
-  resultRate: number;
+  conversionRate: number;
 }
 
 export function CampaignForecast({
@@ -43,7 +39,7 @@ export function CampaignForecast({
   onFinalize,
 }: CampaignForecastProps) {
   const [loading, setLoading] = useState(false);
-  const [forecasts, setForecasts] = useState<Record<string, Record<string, ForecastMetrics>>>({});
+  const [forecasts, setForecasts] = useState<Record<string, Array<{ market: string; budget: number; metrics: ForecastMetrics }>>>({});
 
   const fetchForecast = async (platformId: string, marketId: string, budget: number, market: any) => {
     // Call actual platform APIs for Meta, use mock for others
@@ -75,21 +71,17 @@ export function CampaignForecast({
 
         // Transform Meta API response to our format
         return {
-          audienceSize: data.reach * 15,
-          impressions: data.impressions,
-          cpm: parseFloat(data.cpm),
-          reach: data.reach,
-          cpr: budget / data.reach,
-          sov: 5.2,
-          frequency: data.impressions / data.reach,
-          cost: budget,
-          clicks: data.clicks,
-          ctr: parseFloat(data.ctr),
-          cpc: parseFloat(data.cpc),
-          results: data.conversions,
-          resultMetric: data.resultMetric || 'Conversions',
-          costPerResult: parseFloat(data.costPerConversion),
-          resultRate: parseFloat(data.conversionRate),
+          audienceSize: data.forecast?.audienceSize || data.reach * 15,
+          impressions: data.forecast?.impressions || data.impressions,
+          cpm: data.forecast?.cpm || parseFloat(data.cpm),
+          reach: data.forecast?.reach || data.reach,
+          clicks: data.forecast?.clicks || data.clicks,
+          ctr: data.forecast?.ctr || parseFloat(data.ctr),
+          cpc: data.forecast?.cpc || parseFloat(data.cpc),
+          results: data.forecast?.results || data.conversions,
+          resultType: data.forecast?.resultType || data.resultMetric || 'Conversions',
+          costPerResult: data.forecast?.costPerResult || parseFloat(data.costPerConversion),
+          conversionRate: data.forecast?.conversionRate || parseFloat(data.conversionRate),
         };
       } catch (error: any) {
         console.error('Meta forecast error:', error);
@@ -162,33 +154,66 @@ export function CampaignForecast({
       impressions,
       cpm: baseCPM,
       reach,
-      cpr: budget / reach,
-      sov: 5.2,
-      frequency: avgFrequency,
-      cost: budget,
       clicks,
       ctr: avgCTR,
       cpc,
       results,
-      resultMetric,
+      resultType: resultMetric,
       costPerResult,
-      resultRate,
+      conversionRate: resultRate,
     };
   };
 
   const handleFetchForecasts = async () => {
     setLoading(true);
     try {
-      const newForecasts: Record<string, Record<string, ForecastMetrics>> = {};
+      const newForecasts: Record<string, any[]> = {};
 
       for (const platform of platforms) {
-        newForecasts[platform.id] = {};
-        
-        for (const market of platform.markets) {
-          const marketBudget = (totalBudget * platform.budgetPercentage / 100) * (market.budgetPercentage / 100);
-          const forecast = await fetchForecast(platform.id, market.id, marketBudget, market);
-          newForecasts[platform.id][market.id] = forecast;
-        }
+        const platformBudget = totalBudget * (platform.budgetPercentage / 100);
+        const platformMarkets = platform.markets.map(market => {
+          const marketBudget = platformBudget * (market.budgetPercentage / 100);
+          return {
+            name: market.name,
+            budget: marketBudget,
+            market
+          };
+        });
+
+        newForecasts[platform.id] = await Promise.all(
+          platformMarkets.map(async ({ name, budget, market }) => {
+            try {
+              const forecast = await fetchForecast(platform.id, market.id, budget, market);
+              return {
+                market: name,
+                budget,
+                metrics: forecast,
+              };
+            } catch (error: any) {
+              console.error(`Forecast error for ${platform.id} - ${name}:`, error);
+              toast.error(`Could not fetch forecast for ${name} on ${platform.name}. Using estimates.`);
+              
+              // Return estimated metrics as fallback
+              return {
+                market: name,
+                budget,
+                metrics: {
+                  audienceSize: Math.round(budget * 100),
+                  reach: Math.round(budget * 50),
+                  impressions: Math.round(budget * 100),
+                  cpm: 10,
+                  clicks: Math.round(budget * 10),
+                  ctr: 1.0,
+                  cpc: 1.0,
+                  results: Math.round(budget * 2),
+                  resultMetric: "conversions",
+                  costPerResult: budget > 0 ? (budget / Math.round(budget * 2)) : 0,
+                  resultRate: 2.0,
+                },
+              };
+            }
+          })
+        );
       }
 
       setForecasts(newForecasts);
@@ -207,40 +232,36 @@ export function CampaignForecast({
     return num.toFixed(2);
   };
 
-  const getTotalMetrics = (): ForecastMetrics | null => {
+  const getTotalMetrics = () => {
     if (Object.keys(forecasts).length === 0) return null;
 
-    let total: ForecastMetrics = {
+    let total = {
       audienceSize: 0,
       impressions: 0,
       cpm: 0,
       reach: 0,
-      cpr: 0,
-      sov: 0,
-      frequency: 0,
-      cost: 0,
       clicks: 0,
       ctr: 0,
       cpc: 0,
       results: 0,
       costPerResult: 0,
-      resultRate: 0,
+      conversionRate: 0,
+      totalBudget: 0,
     };
 
     let count = 0;
     Object.values(forecasts).forEach((platformForecasts) => {
-      Object.values(platformForecasts).forEach((forecast) => {
-        total.audienceSize += forecast.audienceSize;
-        total.impressions += forecast.impressions;
-        total.reach += forecast.reach;
-        total.cost += forecast.cost;
-        total.clicks += forecast.clicks;
-        total.results += forecast.results;
-        total.cpm += forecast.cpm;
-        total.ctr += forecast.ctr;
-        total.cpc += forecast.cpc;
-        total.frequency += forecast.frequency;
-        total.sov += forecast.sov;
+      platformForecasts.forEach((forecast) => {
+        total.audienceSize += forecast.metrics.audienceSize;
+        total.impressions += forecast.metrics.impressions;
+        total.reach += forecast.metrics.reach;
+        total.totalBudget += forecast.budget;
+        total.clicks += forecast.metrics.clicks;
+        total.results += forecast.metrics.results;
+        total.cpm += forecast.metrics.cpm;
+        total.ctr += forecast.metrics.ctr;
+        total.cpc += forecast.metrics.cpc;
+        total.conversionRate += forecast.metrics.conversionRate;
         count++;
       });
     });
@@ -248,12 +269,9 @@ export function CampaignForecast({
     // Calculate averages for rate-based metrics
     total.cpm = total.cpm / count;
     total.ctr = total.ctr / count;
-    total.cpc = total.cost / total.clicks;
-    total.cpr = total.cost / total.reach;
-    total.frequency = total.impressions / total.reach;
-    total.costPerResult = total.cost / total.results;
-    total.resultRate = (total.results / total.clicks) * 100;
-    total.sov = total.sov / count;
+    total.cpc = total.totalBudget / total.clicks;
+    total.costPerResult = total.totalBudget / total.results;
+    total.conversionRate = total.conversionRate / count;
 
     return total;
   };
@@ -317,7 +335,7 @@ export function CampaignForecast({
                   <CardContent>
                     <div className="text-2xl font-bold">{formatNumber(getTotalMetrics()!.impressions)}</div>
                     <p className="text-xs text-muted-foreground">
-                      Frequency: {getTotalMetrics()!.frequency.toFixed(2)}x
+                      CPM: ${getTotalMetrics()!.cpm.toFixed(2)}
                     </p>
                   </CardContent>
                 </Card>
@@ -341,7 +359,7 @@ export function CampaignForecast({
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm font-medium flex items-center gap-2">
                       <DollarSign className="h-4 w-4" />
-                      {getTotalMetrics()!.resultMetric || 'Results'}
+                      Results
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -371,40 +389,40 @@ export function CampaignForecast({
                       <TableHeader>
                         <TableRow>
                           <TableHead>Market</TableHead>
-                          <TableHead className="text-right">Audience Size</TableHead>
-                          <TableHead className="text-right">Impressions</TableHead>
-                          <TableHead className="text-right">CPM</TableHead>
-                          <TableHead className="text-right">Reach</TableHead>
-                          <TableHead className="text-right">CPR</TableHead>
-                          <TableHead className="text-right">Frequency</TableHead>
-                          <TableHead className="text-right">Clicks</TableHead>
-                          <TableHead className="text-right">CTR</TableHead>
-                          <TableHead className="text-right">CPC</TableHead>
-                          <TableHead className="text-right">Result Metric</TableHead>
-                          <TableHead className="text-right">Results</TableHead>
-                          <TableHead className="text-right">Cost/Result</TableHead>
+                          <TableHead>Budget</TableHead>
+                          <TableHead>SOV %</TableHead>
+                          <TableHead>Audience Size</TableHead>
+                          <TableHead>Reach</TableHead>
+                          <TableHead>Impressions</TableHead>
+                          <TableHead>CPM</TableHead>
+                          <TableHead>Clicks</TableHead>
+                          <TableHead>CTR</TableHead>
+                          <TableHead>CPC</TableHead>
+                          <TableHead>{forecasts[platform.id]?.[0]?.metrics.resultType || "Results"}</TableHead>
+                          <TableHead>Conv. Rate</TableHead>
+                          <TableHead>Cost/{forecasts[platform.id]?.[0]?.metrics.resultType || "Result"}</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {platform.markets.map((market) => {
-                          const forecast = forecasts[platform.id]?.[market.id];
-                          if (!forecast) return null;
-
+                        {forecasts[platform.id]?.map((forecast, idx) => {
+                          const platformBudget = forecast.budget || 0;
+                          const sov = totalBudget > 0 ? ((platformBudget / totalBudget) * 100).toFixed(1) : "0.0";
+                          
                           return (
-                            <TableRow key={market.id}>
-                              <TableCell className="font-medium">{market.name}</TableCell>
-                              <TableCell className="text-right">{formatNumber(forecast.audienceSize)}</TableCell>
-                              <TableCell className="text-right">{formatNumber(forecast.impressions)}</TableCell>
-                              <TableCell className="text-right">${forecast.cpm.toFixed(2)}</TableCell>
-                              <TableCell className="text-right">{formatNumber(forecast.reach)}</TableCell>
-                              <TableCell className="text-right">${forecast.cpr.toFixed(2)}</TableCell>
-                              <TableCell className="text-right">{forecast.frequency.toFixed(2)}x</TableCell>
-                              <TableCell className="text-right">{formatNumber(forecast.clicks)}</TableCell>
-                              <TableCell className="text-right">{forecast.ctr.toFixed(2)}%</TableCell>
-                              <TableCell className="text-right">${forecast.cpc.toFixed(2)}</TableCell>
-                              <TableCell className="text-right">{forecast.resultMetric || 'Conversions'}</TableCell>
-                              <TableCell className="text-right">{formatNumber(forecast.results)}</TableCell>
-                              <TableCell className="text-right">${forecast.costPerResult.toFixed(2)}</TableCell>
+                            <TableRow key={idx}>
+                              <TableCell className="font-medium">{forecast.market}</TableCell>
+                              <TableCell>${formatNumber(platformBudget)}</TableCell>
+                              <TableCell>{sov}%</TableCell>
+                              <TableCell>{formatNumber(forecast.metrics.audienceSize)}</TableCell>
+                              <TableCell>{formatNumber(forecast.metrics.reach)}</TableCell>
+                              <TableCell>{formatNumber(forecast.metrics.impressions)}</TableCell>
+                              <TableCell>${forecast.metrics.cpm.toFixed(2)}</TableCell>
+                              <TableCell>{formatNumber(forecast.metrics.clicks)}</TableCell>
+                              <TableCell>{forecast.metrics.ctr}%</TableCell>
+                              <TableCell>${forecast.metrics.cpc.toFixed(2)}</TableCell>
+                              <TableCell>{formatNumber(forecast.metrics.results)}</TableCell>
+                              <TableCell>{forecast.metrics.conversionRate}%</TableCell>
+                              <TableCell>${forecast.metrics.costPerResult.toFixed(2)}</TableCell>
                             </TableRow>
                           );
                         })}

@@ -179,7 +179,7 @@ serve(async (req) => {
       await new Promise((resolve) => setTimeout(resolve, 2000)); // Wait 2s between checks
 
       const statusResponse = await fetch(
-        `https://graph.facebook.com/v21.0/${predictionId}?access_token=${accessToken}&fields=id,prediction_progress,status,curve_budget_reach,external_budget,external_reach,external_impression`,
+        `https://graph.facebook.com/v21.0/${predictionId}?access_token=${accessToken}&fields=id,name,frequency_cap,campaign_time_start,campaign_time_stop,external_reach,external_impression,external_budget,audience_size_upper_bound,external_minimum_budget,prediction_progress,status,curve_budget_reach`,
       );
 
       if (statusResponse.ok) {
@@ -199,25 +199,26 @@ serve(async (req) => {
       throw new Error("R&F prediction timed out or failed to complete");
     }
 
-    // Step 3: Extract CPM and other metrics from curve_budget_reach
-    const curves = predictionResult.curve_budget_reach || [];
-    if (curves.length === 0) {
-      throw new Error("No reach/frequency curve data available");
-    }
-
-    // Find the curve point closest to our budget
-    const targetBudget = body.budget;
-    const closestPoint = curves.reduce((prev: any, curr: any) => {
-      return Math.abs(curr.budget - targetBudget) < Math.abs(prev.budget - targetBudget) ? curr : prev;
-    });
+    // Step 3: Extract metrics from R&F prediction response
+    const externalReach = predictionResult.external_reach || 0;
+    const externalImpression = predictionResult.external_impression || 0;
+    const externalBudget = predictionResult.external_budget || body.budget;
+    const audienceSize = predictionResult.audience_size_upper_bound || 0;
+    const frequencyCap = predictionResult.frequency_cap || 1;
 
     // Calculate CPM: (budget / impressions) * 1000
-    const cpm = closestPoint.impression > 0 ? (closestPoint.budget / closestPoint.impression) * 1000 : 0;
+    const cpm = externalImpression > 0 ? (externalBudget / externalImpression) * 1000 : 0;
 
     console.log("R&F results:", {
-      budget: closestPoint.budget,
-      reach: closestPoint.reach,
-      impressions: closestPoint.impression,
+      id: predictionResult.id,
+      frequencyCap,
+      campaignTimeStart: predictionResult.campaign_time_start,
+      campaignTimeStop: predictionResult.campaign_time_stop,
+      externalReach,
+      externalImpression,
+      externalBudget,
+      externalMinimumBudget: predictionResult.external_minimum_budget || 0,
+      audienceSize,
       cpm: cpm.toFixed(2),
     });
 
@@ -225,15 +226,15 @@ serve(async (req) => {
     const ctr = 0.009; // 0.9% average CTR
     const conversionRate = 0.02; // 2% conversion rate
 
-    const clicks = Math.round(closestPoint.impression * ctr);
+    const clicks = Math.round(externalImpression * ctr);
     const conversions = Math.round(clicks * conversionRate);
-    const cpc = clicks > 0 ? closestPoint.budget / clicks : 0;
-    const costPerConversion = conversions > 0 ? closestPoint.budget / conversions : 0;
+    const cpc = clicks > 0 ? externalBudget / clicks : 0;
+    const costPerConversion = conversions > 0 ? externalBudget / conversions : 0;
 
     const forecast = {
-      audienceSize: closestPoint.reach * 2.5, // Estimate total addressable
-      reach: closestPoint.reach,
-      impressions: closestPoint.impression,
+      audienceSize,
+      reach: externalReach,
+      impressions: externalImpression,
       cpm: parseFloat(cpm.toFixed(2)),
       clicks,
       ctr: parseFloat((ctr * 100).toFixed(2)),
