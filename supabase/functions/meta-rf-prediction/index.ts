@@ -95,15 +95,15 @@ serve(async (req) => {
       targetSpec.locales = body.languages;
     }
 
-    // Add publisher platforms - default to FB+IG for R&F REACH and exclude unsupported ones
+    // Add publisher platforms - FORCE Facebook only for R&F (exclude Instagram/Messenger/Audience Network)
     if (body.publisherPlatforms && Array.isArray(body.publisherPlatforms) && body.publisherPlatforms.length > 0) {
       const filteredPlatforms = body.publisherPlatforms.filter(
-        (platform: string) => platform !== "messenger" && platform !== "audience_network"
+        (platform: string) => platform === "facebook"
       );
-      targetSpec.publisher_platforms = filteredPlatforms.length > 0 ? filteredPlatforms : ["facebook", "instagram"];
+      targetSpec.publisher_platforms = filteredPlatforms.length > 0 ? filteredPlatforms : ["facebook"];
     } else {
-      // Explicitly set defaults to avoid Audience Network being auto-included by API
-      targetSpec.publisher_platforms = ["facebook", "instagram"];
+      // Default strictly to Facebook to avoid IG account requirement
+      targetSpec.publisher_platforms = ["facebook"];
     }
 
 
@@ -134,15 +134,12 @@ serve(async (req) => {
       // Audience Network positions intentionally ignored for R&F RESERVED REACH
     }
 
-    // Ensure Instagram actor is set when IG placements are requested, otherwise drop IG to avoid Meta error 1885237
+    // Force exclude Instagram from R&F per latest requirement and strip IG placements
     const includesIG = Array.isArray(targetSpec.publisher_platforms) && targetSpec.publisher_platforms.includes("instagram");
-    if (includesIG && !body.instagramActorId) {
-      console.warn(
-        "Instagram placements requested but no instagramActorId provided. Excluding Instagram from publisher_platforms."
-      );
+    if (includesIG) {
       targetSpec.publisher_platforms = targetSpec.publisher_platforms.filter((p: string) => p !== "instagram");
-      if (targetSpec.instagram_positions) delete targetSpec.instagram_positions;
     }
+    if (targetSpec.instagram_positions) delete targetSpec.instagram_positions;
     
     // Fallback: ensure at least Facebook remains
     if (!targetSpec.publisher_platforms || targetSpec.publisher_platforms.length === 0) {
