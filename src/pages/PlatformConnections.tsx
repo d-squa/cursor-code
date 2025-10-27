@@ -1,0 +1,332 @@
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { Loader2, Plus, Trash2, CheckCircle2, AlertCircle, Facebook, Instagram, Linkedin } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useAuth } from "@/hooks/useAuth";
+import { useNavigate } from "react-router-dom";
+
+interface ConnectedPlatform {
+  id: string;
+  platform_type: string;
+  platform_name: string;
+  ad_account_id: string;
+  ad_account_name: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+const PLATFORM_TYPES = [
+  { id: "meta", name: "Meta (Facebook & Instagram)", icon: Facebook, color: "bg-blue-600" },
+  { id: "google_ads", name: "Google Ads", icon: null, color: "bg-green-600" },
+  { id: "linkedin", name: "LinkedIn", icon: Linkedin, color: "bg-blue-700" },
+  { id: "tiktok", name: "TikTok", icon: null, color: "bg-black" },
+];
+
+export default function PlatformConnections() {
+  const { user, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
+  const [platforms, setPlatforms] = useState<ConnectedPlatform[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [connectDialogOpen, setConnectDialogOpen] = useState(false);
+  const [selectedPlatform, setSelectedPlatform] = useState<string>("");
+  const [adAccountId, setAdAccountId] = useState("");
+  const [adAccountName, setAdAccountName] = useState("");
+  const [accessToken, setAccessToken] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate("/auth");
+    }
+  }, [user, authLoading, navigate]);
+
+  useEffect(() => {
+    if (user) {
+      fetchConnectedPlatforms();
+    }
+  }, [user]);
+
+  const fetchConnectedPlatforms = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("connected_platforms")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      setPlatforms(data || []);
+    } catch (error: any) {
+      console.error("Error fetching platforms:", error);
+      toast.error("Failed to load connected platforms");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleConnectPlatform = async () => {
+    if (!selectedPlatform || !adAccountId || !adAccountName || !accessToken) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      // Insert connected platform
+      const { data: platformData, error: platformError } = await supabase
+        .from("connected_platforms")
+        .insert({
+          user_id: user?.id,
+          platform_type: selectedPlatform,
+          platform_name: PLATFORM_TYPES.find(p => p.id === selectedPlatform)?.name || selectedPlatform,
+          access_token: accessToken,
+          ad_account_id: adAccountId,
+          ad_account_name: adAccountName,
+        })
+        .select()
+        .single();
+
+      if (platformError) throw platformError;
+
+      // Sync platform accounts (pages, Instagram accounts, etc.)
+      try {
+        await supabase.functions.invoke("sync-platform-accounts", {
+          body: { connectedPlatformId: platformData.id }
+        });
+      } catch (syncError) {
+        console.error("Failed to sync platform accounts:", syncError);
+        // Don't fail the connection if sync fails
+      }
+
+      toast.success("Platform connected successfully!");
+      setConnectDialogOpen(false);
+      resetForm();
+      fetchConnectedPlatforms();
+    } catch (error: any) {
+      console.error("Error connecting platform:", error);
+      toast.error(error.message || "Failed to connect platform");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDisconnectPlatform = async (platformId: string) => {
+    if (!confirm("Are you sure you want to disconnect this platform?")) return;
+
+    try {
+      const { error } = await supabase
+        .from("connected_platforms")
+        .delete()
+        .eq("id", platformId);
+
+      if (error) throw error;
+      toast.success("Platform disconnected");
+      fetchConnectedPlatforms();
+    } catch (error: any) {
+      console.error("Error disconnecting platform:", error);
+      toast.error("Failed to disconnect platform");
+    }
+  };
+
+  const resetForm = () => {
+    setSelectedPlatform("");
+    setAdAccountId("");
+    setAdAccountName("");
+    setAccessToken("");
+  };
+
+  if (authLoading || loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 p-6">
+      <div className="max-w-6xl mx-auto space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">Connect Your Platforms & Accounts</h1>
+            <p className="text-muted-foreground mt-2">
+              Link your advertising platforms to enable campaign management and forecasting
+            </p>
+          </div>
+          <Button onClick={() => navigate("/")}>Back to Dashboard</Button>
+        </div>
+
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Connecting your platforms allows the system to access your ad accounts, pages, and Instagram accounts
+            for accurate forecasting and campaign management.
+          </AlertDescription>
+        </Alert>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Connected Platforms</CardTitle>
+                <CardDescription>Manage your advertising platform connections</CardDescription>
+              </div>
+              <Dialog open={connectDialogOpen} onOpenChange={setConnectDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Connect Platform
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[500px]">
+                  <DialogHeader>
+                    <DialogTitle>Connect Advertising Platform</DialogTitle>
+                    <DialogDescription>
+                      Enter your platform credentials to connect your ad account
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="platform">Platform</Label>
+                      <Select value={selectedPlatform} onValueChange={setSelectedPlatform}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select platform" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PLATFORM_TYPES.map((platform) => (
+                            <SelectItem key={platform.id} value={platform.id}>
+                              {platform.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="adAccountId">Ad Account ID</Label>
+                      <Input
+                        id="adAccountId"
+                        value={adAccountId}
+                        onChange={(e) => setAdAccountId(e.target.value)}
+                        placeholder="e.g., act_1234567890"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="adAccountName">Ad Account Name</Label>
+                      <Input
+                        id="adAccountName"
+                        value={adAccountName}
+                        onChange={(e) => setAdAccountName(e.target.value)}
+                        placeholder="e.g., My Business Account"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="accessToken">Access Token</Label>
+                      <Input
+                        id="accessToken"
+                        type="password"
+                        value={accessToken}
+                        onChange={(e) => setAccessToken(e.target.value)}
+                        placeholder="Enter your platform access token"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Get your access token from your platform's developer settings
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => setConnectDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleConnectPlatform} disabled={saving}>
+                      {saving ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Connecting...
+                        </>
+                      ) : (
+                        "Connect"
+                      )}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {platforms.length === 0 ? (
+              <div className="text-center py-12">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-muted mb-4">
+                  <Plus className="h-8 w-8 text-muted-foreground" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">No platforms connected</h3>
+                <p className="text-muted-foreground mb-4">
+                  Connect your first advertising platform to get started
+                </p>
+                <Button onClick={() => setConnectDialogOpen(true)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Connect Platform
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {platforms.map((platform) => {
+                  const platformType = PLATFORM_TYPES.find(p => p.id === platform.platform_type);
+                  const Icon = platformType?.icon;
+                  
+                  return (
+                    <div
+                      key={platform.id}
+                      className="flex items-center justify-between p-4 rounded-lg border bg-card"
+                    >
+                      <div className="flex items-center gap-4">
+                        {Icon && (
+                          <div className={`p-3 rounded-lg ${platformType.color}`}>
+                            <Icon className="h-6 w-6 text-white" />
+                          </div>
+                        )}
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-semibold">{platform.platform_name}</h3>
+                            {platform.is_active && (
+                              <Badge variant="outline" className="gap-1">
+                                <CheckCircle2 className="h-3 w-3" />
+                                Active
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            {platform.ad_account_name} • {platform.ad_account_id}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Connected {new Date(platform.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDisconnectPlatform(platform.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}

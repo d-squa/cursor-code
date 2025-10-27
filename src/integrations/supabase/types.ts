@@ -62,6 +62,95 @@ export type Database = {
         }
         Relationships: []
       }
+      connected_platforms: {
+        Row: {
+          access_token: string | null
+          ad_account_id: string | null
+          ad_account_name: string | null
+          business_manager_id: string | null
+          created_at: string
+          id: string
+          is_active: boolean | null
+          metadata: Json | null
+          platform_name: string
+          platform_type: string
+          refresh_token: string | null
+          token_expires_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token?: string | null
+          ad_account_id?: string | null
+          ad_account_name?: string | null
+          business_manager_id?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          metadata?: Json | null
+          platform_name: string
+          platform_type: string
+          refresh_token?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string | null
+          ad_account_id?: string | null
+          ad_account_name?: string | null
+          business_manager_id?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          metadata?: Json | null
+          platform_name?: string
+          platform_type?: string
+          refresh_token?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      platform_accounts: {
+        Row: {
+          account_id: string
+          account_name: string
+          account_type: string
+          connected_platform_id: string
+          created_at: string
+          id: string
+          metadata: Json | null
+        }
+        Insert: {
+          account_id: string
+          account_name: string
+          account_type: string
+          connected_platform_id: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+        }
+        Update: {
+          account_id?: string
+          account_name?: string
+          account_type?: string
+          connected_platform_id?: string
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "platform_accounts_connected_platform_id_fkey"
+            columns: ["connected_platform_id"]
+            isOneToOne: false
+            referencedRelation: "connected_platforms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           company_name: string | null

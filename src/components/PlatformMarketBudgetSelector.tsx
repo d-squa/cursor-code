@@ -35,32 +35,54 @@ export function PlatformMarketBudgetSelector({
 }: PlatformMarketBudgetSelectorProps) {
   const [instagramAccounts, setInstagramAccounts] = useState<Array<{ id: string; username: string; name: string }>>([]);
   const [isLoadingAccounts, setIsLoadingAccounts] = useState(false);
+  const [connectedPlatforms, setConnectedPlatforms] = useState<any[]>([]);
   
   const totalAllocated = platforms.reduce((sum, p) => sum + p.budgetPercentage, 0);
   const usedPlatformIds = platforms.map(p => p.id).filter(id => id !== "");
 
-  // Fetch Instagram accounts on mount
+  // Fetch connected platforms and their accounts on mount
   useEffect(() => {
-    const fetchInstagramAccounts = async () => {
+    const fetchConnectedData = async () => {
       setIsLoadingAccounts(true);
       try {
-        const { data, error } = await supabase.functions.invoke("meta-accounts");
+        // Fetch connected platforms
+        const { data: platformsData, error: platformsError } = await supabase
+          .from("connected_platforms")
+          .select("*")
+          .eq("is_active", true);
+
+        if (platformsError) throw platformsError;
         
-        if (error) throw error;
-        
-        if (data?.instagramAccounts) {
-          setInstagramAccounts(data.instagramAccounts);
-          console.log("Fetched Instagram accounts:", data.instagramAccounts);
+        setConnectedPlatforms(platformsData || []);
+
+        // Fetch platform accounts (Instagram, Pages, etc.)
+        if (platformsData && platformsData.length > 0) {
+          const { data: accountsData, error: accountsError } = await supabase
+            .from("platform_accounts")
+            .select("*")
+            .eq("account_type", "instagram_account")
+            .in("connected_platform_id", platformsData.map(p => p.id));
+
+          if (!accountsError && accountsData) {
+            setInstagramAccounts(accountsData.map(acc => {
+              const metadata = acc.metadata as any;
+              return {
+                id: acc.account_id,
+                username: metadata?.username || acc.account_name,
+                name: acc.account_name
+              };
+            }));
+          }
         }
       } catch (error: any) {
-        console.error("Failed to fetch Instagram accounts:", error);
-        toast.error("Failed to load Instagram accounts");
+        console.error("Failed to fetch connected platforms:", error);
+        toast.error("Failed to load connected platforms");
       } finally {
         setIsLoadingAccounts(false);
       }
     };
 
-    fetchInstagramAccounts();
+    fetchConnectedData();
   }, []);
 
   const addPlatform = () => {
@@ -428,17 +450,35 @@ export function PlatformMarketBudgetSelector({
                                 <Select
                                   value={market.instagramActorId || ""}
                                   onValueChange={(value) => updateMarketField(platformIndex, market.id, 'instagramActorId', value)}
-                                  disabled={isLoadingAccounts}
+                                  disabled={isLoadingAccounts || instagramAccounts.length === 0}
                                 >
                                   <SelectTrigger className="h-7 text-xs">
-                                    <SelectValue placeholder={isLoadingAccounts ? "Loading..." : "Select Instagram account"} />
+                                    <SelectValue placeholder={
+                                      isLoadingAccounts 
+                                        ? "Loading..." 
+                                        : instagramAccounts.length === 0
+                                        ? "No accounts connected"
+                                        : "Select Instagram account"
+                                    } />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {instagramAccounts.map((account) => (
-                                      <SelectItem key={account.id} value={account.id}>
-                                        @{account.username} - {account.name}
-                                      </SelectItem>
-                                    ))}
+                                    {instagramAccounts.length === 0 ? (
+                                      <div className="p-2 text-xs text-muted-foreground text-center">
+                                        <p>No Instagram accounts found.</p>
+                                        <button 
+                                          className="text-primary hover:underline mt-1"
+                                          onClick={() => window.open('/platforms', '_blank')}
+                                        >
+                                          Connect platform first
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      instagramAccounts.map((account) => (
+                                        <SelectItem key={account.id} value={account.id}>
+                                          @{account.username} - {account.name}
+                                        </SelectItem>
+                                      ))
+                                    )}
                                   </SelectContent>
                                 </Select>
                               </div>
