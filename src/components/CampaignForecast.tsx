@@ -55,6 +55,7 @@ export function CampaignForecast({
         
         // Validate and normalize market code
         const marketCode = market.name.substring(0, 2).trim().toUpperCase();
+        console.log('**Selected market', marketCode);
         if (!/^[A-Z]{2}$/.test(marketCode)) {
           toast.error(`Invalid country code: "${marketCode}". Use 2-letter ISO codes (e.g., US, CA, GB).`, {
             duration: 5000,
