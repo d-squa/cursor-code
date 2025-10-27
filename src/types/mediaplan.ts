@@ -10,6 +10,7 @@ export interface Market {
   pixel?: string;
   catalog?: string;
   strategyFocus?: string;
+  instagramActorId?: string;
   // Campaign settings
   isCBOEnabled?: boolean;
   isLifetimeBudget?: boolean;

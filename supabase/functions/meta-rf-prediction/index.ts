@@ -81,6 +81,11 @@ serve(async (req) => {
       targetSpec.publisher_platforms = ["facebook", "instagram"];
     }
 
+    // Add Instagram actor ID (REQUIRED for R&F campaigns with Instagram placements)
+    if (body.instagramActorId) {
+      targetSpec.instagram_actor_id = body.instagramActorId;
+    }
+
     // Add placements for each platform with proper mapping (Audience Network excluded for RESERVED/REACH)
     if (body.publisherPlatforms && Array.isArray(body.publisherPlatforms) && body.publisherPlatforms.length > 0) {
       // Facebook positions

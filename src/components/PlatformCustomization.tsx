@@ -13,6 +13,8 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { CheckCircle2, Edit } from "lucide-react";
 import { determineStrategyFocus, getOptimizationGoalForFocus } from "@/utils/strategyFocusMapping";
 import { generateAutoDetectPhases } from "@/utils/funnelPhases";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface PlatformCustomizationProps {
   platforms: PlatformWithMarkets[];
@@ -68,6 +70,32 @@ export function PlatformCustomization({
   endDate,
 }: PlatformCustomizationProps) {
   const [editingMode, setEditingMode] = useState<{ [key: string]: boolean }>({});
+  const [instagramAccounts, setInstagramAccounts] = useState<Array<{ id: string; username: string; name: string }>>([]);
+  const [isLoadingAccounts, setIsLoadingAccounts] = useState(false);
+
+  // Fetch Instagram accounts on mount
+  useEffect(() => {
+    const fetchInstagramAccounts = async () => {
+      setIsLoadingAccounts(true);
+      try {
+        const { data, error } = await supabase.functions.invoke("meta-accounts");
+        
+        if (error) throw error;
+        
+        if (data?.instagramAccounts) {
+          setInstagramAccounts(data.instagramAccounts);
+          console.log("Fetched Instagram accounts:", data.instagramAccounts);
+        }
+      } catch (error: any) {
+        console.error("Failed to fetch Instagram accounts:", error);
+        toast.error("Failed to load Instagram accounts");
+      } finally {
+        setIsLoadingAccounts(false);
+      }
+    };
+
+    fetchInstagramAccounts();
+  }, []);
 
   // Auto-generate phases on mount if using auto-detect and phases are missing
   useEffect(() => {
@@ -326,19 +354,30 @@ return (
                           {platform.name.includes("Meta") && (
                             <>
                               <div className="space-y-2">
-                                <Label>Page</Label>
-                                <Input
-                                  value={market.page || ""}
-                                  onChange={(e) =>
+                                <Label>Instagram Account</Label>
+                                <Select
+                                  value={market.instagramActorId || ""}
+                                  onValueChange={(value) =>
                                     updateMarketField(
                                       platform.id,
                                       market.id,
-                                      "page",
-                                      e.target.value
+                                      "instagramActorId",
+                                      value
                                     )
                                   }
-                                  placeholder="Select Facebook/Instagram Page"
-                                />
+                                  disabled={isLoadingAccounts}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder={isLoadingAccounts ? "Loading accounts..." : "Select Instagram account"} />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {instagramAccounts.map((account) => (
+                                      <SelectItem key={account.id} value={account.id}>
+                                        @{account.username} - {account.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
                               </div>
                               <div className="space-y-2">
                                 <Label>Pixel</Label>

@@ -82,6 +82,8 @@ export function CampaignForecast({
             positions: market.positions || {},
             detailedTargeting: market.detailedTargeting || [],
             frequencyCap: market.frequencyCap || 2,
+            // Instagram account (REQUIRED for R&F with Instagram placements)
+            instagramActorId: market.instagramActorId,
           }
         });
 
