@@ -112,6 +112,8 @@ serve(async (req) => {
       buying_type: "RESERVED", // Required for R&F
       objective: body.objective || "REACH",
       prediction_mode: "1", // 0 = reach, 1 = r&f
+      // Add frequency cap if provided (default to 2 for R&F campaigns)
+      frequency_cap: String(body.frequencyCap || 2),
       // Add start/end dates if provided
       ...(body.startDate && { start_time: String(Math.floor(new Date(body.startDate).getTime() / 1000)) }),
       ...(body.endDate && { end_time: String(Math.floor(new Date(body.endDate).getTime() / 1000)) }),
@@ -169,6 +171,7 @@ serve(async (req) => {
     const predictionData = await createResponse.json();
     const predictionId = predictionData.id;
     console.log("Created R&F prediction:", predictionId);
+    console.log("Initial prediction data:", JSON.stringify(predictionData, null, 2));
 
     // Step 2: Poll for prediction status
     // Predictions can take a few seconds to compute
@@ -184,12 +187,21 @@ serve(async (req) => {
 
       if (statusResponse.ok) {
         predictionResult = await statusResponse.json();
-        console.log(`R&F prediction status (attempt ${attempts + 1}):`, predictionResult.status);
+        console.log(`R&F prediction status (attempt ${attempts + 1}):`, {
+          status: predictionResult.status,
+          progress: predictionResult.prediction_progress,
+          reach: predictionResult.external_reach,
+          impressions: predictionResult.external_impression,
+        });
 
         if (predictionResult.status === 1) {
           // 1 = ready
+          console.log("R&F prediction ready! Full result:", JSON.stringify(predictionResult, null, 2));
           break;
         }
+      } else {
+        const errorText = await statusResponse.text();
+        console.error(`Status check failed (attempt ${attempts + 1}):`, errorText);
       }
 
       attempts++;
@@ -199,32 +211,34 @@ serve(async (req) => {
       throw new Error("R&F prediction timed out or failed to complete");
     }
 
-    // Step 3: Extract metrics from R&F prediction response
+    // Step 3: Extract metrics from R&F prediction response (LIVE DATA FROM META API)
     const externalReach = predictionResult.external_reach || 0;
     const externalImpression = predictionResult.external_impression || 0;
     const externalBudget = predictionResult.external_budget || body.budget;
     const audienceSize = predictionResult.audience_size_upper_bound || 0;
     const frequencyCap = predictionResult.frequency_cap || 1;
+    const externalMinimumBudget = predictionResult.external_minimum_budget || 0;
 
-    // Calculate CPM: (budget / impressions) * 1000
+    // Calculate CPM from actual Meta API data: (budget / impressions) * 1000
     const cpm = externalImpression > 0 ? (externalBudget / externalImpression) * 1000 : 0;
 
-    console.log("R&F results:", {
+    console.log("✅ LIVE R&F METRICS FROM META API:", {
       id: predictionResult.id,
       frequencyCap,
       campaignTimeStart: predictionResult.campaign_time_start,
       campaignTimeStop: predictionResult.campaign_time_stop,
-      externalReach,
-      externalImpression,
-      externalBudget,
-      externalMinimumBudget: predictionResult.external_minimum_budget || 0,
-      audienceSize,
-      cpm: cpm.toFixed(2),
+      externalReach: `${externalReach.toLocaleString()} (LIVE)`,
+      externalImpression: `${externalImpression.toLocaleString()} (LIVE)`,
+      externalBudget: `${externalBudget.toLocaleString()} (LIVE)`,
+      externalMinimumBudget: `${externalMinimumBudget.toLocaleString()} (LIVE)`,
+      audienceSize: `${audienceSize.toLocaleString()} (LIVE)`,
+      cpm: `${cpm.toFixed(2)} (CALCULATED FROM LIVE DATA)`,
     });
 
-    // Step 4: Calculate other metrics using industry benchmarks
-    const ctr = 0.009; // 0.9% average CTR
-    const conversionRate = 0.02; // 2% conversion rate
+    // Step 4: Calculate derived metrics (clicks, conversions) using industry benchmarks
+    // Note: Meta R&F API provides reach, impressions, CPM - we estimate clicks/conversions
+    const ctr = body.estimatedCTR || 0.009; // Use provided CTR or 0.9% default
+    const conversionRate = body.estimatedConversionRate || 0.02; // Use provided or 2% default
 
     const clicks = Math.round(externalImpression * ctr);
     const conversions = Math.round(clicks * conversionRate);
@@ -232,10 +246,16 @@ serve(async (req) => {
     const costPerConversion = conversions > 0 ? externalBudget / conversions : 0;
 
     const forecast = {
-      audienceSize,
-      reach: externalReach,
-      impressions: externalImpression,
-      cpm: parseFloat(cpm.toFixed(2)),
+      // ✅ LIVE DATA FROM META R&F API:
+      audienceSize, // From audience_size_upper_bound
+      reach: externalReach, // From external_reach
+      impressions: externalImpression, // From external_impression
+      cpm: parseFloat(cpm.toFixed(2)), // Calculated from API data
+      budget: externalBudget, // From external_budget
+      minimumBudget: externalMinimumBudget, // From external_minimum_budget
+      frequencyCap, // From frequency_cap
+      
+      // Estimated metrics (since R&F API doesn't provide these):
       clicks,
       ctr: parseFloat((ctr * 100).toFixed(2)),
       cpc: parseFloat(cpc.toFixed(2)),
@@ -245,7 +265,7 @@ serve(async (req) => {
       costPerResult: parseFloat(costPerConversion.toFixed(2)),
     };
 
-    console.log("Final R&F forecast:", forecast);
+    console.log("✅ Final R&F forecast (LIVE DATA):", forecast);
 
     return new Response(JSON.stringify({ forecast }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
