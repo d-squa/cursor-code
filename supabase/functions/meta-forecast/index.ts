@@ -27,7 +27,7 @@ serve(async (req) => {
     // Validate and normalize markets to ISO-2 country codes
     const validatedMarkets: string[] = [];
     for (const market of body.markets) {
-      console.log("Validated markets Before Normalizing:", market);
+      console.log("*FC*Validated markets Before Normalizing:", market);
       const normalized = market.trim().toUpperCase();
       // ISO-2 country codes are exactly 2 uppercase letters
       if (!/^[A-Z]{2}$/.test(normalized)) {
