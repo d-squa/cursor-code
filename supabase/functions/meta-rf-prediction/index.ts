@@ -99,11 +99,11 @@ serve(async (req) => {
     // R&F requires campaign to start at least 2-3 days out and run for 7+ days
     const now = new Date();
     const startDate = new Date(now);
-    startDate.setDate(now.getDate() + 3); // Start 3 days from now
+    startDate.setDate(now.getDate() + 7); // Start 7 days from now
     startDate.setUTCHours(9, 0, 0, 0); // 9 AM UTC
     
     const endDate = new Date(startDate);
-    endDate.setDate(startDate.getDate() + 14); // Run for 14 days
+    endDate.setDate(startDate.getDate() + 21); // Run for 21 days
     endDate.setUTCHours(23, 59, 59, 999);
     
     const startTimeUnix = Math.floor(startDate.getTime() / 1000);
@@ -117,7 +117,7 @@ serve(async (req) => {
     });
 
     // Enforce minimum budget for testing (Meta R&F typically requires $10k+ for multi-week campaigns)
-    const testBudget = Math.max(body.budget || 0, 1000000); // Minimum $10,000 (1M cents)
+    const testBudget = Math.max(body.budget || 0, 2500000); // Minimum $25,000 (2.5M cents)
     
     const predictionParams: Record<string, string> = {
       access_token: accessToken,
@@ -126,7 +126,7 @@ serve(async (req) => {
       buying_type: "RESERVED", // Required for R&F
       objective: "REACH",
       prediction_mode: "1", // 0 = reach, 1 = r&f
-      frequency_cap: String(body.frequencyCap || 2),
+      frequency_cap: String(body.frequencyCap || 1),
       start_time: String(startTimeUnix), // REQUIRED
       end_time: String(endTimeUnix), // REQUIRED
     };
