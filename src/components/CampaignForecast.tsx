@@ -48,9 +48,6 @@ export function CampaignForecast({
   const fetchForecast = async (platformId: string, marketId: string, budget: number, market: any) => {
     // Call actual platform APIs for Meta, use mock for others
     if (platformId.includes("facebook") || platformId.includes("instagram") || platformId.includes("meta")) {
-      try {
-        const { supabase } = await import("@/integrations/supabase/client");
-        
         const strategyFocus = market.strategyFocus || genericConfig.strategyFocus || 'conversions';
         
         // Validate and normalize market code
@@ -62,6 +59,9 @@ export function CampaignForecast({
           });
           throw new Error(`Invalid country code: ${marketCode}`);
         }
+        
+        try {
+          const { supabase } = await import("@/integrations/supabase/client");
         
         // Resolve the correct Meta connection to use its credentials
         // 1) Prefer the connection that owns the selected Instagram account
@@ -151,7 +151,42 @@ export function CampaignForecast({
             duration: 5000,
           });
         } else {
-          toast.error('Meta forecast failed, using estimates');
+          toast.error('Meta R&F failed, trying standard reach estimates...');
+        }
+        
+        // Attempt fallback to standard reach estimates (meta-forecast)
+        try {
+          const { supabase } = await import("@/integrations/supabase/client");
+          const { data: fallbackData, error: fbError } = await supabase.functions.invoke('meta-forecast', {
+            body: {
+              markets: [marketCode],
+              budget,
+              strategyFocus,
+              ageMin: market.ageMin || 18,
+              ageMax: market.ageMax || 65,
+              gender: market.gender || 'all',
+            }
+          });
+
+          if (fbError) throw fbError;
+
+          toast.success('Using Meta reach estimates for this forecast');
+          return {
+            audienceSize: (fallbackData as any).reach * 10,
+            impressions: Number((fallbackData as any).impressions) || 0,
+            cpm: Number((fallbackData as any).cpm) || 0,
+            reach: Number((fallbackData as any).reach) || 0,
+            clicks: Number((fallbackData as any).clicks) || 0,
+            ctr: Number((fallbackData as any).ctr) || 0,
+            cpc: Number((fallbackData as any).cpc) || 0,
+            results: Number((fallbackData as any).conversions) || 0,
+            resultType: (fallbackData as any).resultMetric || 'Conversions',
+            costPerResult: Number((fallbackData as any).costPerConversion) || 0,
+            conversionRate: Number((fallbackData as any).conversionRate) || 0,
+          } as ForecastMetrics;
+        } catch (fbErr) {
+          console.error('Meta reachestimate fallback failed:', fbErr);
+          toast.error('Meta API fallback failed, using estimates');
         }
         
         // Fall through to mock data
