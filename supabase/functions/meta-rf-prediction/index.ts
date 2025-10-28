@@ -29,7 +29,7 @@ serve(async (req) => {
     const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Fetch platform credentials
+    // Fetch platform credentials (prefer connected platform, fallback to global secrets)
     const { data: platform, error: platformError } = await supabase
       .from('connected_platforms')
       .select('access_token, ad_account_id')
@@ -37,16 +37,35 @@ serve(async (req) => {
       .single();
 
     if (platformError || !platform) {
-      console.error("Failed to fetch platform:", platformError);
-      throw new Error("Connected platform not found");
+      console.warn("Connected platform not found or fetch error, will try global credentials:", platformError);
     }
 
-    const accessToken = platform.access_token;
-    const adAccountId = platform.ad_account_id.replace('act_', ''); // Remove act_ prefix if present
+    const envAccessToken = Deno.env.get("META_ACCESS_TOKEN") || "";
+    const envAdAccountIdRaw = Deno.env.get("META_AD_ACCOUNT_ID") || "";
 
-    if (!accessToken || !adAccountId) {
-      console.error("Missing credentials - accessToken:", !!accessToken, "adAccountId:", !!adAccountId);
-      throw new Error("Meta credentials not configured for this platform");
+    let accessToken = (platform?.access_token as string) || "";
+    let adAccountIdRaw = ((platform?.ad_account_id as string) || "").toString();
+
+    if (!accessToken && envAccessToken) {
+      accessToken = envAccessToken;
+      console.log("Falling back to global Meta access token from secrets");
+    }
+
+    if ((!adAccountIdRaw || adAccountIdRaw.length < 10) && envAdAccountIdRaw) {
+      adAccountIdRaw = envAdAccountIdRaw;
+      console.log("Falling back to global Meta ad account id from secrets");
+    }
+
+    const adAccountId = adAccountIdRaw.replace('act_', ''); // Remove act_ prefix if present
+
+    if (!/^[0-9]{10,}$/.test(adAccountId)) {
+      console.error("Invalid ad account id detected:", adAccountIdRaw);
+      throw new Error("Invalid Meta ad account id. Please verify the connected platform or global credentials.");
+    }
+
+    if (!accessToken) {
+      console.error("Missing Meta access token after fallbacks");
+      throw new Error("Meta access token missing. Please verify the connected platform or global credentials.");
     }
 
     console.log("Using ad account for R&F:", adAccountId);
