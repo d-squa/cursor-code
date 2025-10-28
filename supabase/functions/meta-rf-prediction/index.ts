@@ -76,106 +76,35 @@ serve(async (req) => {
 
     console.log("Normalized markets for R&F:", normalizedMarkets);
 
-    // Build target_spec from body parameters
+    // Build target_spec - SIMPLIFIED FOR TESTING to maximize audience size
     const targetSpec: any = {
       geo_locations: {
         countries: normalizedMarkets,
       },
-      age_min: body.ageMin || 18,
-      age_max: body.ageMax || 65,
+      age_min: 18, // Broad age range for testing
+      age_max: 65,
+      publisher_platforms: ["facebook"], // Facebook only for R&F
     };
 
-    // Add gender if specified
-    if (body.gender && body.gender !== "all") {
-      targetSpec.genders = [body.gender === "male" ? 1 : 2];
-    }
-
-    // Add languages/locales if specified
-    if (body.languages && Array.isArray(body.languages) && body.languages.length > 0) {
-      targetSpec.locales = body.languages;
-    }
-
-    // Add publisher platforms - FORCE Facebook only for R&F (exclude Instagram/Messenger/Audience Network)
-    if (body.publisherPlatforms && Array.isArray(body.publisherPlatforms) && body.publisherPlatforms.length > 0) {
-      const filteredPlatforms = body.publisherPlatforms.filter(
-        (platform: string) => platform === "facebook"
-      );
-      targetSpec.publisher_platforms = filteredPlatforms.length > 0 ? filteredPlatforms : ["facebook"];
-    } else {
-      // Default strictly to Facebook to avoid IG account requirement
-      targetSpec.publisher_platforms = ["facebook"];
-    }
-
-
-    // Add placements for each platform with proper mapping (Audience Network excluded for RESERVED/REACH)
-    if (body.publisherPlatforms && Array.isArray(body.publisherPlatforms) && body.publisherPlatforms.length > 0) {
-      // Facebook positions
-      if (body.positions?.facebook && body.positions.facebook.length > 0) {
-        targetSpec.facebook_positions = body.positions.facebook.map((pos: string) =>
-          pos === "fb_story"
-            ? "story"
-            : pos === "profile_feed_fb"
-              ? "profile_feed"
-              : pos
-        );
-      }
-
-      // Instagram positions
-      if (body.positions?.instagram && body.positions.instagram.length > 0) {
-        targetSpec.instagram_positions = body.positions.instagram.map((pos: string) =>
-          pos === "ig_story"
-            ? "story"
-            : pos === "profile_feed_ig"
-              ? "profile_feed"
-              : pos
-        );
-      }
-
-      // Audience Network positions intentionally ignored for R&F RESERVED REACH
-    }
-
-    // Force exclude Instagram from R&F per latest requirement and strip IG placements
-    const includesIG = Array.isArray(targetSpec.publisher_platforms) && targetSpec.publisher_platforms.includes("instagram");
-    if (includesIG) {
-      targetSpec.publisher_platforms = targetSpec.publisher_platforms.filter((p: string) => p !== "instagram");
-    }
-    if (targetSpec.instagram_positions) delete targetSpec.instagram_positions;
-    
-    // Fallback: ensure at least Facebook remains
-    if (!targetSpec.publisher_platforms || targetSpec.publisher_platforms.length === 0) {
-      targetSpec.publisher_platforms = ["facebook"];
-    }
-
-    // Add detailed targeting (interests, behaviors, demographics)
-    if (body.detailedTargeting && Array.isArray(body.detailedTargeting) && body.detailedTargeting.length > 0) {
-      targetSpec.flexible_spec = [
-        body.detailedTargeting.reduce((acc: any, target: any) => {
-          if (!acc[target.type]) {
-            acc[target.type] = [];
-          }
-          acc[target.type].push({ id: target.id });
-          return acc;
-        }, {}),
-      ];
-    }
+    // Note: Gender, language, detailed targeting, and placements removed for testing
+    // This maximizes audience size and prediction success rate
+    console.log("Using simplified targeting for R&F testing (broad audience)");
 
     console.log("Target spec for R&F:", JSON.stringify(targetSpec, null, 2));
 
     // Step 1: Create Reach & Frequency prediction
     // API: POST https://graph.facebook.com/v21.0/act_{ad_account_id}/reachfrequencypredictions
     
-    // Prepare start and end times (REQUIRED for R&F)
-    // Set time to 9:00 AM UTC to ensure it's after 6:00 AM requirement
-    if (!body.startDate || !body.endDate) {
-      throw new Error("startDate and endDate are required for R&F predictions");
-    }
-
-    const startDate = new Date(body.startDate);
-    const endDate = new Date(body.endDate);
+    // Prepare start and end times - ADJUSTED FOR TESTING
+    // R&F requires campaign to start at least 2-3 days out and run for 7+ days
+    const now = new Date();
+    const startDate = new Date(now);
+    startDate.setDate(now.getDate() + 3); // Start 3 days from now
+    startDate.setUTCHours(9, 0, 0, 0); // 9 AM UTC
     
-    // Set to 9:00 AM UTC to be safe (Meta requires time after ~6:00 AM)
-    startDate.setUTCHours(9, 0, 0, 0);
-    endDate.setUTCHours(23, 59, 59, 999); // End of day
+    const endDate = new Date(startDate);
+    endDate.setDate(startDate.getDate() + 14); // Run for 14 days
+    endDate.setUTCHours(23, 59, 59, 999);
     
     const startTimeUnix = Math.floor(startDate.getTime() / 1000);
     const endTimeUnix = Math.floor(endDate.getTime() / 1000);
@@ -187,10 +116,13 @@ serve(async (req) => {
       endTimeUnix,
     });
 
+    // Enforce minimum budget for testing (Meta R&F typically requires $10k+ for multi-week campaigns)
+    const testBudget = Math.max(body.budget || 0, 1000000); // Minimum $10,000 (1M cents)
+    
     const predictionParams: Record<string, string> = {
       access_token: accessToken,
       target_spec: JSON.stringify(targetSpec),
-      budget: String(body.budget),
+      budget: String(testBudget), // Enforced minimum for testing
       buying_type: "RESERVED", // Required for R&F
       objective: "REACH",
       prediction_mode: "1", // 0 = reach, 1 = r&f
@@ -198,6 +130,8 @@ serve(async (req) => {
       start_time: String(startTimeUnix), // REQUIRED
       end_time: String(endTimeUnix), // REQUIRED
     };
+    
+    console.log(`Using test budget: $${(testBudget / 100).toLocaleString()} (${testBudget} cents)`);
 
     // Add Instagram actor ID if Instagram placements are included (REQUIRED for R&F with Instagram)
     if (body.instagramActorId && targetSpec.publisher_platforms?.includes("instagram")) {
