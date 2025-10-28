@@ -264,11 +264,11 @@ serve(async (req) => {
     let attempts = 0;
     let predictionResult = null;
 
-    while (attempts < 10) {
-      await new Promise((resolve) => setTimeout(resolve, 2000)); // Wait 2s between checks
+      while (attempts < 20) {
+        await new Promise((resolve) => setTimeout(resolve, 3000)); // Wait 3s between checks
 
       const statusResponse = await fetch(
-        `https://graph.facebook.com/v21.0/${predictionId}?access_token=${accessToken}&fields=id,name,frequency_cap,campaign_time_start,campaign_time_stop,external_reach,external_impression,external_budget,audience_size_upper_bound,external_minimum_budget,prediction_progress,status,curve_budget_reach,reservation_status,errors`,
+        `https://graph.facebook.com/v21.0/${predictionId}?access_token=${accessToken}&fields=id,name,frequency_cap,campaign_time_start,campaign_time_stop,external_reach,external_impression,external_budget,audience_size_upper_bound,external_minimum_budget,prediction_progress,status,curve_budget_reach`,
       );
 
       if (statusResponse.ok) {
@@ -278,8 +278,6 @@ serve(async (req) => {
           progress: predictionResult.prediction_progress,
           reach: predictionResult.external_reach,
           impressions: predictionResult.external_impression,
-          reservation_status: predictionResult.reservation_status,
-          errors: predictionResult.errors,
         });
 
         if (predictionResult.status === 1) {
@@ -291,7 +289,7 @@ serve(async (req) => {
         // Status 12 = error, log full details
         if (predictionResult.status === 12) {
           console.error("R&F prediction failed with status 12. Full response:", JSON.stringify(predictionResult, null, 2));
-          throw new Error(`R&F prediction failed: ${predictionResult.errors ? JSON.stringify(predictionResult.errors) : 'Unknown error - check if ad account has RESERVED buying type access and sufficient permissions'}`);
+          throw new Error('R&F prediction failed with status 12. Check account eligibility for RESERVED buying type, permissions (ads_management, business_management), budget >= minimum, and valid date window.');
         }
       } else {
         const errorText = await statusResponse.text();
