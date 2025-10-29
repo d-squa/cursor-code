@@ -179,14 +179,8 @@ serve(async (req) => {
     };
 
     console.log(
-      `R&F budget: $${(testBudget / 100).toLocaleString()} (${testBudget} cents), Markets: ${normalizedMarkets.join(", ")}, Platforms: ${targetSpec.publisher_platforms.join(", ")}`,
+      `R&F budget: $${(testBudget / 100).toLocaleString()} (${testBudget} cents), Markets: ${normalizedMarkets.join(", ")}`,
     );
-
-    // Add Instagram actor ID if Instagram placements are included (REQUIRED for R&F with Instagram)
-    if (body.instagramActorId && targetSpec.publisher_platforms?.includes("instagram")) {
-      predictionParams.instagram_actor_id = String(body.instagramActorId);
-      console.log("Adding Instagram actor ID:", body.instagramActorId);
-    }
 
     const maskedParams = new URLSearchParams(predictionParams)
       .toString()
@@ -290,9 +284,6 @@ serve(async (req) => {
           }
           if (normalizedMarkets.length === 1 && normalizedMarkets[0] === "GE") {
             errorDetails.push("Small market (GE) may have limited R&F inventory. Try larger markets (US, GB, CA, AU)");
-          }
-          if (!targetSpec.publisher_platforms.includes("instagram")) {
-            errorDetails.push("Consider adding Instagram placements for broader reach");
           }
 
           const errorMsg =
