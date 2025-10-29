@@ -67,11 +67,11 @@ serve(async (req) => {
     };
 
     const strategyConfig = strategyFocusMap[body.strategyFocus] || strategyFocusMap["conversions"];
-    
+
     // Force REACH objective for reach estimate API
     const optimization_goal = "REACH";
     const objective = "REACH";
-    const billing_event = body.billingEvent === "LINK_CLICKS" ? "LINK_CLICKS" : "IMPRESSIONS";
+    //const billing_event = body.billingEvent === "LINK_CLICKS" ? "LINK_CLICKS" : "IMPRESSIONS";
 
     // Call Reach Estimate API
     // Note: reachestimate API does NOT support currency parameter
@@ -81,7 +81,6 @@ serve(async (req) => {
       targeting_spec: JSON.stringify(targetingSpec),
       optimization_goal,
       objective,
-      billing_event,
     });
 
     // Mask token in logs for security

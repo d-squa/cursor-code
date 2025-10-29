@@ -123,7 +123,6 @@ serve(async (req) => {
       age_max: body.ageMax || 65,
     };
 
-
     // Add gender if specified
     if (body.gender && body.gender !== "all") {
       targetSpec.genders = body.gender === "male" ? [1] : [2];
