@@ -173,14 +173,22 @@ serve(async (req) => {
     const predictionParams: Record<string, string> = {
       access_token: accessToken,
       target_spec: JSON.stringify(targetSpec),
-      budget: String(testBudget), // Enforced minimum for testing
+      budget: String(testBudget),
       buying_type: "RESERVED", // Required for R&F
       objective: "REACH", // FORCED: R&F only supports REACH objective
-      prediction_mode: "1", // 0 = reach, 1 = r&f
+      optimisation_goal: "REACH", // Required optimization goal
+      billing_event: "IMPRESSIONS", // Standard billing event for R&F
+      prediction_mode: "1", // 1 = reach & frequency
       frequency_cap: String(body.frequencyCap || 1),
       start_time: String(startTimeUnix), // REQUIRED
       end_time: String(endTimeUnix), // REQUIRED
     };
+
+    // Add Facebook Page ID (destination_ids) if provided
+    if (body.pageId) {
+      predictionParams.destination_ids = JSON.stringify([String(body.pageId)]);
+      console.log("Adding Facebook Page ID:", body.pageId);
+    }
 
     console.log(
       `R&F budget: $${(testBudget / 100).toLocaleString()} (${testBudget} cents), Markets: ${normalizedMarkets.join(", ")}, Platforms: ${targetSpec.publisher_platforms.join(", ")}`,
