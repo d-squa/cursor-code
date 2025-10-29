@@ -51,12 +51,24 @@ serve(async (req) => {
       console.log("Falling back to global Meta access token from secrets");
     }
 
+    // Helper to strip act_ prefix
+    const toNumeric = (v: string) => v.replace(/^act_/i, "");
+
     if ((!adAccountIdRaw || adAccountIdRaw.length < 10) && envAdAccountIdRaw) {
       adAccountIdRaw = envAdAccountIdRaw;
-      console.log("Falling back to global Meta ad account id from secrets");
+      console.log("Falling back to global Meta ad account id from secrets (empty/short)");
     }
 
-    const adAccountId = adAccountIdRaw.replace('act_', ''); // Remove act_ prefix if present
+    let adAccountId = toNumeric(adAccountIdRaw);
+
+    // If connected value is invalid (e.g., 8 digits), override with global secret when valid
+    if (!/^[0-9]{10,}$/.test(adAccountId) && envAdAccountIdRaw) {
+      const envNumeric = toNumeric(envAdAccountIdRaw);
+      if (/^[0-9]{10,}$/.test(envNumeric)) {
+        console.warn(`Overriding invalid connected ad account id (raw: ${adAccountIdRaw}, numeric: ${adAccountId}) with global META_AD_ACCOUNT_ID`);
+        adAccountId = envNumeric;
+      }
+    }
 
     if (!/^[0-9]{10,}$/.test(adAccountId)) {
       console.error("Invalid ad account id detected. Raw value:", adAccountIdRaw, "Processed:", adAccountId);
