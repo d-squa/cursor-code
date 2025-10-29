@@ -108,19 +108,33 @@ serve(async (req) => {
 
     console.log("Normalized markets for R&F:", normalizedMarkets);
 
-    // Build target_spec - SIMPLIFIED FOR TESTING to maximize audience size
+    // Build target_spec with comprehensive options
     const targetSpec: any = {
       geo_locations: {
         countries: normalizedMarkets,
       },
-      age_min: 18, // Broad age range for testing
-      age_max: 65,
-      publisher_platforms: ["facebook"], // Facebook only for R&F
+      age_min: body.ageMin || 18,
+      age_max: body.ageMax || 65,
     };
 
-    // Note: Gender, language, detailed targeting, and placements removed for testing
-    // This maximizes audience size and prediction success rate
-    console.log("Using simplified targeting for R&F testing (broad audience)");
+    // Add publisher platforms - default to Facebook + Instagram for better reach
+    const platforms = body.publisherPlatforms || ["facebook", "instagram"];
+    targetSpec.publisher_platforms = platforms;
+
+    // Add gender if specified
+    if (body.gender && body.gender !== "all") {
+      targetSpec.genders = body.gender === "male" ? [1] : [2];
+    }
+
+    // Add device platforms for broader reach
+    targetSpec.device_platforms = ["mobile", "desktop"];
+    targetSpec.facebook_positions = ["feed", "right_hand_column", "video_feeds", "instant_article"];
+    
+    if (platforms.includes("instagram")) {
+      targetSpec.instagram_positions = ["stream", "story", "explore"];
+    }
+
+    console.log("R&F targeting spec:", JSON.stringify(targetSpec, null, 2));
 
     console.log("Target spec for R&F:", JSON.stringify(targetSpec, null, 2));
 
@@ -148,8 +162,9 @@ serve(async (req) => {
       endTimeUnix,
     });
 
-    // Enforce minimum budget for testing (Meta R&F typically requires $10k+ for multi-week campaigns)
-    const testBudget = Math.max(body.budget || 0, 2500000); // Minimum $25,000 (2.5M cents)
+    // Use provided budget or enforce minimum for R&F
+    const minBudget = 500000; // $5,000 minimum
+    const testBudget = Math.max(body.budget || minBudget, minBudget);
     
     const predictionParams: Record<string, string> = {
       access_token: accessToken,
@@ -163,7 +178,7 @@ serve(async (req) => {
       end_time: String(endTimeUnix), // REQUIRED
     };
     
-    console.log(`Using test budget: $${(testBudget / 100).toLocaleString()} (${testBudget} cents)`);
+    console.log(`R&F budget: $${(testBudget / 100).toLocaleString()} (${testBudget} cents), Markets: ${normalizedMarkets.join(', ')}, Platforms: ${targetSpec.publisher_platforms.join(', ')}`);
 
     // Add Instagram actor ID if Instagram placements are included (REQUIRED for R&F with Instagram)
     if (body.instagramActorId && targetSpec.publisher_platforms?.includes("instagram")) {
@@ -252,10 +267,35 @@ serve(async (req) => {
           break;
         }
         
-        // Status 12 = error, log full details
+        // Status 12 = error, provide detailed diagnostics
         if (predictionResult.status === 12) {
-          console.error("R&F prediction failed with status 12. Full response:", JSON.stringify(predictionResult, null, 2));
-          throw new Error('R&F prediction failed with status 12. Check account eligibility for RESERVED buying type, permissions (ads_management, business_management), budget >= minimum, and valid date window.');
+          console.error("❌ R&F prediction failed with status 12");
+          console.error("Full response:", JSON.stringify(predictionResult, null, 2));
+          console.error("Target spec used:", JSON.stringify(targetSpec, null, 2));
+          console.error("Prediction params:", {
+            budget: testBudget,
+            markets: normalizedMarkets,
+            platforms: targetSpec.publisher_platforms,
+            dateRange: `${new Date(predictionResult.campaign_time_start * 1000).toISOString()} to ${new Date(predictionResult.campaign_time_stop * 1000).toISOString()}`,
+          });
+          
+          // Build detailed error message
+          let errorDetails = [];
+          if (predictionResult.external_minimum_budget > 0) {
+            errorDetails.push(`Minimum budget required: $${(predictionResult.external_minimum_budget / 100).toLocaleString()}`);
+          }
+          if (normalizedMarkets.length === 1 && normalizedMarkets[0] === 'GE') {
+            errorDetails.push("Small market (GE) may have limited R&F inventory. Try larger markets (US, GB, CA, AU)");
+          }
+          if (!targetSpec.publisher_platforms.includes("instagram")) {
+            errorDetails.push("Consider adding Instagram placements for broader reach");
+          }
+          
+          const errorMsg = errorDetails.length > 0 
+            ? `R&F prediction failed. Possible issues: ${errorDetails.join('; ')}`
+            : 'R&F prediction failed. The targeting/budget/market combination may not support R&F. Try: (1) Larger markets, (2) Higher budget, (3) Add Instagram placements, (4) Broader targeting';
+          
+          throw new Error(errorMsg);
         }
       } else {
         const errorText = await statusResponse.text();
