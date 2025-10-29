@@ -108,7 +108,7 @@ serve(async (req) => {
 
     console.log("Normalized markets for R&F:", normalizedMarkets);
 
-    // Build target_spec with comprehensive options
+    // Build target_spec - R&F has strict placement restrictions
     const targetSpec: any = {
       geo_locations: {
         countries: normalizedMarkets,
@@ -126,13 +126,9 @@ serve(async (req) => {
       targetSpec.genders = body.gender === "male" ? [1] : [2];
     }
 
-    // Add device platforms for broader reach
-    targetSpec.device_platforms = ["mobile", "desktop"];
-    targetSpec.facebook_positions = ["feed", "right_hand_column", "video_feeds", "instant_article"];
-    
-    if (platforms.includes("instagram")) {
-      targetSpec.instagram_positions = ["stream", "story", "explore"];
-    }
+    // CRITICAL: Don't specify positions for R&F - Meta has strict restrictions
+    // R&F campaigns only support specific placements, let Meta auto-select valid ones
+    // Specifying custom positions causes error 1885696
 
     console.log("R&F targeting spec:", JSON.stringify(targetSpec, null, 2));
 
