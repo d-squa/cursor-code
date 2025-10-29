@@ -71,8 +71,10 @@ serve(async (req) => {
     // Force REACH objective for reach estimate API
     const optimization_goal = "REACH";
     const objective = "REACH";
-    //const billing_event = body.billingEvent === "LINK_CLICKS" ? "LINK_CLICKS" : "IMPRESSIONS";
-
+    const billing_event = "IMPRESSIONS";
+    const frequency_cap = 2;
+    const prediction_mode = 1;
+    const destination_ids = "1757934224274443";
     // Call Reach Estimate API
     // Note: reachestimate API does NOT support currency parameter
     // It returns estimates based on the ad account's currency
@@ -81,6 +83,10 @@ serve(async (req) => {
       targeting_spec: JSON.stringify(targetingSpec),
       optimization_goal,
       objective,
+      billing_event,
+      frequency_cap,
+      prediction_mode,
+      destinaiton_ids,
     });
 
     // Mask token in logs for security
