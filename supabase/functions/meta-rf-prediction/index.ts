@@ -59,8 +59,9 @@ serve(async (req) => {
     const adAccountId = adAccountIdRaw.replace('act_', ''); // Remove act_ prefix if present
 
     if (!/^[0-9]{10,}$/.test(adAccountId)) {
-      console.error("Invalid ad account id detected:", adAccountIdRaw);
-      throw new Error("Invalid Meta ad account id. Please verify the connected platform or global credentials.");
+      console.error("Invalid ad account id detected. Raw value:", adAccountIdRaw, "Processed:", adAccountId);
+      console.error("Expected format: numeric ID (e.g., 113074448849584) or with act_ prefix (e.g., act_113074448849584)");
+      throw new Error(`Invalid Meta ad account id: "${adAccountIdRaw}". Expected format: act_113074448849584 or 113074448849584`);
     }
 
     if (!accessToken) {

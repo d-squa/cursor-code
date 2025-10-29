@@ -91,7 +91,23 @@ export function PlatformMarketBudgetSelector({
       name: "",
       enabled: true,
       budgetPercentage: 0,
-      markets: [{ id: `market-1-${Date.now()}`, name: "Market 1", budgetPercentage: 100, phases: [] }]
+      markets: [{ 
+        id: `market-1-${Date.now()}`, 
+        name: "Market 1", 
+        budgetPercentage: 100, 
+        phases: [],
+        // Default targeting for R&F compatibility
+        countries: ["US"],
+        ageMin: 18,
+        ageMax: 65,
+        gender: "all",
+        languages: [],
+        publisherPlatforms: ["facebook"],
+        positions: {},
+        detailedTargeting: [],
+        isCBOEnabled: false,
+        isLifetimeBudget: false,
+      }]
     };
     setPlatforms([...platforms, newPlatform]);
   };
@@ -155,11 +171,24 @@ export function PlatformMarketBudgetSelector({
             marketName = `Market ${marketNum}`;
           }
           
+          // Apply default targeting values for R&F compatibility
           const newMarket: Market = {
             id: `market-${Date.now()}`,
             name: marketName,
             budgetPercentage: 0,
-            phases: []
+            phases: [],
+            // Default targeting for Meta R&F
+            countries: ["US"],
+            ageMin: 18,
+            ageMax: 65,
+            gender: "all",
+            languages: [],
+            publisherPlatforms: ["facebook"],
+            positions: {},
+            detailedTargeting: [],
+            // Campaign defaults
+            isCBOEnabled: false,
+            isLifetimeBudget: false,
           };
           return { ...p, markets: [...p.markets, newMarket] };
         }
