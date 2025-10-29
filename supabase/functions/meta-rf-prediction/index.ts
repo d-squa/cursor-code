@@ -123,9 +123,6 @@ serve(async (req) => {
       age_max: body.ageMax || 65,
     };
 
-    // Add publisher platforms - default to Facebook + Instagram for better reach
-    //const platforms = body.publisherPlatforms || ["facebook", "instagram"];
-    //targetSpec.publisher_platforms = platforms;
 
     // Add gender if specified
     if (body.gender && body.gender !== "all") {
