@@ -60,10 +60,35 @@ interface PlatformConfigurationProps {
 }
 
 const platformObjectives: Record<string, string[]> = {
-  meta: ["Brand Awareness", "Reach", "Traffic", "Engagement", "App Installs", "Video Views", "Lead Generation", "Conversions"],
+  meta: [
+    "Brand Awareness",
+    "Reach",
+    "Traffic",
+    "Engagement",
+    "App Installs",
+    "Video Views",
+    "Lead Generation",
+    "Conversions",
+  ],
   google: ["Search", "Display", "Video", "Shopping", "Performance Max", "App", "Discovery", "Local"],
-  linkedin: ["Brand Awareness", "Website Visits", "Engagement", "Video Views", "Lead Generation", "Conversions", "Job Applicants"],
-  tiktok: ["Reach", "Traffic", "Video Views", "Community Interaction", "App Installs", "Lead Generation", "Conversions"],
+  linkedin: [
+    "Brand Awareness",
+    "Website Visits",
+    "Engagement",
+    "Video Views",
+    "Lead Generation",
+    "Conversions",
+    "Job Applicants",
+  ],
+  tiktok: [
+    "Reach",
+    "Traffic",
+    "Video Views",
+    "Community Interaction",
+    "App Installs",
+    "Lead Generation",
+    "Conversions",
+  ],
   snapchat: ["Awareness", "Consideration", "Conversions", "Catalog Sales"],
   pinterest: ["Brand Awareness", "Video Views", "Consideration", "Conversions", "Catalog Sales"],
 };
@@ -80,10 +105,30 @@ const optimizationGoals: Record<string, string[]> = {
 const getFunnelObjectives = (platformId: string, stage: string, focus: string): string => {
   const objectives: Record<string, Record<string, Record<string, string>>> = {
     meta: {
-      awareness: { purchase: "Brand Awareness", leads: "Brand Awareness", "app-installs": "Brand Awareness", conversions: "Brand Awareness" },
-      consideration: { purchase: "Traffic", leads: "Lead Generation", "app-installs": "App Installs", conversions: "Traffic" },
-      conversion: { purchase: "Conversions", leads: "Lead Generation", "app-installs": "App Installs", conversions: "Conversions" },
-      loyalty: { purchase: "Conversions", leads: "Engagement", "app-installs": "Engagement", conversions: "Conversions" },
+      awareness: {
+        purchase: "Brand Awareness",
+        leads: "Brand Awareness",
+        "app-installs": "Brand Awareness",
+        conversions: "Brand Awareness",
+      },
+      consideration: {
+        purchase: "Traffic",
+        leads: "Lead Generation",
+        "app-installs": "App Installs",
+        conversions: "Traffic",
+      },
+      conversion: {
+        purchase: "Conversions",
+        leads: "Lead Generation",
+        "app-installs": "App Installs",
+        conversions: "Conversions",
+      },
+      loyalty: {
+        purchase: "Conversions",
+        leads: "Engagement",
+        "app-installs": "Engagement",
+        conversions: "Conversions",
+      },
     },
     google: {
       awareness: { purchase: "Display", leads: "Display", "app-installs": "App", conversions: "Display" },
@@ -92,61 +137,77 @@ const getFunnelObjectives = (platformId: string, stage: string, focus: string): 
       loyalty: { purchase: "Performance Max", leads: "Search", "app-installs": "App", conversions: "Performance Max" },
     },
   };
-  
+
   return objectives[platformId]?.[stage]?.[focus] || platformObjectives[platformId]?.[0] || "";
 };
 
 export function PlatformConfiguration({ platforms, setPlatforms, startDate, endDate }: PlatformConfigurationProps) {
-  const enabledPlatforms = platforms.filter(p => p.enabled);
+  const enabledPlatforms = platforms.filter((p) => p.enabled);
 
   const updatePlatformConfig = (platformId: string, field: keyof PlatformConfig, value: any) => {
     setPlatforms(
-      platforms.map(p => {
+      platforms.map((p) => {
         if (p.id === platformId) {
           const updatedConfig = { ...p.config, [field]: value };
-          
+
           // Auto-generate campaigns when strategy changes
           if (field === "strategy" || field === "strategyFocus") {
             const strategy = field === "strategy" ? value : p.config?.strategy;
             const focus = field === "strategyFocus" ? value : p.config?.strategyFocus;
-            
+
             if (strategy === "full-funnel" && focus) {
               updatedConfig.campaigns = [
-                { id: "awareness", name: "Awareness Campaign", funnelStage: "awareness", objective: getFunnelObjectives(platformId, "awareness", focus) },
-                { id: "consideration", name: "Consideration Campaign", funnelStage: "consideration", objective: getFunnelObjectives(platformId, "consideration", focus) },
-                { id: "conversion", name: "Conversion Campaign", funnelStage: "conversion", objective: getFunnelObjectives(platformId, "conversion", focus) },
-                { id: "loyalty", name: "Loyalty Campaign", funnelStage: "loyalty", objective: getFunnelObjectives(platformId, "loyalty", focus) },
+                {
+                  id: "awareness",
+                  name: "Awareness Campaign",
+                  funnelStage: "awareness",
+                  objective: getFunnelObjectives(platformId, "awareness", focus),
+                },
+                {
+                  id: "consideration",
+                  name: "Consideration Campaign",
+                  funnelStage: "consideration",
+                  objective: getFunnelObjectives(platformId, "consideration", focus),
+                },
+                {
+                  id: "conversion",
+                  name: "Conversion Campaign",
+                  funnelStage: "conversion",
+                  objective: getFunnelObjectives(platformId, "conversion", focus),
+                },
+                {
+                  id: "loyalty",
+                  name: "Loyalty Campaign",
+                  funnelStage: "loyalty",
+                  objective: getFunnelObjectives(platformId, "loyalty", focus),
+                },
               ];
             } else if (strategy === "partial" && !updatedConfig.campaigns?.length) {
-              updatedConfig.campaigns = [
-                { id: `campaign-${Date.now()}`, name: "Campaign 1" },
-              ];
+              updatedConfig.campaigns = [{ id: `campaign-${Date.now()}`, name: "Campaign 1" }];
             }
           }
 
           // Update campaign objectives when phases change (to reflect asset types)
           if (field === "phases") {
             const phases = value as Phase[];
-            updatedConfig.campaigns = updatedConfig.campaigns?.map(campaign => {
-              const phase = phases.find(ph => 
-                ph.name.toLowerCase() === campaign.funnelStage?.toLowerCase()
-              );
-              
+            updatedConfig.campaigns = updatedConfig.campaigns?.map((campaign) => {
+              const phase = phases.find((ph) => ph.name.toLowerCase() === campaign.funnelStage?.toLowerCase());
+
               // Keep existing objective or use default
               return campaign;
             });
           }
-          
+
           return { ...p, config: updatedConfig };
         }
         return p;
-      })
+      }),
     );
   };
 
   const addCampaign = (platformId: string) => {
     setPlatforms(
-      platforms.map(p => {
+      platforms.map((p) => {
         if (p.id === platformId) {
           const campaigns = p.config?.campaigns || [];
           const newCampaign: Campaign = {
@@ -158,74 +219,70 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
             config: {
               ...p.config,
               campaigns: [...campaigns, newCampaign],
-            }
+            },
           };
         }
         return p;
-      })
+      }),
     );
   };
 
   const removeCampaign = (platformId: string, campaignId: string) => {
     setPlatforms(
-      platforms.map(p => {
+      platforms.map((p) => {
         if (p.id === platformId && p.config?.campaigns) {
           return {
             ...p,
             config: {
               ...p.config,
-              campaigns: p.config.campaigns.filter(c => c.id !== campaignId),
-            }
+              campaigns: p.config.campaigns.filter((c) => c.id !== campaignId),
+            },
           };
         }
         return p;
-      })
+      }),
     );
   };
 
   const updateCampaign = (platformId: string, campaignId: string, field: keyof Campaign, value: any) => {
     setPlatforms(
-      platforms.map(p => {
+      platforms.map((p) => {
         if (p.id === platformId && p.config?.campaigns) {
           return {
             ...p,
             config: {
               ...p.config,
-              campaigns: p.config.campaigns.map(c =>
-                c.id === campaignId ? { ...c, [field]: value } : c
-              ),
-            }
+              campaigns: p.config.campaigns.map((c) => (c.id === campaignId ? { ...c, [field]: value } : c)),
+            },
           };
         }
         return p;
-      })
+      }),
     );
   };
 
   const updateCampaignTargeting = (platformId: string, campaignId: string, field: string, value: any) => {
     setPlatforms(
-      platforms.map(p => {
+      platforms.map((p) => {
         if (p.id === platformId && p.config?.campaigns) {
           return {
             ...p,
             config: {
               ...p.config,
-              campaigns: p.config.campaigns.map(c =>
-                c.id === campaignId
-                  ? { ...c, targeting: { ...c.targeting, [field]: value } }
-                  : c
+              campaigns: p.config.campaigns.map((c) =>
+                c.id === campaignId ? { ...c, targeting: { ...c.targeting, [field]: value } } : c,
               ),
-            }
+            },
           };
         }
         return p;
-      })
+      }),
     );
   };
 
   const addPhase = (platformId: string) => {
     setPlatforms(
-      platforms.map(p => {
+      platforms.map((p) => {
         if (p.id === platformId) {
           const phases = p.config?.phases || [];
           const newPhase: Phase = {
@@ -240,66 +297,65 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
             config: {
               ...p.config,
               phases: [...phases, newPhase],
-            }
+            },
           };
         }
         return p;
-      })
+      }),
     );
   };
 
   const updatePhase = (platformId: string, phaseId: string, field: keyof Phase, value: any) => {
     setPlatforms(
-      platforms.map(p => {
+      platforms.map((p) => {
         if (p.id === platformId && p.config?.phases) {
           return {
             ...p,
             config: {
               ...p.config,
-              phases: p.config.phases.map(phase =>
-                phase.id === phaseId ? { ...phase, [field]: value } : phase
-              ),
-            }
+              phases: p.config.phases.map((phase) => (phase.id === phaseId ? { ...phase, [field]: value } : phase)),
+            },
           };
         }
         return p;
-      })
+      }),
     );
   };
 
   const removePhase = (platformId: string, phaseId: string) => {
     setPlatforms(
-      platforms.map(p => {
+      platforms.map((p) => {
         if (p.id === platformId && p.config?.phases) {
           return {
             ...p,
             config: {
               ...p.config,
-              phases: p.config.phases.filter(phase => phase.id !== phaseId),
-            }
+              phases: p.config.phases.filter((phase) => phase.id !== phaseId),
+            },
           };
         }
         return p;
-      })
+      }),
     );
   };
 
   const isConfigComplete = (platform: Platform): boolean => {
     if (!platform.config) return false;
     const { strategy, strategyFocus, hasPhases, phases, campaigns } = platform.config;
-    
+
     const basicComplete = !!(strategy && strategyFocus);
-    
+
     if (hasPhases) {
-      const phasesComplete = phases && phases.length > 0 && phases.every(p => 
-        p.name && p.startDate && p.endDate && p.budgetPercentage > 0
-      );
+      const phasesComplete =
+        phases &&
+        phases.length > 0 &&
+        phases.every((p) => p.name && p.startDate && p.endDate && p.budgetPercentage > 0);
       if (!phasesComplete) return false;
     }
-    
+
     if (!campaigns || campaigns.length === 0) return false;
-    
-    const campaignsComplete = campaigns.every(c => {
+
+    const campaignsComplete = campaigns.every((c) => {
       return !!(
         c.name &&
         c.objective &&
@@ -309,7 +365,7 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
         c.targeting?.ageMax
       );
     });
-    
+
     return basicComplete && campaignsComplete;
   };
 
@@ -326,17 +382,19 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
       <CardContent>
         <Tabs defaultValue={enabledPlatforms[0]?.id} className="w-full">
           <TabsList className="grid w-full" style={{ gridTemplateColumns: `repeat(${enabledPlatforms.length}, 1fr)` }}>
-            {enabledPlatforms.map(platform => (
+            {enabledPlatforms.map((platform) => (
               <TabsTrigger key={platform.id} value={platform.id} className="gap-2">
                 {platform.name}
                 {isConfigComplete(platform) && (
-                  <Badge variant="secondary" className="ml-1 h-5 w-5 p-0 text-xs">✓</Badge>
+                  <Badge variant="secondary" className="ml-1 h-5 w-5 p-0 text-xs">
+                    ✓
+                  </Badge>
                 )}
               </TabsTrigger>
             ))}
           </TabsList>
 
-          {enabledPlatforms.map(platform => (
+          {enabledPlatforms.map((platform) => (
             <TabsContent key={platform.id} value={platform.id} className="space-y-6 mt-6">
               {/* Strategy Selection */}
               <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
@@ -388,13 +446,15 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
                       updatePlatformConfig(platform.id, "hasPhases", hasPhases);
                       if (hasPhases && (!platform.config?.phases || platform.config.phases.length === 0)) {
                         // Initialize with one phase if enabling for the first time
-                        updatePlatformConfig(platform.id, "phases", [{
-                          id: `phase-${Date.now()}`,
-                          name: "Phase 1",
-                          startDate: startDate,
-                          endDate: endDate,
-                          budgetPercentage: 100,
-                        }]);
+                        updatePlatformConfig(platform.id, "phases", [
+                          {
+                            id: `phase-${Date.now()}`,
+                            name: "Phase 1",
+                            startDate: startDate,
+                            endDate: endDate,
+                            budgetPercentage: 100,
+                          },
+                        ]);
                       }
                     }}
                     className="w-4 h-4"
@@ -419,27 +479,25 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
                   <div className="flex items-center justify-between">
                     <h4 className="font-semibold text-lg">Campaign Configuration</h4>
                     {platform.config.strategy === "manual" && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => addCampaign(platform.id)}
-                      >
+                      <Button type="button" variant="outline" size="sm" onClick={() => addCampaign(platform.id)}>
                         Add Campaign
                       </Button>
                     )}
                   </div>
 
                   <Tabs defaultValue={platform.config.campaigns[0]?.id} className="w-full">
-                    <TabsList className="grid w-full" style={{ gridTemplateColumns: `repeat(${platform.config.campaigns.length}, 1fr)` }}>
-                      {platform.config.campaigns.map(campaign => (
+                    <TabsList
+                      className="grid w-full"
+                      style={{ gridTemplateColumns: `repeat(${platform.config.campaigns.length}, 1fr)` }}
+                    >
+                      {platform.config.campaigns.map((campaign) => (
                         <TabsTrigger key={campaign.id} value={campaign.id}>
                           {campaign.name}
                         </TabsTrigger>
                       ))}
                     </TabsList>
 
-                    {platform.config.campaigns.map(campaign => (
+                    {platform.config.campaigns.map((campaign) => (
                       <TabsContent key={campaign.id} value={campaign.id} className="space-y-4 mt-4">
                         {platform.config?.strategy === "manual" && (
                           <div className="flex items-center justify-between pb-2 border-b">
@@ -479,8 +537,10 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
                                 <SelectValue placeholder="Select objective" />
                               </SelectTrigger>
                               <SelectContent>
-                                {platformObjectives[platform.id]?.map(obj => (
-                                  <SelectItem key={obj} value={obj}>{obj}</SelectItem>
+                                {platformObjectives[platform.id]?.map((obj) => (
+                                  <SelectItem key={obj} value={obj}>
+                                    {obj}
+                                  </SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
@@ -499,19 +559,22 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
                             <Label>Optimization Goal</Label>
                             <Select
                               value={campaign.optimizationGoal}
-                              onValueChange={(value) => updateCampaign(platform.id, campaign.id, "optimizationGoal", value)}
+                              onValueChange={(value) =>
+                                updateCampaign(platform.id, campaign.id, "optimizationGoal", value)
+                              }
                             >
                               <SelectTrigger>
                                 <SelectValue placeholder="Select goal" />
                               </SelectTrigger>
                               <SelectContent>
-                                {optimizationGoals[platform.id]?.map(goal => (
-                                  <SelectItem key={goal} value={goal}>{goal}</SelectItem>
+                                {optimizationGoals[platform.id]?.map((goal) => (
+                                  <SelectItem key={goal} value={goal}>
+                                    {goal}
+                                  </SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
                           </div>
-
                         </div>
 
                         <div className="space-y-4">
@@ -522,7 +585,9 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
                               <Input
                                 type="number"
                                 value={campaign.targeting?.ageMin || ""}
-                                onChange={(e) => updateCampaignTargeting(platform.id, campaign.id, "ageMin", parseInt(e.target.value))}
+                                onChange={(e) =>
+                                  updateCampaignTargeting(platform.id, campaign.id, "ageMin", parseInt(e.target.value))
+                                }
                                 placeholder="18"
                                 min="13"
                                 max="65"
@@ -533,7 +598,9 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
                               <Input
                                 type="number"
                                 value={campaign.targeting?.ageMax || ""}
-                                onChange={(e) => updateCampaignTargeting(platform.id, campaign.id, "ageMax", parseInt(e.target.value))}
+                                onChange={(e) =>
+                                  updateCampaignTargeting(platform.id, campaign.id, "ageMax", parseInt(e.target.value))
+                                }
                                 placeholder="65"
                                 min="13"
                                 max="65"
@@ -543,7 +610,17 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
                               <Label>Genders</Label>
                               <Input
                                 value={campaign.targeting?.genders?.join(", ") || ""}
-                                onChange={(e) => updateCampaignTargeting(platform.id, campaign.id, "genders", e.target.value.split(",").map(s => s.trim()).filter(Boolean))}
+                                onChange={(e) =>
+                                  updateCampaignTargeting(
+                                    platform.id,
+                                    campaign.id,
+                                    "genders",
+                                    e.target.value
+                                      .split(",")
+                                      .map((s) => s.trim())
+                                      .filter(Boolean),
+                                  )
+                                }
                                 placeholder="All, Male, Female"
                               />
                             </div>
@@ -553,7 +630,17 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
                             <Label>Placements</Label>
                             <Input
                               value={campaign.targeting?.placements?.join(", ") || ""}
-                              onChange={(e) => updateCampaignTargeting(platform.id, campaign.id, "placements", e.target.value.split(",").map(s => s.trim()).filter(Boolean))}
+                              onChange={(e) =>
+                                updateCampaignTargeting(
+                                  platform.id,
+                                  campaign.id,
+                                  "placements",
+                                  e.target.value
+                                    .split(",")
+                                    .map((s) => s.trim())
+                                    .filter(Boolean),
+                                )
+                              }
                               placeholder="e.g., Feed, Stories, Reels"
                             />
                           </div>

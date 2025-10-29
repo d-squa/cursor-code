@@ -25,15 +25,15 @@ serve(async (req) => {
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    
+
     const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Fetch platform credentials (prefer connected platform, fallback to global secrets)
     const { data: platform, error: platformError } = await supabase
-      .from('connected_platforms')
-      .select('access_token, ad_account_id')
-      .eq('id', connectedPlatformId)
+      .from("connected_platforms")
+      .select("access_token, ad_account_id")
+      .eq("id", connectedPlatformId)
       .single();
 
     if (platformError || !platform) {
@@ -65,15 +65,21 @@ serve(async (req) => {
     if (!/^[0-9]{10,}$/.test(adAccountId) && envAdAccountIdRaw) {
       const envNumeric = toNumeric(envAdAccountIdRaw);
       if (/^[0-9]{10,}$/.test(envNumeric)) {
-        console.warn(`Overriding invalid connected ad account id (raw: ${adAccountIdRaw}, numeric: ${adAccountId}) with global META_AD_ACCOUNT_ID`);
+        console.warn(
+          `Overriding invalid connected ad account id (raw: ${adAccountIdRaw}, numeric: ${adAccountId}) with global META_AD_ACCOUNT_ID`,
+        );
         adAccountId = envNumeric;
       }
     }
 
     if (!/^[0-9]{10,}$/.test(adAccountId)) {
       console.error("Invalid ad account id detected. Raw value:", adAccountIdRaw, "Processed:", adAccountId);
-      console.error("Expected format: numeric ID (e.g., 113074448849584) or with act_ prefix (e.g., act_113074448849584)");
-      throw new Error(`Invalid Meta ad account id: "${adAccountIdRaw}". Expected format: act_113074448849584 or 113074448849584`);
+      console.error(
+        "Expected format: numeric ID (e.g., 113074448849584) or with act_ prefix (e.g., act_113074448849584)",
+      );
+      throw new Error(
+        `Invalid Meta ad account id: "${adAccountIdRaw}". Expected format: act_113074448849584 or 113074448849584`,
+      );
     }
 
     if (!accessToken) {
@@ -85,7 +91,7 @@ serve(async (req) => {
 
     // Extract countries from body - support both formats
     let validatedMarkets: string[] = [];
-    
+
     if (body.countries && Array.isArray(body.countries)) {
       // New format: countries array directly
       validatedMarkets = body.countries;
@@ -118,7 +124,7 @@ serve(async (req) => {
     };
 
     // Add publisher platforms - default to Facebook + Instagram for better reach
-    const platforms = body.publisherPlatforms || ["facebook", "instagram"];
+    const platforms = body.publisherPlatforms || ["facebook"];
     targetSpec.publisher_platforms = platforms;
 
     // Add gender if specified
@@ -136,21 +142,21 @@ serve(async (req) => {
 
     // Step 1: Create Reach & Frequency prediction
     // API: POST https://graph.facebook.com/v21.0/act_{ad_account_id}/reachfrequencypredictions
-    
+
     // Prepare start and end times - ADJUSTED FOR TESTING
     // R&F requires campaign to start at least 2-3 days out and run for 7+ days
     const now = new Date();
     const startDate = new Date(now);
     startDate.setDate(now.getDate() + 7); // Start 7 days from now
     startDate.setUTCHours(9, 0, 0, 0); // 9 AM UTC
-    
+
     const endDate = new Date(startDate);
     endDate.setDate(startDate.getDate() + 21); // Run for 21 days
     endDate.setUTCHours(23, 59, 59, 999);
-    
+
     const startTimeUnix = Math.floor(startDate.getTime() / 1000);
     const endTimeUnix = Math.floor(endDate.getTime() / 1000);
-    
+
     console.log("Campaign time window:", {
       startDate: startDate.toISOString(),
       endDate: endDate.toISOString(),
@@ -161,7 +167,7 @@ serve(async (req) => {
     // Use provided budget or enforce minimum for R&F
     const minBudget = 500000; // $5,000 minimum
     const testBudget = Math.max(body.budget || minBudget, minBudget);
-    
+
     // CRITICAL: R&F predictions ALWAYS use REACH objective regardless of UI selection
     // This is a hard requirement for Meta's Reach & Frequency API
     const predictionParams: Record<string, string> = {
@@ -175,8 +181,10 @@ serve(async (req) => {
       start_time: String(startTimeUnix), // REQUIRED
       end_time: String(endTimeUnix), // REQUIRED
     };
-    
-    console.log(`R&F budget: $${(testBudget / 100).toLocaleString()} (${testBudget} cents), Markets: ${normalizedMarkets.join(', ')}, Platforms: ${targetSpec.publisher_platforms.join(', ')}`);
+
+    console.log(
+      `R&F budget: $${(testBudget / 100).toLocaleString()} (${testBudget} cents), Markets: ${normalizedMarkets.join(", ")}, Platforms: ${targetSpec.publisher_platforms.join(", ")}`,
+    );
 
     // Add Instagram actor ID if Instagram placements are included (REQUIRED for R&F with Instagram)
     if (body.instagramActorId && targetSpec.publisher_platforms?.includes("instagram")) {
@@ -243,8 +251,8 @@ serve(async (req) => {
     let attempts = 0;
     let predictionResult = null;
 
-      while (attempts < 20) {
-        await new Promise((resolve) => setTimeout(resolve, 3000)); // Wait 3s between checks
+    while (attempts < 20) {
+      await new Promise((resolve) => setTimeout(resolve, 3000)); // Wait 3s between checks
 
       const statusResponse = await fetch(
         `https://graph.facebook.com/v21.0/${predictionId}?access_token=${accessToken}&fields=id,name,frequency_cap,campaign_time_start,campaign_time_stop,external_reach,external_impression,external_budget,audience_size_upper_bound,external_minimum_budget,prediction_progress,status,curve_budget_reach`,
@@ -264,7 +272,7 @@ serve(async (req) => {
           console.log("R&F prediction ready! Full result:", JSON.stringify(predictionResult, null, 2));
           break;
         }
-        
+
         // Status 12 = error, provide detailed diagnostics
         if (predictionResult.status === 12) {
           console.error("❌ R&F prediction failed with status 12");
@@ -276,23 +284,26 @@ serve(async (req) => {
             platforms: targetSpec.publisher_platforms,
             dateRange: `${new Date(predictionResult.campaign_time_start * 1000).toISOString()} to ${new Date(predictionResult.campaign_time_stop * 1000).toISOString()}`,
           });
-          
+
           // Build detailed error message
           let errorDetails = [];
           if (predictionResult.external_minimum_budget > 0) {
-            errorDetails.push(`Minimum budget required: $${(predictionResult.external_minimum_budget / 100).toLocaleString()}`);
+            errorDetails.push(
+              `Minimum budget required: $${(predictionResult.external_minimum_budget / 100).toLocaleString()}`,
+            );
           }
-          if (normalizedMarkets.length === 1 && normalizedMarkets[0] === 'GE') {
+          if (normalizedMarkets.length === 1 && normalizedMarkets[0] === "GE") {
             errorDetails.push("Small market (GE) may have limited R&F inventory. Try larger markets (US, GB, CA, AU)");
           }
           if (!targetSpec.publisher_platforms.includes("instagram")) {
             errorDetails.push("Consider adding Instagram placements for broader reach");
           }
-          
-          const errorMsg = errorDetails.length > 0 
-            ? `R&F prediction failed. Possible issues: ${errorDetails.join('; ')}`
-            : 'R&F prediction failed. The targeting/budget/market combination may not support R&F. Try: (1) Larger markets, (2) Higher budget, (3) Add Instagram placements, (4) Broader targeting';
-          
+
+          const errorMsg =
+            errorDetails.length > 0
+              ? `R&F prediction failed. Possible issues: ${errorDetails.join("; ")}`
+              : "R&F prediction failed. The targeting/budget/market combination may not support R&F. Try: (1) Larger markets, (2) Higher budget, (3) Add Instagram placements, (4) Broader targeting";
+
           throw new Error(errorMsg);
         }
       } else {
@@ -350,7 +361,7 @@ serve(async (req) => {
       budget: externalBudget, // From external_budget
       minimumBudget: externalMinimumBudget, // From external_minimum_budget
       frequencyCap, // From frequency_cap
-      
+
       // Estimated metrics (since R&F API doesn't provide these):
       clicks,
       ctr: parseFloat((ctr * 100).toFixed(2)),
