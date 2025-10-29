@@ -124,8 +124,8 @@ serve(async (req) => {
     };
 
     // Add publisher platforms - default to Facebook + Instagram for better reach
-    const platforms = body.publisherPlatforms || ["facebook"];
-    targetSpec.publisher_platforms = platforms;
+    //const platforms = body.publisherPlatforms || ["facebook", "instagram"];
+    //targetSpec.publisher_platforms = platforms;
 
     // Add gender if specified
     if (body.gender && body.gender !== "all") {
