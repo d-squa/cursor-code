@@ -49,6 +49,7 @@ export interface Platform {
   enabled: boolean;
   budgetPercentage: number;
   config?: PlatformConfig;
+  objective?: string;
 }
 
 interface PlatformConfigurationProps {

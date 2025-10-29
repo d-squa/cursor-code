@@ -162,12 +162,14 @@ serve(async (req) => {
     const minBudget = 500000; // $5,000 minimum
     const testBudget = Math.max(body.budget || minBudget, minBudget);
     
+    // CRITICAL: R&F predictions ALWAYS use REACH objective regardless of UI selection
+    // This is a hard requirement for Meta's Reach & Frequency API
     const predictionParams: Record<string, string> = {
       access_token: accessToken,
       target_spec: JSON.stringify(targetSpec),
       budget: String(testBudget), // Enforced minimum for testing
       buying_type: "RESERVED", // Required for R&F
-      objective: "REACH",
+      objective: "REACH", // FORCED: R&F only supports REACH objective
       prediction_mode: "1", // 0 = reach, 1 = r&f
       frequency_cap: String(body.frequencyCap || 1),
       start_time: String(startTimeUnix), // REQUIRED
