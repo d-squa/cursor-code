@@ -176,6 +176,9 @@ serve(async (req) => {
       frequency_cap: String(body.frequencyCap || 1),
       start_time: String(startTimeUnix), // REQUIRED
       end_time: String(endTimeUnix), // REQUIRED
+      // Hardcoded placements as required by Meta R&F API
+      publisher_platforms: JSON.stringify(["audience_network"]),
+      facebook_positions: JSON.stringify(["native_banner_interstitial", "instream_video"]),
     };
 
     console.log(
