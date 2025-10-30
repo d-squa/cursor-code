@@ -84,9 +84,9 @@ serve(async (req) => {
       optimization_goal,
       objective,
       billing_event,
-      frequency_cap,
-      prediction_mode,
-      destinaiton_ids,
+      frequency_cap: frequency_cap.toString(),
+      prediction_mode: prediction_mode.toString(),
+      destination_ids,
     });
 
     // Mask token in logs for security
