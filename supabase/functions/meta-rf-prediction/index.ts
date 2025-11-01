@@ -236,6 +236,11 @@ serve(async (req) => {
     );
     console.log(`R&F campaign duration: ${durationDays} days, frequency cap: ${frequencyCap}`);
 
+    // Log full API URL for Graph API Explorer testing
+    const fullUrl = `https://graph.facebook.com/v21.0/act_${adAccountId}/reachfrequencypredictions?${new URLSearchParams(predictionParams).toString()}`;
+    console.log("🔗 FULL API URL FOR GRAPH API EXPLORER:");
+    console.log(fullUrl);
+
     const maskedParams = new URLSearchParams(predictionParams)
       .toString()
       .replace(/access_token=[^&]+/, "access_token=***");
