@@ -298,7 +298,7 @@ serve(async (req) => {
           console.error("Full response:", JSON.stringify(predictionResult, null, 2));
           console.error("Target spec used:", JSON.stringify(targetSpec, null, 2));
           console.error("Prediction params:", {
-            budget: testBudget,
+            budget: budgetCents / 100,
             markets: normalizedMarkets,
             platforms: targetSpec.publisher_platforms,
             dateRange: `${new Date(predictionResult.campaign_time_start * 1000).toISOString()} to ${new Date(predictionResult.campaign_time_stop * 1000).toISOString()}`,
@@ -339,7 +339,7 @@ serve(async (req) => {
     const externalImpression = predictionResult.external_impression || 0;
     const externalBudget = predictionResult.external_budget || body.budget;
     const audienceSize = predictionResult.audience_size_upper_bound || 0;
-    const frequencyCap = predictionResult.frequency_cap || 1;
+    const resultFrequencyCap = predictionResult.frequency_cap || 1;
     const externalMinimumBudget = predictionResult.external_minimum_budget || 0;
 
     // Calculate CPM from actual Meta API data: (budget / impressions) * 1000
@@ -347,7 +347,7 @@ serve(async (req) => {
 
     console.log("✅ LIVE R&F METRICS FROM META API:", {
       id: predictionResult.id,
-      frequencyCap,
+      frequencyCap: resultFrequencyCap,
       campaignTimeStart: predictionResult.campaign_time_start,
       campaignTimeStop: predictionResult.campaign_time_stop,
       externalReach: `${externalReach.toLocaleString()} (LIVE)`,
@@ -376,7 +376,7 @@ serve(async (req) => {
       cpm: parseFloat(cpm.toFixed(2)), // Calculated from API data
       budget: externalBudget, // From external_budget
       minimumBudget: externalMinimumBudget, // From external_minimum_budget
-      frequencyCap, // From frequency_cap
+      frequencyCap: resultFrequencyCap, // From frequency_cap
 
       // Estimated metrics (since R&F API doesn't provide these):
       clicks,
