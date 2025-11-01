@@ -128,6 +128,24 @@ serve(async (req) => {
       targetSpec.genders = body.gender === "male" ? [1] : [2];
     }
 
+    // Add languages if specified
+    if (body.languages && Array.isArray(body.languages) && body.languages.length > 0) {
+      targetSpec.locales = body.languages;
+    }
+
+    // Add detailed targeting if specified (interests, behaviors, demographics)
+    if (body.detailedTargeting && Array.isArray(body.detailedTargeting) && body.detailedTargeting.length > 0) {
+      targetSpec.flexible_spec = [
+        body.detailedTargeting.reduce((acc: any, target: any) => {
+          if (!acc[target.type]) {
+            acc[target.type] = [];
+          }
+          acc[target.type].push({ id: target.id });
+          return acc;
+        }, {}),
+      ];
+    }
+
     // CRITICAL: Don't specify positions for R&F - Meta has strict restrictions
     // R&F campaigns only support specific placements, let Meta auto-select valid ones
     // Specifying custom positions causes error 1885696
@@ -188,22 +206,29 @@ serve(async (req) => {
     const publisherPlatforms = body.publisherPlatforms || ["audience_network"];
     const positions = body.positions || {};
 
-    if (publisherPlatforms.includes("audience_network")) {
-      predictionParams.publisher_platforms = JSON.stringify(["audience_network"]);
-      // For Audience Network, use audience_network_positions (not facebook_positions)
-      predictionParams.audience_network_positions = JSON.stringify(
-        positions.audience_network || ["native_banner_interstitial", "instream_video"]
-      );
-    } else if (publisherPlatforms.includes("facebook")) {
-      predictionParams.publisher_platforms = JSON.stringify(["facebook"]);
-      predictionParams.facebook_positions = JSON.stringify(
-        positions.facebook || ["feed", "instant_article"]
-      );
-    } else if (publisherPlatforms.includes("instagram")) {
-      predictionParams.publisher_platforms = JSON.stringify(["instagram"]);
-      predictionParams.instagram_positions = JSON.stringify(
-        positions.instagram || ["stream", "story"]
-      );
+    // CRITICAL: Set publisher_platforms and positions as TOP-LEVEL parameters (NOT in target_spec)
+    // Multiple platforms can be used simultaneously, so don't use else-if
+    if (publisherPlatforms.length > 0) {
+      predictionParams.publisher_platforms = JSON.stringify(publisherPlatforms);
+      
+      // Set position parameters for each platform included
+      if (publisherPlatforms.includes("audience_network") && positions.audience_network) {
+        predictionParams.audience_network_positions = JSON.stringify(
+          positions.audience_network
+        );
+      }
+      
+      if (publisherPlatforms.includes("facebook") && positions.facebook) {
+        predictionParams.facebook_positions = JSON.stringify(
+          positions.facebook
+        );
+      }
+      
+      if (publisherPlatforms.includes("instagram") && positions.instagram) {
+        predictionParams.instagram_positions = JSON.stringify(
+          positions.instagram
+        );
+      }
     }
 
     console.log(
