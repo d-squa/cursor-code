@@ -139,19 +139,20 @@ serve(async (req) => {
     // Step 1: Create Reach & Frequency prediction
     // API: POST https://graph.facebook.com/v21.0/act_{ad_account_id}/reachfrequencypredictions
 
-    // Prepare start and end times - ADJUSTED FOR TESTING
-    // R&F requires campaign to start at least 2-3 days out and run for 7+ days
-    const now = new Date();
-    const startDate = new Date(now);
-    startDate.setDate(now.getDate() + 7); // Start 7 days from now
-    startDate.setUTCHours(9, 0, 0, 0); // 9 AM UTC
-
-    const endDate = new Date(startDate);
-    endDate.setDate(startDate.getDate() + 21); // Run for 21 days
+    // Use dates from request body
+    const startDate = body.startDate ? new Date(body.startDate) : new Date();
+    const endDate = body.endDate ? new Date(body.endDate) : new Date();
+    
+    // Set start to 9 AM UTC and end to 11:59 PM UTC
+    startDate.setUTCHours(9, 0, 0, 0);
     endDate.setUTCHours(23, 59, 59, 999);
 
     const startTimeUnix = Math.floor(startDate.getTime() / 1000);
     const endTimeUnix = Math.floor(endDate.getTime() / 1000);
+
+    // Calculate campaign duration for frequency cap
+    const durationDays = Math.ceil((endTimeUnix - startTimeUnix) / 86400);
+    const frequencyCap = durationDays <= 3 ? 1 : 2;
 
     console.log("Campaign time window:", {
       startDate: startDate.toISOString(),
@@ -160,30 +161,55 @@ serve(async (req) => {
       endTimeUnix,
     });
 
-    // Use provided budget or enforce minimum for R&F
-    const minBudget = 500000; // $5,000 minimum
-    const testBudget = Math.max(body.budget || minBudget, minBudget);
+    // Get page ID from body or use a default (destination_ids is required)
+    const pageId = body.pageId || body.page || "1757934224274443"; // Use provided or fallback
+
+    // Budget in cents
+    const budgetCents = body.budget * 100;
 
     // CRITICAL: R&F predictions ALWAYS use REACH objective regardless of UI selection
     // This is a hard requirement for Meta's Reach & Frequency API
     const predictionParams: Record<string, string> = {
       access_token: accessToken,
       target_spec: JSON.stringify(targetSpec),
-      budget: String(testBudget), // Enforced minimum for testing
+      budget: String(budgetCents),
       buying_type: "RESERVED", // Required for R&F
       objective: "REACH", // FORCED: R&F only supports REACH objective
+      optimization_goal: "REACH", // Required for R&F
+      billing_event: "IMPRESSIONS", // Required for R&F
       prediction_mode: "1", // 0 = reach, 1 = r&f
-      frequency_cap: String(body.frequencyCap || 1),
+      frequency_cap: String(body.frequencyCap || frequencyCap),
       start_time: String(startTimeUnix), // REQUIRED
       end_time: String(endTimeUnix), // REQUIRED
-      // Hardcoded placements as required by Meta R&F API
-      publisher_platforms: JSON.stringify(["audience_network"]),
-      facebook_positions: JSON.stringify(["native_banner_interstitial", "instream_video"]),
+      destination_ids: JSON.stringify([pageId]), // Page ID for destination
     };
 
+    // Add placement parameters based on publisher platforms
+    const publisherPlatforms = body.publisherPlatforms || ["audience_network"];
+    const positions = body.positions || {};
+
+    if (publisherPlatforms.includes("audience_network")) {
+      predictionParams.publisher_platforms = JSON.stringify(["audience_network"]);
+      // For Audience Network, use audience_network_positions (not facebook_positions)
+      predictionParams.audience_network_positions = JSON.stringify(
+        positions.audience_network || ["native_banner_interstitial", "instream_video"]
+      );
+    } else if (publisherPlatforms.includes("facebook")) {
+      predictionParams.publisher_platforms = JSON.stringify(["facebook"]);
+      predictionParams.facebook_positions = JSON.stringify(
+        positions.facebook || ["feed", "instant_article"]
+      );
+    } else if (publisherPlatforms.includes("instagram")) {
+      predictionParams.publisher_platforms = JSON.stringify(["instagram"]);
+      predictionParams.instagram_positions = JSON.stringify(
+        positions.instagram || ["stream", "story"]
+      );
+    }
+
     console.log(
-      `R&F budget: $${(testBudget / 100).toLocaleString()} (${testBudget} cents), Markets: ${normalizedMarkets.join(", ")}`,
+      `R&F budget: $${(budgetCents / 100).toLocaleString()} (${budgetCents} cents), Markets: ${normalizedMarkets.join(", ")}`,
     );
+    console.log(`R&F campaign duration: ${durationDays} days, frequency cap: ${frequencyCap}`);
 
     const maskedParams = new URLSearchParams(predictionParams)
       .toString()

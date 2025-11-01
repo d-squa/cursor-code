@@ -117,6 +117,8 @@ export function CampaignForecast({
             positions: market.positions || {},
             detailedTargeting: market.detailedTargeting || [],
             frequencyCap: market.frequencyCap || 2,
+            // Page ID (REQUIRED for R&F destination_ids)
+            page: market.page,
             // Instagram account (REQUIRED for R&F with Instagram placements)
             instagramActorId: market.instagramActorId,
           }
