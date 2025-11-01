@@ -38,7 +38,7 @@ export const getRFTestPreset = (): PlatformWithMarkets[] => {
   ];
 };
 
-// Pre-filled test presets to exercise auto-detect across platforms/markets
+// Multi-platform test preset to exercise auto-detect across platforms/markets
 export const getTestPresets = (): PlatformWithMarkets[] => [
   {
     id: "meta",

@@ -8,8 +8,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, X, Copy } from "lucide-react";
 import { PlatformWithMarkets, Market } from "@/types/mediaplan";
 import { AdFormatSelector } from "./AdFormatSelector";
-import { getTestPresets } from "@/utils/testPresets";
+import { getTestPresets, getRFTestPreset } from "@/utils/testPresets";
 import { supabase } from "@/integrations/supabase/client";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
 
@@ -114,6 +116,10 @@ export function PlatformMarketBudgetSelector({
 
   const loadTestPresets = () => {
     setPlatforms(getTestPresets());
+  };
+
+  const loadRFPreset = () => {
+    setPlatforms(getRFTestPreset());
   };
 
   const removePlatform = (index: number) => {
@@ -294,16 +300,28 @@ export function PlatformMarketBudgetSelector({
         <div className="flex items-center justify-between">
           <CardTitle>Platform & Market Selection</CardTitle>
           <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={loadTestPresets}
-              className="gap-1"
-            >
-              <Copy className="h-3 w-3" />
-              Load Test Presets
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-1"
+                >
+                  <Copy className="h-3 w-3" />
+                  Load Test Presets
+                  <ChevronDown className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="z-50 bg-background">
+                <DropdownMenuItem onClick={loadTestPresets}>
+                  Multi-Platform Test
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={loadRFPreset}>
+                  Meta R&F Italy
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button
               type="button"
               variant="outline"
