@@ -142,7 +142,7 @@ serve(async (req) => {
     // Use dates from request body
     const startDate = body.startDate ? new Date(body.startDate) : new Date();
     const endDate = body.endDate ? new Date(body.endDate) : new Date();
-    
+
     // Set start to 9 AM UTC and end to 11:59 PM UTC
     startDate.setUTCHours(9, 0, 0, 0);
     endDate.setUTCHours(23, 59, 59, 999);
@@ -192,18 +192,14 @@ serve(async (req) => {
       predictionParams.publisher_platforms = JSON.stringify(["audience_network"]);
       // For Audience Network, use audience_network_positions (not facebook_positions)
       predictionParams.audience_network_positions = JSON.stringify(
-        positions.audience_network || ["native_banner_interstitial", "instream_video"]
+        positions.audience_network || ["native_banner_interstitial", "instream_video"],
       );
     } else if (publisherPlatforms.includes("facebook")) {
       predictionParams.publisher_platforms = JSON.stringify(["facebook"]);
-      predictionParams.facebook_positions = JSON.stringify(
-        positions.facebook || ["feed", "instant_article"]
-      );
+      predictionParams.facebook_positions = JSON.stringify(positions.facebook || ["feed", "instant_article"]);
     } else if (publisherPlatforms.includes("instagram")) {
       predictionParams.publisher_platforms = JSON.stringify(["instagram"]);
-      predictionParams.instagram_positions = JSON.stringify(
-        positions.instagram || ["stream", "story"]
-      );
+      predictionParams.instagram_positions = JSON.stringify(positions.instagram || ["stream", "story"]);
     }
 
     console.log(
@@ -298,7 +294,7 @@ serve(async (req) => {
           console.error("Full response:", JSON.stringify(predictionResult, null, 2));
           console.error("Target spec used:", JSON.stringify(targetSpec, null, 2));
           console.error("Prediction params:", {
-            budget: budgetCents / 100,
+            budget: testBudget,
             markets: normalizedMarkets,
             platforms: targetSpec.publisher_platforms,
             dateRange: `${new Date(predictionResult.campaign_time_start * 1000).toISOString()} to ${new Date(predictionResult.campaign_time_stop * 1000).toISOString()}`,
@@ -339,7 +335,7 @@ serve(async (req) => {
     const externalImpression = predictionResult.external_impression || 0;
     const externalBudget = predictionResult.external_budget || body.budget;
     const audienceSize = predictionResult.audience_size_upper_bound || 0;
-    const resultFrequencyCap = predictionResult.frequency_cap || 1;
+    const frequencyCap = predictionResult.frequency_cap || 1;
     const externalMinimumBudget = predictionResult.external_minimum_budget || 0;
 
     // Calculate CPM from actual Meta API data: (budget / impressions) * 1000
@@ -347,7 +343,7 @@ serve(async (req) => {
 
     console.log("✅ LIVE R&F METRICS FROM META API:", {
       id: predictionResult.id,
-      frequencyCap: resultFrequencyCap,
+      frequencyCap,
       campaignTimeStart: predictionResult.campaign_time_start,
       campaignTimeStop: predictionResult.campaign_time_stop,
       externalReach: `${externalReach.toLocaleString()} (LIVE)`,
@@ -376,7 +372,7 @@ serve(async (req) => {
       cpm: parseFloat(cpm.toFixed(2)), // Calculated from API data
       budget: externalBudget, // From external_budget
       minimumBudget: externalMinimumBudget, // From external_minimum_budget
-      frequencyCap: resultFrequencyCap, // From frequency_cap
+      frequencyCap, // From frequency_cap
 
       // Estimated metrics (since R&F API doesn't provide these):
       clicks,
