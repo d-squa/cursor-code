@@ -45,7 +45,14 @@ export function CampaignForecast({
   const [loading, setLoading] = useState(false);
   const [forecasts, setForecasts] = useState<Record<string, Array<{ market: string; budget: number; metrics: ForecastMetrics }>>>({});
 
-  const fetchForecast = async (platformId: string, marketId: string, budget: number, market: any) => {
+  const fetchForecast = async (
+    platformId: string,
+    marketId: string,
+    budget: number,
+    market: any,
+    campaignStartDate?: string,
+    campaignEndDate?: string
+  ) => {
     // Call actual platform APIs for Meta, use mock for others
     if (platformId.includes("facebook") || platformId.includes("instagram") || platformId.includes("meta")) {
         const strategyFocus = market.strategyFocus || genericConfig.strategyFocus || 'conversions';
@@ -106,9 +113,9 @@ export function CampaignForecast({
             // Add campaign configuration from market
             isCBOEnabled: market.isCBOEnabled || false,
             isLifetimeBudget: market.isLifetimeBudget || false,
-            startDate, // Campaign start date (required)
-            endDate, // Campaign end date (required)
-            // Add targeting parameters
+            startDate: campaignStartDate || startDate, // Use campaign-specific dates if available
+            endDate: campaignEndDate || endDate,
+            // Add targeting parameters (with phase overrides)
             ageMin: market.ageMin || 18,
             ageMax: market.ageMax || 65,
             gender: market.gender || 'all',
@@ -263,49 +270,108 @@ export function CampaignForecast({
 
       for (const platform of platforms) {
         const platformBudget = totalBudget * (platform.budgetPercentage / 100);
-        const platformMarkets = platform.markets.map(market => {
-          const marketBudget = platformBudget * (market.budgetPercentage / 100);
-          return {
-            name: market.name,
-            budget: marketBudget,
-            market
-          };
-        });
+        const campaignForecasts: any[] = [];
 
-        newForecasts[platform.id] = await Promise.all(
-          platformMarkets.map(async ({ name, budget, market }) => {
-            try {
-              const forecast = await fetchForecast(platform.id, market.id, budget, market);
-              return {
-                market: name,
-                budget,
-                metrics: forecast,
-              };
-            } catch (error: any) {
-              console.error(`Forecast error for ${platform.id} - ${name}:`, error);
-              toast.error(`Could not fetch forecast for ${name} on ${platform.name}. Using estimates.`);
+        for (const market of platform.markets) {
+          const marketBudget = platformBudget * (market.budgetPercentage / 100);
+          
+          // Each phase is a campaign - fetch forecast for each
+          if (market.phases && market.phases.length > 0) {
+            for (const phase of market.phases) {
+              const campaignBudget = marketBudget * (phase.budgetPercentage / 100);
               
-              // Return estimated metrics as fallback
-              return {
-                market: name,
-                budget,
+              try {
+                // Create a campaign-specific market object with phase overrides
+                const campaignMarket = {
+                  ...market,
+                  // Override with phase-specific settings
+                  publisherPlatforms: phase.publisherPlatforms || market.publisherPlatforms,
+                  positions: phase.positions || market.positions,
+                  ageMin: phase.ageMin || market.ageMin,
+                  ageMax: phase.ageMax || market.ageMax,
+                  gender: phase.gender || market.gender,
+                  countries: phase.countries || market.countries,
+                  languages: phase.languages || market.languages,
+                  detailedTargeting: phase.detailedTargeting || market.detailedTargeting,
+                };
+
+                const forecast = await fetchForecast(
+                  platform.id,
+                  market.id,
+                  campaignBudget,
+                  campaignMarket,
+                  phase.startDate,
+                  phase.endDate
+                );
+                
+                campaignForecasts.push({
+                  market: `${market.name} - ${phase.name}`,
+                  budget: campaignBudget,
+                  campaign: phase.name,
+                  dates: `${phase.startDate} → ${phase.endDate}`,
+                  metrics: forecast,
+                });
+              } catch (error: any) {
+                console.error(`Forecast error for ${platform.id} - ${market.name} - ${phase.name}:`, error);
+                toast.error(`Could not fetch forecast for ${market.name} - ${phase.name}. Using estimates.`);
+                
+                // Return estimated metrics as fallback
+                campaignForecasts.push({
+                  market: `${market.name} - ${phase.name}`,
+                  budget: campaignBudget,
+                  campaign: phase.name,
+                  dates: `${phase.startDate} → ${phase.endDate}`,
+                  metrics: {
+                    audienceSize: Math.round(campaignBudget * 100),
+                    reach: Math.round(campaignBudget * 50),
+                    impressions: Math.round(campaignBudget * 100),
+                    cpm: 10,
+                    clicks: Math.round(campaignBudget * 10),
+                    ctr: 1.0,
+                    cpc: 1.0,
+                    results: Math.round(campaignBudget * 2),
+                    resultType: 'Conversions',
+                    costPerResult: 5.0,
+                    conversionRate: 2.0,
+                  },
+                });
+              }
+            }
+          } else {
+            // Fallback: if no phases, treat entire market as one campaign
+            try {
+              const forecast = await fetchForecast(platform.id, market.id, marketBudget, market);
+              campaignForecasts.push({
+                market: market.name,
+                budget: marketBudget,
+                metrics: forecast,
+              });
+            } catch (error: any) {
+              console.error(`Forecast error for ${platform.id} - ${market.name}:`, error);
+              toast.error(`Could not fetch forecast for ${market.name}. Using estimates.`);
+              
+              campaignForecasts.push({
+                market: market.name,
+                budget: marketBudget,
                 metrics: {
-                  audienceSize: Math.round(budget * 100),
-                  reach: Math.round(budget * 50),
-                  impressions: Math.round(budget * 100),
+                  audienceSize: Math.round(marketBudget * 100),
+                  reach: Math.round(marketBudget * 50),
+                  impressions: Math.round(marketBudget * 100),
                   cpm: 10,
-                  clicks: Math.round(budget * 10),
+                  clicks: Math.round(marketBudget * 10),
                   ctr: 1.0,
                   cpc: 1.0,
-                  results: Math.round(budget * 2),
-                  resultMetric: "conversions",
-                  costPerResult: budget > 0 ? (budget / Math.round(budget * 2)) : 0,
-                  resultRate: 2.0,
+                  results: Math.round(marketBudget * 2),
+                  resultType: 'Conversions',
+                  costPerResult: 5.0,
+                  conversionRate: 2.0,
                 },
-              };
+              });
             }
-          })
-        );
+          }
+        }
+
+        newForecasts[platform.id] = campaignForecasts;
       }
 
       setForecasts(newForecasts);

@@ -10,9 +10,11 @@ import { Switch } from "@/components/ui/switch";
 import { PlatformWithMarkets } from "@/types/mediaplan";
 import { GenericConfig } from "./GenericStrategyConfig";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { CheckCircle2, Edit } from "lucide-react";
+import { CheckCircle2, Edit, ChevronDown, ChevronUp } from "lucide-react";
 import { determineStrategyFocus, getOptimizationGoalForFocus } from "@/utils/strategyFocusMapping";
 import { generateAutoDetectPhases } from "@/utils/funnelPhases";
+import { CampaignPublisherConfig } from "./CampaignPublisherConfig";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface PlatformCustomizationProps {
   platforms: PlatformWithMarkets[];
@@ -68,6 +70,7 @@ export function PlatformCustomization({
   endDate,
 }: PlatformCustomizationProps) {
   const [editingMode, setEditingMode] = useState<{ [key: string]: boolean }>({});
+  const [expandedCampaigns, setExpandedCampaigns] = useState<{ [key: string]: boolean }>({});
 
   // Auto-generate phases on mount if using auto-detect and phases are missing
   useEffect(() => {
@@ -185,6 +188,38 @@ export function PlatformCustomization({
       return p;
     });
     onPlatformsUpdate(updatedPlatforms);
+  };
+
+  const updateCampaignField = (
+    platformId: string,
+    marketId: string,
+    phaseId: string,
+    field: string,
+    value: any
+  ) => {
+    const updatedPlatforms = platforms.map(p => {
+      if (p.id === platformId) {
+        return {
+          ...p,
+          markets: p.markets.map(m =>
+            m.id === marketId
+              ? {
+                  ...m,
+                  phases: (m.phases || []).map(phase =>
+                    phase.id === phaseId ? { ...phase, [field]: value } : phase
+                  ),
+                }
+              : m
+          ),
+        };
+      }
+      return p;
+    });
+    onPlatformsUpdate(updatedPlatforms);
+  };
+
+  const toggleCampaign = (key: string) => {
+    setExpandedCampaigns(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
   const isCustomizationComplete = () => {
@@ -388,35 +423,152 @@ return (
                           </div>
                         )}
 
-                        {/* Campaign Structure Preview */}
+                        {/* Campaign Structure - Now Editable per Campaign */}
                         <div className="border rounded-lg p-4 bg-muted/30 space-y-3">
-                          <h4 className="font-medium text-sm">Campaign Structure</h4>
+                          <h4 className="font-medium text-sm">Campaigns (Strategy Phases)</h4>
+                          <p className="text-xs text-muted-foreground">
+                            Each phase represents a campaign that inherits targeting settings but can be customized with different publisher platforms and placements.
+                          </p>
                           
                           {market.phases && market.phases.length > 0 ? (
-                            <div className="space-y-2">
-                              {market.phases.map((phase) => (
-                                <div key={phase.id} className="text-xs space-y-1 bg-background p-2 rounded">
-                                  <div className="flex justify-between items-center">
-                                    <span className="font-medium">{phase.name}</span>
-                                    <Badge variant="outline" className="text-xs">
-                                      {phase.budgetPercentage}%
-                                    </Badge>
-                                  </div>
-                                  <div className="text-muted-foreground">
-                                    {phase.startDate} → {phase.endDate}
-                                  </div>
-                                </div>
-                              ))}
+                            <div className="space-y-3">
+                              {market.phases.map((phase, idx) => {
+                                const campaignKey = `${platform.id}-${market.id}-${phase.id}`;
+                                const isExpanded = expandedCampaigns[campaignKey];
+                                
+                                return (
+                                  <Collapsible
+                                    key={phase.id}
+                                    open={isExpanded}
+                                    onOpenChange={() => toggleCampaign(campaignKey)}
+                                  >
+                                    <div className="border rounded-lg bg-background">
+                                      <CollapsibleTrigger className="w-full p-3 hover:bg-muted/50 transition-colors">
+                                        <div className="flex items-center justify-between">
+                                          <div className="flex items-center gap-2">
+                                            {isExpanded ? (
+                                              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                            ) : (
+                                              <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                                            )}
+                                            <span className="font-medium text-sm">{phase.name}</span>
+                                            <Badge variant="outline" className="text-xs">
+                                              {phase.budgetPercentage}%
+                                            </Badge>
+                                          </div>
+                                          <div className="text-xs text-muted-foreground">
+                                            {phase.startDate} → {phase.endDate}
+                                          </div>
+                                        </div>
+                                      </CollapsibleTrigger>
+                                      
+                                      <CollapsibleContent>
+                                        <div className="p-4 space-y-4 border-t">
+                                          {/* Campaign Details */}
+                                          <div className="text-xs text-muted-foreground space-y-1">
+                                            <p><strong>Inherits from targeting:</strong></p>
+                                            <ul className="list-disc list-inside pl-2">
+                                              <li>Age: {genericConfig.targeting?.ageMin || phase.ageMin || 18} - {genericConfig.targeting?.ageMax || phase.ageMax || 65}</li>
+                                              <li>Gender: {phase.gender || market.gender || 'All'}</li>
+                                              <li>Countries: {(phase.countries || market.countries || []).join(', ') || 'Not set'}</li>
+                                            </ul>
+                                          </div>
+
+                                          {/* Publisher Platforms & Positions Configuration */}
+                                          <div className="border-t pt-4">
+                                            <CampaignPublisherConfig
+                                              platformName={platform.name}
+                                              publisherPlatforms={
+                                                phase.publisherPlatforms || 
+                                                market.publisherPlatforms || 
+                                                ["facebook"]
+                                              }
+                                              positions={
+                                                phase.positions || 
+                                                market.positions || 
+                                                {}
+                                              }
+                                              onPublisherPlatformsChange={(platforms) => {
+                                                updateCampaignField(
+                                                  platform.id,
+                                                  market.id,
+                                                  phase.id,
+                                                  "publisherPlatforms",
+                                                  platforms
+                                                );
+                                              }}
+                                              onPositionsChange={(positions) => {
+                                                updateCampaignField(
+                                                  platform.id,
+                                                  market.id,
+                                                  phase.id,
+                                                  "positions",
+                                                  positions
+                                                );
+                                              }}
+                                            />
+                                          </div>
+
+                                          {/* Override Targeting (Optional) */}
+                                          <div className="border-t pt-4">
+                                            <div className="flex items-center justify-between mb-3">
+                                              <Label className="text-xs font-medium">Override Targeting (Optional)</Label>
+                                            </div>
+                                            <div className="grid gap-3 md:grid-cols-2">
+                                              <div className="space-y-1">
+                                                <Label htmlFor={`age-min-${phase.id}`} className="text-xs">Min Age</Label>
+                                                <Input
+                                                  id={`age-min-${phase.id}`}
+                                                  type="number"
+                                                  min="13"
+                                                  max="65"
+                                                  placeholder={`${genericConfig.targeting?.ageMin || 18}`}
+                                                  value={phase.ageMin || ''}
+                                                  onChange={(e) =>
+                                                    updateCampaignField(
+                                                      platform.id,
+                                                      market.id,
+                                                      phase.id,
+                                                      "ageMin",
+                                                      e.target.value ? parseInt(e.target.value) : undefined
+                                                    )
+                                                  }
+                                                  className="h-8 text-xs"
+                                                />
+                                              </div>
+                                              <div className="space-y-1">
+                                                <Label htmlFor={`age-max-${phase.id}`} className="text-xs">Max Age</Label>
+                                                <Input
+                                                  id={`age-max-${phase.id}`}
+                                                  type="number"
+                                                  min="13"
+                                                  max="65"
+                                                  placeholder={`${genericConfig.targeting?.ageMax || 65}`}
+                                                  value={phase.ageMax || ''}
+                                                  onChange={(e) =>
+                                                    updateCampaignField(
+                                                      platform.id,
+                                                      market.id,
+                                                      phase.id,
+                                                      "ageMax",
+                                                      e.target.value ? parseInt(e.target.value) : undefined
+                                                    )
+                                                  }
+                                                  className="h-8 text-xs"
+                                                />
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </CollapsibleContent>
+                                    </div>
+                                  </Collapsible>
+                                );
+                              })}
                             </div>
                           ) : (
                             <div className="text-xs text-muted-foreground">
-                              <p>Campaign will be created based on:</p>
-                              <ul className="list-disc list-inside mt-2 space-y-1">
-                                <li>Objective: {mapGenericToPlatformObjective(platform.name, genericConfig.strategyFocus, market)}</li>
-                                <li>Ad Formats: {market.adFormats?.join(", ") || "Not selected"}</li>
-                                <li>Targeting: Age {genericConfig.targeting?.ageMin}-{genericConfig.targeting?.ageMax}</li>
-                                <li>Placements: {genericConfig.targeting?.placements?.join(", ") || "Automatic"}</li>
-                              </ul>
+                              <p>No campaigns generated yet. Complete the strategy configuration to generate campaigns.</p>
                             </div>
                           )}
                         </div>

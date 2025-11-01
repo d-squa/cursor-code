@@ -47,6 +47,19 @@ export interface Phase {
   isLoyaltyPhase?: boolean;
   objective?: string;
   funnelStage?: string;
+  // Campaign-level overrides (inherits from market/generic if not set)
+  publisherPlatforms?: string[];
+  positions?: {
+    facebook?: string[];
+    instagram?: string[];
+    audience_network?: string[];
+  };
+  countries?: string[];
+  gender?: string;
+  languages?: number[];
+  ageMin?: number;
+  ageMax?: number;
+  detailedTargeting?: Array<{ id: string; type: string; name?: string }>;
 }
 
 export interface Campaign {

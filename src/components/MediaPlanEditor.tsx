@@ -59,7 +59,6 @@ export function MediaPlanEditor() {
       ageMax: 45,
       genders: ["all"],
       devices: ["mobile"],
-      placements: [],
       targetingExpansion: true,
       os: ["iOS", "Android"],
       language: "en",
