@@ -29,10 +29,26 @@ import { Badge } from "@/components/ui/badge";
 export function MediaPlanEditor() {
   const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
-  const [campaignName, setCampaignName] = useState<string>("Q1 2024 Campaign");
+  const [campaignName, setCampaignName] = useState<string>("Q1 2025 Campaign");
   const [totalBudget, setTotalBudget] = useState<string>("100000");
-  const [startDate, setStartDate] = useState<string>("2024-01-01");
-  const [endDate, setEndDate] = useState<string>("2024-03-31");
+  
+  // Initialize dates: start = today+1, end = today+1 month
+  const getDefaultDates = () => {
+    const today = new Date();
+    const start = new Date(today);
+    start.setDate(start.getDate() + 1);
+    const end = new Date(today);
+    end.setMonth(end.getMonth() + 1);
+    end.setDate(end.getDate() + 1);
+    return {
+      start: format(start, "yyyy-MM-dd"),
+      end: format(end, "yyyy-MM-dd")
+    };
+  };
+  
+  const defaultDates = getDefaultDates();
+  const [startDate, setStartDate] = useState<string>(defaultDates.start);
+  const [endDate, setEndDate] = useState<string>(defaultDates.end);
   const [saving, setSaving] = useState(false);
   const [genericConfig, setGenericConfig] = useState<GenericConfig>({
     strategy: "auto-detect",
@@ -324,6 +340,9 @@ export function MediaPlanEditor() {
                 platforms={platformsWithMarkets}
                 setPlatforms={setPlatformsWithMarkets}
                 totalBudget={parseFloat(totalBudget) || 0}
+                setStartDate={setStartDate}
+                setEndDate={setEndDate}
+                setTotalBudget={setTotalBudget}
               />
             </div>
 

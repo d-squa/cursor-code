@@ -19,6 +19,9 @@ interface PlatformMarketBudgetSelectorProps {
   platforms: PlatformWithMarkets[];
   setPlatforms: (platforms: PlatformWithMarkets[]) => void;
   totalBudget: number;
+  setStartDate?: (date: string) => void;
+  setEndDate?: (date: string) => void;
+  setTotalBudget?: (budget: string) => void;
 }
 
 const AVAILABLE_PLATFORMS = [
@@ -33,7 +36,10 @@ const AVAILABLE_PLATFORMS = [
 export function PlatformMarketBudgetSelector({ 
   platforms, 
   setPlatforms,
-  totalBudget 
+  totalBudget,
+  setStartDate,
+  setEndDate,
+  setTotalBudget
 }: PlatformMarketBudgetSelectorProps) {
   const [instagramAccounts, setInstagramAccounts] = useState<Array<{ id: string; username: string; name: string }>>([]);
   const [isLoadingAccounts, setIsLoadingAccounts] = useState(false);
@@ -119,7 +125,13 @@ export function PlatformMarketBudgetSelector({
   };
 
   const loadRFPreset = () => {
-    setPlatforms(getRFTestPreset());
+    const preset = getRFTestPreset();
+    setPlatforms(preset.platforms);
+    
+    // Update dates and budget if setters are provided
+    if (setStartDate) setStartDate(preset.startDate);
+    if (setEndDate) setEndDate(preset.endDate);
+    if (setTotalBudget) setTotalBudget(preset.totalBudget.toString());
   };
 
   const removePlatform = (index: number) => {
