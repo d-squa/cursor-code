@@ -1,5 +1,43 @@
 import { PlatformWithMarkets } from "@/types/mediaplan";
 
+// R&F-specific preset for Meta Italy with proper placements
+export const getRFTestPreset = (): PlatformWithMarkets[] => {
+  const today = new Date();
+  const startDate = new Date(today);
+  startDate.setDate(startDate.getDate() + 1);
+  const endDate = new Date(today);
+  endDate.setMonth(endDate.getMonth() + 1);
+  endDate.setDate(endDate.getDate() + 1);
+
+  return [
+    {
+      id: "meta",
+      name: "Meta",
+      enabled: true,
+      budgetPercentage: 100,
+      markets: [
+        {
+          id: "meta-it",
+          name: "Italy",
+          budgetPercentage: 100,
+          accountName: "account-1",
+          page: "page-1",
+          pixel: "pixel-1",
+          countries: ["IT"],
+          ageMin: 18,
+          ageMax: 65,
+          publisherPlatforms: ["audience_network"],
+          positions: {
+            facebook: ["native_banner_interstitial", "instream_video"],
+          },
+          adFormats: ["Video ads"],
+          phases: [],
+        },
+      ],
+    },
+  ];
+};
+
 // Pre-filled test presets to exercise auto-detect across platforms/markets
 export const getTestPresets = (): PlatformWithMarkets[] => [
   {
