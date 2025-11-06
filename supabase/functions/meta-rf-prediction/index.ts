@@ -202,33 +202,14 @@ serve(async (req) => {
       destination_ids: JSON.stringify([pageId]), // Page ID for destination
     };
 
-    // Add placement parameters based on publisher platforms
+    // CRITICAL: For R&F campaigns, DO NOT specify position parameters
+    // Meta has strict restrictions on R&F placements and will return error 1885696
+    // Let Meta auto-select valid placements based on publisher_platforms only
     const publisherPlatforms = body.publisherPlatforms || ["audience_network"];
-    const positions = body.positions || {};
 
-    // CRITICAL: Set publisher_platforms and positions as TOP-LEVEL parameters (NOT in target_spec)
-    // Multiple platforms can be used simultaneously, so don't use else-if
     if (publisherPlatforms.length > 0) {
       predictionParams.publisher_platforms = JSON.stringify(publisherPlatforms);
-      
-      // Set position parameters for each platform included
-      if (publisherPlatforms.includes("audience_network") && positions.audience_network) {
-        predictionParams.audience_network_positions = JSON.stringify(
-          positions.audience_network
-        );
-      }
-      
-      if (publisherPlatforms.includes("facebook") && positions.facebook) {
-        predictionParams.facebook_positions = JSON.stringify(
-          positions.facebook
-        );
-      }
-      
-      if (publisherPlatforms.includes("instagram") && positions.instagram) {
-        predictionParams.instagram_positions = JSON.stringify(
-          positions.instagram
-        );
-      }
+      console.log("R&F publisher platforms (positions will be auto-selected by Meta):", publisherPlatforms);
     }
 
     console.log(
@@ -291,8 +272,19 @@ serve(async (req) => {
 
     const predictionData = await createResponse.json();
     const predictionId = predictionData.id;
-    console.log("Created R&F prediction:", predictionId);
-    console.log("Initial prediction data:", JSON.stringify(predictionData, null, 2));
+    console.log("✅ Created R&F prediction ID:", predictionId);
+    console.log("📋 Initial prediction data:", JSON.stringify(predictionData, null, 2));
+    
+    // Log prediction IDs if curve_budget_reach is present
+    if (predictionData.curve_budget_reach && Array.isArray(predictionData.curve_budget_reach)) {
+      console.log(`📊 Received ${predictionData.curve_budget_reach.length} prediction curve points`);
+      console.log("🆔 Prediction IDs from curve:", predictionData.curve_budget_reach.map((p: any) => ({
+        id: p.id || predictionId,
+        budget: p.budget / 100,
+        reach: p.reach,
+        impressions: p.impression
+      })));
+    }
 
     // Step 2: Poll for prediction status
     // Predictions can take a few seconds to compute
