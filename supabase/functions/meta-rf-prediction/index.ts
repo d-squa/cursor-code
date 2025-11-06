@@ -205,7 +205,7 @@ serve(async (req) => {
     // CRITICAL: For R&F campaigns, DO NOT specify position parameters
     // Meta has strict restrictions on R&F placements and will return error 1885696
     // Let Meta auto-select valid placements based on publisher_platforms only
-    const publisherPlatforms = body.publisherPlatforms || ["audience_network"];
+    const publisherPlatforms = Array.isArray(body.publisherPlatforms) ? body.publisherPlatforms : [];
 
     if (publisherPlatforms.length > 0) {
       predictionParams.publisher_platforms = JSON.stringify(publisherPlatforms);
@@ -226,7 +226,7 @@ serve(async (req) => {
       .replace(/access_token=[^&]+/, "access_token=***");
     console.log("Creating R&F prediction with params:", maskedParams);
 
-    const createResponse = await fetch(
+    let createResponse = await fetch(
       `https://graph.facebook.com/v21.0/act_${adAccountId}/reachfrequencypredictions`,
       {
         method: "POST",
@@ -239,35 +239,73 @@ serve(async (req) => {
       const errorText = await createResponse.text();
       console.error("R&F prediction creation error:", errorText);
 
+      let errorData: any = null;
       try {
-        const errorData = JSON.parse(errorText);
-
-        // Handle specific error codes
-        if (errorData.error?.code === 190) {
-          throw new Error("INVALID_TOKEN: Meta access token is invalid or expired.");
-        }
-
-        if (errorData.error?.code === 100 && errorData.error?.message?.includes("buying_type")) {
-          throw new Error(
-            "R&F_NOT_AVAILABLE: This ad account is not eligible for Reach & Frequency campaigns. The account must have RESERVED buying_type access.",
-          );
-        }
-
-        if (errorData.error?.code === 200) {
-          throw new Error(
-            "PERMISSION_ERROR: Meta access token does not have required permissions. Need ads_management and business_management scopes for R&F predictions.",
-          );
-        }
-      } catch (e) {
-        if (
-          e instanceof Error &&
-          (e.message.startsWith("R&F_") || e.message.startsWith("INVALID_") || e.message.startsWith("PERMISSION_"))
-        ) {
-          throw e;
-        }
+        errorData = JSON.parse(errorText);
+      } catch (_) {
+        // ignore JSON parse failure
       }
 
-      throw new Error(`R&F prediction creation failed: ${errorText}`);
+      // If invalid placements (1885696), retry without any placement restrictions
+      const isPlacementError =
+        errorData?.error?.code === 100 && (errorData?.error?.error_subcode === 1885696 || errorData?.error?.error_subcode === 1885369);
+
+      if (isPlacementError) {
+        const fallbackParams: Record<string, string> = { ...predictionParams };
+        delete fallbackParams.publisher_platforms;
+        delete fallbackParams.audience_network_positions;
+        delete fallbackParams.facebook_positions;
+        delete fallbackParams.instagram_positions;
+
+        console.warn("⚠️ Placement validation failed (1885696). Retrying without placement restrictions.");
+        console.log(
+          "Retrying with params:",
+          new URLSearchParams(fallbackParams).toString().replace(/access_token=[^&]+/, "access_token=***"),
+        );
+
+        createResponse = await fetch(
+          `https://graph.facebook.com/v21.0/act_${adAccountId}/reachfrequencypredictions`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams(fallbackParams),
+          },
+        );
+      }
+
+      // Handle specific error codes (after optional retry)
+      if (!createResponse.ok) {
+        const finalErrorText = errorData ? JSON.stringify(errorData) : errorText;
+
+        try {
+          const finalData = errorData || JSON.parse(errorText);
+
+          if (finalData.error?.code === 190) {
+            throw new Error("INVALID_TOKEN: Meta access token is invalid or expired.");
+          }
+
+          if (finalData.error?.code === 100 && finalData.error?.message?.includes("buying_type")) {
+            throw new Error(
+              "R&F_NOT_AVAILABLE: This ad account is not eligible for Reach & Frequency campaigns. The account must have RESERVED buying_type access.",
+            );
+          }
+
+          if (finalData.error?.code === 200) {
+            throw new Error(
+              "PERMISSION_ERROR: Meta access token does not have required permissions. Need ads_management and business_management scopes for R&F predictions.",
+            );
+          }
+        } catch (e) {
+          if (
+            e instanceof Error &&
+            (e.message.startsWith("R&F_") || e.message.startsWith("INVALID_") || e.message.startsWith("PERMISSION_"))
+          ) {
+            throw e;
+          }
+        }
+
+        throw new Error(`R&F prediction creation failed: ${finalErrorText}`);
+      }
     }
 
     const predictionData = await createResponse.json();
@@ -279,7 +317,7 @@ serve(async (req) => {
     if (predictionData.curve_budget_reach && Array.isArray(predictionData.curve_budget_reach)) {
       console.log(`📊 Received ${predictionData.curve_budget_reach.length} prediction curve points`);
       console.log("🆔 Prediction IDs from curve:", predictionData.curve_budget_reach.map((p: any) => ({
-        id: p.id || predictionId,
+        id: p.id || p.rf_prediction_id || p.prediction_id || predictionId,
         budget: p.budget / 100,
         reach: p.reach,
         impressions: p.impression
