@@ -236,10 +236,9 @@ serve(async (req) => {
     );
     console.log(`R&F campaign duration: ${durationDays} days, frequency cap: ${frequencyCap}`);
 
-    // Log full API URL for Graph API Explorer testing
-    const fullUrl = `https://graph.facebook.com/v21.0/act_${adAccountId}/reachfrequencypredictions?${new URLSearchParams(predictionParams).toString()}`;
-    console.log("🔗 FULL API URL FOR GRAPH API EXPLORER:");
-    console.log(fullUrl);
+    // Log full API URL for Graph API Explorer testing (non-clickable format)
+    console.log("🔗 FULL API URL FOR GRAPH API EXPLORER (copy entire line below):");
+    console.log(`https://graph.facebook.com/v21.0/act_${adAccountId}/reachfrequencypredictions?${new URLSearchParams(predictionParams).toString()}`);
 
     const maskedParams = new URLSearchParams(predictionParams)
       .toString()
