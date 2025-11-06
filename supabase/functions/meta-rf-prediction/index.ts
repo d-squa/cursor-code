@@ -179,14 +179,18 @@ serve(async (req) => {
       endTimeUnix,
     });
 
-    // Get page ID from body or use a default (destination_ids is required)
-    const pageId = body.pageId || body.page || "1757934224274443"; // Use provided or fallback
+    // Get page ID and optional Instagram ID from body
+    const pageId = body.pageId || body.page || "1757934224274443"; // Fallback Page ID
+    const instagramId = body.instagramId || body.igUserId || body.instagram_actor_id || null; // Prefer ig_user_id if provided
 
     // Budget in cents
     const budgetCents = body.budget * 100;
 
     // CRITICAL: R&F predictions ALWAYS use REACH objective regardless of UI selection
     // This is a hard requirement for Meta's Reach & Frequency API
+    const destinationIds: string[] = [pageId];
+    if (instagramId) destinationIds.push(instagramId);
+
     const predictionParams: Record<string, string> = {
       access_token: accessToken,
       target_spec: JSON.stringify(targetSpec),
@@ -199,17 +203,34 @@ serve(async (req) => {
       frequency_cap: String(body.frequencyCap || frequencyCap),
       start_time: String(startTimeUnix), // REQUIRED
       end_time: String(endTimeUnix), // REQUIRED
-      destination_ids: JSON.stringify([pageId]), // Page ID for destination
+      destination_ids: JSON.stringify(destinationIds), // Page ID and optional IG ID
     };
 
     // CRITICAL: For R&F campaigns, DO NOT specify position parameters
     // Meta has strict restrictions on R&F placements and will return error 1885696
-    // Let Meta auto-select valid placements based on publisher_platforms only
-    const publisherPlatforms = Array.isArray(body.publisherPlatforms) ? body.publisherPlatforms : [];
+    // Choose publisher platforms safely based on provided destination IDs
+    const igProvided = Boolean(instagramId);
+    const requestedPlatforms = Array.isArray(body.publisherPlatforms) ? body.publisherPlatforms : [];
 
-    if (publisherPlatforms.length > 0) {
-      predictionParams.publisher_platforms = JSON.stringify(publisherPlatforms);
-      console.log("R&F publisher platforms (positions will be auto-selected by Meta):", publisherPlatforms);
+    // If Instagram is requested but no IG ID provided, filter it out to avoid placement errors
+    let safePlatforms = requestedPlatforms.filter((p: string) => (p !== "instagram" || igProvided));
+
+    // If no platforms requested, default to Facebook only to avoid IG destination requirements
+    if (safePlatforms.length === 0) {
+      safePlatforms = ["facebook"];
+    }
+
+    // Avoid Audience Network by default for RESERVED predictions unless explicitly requested
+    if (!requestedPlatforms.includes("audience_network")) {
+      safePlatforms = safePlatforms.filter((p: string) => p !== "audience_network");
+    }
+
+    // Apply platforms
+    if (safePlatforms.length > 0) {
+      predictionParams.publisher_platforms = JSON.stringify(safePlatforms);
+      console.log("R&F publisher platforms (safe):", safePlatforms);
+    } else {
+      console.log("R&F publisher platforms omitted to let Meta auto-select.");
     }
 
     console.log(
@@ -262,6 +283,8 @@ serve(async (req) => {
           "Retrying with params:",
           new URLSearchParams(fallbackParams).toString().replace(/access_token=[^&]+/, "access_token=***"),
         );
+        console.log("🔗 FULL API URL FOR GRAPH API EXPLORER (FALLBACK - copy entire line below):");
+        console.log(`https://graph.facebook.com/v21.0/act_${adAccountId}/reachfrequencypredictions?${new URLSearchParams(fallbackParams).toString()}`);
 
         createResponse = await fetch(
           `https://graph.facebook.com/v21.0/act_${adAccountId}/reachfrequencypredictions`,
