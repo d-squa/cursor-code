@@ -364,9 +364,39 @@ serve(async (req) => {
     }
 
     // Step 3: Extract metrics from R&F prediction response (LIVE DATA FROM META API)
-    const externalReach = predictionResult.external_reach || 0;
-    const externalImpression = predictionResult.external_impression || 0;
-    const externalBudget = predictionResult.external_budget || body.budget;
+    // Meta returns a curve_budget_reach array with multiple budget/reach combinations
+    // We need to find the data point closest to our requested budget
+    const requestedBudgetCents = body.budget * 100;
+    
+    let selectedCurvePoint = null;
+    
+    if (predictionResult.curve_budget_reach && Array.isArray(predictionResult.curve_budget_reach)) {
+      console.log(`📊 R&F Curve contains ${predictionResult.curve_budget_reach.length} data points`);
+      
+      // Find the curve point with budget closest to our requested budget
+      let minDifference = Infinity;
+      for (const point of predictionResult.curve_budget_reach) {
+        const budgetDiff = Math.abs(point.budget - requestedBudgetCents);
+        if (budgetDiff < minDifference) {
+          minDifference = budgetDiff;
+          selectedCurvePoint = point;
+        }
+      }
+      
+      if (selectedCurvePoint) {
+        console.log("✅ Selected curve point closest to requested budget:", {
+          requestedBudget: requestedBudgetCents / 100,
+          selectedBudget: selectedCurvePoint.budget / 100,
+          reach: selectedCurvePoint.reach,
+          impressions: selectedCurvePoint.impression,
+        });
+      }
+    }
+    
+    // Use curve data if available, otherwise fall back to top-level fields
+    const externalReach = selectedCurvePoint?.reach || predictionResult.external_reach || 0;
+    const externalImpression = selectedCurvePoint?.impression || predictionResult.external_impression || 0;
+    const externalBudget = selectedCurvePoint?.budget ? selectedCurvePoint.budget / 100 : predictionResult.external_budget || body.budget;
     const audienceSize = predictionResult.audience_size_upper_bound || 0;
     const resultFrequencyCap = predictionResult.frequency_cap || 1;
     const externalMinimumBudget = predictionResult.external_minimum_budget || 0;
@@ -379,12 +409,13 @@ serve(async (req) => {
       frequencyCap: resultFrequencyCap,
       campaignTimeStart: predictionResult.campaign_time_start,
       campaignTimeStop: predictionResult.campaign_time_stop,
-      externalReach: `${externalReach.toLocaleString()} (LIVE)`,
-      externalImpression: `${externalImpression.toLocaleString()} (LIVE)`,
-      externalBudget: `${externalBudget.toLocaleString()} (LIVE)`,
+      externalReach: `${externalReach.toLocaleString()} (LIVE from curve)`,
+      externalImpression: `${externalImpression.toLocaleString()} (LIVE from curve)`,
+      externalBudget: `${externalBudget.toLocaleString()} (LIVE from curve)`,
       externalMinimumBudget: `${externalMinimumBudget.toLocaleString()} (LIVE)`,
       audienceSize: `${audienceSize.toLocaleString()} (LIVE)`,
       cpm: `${cpm.toFixed(2)} (CALCULATED FROM LIVE DATA)`,
+      curvePointsAvailable: predictionResult.curve_budget_reach?.length || 0,
     });
 
     // Step 4: Calculate derived metrics (clicks, conversions) using industry benchmarks
