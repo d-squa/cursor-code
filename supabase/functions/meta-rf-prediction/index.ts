@@ -194,8 +194,7 @@ serve(async (req) => {
     const predictionParams: Record<string, string> = {
       access_token: accessToken,
       target_spec: JSON.stringify(targetSpec),
-      budget: String(budgetCents),
-      buying_type: "RESERVED", // Required for R&F
+      budget: String(budgetCents)
       objective: "REACH", // FORCED: R&F only supports REACH objective
       optimization_goal: "REACH", // Required for R&F
       billing_event: "IMPRESSIONS", // Required for R&F
@@ -203,7 +202,6 @@ serve(async (req) => {
       frequency_cap: String(body.frequencyCap || frequencyCap),
       start_time: String(startTimeUnix), // REQUIRED
       end_time: String(endTimeUnix), // REQUIRED
-      destination_ids: JSON.stringify(destinationIds), // Page ID and optional IG ID
       publisher_platforms: JSON.stringify(["facebook"]), // HARDCODED: Always use Facebook
       facebook_positions: JSON.stringify(["feed", "story"]), // HARDCODED: Feed and Story placements
     };
