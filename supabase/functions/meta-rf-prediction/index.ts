@@ -146,13 +146,11 @@ serve(async (req) => {
       ];
     }
 
-    // CRITICAL: Don't specify positions for R&F - Meta has strict restrictions
-    // R&F campaigns only support specific placements, let Meta auto-select valid ones
-    // Specifying custom positions causes error 1885696
+    // Add placements to target_spec (required for R&F)
+    targetSpec.publisher_platforms = ["facebook"];
+    targetSpec.facebook_positions = ["feed"];
 
-    console.log("R&F targeting spec:", JSON.stringify(targetSpec, null, 2));
-
-    console.log("Target spec for R&F:", JSON.stringify(targetSpec, null, 2));
+    console.log("R&F targeting spec with placements:", JSON.stringify(targetSpec, null, 2));
 
     // Step 1: Create Reach & Frequency prediction
     // API: POST https://graph.facebook.com/v21.0/act_{ad_account_id}/reachfrequencypredictions
@@ -194,18 +192,16 @@ serve(async (req) => {
       target_spec: JSON.stringify(targetSpec),
       budget: String(budgetCents),
       objective: "REACH",
-      optimization_goal: "REACH",
       billing_event: "IMPRESSIONS",
       prediction_mode: "1",
       frequency_cap: String(body.frequencyCap || frequencyCap),
       start_time: String(startTimeUnix),
       end_time: String(endTimeUnix),
-      publisher_platforms: JSON.stringify(["facebook", "audience_network"]),
-      facebook_positions: JSON.stringify(["feed"]),
-      audience_network_positions: JSON.stringify(["classic", "instream_video"]),
+      destination_ids: JSON.stringify([pageId]),
+      story_event_type: "0",
     };
 
-    console.log("R&F using Facebook Feed + Audience Network placements (required combination for reservation campaigns)");
+    console.log(`R&F prediction params: REACH objective, story_event_type=0, placements in target_spec, destination_ids=[${pageId}]`);
 
     console.log(
       `R&F budget: $${(budgetCents / 100).toLocaleString()} (${budgetCents} cents), Markets: ${normalizedMarkets.join(", ")}`,
