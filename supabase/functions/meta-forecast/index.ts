@@ -92,6 +92,8 @@ serve(async (req) => {
     // Mask token in logs for security
     const maskedParams = reachParams.toString().replace(/access_token=[^&]+/, "access_token=***");
     console.log("Calling Reach Estimate API with params:", maskedParams);
+    console.log("🔗 FULL API URL FOR GRAPH API EXPLORER (copy entire line below):");
+    console.log(`https://graph.facebook.com/v21.0/act_${adAccountId}/reachestimate?${reachParams.toString()}`);
 
     const reachResponse = await fetch(
       `https://graph.facebook.com/v21.0/act_${adAccountId}/reachestimate?${reachParams.toString()}`,
