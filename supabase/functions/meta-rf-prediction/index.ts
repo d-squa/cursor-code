@@ -192,7 +192,7 @@ serve(async (req) => {
     const predictionParams: Record<string, string> = {
       access_token: accessToken,
       target_spec: JSON.stringify(targetSpec),
-      budget: String(budgetCents)
+      budget: String(budgetCents),
       objective: "REACH", // FORCED: R&F only supports REACH objective
       optimization_goal: "REACH", // Required for R&F
       billing_event: "IMPRESSIONS", // Required for R&F
