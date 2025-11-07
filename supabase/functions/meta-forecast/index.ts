@@ -74,7 +74,6 @@ serve(async (req) => {
     const billing_event = "IMPRESSIONS";
     const frequency_cap = 2;
     const prediction_mode = 1;
-    const destination_ids = "1757934224274443";
     // Call Reach Estimate API
     // Note: reachestimate API does NOT support currency parameter
     // It returns estimates based on the ad account's currency
@@ -86,7 +85,6 @@ serve(async (req) => {
       billing_event,
       frequency_cap: frequency_cap.toString(),
       prediction_mode: prediction_mode.toString(),
-      destination_ids,
     });
 
     // Mask token in logs for security
