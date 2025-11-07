@@ -200,12 +200,12 @@ serve(async (req) => {
       frequency_cap: String(body.frequencyCap || frequencyCap),
       start_time: String(startTimeUnix),
       end_time: String(endTimeUnix),
-      publisher_platforms: JSON.stringify(["facebook"]),
-      facebook_positions: JSON.stringify(["feed", "story"]),
+      publisher_platforms: JSON.stringify(["facebook", "audience_network"]),
+      facebook_positions: JSON.stringify(["feed"]),
+      audience_network_positions: JSON.stringify(["classic", "instream_video"]),
     };
 
-    console.log("R&F publisher platforms (hardcoded): facebook");
-    console.log("R&F Facebook positions (hardcoded): feed, story");
+    console.log("R&F using Facebook Feed + Audience Network placements (required combination for reservation campaigns)");
 
     console.log(
       `R&F budget: $${(budgetCents / 100).toLocaleString()} (${budgetCents} cents), Markets: ${normalizedMarkets.join(", ")}`,
