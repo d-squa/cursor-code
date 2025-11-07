@@ -356,7 +356,7 @@ serve(async (req) => {
       await new Promise((resolve) => setTimeout(resolve, 3000)); // Wait 3s between checks
 
       const statusResponse = await fetch(
-        `https://graph.facebook.com/v21.0/${predictionId}?access_token=${accessToken}&fields=id,name,frequency_cap,campaign_time_start,campaign_time_stop,external_reach,external_impression,external_budget,audience_size_upper_bound,external_minimum_budget,prediction_progress,status,curve_budget_reach`,
+        `https://graph.facebook.com/v21.0/${predictionId}?access_token=${accessToken}&fields=id,name,frequency_cap,campaign_time_start,campaign_time_stop,external_reach,external_impression,external_budget,audience_size_upper_bound,audience_size_lower_bound,external_minimum_budget,external_maximum_budget,external_minimum_reach,external_maximum_reach,external_minimum_impression,external_maximum_impression,prediction_progress,status,curve_budget_reach`,
       );
 
       if (statusResponse.ok) {
@@ -416,80 +416,87 @@ serve(async (req) => {
       throw new Error("R&F prediction timed out or failed to complete");
     }
 
-    // Step 3: Extract metrics from R&F prediction response (LIVE DATA FROM META API)
-    // Meta returns a curve_budget_reach array with multiple budget/reach combinations
-    // We need to find the data point closest to our requested budget
-    const requestedBudgetCents = body.budget * 100;
+    // Step 3: Calculate median values from min/max metrics
+    // Meta R&F API returns min/max ranges - we calculate the median as (min + max) / 2
     
-    let selectedCurvePoint = null;
+    // Calculate median reach
+    const minReach = predictionResult.external_minimum_reach || 0;
+    const maxReach = predictionResult.external_maximum_reach || 0;
+    const medianReach = Math.round((minReach + maxReach) / 2);
     
-    if (predictionResult.curve_budget_reach && Array.isArray(predictionResult.curve_budget_reach)) {
-      console.log(`📊 R&F Curve contains ${predictionResult.curve_budget_reach.length} data points`);
-      
-      // Find the curve point with budget closest to our requested budget
-      let minDifference = Infinity;
-      for (const point of predictionResult.curve_budget_reach) {
-        const budgetDiff = Math.abs(point.budget - requestedBudgetCents);
-        if (budgetDiff < minDifference) {
-          minDifference = budgetDiff;
-          selectedCurvePoint = point;
-        }
-      }
-      
-      if (selectedCurvePoint) {
-        console.log("✅ Selected curve point closest to requested budget:", {
-          requestedBudget: requestedBudgetCents / 100,
-          selectedBudget: selectedCurvePoint.budget / 100,
-          reach: selectedCurvePoint.reach,
-          impressions: selectedCurvePoint.impression,
-        });
-      }
-    }
+    // Calculate median impressions  
+    const minImpressions = predictionResult.external_minimum_impression || 0;
+    const maxImpressions = predictionResult.external_maximum_impression || 0;
+    const medianImpressions = Math.round((minImpressions + maxImpressions) / 2);
     
-    // Use curve data if available, otherwise fall back to top-level fields
-    const externalReach = selectedCurvePoint?.reach || predictionResult.external_reach || 0;
-    const externalImpression = selectedCurvePoint?.impression || predictionResult.external_impression || 0;
-    const externalBudget = selectedCurvePoint?.budget ? selectedCurvePoint.budget / 100 : predictionResult.external_budget || body.budget;
-    const audienceSize = predictionResult.audience_size_upper_bound || 0;
+    // Calculate median budget
+    const minBudget = predictionResult.external_minimum_budget || 0;
+    const maxBudget = predictionResult.external_maximum_budget || 0;
+    const medianBudget = (minBudget + maxBudget) / 2 / 100; // Convert cents to dollars
+    
+    // Get audience size
+    const audienceSizeLower = predictionResult.audience_size_lower_bound || 0;
+    const audienceSizeUpper = predictionResult.audience_size_upper_bound || 0;
+    const medianAudienceSize = Math.round((audienceSizeLower + audienceSizeUpper) / 2);
+    
     const resultFrequencyCap = predictionResult.frequency_cap || 1;
-    const externalMinimumBudget = predictionResult.external_minimum_budget || 0;
+    
+    // Calculate CPM from median values: (budget / impressions) * 1000
+    const cpm = medianImpressions > 0 ? (medianBudget / medianImpressions) * 1000 : 0;
 
-    // Calculate CPM from actual Meta API data: (budget / impressions) * 1000
-    const cpm = externalImpression > 0 ? (externalBudget / externalImpression) * 1000 : 0;
-
-    console.log("✅ LIVE R&F METRICS FROM META API:", {
+    console.log("✅ MEDIAN CALCULATIONS FROM META R&F API:", {
       id: predictionResult.id,
+      reach: {
+        min: minReach.toLocaleString(),
+        max: maxReach.toLocaleString(),
+        median: medianReach.toLocaleString()
+      },
+      impressions: {
+        min: minImpressions.toLocaleString(),
+        max: maxImpressions.toLocaleString(),
+        median: medianImpressions.toLocaleString()
+      },
+      budget: {
+        min: `$${(minBudget / 100).toLocaleString()}`,
+        max: `$${(maxBudget / 100).toLocaleString()}`,
+        median: `$${medianBudget.toLocaleString()}`
+      },
+      audienceSize: {
+        lower: audienceSizeLower.toLocaleString(),
+        upper: audienceSizeUpper.toLocaleString(),
+        median: medianAudienceSize.toLocaleString()
+      },
       frequencyCap: resultFrequencyCap,
-      campaignTimeStart: predictionResult.campaign_time_start,
-      campaignTimeStop: predictionResult.campaign_time_stop,
-      externalReach: `${externalReach.toLocaleString()} (LIVE from curve)`,
-      externalImpression: `${externalImpression.toLocaleString()} (LIVE from curve)`,
-      externalBudget: `${externalBudget.toLocaleString()} (LIVE from curve)`,
-      externalMinimumBudget: `${externalMinimumBudget.toLocaleString()} (LIVE)`,
-      audienceSize: `${audienceSize.toLocaleString()} (LIVE)`,
-      cpm: `${cpm.toFixed(2)} (CALCULATED FROM LIVE DATA)`,
-      curvePointsAvailable: predictionResult.curve_budget_reach?.length || 0,
+      cpm: cpm.toFixed(2)
     });
 
     // Step 4: Calculate derived metrics (clicks, conversions) using industry benchmarks
-    // Note: Meta R&F API provides reach, impressions, CPM - we estimate clicks/conversions
     const ctr = body.estimatedCTR || 0.009; // Use provided CTR or 0.9% default
     const conversionRate = body.estimatedConversionRate || 0.02; // Use provided or 2% default
 
-    const clicks = Math.round(externalImpression * ctr);
+    const clicks = Math.round(medianImpressions * ctr);
     const conversions = Math.round(clicks * conversionRate);
-    const cpc = clicks > 0 ? externalBudget / clicks : 0;
-    const costPerConversion = conversions > 0 ? externalBudget / conversions : 0;
+    const cpc = clicks > 0 ? medianBudget / clicks : 0;
+    const costPerConversion = conversions > 0 ? medianBudget / conversions : 0;
 
     const forecast = {
-      // ✅ LIVE DATA FROM META R&F API:
-      audienceSize, // From audience_size_upper_bound
-      reach: externalReach, // From external_reach
-      impressions: externalImpression, // From external_impression
-      cpm: parseFloat(cpm.toFixed(2)), // Calculated from API data
-      budget: externalBudget, // From external_budget
-      minimumBudget: externalMinimumBudget, // From external_minimum_budget
-      frequencyCap: resultFrequencyCap, // From frequency_cap
+      // ✅ MEDIAN VALUES CALCULATED FROM META R&F API MIN/MAX:
+      audienceSize: medianAudienceSize,
+      reach: medianReach,
+      impressions: medianImpressions,
+      cpm: parseFloat(cpm.toFixed(2)),
+      budget: parseFloat(medianBudget.toFixed(2)),
+      minimumBudget: parseFloat((minBudget / 100).toFixed(2)),
+      maximumBudget: parseFloat((maxBudget / 100).toFixed(2)),
+      frequencyCap: resultFrequencyCap,
+
+      // Raw min/max values for reference
+      rawMetrics: {
+        reachRange: { min: minReach, max: maxReach },
+        impressionsRange: { min: minImpressions, max: maxImpressions },
+        budgetRange: { min: minBudget / 100, max: maxBudget / 100 },
+        audienceSizeRange: { lower: audienceSizeLower, upper: audienceSizeUpper }
+      },
 
       // Estimated metrics (since R&F API doesn't provide these):
       clicks,
@@ -501,7 +508,7 @@ serve(async (req) => {
       costPerResult: parseFloat(costPerConversion.toFixed(2)),
     };
 
-    console.log("✅ Final R&F forecast (LIVE DATA):", forecast);
+    console.log("✅ Final R&F forecast (MEDIAN VALUES):", forecast);
 
     return new Response(JSON.stringify({ forecast }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
