@@ -188,9 +188,7 @@ serve(async (req) => {
 
     // CRITICAL: R&F predictions ALWAYS use REACH objective regardless of UI selection
     // This is a hard requirement for Meta's Reach & Frequency API
-    const destinationIds: string[] = [pageId];
-    if (instagramId) destinationIds.push(instagramId);
-
+ 
     const predictionParams: Record<string, string> = {
       access_token: accessToken,
       target_spec: JSON.stringify(targetSpec),
