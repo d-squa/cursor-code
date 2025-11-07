@@ -193,15 +193,15 @@ serve(async (req) => {
       access_token: accessToken,
       target_spec: JSON.stringify(targetSpec),
       budget: String(budgetCents),
-      objective: "REACH", // FORCED: R&F only supports REACH objective
-      optimization_goal: "REACH", // Required for R&F
-      billing_event: "IMPRESSIONS", // Required for R&F
-      prediction_mode: "1", // 0 = reach, 1 = r&f
+      objective: "REACH",
+      optimization_goal: "REACH",
+      billing_event: "IMPRESSIONS",
+      prediction_mode: "1",
       frequency_cap: String(body.frequencyCap || frequencyCap),
-      start_time: String(startTimeUnix), // REQUIRED
-      end_time: String(endTimeUnix), // REQUIRED
-      publisher_platforms: JSON.stringify(["facebook"]), // HARDCODED: Always use Facebook
-      facebook_positions: JSON.stringify(["feed", "story"]), // HARDCODED: Feed and Story placements
+      start_time: String(startTimeUnix),
+      end_time: String(endTimeUnix),
+      publisher_platforms: JSON.stringify(["facebook"]),
+      facebook_positions: JSON.stringify(["feed", "story"]),
     };
 
     console.log("R&F publisher platforms (hardcoded): facebook");
