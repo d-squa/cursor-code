@@ -160,7 +160,7 @@ serve(async (req) => {
     // Use dates from request body
     const startDate = body.startDate ? new Date(body.startDate) : new Date();
     const endDate = body.endDate ? new Date(body.endDate) : new Date();
-    
+
     // Set start to 9 AM UTC and end to 11:59 PM UTC
     startDate.setUTCHours(9, 0, 0, 0);
     endDate.setUTCHours(23, 59, 59, 999);
@@ -218,21 +218,20 @@ serve(async (req) => {
 
     // Log full API URL for Graph API Explorer testing (non-clickable format)
     console.log("🔗 FULL API URL FOR GRAPH API EXPLORER (copy entire line below):");
-    console.log(`https://graph.facebook.com/v21.0/act_${adAccountId}/reachfrequencypredictions?${new URLSearchParams(predictionParams).toString()}`);
+    console.log(
+      `https://graph.facebook.com/v21.0/act_${adAccountId}/reachfrequencypredictions?${new URLSearchParams(predictionParams).toString()}`,
+    );
 
     const maskedParams = new URLSearchParams(predictionParams)
       .toString()
       .replace(/access_token=[^&]+/, "access_token=***");
     console.log("Creating R&F prediction with params:", maskedParams);
 
-    let createResponse = await fetch(
-      `https://graph.facebook.com/v21.0/act_${adAccountId}/reachfrequencypredictions`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams(predictionParams),
-      },
-    );
+    let createResponse = await fetch(`https://graph.facebook.com/v21.0/act_${adAccountId}/reachfrequencypredictions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams(predictionParams),
+    });
 
     if (!createResponse.ok) {
       const errorText = await createResponse.text();
@@ -247,9 +246,10 @@ serve(async (req) => {
 
       // If invalid placements (1885696), retry without any placement restrictions
       const isPlacementError =
-        errorData?.error?.code === 100 && (errorData?.error?.error_subcode === 1885696 || errorData?.error?.error_subcode === 1885369);
+        errorData?.error?.code === 100 &&
+        (errorData?.error?.error_subcode === 1885696 || errorData?.error?.error_subcode === 1885369);
 
-      if (isPlacementError) {
+      /*if (isPlacementError) {
         const fallbackParams: Record<string, string> = { ...predictionParams };
         delete fallbackParams.publisher_platforms;
         delete fallbackParams.audience_network_positions;
@@ -273,7 +273,7 @@ serve(async (req) => {
           },
         );
       }
-
+*/
       // Handle specific error codes (after optional retry)
       if (!createResponse.ok) {
         const finalErrorText = errorData ? JSON.stringify(errorData) : errorText;
@@ -313,16 +313,19 @@ serve(async (req) => {
     const predictionId = predictionData.id;
     console.log("✅ Created R&F prediction ID:", predictionId);
     console.log("📋 Initial prediction data:", JSON.stringify(predictionData, null, 2));
-    
+
     // Log prediction IDs if curve_budget_reach is present
     if (predictionData.curve_budget_reach && Array.isArray(predictionData.curve_budget_reach)) {
       console.log(`📊 Received ${predictionData.curve_budget_reach.length} prediction curve points`);
-      console.log("🆔 Prediction IDs from curve:", predictionData.curve_budget_reach.map((p: any) => ({
-        id: p.id || p.rf_prediction_id || p.prediction_id || predictionId,
-        budget: p.budget / 100,
-        reach: p.reach,
-        impressions: p.impression
-      })));
+      console.log(
+        "🆔 Prediction IDs from curve:",
+        predictionData.curve_budget_reach.map((p: any) => ({
+          id: p.id || p.rf_prediction_id || p.prediction_id || predictionId,
+          budget: p.budget / 100,
+          reach: p.reach,
+          impressions: p.impression,
+        })),
+      );
     }
 
     // Step 2: Poll for prediction status
@@ -396,29 +399,29 @@ serve(async (req) => {
 
     // Step 3: Calculate median values from min/max metrics
     // Meta R&F API returns min/max ranges - we calculate the median as (min + max) / 2
-    
+
     // Calculate median reach
     const minReach = predictionResult.external_minimum_reach || 0;
     const maxReach = predictionResult.external_maximum_reach || 0;
     const medianReach = Math.round((minReach + maxReach) / 2);
-    
-    // Calculate median impressions  
+
+    // Calculate median impressions
     const minImpressions = predictionResult.external_minimum_impression || 0;
     const maxImpressions = predictionResult.external_maximum_impression || 0;
     const medianImpressions = Math.round((minImpressions + maxImpressions) / 2);
-    
+
     // Calculate median budget
     const minBudget = predictionResult.external_minimum_budget || 0;
     const maxBudget = predictionResult.external_maximum_budget || 0;
     const medianBudget = (minBudget + maxBudget) / 2 / 100; // Convert cents to dollars
-    
+
     // Get audience size
     const audienceSizeLower = predictionResult.audience_size_lower_bound || 0;
     const audienceSizeUpper = predictionResult.audience_size_upper_bound || 0;
     const medianAudienceSize = Math.round((audienceSizeLower + audienceSizeUpper) / 2);
-    
+
     const resultFrequencyCap = predictionResult.frequency_cap || 1;
-    
+
     // Calculate CPM from median values: (budget / impressions) * 1000
     const cpm = medianImpressions > 0 ? (medianBudget / medianImpressions) * 1000 : 0;
 
@@ -427,25 +430,25 @@ serve(async (req) => {
       reach: {
         min: minReach.toLocaleString(),
         max: maxReach.toLocaleString(),
-        median: medianReach.toLocaleString()
+        median: medianReach.toLocaleString(),
       },
       impressions: {
         min: minImpressions.toLocaleString(),
         max: maxImpressions.toLocaleString(),
-        median: medianImpressions.toLocaleString()
+        median: medianImpressions.toLocaleString(),
       },
       budget: {
         min: `$${(minBudget / 100).toLocaleString()}`,
         max: `$${(maxBudget / 100).toLocaleString()}`,
-        median: `$${medianBudget.toLocaleString()}`
+        median: `$${medianBudget.toLocaleString()}`,
       },
       audienceSize: {
         lower: audienceSizeLower.toLocaleString(),
         upper: audienceSizeUpper.toLocaleString(),
-        median: medianAudienceSize.toLocaleString()
+        median: medianAudienceSize.toLocaleString(),
       },
       frequencyCap: resultFrequencyCap,
-      cpm: cpm.toFixed(2)
+      cpm: cpm.toFixed(2),
     });
 
     // Step 4: Calculate derived metrics (clicks, conversions) using industry benchmarks
@@ -473,7 +476,7 @@ serve(async (req) => {
         reachRange: { min: minReach, max: maxReach },
         impressionsRange: { min: minImpressions, max: maxImpressions },
         budgetRange: { min: minBudget / 100, max: maxBudget / 100 },
-        audienceSizeRange: { lower: audienceSizeLower, upper: audienceSizeUpper }
+        audienceSizeRange: { lower: audienceSizeLower, upper: audienceSizeUpper },
       },
 
       // Estimated metrics (since R&F API doesn't provide these):
