@@ -254,12 +254,6 @@ serve(async (req) => {
             throw new Error("INVALID_TOKEN: Meta access token is invalid or expired.");
           }
 
-          if (finalData.error?.code === 100 && finalData.error?.message?.includes("buying_type")) {
-            throw new Error(
-              "R&F_NOT_AVAILABLE: This ad account is not eligible for Reach & Frequency campaigns. The account must have RESERVED buying_type access.",
-            );
-          }
-
           if (finalData.error?.code === 200) {
             throw new Error(
               "PERMISSION_ERROR: Meta access token does not have required permissions. Need ads_management and business_management scopes for R&F predictions.",
