@@ -204,34 +204,12 @@ serve(async (req) => {
       start_time: String(startTimeUnix), // REQUIRED
       end_time: String(endTimeUnix), // REQUIRED
       destination_ids: JSON.stringify(destinationIds), // Page ID and optional IG ID
+      publisher_platforms: JSON.stringify(["facebook"]), // HARDCODED: Always use Facebook
+      facebook_positions: JSON.stringify(["feed", "story"]), // HARDCODED: Feed and Story placements
     };
 
-    // CRITICAL: For R&F campaigns, DO NOT specify position parameters
-    // Meta has strict restrictions on R&F placements and will return error 1885696
-    // Choose publisher platforms safely based on provided destination IDs
-    const igProvided = Boolean(instagramId);
-    const requestedPlatforms = Array.isArray(body.publisherPlatforms) ? body.publisherPlatforms : [];
-
-    // If Instagram is requested but no IG ID provided, filter it out to avoid placement errors
-    let safePlatforms = requestedPlatforms.filter((p: string) => (p !== "instagram" || igProvided));
-
-    // If no platforms requested, default to Facebook only to avoid IG destination requirements
-    if (safePlatforms.length === 0) {
-      safePlatforms = ["facebook"];
-    }
-
-    // Avoid Audience Network by default for RESERVED predictions unless explicitly requested
-    if (!requestedPlatforms.includes("audience_network")) {
-      safePlatforms = safePlatforms.filter((p: string) => p !== "audience_network");
-    }
-
-    // Apply platforms
-    if (safePlatforms.length > 0) {
-      predictionParams.publisher_platforms = JSON.stringify(safePlatforms);
-      console.log("R&F publisher platforms (safe):", safePlatforms);
-    } else {
-      console.log("R&F publisher platforms omitted to let Meta auto-select.");
-    }
+    console.log("R&F publisher platforms (hardcoded): facebook");
+    console.log("R&F Facebook positions (hardcoded): feed, story");
 
     console.log(
       `R&F budget: $${(budgetCents / 100).toLocaleString()} (${budgetCents} cents), Markets: ${normalizedMarkets.join(", ")}`,
