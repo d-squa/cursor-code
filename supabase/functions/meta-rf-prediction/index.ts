@@ -244,36 +244,7 @@ serve(async (req) => {
         // ignore JSON parse failure
       }
 
-      // If invalid placements (1885696), retry without any placement restrictions
-      const isPlacementError =
-        errorData?.error?.code === 100 &&
-        (errorData?.error?.error_subcode === 1885696 || errorData?.error?.error_subcode === 1885369);
-
-      /*if (isPlacementError) {
-        const fallbackParams: Record<string, string> = { ...predictionParams };
-        delete fallbackParams.publisher_platforms;
-        delete fallbackParams.audience_network_positions;
-        delete fallbackParams.facebook_positions;
-        delete fallbackParams.instagram_positions;
-
-        console.warn("⚠️ Placement validation failed (1885696). Retrying without placement restrictions.");
-        console.log(
-          "Retrying with params:",
-          new URLSearchParams(fallbackParams).toString().replace(/access_token=[^&]+/, "access_token=***"),
-        );
-        console.log("🔗 FULL API URL FOR GRAPH API EXPLORER (FALLBACK - copy entire line below):");
-        console.log(`https://graph.facebook.com/v21.0/act_${adAccountId}/reachfrequencypredictions?${new URLSearchParams(fallbackParams).toString()}`);
-
-        createResponse = await fetch(
-          `https://graph.facebook.com/v21.0/act_${adAccountId}/reachfrequencypredictions`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: new URLSearchParams(fallbackParams),
-          },
-        );
-      }
-*/
+      // No retry logic - keep placement parameters as hardcoded
       // Handle specific error codes (after optional retry)
       if (!createResponse.ok) {
         const finalErrorText = errorData ? JSON.stringify(errorData) : errorText;
