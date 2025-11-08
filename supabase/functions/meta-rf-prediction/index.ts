@@ -148,7 +148,7 @@ serve(async (req) => {
 
     // Add placements to target_spec (required for R&F)
     targetSpec.publisher_platforms = ["facebook"];
-    targetSpec.facebook_positions = ["feed"];
+    targetSpec.facebook_positions = ["feed", "story"];
 
     console.log("R&F targeting spec with placements:", JSON.stringify(targetSpec, null, 2));
 
@@ -177,10 +177,6 @@ serve(async (req) => {
       endTimeUnix,
     });
 
-    // Get page ID and optional Instagram ID from body
-    const pageId = body.pageId || body.page || "1757934224274443"; // Fallback Page ID
-    const instagramId = body.instagramId || body.igUserId || body.instagram_actor_id || null; // Prefer ig_user_id if provided
-
     // Budget in cents
     const budgetCents = body.budget * 100;
 
@@ -192,16 +188,13 @@ serve(async (req) => {
       target_spec: JSON.stringify(targetSpec),
       budget: String(budgetCents),
       objective: "REACH",
-      billing_event: "IMPRESSIONS",
       prediction_mode: "1",
       frequency_cap: String(body.frequencyCap || frequencyCap),
       start_time: String(startTimeUnix),
       end_time: String(endTimeUnix),
-      destination_ids: JSON.stringify([pageId]),
-      story_event_type: "0",
     };
 
-    console.log(`R&F prediction params: REACH objective, story_event_type=0, placements in target_spec, destination_ids=[${pageId}]`);
+    console.log(`R&F prediction params: REACH objective, placements in target_spec`);
 
     console.log(
       `R&F budget: $${(budgetCents / 100).toLocaleString()} (${budgetCents} cents), Markets: ${normalizedMarkets.join(", ")}`,
