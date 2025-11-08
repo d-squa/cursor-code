@@ -119,17 +119,33 @@ serve(async (req) => {
       geo_locations: {
         countries: normalizedMarkets,
       },
-      age_min: body.ageMin || 18,
-      age_max: body.ageMax || 65,
     };
 
-    // Add gender if specified
+    // Add age if specified (omit if "all" ages selected)
+    if (body.ageMin !== undefined && body.ageMin !== null) {
+      targetSpec.age_min = body.ageMin;
+    }
+    if (body.ageMax !== undefined && body.ageMax !== null) {
+      targetSpec.age_max = body.ageMax;
+    }
+
+    // Add gender if specified (omit if "all" genders selected)
     if (body.gender && body.gender !== "all") {
       targetSpec.genders = body.gender === "male" ? [1] : [2];
     }
 
-    // Add languages if specified
-    if (body.languages && Array.isArray(body.languages) && body.languages.length > 0) {
+    // Add devices if specified (omit if "all" devices selected)
+    if (body.devices && Array.isArray(body.devices) && body.devices.length > 0 && !body.devices.includes("all")) {
+      targetSpec.user_device = body.devices;
+    }
+
+    // Add OS if specified (omit if "all" OS selected)
+    if (body.os && Array.isArray(body.os) && body.os.length > 0 && !body.os.includes("all")) {
+      targetSpec.user_os = body.os;
+    }
+
+    // Add languages if specified (omit if "all" languages selected)
+    if (body.languages && Array.isArray(body.languages) && body.languages.length > 0 && !body.languages.includes("all")) {
       targetSpec.locales = body.languages;
     }
 
