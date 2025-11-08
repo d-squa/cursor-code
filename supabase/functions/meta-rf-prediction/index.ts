@@ -147,8 +147,20 @@ serve(async (req) => {
     }
 
     // Add placements to target_spec (use from body or default to Facebook feed+story)
-    targetSpec.publisher_platforms = ["facebook"];
-    targetSpec.facebook_positions = ["feed", "story"];
+    targetSpec.publisher_platforms = body.publisherPlatforms || ["facebook"];
+    
+    // Map positions from body (supports both direct array or object format)
+    if (body.positions) {
+      if (Array.isArray(body.positions)) {
+        targetSpec.facebook_positions = body.positions;
+      } else if (body.positions.facebook && Array.isArray(body.positions.facebook)) {
+        targetSpec.facebook_positions = body.positions.facebook;
+      } else {
+        targetSpec.facebook_positions = ["feed", "story"];
+      }
+    } else {
+      targetSpec.facebook_positions = ["feed", "story"];
+    }
 
     console.log("R&F targeting spec with placements:", JSON.stringify(targetSpec, null, 2));
 
@@ -182,7 +194,7 @@ serve(async (req) => {
 
     // CRITICAL: R&F predictions ALWAYS use REACH objective regardless of UI selection
     // This is a hard requirement for Meta's Reach & Frequency API
-
+ 
     const predictionParams: Record<string, string> = {
       access_token: accessToken,
       target_spec: JSON.stringify(targetSpec),
