@@ -119,19 +119,19 @@ serve(async (req) => {
       geo_locations: {
         countries: normalizedMarkets,
       },
+      // Always include age with defaults if not specified
+      age_min: body.ageMin ?? 18,
+      age_max: body.ageMax ?? 65,
     };
 
-    // Add age if specified (omit if "all" ages selected)
-    if (body.ageMin !== undefined && body.ageMin !== null) {
-      targetSpec.age_min = body.ageMin;
-    }
-    if (body.ageMax !== undefined && body.ageMax !== null) {
-      targetSpec.age_max = body.ageMax;
-    }
+    console.log("Age targeting:", { ageMin: targetSpec.age_min, ageMax: targetSpec.age_max, providedMin: body.ageMin, providedMax: body.ageMax });
 
     // Add gender if specified (omit if "all" genders selected)
     if (body.gender && body.gender !== "all") {
       targetSpec.genders = body.gender === "male" ? [1] : [2];
+      console.log("Gender targeting:", { gender: body.gender, genders: targetSpec.genders });
+    } else {
+      console.log("Gender targeting: all (omitted from target_spec)");
     }
 
     // Add devices if specified (omit if "all" devices selected)
@@ -193,8 +193,14 @@ serve(async (req) => {
       endTimeUnix,
     });
 
-    // Budget in cents
-    const budgetCents = body.budget * 100;
+    // Budget in cents (always required)
+    const budgetCents = Math.round(body.budget * 100);
+    
+    console.log("Budget:", { 
+      providedBudget: body.budget, 
+      budgetCents, 
+      budgetDollars: budgetCents / 100 
+    });
 
     // CRITICAL: R&F predictions ALWAYS use REACH objective regardless of UI selection
     // This is a hard requirement for Meta's Reach & Frequency API
