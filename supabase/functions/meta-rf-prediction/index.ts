@@ -83,8 +83,13 @@ serve(async (req) => {
     }
 
     if (!accessToken) {
-      console.error("Missing Meta access token after fallbacks");
-      throw new Error("Meta access token missing. Please verify the connected platform or global credentials.");
+      if (body.dryRun === true) {
+        console.warn("DRY RUN: No access token available, using placeholder.");
+        accessToken = "DRYRUN";
+      } else {
+        console.error("Missing Meta access token after fallbacks");
+        throw new Error("Meta access token missing. Please verify the connected platform or global credentials.");
+      }
     }
 
     console.log("Using ad account for R&F:", adAccountId);
@@ -115,20 +120,65 @@ serve(async (req) => {
     console.log("Normalized markets for R&F:", normalizedMarkets);
 
     // Build target_spec - R&F has strict placement restrictions
-    const targetSpec: any = {
-      geo_locations: {
-        countries: normalizedMarkets,
-      },
-      // Always include age with defaults if not specified
-      age_min: body.ageMin ?? 18,
-      age_max: body.ageMax ?? 65,
+    // Normalize inputs (handle strings like "25" and omit when "all")
+    const toNumber = (v: any): number | undefined => {
+      if (v === undefined || v === null || v === '' || v === 'all') return undefined;
+      const n = typeof v === 'string' ? Number(String(v).replace(/[^\d.]/g, '')) : Number(v);
+      return Number.isFinite(n) ? n : undefined;
     };
 
-    console.log("Age targeting:", { ageMin: targetSpec.age_min, ageMax: targetSpec.age_max, providedMin: body.ageMin, providedMax: body.ageMax });
+    const ageMinProvided = toNumber(body.ageMin);
+    const ageMaxProvided = toNumber(body.ageMax);
+    // Clamp to Meta allowed bounds 13..65
+    const ageMinNormalized = ageMinProvided !== undefined ? Math.max(13, Math.min(65, Math.floor(ageMinProvided))) : undefined;
+    const ageMaxNormalized = ageMaxProvided !== undefined ? Math.max(13, Math.min(65, Math.floor(ageMaxProvided))) : undefined;
 
-    // Add gender if specified (omit if "all" genders selected)
-    if (body.gender && body.gender !== "all") {
-      targetSpec.genders = body.gender === "male" ? [1] : [2];
+    const targetSpec: any = {
+      geo_locations: { countries: normalizedMarkets },
+    };
+
+    // Always include age using provided values when present, otherwise defaults
+    targetSpec.age_min = ageMinNormalized ?? 18;
+    targetSpec.age_max = ageMaxNormalized ?? 65;
+
+    console.log("Age targeting:", {
+      ageMin: targetSpec.age_min,
+      ageMax: targetSpec.age_max,
+      providedMin: body.ageMin,
+      providedMax: body.ageMax,
+      normalizedMin: ageMinNormalized,
+      normalizedMax: ageMaxNormalized,
+    });
+
+    // Add gender if specified (omit if "all" or both genders selected)
+    const normalizeGender = (g: any): number[] | undefined => {
+      if (g === undefined || g === null) return undefined;
+      if (typeof g === 'string') {
+        const s = g.trim().toLowerCase();
+        if (s === 'all') return undefined;
+        if (s === 'male' || s === 'm') return [1];
+        if (s === 'female' || s === 'f') return [2];
+        if (s === '1') return [1];
+        if (s === '2') return [2];
+        return undefined;
+      }
+      if (typeof g === 'number') {
+        if (g === 1) return [1];
+        if (g === 2) return [2];
+        return undefined;
+      }
+      if (Array.isArray(g)) {
+        const set = new Set(g.map((x) => (typeof x === 'string' ? Number(x) : x)).filter((x) => x === 1 || x === 2));
+        if (set.size === 1) return [...set];
+        // both selected => treat as all (omit)
+        return undefined;
+      }
+      return undefined;
+    };
+
+    const gendersNormalized = normalizeGender(body.gender);
+    if (gendersNormalized) {
+      targetSpec.genders = gendersNormalized;
       console.log("Gender targeting:", { gender: body.gender, genders: targetSpec.genders });
     } else {
       console.log("Gender targeting: all (omitted from target_spec)");
@@ -193,11 +243,18 @@ serve(async (req) => {
       endTimeUnix,
     });
 
-    // Budget in cents (always required)
-    const budgetCents = Math.round(body.budget * 100);
+    // Budget in cents (always required) - robust parse
+    const rawBudget = ((): number | undefined => {
+      const v = body.budget;
+      if (v === undefined || v === null || v === '') return undefined;
+      const n = typeof v === 'string' ? Number(String(v).replace(/[^\d.]/g, '')) : Number(v);
+      return Number.isFinite(n) ? n : undefined;
+    })();
+    const budgetCents = Math.round(((rawBudget ?? 0) as number) * 100);
     
     console.log("Budget:", { 
       providedBudget: body.budget, 
+      parsedBudget: rawBudget,
       budgetCents, 
       budgetDollars: budgetCents / 100 
     });
@@ -233,6 +290,19 @@ serve(async (req) => {
       .toString()
       .replace(/access_token=[^&]+/, "access_token=***");
     console.log("Creating R&F prediction with params:", maskedParams);
+
+    // Dry run: return built params and targetSpec without calling Meta API
+    if (body.dryRun === true) {
+      const preview = {
+        dryRun: true,
+        targetSpec,
+        predictionParams: { ...predictionParams, access_token: "***" },
+        timeWindow: { startTimeUnix, endTimeUnix },
+      };
+      return new Response(JSON.stringify(preview), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     let createResponse = await fetch(`https://graph.facebook.com/v21.0/act_${adAccountId}/reachfrequencypredictions`, {
       method: "POST",
