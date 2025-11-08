@@ -119,8 +119,8 @@ serve(async (req) => {
       geo_locations: {
         countries: normalizedMarkets,
       },
-      age_min: body.ageMin ?? 18,
-      age_max: body.ageMax ?? 65,
+      age_min: body.ageMin || 18,
+      age_max: body.ageMax || 65,
     };
 
     // Add gender if specified
@@ -146,21 +146,9 @@ serve(async (req) => {
       ];
     }
 
-    // Add placements to target_spec (use from body or default to Facebook feed+story)
-    targetSpec.publisher_platforms = body.publisherPlatforms || ["facebook"];
-    
-    // Map positions from body (supports both direct array or object format)
-    if (body.positions) {
-      if (Array.isArray(body.positions)) {
-        targetSpec.facebook_positions = body.positions;
-      } else if (body.positions.facebook && Array.isArray(body.positions.facebook)) {
-        targetSpec.facebook_positions = body.positions.facebook;
-      } else {
-        targetSpec.facebook_positions = ["feed", "story"];
-      }
-    } else {
-      targetSpec.facebook_positions = ["feed", "story"];
-    }
+    // Add placements to target_spec (required for R&F)
+    targetSpec.publisher_platforms = ["facebook"];
+    targetSpec.facebook_positions = ["feed", "story"];
 
     console.log("R&F targeting spec with placements:", JSON.stringify(targetSpec, null, 2));
 
