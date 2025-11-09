@@ -462,8 +462,58 @@ return (
                                         </div>
                                       </CollapsibleTrigger>
                                       
-                                      <CollapsibleContent>
+                                       <CollapsibleContent>
                                         <div className="p-4 space-y-4 border-t">
+                                          {/* Objective & Optimization Goal Selection */}
+                                          <div className="border rounded-lg p-3 bg-muted/30 space-y-3">
+                                            <Label className="text-sm font-medium">Campaign Objective & Optimization Goal</Label>
+                                            <div className="grid gap-3 md:grid-cols-2">
+                                              <div className="space-y-1">
+                                                <Label htmlFor={`objective-${phase.id}`} className="text-xs">Objective</Label>
+                                                <Select
+                                                  value={phase.objective || mapGenericToPlatformObjective(platform.name, market.strategyFocus || genericConfig.strategyFocus, market)}
+                                                  onValueChange={(value) => updateCampaignField(platform.id, market.id, phase.id, "objective", value)}
+                                                >
+                                                  <SelectTrigger id={`objective-${phase.id}`}>
+                                                    <SelectValue placeholder="Select objective" />
+                                                  </SelectTrigger>
+                                                  <SelectContent>
+                                                    {platform.name.includes("Meta") && (
+                                                      <>
+                                                        <SelectItem value="OUTCOME_AWARENESS">Awareness</SelectItem>
+                                                        <SelectItem value="OUTCOME_TRAFFIC">Traffic</SelectItem>
+                                                        <SelectItem value="OUTCOME_ENGAGEMENT">Engagement</SelectItem>
+                                                        <SelectItem value="OUTCOME_LEADS">Lead Generation</SelectItem>
+                                                        <SelectItem value="OUTCOME_APP_PROMOTION">App Promotion</SelectItem>
+                                                        <SelectItem value="OUTCOME_SALES">Sales</SelectItem>
+                                                      </>
+                                                    )}
+                                                    {!platform.name.includes("Meta") && (
+                                                      <>
+                                                        <SelectItem value="Awareness">Awareness</SelectItem>
+                                                        <SelectItem value="Consideration">Consideration</SelectItem>
+                                                        <SelectItem value="Conversion">Conversion</SelectItem>
+                                                      </>
+                                                    )}
+                                                  </SelectContent>
+                                                </Select>
+                                              </div>
+                                              <div className="space-y-1">
+                                                <Label htmlFor={`opt-goal-${phase.id}`} className="text-xs">Optimization Goal</Label>
+                                                <Input
+                                                  id={`opt-goal-${phase.id}`}
+                                                  value={phase.funnelStage || "Auto-detected"}
+                                                  onChange={(e) => updateCampaignField(platform.id, market.id, phase.id, "funnelStage", e.target.value)}
+                                                  placeholder="e.g., LINK_CLICKS, LEADS, CONVERSIONS"
+                                                  className="text-xs"
+                                                />
+                                              </div>
+                                            </div>
+                                            <p className="text-xs text-muted-foreground">
+                                              These settings override the auto-detected strategy for this specific campaign.
+                                            </p>
+                                          </div>
+
                                           {/* Campaign Details */}
                                           <div className="text-xs text-muted-foreground space-y-1">
                                             <p><strong>Inherits from targeting:</strong></p>

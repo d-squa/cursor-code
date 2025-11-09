@@ -532,24 +532,27 @@ export function MediaPlanEditor() {
                     startDate={startDate}
                     endDate={endDate}
                     globalFunnel={globalFunnel}
-                    onGlobalFunnelChange={setGlobalFunnel}
-                    onSaveGlobal={() => {
-                      // Apply global funnel to all platforms and markets
+                    onGlobalFunnelChange={(newFunnel) => {
+                      // Update global funnel and immediately propagate to all markets
+                      setGlobalFunnel(newFunnel);
                       setPlatformsWithMarkets(
                         platformsWithMarkets.map(p => ({
                           ...p,
-                          markets: p.markets.map(m => {
-                            const phases = globalFunnel.map(stage => ({
-                              id: `phase-${stage.id}-${Date.now()}-${Math.random()}`,
+                          markets: p.markets.map(m => ({
+                            ...m,
+                            phases: newFunnel.map(stage => ({
+                              id: `phase-${m.id}-${stage.id}`,
                               name: stage.name,
                               startDate: stage.startDate,
                               endDate: stage.endDate,
                               budgetPercentage: stage.budgetPercentage,
-                            }));
-                            return { ...m, phases, useGlobalFunnel: true };
-                          })
+                            })),
+                            useGlobalFunnel: true,
+                          }))
                         }))
                       );
+                    }}
+                    onSaveGlobal={() => {
                       toast.success("Global funnel phasing applied to all platforms and markets");
                     }}
                   />

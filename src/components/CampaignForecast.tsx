@@ -31,6 +31,17 @@ interface ForecastMetrics {
   costPerResult: number;
   resultRate: number;
   resultRateName: string;
+  objective?: string;
+  optimizationGoal?: string;
+  destination?: string;
+}
+
+interface CampaignForecast {
+  market: string;
+  budget: number;
+  metrics: ForecastMetrics;
+  campaign?: string;
+  dates?: string;
 }
 
 export function CampaignForecast({
@@ -43,7 +54,7 @@ export function CampaignForecast({
   onFinalize,
 }: CampaignForecastProps) {
   const [loading, setLoading] = useState(false);
-  const [forecasts, setForecasts] = useState<Record<string, Array<{ market: string; budget: number; metrics: ForecastMetrics }>>>({});
+  const [forecasts, setForecasts] = useState<Record<string, CampaignForecast[]>>({});
   const [debugInfo, setDebugInfo] = useState<{startTimeUnix: number; endTimeUnix: number; startDateFormatted: string; endDateFormatted: string} | null>(null);
 
   const fetchForecast = async (
@@ -210,6 +221,9 @@ export function CampaignForecast({
           costPerResult: parseFloat(costPerResult.toFixed(2)),
           resultRate: parseFloat(resultRate.toFixed(2)),
           resultRateName: goalMetrics?.rateName || "Rate",
+          objective,
+          optimizationGoal,
+          destination,
         };
       } catch (error: any) {
         console.error('Meta forecast error:', error);
@@ -290,6 +304,9 @@ export function CampaignForecast({
             costPerResult: parseFloat(costPerResult.toFixed(2)),
             resultRate: parseFloat(resultRate.toFixed(2)),
             resultRateName: goalMetrics?.rateName || "Rate",
+            objective,
+            optimizationGoal,
+            destination,
           } as ForecastMetrics;
         } catch (fbErr) {
           console.error('Meta reachestimate fallback failed:', fbErr);
@@ -354,17 +371,20 @@ export function CampaignForecast({
       costPerResult: parseFloat(costPerResult.toFixed(2)),
       resultRate: parseFloat(resultRate.toFixed(2)),
       resultRateName: goalMetrics?.rateName || "Rate",
+      objective,
+      optimizationGoal,
+      destination,
     };
   };
 
   const handleFetchForecasts = async () => {
     setLoading(true);
     try {
-      const newForecasts: Record<string, any[]> = {};
+      const newForecasts: Record<string, CampaignForecast[]> = {};
 
       for (const platform of platforms) {
         const platformBudget = totalBudget * (platform.budgetPercentage / 100);
-        const campaignForecasts: any[] = [];
+        const campaignForecasts: CampaignForecast[] = [];
 
         for (const market of platform.markets) {
           const marketBudget = platformBudget * (market.budgetPercentage / 100);
@@ -546,40 +566,73 @@ export function CampaignForecast({
       reach: 0,
       impressions: 0,
       cpm: 0,
-      result: 0,
-      costPerResult: 0,
-      resultRate: 0,
       totalBudget: 0,
     };
 
     let count = 0;
+    const allForecasts: any[] = [];
+    
     Object.values(forecasts).forEach((platformForecasts) => {
       platformForecasts.forEach((forecast) => {
-        total.audienceSize += forecast.metrics.audienceSize;
-        total.reach += forecast.metrics.reach;
+        total.audienceSize = Math.max(total.audienceSize, forecast.metrics.audienceSize); // Max audience size
+        total.reach += forecast.metrics.reach; // Sum reach (includes duplication)
         total.impressions += forecast.metrics.impressions;
         total.totalBudget += forecast.budget;
-        total.result += forecast.metrics.result;
         total.cpm += forecast.metrics.cpm;
-        total.resultRate += forecast.metrics.resultRate;
         count++;
+        allForecasts.push(forecast);
       });
     });
 
-    // Calculate averages for rate-based metrics
-    total.cpm = total.cpm / count;
-    total.resultRate = total.resultRate / count;
-    total.costPerResult = total.totalBudget / total.result;
+    // Calculate CPM from total budget and impressions
+    total.cpm = total.impressions > 0 ? (total.totalBudget / total.impressions) * 1000 : 0;
+    
+    // Calculate SOV
+    const sov = total.audienceSize > 0 ? (total.reach / total.audienceSize) * 100 : 0;
 
-    // Get result label from first forecast
-    const firstPlatform = Object.keys(forecasts)[0];
-    const firstForecast = forecasts[firstPlatform]?.[0]?.metrics;
+    // Group results by optimization goal
+    const resultsByGoal: Record<string, {
+      result: number;
+      cost: number;
+      impressions: number;
+      label: string;
+      kpi: string;
+      rateName: string;
+    }> = {};
+
+    allForecasts.forEach((forecast) => {
+      const goal = forecast.metrics.optimizationGoal || 'UNKNOWN';
+      if (!resultsByGoal[goal]) {
+        resultsByGoal[goal] = {
+          result: 0,
+          cost: 0,
+          impressions: 0,
+          label: forecast.metrics.resultLabel || 'Result',
+          kpi: forecast.metrics.resultKPI || goal,
+          rateName: forecast.metrics.resultRateName || 'Rate',
+        };
+      }
+      resultsByGoal[goal].result += forecast.metrics.result;
+      resultsByGoal[goal].cost += forecast.budget;
+      resultsByGoal[goal].impressions += forecast.metrics.impressions;
+    });
+
+    // Calculate aggregated metrics per goal
+    const aggregatedResults = Object.entries(resultsByGoal).map(([goal, data]) => ({
+      goal,
+      result: data.result,
+      costPerResult: data.result > 0 ? data.cost / data.result : 0,
+      resultRate: data.impressions > 0 ? (data.result / data.impressions) * 100 : 0,
+      label: data.label,
+      kpi: data.kpi,
+      rateName: data.rateName,
+    }));
 
     return {
       ...total,
-      resultLabel: firstForecast?.resultLabel || "Results",
-      resultKPI: firstForecast?.resultKPI || "KPI",
-      resultRateName: firstForecast?.resultRateName || "Rate",
+      sov: parseFloat(sov.toFixed(2)),
+      resultsByGoal: aggregatedResults,
+      hasMultipleCampaigns: count > 1,
     };
   };
 
@@ -642,67 +695,126 @@ export function CampaignForecast({
             
             {/* Summary Cards */}
             {getTotalMetrics() && (
-              <div className="grid gap-4 md:grid-cols-4">
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium flex items-center gap-2">
-                      <Eye className="h-4 w-4" />
-                      Impressions
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{formatNumber(getTotalMetrics()!.impressions)}</div>
-                    <p className="text-xs text-muted-foreground">
-                      CPM: ${getTotalMetrics()!.cpm.toFixed(2)}
-                    </p>
-                  </CardContent>
-                </Card>
+              <>
+                <div className="grid gap-4 md:grid-cols-5">
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium flex items-center gap-2">
+                        <Users className="h-4 w-4" />
+                        Total Reach
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{formatNumber(getTotalMetrics()!.reach)}</div>
+                      {getTotalMetrics()!.hasMultipleCampaigns && (
+                        <p className="text-xs text-muted-foreground">
+                          Includes duplication
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
 
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium flex items-center gap-2">
-                      <Target className="h-4 w-4" />
-                      Result ({getTotalMetrics()!.resultLabel})
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{formatNumber(getTotalMetrics()!.result)}</div>
-                    <p className="text-xs text-muted-foreground">
-                      KPI: {getTotalMetrics()!.resultKPI}
-                    </p>
-                  </CardContent>
-                </Card>
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium flex items-center gap-2">
+                        <Target className="h-4 w-4" />
+                        Audience Size
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{formatNumber(getTotalMetrics()!.audienceSize)}</div>
+                      {getTotalMetrics()!.hasMultipleCampaigns && (
+                        <p className="text-xs text-muted-foreground">
+                          Max across campaigns
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
 
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium flex items-center gap-2">
-                      <DollarSign className="h-4 w-4" />
-                      Cost Per Result
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">${getTotalMetrics()!.costPerResult.toFixed(2)}</div>
-                    <p className="text-xs text-muted-foreground">
-                      {getTotalMetrics()!.resultKPI}
-                    </p>
-                  </CardContent>
-                </Card>
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium flex items-center gap-2">
+                        <TrendingUp className="h-4 w-4" />
+                        SOV (Share of Voice)
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{getTotalMetrics()!.sov.toFixed(2)}%</div>
+                      <p className="text-xs text-muted-foreground">
+                        (Reach/Audience Size) × 100
+                      </p>
+                    </CardContent>
+                  </Card>
 
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium flex items-center gap-2">
-                      <TrendingUp className="h-4 w-4" />
-                      Result Rate
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{getTotalMetrics()!.resultRate.toFixed(2)}%</div>
-                    <p className="text-xs text-muted-foreground">
-                      {getTotalMetrics()!.resultRateName}
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium flex items-center gap-2">
+                        <Eye className="h-4 w-4" />
+                        CPM
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">${getTotalMetrics()!.cpm.toFixed(2)}</div>
+                      <p className="text-xs text-muted-foreground">
+                        {formatNumber(getTotalMetrics()!.impressions)} impressions
+                      </p>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium flex items-center gap-2">
+                        <DollarSign className="h-4 w-4" />
+                        Total Budget
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">${formatNumber(getTotalMetrics()!.totalBudget)}</div>
+                      <p className="text-xs text-muted-foreground">
+                        Across all campaigns
+                      </p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Results by Optimization Goal */}
+                {getTotalMetrics()!.resultsByGoal.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Results by Optimization Goal</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        {getTotalMetrics()!.resultsByGoal.map((goalData, idx) => (
+                          <div key={idx} className="border rounded-lg p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <div>
+                                <h4 className="font-medium">{goalData.label}</h4>
+                                <p className="text-xs text-muted-foreground">KPI: {goalData.kpi}</p>
+                              </div>
+                              <Badge variant="outline">{goalData.goal}</Badge>
+                            </div>
+                            <div className="grid grid-cols-3 gap-4 text-sm">
+                              <div>
+                                <p className="text-muted-foreground mb-1">Result</p>
+                                <p className="font-semibold text-lg">{formatNumber(goalData.result)}</p>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground mb-1">Cost/Result</p>
+                                <p className="font-semibold text-lg">${goalData.costPerResult.toFixed(2)}</p>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground mb-1">Result Rate ({goalData.rateName})</p>
+                                <p className="font-semibold text-lg">{goalData.resultRate.toFixed(2)}%</p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </>
             )}
 
             {/* Detailed Metrics by Platform */}
@@ -721,43 +833,45 @@ export function CampaignForecast({
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Market</TableHead>
+                          <TableHead>Campaign</TableHead>
+                          <TableHead>Objective / Goal</TableHead>
+                          <TableHead>Dates</TableHead>
                           <TableHead>Budget</TableHead>
-                          <TableHead>SOV %</TableHead>
-                          <TableHead>Audience Size</TableHead>
                           <TableHead>Reach</TableHead>
-                          <TableHead>Impressions</TableHead>
-                          <TableHead>CPM</TableHead>
                           <TableHead>Result</TableHead>
-                          <TableHead>Result Rate</TableHead>
                           <TableHead>Cost/Result</TableHead>
+                          <TableHead>Result Rate</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {forecasts[platform.id]?.map((forecast, idx) => {
-                          const platformBudget = forecast.budget || 0;
-                          const sov = totalBudget > 0 ? ((platformBudget / totalBudget) * 100).toFixed(1) : "0.0";
-                          
                           return (
                             <TableRow key={idx}>
-                              <TableCell className="font-medium">{forecast.market}</TableCell>
-                              <TableCell>${formatNumber(platformBudget)}</TableCell>
-                              <TableCell>{sov}%</TableCell>
-                              <TableCell>{formatNumber(forecast.metrics.audienceSize)}</TableCell>
+                              <TableCell className="font-medium">
+                                <div>{forecast.market}</div>
+                                {forecast.campaign && (
+                                  <div className="text-xs text-muted-foreground">{forecast.campaign}</div>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <div className="text-sm">
+                                  <Badge variant="outline" className="mb-1">{forecast.metrics.objective || 'N/A'}</Badge>
+                                  <div className="text-xs text-muted-foreground">
+                                    {forecast.metrics.optimizationGoal || 'N/A'}
+                                  </div>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-xs">{forecast.dates || 'N/A'}</TableCell>
+                              <TableCell>${formatNumber(forecast.budget)}</TableCell>
                               <TableCell>{formatNumber(forecast.metrics.reach)}</TableCell>
-                              <TableCell>{formatNumber(forecast.metrics.impressions)}</TableCell>
-                              <TableCell>${forecast.metrics.cpm.toFixed(2)}</TableCell>
                               <TableCell>
                                 <div>{formatNumber(forecast.metrics.result)}</div>
-                                <div className="text-xs text-muted-foreground">{forecast.metrics.resultLabel}</div>
+                                <div className="text-xs text-muted-foreground">{forecast.metrics.resultKPI}</div>
                               </TableCell>
+                              <TableCell>${forecast.metrics.costPerResult.toFixed(2)}</TableCell>
                               <TableCell>
                                 <div>{forecast.metrics.resultRate.toFixed(2)}%</div>
                                 <div className="text-xs text-muted-foreground">{forecast.metrics.resultRateName}</div>
-                              </TableCell>
-                              <TableCell>
-                                <div>${forecast.metrics.costPerResult.toFixed(2)}</div>
-                                <div className="text-xs text-muted-foreground">{forecast.metrics.resultKPI}</div>
                               </TableCell>
                             </TableRow>
                           );
