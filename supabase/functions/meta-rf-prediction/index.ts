@@ -225,8 +225,8 @@ serve(async (req) => {
     const startDate = body.startDate ? new Date(body.startDate) : new Date();
     const endDate = body.endDate ? new Date(body.endDate) : new Date();
 
-    // Set start to 9 AM UTC and end to 11:59 PM UTC
-    startDate.setUTCHours(9, 0, 0, 0);
+    // Set start to 7 AM UTC and end to 11:59 PM UTC
+    startDate.setUTCHours(7, 0, 0, 0);
     endDate.setUTCHours(23, 59, 59, 999);
 
     const startTimeUnix = Math.floor(startDate.getTime() / 1000);
