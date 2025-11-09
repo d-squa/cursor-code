@@ -127,8 +127,8 @@ serve(async (req) => {
       return Number.isFinite(n) ? n : undefined;
     };
 
-    const ageMinProvided = toNumber(body.ageMin);
-    const ageMaxProvided = toNumber(body.ageMax);
+    const ageMinProvided = toNumber(body.ageMin ?? body.targeting?.ageMin);
+    const ageMaxProvided = toNumber(body.ageMax ?? body.targeting?.ageMax);
     // Clamp to Meta allowed bounds 13..65
     const ageMinNormalized = ageMinProvided !== undefined ? Math.max(13, Math.min(65, Math.floor(ageMinProvided))) : undefined;
     const ageMaxNormalized = ageMaxProvided !== undefined ? Math.max(13, Math.min(65, Math.floor(ageMaxProvided))) : undefined;
@@ -156,10 +156,8 @@ serve(async (req) => {
       if (typeof g === 'string') {
         const s = g.trim().toLowerCase();
         if (s === 'all') return undefined;
-        if (s === 'male' || s === 'm') return [1];
-        if (s === 'female' || s === 'f') return [2];
-        if (s === '1') return [1];
-        if (s === '2') return [2];
+        if (s === 'male' || s === 'm' || s === '1') return [1];
+        if (s === 'female' || s === 'f' || s === '2') return [2];
         return undefined;
       }
       if (typeof g === 'number') {
@@ -168,18 +166,32 @@ serve(async (req) => {
         return undefined;
       }
       if (Array.isArray(g)) {
-        const set = new Set(g.map((x) => (typeof x === 'string' ? Number(x) : x)).filter((x) => x === 1 || x === 2));
+        const set = new Set(
+          g
+            .map((x) => {
+              if (typeof x === 'string') {
+                const s = x.trim().toLowerCase();
+                if (s === 'male' || s === 'm' || s === '1') return 1;
+                if (s === 'female' || s === 'f' || s === '2') return 2;
+                return undefined;
+              }
+              if (typeof x === 'number') return x;
+              return undefined;
+            })
+            .filter((x): x is number => x === 1 || x === 2)
+        );
         if (set.size === 1) return [...set];
-        // both selected => treat as all (omit)
+        // both or none selected => treat as all (omit)
         return undefined;
       }
       return undefined;
     };
 
-    const gendersNormalized = normalizeGender(body.gender);
+    const genderInput = body.gender ?? body.targeting?.gender ?? body.genders ?? body.targeting?.genders;
+    const gendersNormalized = normalizeGender(genderInput);
     if (gendersNormalized) {
       targetSpec.genders = gendersNormalized;
-      console.log("Gender targeting:", { gender: body.gender, genders: targetSpec.genders });
+      console.log("Gender targeting:", { input: genderInput, genders: targetSpec.genders });
     } else {
       console.log("Gender targeting: all (omitted from target_spec)");
     }

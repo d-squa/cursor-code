@@ -116,9 +116,10 @@ export function CampaignForecast({
             startDate: campaignStartDate || startDate, // Use campaign-specific dates if available
             endDate: campaignEndDate || endDate,
             // Add targeting parameters (with phase overrides)
-            ageMin: market.ageMin || 18,
-            ageMax: market.ageMax || 65,
-            gender: market.gender || 'all',
+            ageMin: market.ageMin ?? genericConfig.targeting?.ageMin ?? 18,
+            ageMax: market.ageMax ?? genericConfig.targeting?.ageMax ?? 65,
+            gender: market.gender ?? (Array.isArray(market.genders) ? market.genders[0] : genericConfig.targeting?.genders?.[0]) ?? 'all',
+            genders: Array.isArray(market.genders) ? market.genders : (genericConfig.targeting?.genders || []),
             languages: market.languages || [],
             publisherPlatforms: market.publisherPlatforms || [],
             positions: market.positions || {},
@@ -171,9 +172,9 @@ export function CampaignForecast({
               markets: [marketCode],
               budget,
               strategyFocus,
-              ageMin: market.ageMin || 18,
-              ageMax: market.ageMax || 65,
-              gender: market.gender || 'all',
+              ageMin: market.ageMin ?? genericConfig.targeting?.ageMin ?? 18,
+              ageMax: market.ageMax ?? genericConfig.targeting?.ageMax ?? 65,
+              gender: market.gender ?? (Array.isArray(market.genders) ? market.genders[0] : genericConfig.targeting?.genders?.[0]) ?? 'all',
             }
           });
 
