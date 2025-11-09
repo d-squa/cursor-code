@@ -15,6 +15,7 @@ import { determineStrategyFocus, getOptimizationGoalForFocus } from "@/utils/str
 import { generateAutoDetectPhases } from "@/utils/funnelPhases";
 import { CampaignPublisherConfig } from "./CampaignPublisherConfig";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { getObjectiveFromPhaseName, getStrategyLabel } from "@/utils/phaseObjectiveMapping";
 
 interface PlatformCustomizationProps {
   platforms: PlatformWithMarkets[];
@@ -316,8 +317,7 @@ return (
           {platforms.map((platform) => (
             <TabsContent key={platform.id} value={platform.id} className="space-y-4">
               <div className="text-sm text-muted-foreground mb-4">
-                <p><strong>Strategy:</strong> {genericConfig.strategy?.replace("-", " ").toUpperCase()}</p>
-                <p><strong>Focus:</strong> {genericConfig.strategyFocus}</p>
+                <p><strong>Strategy:</strong> {getStrategyLabel(genericConfig.strategy, genericConfig.strategyFocus)}</p>
               </div>
 
               <Accordion type="single" collapsible className="w-full">
@@ -329,7 +329,7 @@ return (
                           <span className="font-medium">{market.name}</span>
                           {market.strategyFocus && (
                             <Badge variant="outline" className="text-xs">
-                              {market.strategyFocus.replace("-", " ").toUpperCase()}
+                              {market.strategyFocus}
                             </Badge>
                           )}
                         </div>
@@ -467,51 +467,109 @@ return (
                                           {/* Objective & Optimization Goal Selection */}
                                           <div className="border rounded-lg p-3 bg-muted/30 space-y-3">
                                             <Label className="text-sm font-medium">Campaign Objective & Optimization Goal</Label>
-                                            <div className="grid gap-3 md:grid-cols-2">
-                                              <div className="space-y-1">
-                                                <Label htmlFor={`objective-${phase.id}`} className="text-xs">Objective</Label>
-                                                <Select
-                                                  value={phase.objective || mapGenericToPlatformObjective(platform.name, market.strategyFocus || genericConfig.strategyFocus, market)}
-                                                  onValueChange={(value) => updateCampaignField(platform.id, market.id, phase.id, "objective", value)}
-                                                >
-                                                  <SelectTrigger id={`objective-${phase.id}`}>
-                                                    <SelectValue placeholder="Select objective" />
-                                                  </SelectTrigger>
-                                                  <SelectContent>
-                                                    {platform.name.includes("Meta") && (
-                                                      <>
-                                                        <SelectItem value="OUTCOME_AWARENESS">Awareness</SelectItem>
-                                                        <SelectItem value="OUTCOME_TRAFFIC">Traffic</SelectItem>
-                                                        <SelectItem value="OUTCOME_ENGAGEMENT">Engagement</SelectItem>
-                                                        <SelectItem value="OUTCOME_LEADS">Lead Generation</SelectItem>
-                                                        <SelectItem value="OUTCOME_APP_PROMOTION">App Promotion</SelectItem>
-                                                        <SelectItem value="OUTCOME_SALES">Sales</SelectItem>
-                                                      </>
-                                                    )}
-                                                    {!platform.name.includes("Meta") && (
-                                                      <>
-                                                        <SelectItem value="Awareness">Awareness</SelectItem>
-                                                        <SelectItem value="Consideration">Consideration</SelectItem>
-                                                        <SelectItem value="Conversion">Conversion</SelectItem>
-                                                      </>
-                                                    )}
-                                                  </SelectContent>
-                                                </Select>
-                                              </div>
-                                              <div className="space-y-1">
-                                                <Label htmlFor={`opt-goal-${phase.id}`} className="text-xs">Optimization Goal</Label>
-                                                <Input
-                                                  id={`opt-goal-${phase.id}`}
-                                                  value={phase.funnelStage || "Auto-detected"}
-                                                  onChange={(e) => updateCampaignField(platform.id, market.id, phase.id, "funnelStage", e.target.value)}
-                                                  placeholder="e.g., LINK_CLICKS, LEADS, CONVERSIONS"
-                                                  className="text-xs"
-                                                />
-                                              </div>
-                                            </div>
-                                            <p className="text-xs text-muted-foreground">
-                                              These settings override the auto-detected strategy for this specific campaign.
-                                            </p>
+                                            {(() => {
+                                              const autoDetected = getObjectiveFromPhaseName(
+                                                phase.name,
+                                                market.strategyFocus || genericConfig.strategyFocus
+                                              );
+                                              const currentObjective = phase.objective || autoDetected.objective;
+                                              const currentOptGoal = phase.optimizationGoal || autoDetected.optimizationGoal;
+                                              const isAutoDetected = !phase.objective && !phase.optimizationGoal;
+                                              
+                                              return (
+                                                <>
+                                                  {isAutoDetected && (
+                                                    <p className="text-xs text-blue-600 dark:text-blue-400">
+                                                      ✓ Auto-detected from phase name "{phase.name}"
+                                                    </p>
+                                                  )}
+                                                  <div className="grid gap-3 md:grid-cols-2">
+                                                    <div className="space-y-1">
+                                                      <Label htmlFor={`objective-${phase.id}`} className="text-xs">
+                                                        Objective {isAutoDetected && <span className="text-blue-600">(Auto-detected)</span>}
+                                                      </Label>
+                                                      <Select
+                                                        value={currentObjective}
+                                                        onValueChange={(value) => {
+                                                          if (value === "AUTO_DETECT") {
+                                                            // Clear both to trigger auto-detection
+                                                            updateCampaignField(platform.id, market.id, phase.id, "objective", undefined);
+                                                            updateCampaignField(platform.id, market.id, phase.id, "optimizationGoal", undefined);
+                                                          } else {
+                                                            updateCampaignField(platform.id, market.id, phase.id, "objective", value);
+                                                          }
+                                                        }}
+                                                      >
+                                                        <SelectTrigger id={`objective-${phase.id}`}>
+                                                          <SelectValue placeholder="Select objective" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                          <SelectItem value="AUTO_DETECT" className="text-blue-600 font-medium">
+                                                            🔄 Auto-detect from phase
+                                                          </SelectItem>
+                                                          {platform.name.includes("Meta") && (
+                                                            <>
+                                                              <SelectItem value="OUTCOME_AWARENESS">Awareness</SelectItem>
+                                                              <SelectItem value="OUTCOME_TRAFFIC">Traffic</SelectItem>
+                                                              <SelectItem value="OUTCOME_ENGAGEMENT">Engagement</SelectItem>
+                                                              <SelectItem value="OUTCOME_LEADS">Lead Generation</SelectItem>
+                                                              <SelectItem value="OUTCOME_APP_PROMOTION">App Promotion</SelectItem>
+                                                              <SelectItem value="OUTCOME_SALES">Sales</SelectItem>
+                                                            </>
+                                                          )}
+                                                          {!platform.name.includes("Meta") && (
+                                                            <>
+                                                              <SelectItem value="Awareness">Awareness</SelectItem>
+                                                              <SelectItem value="Consideration">Consideration</SelectItem>
+                                                              <SelectItem value="Conversion">Conversion</SelectItem>
+                                                            </>
+                                                          )}
+                                                        </SelectContent>
+                                                      </Select>
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                      <Label htmlFor={`opt-goal-${phase.id}`} className="text-xs">
+                                                        Optimization Goal {isAutoDetected && <span className="text-blue-600">(Auto-detected)</span>}
+                                                      </Label>
+                                                      <Select
+                                                        value={currentOptGoal}
+                                                        onValueChange={(value) => {
+                                                          if (value === "AUTO_DETECT") {
+                                                            updateCampaignField(platform.id, market.id, phase.id, "optimizationGoal", undefined);
+                                                          } else {
+                                                            updateCampaignField(platform.id, market.id, phase.id, "optimizationGoal", value);
+                                                          }
+                                                        }}
+                                                      >
+                                                        <SelectTrigger id={`opt-goal-${phase.id}`}>
+                                                          <SelectValue placeholder="Select optimization goal" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                          <SelectItem value="AUTO_DETECT" className="text-blue-600 font-medium">
+                                                            🔄 Auto-detect from phase
+                                                          </SelectItem>
+                                                          <SelectItem value="LINK_CLICKS">Link Clicks</SelectItem>
+                                                          <SelectItem value="LANDING_PAGE_VIEWS">Landing Page Views</SelectItem>
+                                                          <SelectItem value="LEADS">Leads</SelectItem>
+                                                          <SelectItem value="OFFSITE_CONVERSIONS">Conversions</SelectItem>
+                                                          <SelectItem value="APP_INSTALLS">App Installs</SelectItem>
+                                                          <SelectItem value="APP_EVENTS">App Events</SelectItem>
+                                                          <SelectItem value="POST_ENGAGEMENT">Post Engagement</SelectItem>
+                                                          <SelectItem value="THRUPLAY">ThruPlay</SelectItem>
+                                                          <SelectItem value="REACH">Reach</SelectItem>
+                                                          <SelectItem value="IMPRESSIONS">Impressions</SelectItem>
+                                                          <SelectItem value="CONVERSATIONS">Conversations</SelectItem>
+                                                          <SelectItem value="VALUE">Conversion Value (ROAS)</SelectItem>
+                                                        </SelectContent>
+                                                      </Select>
+                                                    </div>
+                                                  </div>
+                                                  <p className="text-xs text-muted-foreground">
+                                                    Auto-detection analyzes the phase name to recommend the best objective and optimization goal. You can override these manually.
+                                                  </p>
+                                                </>
+                                              );
+                                            })()}
                                           </div>
 
                                           {/* Campaign Details */}

@@ -46,6 +46,7 @@ export interface Phase {
   assetTypes?: string[];
   isLoyaltyPhase?: boolean;
   objective?: string;
+  optimizationGoal?: string;
   funnelStage?: string;
   // Campaign-level overrides (inherits from market/generic if not set)
   publisherPlatforms?: string[];

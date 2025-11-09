@@ -9,6 +9,7 @@ import { GenericConfig } from "./GenericStrategyConfig";
 import { Loader2, TrendingUp, Users, Eye, Target, DollarSign } from "lucide-react";
 import { toast } from "sonner";
 import { getOptimizationGoalMetrics, getResultLabel, calculateResultFromImpressions } from "@/utils/optimizationGoals";
+import { getObjectiveFromPhaseName } from "@/utils/phaseObjectiveMapping";
 
 interface CampaignForecastProps {
   platforms: PlatformWithMarkets[];
@@ -160,32 +161,49 @@ export function CampaignForecast({
         });
 
         // Map strategy focus to optimization goal
+        // Priority: phase-level settings > auto-detect from phase name > strategy focus
         const strategyFocusValue = market.strategyFocus || genericConfig.strategyFocus || 'conversions';
-        let optimizationGoal = "OFFSITE_CONVERSIONS";
-        let objective = "OUTCOME_SALES";
-        let destination = "Website";
+        let optimizationGoal: string;
+        let objective: string;
+        let destination: string;
         
-        if (strategyFocusValue === 'brand-awareness') {
-          objective = "OUTCOME_AWARENESS";
-          optimizationGoal = "IMPRESSIONS";
-          destination = "On Your Ad";
-        } else if (strategyFocusValue === 'leads') {
-          objective = "OUTCOME_LEADS";
-          optimizationGoal = "LEADS";
-          destination = "Instant Forms";
-        } else if (strategyFocusValue === 'app-installs') {
-          objective = "OUTCOME_APP_PROMOTION";
-          optimizationGoal = "APP_INSTALLS";
-          destination = "App";
-        } else if (strategyFocusValue === 'purchase') {
-          objective = "OUTCOME_SALES";
-          optimizationGoal = "OFFSITE_CONVERSIONS";
-          destination = "Website";
+        // Check if phase has explicit objective/optimization goal set
+        if (market.phaseObjective && market.phaseOptimizationGoal) {
+          objective = market.phaseObjective;
+          optimizationGoal = market.phaseOptimizationGoal;
+          // Determine destination from optimization goal
+          const goalMetricsLookup = getOptimizationGoalMetrics(objective, optimizationGoal);
+          destination = goalMetricsLookup?.destination || "Website";
+        } else if (market.phaseName) {
+          // Auto-detect from phase name
+          const autoDetected = getObjectiveFromPhaseName(market.phaseName, strategyFocusValue);
+          objective = autoDetected.objective;
+          optimizationGoal = autoDetected.optimizationGoal;
+          destination = autoDetected.destination;
         } else {
-          // conversions or traffic
-          objective = "OUTCOME_TRAFFIC";
-          optimizationGoal = "LINK_CLICKS";
-          destination = "Website";
+          // Fallback to strategy focus
+          if (strategyFocusValue === 'brand-awareness') {
+            objective = "OUTCOME_AWARENESS";
+            optimizationGoal = "IMPRESSIONS";
+            destination = "On Your Ad";
+          } else if (strategyFocusValue === 'leads') {
+            objective = "OUTCOME_LEADS";
+            optimizationGoal = "LEADS";
+            destination = "Instant Forms";
+          } else if (strategyFocusValue === 'app-installs') {
+            objective = "OUTCOME_APP_PROMOTION";
+            optimizationGoal = "APP_INSTALLS";
+            destination = "App";
+          } else if (strategyFocusValue === 'purchase') {
+            objective = "OUTCOME_SALES";
+            optimizationGoal = "OFFSITE_CONVERSIONS";
+            destination = "Website";
+          } else {
+            // conversions or traffic
+            objective = "OUTCOME_TRAFFIC";
+            optimizationGoal = "LINK_CLICKS";
+            destination = "Website";
+          }
         }
         
         const goalMetrics = getOptimizationGoalMetrics(objective, optimizationGoal, destination);
@@ -407,6 +425,10 @@ export function CampaignForecast({
                   countries: phase.countries || market.countries,
                   languages: phase.languages || market.languages,
                   detailedTargeting: phase.detailedTargeting || market.detailedTargeting,
+                  // Add phase objective and optimization goal
+                  phaseObjective: phase.objective,
+                  phaseOptimizationGoal: phase.optimizationGoal,
+                  phaseName: phase.name,
                 };
 
                 const forecast = await fetchForecast(
