@@ -6,8 +6,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { PlatformWithMarkets } from "@/types/mediaplan";
 import { GenericConfig } from "./GenericStrategyConfig";
-import { Loader2, TrendingUp, Users, Eye, MousePointer, DollarSign } from "lucide-react";
+import { Loader2, TrendingUp, Users, Eye, Target, DollarSign } from "lucide-react";
 import { toast } from "sonner";
+import { getOptimizationGoalMetrics, getResultLabel, calculateResultFromImpressions } from "@/utils/optimizationGoals";
 
 interface CampaignForecastProps {
   platforms: PlatformWithMarkets[];
@@ -21,16 +22,15 @@ interface CampaignForecastProps {
 
 interface ForecastMetrics {
   audienceSize: number;
+  reach: number;
   impressions: number;
   cpm: number;
-  reach: number;
-  clicks: number;
-  ctr: number;
-  cpc: number;
-  results: number;
-  resultType?: string;
+  result: number;
+  resultLabel: string;
+  resultKPI: string;
   costPerResult: number;
-  conversionRate: number;
+  resultRate: number;
+  resultRateName: string;
 }
 
 export function CampaignForecast({
@@ -148,19 +148,68 @@ export function CampaignForecast({
           endDateFormatted: endDateObj.toISOString(),
         });
 
+        // Map strategy focus to optimization goal
+        const strategyFocusValue = market.strategyFocus || genericConfig.strategyFocus || 'conversions';
+        let optimizationGoal = "OFFSITE_CONVERSIONS";
+        let objective = "OUTCOME_SALES";
+        let destination = "Website";
+        
+        if (strategyFocusValue === 'brand-awareness') {
+          objective = "OUTCOME_AWARENESS";
+          optimizationGoal = "IMPRESSIONS";
+          destination = "On Your Ad";
+        } else if (strategyFocusValue === 'leads') {
+          objective = "OUTCOME_LEADS";
+          optimizationGoal = "LEADS";
+          destination = "Instant Forms";
+        } else if (strategyFocusValue === 'app-installs') {
+          objective = "OUTCOME_APP_PROMOTION";
+          optimizationGoal = "APP_INSTALLS";
+          destination = "App";
+        } else if (strategyFocusValue === 'purchase') {
+          objective = "OUTCOME_SALES";
+          optimizationGoal = "OFFSITE_CONVERSIONS";
+          destination = "Website";
+        } else {
+          // conversions or traffic
+          objective = "OUTCOME_TRAFFIC";
+          optimizationGoal = "LINK_CLICKS";
+          destination = "Website";
+        }
+        
+        const goalMetrics = getOptimizationGoalMetrics(objective, optimizationGoal, destination);
+        
+        // Calculate result based on optimization goal
+        const result = calculateResultFromImpressions(
+          data.forecast.impressions,
+          budget,
+          optimizationGoal
+        );
+        
+        // Calculate result rate
+        let resultRate = 0;
+        if (goalMetrics) {
+          // Most result rates are: result/impressions
+          resultRate = data.forecast.impressions > 0 
+            ? (result / data.forecast.impressions) * 100 
+            : 0;
+        }
+        
+        // Calculate cost per result
+        const costPerResult = result > 0 ? budget / result : 0;
+
         // Transform Meta API response to our format
         return {
-          audienceSize: data.forecast?.audienceSize || data.reach * 15,
-          impressions: data.forecast?.impressions || data.impressions,
-          cpm: data.forecast?.cpm || parseFloat(data.cpm),
-          reach: data.forecast?.reach || data.reach,
-          clicks: data.forecast?.clicks || data.clicks,
-          ctr: data.forecast?.ctr || parseFloat(data.ctr),
-          cpc: data.forecast?.cpc || parseFloat(data.cpc),
-          results: data.forecast?.results || data.conversions,
-          resultType: data.forecast?.resultType || data.resultMetric || 'Conversions',
-          costPerResult: data.forecast?.costPerResult || parseFloat(data.costPerConversion),
-          conversionRate: data.forecast?.conversionRate || parseFloat(data.conversionRate),
+          audienceSize: data.forecast?.audienceSize || data.forecast.reach * 15,
+          reach: data.forecast.reach,
+          impressions: data.forecast.impressions,
+          cpm: data.forecast.cpm,
+          result,
+          resultLabel: getResultLabel(optimizationGoal),
+          resultKPI: goalMetrics?.kpi || optimizationGoal,
+          costPerResult: parseFloat(costPerResult.toFixed(2)),
+          resultRate: parseFloat(resultRate.toFixed(2)),
+          resultRateName: goalMetrics?.rateName || "Rate",
         };
       } catch (error: any) {
         console.error('Meta forecast error:', error);
@@ -195,18 +244,52 @@ export function CampaignForecast({
           if (fbError) throw fbError;
 
           toast.success('Using Meta reach estimates for this forecast');
+          
+          // Map strategy focus to optimization goal for fallback
+          const strategyFocusValue = market.strategyFocus || genericConfig.strategyFocus || 'conversions';
+          let optimizationGoal = "OFFSITE_CONVERSIONS";
+          let objective = "OUTCOME_SALES";
+          let destination = "Website";
+          
+          if (strategyFocusValue === 'brand-awareness') {
+            objective = "OUTCOME_AWARENESS";
+            optimizationGoal = "IMPRESSIONS";
+            destination = "On Your Ad";
+          } else if (strategyFocusValue === 'leads') {
+            objective = "OUTCOME_LEADS";
+            optimizationGoal = "LEADS";
+            destination = "Instant Forms";
+          } else if (strategyFocusValue === 'app-installs') {
+            objective = "OUTCOME_APP_PROMOTION";
+            optimizationGoal = "APP_INSTALLS";
+            destination = "App";
+          } else if (strategyFocusValue === 'purchase') {
+            objective = "OUTCOME_SALES";
+            optimizationGoal = "OFFSITE_CONVERSIONS";
+            destination = "Website";
+          } else {
+            objective = "OUTCOME_TRAFFIC";
+            optimizationGoal = "LINK_CLICKS";
+            destination = "Website";
+          }
+          const goalMetrics = getOptimizationGoalMetrics(objective, optimizationGoal, destination);
+          
+          const impressions = Number((fallbackData as any).impressions) || 0;
+          const result = calculateResultFromImpressions(impressions, budget, optimizationGoal);
+          const resultRate = impressions > 0 ? (result / impressions) * 100 : 0;
+          const costPerResult = result > 0 ? budget / result : 0;
+
           return {
             audienceSize: (fallbackData as any).reach * 10,
-            impressions: Number((fallbackData as any).impressions) || 0,
-            cpm: Number((fallbackData as any).cpm) || 0,
             reach: Number((fallbackData as any).reach) || 0,
-            clicks: Number((fallbackData as any).clicks) || 0,
-            ctr: Number((fallbackData as any).ctr) || 0,
-            cpc: Number((fallbackData as any).cpc) || 0,
-            results: Number((fallbackData as any).conversions) || 0,
-            resultType: (fallbackData as any).resultMetric || 'Conversions',
-            costPerResult: Number((fallbackData as any).costPerConversion) || 0,
-            conversionRate: Number((fallbackData as any).conversionRate) || 0,
+            impressions,
+            cpm: Number((fallbackData as any).cpm) || 0,
+            result,
+            resultLabel: getResultLabel(optimizationGoal),
+            resultKPI: goalMetrics?.kpi || optimizationGoal,
+            costPerResult: parseFloat(costPerResult.toFixed(2)),
+            resultRate: parseFloat(resultRate.toFixed(2)),
+            resultRateName: goalMetrics?.rateName || "Rate",
           } as ForecastMetrics;
         } catch (fbErr) {
           console.error('Meta reachestimate fallback failed:', fbErr);
@@ -226,55 +309,51 @@ export function CampaignForecast({
     const impressions = Math.floor((budget / baseCPM) * 1000);
     const avgFrequency = 3.5;
     const reach = Math.floor(impressions / avgFrequency);
-    const avgCTR = 1.5;
-    const clicks = Math.floor(impressions * (avgCTR / 100));
-    const cpc = budget / clicks;
     
-    // Determine result metric based on strategy focus
-    const strategyFocus = market.strategyFocus || genericConfig.strategyFocus || 'conversions';
-    let results = 0;
-    let resultRate = 0;
-    let resultMetric = 'Conversions';
+    // Map strategy focus to optimization goal for mock
+    const strategyFocusValue = market.strategyFocus || genericConfig.strategyFocus || 'conversions';
+    let optimizationGoal = "OFFSITE_CONVERSIONS";
+    let objective = "OUTCOME_SALES";
+    let destination = "Website";
     
-    if (strategyFocus === 'brand-awareness') {
-      results = reach;
-      resultRate = (reach / impressions) * 100;
-      resultMetric = 'Reach';
-    } else if (strategyFocus === 'traffic') {
-      results = clicks;
-      resultRate = avgCTR;
-      resultMetric = 'Link Clicks';
-    } else if (strategyFocus === 'leads') {
-      const leadRate = 3;
-      results = Math.floor(clicks * (leadRate / 100));
-      resultRate = leadRate;
-      resultMetric = 'Leads';
-    } else if (strategyFocus === 'app-installs') {
-      const installRate = 4;
-      results = Math.floor(clicks * (installRate / 100));
-      resultRate = installRate;
-      resultMetric = 'App Installs';
-    } else { // purchase or conversions
-      const avgConversionRate = 2.5;
-      results = Math.floor(clicks * (avgConversionRate / 100));
-      resultRate = avgConversionRate;
-      resultMetric = 'Conversions';
+    if (strategyFocusValue === 'brand-awareness') {
+      objective = "OUTCOME_AWARENESS";
+      optimizationGoal = "IMPRESSIONS";
+      destination = "On Your Ad";
+    } else if (strategyFocusValue === 'leads') {
+      objective = "OUTCOME_LEADS";
+      optimizationGoal = "LEADS";
+      destination = "Instant Forms";
+    } else if (strategyFocusValue === 'app-installs') {
+      objective = "OUTCOME_APP_PROMOTION";
+      optimizationGoal = "APP_INSTALLS";
+      destination = "App";
+    } else if (strategyFocusValue === 'purchase') {
+      objective = "OUTCOME_SALES";
+      optimizationGoal = "OFFSITE_CONVERSIONS";
+      destination = "Website";
+    } else {
+      objective = "OUTCOME_TRAFFIC";
+      optimizationGoal = "LINK_CLICKS";
+      destination = "Website";
     }
+    const goalMetrics = getOptimizationGoalMetrics(objective, optimizationGoal, destination);
     
-    const costPerResult = budget / results;
+    const result = calculateResultFromImpressions(impressions, budget, optimizationGoal);
+    const resultRate = impressions > 0 ? (result / impressions) * 100 : 0;
+    const costPerResult = result > 0 ? budget / result : 0;
 
     return {
       audienceSize: reach * 10,
+      reach,
       impressions,
       cpm: baseCPM,
-      reach,
-      clicks,
-      ctr: avgCTR,
-      cpc,
-      results,
-      resultType: resultMetric,
-      costPerResult,
-      conversionRate: resultRate,
+      result,
+      resultLabel: getResultLabel(optimizationGoal),
+      resultKPI: goalMetrics?.kpi || optimizationGoal,
+      costPerResult: parseFloat(costPerResult.toFixed(2)),
+      resultRate: parseFloat(resultRate.toFixed(2)),
+      resultRateName: goalMetrics?.rateName || "Rate",
     };
   };
 
@@ -331,6 +410,34 @@ export function CampaignForecast({
                 toast.error(`Could not fetch forecast for ${market.name} - ${phase.name}. Using estimates.`);
                 
                 // Return estimated metrics as fallback
+                const strategyFocusValue = market.strategyFocus || genericConfig.strategyFocus || 'conversions';
+                let optimizationGoal = "OFFSITE_CONVERSIONS";
+                let objective = "OUTCOME_SALES";
+                let destination = "Website";
+                
+                if (strategyFocusValue === 'brand-awareness') {
+                  objective = "OUTCOME_AWARENESS";
+                  optimizationGoal = "IMPRESSIONS";
+                  destination = "On Your Ad";
+                } else if (strategyFocusValue === 'leads') {
+                  objective = "OUTCOME_LEADS";
+                  optimizationGoal = "LEADS";
+                  destination = "Instant Forms";
+                } else if (strategyFocusValue === 'app-installs') {
+                  objective = "OUTCOME_APP_PROMOTION";
+                  optimizationGoal = "APP_INSTALLS";
+                  destination = "App";
+                } else if (strategyFocusValue === 'purchase') {
+                  objective = "OUTCOME_SALES";
+                  optimizationGoal = "OFFSITE_CONVERSIONS";
+                  destination = "Website";
+                } else {
+                  objective = "OUTCOME_TRAFFIC";
+                  optimizationGoal = "LINK_CLICKS";
+                  destination = "Website";
+                }
+                const goalMetrics = getOptimizationGoalMetrics(objective, optimizationGoal, destination);
+                
                 campaignForecasts.push({
                   market: `${market.name} - ${phase.name}`,
                   budget: campaignBudget,
@@ -341,13 +448,12 @@ export function CampaignForecast({
                     reach: Math.round(campaignBudget * 50),
                     impressions: Math.round(campaignBudget * 100),
                     cpm: 10,
-                    clicks: Math.round(campaignBudget * 10),
-                    ctr: 1.0,
-                    cpc: 1.0,
-                    results: Math.round(campaignBudget * 2),
-                    resultType: 'Conversions',
-                    costPerResult: 5.0,
-                    conversionRate: 2.0,
+                    result: Math.round(campaignBudget * 5),
+                    resultLabel: getResultLabel(optimizationGoal),
+                    resultKPI: goalMetrics?.kpi || optimizationGoal,
+                    costPerResult: 2.0,
+                    resultRate: 5.0,
+                    resultRateName: goalMetrics?.rateName || "Rate",
                   },
                 });
               }
@@ -365,6 +471,34 @@ export function CampaignForecast({
               console.error(`Forecast error for ${platform.id} - ${market.name}:`, error);
               toast.error(`Could not fetch forecast for ${market.name}. Using estimates.`);
               
+              const strategyFocusValue = market.strategyFocus || genericConfig.strategyFocus || 'conversions';
+              let optimizationGoal = "OFFSITE_CONVERSIONS";
+              let objective = "OUTCOME_SALES";
+              let destination = "Website";
+              
+              if (strategyFocusValue === 'brand-awareness') {
+                objective = "OUTCOME_AWARENESS";
+                optimizationGoal = "IMPRESSIONS";
+                destination = "On Your Ad";
+              } else if (strategyFocusValue === 'leads') {
+                objective = "OUTCOME_LEADS";
+                optimizationGoal = "LEADS";
+                destination = "Instant Forms";
+              } else if (strategyFocusValue === 'app-installs') {
+                objective = "OUTCOME_APP_PROMOTION";
+                optimizationGoal = "APP_INSTALLS";
+                destination = "App";
+              } else if (strategyFocusValue === 'purchase') {
+                objective = "OUTCOME_SALES";
+                optimizationGoal = "OFFSITE_CONVERSIONS";
+                destination = "Website";
+              } else {
+                objective = "OUTCOME_TRAFFIC";
+                optimizationGoal = "LINK_CLICKS";
+                destination = "Website";
+              }
+              const goalMetrics = getOptimizationGoalMetrics(objective, optimizationGoal, destination);
+              
               campaignForecasts.push({
                 market: market.name,
                 budget: marketBudget,
@@ -373,13 +507,12 @@ export function CampaignForecast({
                   reach: Math.round(marketBudget * 50),
                   impressions: Math.round(marketBudget * 100),
                   cpm: 10,
-                  clicks: Math.round(marketBudget * 10),
-                  ctr: 1.0,
-                  cpc: 1.0,
-                  results: Math.round(marketBudget * 2),
-                  resultType: 'Conversions',
-                  costPerResult: 5.0,
-                  conversionRate: 2.0,
+                  result: Math.round(marketBudget * 5),
+                  resultLabel: getResultLabel(optimizationGoal),
+                  resultKPI: goalMetrics?.kpi || optimizationGoal,
+                  costPerResult: 2.0,
+                  resultRate: 5.0,
+                  resultRateName: goalMetrics?.rateName || "Rate",
                 },
               });
             }
@@ -410,15 +543,12 @@ export function CampaignForecast({
 
     let total = {
       audienceSize: 0,
+      reach: 0,
       impressions: 0,
       cpm: 0,
-      reach: 0,
-      clicks: 0,
-      ctr: 0,
-      cpc: 0,
-      results: 0,
+      result: 0,
       costPerResult: 0,
-      conversionRate: 0,
+      resultRate: 0,
       totalBudget: 0,
     };
 
@@ -426,27 +556,31 @@ export function CampaignForecast({
     Object.values(forecasts).forEach((platformForecasts) => {
       platformForecasts.forEach((forecast) => {
         total.audienceSize += forecast.metrics.audienceSize;
-        total.impressions += forecast.metrics.impressions;
         total.reach += forecast.metrics.reach;
+        total.impressions += forecast.metrics.impressions;
         total.totalBudget += forecast.budget;
-        total.clicks += forecast.metrics.clicks;
-        total.results += forecast.metrics.results;
+        total.result += forecast.metrics.result;
         total.cpm += forecast.metrics.cpm;
-        total.ctr += forecast.metrics.ctr;
-        total.cpc += forecast.metrics.cpc;
-        total.conversionRate += forecast.metrics.conversionRate;
+        total.resultRate += forecast.metrics.resultRate;
         count++;
       });
     });
 
     // Calculate averages for rate-based metrics
     total.cpm = total.cpm / count;
-    total.ctr = total.ctr / count;
-    total.cpc = total.totalBudget / total.clicks;
-    total.costPerResult = total.totalBudget / total.results;
-    total.conversionRate = total.conversionRate / count;
+    total.resultRate = total.resultRate / count;
+    total.costPerResult = total.totalBudget / total.result;
 
-    return total;
+    // Get result label from first forecast
+    const firstPlatform = Object.keys(forecasts)[0];
+    const firstForecast = forecasts[firstPlatform]?.[0]?.metrics;
+
+    return {
+      ...total,
+      resultLabel: firstForecast?.resultLabel || "Results",
+      resultKPI: firstForecast?.resultKPI || "KPI",
+      resultRateName: firstForecast?.resultRateName || "Rate",
+    };
   };
 
   return (
@@ -512,21 +646,6 @@ export function CampaignForecast({
                 <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm font-medium flex items-center gap-2">
-                      <Users className="h-4 w-4" />
-                      Total Reach
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{formatNumber(getTotalMetrics()!.reach)}</div>
-                    <p className="text-xs text-muted-foreground">
-                      Audience: {formatNumber(getTotalMetrics()!.audienceSize)}
-                    </p>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium flex items-center gap-2">
                       <Eye className="h-4 w-4" />
                       Impressions
                     </CardTitle>
@@ -542,14 +661,14 @@ export function CampaignForecast({
                 <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm font-medium flex items-center gap-2">
-                      <MousePointer className="h-4 w-4" />
-                      Clicks
+                      <Target className="h-4 w-4" />
+                      Result ({getTotalMetrics()!.resultLabel})
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">{formatNumber(getTotalMetrics()!.clicks)}</div>
+                    <div className="text-2xl font-bold">{formatNumber(getTotalMetrics()!.result)}</div>
                     <p className="text-xs text-muted-foreground">
-                      CTR: {getTotalMetrics()!.ctr.toFixed(2)}%
+                      KPI: {getTotalMetrics()!.resultKPI}
                     </p>
                   </CardContent>
                 </Card>
@@ -558,13 +677,28 @@ export function CampaignForecast({
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm font-medium flex items-center gap-2">
                       <DollarSign className="h-4 w-4" />
-                      Results
+                      Cost Per Result
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">{formatNumber(getTotalMetrics()!.results)}</div>
+                    <div className="text-2xl font-bold">${getTotalMetrics()!.costPerResult.toFixed(2)}</div>
                     <p className="text-xs text-muted-foreground">
-                      Cost/Result: ${getTotalMetrics()!.costPerResult.toFixed(2)}
+                      {getTotalMetrics()!.resultKPI}
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4" />
+                      Result Rate
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{getTotalMetrics()!.resultRate.toFixed(2)}%</div>
+                    <p className="text-xs text-muted-foreground">
+                      {getTotalMetrics()!.resultRateName}
                     </p>
                   </CardContent>
                 </Card>
@@ -594,12 +728,9 @@ export function CampaignForecast({
                           <TableHead>Reach</TableHead>
                           <TableHead>Impressions</TableHead>
                           <TableHead>CPM</TableHead>
-                          <TableHead>Clicks</TableHead>
-                          <TableHead>CTR</TableHead>
-                          <TableHead>CPC</TableHead>
-                          <TableHead>{forecasts[platform.id]?.[0]?.metrics.resultType || "Results"}</TableHead>
-                          <TableHead>Conv. Rate</TableHead>
-                          <TableHead>Cost/{forecasts[platform.id]?.[0]?.metrics.resultType || "Result"}</TableHead>
+                          <TableHead>Result</TableHead>
+                          <TableHead>Result Rate</TableHead>
+                          <TableHead>Cost/Result</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -616,12 +747,18 @@ export function CampaignForecast({
                               <TableCell>{formatNumber(forecast.metrics.reach)}</TableCell>
                               <TableCell>{formatNumber(forecast.metrics.impressions)}</TableCell>
                               <TableCell>${forecast.metrics.cpm.toFixed(2)}</TableCell>
-                              <TableCell>{formatNumber(forecast.metrics.clicks)}</TableCell>
-                              <TableCell>{forecast.metrics.ctr}%</TableCell>
-                              <TableCell>${forecast.metrics.cpc.toFixed(2)}</TableCell>
-                              <TableCell>{formatNumber(forecast.metrics.results)}</TableCell>
-                              <TableCell>{forecast.metrics.conversionRate}%</TableCell>
-                              <TableCell>${forecast.metrics.costPerResult.toFixed(2)}</TableCell>
+                              <TableCell>
+                                <div>{formatNumber(forecast.metrics.result)}</div>
+                                <div className="text-xs text-muted-foreground">{forecast.metrics.resultLabel}</div>
+                              </TableCell>
+                              <TableCell>
+                                <div>{forecast.metrics.resultRate.toFixed(2)}%</div>
+                                <div className="text-xs text-muted-foreground">{forecast.metrics.resultRateName}</div>
+                              </TableCell>
+                              <TableCell>
+                                <div>${forecast.metrics.costPerResult.toFixed(2)}</div>
+                                <div className="text-xs text-muted-foreground">{forecast.metrics.resultKPI}</div>
+                              </TableCell>
                             </TableRow>
                           );
                         })}
