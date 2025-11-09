@@ -44,6 +44,7 @@ export function CampaignForecast({
 }: CampaignForecastProps) {
   const [loading, setLoading] = useState(false);
   const [forecasts, setForecasts] = useState<Record<string, Array<{ market: string; budget: number; metrics: ForecastMetrics }>>>({});
+  const [debugInfo, setDebugInfo] = useState<{startTimeUnix: number; endTimeUnix: number; startDateFormatted: string; endDateFormatted: string} | null>(null);
 
   const fetchForecast = async (
     platformId: string,
@@ -133,6 +134,19 @@ export function CampaignForecast({
         });
 
         if (error) throw error;
+
+        // Capture debug info for timestamp display
+        const startDateObj = new Date(campaignStartDate || startDate);
+        const endDateObj = new Date(campaignEndDate || endDate);
+        startDateObj.setUTCHours(7, 0, 0, 0);
+        endDateObj.setUTCHours(7, 0, 0, 0);
+        
+        setDebugInfo({
+          startTimeUnix: Math.floor(startDateObj.getTime() / 1000),
+          endTimeUnix: Math.floor(endDateObj.getTime() / 1000),
+          startDateFormatted: startDateObj.toISOString(),
+          endDateFormatted: endDateObj.toISOString(),
+        });
 
         // Transform Meta API response to our format
         return {
@@ -466,6 +480,32 @@ export function CampaignForecast({
           </div>
         ) : (
           <>
+            {/* Debug Panel - Show Unix Timestamps */}
+            {debugInfo && (
+              <Card className="bg-muted/50 border-dashed">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium">Meta R&F API Timestamps (Debug)</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <div className="grid grid-cols-2 gap-4 text-sm font-mono">
+                    <div>
+                      <p className="text-muted-foreground mb-1">Start Time (Unix)</p>
+                      <p className="font-semibold">{debugInfo.startTimeUnix}</p>
+                      <p className="text-xs text-muted-foreground">{debugInfo.startDateFormatted}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground mb-1">End Time (Unix)</p>
+                      <p className="font-semibold">{debugInfo.endTimeUnix}</p>
+                      <p className="text-xs text-muted-foreground">{debugInfo.endDateFormatted}</p>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground pt-2">
+                    Both timestamps are set to 7:00 AM UTC as per Meta R&F API requirements
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+            
             {/* Summary Cards */}
             {getTotalMetrics() && (
               <div className="grid gap-4 md:grid-cols-4">
