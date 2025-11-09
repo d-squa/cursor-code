@@ -115,10 +115,10 @@ export function CampaignForecast({
             isLifetimeBudget: market.isLifetimeBudget || false,
             startDate: campaignStartDate || startDate, // Use campaign-specific dates if available
             endDate: campaignEndDate || endDate,
-            // Add targeting parameters (with phase overrides)
-            ageMin: market.ageMin ?? genericConfig.targeting?.ageMin ?? 18,
-            ageMax: market.ageMax ?? genericConfig.targeting?.ageMax ?? 65,
-            gender: market.gender ?? (Array.isArray(market.genders) ? market.genders[0] : genericConfig.targeting?.genders?.[0]) ?? 'all',
+            // Add targeting parameters (prefer genericConfig; market overrides only if explicitly set)
+            ageMin: genericConfig.targeting?.ageMin ?? market.ageMin ?? 18,
+            ageMax: genericConfig.targeting?.ageMax ?? market.ageMax ?? 65,
+            gender: (genericConfig.targeting?.genders?.[0]) ?? market.gender ?? 'all',
             genders: Array.isArray(market.genders) ? market.genders : (genericConfig.targeting?.genders || []),
             languages: market.languages || [],
             publisherPlatforms: market.publisherPlatforms || [],
@@ -172,9 +172,9 @@ export function CampaignForecast({
               markets: [marketCode],
               budget,
               strategyFocus,
-              ageMin: market.ageMin ?? genericConfig.targeting?.ageMin ?? 18,
-              ageMax: market.ageMax ?? genericConfig.targeting?.ageMax ?? 65,
-              gender: market.gender ?? (Array.isArray(market.genders) ? market.genders[0] : genericConfig.targeting?.genders?.[0]) ?? 'all',
+              ageMin: genericConfig.targeting?.ageMin ?? market.ageMin ?? 18,
+              ageMax: genericConfig.targeting?.ageMax ?? market.ageMax ?? 65,
+              gender: (genericConfig.targeting?.genders?.[0]) ?? market.gender ?? 'all',
             }
           });
 
