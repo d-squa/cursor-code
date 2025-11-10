@@ -241,12 +241,25 @@ export function MediaPlanEditor() {
 
     setSaving(true);
     try {
+      const user = (await supabase.auth.getUser()).data.user;
+      if (!user) throw new Error("User not authenticated");
+
+      // Get user's first team
+      const { data: userRoles } = await supabase
+        .from("user_roles")
+        .select("team_id")
+        .eq("user_id", user.id)
+        .limit(1);
+
+      const teamId = userRoles?.[0]?.team_id;
+
       const selectedPlatforms = platformsWithMarkets.filter(p => p.id !== "");
       const budgetAllocation = selectedPlatforms
         .reduce((acc, p) => ({ ...acc, [p.id]: p.budgetPercentage }), {});
 
-      const { error } = await supabase.from("campaigns").insert({
-        user_id: user?.id,
+      const { data: campaign, error } = await supabase.from("campaigns").insert({
+        user_id: user.id,
+        team_id: teamId,
         name: campaignName,
         objective: genericConfig.strategyFocus || "conversions",
         total_budget: parseFloat(totalBudget) || 0,
@@ -254,15 +267,27 @@ export function MediaPlanEditor() {
         end_date: endDate || null,
         platforms: selectedPlatforms.map(p => ({ id: p.id, name: p.name })),
         budget_allocation: budgetAllocation,
-        status: "active",
-      });
+        status: "draft",
+      }).select().single();
 
       if (error) throw error;
+
+      // Log creation to history
+      await supabase.from("campaign_change_history").insert({
+        campaign_id: campaign.id,
+        user_id: user.id,
+        action: "created",
+        new_status: "draft",
+      } as any);
       
-      toast.success("Campaign launched successfully!");
-      setCampaignName("");
+      toast.success("ActiPlan saved as draft successfully!");
+      
+      // Redirect to ActiPlans page
+      setTimeout(() => {
+        window.location.href = "/actiplans";
+      }, 1000);
     } catch (error: any) {
-      toast.error(error.message || "Failed to launch campaign");
+      toast.error(error.message || "Failed to save ActiPlan");
     } finally {
       setSaving(false);
     }
