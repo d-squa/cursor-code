@@ -78,6 +78,7 @@ export function GenericStrategyConfig({
   }, [config.strategy, config.targeting?.adFormats, hasPixel, hasCatalog]);
   const updateConfig = (field: keyof GenericConfig, value: any) => {
     const updatedConfig = { ...config, [field]: value };
+    setConfig(updatedConfig);
     
     // Auto-generate campaigns when strategy changes
     if (field === "strategy" || field === "strategyFocus") {
@@ -127,10 +128,11 @@ export function GenericStrategyConfig({
   };
 
   const updateTargeting = (field: string, value: any) => {
-    setConfig({
+    const updated = {
       ...config,
       targeting: { ...config.targeting, [field]: value }
-    });
+    };
+    setConfig(updated);
   };
 
   return (

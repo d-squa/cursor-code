@@ -127,7 +127,34 @@ export function MediaPlanEditor() {
       setTotalBudget(String(c.total_budget ?? ""));
       setStartDate(c.start_date || defaultDates.start);
       setEndDate(c.end_date || defaultDates.end);
-      setGenericConfig(prev => ({ ...prev, strategyFocus: c.objective || prev.strategyFocus }));
+      
+      // Restore full genericConfig
+      if (c.generic_config && typeof c.generic_config === 'object') {
+        setGenericConfig({
+          strategy: c.generic_config.strategy || "auto-detect",
+          strategyFocus: c.generic_config.strategyFocus || c.objective || "auto",
+          hasPhases: c.generic_config.hasPhases,
+          phases: c.generic_config.phases || [],
+          campaigns: c.generic_config.campaigns || [],
+          targeting: c.generic_config.targeting || {
+            adFormats: [],
+            ageMin: 25,
+            ageMax: 45,
+            genders: ["all"],
+            devices: ["mobile"],
+            targetingExpansion: true,
+            os: ["iOS", "Android"],
+            language: "en",
+            interests: "",
+            websiteAudience: "",
+            keywordList: "",
+            customerList: "",
+            lookalikeAudience: ""
+          }
+        });
+      } else {
+        setGenericConfig(prev => ({ ...prev, strategyFocus: c.objective || prev.strategyFocus }));
+      }
 
       setPlatformsWithMarkets(prev => {
         const alloc = c.budget_allocation || {};
@@ -240,9 +267,24 @@ export function MediaPlanEditor() {
               id: m.id,
               name: m.name,
               budgetPercentage: m.budgetPercentage,
+              accountName: m.accountName,
+              page: m.page,
+              pixel: m.pixel,
+              catalog: m.catalog,
+              adFormats: m.adFormats,
               phases: m.phases,
+              isCBOEnabled: m.isCBOEnabled,
+              isLifetimeBudget: m.isLifetimeBudget,
             })),
           }), {}),
+          generic_config: {
+            strategy: genericConfig.strategy,
+            strategyFocus: genericConfig.strategyFocus,
+            hasPhases: genericConfig.hasPhases,
+            phases: genericConfig.phases,
+            campaigns: genericConfig.campaigns,
+            targeting: genericConfig.targeting,
+          },
         }).eq("id", savedCampaignId);
         
         console.log("Auto-saved draft");
@@ -252,7 +294,7 @@ export function MediaPlanEditor() {
     }, 1000); // Debounce for 1 second
 
     return () => clearTimeout(timer);
-  }, [campaignName, totalBudget, startDate, endDate, platformsWithMarkets, genericConfig.strategyFocus, savedCampaignId, user]);
+  }, [campaignName, totalBudget, startDate, endDate, platformsWithMarkets, genericConfig, savedCampaignId, user]);
 
   const isActivationDetailsComplete = () => {
     const allPlatformsSelected = platformsWithMarkets.every(p => p.id !== "");
@@ -374,6 +416,30 @@ export function MediaPlanEditor() {
         end_date: endDate || null,
         platforms: selectedPlatforms.map(p => ({ id: p.id, name: p.name })),
         budget_allocation: budgetAllocation,
+        market_splits: platformsWithMarkets.reduce((acc, platform) => ({
+          ...acc,
+          [platform.id]: platform.markets.map(m => ({
+            id: m.id,
+            name: m.name,
+            budgetPercentage: m.budgetPercentage,
+            accountName: m.accountName,
+            page: m.page,
+            pixel: m.pixel,
+            catalog: m.catalog,
+            adFormats: m.adFormats,
+            phases: m.phases,
+            isCBOEnabled: m.isCBOEnabled,
+            isLifetimeBudget: m.isLifetimeBudget,
+          })),
+        }), {}),
+        generic_config: {
+          strategy: genericConfig.strategy,
+          strategyFocus: genericConfig.strategyFocus,
+          hasPhases: genericConfig.hasPhases,
+          phases: genericConfig.phases,
+          campaigns: genericConfig.campaigns,
+          targeting: genericConfig.targeting,
+        },
         status: "draft",
       }).select().single();
 
@@ -427,6 +493,30 @@ export function MediaPlanEditor() {
         end_date: endDate || null,
         platforms: selectedPlatforms.map(p => ({ id: p.id, name: p.name })),
         budget_allocation: budgetAllocation,
+        market_splits: platformsWithMarkets.reduce((acc, platform) => ({
+          ...acc,
+          [platform.id]: platform.markets.map(m => ({
+            id: m.id,
+            name: m.name,
+            budgetPercentage: m.budgetPercentage,
+            accountName: m.accountName,
+            page: m.page,
+            pixel: m.pixel,
+            catalog: m.catalog,
+            adFormats: m.adFormats,
+            phases: m.phases,
+            isCBOEnabled: m.isCBOEnabled,
+            isLifetimeBudget: m.isLifetimeBudget,
+          })),
+        }), {}),
+        generic_config: {
+          strategy: genericConfig.strategy,
+          strategyFocus: genericConfig.strategyFocus,
+          hasPhases: genericConfig.hasPhases,
+          phases: genericConfig.phases,
+          campaigns: genericConfig.campaigns,
+          targeting: genericConfig.targeting,
+        },
         status: "draft",
       }).select().single();
 

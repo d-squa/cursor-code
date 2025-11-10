@@ -20,6 +20,7 @@ export type Database = {
           created_at: string
           end_date: string | null
           forecast_data: Json | null
+          generic_config: Json | null
           id: string
           market_splits: Json | null
           name: string
@@ -37,6 +38,7 @@ export type Database = {
           created_at?: string
           end_date?: string | null
           forecast_data?: Json | null
+          generic_config?: Json | null
           id?: string
           market_splits?: Json | null
           name: string
@@ -54,6 +56,7 @@ export type Database = {
           created_at?: string
           end_date?: string | null
           forecast_data?: Json | null
+          generic_config?: Json | null
           id?: string
           market_splits?: Json | null
           name?: string
