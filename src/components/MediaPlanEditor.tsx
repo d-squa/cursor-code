@@ -318,21 +318,12 @@ export function MediaPlanEditor() {
       const user = (await supabase.auth.getUser()).data.user;
       if (!user) throw new Error("User not authenticated");
 
-      const { data: userRoles } = await supabase
-        .from("user_roles")
-        .select("team_id")
-        .eq("user_id", user.id)
-        .limit(1);
-
-      const teamId = userRoles?.[0]?.team_id;
-
       const selectedPlatforms = platformsWithMarkets.filter(p => p.id !== "");
       const budgetAllocation = selectedPlatforms
         .reduce((acc, p) => ({ ...acc, [p.id]: p.budgetPercentage }), {});
 
       const { data: campaign, error } = await supabase.from("campaigns").insert({
         user_id: user.id,
-        team_id: teamId,
         name: campaignName,
         objective: genericConfig.strategyFocus || "conversions",
         total_budget: parseFloat(totalBudget) || 0,
