@@ -287,7 +287,7 @@ export default function ActiPlans() {
 
           <div className="flex flex-wrap gap-2">
             {canEdit(campaign) && (
-              <Button size="sm" variant="outline" onClick={() => window.location.href = `/`}>
+              <Button size="sm" variant="outline" onClick={() => window.location.href = `/?campaignId=${campaign.id}`}>
                 <Edit className="w-4 h-4 mr-2" />
                 Edit
               </Button>

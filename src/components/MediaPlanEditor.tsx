@@ -120,6 +120,74 @@ export function MediaPlanEditor() {
   ]);
   const [globalFunnel, setGlobalFunnel] = useState<FunnelStage[]>([]);
   
+  // Hydrate editor from a saved campaign record
+  const hydrateFromCampaign = (c: any) => {
+    try {
+      setCampaignName(c.name || "");
+      setTotalBudget(String(c.total_budget ?? ""));
+      setStartDate(c.start_date || defaultDates.start);
+      setEndDate(c.end_date || defaultDates.end);
+      setGenericConfig(prev => ({ ...prev, strategyFocus: c.objective || prev.strategyFocus }));
+
+      setPlatformsWithMarkets(prev => {
+        const alloc = c.budget_allocation || {};
+        const splits = c.market_splits || {};
+        const declaredPlatforms: any[] = Array.isArray(c.platforms) ? c.platforms : [];
+        return prev.map((p) => {
+          const isIncluded = declaredPlatforms.some((dp: any) => dp.id === p.id);
+          const platformBudget = alloc[p.id] ?? p.budgetPercentage;
+          const marketsFromDb = splits[p.id] || p.markets;
+          const mergedMarkets = Array.isArray(marketsFromDb)
+            ? marketsFromDb.map((m: any) => {
+                const existing = p.markets.find((x) => x.id === m.id) || {} as any;
+                return { ...existing, ...m } as any;
+              })
+            : p.markets;
+          return {
+            ...p,
+            enabled: isIncluded ? true : p.enabled,
+            budgetPercentage: typeof platformBudget === 'number' ? platformBudget : p.budgetPercentage,
+            markets: mergedMarkets,
+          } as any;
+        });
+      });
+    } catch (e) {
+      console.error('Failed to hydrate draft', e);
+    }
+  };
+
+  // Restore draft by URL param or localStorage (latest draft)
+  useEffect(() => {
+    const restore = async () => {
+      if (!user) return;
+      let cid = new URLSearchParams(window.location.search).get('campaignId') || localStorage.getItem('draftCampaignId') || '';
+      if (!cid) {
+        const { data } = await supabase
+          .from('campaigns')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('status', 'draft')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (data) cid = (data as any).id;
+      }
+      if (cid) {
+        const { data: c, error } = await supabase
+          .from('campaigns')
+          .select('*')
+          .eq('id', cid)
+          .single();
+        if (!error && c) {
+          setSavedCampaignId((c as any).id);
+          localStorage.setItem('draftCampaignId', (c as any).id);
+          hydrateFromCampaign(c);
+        }
+      }
+    };
+    restore();
+  }, [user]);
+  
   // Legacy platforms for step 5 (Platform Configuration)
   const [platforms, setPlatforms] = useState<Platform[]>([
     { id: "meta", name: "Meta", enabled: false, budgetPercentage: 0 },
@@ -372,11 +440,18 @@ export function MediaPlanEditor() {
       } as any);
 
       setSavedCampaignId(campaign.id);
+      localStorage.setItem('draftCampaignId', campaign.id);
       toast.success("ActiPlan draft saved!");
       return campaign.id;
     } catch (error: any) {
       toast.error(error.message || "Failed to save draft");
       return null;
+    }
+  };
+
+  const ensureDraft = async () => {
+    if (!savedCampaignId) {
+      await saveCampaignDraft();
     }
   };
 
@@ -404,7 +479,7 @@ export function MediaPlanEditor() {
               <Input
                 id="name"
                 value={campaignName}
-                onChange={(e) => setCampaignName(e.target.value)}
+                onChange={(e) => { setCampaignName(e.target.value); ensureDraft(); }}
                 placeholder="e.g., Q1 2024 Brand Activation"
               />
             </div>
@@ -414,7 +489,7 @@ export function MediaPlanEditor() {
                 id="budget"
                 type="number"
                 value={totalBudget}
-                onChange={(e) => setTotalBudget(e.target.value)}
+                onChange={(e) => { setTotalBudget(e.target.value); ensureDraft(); }}
                 placeholder="Enter total budget"
               />
             </div>
@@ -429,7 +504,7 @@ export function MediaPlanEditor() {
                   id="start-date"
                   type="date"
                   value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
+                  onChange={(e) => { setStartDate(e.target.value); ensureDraft(); }}
                 />
               </div>
               <div className="space-y-2">
@@ -441,7 +516,7 @@ export function MediaPlanEditor() {
                   id="end-date"
                   type="date"
                   value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
+                  onChange={(e) => { setEndDate(e.target.value); ensureDraft(); }}
                 />
               </div>
             </div>
@@ -459,7 +534,7 @@ export function MediaPlanEditor() {
 
             <div className="flex justify-end pt-4">
               <Button 
-                onClick={() => setCurrentStep(2)} 
+                onClick={async () => { await ensureDraft(); setCurrentStep(2); }} 
                 disabled={!isActivationDetailsComplete()}
               >
                 Next: Strategy Configuration
