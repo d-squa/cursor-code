@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, Play, Edit, CheckCircle, XCircle, MessageSquare, History, Trash2 } from "lucide-react";
+import { Loader2, Play, Edit, CheckCircle, XCircle, MessageSquare, History, Trash2, Download, TrendingUp } from "lucide-react";
 import { format } from "date-fns";
 import { ModificationRequestDialog } from "@/components/ModificationRequestDialog";
 import { ChangeHistoryDialog } from "@/components/ChangeHistoryDialog";
@@ -24,6 +24,8 @@ interface Campaign {
   pushed_at: string | null;
   user_id: string;
   team_id: string | null;
+  forecast_data?: any;
+  pdf_url?: string | null;
 }
 
 export default function ActiPlans() {
@@ -251,6 +253,30 @@ export default function ActiPlans() {
             <p className="text-lg font-semibold">${campaign.total_budget.toLocaleString()}</p>
           </div>
           
+          {campaign.forecast_data?.totalMetrics && (
+            <div>
+              <p className="text-sm text-muted-foreground mb-2">Forecast Metrics</p>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div>
+                  <p className="text-muted-foreground">Reach</p>
+                  <p className="font-medium">{campaign.forecast_data.totalMetrics.reach?.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Impressions</p>
+                  <p className="font-medium">{campaign.forecast_data.totalMetrics.impressions?.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">CPM</p>
+                  <p className="font-medium">${campaign.forecast_data.totalMetrics.cpm?.toFixed(2)}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">SOV</p>
+                  <p className="font-medium">{campaign.forecast_data.totalMetrics.sov?.toFixed(1)}%</p>
+                </div>
+              </div>
+            </div>
+          )}
+          
           {campaign.pushed_to_dsp && campaign.pushed_at && (
             <div>
               <p className="text-sm text-muted-foreground">Pushed to DSP</p>
@@ -294,6 +320,33 @@ export default function ActiPlans() {
               <Button size="sm" onClick={() => handlePushToDSP(campaign)} disabled={actionLoading}>
                 {actionLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Play className="w-4 h-4 mr-2" />}
                 Push to DSP
+              </Button>
+            )}
+            
+            {campaign.pdf_url && (
+              <Button 
+                size="sm" 
+                variant="outline"
+                onClick={async () => {
+                  try {
+                    const { data } = await supabase.storage
+                      .from('campaign-pdfs')
+                      .download(campaign.pdf_url!);
+                    if (data) {
+                      const url = URL.createObjectURL(data);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `${campaign.name}-media-plan.pdf`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }
+                  } catch (error) {
+                    toast.error("Failed to download PDF");
+                  }
+                }}
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Download PDF
               </Button>
             )}
 

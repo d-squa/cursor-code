@@ -50,6 +50,7 @@ export function MediaPlanEditor() {
   const [startDate, setStartDate] = useState<string>(defaultDates.start);
   const [endDate, setEndDate] = useState<string>(defaultDates.end);
   const [saving, setSaving] = useState(false);
+  const [savedCampaignId, setSavedCampaignId] = useState<string | null>(null);
   const [genericConfig, setGenericConfig] = useState<GenericConfig>({
     strategy: "auto-detect",
     strategyFocus: "auto",
@@ -241,6 +242,16 @@ export function MediaPlanEditor() {
 
     setSaving(true);
     try {
+      // If campaign is already saved, just redirect
+      if (savedCampaignId) {
+        toast.success("ActiPlan ready!");
+        setTimeout(() => {
+          window.location.href = "/actiplans";
+        }, 1000);
+        return;
+      }
+
+      // Otherwise, save it now
       const user = (await supabase.auth.getUser()).data.user;
       if (!user) throw new Error("User not authenticated");
 
@@ -290,6 +301,63 @@ export function MediaPlanEditor() {
       toast.error(error.message || "Failed to save ActiPlan");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const saveCampaignDraft = async () => {
+    if (!campaignName.trim()) {
+      toast.error("Please enter a campaign name");
+      return null;
+    }
+
+    if (savedCampaignId) {
+      return savedCampaignId;
+    }
+
+    try {
+      const user = (await supabase.auth.getUser()).data.user;
+      if (!user) throw new Error("User not authenticated");
+
+      const { data: userRoles } = await supabase
+        .from("user_roles")
+        .select("team_id")
+        .eq("user_id", user.id)
+        .limit(1);
+
+      const teamId = userRoles?.[0]?.team_id;
+
+      const selectedPlatforms = platformsWithMarkets.filter(p => p.id !== "");
+      const budgetAllocation = selectedPlatforms
+        .reduce((acc, p) => ({ ...acc, [p.id]: p.budgetPercentage }), {});
+
+      const { data: campaign, error } = await supabase.from("campaigns").insert({
+        user_id: user.id,
+        team_id: teamId,
+        name: campaignName,
+        objective: genericConfig.strategyFocus || "conversions",
+        total_budget: parseFloat(totalBudget) || 0,
+        start_date: startDate || null,
+        end_date: endDate || null,
+        platforms: selectedPlatforms.map(p => ({ id: p.id, name: p.name })),
+        budget_allocation: budgetAllocation,
+        status: "draft",
+      }).select().single();
+
+      if (error) throw error;
+
+      await (supabase as any).from("campaign_change_history").insert({
+        campaign_id: campaign.id,
+        user_id: user.id,
+        action: "created",
+        new_status: "draft",
+      } as any);
+
+      setSavedCampaignId(campaign.id);
+      toast.success("ActiPlan draft saved!");
+      return campaign.id;
+    } catch (error: any) {
+      toast.error(error.message || "Failed to save draft");
+      return null;
     }
   };
 
@@ -712,7 +780,11 @@ export function MediaPlanEditor() {
           platforms={platformsWithMarkets}
           genericConfig={genericConfig}
           onPlatformsUpdate={setPlatformsWithMarkets}
-          onNext={() => setCurrentStep(5)}
+          onNext={async () => {
+            // Save draft before showing forecast
+            await saveCampaignDraft();
+            setCurrentStep(5);
+          }}
           onBack={() => setCurrentStep(3)}
           startDate={startDate}
           endDate={endDate}
@@ -727,6 +799,7 @@ export function MediaPlanEditor() {
           genericConfig={genericConfig}
           startDate={startDate}
           endDate={endDate}
+          campaignId={savedCampaignId || undefined}
           onBack={() => setCurrentStep(4)}
           onFinalize={handleLaunch}
         />

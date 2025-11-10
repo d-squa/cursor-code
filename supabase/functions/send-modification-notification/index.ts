@@ -1,8 +1,8 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { Resend } from "npm:resend@4.0.0";
+// import { Resend } from "npm:resend@1.0.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.76.1";
 
-const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
+// const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -44,20 +44,21 @@ const handler = async (req: Request): Promise<Response> => {
 
     const creatorEmail = (campaign as any).profiles.email;
 
-    const { error: emailError } = await resend.emails.send({
-      from: "ActiPlan <onboarding@resend.dev>",
-      to: [creatorEmail],
-      subject: `Modification Requested: ${campaignName}`,
-      html: `
-        <h1>Modification Requested for "${campaignName}"</h1>
-        <p><strong>Change Type:</strong> ${changeType.charAt(0).toUpperCase() + changeType.slice(1)}</p>
-        <p><strong>Description:</strong> ${description}</p>
-        <p>Please review and make the necessary changes to your ActiPlan.</p>
-        <p>Best regards,<br>The ActiPlan Team</p>
-      `,
-    });
+    // TODO: Re-enable email when resend package is properly configured
+    // const { error: emailError } = await resend.emails.send({
+    //   from: "ActiPlan <onboarding@resend.dev>",
+    //   to: [creatorEmail],
+    //   subject: `Modification Requested: ${campaignName}`,
+    //   html: `
+    //     <h1>Modification Requested for "${campaignName}"</h1>
+    //     <p><strong>Change Type:</strong> ${changeType.charAt(0).toUpperCase() + changeType.slice(1)}</p>
+    //     <p><strong>Description:</strong> ${description}</p>
+    //     <p>Please review and make the necessary changes to your ActiPlan.</p>
+    //     <p>Best regards,<br>The ActiPlan Team</p>
+    //   `,
+    // });
 
-    if (emailError) throw emailError;
+    // if (emailError) throw emailError;
 
     console.log(`Modification notification sent to ${creatorEmail} for campaign ${campaignId}`);
 

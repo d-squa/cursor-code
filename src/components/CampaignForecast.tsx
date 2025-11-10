@@ -19,6 +19,7 @@ interface CampaignForecastProps {
   genericConfig: GenericConfig;
   startDate: string;
   endDate: string;
+  campaignId?: string;
   onBack: () => void;
   onFinalize: () => void;
 }
@@ -53,6 +54,7 @@ export function CampaignForecast({
   genericConfig,
   startDate,
   endDate,
+  campaignId,
   onBack,
   onFinalize,
 }: CampaignForecastProps) {
@@ -62,7 +64,7 @@ export function CampaignForecast({
   const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
   const [pdfBase64Data, setPdfBase64Data] = useState<string>("");
 
-  const handleDownloadPDF = () => {
+  const handleDownloadPDF = async () => {
     const totalMetrics = getTotalMetrics();
     const campaignsData = Object.entries(forecasts).flatMap(([platformId, platformForecasts]) => 
       platformForecasts.map(f => ({
@@ -95,16 +97,35 @@ export function CampaignForecast({
     };
 
     try {
-      downloadMediaPlanPDF(planData);
+      const { generateMediaPlanPDF } = await import("@/utils/pdfGenerator");
+      const blob = generateMediaPlanPDF(planData);
       
-      // Also prepare base64 for email
-      const blob = require("@/utils/pdfGenerator").generateMediaPlanPDF(planData);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = (reader.result as string).split(',')[1];
-        setPdfBase64Data(base64);
-      };
-      reader.readAsDataURL(blob);
+      // If we have a campaign ID, upload PDF to storage
+      if (campaignId) {
+        const { supabase } = await import("@/integrations/supabase/client");
+        const fileName = `${campaignId}/media-plan-${Date.now()}.pdf`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('campaign-pdfs')
+          .upload(fileName, blob, {
+            contentType: 'application/pdf',
+            upsert: true,
+          });
+        
+        if (uploadError) {
+          console.error("Error uploading PDF:", uploadError);
+        } else {
+          // Update campaign with PDF URL
+          await (supabase as any).from('campaigns')
+            .update({ pdf_url: fileName })
+            .eq('id', campaignId);
+          
+          toast.success("PDF saved and attached to ActiPlan!");
+        }
+      }
+      
+      // Download PDF
+      downloadMediaPlanPDF(planData);
       
       toast.success("PDF downloaded successfully!");
     } catch (error) {
@@ -620,13 +641,65 @@ export function CampaignForecast({
       }
 
       setForecasts(newForecasts);
-      toast.success("Forecasts fetched successfully!");
+      
+      // Save forecast data to database if we have a campaign ID
+      if (campaignId) {
+        try {
+          const { supabase } = await import("@/integrations/supabase/client");
+          await (supabase as any).from('campaigns')
+            .update({ 
+              forecast_data: {
+                forecasts: newForecasts,
+                totalMetrics: getTotalMetricsFromForecasts(newForecasts),
+                generatedAt: new Date().toISOString(),
+              }
+            })
+            .eq('id', campaignId);
+          
+          toast.success("Forecasts fetched and saved successfully!");
+        } catch (err) {
+          console.error("Error saving forecast data:", err);
+          toast.success("Forecasts fetched successfully!");
+        }
+      } else {
+        toast.success("Forecasts fetched successfully!");
+      }
     } catch (error) {
       toast.error("Failed to fetch forecasts");
       console.error(error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const getTotalMetricsFromForecasts = (forecastData: Record<string, CampaignForecast[]>) => {
+    let total = {
+      audienceSize: 0,
+      reach: 0,
+      impressions: 0,
+      totalBudget: 0,
+    };
+
+    Object.values(forecastData).forEach((platformForecasts) => {
+      platformForecasts.forEach((forecast) => {
+        total.audienceSize = Math.max(total.audienceSize, forecast.metrics.audienceSize);
+        total.reach += forecast.metrics.reach;
+        total.impressions += forecast.metrics.impressions;
+        total.totalBudget += forecast.budget;
+      });
+    });
+
+    const cpm = total.impressions > 0 ? (total.totalBudget / total.impressions) * 1000 : 0;
+    const sov = total.audienceSize > 0 ? (total.reach / total.audienceSize) * 100 : 0;
+
+    return {
+      audienceSize: total.audienceSize,
+      reach: total.reach,
+      impressions: total.impressions,
+      cpm,
+      sov,
+      totalBudget: total.totalBudget,
+    };
   };
 
   const formatNumber = (num: number) => {

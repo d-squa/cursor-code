@@ -19,10 +19,12 @@ export type Database = {
           budget_allocation: Json
           created_at: string
           end_date: string | null
+          forecast_data: Json | null
           id: string
           market_splits: Json | null
           name: string
           objective: string
+          pdf_url: string | null
           platforms: Json
           start_date: string | null
           status: string | null
@@ -34,10 +36,12 @@ export type Database = {
           budget_allocation?: Json
           created_at?: string
           end_date?: string | null
+          forecast_data?: Json | null
           id?: string
           market_splits?: Json | null
           name: string
           objective: string
+          pdf_url?: string | null
           platforms?: Json
           start_date?: string | null
           status?: string | null
@@ -49,10 +53,12 @@ export type Database = {
           budget_allocation?: Json
           created_at?: string
           end_date?: string | null
+          forecast_data?: Json | null
           id?: string
           market_splits?: Json | null
           name?: string
           objective?: string
+          pdf_url?: string | null
           platforms?: Json
           start_date?: string | null
           status?: string | null
