@@ -4,7 +4,7 @@ import { MediaPlanEditor } from "@/components/MediaPlanEditor";
 import { GoogleAdsForecastTest } from "@/components/GoogleAdsForecastTest";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { Target, TrendingUp, Zap, LogOut, Loader2 } from "lucide-react";
+import { Target, TrendingUp, Zap, LogOut, Loader2, Settings } from "lucide-react";
 
 const Index = () => {
   const { user, loading, signOut } = useAuth();
@@ -61,7 +61,15 @@ const Index = () => {
               <button className="px-4 py-2 text-sm font-medium text-foreground hover:text-primary transition-colors">
                 Analytics
               </button>
-              <Button variant="outline" size="sm" onClick={signOut} className="gap-2 ml-2">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => navigate("/settings")}
+                className="gap-2"
+              >
+                <Settings className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="sm" onClick={signOut} className="gap-2">
                 <LogOut className="h-4 w-4" />
                 Sign Out
               </Button>
