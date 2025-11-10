@@ -11,24 +11,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, UserPlus } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import type { Tables, Enums } from "@/integrations/supabase/types";
 
-type Team = {
-  id: string;
-  name: string;
-  description: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-type TeamMember = {
-  id: string;
-  user_id: string;
-  role: string;
-  profiles: {
-    email: string;
-    company_name: string | null;
-  };
-};
+type Team = Tables<"teams">;
+type AppRole = Enums<"app_role">;
 
 export default function Teams() {
   const { user } = useAuth();
@@ -62,19 +48,27 @@ export default function Teams() {
       
       const { data, error } = await supabase
         .from("user_roles")
-        .select(`
-          id,
-          user_id,
-          role,
-          profiles (
-            email,
-            company_name
-          )
-        `)
+        .select("id, user_id, role, team_id")
         .eq("team_id", selectedTeam.id);
       
       if (error) throw error;
-      return data as TeamMember[];
+
+      // Fetch profiles separately
+      if (!data || data.length === 0) return [];
+      
+      const userIds = data.map(r => r.user_id);
+      const { data: profiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("id, email, company_name")
+        .in("id", userIds);
+      
+      if (profilesError) throw profilesError;
+
+      // Merge the data
+      return data.map(role => ({
+        ...role,
+        profile: profiles?.find(p => p.id === role.user_id) || null
+      }));
     },
     enabled: !!selectedTeam,
   });
@@ -149,16 +143,16 @@ export default function Teams() {
         .from("profiles")
         .select("id")
         .eq("email", data.email)
-        .single();
+        .maybeSingle();
       
-      if (profileError) throw new Error("User not found");
+      if (profileError || !profile) throw new Error("User not found");
       
       // Add user to team with role
       const { error } = await supabase
         .from("user_roles")
         .insert([{
           user_id: profile.id,
-          role: data.role,
+          role: data.role as AppRole,
           team_id: data.teamId,
         }]);
       
@@ -196,7 +190,7 @@ export default function Teams() {
 
   // Update member role mutation
   const updateMemberRole = useMutation({
-    mutationFn: async (data: { roleId: string; newRole: string }) => {
+    mutationFn: async (data: { roleId: string; newRole: AppRole }) => {
       const { error } = await supabase
         .from("user_roles")
         .update({ role: data.newRole })
@@ -389,12 +383,12 @@ export default function Teams() {
                 <TableBody>
                   {teamMembers?.map((member) => (
                     <TableRow key={member.id}>
-                      <TableCell>{member.profiles.email}</TableCell>
-                      <TableCell>{member.profiles.company_name || "-"}</TableCell>
+                      <TableCell>{member.profile?.email || "Unknown"}</TableCell>
+                      <TableCell>{member.profile?.company_name || "-"}</TableCell>
                       <TableCell>
                         <Select
                           value={member.role}
-                          onValueChange={(value) => updateMemberRole.mutate({ roleId: member.id, newRole: value })}
+                          onValueChange={(value) => updateMemberRole.mutate({ roleId: member.id, newRole: value as AppRole })}
                         >
                           <SelectTrigger className="w-40">
                             <SelectValue />
