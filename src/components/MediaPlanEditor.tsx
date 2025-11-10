@@ -273,7 +273,7 @@ export function MediaPlanEditor() {
       if (error) throw error;
 
       // Log creation to history
-      await supabase.from("campaign_change_history").insert({
+      await (supabase as any).from("campaign_change_history").insert({
         campaign_id: campaign.id,
         user_id: user.id,
         action: "created",

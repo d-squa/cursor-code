@@ -72,7 +72,7 @@ export default function ActiPlans() {
       if (updateError) throw updateError;
 
       // Log to history
-      await supabase.from("campaign_change_history").insert({
+      await (supabase as any).from("campaign_change_history").insert({
         campaign_id: campaign.id,
         user_id: user?.id,
         action: "approved",
@@ -109,7 +109,7 @@ export default function ActiPlans() {
 
       if (updateError) throw updateError;
 
-      await supabase.from("campaign_change_history").insert({
+      await (supabase as any).from("campaign_change_history").insert({
         campaign_id: campaign.id,
         user_id: user?.id,
         action: "rejected",
@@ -155,7 +155,7 @@ export default function ActiPlans() {
         })
         .eq("id", campaign.id);
 
-      await supabase.from("campaign_change_history").insert({
+      await (supabase as any).from("campaign_change_history").insert({
         campaign_id: campaign.id,
         user_id: user?.id,
         action: "pushed_to_dsp",

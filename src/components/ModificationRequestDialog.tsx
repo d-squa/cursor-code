@@ -38,7 +38,7 @@ export function ModificationRequestDialog({
     setLoading(true);
     try {
       // Create modification request
-      const { error: requestError } = await supabase
+      const { error: requestError } = await (supabase as any)
         .from("modification_requests")
         .insert({
           campaign_id: campaignId,
@@ -59,7 +59,7 @@ export function ModificationRequestDialog({
       if (updateError) throw updateError;
 
       // Log to history
-      await supabase.from("campaign_change_history").insert({
+      await (supabase as any).from("campaign_change_history").insert({
         campaign_id: campaignId,
         user_id: user?.id,
         action: "modification_requested",

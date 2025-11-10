@@ -44,7 +44,7 @@ export function ChangeHistoryDialog({
   const loadHistory = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from("campaign_change_history")
         .select(`
           *,
