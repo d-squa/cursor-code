@@ -67,7 +67,7 @@ serve(async (req: Request): Promise<Response> => {
         attachments: [
           {
             filename: `${planName.replace(/\s+/g, '-').toLowerCase()}-media-plan.pdf`,
-            content: pdfBase64,
+            content: pdfBase64.split(',')[1] || pdfBase64, // Remove data URL prefix if present
           },
         ],
       };
