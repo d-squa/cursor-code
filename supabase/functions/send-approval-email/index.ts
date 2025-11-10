@@ -64,12 +64,13 @@ serve(async (req: Request): Promise<Response> => {
           
           <p>Best regards,<br>${senderName}</p>
         `,
-        attachments: [
+        attachments: pdfBase64 ? [
           {
             filename: `${planName.replace(/\s+/g, '-').toLowerCase()}-media-plan.pdf`,
             content: pdfBase64.split(',')[1] || pdfBase64, // Remove data URL prefix if present
+            type: 'application/pdf',
           },
-        ],
+        ] : [],
       };
 
       const response = await fetch("https://api.resend.com/emails", {

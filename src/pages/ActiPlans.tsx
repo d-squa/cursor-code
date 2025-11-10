@@ -23,7 +23,6 @@ interface Campaign {
   pushed_to_dsp: boolean | null;
   pushed_at: string | null;
   user_id: string;
-  team_id: string | null;
   forecast_data?: any;
   pdf_url?: string | null;
 }
@@ -241,6 +240,8 @@ export default function ActiPlans() {
             <CardTitle>{campaign.name}</CardTitle>
             <CardDescription>
               {format(new Date(campaign.start_date), "MMM dd, yyyy")} - {format(new Date(campaign.end_date), "MMM dd, yyyy")}
+              <br />
+              <span className="text-xs">Created: {format(new Date(campaign.created_at), "MMM dd, yyyy HH:mm")}</span>
             </CardDescription>
           </div>
           {getStatusBadge(campaign.status)}

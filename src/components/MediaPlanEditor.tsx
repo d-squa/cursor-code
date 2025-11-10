@@ -148,6 +148,44 @@ export function MediaPlanEditor() {
     }
   }, [platformsWithMarkets]);
 
+  // Auto-save draft whenever key fields change
+  useEffect(() => {
+    if (!savedCampaignId || !user) return;
+    
+    const timer = setTimeout(async () => {
+      try {
+        const selectedPlatforms = platformsWithMarkets.filter(p => p.id !== "");
+        const budgetAllocation = selectedPlatforms
+          .reduce((acc, p) => ({ ...acc, [p.id]: p.budgetPercentage }), {});
+
+        await supabase.from("campaigns").update({
+          name: campaignName,
+          objective: genericConfig.strategyFocus || "conversions",
+          total_budget: parseFloat(totalBudget) || 0,
+          start_date: startDate || null,
+          end_date: endDate || null,
+          platforms: selectedPlatforms.map(p => ({ id: p.id, name: p.name })),
+          budget_allocation: budgetAllocation,
+          market_splits: platformsWithMarkets.reduce((acc, platform) => ({
+            ...acc,
+            [platform.id]: platform.markets.map(m => ({
+              id: m.id,
+              name: m.name,
+              budgetPercentage: m.budgetPercentage,
+              phases: m.phases,
+            })),
+          }), {}),
+        }).eq("id", savedCampaignId);
+        
+        console.log("Auto-saved draft");
+      } catch (error) {
+        console.error("Error auto-saving:", error);
+      }
+    }, 1000); // Debounce for 1 second
+
+    return () => clearTimeout(timer);
+  }, [campaignName, totalBudget, startDate, endDate, platformsWithMarkets, genericConfig.strategyFocus, savedCampaignId, user]);
+
   const isActivationDetailsComplete = () => {
     const allPlatformsSelected = platformsWithMarkets.every(p => p.id !== "");
     const allHaveMarkets = platformsWithMarkets.every(p => p.markets.length > 0);
@@ -255,22 +293,12 @@ export function MediaPlanEditor() {
       const user = (await supabase.auth.getUser()).data.user;
       if (!user) throw new Error("User not authenticated");
 
-      // Get user's first team
-      const { data: userRoles } = await supabase
-        .from("user_roles")
-        .select("team_id")
-        .eq("user_id", user.id)
-        .limit(1);
-
-      const teamId = userRoles?.[0]?.team_id;
-
       const selectedPlatforms = platformsWithMarkets.filter(p => p.id !== "");
       const budgetAllocation = selectedPlatforms
         .reduce((acc, p) => ({ ...acc, [p.id]: p.budgetPercentage }), {});
 
       const { data: campaign, error } = await supabase.from("campaigns").insert({
         user_id: user.id,
-        team_id: teamId,
         name: campaignName,
         objective: genericConfig.strategyFocus || "conversions",
         total_budget: parseFloat(totalBudget) || 0,

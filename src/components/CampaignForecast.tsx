@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -63,6 +63,39 @@ export function CampaignForecast({
   const [debugInfo, setDebugInfo] = useState<{startTimeUnix: number; endTimeUnix: number; startDateFormatted: string; endDateFormatted: string} | null>(null);
   const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
   const [pdfBase64Data, setPdfBase64Data] = useState<string>("");
+
+  // Auto-save forecast data when it changes
+  useEffect(() => {
+    const saveForecastData = async () => {
+      if (!campaignId || Object.keys(forecasts).length === 0) return;
+
+      try {
+        const { supabase } = await import("@/integrations/supabase/client");
+        const totalMetrics = getTotalMetrics();
+        
+        await (supabase as any).from('campaigns')
+          .update({ 
+            forecast_data: {
+              forecasts,
+              totalMetrics: totalMetrics ? {
+                reach: totalMetrics.reach,
+                impressions: totalMetrics.impressions,
+                cpm: totalMetrics.cpm,
+                sov: totalMetrics.sov,
+                audienceSize: totalMetrics.audienceSize,
+              } : null,
+            }
+          })
+          .eq('id', campaignId);
+        
+        console.log("Forecast data auto-saved");
+      } catch (error) {
+        console.error("Error auto-saving forecast data:", error);
+      }
+    };
+
+    saveForecastData();
+  }, [forecasts, campaignId]);
 
   const handleDownloadPDF = async () => {
     const totalMetrics = getTotalMetrics();
@@ -1061,7 +1094,7 @@ export function CampaignForecast({
               Send for Approval
             </Button>
             <Button onClick={onFinalize} disabled={Object.keys(forecasts).length === 0}>
-              Finalize & Export
+              Save Draft
             </Button>
           </div>
         </div>
