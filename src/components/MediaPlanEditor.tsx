@@ -51,73 +51,27 @@ export function MediaPlanEditor() {
   const [endDate, setEndDate] = useState<string>(defaultDates.end);
   const [saving, setSaving] = useState(false);
   const [savedCampaignId, setSavedCampaignId] = useState<string | null>(null);
+  const [isHydrated, setIsHydrated] = useState(false);
   const [genericConfig, setGenericConfig] = useState<GenericConfig>({
     strategy: "auto-detect",
     strategyFocus: "auto",
     targeting: {
       adFormats: [],
-      ageMin: 25,
-      ageMax: 45,
-      genders: ["all"],
-      devices: ["mobile"],
-      targetingExpansion: true,
-      os: ["iOS", "Android"],
-      language: "en",
-      interests: "Technology, Shopping, Fashion",
-      websiteAudience: "Website Visitors - Last 30 Days",
-      keywordList: "buy online\npurchase products\nshop now\nbest deals",
-      customerList: "Existing Customers 2023",
-      lookalikeAudience: "Lookalike - Top Purchasers (1%)"
+      ageMin: undefined,
+      ageMax: undefined,
+      genders: [],
+      devices: [],
+      targetingExpansion: false,
+      os: [],
+      language: "",
+      interests: "",
+      websiteAudience: "",
+      keywordList: "",
+      customerList: "",
+      lookalikeAudience: ""
     }
   });
-  const [platformsWithMarkets, setPlatformsWithMarkets] = useState<PlatformWithMarkets[]>([
-    { 
-      id: "facebook", 
-      name: "Facebook (Meta)", 
-      enabled: true, 
-      budgetPercentage: 60, 
-      markets: [
-        { 
-          id: "market-1", 
-          name: "United States", 
-          budgetPercentage: 60,
-          accountName: "Main Ad Account",
-          page: "Company Page",
-          pixel: "Main Pixel",
-          catalog: "Product Catalog 2024",
-          adFormats: ["Image ads", "Video ads", "Carousel ads"],
-          phases: [] 
-        },
-        { 
-          id: "market-2", 
-          name: "United Kingdom", 
-          budgetPercentage: 40,
-          accountName: "EMEA Ad Account",
-          page: "Company Page UK",
-          pixel: "UK Pixel",
-          catalog: "Product Catalog UK",
-          adFormats: ["Image ads", "Stories ads"],
-          phases: [] 
-        }
-      ] 
-    },
-    { 
-      id: "google", 
-      name: "Google Ads", 
-      enabled: true, 
-      budgetPercentage: 40, 
-      markets: [
-        { 
-          id: "market-3", 
-          name: "United States", 
-          budgetPercentage: 100,
-          accountName: "Google Main Account",
-          adFormats: ["Skippable In-Stream ads", "In-Feed video ads"],
-          phases: [] 
-        }
-      ] 
-    },
-  ]);
+  const [platformsWithMarkets, setPlatformsWithMarkets] = useState<PlatformWithMarkets[]>([]);
   const [globalFunnel, setGlobalFunnel] = useState<FunnelStage[]>([]);
   
   // Hydrate editor from a saved campaign record
@@ -138,13 +92,13 @@ export function MediaPlanEditor() {
           campaigns: c.generic_config.campaigns || [],
           targeting: c.generic_config.targeting || {
             adFormats: [],
-            ageMin: 25,
-            ageMax: 45,
-            genders: ["all"],
-            devices: ["mobile"],
-            targetingExpansion: true,
-            os: ["iOS", "Android"],
-            language: "en",
+            ageMin: undefined,
+            ageMax: undefined,
+            genders: [],
+            devices: [],
+            targetingExpansion: false,
+            os: [],
+            language: "",
             interests: "",
             websiteAudience: "",
             keywordList: "",
@@ -156,30 +110,26 @@ export function MediaPlanEditor() {
         setGenericConfig(prev => ({ ...prev, strategyFocus: c.objective || prev.strategyFocus }));
       }
 
-      setPlatformsWithMarkets(prev => {
-        const alloc = c.budget_allocation || {};
-        const splits = c.market_splits || {};
-        const declaredPlatforms: any[] = Array.isArray(c.platforms) ? c.platforms : [];
-        return prev.map((p) => {
-          const isIncluded = declaredPlatforms.some((dp: any) => dp.id === p.id);
-          const platformBudget = alloc[p.id] ?? p.budgetPercentage;
-          const marketsFromDb = splits[p.id] || p.markets;
-          const mergedMarkets = Array.isArray(marketsFromDb)
-            ? marketsFromDb.map((m: any) => {
-                const existing = p.markets.find((x) => x.id === m.id) || {} as any;
-                return { ...existing, ...m } as any;
-              })
-            : p.markets;
-          return {
-            ...p,
-            enabled: isIncluded ? true : p.enabled,
-            budgetPercentage: typeof platformBudget === 'number' ? platformBudget : p.budgetPercentage,
-            markets: mergedMarkets,
-          } as any;
-        });
-      });
+      // Restore platforms and markets completely from DB
+      const alloc = c.budget_allocation || {};
+      const splits = c.market_splits || {};
+      const declaredPlatforms: any[] = Array.isArray(c.platforms) ? c.platforms : [];
+      
+      if (declaredPlatforms.length > 0) {
+        const restoredPlatforms = declaredPlatforms.map((dp: any) => ({
+          id: dp.id,
+          name: dp.name,
+          enabled: true,
+          budgetPercentage: alloc[dp.id] ?? 0,
+          markets: splits[dp.id] || [],
+        }));
+        setPlatformsWithMarkets(restoredPlatforms);
+      }
+      
+      setIsHydrated(true);
     } catch (e) {
       console.error('Failed to hydrate draft', e);
+      setIsHydrated(true);
     }
   };
 
@@ -209,7 +159,11 @@ export function MediaPlanEditor() {
           setSavedCampaignId((c as any).id);
           localStorage.setItem('draftCampaignId', (c as any).id);
           hydrateFromCampaign(c);
+        } else {
+          setIsHydrated(true);
         }
+      } else {
+        setIsHydrated(true);
       }
     };
     restore();
@@ -284,7 +238,7 @@ export function MediaPlanEditor() {
             phases: genericConfig.phases,
             campaigns: genericConfig.campaigns,
             targeting: genericConfig.targeting,
-          },
+          } as any,
         }).eq("id", savedCampaignId);
         
         console.log("Auto-saved draft");
@@ -439,9 +393,9 @@ export function MediaPlanEditor() {
           phases: genericConfig.phases,
           campaigns: genericConfig.campaigns,
           targeting: genericConfig.targeting,
-        },
+        } as any,
         status: "draft",
-      }).select().single();
+      } as any).select().single();
 
       if (error) throw error;
 
@@ -516,9 +470,9 @@ export function MediaPlanEditor() {
           phases: genericConfig.phases,
           campaigns: genericConfig.campaigns,
           targeting: genericConfig.targeting,
-        },
+        } as any,
         status: "draft",
-      }).select().single();
+      } as any).select().single();
 
       if (error) throw error;
 
