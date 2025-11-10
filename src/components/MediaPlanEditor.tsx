@@ -540,6 +540,7 @@ export function MediaPlanEditor() {
                           ...p,
                           markets: p.markets.map(m => ({
                             ...m,
+                            strategyFocus: genericConfig.strategyFocus, // Propagate strategy focus
                             phases: newFunnel.map(stage => ({
                               id: `phase-${m.id}-${stage.id}`,
                               name: stage.name,

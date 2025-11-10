@@ -317,7 +317,7 @@ return (
           {platforms.map((platform) => (
             <TabsContent key={platform.id} value={platform.id} className="space-y-4">
               <div className="text-sm text-muted-foreground mb-4">
-                <p><strong>Strategy:</strong> {getStrategyLabel(genericConfig.strategy, genericConfig.strategyFocus)}</p>
+                <p><strong>Strategy:</strong> {genericConfig.strategy === 'manual' ? 'Manual Strategy' : genericConfig.strategyFocus ? getStrategyLabel(genericConfig.strategy, genericConfig.strategyFocus) : 'Custom Strategy'}</p>
               </div>
 
               <Accordion type="single" collapsible className="w-full">

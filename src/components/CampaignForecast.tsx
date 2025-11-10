@@ -6,10 +6,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { PlatformWithMarkets } from "@/types/mediaplan";
 import { GenericConfig } from "./GenericStrategyConfig";
-import { Loader2, TrendingUp, Users, Eye, Target, DollarSign } from "lucide-react";
+import { Loader2, TrendingUp, Users, Eye, Target, DollarSign, Download, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { getOptimizationGoalMetrics, getResultLabel, calculateResultFromImpressions } from "@/utils/optimizationGoals";
 import { getObjectiveFromPhaseName } from "@/utils/phaseObjectiveMapping";
+import { downloadMediaPlanPDF } from "@/utils/pdfGenerator";
+import { ApprovalDialog } from "./ApprovalDialog";
 
 interface CampaignForecastProps {
   platforms: PlatformWithMarkets[];
@@ -57,6 +59,59 @@ export function CampaignForecast({
   const [loading, setLoading] = useState(false);
   const [forecasts, setForecasts] = useState<Record<string, CampaignForecast[]>>({});
   const [debugInfo, setDebugInfo] = useState<{startTimeUnix: number; endTimeUnix: number; startDateFormatted: string; endDateFormatted: string} | null>(null);
+  const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
+  const [pdfBase64Data, setPdfBase64Data] = useState<string>("");
+
+  const handleDownloadPDF = () => {
+    const totalMetrics = getTotalMetrics();
+    const campaignsData = Object.entries(forecasts).flatMap(([platformId, platformForecasts]) => 
+      platformForecasts.map(f => ({
+        name: f.market,
+        objective: f.metrics.objective,
+        budget: f.budget,
+        impressions: f.metrics.impressions,
+        reach: f.metrics.reach,
+        cpm: f.metrics.cpm,
+        result: f.metrics.result,
+        costPerResult: f.metrics.costPerResult,
+      }))
+    );
+
+    const planData = {
+      name: `${genericConfig.strategyFocus || 'Media'} Plan`,
+      totalBudget,
+      startDate,
+      endDate,
+      platforms,
+      genericConfig,
+      forecasts: totalMetrics ? {
+        totalReach: totalMetrics.reach,
+        audienceSize: totalMetrics.audienceSize,
+        sov: totalMetrics.sov,
+        cpm: totalMetrics.cpm,
+        totalImpressions: totalMetrics.impressions,
+        campaigns: campaignsData,
+      } : undefined,
+    };
+
+    try {
+      downloadMediaPlanPDF(planData);
+      
+      // Also prepare base64 for email
+      const blob = require("@/utils/pdfGenerator").generateMediaPlanPDF(planData);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64 = (reader.result as string).split(',')[1];
+        setPdfBase64Data(base64);
+      };
+      reader.readAsDataURL(blob);
+      
+      toast.success("PDF downloaded successfully!");
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast.error("Failed to generate PDF");
+    }
+  };
 
   const fetchForecast = async (
     platformId: string,
@@ -859,7 +914,9 @@ export function CampaignForecast({
                           <TableHead>Objective / Goal</TableHead>
                           <TableHead>Dates</TableHead>
                           <TableHead>Budget</TableHead>
+                          <TableHead>Impressions</TableHead>
                           <TableHead>Reach</TableHead>
+                          <TableHead>CPM</TableHead>
                           <TableHead>Result</TableHead>
                           <TableHead>Cost/Result</TableHead>
                           <TableHead>Result Rate</TableHead>
@@ -885,7 +942,9 @@ export function CampaignForecast({
                               </TableCell>
                               <TableCell className="text-xs">{forecast.dates || 'N/A'}</TableCell>
                               <TableCell>${formatNumber(forecast.budget)}</TableCell>
+                              <TableCell>{formatNumber(forecast.metrics.impressions)}</TableCell>
                               <TableCell>{formatNumber(forecast.metrics.reach)}</TableCell>
+                              <TableCell>${forecast.metrics.cpm.toFixed(2)}</TableCell>
                               <TableCell>
                                 <div>{formatNumber(forecast.metrics.result)}</div>
                                 <div className="text-xs text-muted-foreground">{forecast.metrics.resultKPI}</div>
@@ -911,10 +970,42 @@ export function CampaignForecast({
           <Button variant="outline" onClick={onBack}>
             Back
           </Button>
-          <Button onClick={onFinalize} disabled={Object.keys(forecasts).length === 0}>
-            Finalize & Export
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              onClick={handleDownloadPDF} 
+              disabled={Object.keys(forecasts).length === 0}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Download PDF
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => setApprovalDialogOpen(true)} 
+              disabled={Object.keys(forecasts).length === 0}
+            >
+              <Mail className="h-4 w-4 mr-2" />
+              Send for Approval
+            </Button>
+            <Button onClick={onFinalize} disabled={Object.keys(forecasts).length === 0}>
+              Finalize & Export
+            </Button>
+          </div>
         </div>
+
+        <ApprovalDialog
+          open={approvalDialogOpen}
+          onOpenChange={setApprovalDialogOpen}
+          planName={`${genericConfig.strategyFocus || 'Media'} Plan`}
+          planDetails={{
+            totalBudget,
+            startDate,
+            endDate,
+            strategyFocus: genericConfig.strategyFocus,
+            platforms: platforms.map(p => ({ name: p.name })),
+          }}
+          pdfBase64={pdfBase64Data}
+        />
       </CardContent>
     </Card>
   );
