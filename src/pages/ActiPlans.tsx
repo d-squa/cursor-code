@@ -202,7 +202,8 @@ export default function ActiPlans() {
   const getStatusBadge = (status: string) => {
     const variants: Record<string, { variant: any; label: string }> = {
       draft: { variant: "secondary", label: "Draft" },
-      approved: { variant: "default", label: "Approved & Ready To Launch" },
+      awaiting_approval: { variant: "outline", label: "Awaiting Approval" },
+      approved: { variant: "default", label: "Approved" },
       live: { variant: "default", label: "Live" },
       under_modification: { variant: "outline", label: "Under Modification" },
       rejected: { variant: "destructive", label: "Rejected" },
@@ -216,7 +217,7 @@ export default function ActiPlans() {
   };
 
   const canApprove = (campaign: Campaign) => {
-    return campaign.user_id !== user?.id && campaign.status === "draft";
+    return campaign.user_id !== user?.id && (campaign.status === "draft" || campaign.status === "awaiting_approval");
   };
 
   const canPushToDSP = (campaign: Campaign) => {
@@ -233,62 +234,46 @@ export default function ActiPlans() {
   };
 
   const renderCampaignCard = (campaign: Campaign) => (
-    <Card key={campaign.id}>
-      <CardHeader>
-        <div className="flex items-start justify-between">
-          <div>
-            <CardTitle>{campaign.name}</CardTitle>
-            <CardDescription>
-              {format(new Date(campaign.start_date), "MMM dd, yyyy")} - {format(new Date(campaign.end_date), "MMM dd, yyyy")}
-              <br />
-              <span className="text-xs">Created: {format(new Date(campaign.created_at), "MMM dd, yyyy HH:mm")}</span>
+    <Card key={campaign.id} className="hover:shadow-md transition-shadow">
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <CardTitle className="text-lg truncate">{campaign.name}</CardTitle>
+            <CardDescription className="text-xs">
+              {format(new Date(campaign.start_date), "MMM dd")} - {format(new Date(campaign.end_date), "MMM dd, yyyy")}
             </CardDescription>
           </div>
           {getStatusBadge(campaign.status)}
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="space-y-4">
-          <div>
-            <p className="text-sm text-muted-foreground">Budget</p>
-            <p className="text-lg font-semibold">${campaign.total_budget.toLocaleString()}</p>
+      <CardContent className="pt-0">
+        <div className="space-y-3">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">Budget</span>
+            <span className="font-semibold">${campaign.total_budget.toLocaleString()}</span>
           </div>
           
           {campaign.forecast_data?.totalMetrics && (
-            <div>
-              <p className="text-sm text-muted-foreground mb-2">Forecast Metrics</p>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div>
-                  <p className="text-muted-foreground">Reach</p>
-                  <p className="font-medium">{campaign.forecast_data.totalMetrics.reach?.toLocaleString()}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Impressions</p>
-                  <p className="font-medium">{campaign.forecast_data.totalMetrics.impressions?.toLocaleString()}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">CPM</p>
-                  <p className="font-medium">${campaign.forecast_data.totalMetrics.cpm?.toFixed(2)}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">SOV</p>
-                  <p className="font-medium">{campaign.forecast_data.totalMetrics.sov?.toFixed(1)}%</p>
-                </div>
+            <div className="grid grid-cols-3 gap-2 text-xs pt-2 border-t">
+              <div>
+                <p className="text-muted-foreground">Reach</p>
+                <p className="font-medium">{(campaign.forecast_data.totalMetrics.reach / 1000).toFixed(0)}K</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Impressions</p>
+                <p className="font-medium">{(campaign.forecast_data.totalMetrics.impressions / 1000).toFixed(0)}K</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">CPM</p>
+                <p className="font-medium">${campaign.forecast_data.totalMetrics.cpm?.toFixed(2)}</p>
               </div>
             </div>
           )}
-          
-          {campaign.pushed_to_dsp && campaign.pushed_at && (
-            <div>
-              <p className="text-sm text-muted-foreground">Pushed to DSP</p>
-              <p className="text-sm">{format(new Date(campaign.pushed_at), "MMM dd, yyyy HH:mm")}</p>
-            </div>
-          )}
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5 pt-2">
             {canEdit(campaign) && (
               <Button size="sm" variant="outline" onClick={() => window.location.href = `/?campaignId=${campaign.id}`}>
-                <Edit className="w-4 h-4 mr-2" />
+                <Edit className="w-3 h-3 mr-1" />
                 Edit
               </Button>
             )}
@@ -296,11 +281,11 @@ export default function ActiPlans() {
             {canApprove(campaign) && (
               <>
                 <Button size="sm" onClick={() => handleApprove(campaign)} disabled={actionLoading}>
-                  <CheckCircle className="w-4 h-4 mr-2" />
+                  <CheckCircle className="w-3 h-3 mr-1" />
                   Approve
                 </Button>
                 <Button size="sm" variant="destructive" onClick={() => handleReject(campaign)} disabled={actionLoading}>
-                  <XCircle className="w-4 h-4 mr-2" />
+                  <XCircle className="w-3 h-3 mr-1" />
                   Reject
                 </Button>
                 <Button 
@@ -311,16 +296,16 @@ export default function ActiPlans() {
                     setModificationDialogOpen(true);
                   }}
                 >
-                  <MessageSquare className="w-4 h-4 mr-2" />
-                  Request Modification
+                  <MessageSquare className="w-3 h-3 mr-1" />
+                  Request
                 </Button>
               </>
             )}
 
             {canPushToDSP(campaign) && (
               <Button size="sm" onClick={() => handlePushToDSP(campaign)} disabled={actionLoading}>
-                {actionLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Play className="w-4 h-4 mr-2" />}
-                Push to DSP
+                {actionLoading ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Play className="w-3 h-3 mr-1" />}
+                Push
               </Button>
             )}
             
@@ -346,8 +331,8 @@ export default function ActiPlans() {
                   }
                 }}
               >
-                <Download className="w-4 h-4 mr-2" />
-                Download PDF
+                <Download className="w-3 h-3 mr-1" />
+                PDF
               </Button>
             )}
 
@@ -360,7 +345,7 @@ export default function ActiPlans() {
                   setDeleteDialogOpen(true);
                 }}
               >
-                <Trash2 className="w-4 h-4 mr-2" />
+                <Trash2 className="w-3 h-3 mr-1" />
                 Delete
               </Button>
             )}
@@ -373,7 +358,7 @@ export default function ActiPlans() {
                 setHistoryDialogOpen(true);
               }}
             >
-              <History className="w-4 h-4 mr-2" />
+              <History className="w-3 h-3 mr-1" />
               History
             </Button>
           </div>
@@ -392,19 +377,25 @@ export default function ActiPlans() {
 
   return (
     <div className="container mx-auto py-8">
-      <h1 className="text-3xl font-bold mb-8">ActiPlans</h1>
+      <div className="flex items-center justify-between mb-8">
+        <h1 className="text-3xl font-bold">ActiPlans</h1>
+        <Button onClick={() => window.location.href = "/"}>
+          New ActiPlan
+        </Button>
+      </div>
 
       <Tabs defaultValue="all" className="space-y-6">
-        <TabsList>
+        <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="all">All</TabsTrigger>
           <TabsTrigger value="draft">Draft</TabsTrigger>
+          <TabsTrigger value="awaiting_approval">Awaiting Approval</TabsTrigger>
           <TabsTrigger value="approved">Approved</TabsTrigger>
           <TabsTrigger value="live">Live</TabsTrigger>
           <TabsTrigger value="under_modification">Under Modification</TabsTrigger>
           <TabsTrigger value="rejected">Rejected</TabsTrigger>
         </TabsList>
 
-        {["all", "draft", "approved", "live", "under_modification", "rejected"].map((status) => (
+        {["all", "draft", "awaiting_approval", "approved", "live", "under_modification", "rejected"].map((status) => (
           <TabsContent key={status} value={status} className="space-y-4">
             {filterCampaigns(status).length === 0 ? (
               <Card>

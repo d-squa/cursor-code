@@ -1104,6 +1104,7 @@ export function CampaignForecast({
           onOpenChange={setApprovalDialogOpen}
           planName={`${genericConfig.strategyFocus || 'Media'} Plan`}
           planDetails={{
+            campaignId,
             totalBudget,
             startDate,
             endDate,

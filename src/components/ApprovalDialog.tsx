@@ -111,6 +111,18 @@ export function ApprovalDialog({
 
       const senderName = profile?.company_name || profile?.email || 'Media Planning Team';
 
+      // Update campaign status to awaiting_approval if planDetails has campaignId
+      if (planDetails.campaignId) {
+        const { error: updateError } = await supabase
+          .from('campaigns')
+          .update({ status: 'awaiting_approval' })
+          .eq('id', planDetails.campaignId);
+
+        if (updateError) {
+          console.error('Error updating campaign status:', updateError);
+        }
+      }
+
       const { error } = await supabase.functions.invoke('send-approval-email', {
         body: {
           recipientEmails: recipients,
