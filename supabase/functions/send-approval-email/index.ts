@@ -22,10 +22,6 @@ serve(async (req: Request): Promise<Response> => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
     // Get request body
     const {
       recipientEmails,
@@ -39,21 +35,10 @@ serve(async (req: Request): Promise<Response> => {
       throw new Error("No recipient emails provided");
     }
 
-    // Get RESEND_API_KEY from secrets
-    const { data: secretData, error: secretError } = await supabase
-      .from('vault.secrets')
-      .select('secret')
-      .eq('name', 'RESEND_API_KEY')
-      .single();
-
-    if (secretError) {
-      console.error("Failed to fetch RESEND_API_KEY:", secretError);
-      throw new Error("Email service not configured. Please add RESEND_API_KEY secret.");
-    }
-
-    const resendApiKey = secretData?.secret;
+    // Get RESEND_API_KEY from environment
+    const resendApiKey = Deno.env.get("RESEND_API_KEY");
     if (!resendApiKey) {
-      throw new Error("RESEND_API_KEY is empty");
+      throw new Error("Email service not configured. Please add RESEND_API_KEY secret.");
     }
 
     // Send email via Resend API
