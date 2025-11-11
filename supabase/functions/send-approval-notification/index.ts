@@ -32,16 +32,25 @@ const handler = async (req: Request): Promise<Response> => {
 
     const { campaignId, campaignName, action }: ApprovalNotificationRequest = await req.json();
 
-    // Get campaign creator
+    // Get campaign to find user_id
     const { data: campaign, error: campaignError } = await supabase
       .from("campaigns")
-      .select("user_id, profiles!inner(email)")
+      .select("user_id")
       .eq("id", campaignId)
       .single();
 
     if (campaignError) throw campaignError;
 
-    const creatorEmail = (campaign as any).profiles.email;
+    // Get creator's email from profiles
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("email")
+      .eq("id", campaign.user_id)
+      .single();
+
+    if (profileError) throw profileError;
+
+    const creatorEmail = profile.email;
 
     const subject = action === "approved" 
       ? `ActiPlan Approved: ${campaignName}`
