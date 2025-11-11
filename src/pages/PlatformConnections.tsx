@@ -117,8 +117,14 @@ export default function PlatformConnections() {
       
       // Just acknowledge the selection and trigger full sync
       toast.success("Syncing Meta resources (Pages, Pixels, Events, Catalogs, Instagram)...");
-      
-      const { error: syncError } = await supabase.functions.invoke("sync-meta-resources");
+
+      // Include auth token so the backend can identify the user
+      const session = await supabase.auth.getSession();
+      const accessToken = session.data.session?.access_token;
+
+      const { error: syncError } = await supabase.functions.invoke("sync-meta-resources", {
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+      });
       
       if (syncError) {
         console.error("Sync error:", syncError);
@@ -137,7 +143,6 @@ export default function PlatformConnections() {
       setSelectingAccount(false);
     }
   };
-
   // Handle OAuth callback
   useEffect(() => {
     const handleOAuthCallback = async () => {
