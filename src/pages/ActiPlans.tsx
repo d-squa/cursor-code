@@ -73,21 +73,13 @@ export default function ActiPlans() {
 
   const loadCampaigns = async () => {
     try {
-      console.log("Loading campaigns for user:", user?.id, user?.email);
-      
       // Fetch campaigns
       const { data: campaignsData, error: campaignsError } = await supabase
         .from("campaigns")
         .select("*")
         .order("created_at", { ascending: false });
 
-      console.log("Campaigns fetched:", campaignsData?.length, "campaigns");
-      console.log("Campaign IDs and owners:", campaignsData?.map(c => ({ id: c.id, name: c.name, user_id: c.user_id, team_id: c.team_id })));
-
-      if (campaignsError) {
-        console.error("Error fetching campaigns:", campaignsError);
-        throw campaignsError;
-      }
+      if (campaignsError) throw campaignsError;
 
       // Fetch creator profiles and team names
       const userIds = [...new Set((campaignsData || []).map((c: any) => c.user_id))];
