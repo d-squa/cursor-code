@@ -99,36 +99,37 @@ export default function ActiPlans() {
 
       // Fetch latest status changes for each campaign
       const campaignIds = campaignsData?.map((c: any) => c.id) || [];
-      let statusChanges: any[] = [];
+      const latestStatusChanges: Record<string, any> = {};
       
       if (campaignIds.length > 0) {
         const { data } = await supabase
           .from("campaign_change_history")
-          .select(`
-            campaign_id,
-            action,
-            created_at,
-            user_id
-          `)
+          .select("campaign_id, action, created_at, user_id")
           .in("campaign_id", campaignIds)
           .in("action", ["approved", "rejected", "pushed_to_dsp"])
           .order("created_at", { ascending: false });
         
-        statusChanges = data || [];
+        // Group by campaign_id and keep only the latest
+        (data || []).forEach((change: any) => {
+          if (!latestStatusChanges[change.campaign_id]) {
+            latestStatusChanges[change.campaign_id] = change;
+          }
+        });
         
-        // Fetch user emails for status changes
-        const userIds = [...new Set(statusChanges.map((s: any) => s.user_id))];
+        // Fetch user emails
+        const userIds = [...new Set(Object.values(latestStatusChanges).map((s: any) => s.user_id))];
         if (userIds.length > 0) {
           const { data: profiles } = await supabase
             .from("profiles")
             .select("id, email")
             .in("id", userIds);
           
-          // Map profiles to status changes
-          statusChanges = statusChanges.map((change: any) => ({
-            ...change,
-            user_email: profiles?.find((p: any) => p.id === change.user_id)?.email
-          }));
+          const profilesMap = Object.fromEntries((profiles || []).map((p: any) => [p.id, p.email]));
+          
+          // Add emails to status changes
+          Object.keys(latestStatusChanges).forEach((campaignId) => {
+            latestStatusChanges[campaignId].user_email = profilesMap[latestStatusChanges[campaignId].user_id];
+          });
         }
       }
 
@@ -143,7 +144,7 @@ export default function ActiPlans() {
         const canEdit = (isCreator || hasEditRole) && campaign.status !== "rejected";
 
         // Find latest status change
-        const latestChange = statusChanges?.find((change: any) => change.campaign_id === campaign.id);
+        const latestChange = latestStatusChanges[campaign.id];
 
         return {
           ...campaign,
