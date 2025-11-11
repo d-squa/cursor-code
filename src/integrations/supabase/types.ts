@@ -14,6 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      campaign_change_history: {
+        Row: {
+          action: string
+          campaign_id: string
+          change_type: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          user_id: string
+        }
+        Insert: {
+          action: string
+          campaign_id: string
+          change_type?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          user_id: string
+        }
+        Update: {
+          action?: string
+          campaign_id?: string
+          change_type?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_change_history_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_change_history_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaign_insights: {
         Row: {
           ad_account_id: string | null
@@ -212,6 +257,60 @@ export type Database = {
             columns: ["team_id"]
             isOneToOne: false
             referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      modification_requests: {
+        Row: {
+          assigned_to: string[] | null
+          campaign_id: string
+          change_type: string
+          created_at: string | null
+          description: string
+          id: string
+          notify_all_team: boolean | null
+          requester_id: string
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          assigned_to?: string[] | null
+          campaign_id: string
+          change_type: string
+          created_at?: string | null
+          description: string
+          id?: string
+          notify_all_team?: boolean | null
+          requester_id: string
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          assigned_to?: string[] | null
+          campaign_id?: string
+          change_type?: string
+          created_at?: string | null
+          description?: string
+          id?: string
+          notify_all_team?: boolean | null
+          requester_id?: string
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "modification_requests_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "modification_requests_requester_id_fkey"
+            columns: ["requester_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]

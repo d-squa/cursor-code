@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -8,6 +8,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface ModificationRequestDialogProps {
   open: boolean;
@@ -15,6 +17,12 @@ interface ModificationRequestDialogProps {
   campaignId: string;
   campaignName: string;
   onSuccess: () => void;
+}
+
+interface TeamMember {
+  id: string;
+  email: string;
+  role: string;
 }
 
 export function ModificationRequestDialog({
@@ -28,6 +36,79 @@ export function ModificationRequestDialog({
   const [changeType, setChangeType] = useState("");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
+  const [notifyType, setNotifyType] = useState<"all" | "specific">("all");
+  const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      loadTeamMembers();
+    }
+  }, [open]);
+
+  const loadTeamMembers = async () => {
+    setLoadingMembers(true);
+    try {
+      // Get the campaign creator's team
+      const { data: campaign } = await supabase
+        .from("campaigns")
+        .select("user_id")
+        .eq("id", campaignId)
+        .single();
+
+      if (!campaign) return;
+
+      // Get all users in the same teams as the campaign creator
+      const { data: userTeams } = await supabase
+        .from("user_roles")
+        .select("team_id")
+        .eq("user_id", campaign.user_id);
+
+      if (!userTeams || userTeams.length === 0) return;
+
+      const teamIds = userTeams.map((t) => t.team_id);
+
+      // Get all team members from these teams
+      const { data: members } = await supabase
+        .from("user_roles")
+        .select(`
+          user_id,
+          role,
+          profiles!inner(id, email)
+        `)
+        .in("team_id", teamIds)
+        .neq("user_id", user?.id); // Exclude current user
+
+      if (members) {
+        const uniqueMembers = Array.from(
+          new Map(
+            members.map((m: any) => [
+              m.profiles.id,
+              {
+                id: m.profiles.id,
+                email: m.profiles.email,
+                role: m.role,
+              },
+            ])
+          ).values()
+        );
+        setTeamMembers(uniqueMembers);
+      }
+    } catch (error) {
+      console.error("Error loading team members:", error);
+    } finally {
+      setLoadingMembers(false);
+    }
+  };
+
+  const toggleMember = (memberId: string) => {
+    setSelectedMembers((prev) =>
+      prev.includes(memberId)
+        ? prev.filter((id) => id !== memberId)
+        : [...prev, memberId]
+    );
+  };
 
   const handleSubmit = async () => {
     if (!changeType || !description.trim()) {
@@ -35,10 +116,15 @@ export function ModificationRequestDialog({
       return;
     }
 
+    if (notifyType === "specific" && selectedMembers.length === 0) {
+      toast.error("Please select at least one team member to notify");
+      return;
+    }
+
     setLoading(true);
     try {
       // Create modification request
-      const { error: requestError } = await (supabase as any)
+      const { error: requestError } = await supabase
         .from("modification_requests")
         .insert({
           campaign_id: campaignId,
@@ -46,7 +132,9 @@ export function ModificationRequestDialog({
           change_type: changeType,
           description: description.trim(),
           status: "sent",
-        } as any);
+          assigned_to: notifyType === "specific" ? selectedMembers : [],
+          notify_all_team: notifyType === "all",
+        });
 
       if (requestError) throw requestError;
 
@@ -59,13 +147,13 @@ export function ModificationRequestDialog({
       if (updateError) throw updateError;
 
       // Log to history
-      await (supabase as any).from("campaign_change_history").insert({
+      await supabase.from("campaign_change_history").insert({
         campaign_id: campaignId,
         user_id: user?.id,
         action: "modification_requested",
         change_type: changeType,
         description: description.trim(),
-      } as any);
+      });
 
       // Send notification
       await supabase.functions.invoke("send-modification-notification", {
@@ -74,12 +162,16 @@ export function ModificationRequestDialog({
           campaignName,
           changeType,
           description: description.trim(),
+          notifyAllTeam: notifyType === "all",
+          assignedTo: notifyType === "specific" ? selectedMembers : [],
         },
       });
 
       toast.success("Modification request sent successfully");
       setChangeType("");
       setDescription("");
+      setNotifyType("all");
+      setSelectedMembers([]);
       onSuccess();
     } catch (error: any) {
       console.error("Error creating modification request:", error);
@@ -124,6 +216,52 @@ export function ModificationRequestDialog({
               onChange={(e) => setDescription(e.target.value)}
               rows={5}
             />
+          </div>
+
+          <div className="space-y-3">
+            <Label>Notify</Label>
+            <RadioGroup value={notifyType} onValueChange={(value: "all" | "specific") => setNotifyType(value)}>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="all" id="notify-all" />
+                <Label htmlFor="notify-all" className="font-normal cursor-pointer">
+                  Whole Team
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="specific" id="notify-specific" />
+                <Label htmlFor="notify-specific" className="font-normal cursor-pointer">
+                  Specific Team Members
+                </Label>
+              </div>
+            </RadioGroup>
+
+            {notifyType === "specific" && (
+              <div className="ml-6 space-y-2 mt-2 max-h-48 overflow-y-auto border rounded-md p-3">
+                {loadingMembers ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  </div>
+                ) : teamMembers.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No team members found</p>
+                ) : (
+                  teamMembers.map((member) => (
+                    <div key={member.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={member.id}
+                        checked={selectedMembers.includes(member.id)}
+                        onCheckedChange={() => toggleMember(member.id)}
+                      />
+                      <Label
+                        htmlFor={member.id}
+                        className="text-sm font-normal cursor-pointer flex-1"
+                      >
+                        {member.email} <span className="text-muted-foreground">({member.role})</span>
+                      </Label>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
           </div>
         </div>
 

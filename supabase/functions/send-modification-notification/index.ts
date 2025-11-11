@@ -14,6 +14,8 @@ interface ModificationNotificationRequest {
   campaignName: string;
   changeType: string;
   description: string;
+  notifyAllTeam?: boolean;
+  assignedTo?: string[];
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -31,23 +33,75 @@ const handler = async (req: Request): Promise<Response> => {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { campaignId, campaignName, changeType, description }: ModificationNotificationRequest = await req.json();
+    const { 
+      campaignId, 
+      campaignName, 
+      changeType, 
+      description, 
+      notifyAllTeam = false,
+      assignedTo = []
+    }: ModificationNotificationRequest = await req.json();
 
-    // Get campaign creator
-    const { data: campaign, error: campaignError } = await supabase
-      .from("campaigns")
-      .select("user_id, profiles!inner(email)")
-      .eq("id", campaignId)
-      .single();
+    let recipientEmails: string[] = [];
 
-    if (campaignError) throw campaignError;
+    if (notifyAllTeam) {
+      // Get campaign creator's team
+      const { data: campaign } = await supabase
+        .from("campaigns")
+        .select("user_id")
+        .eq("id", campaignId)
+        .single();
 
-    const creatorEmail = (campaign as any).profiles.email;
+      if (campaign) {
+        // Get all teams the creator belongs to
+        const { data: userTeams } = await supabase
+          .from("user_roles")
+          .select("team_id")
+          .eq("user_id", campaign.user_id);
+
+        if (userTeams && userTeams.length > 0) {
+          const teamIds = userTeams.map((t) => t.team_id);
+
+          // Get all team members
+          const { data: members } = await supabase
+            .from("user_roles")
+            .select("profiles!inner(email)")
+            .in("team_id", teamIds);
+
+          if (members) {
+            recipientEmails = Array.from(
+              new Set(members.map((m: any) => m.profiles.email))
+            );
+          }
+        }
+      }
+    } else if (assignedTo.length > 0) {
+      // Get specific team members
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("email")
+        .in("id", assignedTo);
+
+      if (profiles) {
+        recipientEmails = profiles.map((p) => p.email);
+      }
+    }
+
+    if (recipientEmails.length === 0) {
+      console.log("No recipients found for notification");
+      return new Response(
+        JSON.stringify({ success: true, message: "No recipients to notify" }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
 
     // TODO: Re-enable email when resend package is properly configured
     // const { error: emailError } = await resend.emails.send({
     //   from: "ActiPlan <onboarding@resend.dev>",
-    //   to: [creatorEmail],
+    //   to: recipientEmails,
     //   subject: `Modification Requested: ${campaignName}`,
     //   html: `
     //     <h1>Modification Requested for "${campaignName}"</h1>
@@ -60,7 +114,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     // if (emailError) throw emailError;
 
-    console.log(`Modification notification sent to ${creatorEmail} for campaign ${campaignId}`);
+    console.log(`Modification notification sent to ${recipientEmails.join(", ")} for campaign ${campaignId}`);
 
     return new Response(JSON.stringify({ success: true }), {
       status: 200,
