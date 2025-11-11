@@ -16,16 +16,22 @@ import { cn } from "@/lib/utils";
 
 const settingsMenuItems = [
   {
-    title: "Connect Platforms",
-    href: "/settings/platforms",
-    icon: LinkIcon,
-    description: "Manage your advertising platform connections"
+    title: "Users",
+    href: "/settings/users",
+    icon: Users,
+    description: "Invite and manage users"
   },
   {
     title: "Manage Your Team",
     href: "/settings/teams",
     icon: Users,
     description: "Add and manage team members"
+  },
+  {
+    title: "Connect Platforms",
+    href: "/settings/platforms",
+    icon: LinkIcon,
+    description: "Manage your advertising platform connections"
   },
   {
     title: "Account Settings",
@@ -61,7 +67,7 @@ export default function Settings() {
   useEffect(() => {
     // Redirect to first settings page if on base /settings route
     if (location.pathname === "/settings") {
-      navigate("/settings/platforms");
+      navigate("/settings/users");
     }
   }, [location.pathname, navigate]);
 
