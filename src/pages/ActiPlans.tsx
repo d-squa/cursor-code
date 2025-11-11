@@ -189,13 +189,13 @@ export default function ActiPlans() {
       if (updateError) throw updateError;
 
       // Log to history
-      await (supabase as any).from("campaign_change_history").insert({
+      await supabase.from("campaign_change_history").insert({
         campaign_id: campaign.id,
         user_id: user?.id,
         action: "approved",
-        old_status: campaign.status,
-        new_status: "approved",
-      } as any);
+        change_type: "status_change",
+        description: `Status changed from ${campaign.status} to approved`,
+      });
 
       // Send notification email
       await supabase.functions.invoke("send-approval-notification", {
@@ -226,13 +226,13 @@ export default function ActiPlans() {
 
       if (updateError) throw updateError;
 
-      await (supabase as any).from("campaign_change_history").insert({
+      await supabase.from("campaign_change_history").insert({
         campaign_id: campaign.id,
         user_id: user?.id,
         action: "rejected",
-        old_status: campaign.status,
-        new_status: "rejected",
-      } as any);
+        change_type: "status_change",
+        description: `Status changed from ${campaign.status} to rejected`,
+      });
 
       await supabase.functions.invoke("send-approval-notification", {
         body: {
@@ -272,12 +272,13 @@ export default function ActiPlans() {
         })
         .eq("id", campaign.id);
 
-      await (supabase as any).from("campaign_change_history").insert({
+      await supabase.from("campaign_change_history").insert({
         campaign_id: campaign.id,
         user_id: user?.id,
         action: "pushed_to_dsp",
-        new_status: "live",
-      } as any);
+        change_type: "status_change",
+        description: "Campaign pushed to DSP and status changed to live",
+      });
 
       toast.success("Campaign pushed to DSP successfully! Please perform a manual quality check in the Ads Manager.", {
         duration: 6000,
