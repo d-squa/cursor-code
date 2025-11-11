@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, X, Copy } from "lucide-react";
+import { Plus, X, Copy, Loader2 } from "lucide-react";
 import { PlatformWithMarkets, Market } from "@/types/mediaplan";
 import { AdFormatSelector } from "./AdFormatSelector";
 import { getTestPresets, getRFTestPreset } from "@/utils/testPresets";
@@ -44,6 +44,12 @@ export function PlatformMarketBudgetSelector({
   const [instagramAccounts, setInstagramAccounts] = useState<Array<{ id: string; username: string; name: string }>>([]);
   const [isLoadingAccounts, setIsLoadingAccounts] = useState(false);
   const [connectedPlatforms, setConnectedPlatforms] = useState<any[]>([]);
+  const [adAccounts, setAdAccounts] = useState<Array<{ id: string; name: string }>>([]);
+  const [loadingAdAccounts, setLoadingAdAccounts] = useState(false);
+  const [pages, setPages] = useState<Array<{ id: string; name: string }>>([]);
+  const [loadingPages, setLoadingPages] = useState(false);
+  const [conversionEvents, setConversionEvents] = useState<{ [pixelId: string]: Array<{ id: string; name: string }> }>({});
+  const [loadingConversionEvents, setLoadingConversionEvents] = useState<{ [pixelId: string]: boolean }>({});
   
   const totalAllocated = platforms.reduce((sum, p) => sum + p.budgetPercentage, 0);
   const usedPlatformIds = platforms.map(p => p.id).filter(id => id !== "");
@@ -52,7 +58,15 @@ export function PlatformMarketBudgetSelector({
   useEffect(() => {
     const fetchConnectedData = async () => {
       setIsLoadingAccounts(true);
+      setLoadingAdAccounts(true);
+      setLoadingPages(true);
+      
       try {
+        const session = await supabase.auth.getSession();
+        const authHeader = {
+          Authorization: `Bearer ${session.data.session?.access_token}`,
+        };
+
         // Fetch connected platforms
         const { data: platformsData, error: platformsError } = await supabase
           .from("connected_platforms")
@@ -82,16 +96,81 @@ export function PlatformMarketBudgetSelector({
             }));
           }
         }
+
+        // Fetch Meta ad accounts
+        const { data: adAccountsData, error: adAccountsError } = await supabase.functions.invoke("meta-ad-accounts", {
+          headers: authHeader,
+        });
+
+        if (!adAccountsError && adAccountsData) {
+          setAdAccounts(adAccountsData.adAccounts || []);
+        }
+
+        // Fetch Meta pages
+        const { data: pagesData, error: pagesError } = await supabase.functions.invoke("meta-pages", {
+          headers: authHeader,
+        });
+
+        if (!pagesError && pagesData) {
+          setPages(pagesData.pages || []);
+        }
       } catch (error: any) {
         console.error("Failed to fetch connected platforms:", error);
         toast.error("Failed to load connected platforms");
       } finally {
         setIsLoadingAccounts(false);
+        setLoadingAdAccounts(false);
+        setLoadingPages(false);
       }
     };
 
     fetchConnectedData();
   }, []);
+
+  // Fetch conversion events for a pixel
+  const fetchConversionEvents = async (pixelId: string) => {
+    if (!pixelId || conversionEvents[pixelId]) return;
+
+    setLoadingConversionEvents(prev => ({ ...prev, [pixelId]: true }));
+    try {
+      const session = await supabase.auth.getSession();
+      const { data, error } = await supabase.functions.invoke("meta-conversion-events", {
+        body: { pixelId },
+        headers: {
+          Authorization: `Bearer ${session.data.session?.access_token}`,
+        },
+      });
+
+      if (error) throw error;
+
+      setConversionEvents(prev => ({ ...prev, [pixelId]: data.events || [] }));
+    } catch (error: any) {
+      console.error("Error fetching conversion events:", error);
+      toast.error("Failed to fetch conversion events");
+    } finally {
+      setLoadingConversionEvents(prev => ({ ...prev, [pixelId]: false }));
+    }
+  };
+
+  // Check if market needs conversion event (has conversion-related phases)
+  const needsConversionEvent = (market: any, platformName: string) => {
+    if (!platformName.toLowerCase().includes("meta")) return false;
+    if (!market.phases || market.phases.length === 0) return false;
+    
+    return market.phases.some((phase: any) => {
+      const phaseName = phase.name?.toLowerCase() || "";
+      const objective = phase.objective?.toLowerCase() || "";
+      return (
+        phaseName.includes("conversion") ||
+        phaseName.includes("purchase") ||
+        phaseName.includes("sales") ||
+        phaseName.includes("lead") ||
+        objective.includes("conversion") ||
+        objective.includes("sales") ||
+        objective.includes("lead")
+      );
+    });
+  };
 
   const addPlatform = () => {
     const newPlatform: PlatformWithMarkets = {
@@ -470,110 +549,176 @@ export function PlatformMarketBudgetSelector({
                               </div>
                             </div>
 
-                            {/* Platform Configuration Fields */}
-                            <div className="grid grid-cols-2 gap-2">
-                              <div className="space-y-1">
-                                <Label className="text-xs">Account Name</Label>
-                                <Select
-                                  value={market.accountName || ""}
-                                  onValueChange={(value) => updateMarketField(platformIndex, market.id, 'accountName', value)}
-                                >
-                                  <SelectTrigger className="h-7 text-xs">
-                                    <SelectValue placeholder="Select account" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="account-1">Account 1 (API)</SelectItem>
-                                    <SelectItem value="account-2">Account 2 (API)</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
+                            {/* Platform Configuration Fields - Only for Meta */}
+                            {platform.name.toLowerCase().includes("meta") && (
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-1">
+                                  <Label className="text-xs">
+                                    Ad Account {needsConversionEvent(market, platform.name) && <span className="text-destructive">*</span>}
+                                  </Label>
+                                  <Select
+                                    value={market.adAccountId || ""}
+                                    onValueChange={(value) => {
+                                      const account = adAccounts.find(a => a.id === value);
+                                      updateMarketField(platformIndex, market.id, 'adAccountId', value);
+                                      updateMarketField(platformIndex, market.id, 'accountName', account?.name || "");
+                                    }}
+                                  >
+                                    <SelectTrigger className="h-7 text-xs">
+                                      <SelectValue placeholder={loadingAdAccounts ? "Loading..." : "Select Ad Account"} />
+                                    </SelectTrigger>
+                                    <SelectContent className="z-50 bg-background">
+                                      {loadingAdAccounts ? (
+                                        <div className="flex items-center justify-center p-4">
+                                          <Loader2 className="h-4 w-4 animate-spin" />
+                                        </div>
+                                      ) : adAccounts.length === 0 ? (
+                                        <div className="p-4 text-xs text-muted-foreground text-center">
+                                          No ad accounts found. Connect your Meta account first.
+                                        </div>
+                                      ) : (
+                                        adAccounts.map((account) => (
+                                          <SelectItem key={account.id} value={account.id}>
+                                            {account.name}
+                                          </SelectItem>
+                                        ))
+                                      )}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
 
-                              <div className="space-y-1">
-                                <Label className="text-xs">Page</Label>
-                                <Select
-                                  value={market.page || ""}
-                                  onValueChange={(value) => updateMarketField(platformIndex, market.id, 'page', value)}
-                                >
-                                  <SelectTrigger className="h-7 text-xs">
-                                    <SelectValue placeholder="Select page" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="page-1">Page 1 (API)</SelectItem>
-                                    <SelectItem value="page-2">Page 2 (API)</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Facebook Page</Label>
+                                  <Select
+                                    value={market.pageId || ""}
+                                    onValueChange={(value) => {
+                                      const page = pages.find(p => p.id === value);
+                                      updateMarketField(platformIndex, market.id, 'pageId', value);
+                                      updateMarketField(platformIndex, market.id, 'page', page?.name || "");
+                                    }}
+                                  >
+                                    <SelectTrigger className="h-7 text-xs">
+                                      <SelectValue placeholder={loadingPages ? "Loading..." : "Select Facebook Page"} />
+                                    </SelectTrigger>
+                                    <SelectContent className="z-50 bg-background">
+                                      {loadingPages ? (
+                                        <div className="flex items-center justify-center p-4">
+                                          <Loader2 className="h-4 w-4 animate-spin" />
+                                        </div>
+                                      ) : pages.length === 0 ? (
+                                        <div className="p-4 text-xs text-muted-foreground text-center">
+                                          No pages found. Make sure you have admin access to Facebook pages.
+                                        </div>
+                                      ) : (
+                                        pages.map((page) => (
+                                          <SelectItem key={page.id} value={page.id}>
+                                            {page.name}
+                                          </SelectItem>
+                                        ))
+                                      )}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
 
-                              <div className="space-y-1">
-                                <Label className="text-xs">Instagram Account</Label>
-                                <Select
-                                  value={market.instagramActorId || ""}
-                                  onValueChange={(value) => updateMarketField(platformIndex, market.id, 'instagramActorId', value)}
-                                  disabled={isLoadingAccounts || instagramAccounts.length === 0}
-                                >
-                                  <SelectTrigger className="h-7 text-xs">
-                                    <SelectValue placeholder={
-                                      isLoadingAccounts 
-                                        ? "Loading..." 
-                                        : instagramAccounts.length === 0
-                                        ? "No accounts connected"
-                                        : "Select Instagram account"
-                                    } />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {instagramAccounts.length === 0 ? (
-                                      <div className="p-2 text-xs text-muted-foreground text-center">
-                                        <p>No Instagram accounts found.</p>
-                                        <button 
-                                          className="text-primary hover:underline mt-1"
-                                          onClick={() => window.open('/platforms', '_blank')}
-                                        >
-                                          Connect platform first
-                                        </button>
-                                      </div>
-                                    ) : (
-                                      instagramAccounts.map((account) => (
-                                        <SelectItem key={account.id} value={account.id}>
-                                          @{account.username} - {account.name}
-                                        </SelectItem>
-                                      ))
-                                    )}
-                                  </SelectContent>
-                                </Select>
-                              </div>
+                                <div className="space-y-1">
+                                  <Label className="text-xs">
+                                    Pixel {needsConversionEvent(market, platform.name) && <span className="text-destructive">*</span>}
+                                  </Label>
+                                  <Input
+                                    className="h-7 text-xs"
+                                    value={market.pixel || ""}
+                                    onChange={(e) => {
+                                      updateMarketField(platformIndex, market.id, 'pixel', e.target.value);
+                                      if (e.target.value) {
+                                        fetchConversionEvents(e.target.value);
+                                      }
+                                    }}
+                                    placeholder="Enter Meta Pixel ID"
+                                  />
+                                </div>
 
-                              <div className="space-y-1">
-                                <Label className="text-xs">Pixel</Label>
-                                <Select
-                                  value={market.pixel || ""}
-                                  onValueChange={(value) => updateMarketField(platformIndex, market.id, 'pixel', value)}
-                                >
-                                  <SelectTrigger className="h-7 text-xs">
-                                    <SelectValue placeholder="Select pixel" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="pixel-1">Pixel 1 (API)</SelectItem>
-                                    <SelectItem value="pixel-2">Pixel 2 (API)</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
+                                {needsConversionEvent(market, platform.name) && market.pixel && (
+                                  <div className="space-y-1">
+                                    <Label className="text-xs">
+                                      Conversion Event <span className="text-destructive">*</span>
+                                    </Label>
+                                    <Select
+                                      value={market.conversionEvent || ""}
+                                      onValueChange={(value) => updateMarketField(platformIndex, market.id, 'conversionEvent', value)}
+                                    >
+                                      <SelectTrigger className="h-7 text-xs">
+                                        <SelectValue placeholder={loadingConversionEvents[market.pixel] ? "Loading..." : "Select Event"} />
+                                      </SelectTrigger>
+                                      <SelectContent className="z-50 bg-background">
+                                        {loadingConversionEvents[market.pixel] ? (
+                                          <div className="flex items-center justify-center p-4">
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                          </div>
+                                        ) : conversionEvents[market.pixel] && conversionEvents[market.pixel].length > 0 ? (
+                                          conversionEvents[market.pixel].map((event) => (
+                                            <SelectItem key={event.id} value={event.id}>
+                                              {event.name}
+                                            </SelectItem>
+                                          ))
+                                        ) : (
+                                          <div className="p-4 text-xs text-muted-foreground text-center">
+                                            No events found. Standard events will be available.
+                                          </div>
+                                        )}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                )}
 
-                              <div className="space-y-1">
-                                <Label className="text-xs">Catalog</Label>
-                                <Select
-                                  value={market.catalog || ""}
-                                  onValueChange={(value) => updateMarketField(platformIndex, market.id, 'catalog', value)}
-                                >
-                                  <SelectTrigger className="h-7 text-xs">
-                                    <SelectValue placeholder="Select catalog" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="catalog-1">Catalog 1 (API)</SelectItem>
-                                    <SelectItem value="catalog-2">Catalog 2 (API)</SelectItem>
-                                  </SelectContent>
-                                </Select>
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Catalog</Label>
+                                  <Input
+                                    className="h-7 text-xs"
+                                    value={market.catalog || ""}
+                                    onChange={(e) => updateMarketField(platformIndex, market.id, 'catalog', e.target.value)}
+                                    placeholder="Enter Product Catalog ID"
+                                  />
+                                </div>
+
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Instagram Account</Label>
+                                  <Select
+                                    value={market.instagramActorId || ""}
+                                    onValueChange={(value) => updateMarketField(platformIndex, market.id, 'instagramActorId', value)}
+                                    disabled={isLoadingAccounts || instagramAccounts.length === 0}
+                                  >
+                                    <SelectTrigger className="h-7 text-xs">
+                                      <SelectValue placeholder={
+                                        isLoadingAccounts 
+                                          ? "Loading..." 
+                                          : instagramAccounts.length === 0
+                                          ? "No accounts connected"
+                                          : "Select Instagram account"
+                                      } />
+                                    </SelectTrigger>
+                                    <SelectContent className="z-50 bg-background">
+                                      {instagramAccounts.length === 0 ? (
+                                        <div className="p-2 text-xs text-muted-foreground text-center">
+                                          <p>No Instagram accounts found.</p>
+                                          <button 
+                                            className="text-primary hover:underline mt-1"
+                                            onClick={() => window.open('/platforms', '_blank')}
+                                          >
+                                            Connect platform first
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        instagramAccounts.map((account) => (
+                                          <SelectItem key={account.id} value={account.id}>
+                                            @{account.username} - {account.name}
+                                          </SelectItem>
+                                        ))
+                                      )}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
                               </div>
-                            </div>
+                            )}
 
                             {/* Ad Formats */}
                             <AdFormatSelector

@@ -10,14 +10,12 @@ import { Switch } from "@/components/ui/switch";
 import { PlatformWithMarkets } from "@/types/mediaplan";
 import { GenericConfig } from "./GenericStrategyConfig";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { CheckCircle2, Edit, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
+import { CheckCircle2, Edit, ChevronDown, ChevronUp } from "lucide-react";
 import { determineStrategyFocus, getOptimizationGoalForFocus } from "@/utils/strategyFocusMapping";
 import { generateAutoDetectPhases } from "@/utils/funnelPhases";
 import { CampaignPublisherConfig } from "./CampaignPublisherConfig";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { getObjectiveFromPhaseName, getStrategyLabel } from "@/utils/phaseObjectiveMapping";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
 
 interface PlatformCustomizationProps {
   platforms: PlatformWithMarkets[];
@@ -74,12 +72,6 @@ export function PlatformCustomization({
 }: PlatformCustomizationProps) {
   const [editingMode, setEditingMode] = useState<{ [key: string]: boolean }>({});
   const [expandedCampaigns, setExpandedCampaigns] = useState<{ [key: string]: boolean }>({});
-  const [adAccounts, setAdAccounts] = useState<Array<{ id: string; name: string }>>([]);
-  const [loadingAdAccounts, setLoadingAdAccounts] = useState(false);
-  const [pages, setPages] = useState<Array<{ id: string; name: string }>>([]);
-  const [loadingPages, setLoadingPages] = useState(false);
-  const [conversionEvents, setConversionEvents] = useState<{ [pixelId: string]: Array<{ id: string; name: string }> }>({});
-  const [loadingConversionEvents, setLoadingConversionEvents] = useState<{ [pixelId: string]: boolean }>({});
 
   // Auto-generate phases on mount if using auto-detect and phases are missing
   useEffect(() => {
@@ -231,99 +223,11 @@ export function PlatformCustomization({
     setExpandedCampaigns(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  // Fetch ad accounts and pages when component mounts
-  useEffect(() => {
-    const fetchMetaData = async () => {
-      setLoadingAdAccounts(true);
-      setLoadingPages(true);
-      
-      try {
-        const session = await supabase.auth.getSession();
-        const authHeader = {
-          Authorization: `Bearer ${session.data.session?.access_token}`,
-        };
-
-        // Fetch ad accounts
-        const { data: adAccountsData, error: adAccountsError } = await supabase.functions.invoke("meta-ad-accounts", {
-          headers: authHeader,
-        });
-
-        if (adAccountsError) throw adAccountsError;
-        setAdAccounts(adAccountsData.adAccounts || []);
-
-        // Fetch pages
-        const { data: pagesData, error: pagesError } = await supabase.functions.invoke("meta-pages", {
-          headers: authHeader,
-        });
-
-        if (pagesError) throw pagesError;
-        setPages(pagesData.pages || []);
-      } catch (error: any) {
-        console.error("Error fetching Meta data:", error);
-        toast.error("Failed to fetch Meta data");
-      } finally {
-        setLoadingAdAccounts(false);
-        setLoadingPages(false);
-      }
-    };
-
-    fetchMetaData();
-  }, []);
-
-  // Fetch conversion events for a pixel
-  const fetchConversionEvents = async (pixelId: string) => {
-    if (!pixelId || conversionEvents[pixelId]) return;
-
-    setLoadingConversionEvents(prev => ({ ...prev, [pixelId]: true }));
-    try {
-      const { data, error } = await supabase.functions.invoke("meta-conversion-events", {
-        body: { pixelId },
-        headers: {
-          Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-        },
-      });
-
-      if (error) throw error;
-
-      setConversionEvents(prev => ({ ...prev, [pixelId]: data.events || [] }));
-    } catch (error: any) {
-      console.error("Error fetching conversion events:", error);
-      toast.error("Failed to fetch conversion events");
-    } finally {
-      setLoadingConversionEvents(prev => ({ ...prev, [pixelId]: false }));
-    }
-  };
-
-  // Check if market needs conversion event (has conversion-related phases)
-  const needsConversionEvent = (market: any) => {
-    if (!market.phases || market.phases.length === 0) return false;
-    
-    return market.phases.some((phase: any) => {
-      const phaseName = phase.name?.toLowerCase() || "";
-      const objective = phase.objective?.toLowerCase() || "";
-      return (
-        phaseName.includes("conversion") ||
-        phaseName.includes("purchase") ||
-        phaseName.includes("sales") ||
-        phaseName.includes("lead") ||
-        objective.includes("conversion") ||
-        objective.includes("sales") ||
-        objective.includes("lead")
-      );
-    });
-  };
-
   const isCustomizationComplete = () => {
     return platforms.every((platform) =>
       platform.markets.every((market) => {
-        const hasBasicFields = market.adAccountId && market.adFormats && market.adFormats.length > 0;
-        
-        // Check if conversion event is required and filled
-        if (platform.name.includes("Meta") && needsConversionEvent(market)) {
-          return hasBasicFields && market.pixel && market.conversionEvent;
-        }
-        
-        return hasBasicFields;
+        // Basic requirement: ad formats must be selected
+        return market.adFormats && market.adFormats.length > 0;
       })
     );
   };
@@ -437,158 +341,7 @@ return (
                     </AccordionTrigger>
                     <AccordionContent>
                       <div className="space-y-4 pt-4">
-                        {/* Platform-specific fields */}
-                        <div className="grid gap-4 md:grid-cols-2">
-                          {platform.name.includes("Meta") && (
-                            <>
-                              <div className="space-y-2">
-                                <Label>Ad Account {needsConversionEvent(market) && <span className="text-destructive">*</span>}</Label>
-                                <Select
-                                  value={market.adAccountId || ""}
-                                  onValueChange={(value) => {
-                                    const account = adAccounts.find(a => a.id === value);
-                                    updateMarketField(platform.id, market.id, "adAccountId", value);
-                                    updateMarketField(platform.id, market.id, "accountName", account?.name || "");
-                                  }}
-                                >
-                                  <SelectTrigger>
-                                    <SelectValue placeholder={loadingAdAccounts ? "Loading..." : "Select Ad Account"} />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {loadingAdAccounts ? (
-                                      <div className="flex items-center justify-center p-4">
-                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                      </div>
-                                    ) : adAccounts.length === 0 ? (
-                                      <div className="p-4 text-sm text-muted-foreground text-center">
-                                        No ad accounts found. Connect your Meta account first.
-                                      </div>
-                                    ) : (
-                                      adAccounts.map((account) => (
-                                        <SelectItem key={account.id} value={account.id}>
-                                          {account.name}
-                                        </SelectItem>
-                                      ))
-                                    )}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                              <div className="space-y-2">
-                                <Label>Pixel {needsConversionEvent(market) && <span className="text-destructive">*</span>}</Label>
-                                <Input
-                                  value={market.pixel || ""}
-                                  onChange={(e) => {
-                                    updateMarketField(platform.id, market.id, "pixel", e.target.value);
-                                    // Fetch conversion events when pixel changes
-                                    if (e.target.value) {
-                                      fetchConversionEvents(e.target.value);
-                                    }
-                                  }}
-                                  placeholder="Enter Meta Pixel ID"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label>Facebook Page</Label>
-                                <Select
-                                  value={market.pageId || ""}
-                                  onValueChange={(value) => {
-                                    const page = pages.find(p => p.id === value);
-                                    updateMarketField(platform.id, market.id, "pageId", value);
-                                    updateMarketField(platform.id, market.id, "page", page?.name || "");
-                                  }}
-                                >
-                                  <SelectTrigger>
-                                    <SelectValue placeholder={loadingPages ? "Loading..." : "Select Facebook Page"} />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {loadingPages ? (
-                                      <div className="flex items-center justify-center p-4">
-                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                      </div>
-                                    ) : pages.length === 0 ? (
-                                      <div className="p-4 text-sm text-muted-foreground text-center">
-                                        No pages found. Make sure you have admin access to Facebook pages.
-                                      </div>
-                                    ) : (
-                                      pages.map((page) => (
-                                        <SelectItem key={page.id} value={page.id}>
-                                          {page.name}
-                                        </SelectItem>
-                                      ))
-                                    )}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                              {needsConversionEvent(market) && market.pixel && (
-                                <div className="space-y-2">
-                                  <Label>Conversion Event <span className="text-destructive">*</span></Label>
-                                  <Select
-                                    value={market.conversionEvent || ""}
-                                    onValueChange={(value) =>
-                                      updateMarketField(platform.id, market.id, "conversionEvent", value)
-                                    }
-                                  >
-                                    <SelectTrigger>
-                                      <SelectValue placeholder={loadingConversionEvents[market.pixel] ? "Loading..." : "Select Conversion Event"} />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {loadingConversionEvents[market.pixel] ? (
-                                        <div className="flex items-center justify-center p-4">
-                                          <Loader2 className="h-4 w-4 animate-spin" />
-                                        </div>
-                                      ) : conversionEvents[market.pixel] && conversionEvents[market.pixel].length > 0 ? (
-                                        conversionEvents[market.pixel].map((event) => (
-                                          <SelectItem key={event.id} value={event.id}>
-                                            {event.name}
-                                          </SelectItem>
-                                        ))
-                                      ) : (
-                                        <div className="p-4 text-sm text-muted-foreground text-center">
-                                          No events found. Standard events will be available.
-                                        </div>
-                                      )}
-                                    </SelectContent>
-                                  </Select>
-                                  <p className="text-xs text-muted-foreground">
-                                    Required for conversion campaigns
-                                  </p>
-                                </div>
-                              )}
-                              <div className="space-y-2">
-                                <Label>Catalog</Label>
-                                <Input
-                                  value={market.catalog || ""}
-                                  onChange={(e) =>
-                                    updateMarketField(
-                                      platform.id,
-                                      market.id,
-                                      "catalog",
-                                      e.target.value
-                                    )
-                                  }
-                                  placeholder="Enter Product Catalog ID"
-                                />
-                              </div>
-                            </>
-                          )}
-                          {!platform.name.includes("Meta") && (
-                            <div className="space-y-2">
-                              <Label>Ad Account Name</Label>
-                              <Input
-                                value={market.accountName || ""}
-                                onChange={(e) =>
-                                  updateMarketField(
-                                    platform.id,
-                                    market.id,
-                                    "accountName",
-                                    e.target.value
-                                  )
-                                }
-                                placeholder="Enter account name"
-                              />
-                            </div>
-                          )}
-                        </div>
+                        {/* Platform-specific fields removed - now in Platform & Market Selection */}
 
                         {/* Campaign Settings for Meta */}
                         {platform.name.includes("Meta") && (
