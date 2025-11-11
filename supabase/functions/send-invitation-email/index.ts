@@ -19,23 +19,30 @@ const handler = async (req: Request): Promise<Response> => {
 
   try {
     const { email, teamName, role, invitationToken }: InvitationRequest = await req.json();
-    
+
     console.log("Processing invitation for:", email);
-    
+
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
     if (!resendApiKey) {
       console.error("RESEND_API_KEY not configured");
       throw new Error("Email service not configured. Please add RESEND_API_KEY secret.");
     }
-    
+
     // Get the base URL for the invitation link
-    const baseUrl = Deno.env.get("SUPABASE_URL")?.replace('/api', '').replace('https://tewjsubccoizrjroaydy.supabase.co', 'https://2d3133ec-291e-4366-9711-2433a9063016.lovableproject.com') || 'http://localhost:5173';
+    const baseUrl =
+      Deno.env
+        .get("SUPABASE_URL")
+        ?.replace("/api", "")
+        .replace(
+          "https://tewjsubccoizrjroaydy.supabase.co",
+          "https://2d3133ec-291e-4366-9711-2433a9063016.lovableproject.com",
+        ) || "http://localhost:5173";
     const invitationUrl = `${baseUrl}/accept-invitation?token=${invitationToken}`;
-    
+
     console.log("Invitation URL:", invitationUrl);
 
     const emailData = {
-      from: "ActiPlan <onboarding@resend.dev>",
+      from: "ActiPlan <do-not-reply@actiplan.app>",
       to: [email],
       subject: `You've been invited to join ${teamName} on ActiPlan`,
       html: `
@@ -92,16 +99,16 @@ const handler = async (req: Request): Promise<Response> => {
     console.error("Error details:", {
       message: error.message,
       stack: error.stack,
-      name: error.name
+      name: error.name,
     });
     return new Response(
-      JSON.stringify({ 
-        error: error.message || "Failed to send invitation email"
+      JSON.stringify({
+        error: error.message || "Failed to send invitation email",
       }),
       {
         status: 500,
         headers: { "Content-Type": "application/json", ...corsHeaders },
-      }
+      },
     );
   }
 };
