@@ -48,25 +48,149 @@ export function PlatformMarketBudgetSelector({
   const [loadingAdAccounts, setLoadingAdAccounts] = useState(false);
   const [pages, setPages] = useState<Array<{ id: string; name: string }>>([]);
   const [loadingPages, setLoadingPages] = useState(false);
-  const [conversionEvents, setConversionEvents] = useState<{ [pixelId: string]: Array<{ id: string; name: string }> }>({});
-  const [loadingConversionEvents, setLoadingConversionEvents] = useState<{ [pixelId: string]: boolean }>({});
+  const [pixels, setPixels] = useState<Array<{ id: string; name: string; adAccountId: string }>>([]);
+  const [loadingPixels, setLoadingPixels] = useState(false);
+  const [catalogs, setCatalogs] = useState<Array<{ id: string; name: string }>>([]);
+  const [loadingCatalogs, setLoadingCatalogs] = useState(false);
+  const [conversionEvents, setConversionEvents] = useState<Array<{ pixelId: string; id: string; name: string; type: string }>>([]);
+  const [loadingConversionEvents, setLoadingConversionEvents] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   
   const totalAllocated = platforms.reduce((sum, p) => sum + p.budgetPercentage, 0);
   const usedPlatformIds = platforms.map(p => p.id).filter(id => id !== "");
 
-  // Fetch connected platforms and their accounts on mount
+  // Fetch all Meta resources from database
+  const fetchMetaResources = async () => {
+    setIsLoadingAccounts(true);
+    setLoadingAdAccounts(true);
+    setLoadingPages(true);
+    setLoadingPixels(true);
+    setLoadingCatalogs(true);
+    setLoadingConversionEvents(true);
+    
+    try {
+      // Fetch ad accounts from database
+      const { data: adAccountsData, error: adAccountsError } = await supabase
+        .from("meta_ad_accounts")
+        .select("*")
+        .order("synced_at", { ascending: false });
+
+      if (!adAccountsError && adAccountsData) {
+        setAdAccounts(adAccountsData.map(acc => ({
+          id: acc.account_id,
+          name: acc.account_name,
+        })));
+      }
+
+      // Fetch pages from database
+      const { data: pagesData, error: pagesError } = await supabase
+        .from("meta_pages")
+        .select("*")
+        .order("synced_at", { ascending: false });
+
+      if (!pagesError && pagesData) {
+        setPages(pagesData.map(page => ({
+          id: page.page_id,
+          name: page.page_name,
+        })));
+      }
+
+      // Fetch pixels from database
+      const { data: pixelsData, error: pixelsError } = await supabase
+        .from("meta_pixels")
+        .select("*")
+        .order("synced_at", { ascending: false });
+
+      if (!pixelsError && pixelsData) {
+        setPixels(pixelsData.map(pixel => ({
+          id: pixel.pixel_id,
+          name: pixel.pixel_name,
+          adAccountId: pixel.ad_account_id,
+        })));
+      }
+
+      // Fetch catalogs from database
+      const { data: catalogsData, error: catalogsError } = await supabase
+        .from("meta_catalogs")
+        .select("*")
+        .order("synced_at", { ascending: false });
+
+      if (!catalogsError && catalogsData) {
+        setCatalogs(catalogsData.map(catalog => ({
+          id: catalog.catalog_id,
+          name: catalog.catalog_name,
+        })));
+      }
+
+      // Fetch conversion events from database
+      const { data: eventsData, error: eventsError } = await supabase
+        .from("meta_conversion_events")
+        .select("*")
+        .order("synced_at", { ascending: false });
+
+      if (!eventsError && eventsData) {
+        setConversionEvents(eventsData.map(event => ({
+          pixelId: event.pixel_id,
+          id: event.event_name,
+          name: event.event_name,
+          type: event.event_type || "standard",
+        })));
+      }
+
+      // Fetch Instagram accounts from database
+      const { data: igData, error: igError } = await supabase
+        .from("meta_instagram_accounts")
+        .select("*")
+        .order("synced_at", { ascending: false });
+
+      if (!igError && igData) {
+        setInstagramAccounts(igData.map(ig => ({
+          id: ig.instagram_account_id,
+          username: ig.username,
+          name: ig.username,
+        })));
+      }
+    } catch (error: any) {
+      console.error("Failed to fetch Meta resources:", error);
+      toast.error("Failed to load Meta resources");
+    } finally {
+      setIsLoadingAccounts(false);
+      setLoadingAdAccounts(false);
+      setLoadingPages(false);
+      setLoadingPixels(false);
+      setLoadingCatalogs(false);
+      setLoadingConversionEvents(false);
+    }
+  };
+
+  // Sync Meta resources from API
+  const syncMetaResources = async () => {
+    setIsSyncing(true);
+    try {
+      const session = await supabase.auth.getSession();
+      const { data, error } = await supabase.functions.invoke("sync-meta-resources", {
+        headers: {
+          Authorization: `Bearer ${session.data.session?.access_token}`,
+        },
+      });
+
+      if (error) throw error;
+
+      toast.success("Meta resources synced successfully");
+      // Refresh data from database
+      await fetchMetaResources();
+    } catch (error: any) {
+      console.error("Failed to sync Meta resources:", error);
+      toast.error("Failed to sync Meta resources");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  // Fetch connected platforms and Meta resources on mount
   useEffect(() => {
     const fetchConnectedData = async () => {
-      setIsLoadingAccounts(true);
-      setLoadingAdAccounts(true);
-      setLoadingPages(true);
-      
       try {
-        const session = await supabase.auth.getSession();
-        const authHeader = {
-          Authorization: `Bearer ${session.data.session?.access_token}`,
-        };
-
         // Fetch connected platforms
         const { data: platformsData, error: platformsError } = await supabase
           .from("connected_platforms")
@@ -77,79 +201,20 @@ export function PlatformMarketBudgetSelector({
         
         setConnectedPlatforms(platformsData || []);
 
-        // Fetch platform accounts (Instagram, Pages, etc.)
-        if (platformsData && platformsData.length > 0) {
-          const { data: accountsData, error: accountsError } = await supabase
-            .from("platform_accounts")
-            .select("*")
-            .eq("account_type", "instagram_account")
-            .in("connected_platform_id", platformsData.map(p => p.id));
-
-          if (!accountsError && accountsData) {
-            setInstagramAccounts(accountsData.map(acc => {
-              const metadata = acc.metadata as any;
-              return {
-                id: acc.account_id,
-                username: metadata?.username || acc.account_name,
-                name: acc.account_name
-              };
-            }));
-          }
-        }
-
-        // Fetch Meta ad accounts
-        const { data: adAccountsData, error: adAccountsError } = await supabase.functions.invoke("meta-ad-accounts", {
-          headers: authHeader,
-        });
-
-        if (!adAccountsError && adAccountsData) {
-          setAdAccounts(adAccountsData.adAccounts || []);
-        }
-
-        // Fetch Meta pages
-        const { data: pagesData, error: pagesError } = await supabase.functions.invoke("meta-pages", {
-          headers: authHeader,
-        });
-
-        if (!pagesError && pagesData) {
-          setPages(pagesData.pages || []);
-        }
+        // Fetch Meta resources from database
+        await fetchMetaResources();
       } catch (error: any) {
         console.error("Failed to fetch connected platforms:", error);
         toast.error("Failed to load connected platforms");
-      } finally {
-        setIsLoadingAccounts(false);
-        setLoadingAdAccounts(false);
-        setLoadingPages(false);
       }
     };
 
     fetchConnectedData();
   }, []);
 
-  // Fetch conversion events for a pixel
-  const fetchConversionEvents = async (pixelId: string) => {
-    if (!pixelId || conversionEvents[pixelId]) return;
-
-    setLoadingConversionEvents(prev => ({ ...prev, [pixelId]: true }));
-    try {
-      const session = await supabase.auth.getSession();
-      const { data, error } = await supabase.functions.invoke("meta-conversion-events", {
-        body: { pixelId },
-        headers: {
-          Authorization: `Bearer ${session.data.session?.access_token}`,
-        },
-      });
-
-      if (error) throw error;
-
-      setConversionEvents(prev => ({ ...prev, [pixelId]: data.events || [] }));
-    } catch (error: any) {
-      console.error("Error fetching conversion events:", error);
-      toast.error("Failed to fetch conversion events");
-    } finally {
-      setLoadingConversionEvents(prev => ({ ...prev, [pixelId]: false }));
-    }
+  // Get conversion events for a specific pixel
+  const getConversionEventsForPixel = (pixelId: string) => {
+    return conversionEvents.filter(event => event.pixelId === pixelId);
   };
 
   // Check if market needs conversion event (has conversion-related phases)
@@ -391,6 +456,21 @@ export function PlatformMarketBudgetSelector({
         <div className="flex items-center justify-between">
           <CardTitle>Platform & Market Selection</CardTitle>
           <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={syncMetaResources}
+              disabled={isSyncing}
+              className="gap-1"
+            >
+              {isSyncing ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Copy className="h-3 w-3" />
+              )}
+              {isSyncing ? "Syncing..." : "Refresh Meta Data"}
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -624,17 +704,33 @@ export function PlatformMarketBudgetSelector({
                                   <Label className="text-xs">
                                     Pixel {needsConversionEvent(market, platform.name) && <span className="text-destructive">*</span>}
                                   </Label>
-                                  <Input
-                                    className="h-7 text-xs"
+                                  <Select
                                     value={market.pixel || ""}
-                                    onChange={(e) => {
-                                      updateMarketField(platformIndex, market.id, 'pixel', e.target.value);
-                                      if (e.target.value) {
-                                        fetchConversionEvents(e.target.value);
-                                      }
-                                    }}
-                                    placeholder="Enter Meta Pixel ID"
-                                  />
+                                    onValueChange={(value) => updateMarketField(platformIndex, market.id, 'pixel', value)}
+                                  >
+                                    <SelectTrigger className="h-7 text-xs">
+                                      <SelectValue placeholder={loadingPixels ? "Loading..." : "Select Pixel"} />
+                                    </SelectTrigger>
+                                    <SelectContent className="z-50 bg-background">
+                                      {loadingPixels ? (
+                                        <div className="flex items-center justify-center p-4">
+                                          <Loader2 className="h-4 w-4 animate-spin" />
+                                        </div>
+                                      ) : pixels.filter(p => !market.adAccountId || p.adAccountId === market.adAccountId).length === 0 ? (
+                                        <div className="p-4 text-xs text-muted-foreground text-center">
+                                          {market.adAccountId ? "No pixels found for this ad account" : "Select an ad account first"}
+                                        </div>
+                                      ) : (
+                                        pixels
+                                          .filter(p => !market.adAccountId || p.adAccountId === market.adAccountId)
+                                          .map((pixel) => (
+                                            <SelectItem key={pixel.id} value={pixel.id}>
+                                              {pixel.name}
+                                            </SelectItem>
+                                          ))
+                                      )}
+                                    </SelectContent>
+                                  </Select>
                                 </div>
 
                                 {needsConversionEvent(market, platform.name) && market.pixel && (
@@ -647,22 +743,22 @@ export function PlatformMarketBudgetSelector({
                                       onValueChange={(value) => updateMarketField(platformIndex, market.id, 'conversionEvent', value)}
                                     >
                                       <SelectTrigger className="h-7 text-xs">
-                                        <SelectValue placeholder={loadingConversionEvents[market.pixel] ? "Loading..." : "Select Event"} />
+                                        <SelectValue placeholder={loadingConversionEvents ? "Loading..." : "Select Event"} />
                                       </SelectTrigger>
                                       <SelectContent className="z-50 bg-background">
-                                        {loadingConversionEvents[market.pixel] ? (
+                                        {loadingConversionEvents ? (
                                           <div className="flex items-center justify-center p-4">
                                             <Loader2 className="h-4 w-4 animate-spin" />
                                           </div>
-                                        ) : conversionEvents[market.pixel] && conversionEvents[market.pixel].length > 0 ? (
-                                          conversionEvents[market.pixel].map((event) => (
+                                        ) : getConversionEventsForPixel(market.pixel).length > 0 ? (
+                                          getConversionEventsForPixel(market.pixel).map((event) => (
                                             <SelectItem key={event.id} value={event.id}>
                                               {event.name}
                                             </SelectItem>
                                           ))
                                         ) : (
                                           <div className="p-4 text-xs text-muted-foreground text-center">
-                                            No events found. Standard events will be available.
+                                            No events found. Click Refresh Meta Data.
                                           </div>
                                         )}
                                       </SelectContent>
@@ -672,12 +768,31 @@ export function PlatformMarketBudgetSelector({
 
                                 <div className="space-y-1">
                                   <Label className="text-xs">Catalog</Label>
-                                  <Input
-                                    className="h-7 text-xs"
+                                  <Select
                                     value={market.catalog || ""}
-                                    onChange={(e) => updateMarketField(platformIndex, market.id, 'catalog', e.target.value)}
-                                    placeholder="Enter Product Catalog ID"
-                                  />
+                                    onValueChange={(value) => updateMarketField(platformIndex, market.id, 'catalog', value)}
+                                  >
+                                    <SelectTrigger className="h-7 text-xs">
+                                      <SelectValue placeholder={loadingCatalogs ? "Loading..." : "Select Catalog"} />
+                                    </SelectTrigger>
+                                    <SelectContent className="z-50 bg-background">
+                                      {loadingCatalogs ? (
+                                        <div className="flex items-center justify-center p-4">
+                                          <Loader2 className="h-4 w-4 animate-spin" />
+                                        </div>
+                                      ) : catalogs.length === 0 ? (
+                                        <div className="p-4 text-xs text-muted-foreground text-center">
+                                          No catalogs found. Click Refresh Meta Data.
+                                        </div>
+                                      ) : (
+                                        catalogs.map((catalog) => (
+                                          <SelectItem key={catalog.id} value={catalog.id}>
+                                            {catalog.name}
+                                          </SelectItem>
+                                        ))
+                                      )}
+                                    </SelectContent>
+                                  </Select>
                                 </div>
 
                                 <div className="space-y-1">
