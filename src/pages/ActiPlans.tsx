@@ -340,15 +340,26 @@ export default function ActiPlans() {
   };
 
   const canApprove = (campaign: Campaign) => {
-    return campaign.user_id !== user?.id && (campaign.status === "draft" || campaign.status === "awaiting_approval");
+    const isNotCreator = campaign.user_id !== user?.id;
+    const isAwaitingApproval = campaign.status === "draft" || campaign.status === "awaiting_approval";
+    const isTeamOwnerOrAdmin = campaign.is_admin_or_owner === true;
+    
+    return (isNotCreator || isTeamOwnerOrAdmin) && isAwaitingApproval;
   };
 
   const canPushToDSP = (campaign: Campaign) => {
-    return campaign.user_id === user?.id && campaign.status === "approved" && !campaign.pushed_to_dsp;
+    const isCreator = campaign.user_id === user?.id;
+    const isTeamOwnerOrAdmin = campaign.is_admin_or_owner === true;
+    const isApproved = campaign.status === "approved" && !campaign.pushed_to_dsp;
+    
+    return (isCreator || isTeamOwnerOrAdmin) && isApproved;
   };
 
   const canDelete = (campaign: Campaign) => {
-    return campaign.status === "rejected";
+    const isCreator = campaign.user_id === user?.id;
+    const isTeamOwnerOrAdmin = campaign.is_admin_or_owner === true;
+    
+    return (isCreator || isTeamOwnerOrAdmin) && campaign.status === "rejected";
   };
 
   const filterCampaigns = (status: string) => {
