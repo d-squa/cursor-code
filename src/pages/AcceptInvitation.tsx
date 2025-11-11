@@ -21,6 +21,7 @@ export default function AcceptInvitation() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [accepting, setAccepting] = useState(false);
+  const [createAccount, setCreateAccount] = useState(false);
 
   const token = searchParams.get("token");
 
@@ -191,26 +192,50 @@ export default function AcceptInvitation() {
                 />
               </div>
 
-              <div>
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="At least 6 characters"
-                />
-              </div>
+              {createAccount && (
+                <>
+                  <div>
+                    <Label htmlFor="password">Password</Label>
+                    <Input
+                      id="password"
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="At least 6 characters"
+                    />
+                  </div>
 
-              <div>
-                <Label htmlFor="confirmPassword">Confirm Password</Label>
-                <Input
-                  id="confirmPassword"
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Confirm your password"
-                />
+                  <div>
+                    <Label htmlFor="confirmPassword">Confirm Password</Label>
+                    <Input
+                      id="confirmPassword"
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Confirm your password"
+                    />
+                  </div>
+                </>
+              )}
+
+              <div className="text-center text-sm">
+                {!createAccount ? (
+                  <Button
+                    variant="link"
+                    className="p-0 h-auto"
+                    onClick={() => setCreateAccount(true)}
+                  >
+                    Create a new ActiPlan account instead
+                  </Button>
+                ) : (
+                  <Button
+                    variant="link"
+                    className="p-0 h-auto"
+                    onClick={() => setCreateAccount(false)}
+                  >
+                    Use existing account instead
+                  </Button>
+                )}
               </div>
             </>
           ) : (
@@ -225,12 +250,12 @@ export default function AcceptInvitation() {
           )}
 
           <Button
-            onClick={handleAcceptInvitation}
-            disabled={accepting || (!user && (!password || !confirmPassword))}
+            onClick={user ? handleAcceptInvitation : (createAccount ? handleAcceptInvitation : () => navigate("/auth"))}
+            disabled={accepting || (createAccount && (!password || !confirmPassword))}
             className="w-full"
           >
             {accepting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {user ? "Accept & Join Team" : "Create ActiPlan Account & Join"}
+            {user ? "Accept & Join Team" : createAccount ? "Create ActiPlan Account & Join" : "Sign in to Accept"}
           </Button>
 
           {!user && (
