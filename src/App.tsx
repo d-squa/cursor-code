@@ -26,10 +26,9 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Performance />} />
+            <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/accept-invitation" element={<AcceptInvitation />} />
-            <Route path="/create-campaign" element={<Index />} />
             <Route path="/actiplans" element={<ActiPlans />} />
             <Route path="/performance/:id" element={<Performance />} />
             <Route path="/performance" element={<Performance />} />
