@@ -376,7 +376,7 @@ export default function ActiPlans() {
           </div>
           <div className="flex flex-col items-end gap-1">
             {getStatusBadge(campaign.status)}
-            {campaign.last_status_change && (
+            {campaign.last_status_change && campaign.last_status_change.user_email && (
               <span className="text-xs text-muted-foreground">
                 by {campaign.last_status_change.user_email.split('@')[0]}
               </span>
@@ -390,7 +390,7 @@ export default function ActiPlans() {
           <div className="grid grid-cols-2 gap-2 text-xs pb-2 border-b">
             <div>
               <p className="text-muted-foreground">Creator</p>
-              <p className="font-medium truncate">{campaign.creator?.email?.split('@')[0] || 'Unknown'}</p>
+              <p className="font-medium truncate">{campaign.creator?.email ? campaign.creator.email.split('@')[0] : 'Unknown'}</p>
             </div>
             {campaign.team && campaign.is_admin_or_owner && (
               <div>
