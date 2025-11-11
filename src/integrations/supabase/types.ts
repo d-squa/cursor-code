@@ -121,6 +121,7 @@ export type Database = {
           platforms: Json
           start_date: string | null
           status: string | null
+          team_id: string | null
           total_budget: number
           updated_at: string
           user_id: string
@@ -139,6 +140,7 @@ export type Database = {
           platforms?: Json
           start_date?: string | null
           status?: string | null
+          team_id?: string | null
           total_budget?: number
           updated_at?: string
           user_id: string
@@ -157,11 +159,20 @@ export type Database = {
           platforms?: Json
           start_date?: string | null
           status?: string | null
+          team_id?: string | null
           total_budget?: number
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "campaigns_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       connected_platforms: {
         Row: {

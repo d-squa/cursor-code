@@ -28,6 +28,23 @@ interface Campaign {
   forecast_data?: any;
   pdf_url?: string | null;
   platforms?: any[];
+  team_id?: string | null;
+  objective?: string;
+  market_splits?: any;
+  creator?: {
+    email: string;
+    company_name?: string;
+  };
+  team?: {
+    name: string;
+  };
+  last_status_change?: {
+    user_email: string;
+    action: string;
+    created_at: string;
+  };
+  user_role?: string;
+  can_edit?: boolean;
 }
 
 export default function ActiPlans() {
@@ -50,13 +67,64 @@ export default function ActiPlans() {
 
   const loadCampaigns = async () => {
     try {
-      const { data, error } = await supabase
+      // Fetch campaigns with creator, team, and user role information
+      const { data: campaignsData, error: campaignsError } = await supabase
         .from("campaigns")
-        .select("*")
+        .select(`
+          *,
+          creator:profiles!campaigns_user_id_fkey(email, company_name),
+          team:teams(name)
+        `)
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
-      setCampaigns((data as any) || []);
+      if (campaignsError) throw campaignsError;
+
+      // Fetch user's roles to determine permissions
+      const { data: userRoles } = await supabase
+        .from("user_roles")
+        .select("team_id, role")
+        .eq("user_id", user?.id);
+
+      // Fetch latest status changes for each campaign
+      const campaignIds = campaignsData?.map((c: any) => c.id) || [];
+      const { data: statusChanges } = await supabase
+        .from("campaign_change_history")
+        .select(`
+          campaign_id,
+          action,
+          created_at,
+          user:profiles!campaign_change_history_user_id_fkey(email)
+        `)
+        .in("campaign_id", campaignIds)
+        .in("action", ["approved", "rejected", "pushed_to_dsp"])
+        .order("created_at", { ascending: false });
+
+      // Map the data with permissions and last status change
+      const enrichedCampaigns = campaignsData?.map((campaign: any) => {
+        // Find user's role for this campaign's team
+        const userRole = userRoles?.find((role: any) => role.team_id === campaign.team_id);
+        
+        // Check if user can edit
+        const isCreator = campaign.user_id === user?.id;
+        const hasEditRole = userRole && ["admin", "owner", "campaign_manager", "member"].includes(userRole.role);
+        const canEdit = (isCreator || hasEditRole) && campaign.status !== "rejected";
+
+        // Find latest status change
+        const latestChange = statusChanges?.find((change: any) => change.campaign_id === campaign.id);
+
+        return {
+          ...campaign,
+          user_role: userRole?.role,
+          can_edit: canEdit,
+          last_status_change: latestChange ? {
+            user_email: latestChange.user?.email,
+            action: latestChange.action,
+            created_at: latestChange.created_at
+          } : undefined
+        };
+      });
+
+      setCampaigns(enrichedCampaigns || []);
     } catch (error: any) {
       console.error("Error loading campaigns:", error);
       toast.error("Failed to load ActiPlans");
@@ -217,7 +285,7 @@ export default function ActiPlans() {
   };
 
   const canEdit = (campaign: Campaign) => {
-    return campaign.user_id === user?.id && campaign.status !== "rejected";
+    return campaign.can_edit === true;
   };
 
   const canApprove = (campaign: Campaign) => {
@@ -247,12 +315,81 @@ export default function ActiPlans() {
               {format(new Date(campaign.start_date), "MMM dd")} - {format(new Date(campaign.end_date), "MMM dd, yyyy")}
             </CardDescription>
           </div>
-          {getStatusBadge(campaign.status)}
+          <div className="flex flex-col items-end gap-1">
+            {getStatusBadge(campaign.status)}
+            {campaign.last_status_change && (
+              <span className="text-xs text-muted-foreground">
+                by {campaign.last_status_change.user_email.split('@')[0]}
+              </span>
+            )}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="pt-0">
         <div className="space-y-3">
-          <div className="flex items-center justify-between text-sm">
+          {/* Creator and Team Info */}
+          <div className="grid grid-cols-2 gap-2 text-xs pb-2 border-b">
+            <div>
+              <p className="text-muted-foreground">Creator</p>
+              <p className="font-medium truncate">{campaign.creator?.email?.split('@')[0] || 'Unknown'}</p>
+            </div>
+            {campaign.team && (
+              <div>
+                <p className="text-muted-foreground">Team</p>
+                <p className="font-medium truncate">{campaign.team.name}</p>
+              </div>
+            )}
+          </div>
+
+          {/* User Permission */}
+          {campaign.user_role && (
+            <div className="flex items-center gap-2 text-xs">
+              <Badge variant="outline" className="text-xs">
+                {campaign.user_role === 'campaign_manager' ? 'Campaign Manager' : 
+                 campaign.user_role.charAt(0).toUpperCase() + campaign.user_role.slice(1)}
+              </Badge>
+              {campaign.can_edit && (
+                <span className="text-muted-foreground">• Can edit</span>
+              )}
+            </div>
+          )}
+
+          {/* Markets, Platforms & Objectives */}
+          {(campaign.market_splits || campaign.platforms) && (
+            <div className="space-y-2 text-xs pt-2 border-t">
+              {campaign.market_splits && (
+                <div>
+                  <p className="text-muted-foreground font-medium mb-1">Markets</p>
+                  <div className="flex flex-wrap gap-1">
+                    {Object.keys(campaign.market_splits).map((market) => (
+                      <Badge key={market} variant="secondary" className="text-xs">
+                        {market}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {campaign.platforms && campaign.platforms.length > 0 && (
+                <div>
+                  <p className="text-muted-foreground font-medium mb-1">Platforms & Objectives</p>
+                  <div className="space-y-1">
+                    {campaign.platforms.map((platform: any, idx: number) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">
+                          {platform.name || platform.type}
+                        </Badge>
+                        {platform.objective && (
+                          <span className="text-muted-foreground">→ {platform.objective}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="flex items-center justify-between text-sm pt-2 border-t">
             <span className="text-muted-foreground">Budget</span>
             <span className="font-semibold">${campaign.total_budget.toLocaleString()}</span>
           </div>
