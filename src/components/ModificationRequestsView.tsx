@@ -10,9 +10,16 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { format } from "date-fns";
-import { CalendarIcon, Loader2 } from "lucide-react";
+import { CalendarIcon, Loader2, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useAuth } from "@/hooks/useAuth";
+
+interface StatusHistoryEntry {
+  status: string;
+  changed_at: string;
+  changed_by: string;
+}
 
 interface ModificationRequest {
   id: string;
@@ -26,6 +33,9 @@ interface ModificationRequest {
   requester_email?: string;
   platform?: string;
   campaign_name?: string;
+  assigned_to?: string[];
+  assigned_emails?: string[];
+  status_history?: StatusHistoryEntry[];
 }
 
 interface ModificationRequestsViewProps {
@@ -41,8 +51,10 @@ export function ModificationRequestsView({
   campaignId,
   campaignName,
 }: ModificationRequestsViewProps) {
+  const { session } = useAuth();
   const [requests, setRequests] = useState<ModificationRequest[]>([]);
   const [loading, setLoading] = useState(false);
+  const [updating, setUpdating] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<ModificationRequest | null>(null);
   
   // Filters
@@ -67,27 +79,38 @@ export function ModificationRequestsView({
         .from("modification_requests")
         .select("*")
         .eq("campaign_id", campaignId)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: true });
 
       if (error) throw error;
 
-      // Fetch requester emails
-      const userIds = [...new Set(requestsData?.map((r) => r.requester_id) || [])];
+      // Fetch all user IDs (requesters and assigned users)
+      const allUserIds = new Set<string>();
+      requestsData?.forEach((r) => {
+        allUserIds.add(r.requester_id);
+        if (r.assigned_to) {
+          r.assigned_to.forEach((id: string) => allUserIds.add(id));
+        }
+      });
+
       const { data: profiles } = await supabase
         .from("profiles")
         .select("id, email")
-        .in("id", userIds);
+        .in("id", Array.from(allUserIds));
 
       const profilesMap = Object.fromEntries((profiles || []).map((p) => [p.id, p.email]));
 
       // Enrich requests with emails and extract platform from description
       const enrichedRequests = requestsData?.map((req) => {
         const platformMatch = req.description.match(/Platform: ([^\n]+)/);
+        const assignedEmails = req.assigned_to?.map((id: string) => profilesMap[id] || "Unknown") || [];
+        
         return {
           ...req,
           requester_email: profilesMap[req.requester_id] || "Unknown",
           platform: platformMatch ? platformMatch[1] : undefined,
           campaign_name: campaignName,
+          assigned_emails: assignedEmails,
+          status_history: (req.status_history as any) || [],
         };
       });
 
@@ -98,6 +121,39 @@ export function ModificationRequestsView({
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleStatusUpdate = async (requestId: string, newStatus: string) => {
+    setUpdating(true);
+    try {
+      const { error } = await supabase
+        .from("modification_requests")
+        .update({ status: newStatus })
+        .eq("id", requestId);
+
+      if (error) throw error;
+
+      toast.success("Status updated successfully");
+      await loadRequests();
+      
+      // Update selected request if it's the one being updated
+      if (selectedRequest?.id === requestId) {
+        const updatedRequest = requests.find(r => r.id === requestId);
+        if (updatedRequest) {
+          setSelectedRequest(updatedRequest);
+        }
+      }
+    } catch (error: any) {
+      console.error("Error updating status:", error);
+      toast.error("Failed to update status");
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const canUpdateStatus = (request: ModificationRequest) => {
+    if (!session?.user?.id) return false;
+    return request.assigned_to?.includes(session.user.id);
   };
 
   const getChangeTypeInitials = (type: string) => {
@@ -300,81 +356,83 @@ export function ModificationRequestsView({
               )}
             </div>
 
-            {/* Timeline Chart */}
-            <Card className="flex-1 min-h-0 overflow-hidden">
-              <CardContent className="p-6 h-full">
+            {/* Horizontal Timeline */}
+            <Card className="overflow-hidden">
+              <CardContent className="p-6">
                 {filteredRequests.length === 0 ? (
-                  <div className="flex items-center justify-center h-full text-muted-foreground">
+                  <div className="flex items-center justify-center py-12 text-muted-foreground">
                     No modification requests found
                   </div>
                 ) : (
-                  <ScrollArea className="h-full pr-4">
-                    <div className="relative">
-                      {/* Timeline line */}
-                      <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-border" />
+                  <div className="relative">
+                    <div className="flex items-center gap-2 mb-4 text-xs text-muted-foreground">
+                      <span>Older</span>
+                      <div className="flex-1 h-px bg-border" />
+                      <span>Newer</span>
+                    </div>
+                    
+                    <ScrollArea className="w-full">
+                      <div className="relative pb-4">
+                        {/* Horizontal timeline line */}
+                        <div className="absolute top-8 left-0 right-0 h-0.5 bg-border" />
 
-                      {/* Request items */}
-                      <div className="space-y-6">
-                        {filteredRequests.map((request, index) => (
-                          <TooltipProvider key={request.id}>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <div
-                                  className={cn(
-                                    "relative pl-16 cursor-pointer transition-colors rounded-lg p-3 -ml-3",
-                                    selectedRequest?.id === request.id
-                                      ? "bg-accent/50 border border-accent"
-                                      : "hover:bg-accent/30"
-                                  )}
-                                  onClick={() => setSelectedRequest(request)}
-                                >
-                                  {/* Status dot */}
+                        {/* Request items */}
+                        <div className="flex gap-4 px-4">
+                          {filteredRequests.map((request) => (
+                            <TooltipProvider key={request.id}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
                                   <div
                                     className={cn(
-                                      "absolute left-[26px] w-5 h-5 rounded-full border-2 border-background",
-                                      getStatusColor(request.status)
+                                      "relative cursor-pointer transition-all min-w-[120px]",
+                                      selectedRequest?.id === request.id && "scale-110"
                                     )}
-                                  />
+                                    onClick={() => setSelectedRequest(request)}
+                                  >
+                                    {/* Status dot */}
+                                    <div
+                                      className={cn(
+                                        "mx-auto w-6 h-6 rounded-full border-4 border-background shadow-lg transition-all",
+                                        getStatusColor(request.status),
+                                        selectedRequest?.id === request.id && "ring-2 ring-primary ring-offset-2"
+                                      )}
+                                    />
 
-                                  {/* Initials badge */}
-                                  <div className="absolute left-14 top-3">
-                                    <Badge variant="secondary" className="text-xs font-mono">
-                                      {getChangeTypeInitials(request.change_type)}/{getPlatformInitials(request.platform)}
-                                    </Badge>
-                                  </div>
-
-                                  <div className="ml-28">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <span className="font-medium text-sm">
-                                        {request.change_type.charAt(0).toUpperCase() + request.change_type.slice(1)} Request
-                                      </span>
-                                      <Badge variant="outline" className="text-xs">
-                                        {request.status}
+                                    {/* Initials badge */}
+                                    <div className="mt-2 flex justify-center">
+                                      <Badge 
+                                        variant={selectedRequest?.id === request.id ? "default" : "secondary"} 
+                                        className="text-xs font-mono"
+                                      >
+                                        {getChangeTypeInitials(request.change_type)}/{getPlatformInitials(request.platform)}
                                       </Badge>
                                     </div>
+
+                                    <div className="mt-1 text-center">
+                                      <p className="text-xs text-muted-foreground whitespace-nowrap">
+                                        {format(new Date(request.created_at), "MMM dd")}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-xs">
+                                  <div className="space-y-1">
+                                    <p className="font-medium">
+                                      {request.change_type.charAt(0).toUpperCase() + request.change_type.slice(1)}
+                                    </p>
+                                    {request.platform && <p className="text-xs">Platform: {request.platform}</p>}
                                     <p className="text-xs text-muted-foreground">
-                                      by {request.requester_email?.split("@")[0]} • {format(new Date(request.created_at), "MMM dd, yyyy HH:mm")}
+                                      {format(new Date(request.created_at), "MMM dd, yyyy HH:mm:ss")}
                                     </p>
                                   </div>
-                                </div>
-                              </TooltipTrigger>
-                              <TooltipContent side="right" className="max-w-xs">
-                                <div className="space-y-1">
-                                  <p className="font-medium">
-                                    {request.change_type.charAt(0).toUpperCase() + request.change_type.slice(1)}
-                                  </p>
-                                  {request.platform && <p className="text-xs">Platform: {request.platform}</p>}
-                                  <p className="text-xs text-muted-foreground">
-                                    {format(new Date(request.created_at), "MMM dd, yyyy HH:mm:ss")}
-                                  </p>
-                                </div>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        ))}
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  </ScrollArea>
+                    </ScrollArea>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -383,7 +441,7 @@ export function ModificationRequestsView({
             {selectedRequest && (
               <Card>
                 <CardContent className="p-4">
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     <div className="flex items-start justify-between">
                       <div>
                         <h3 className="font-semibold">
@@ -393,9 +451,21 @@ export function ModificationRequestsView({
                           Requested by {selectedRequest.requester_email}
                         </p>
                       </div>
-                      <Badge variant={selectedRequest.status === "completed" ? "default" : "secondary"}>
-                        {selectedRequest.status}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={selectedRequest.status === "completed" ? "default" : "secondary"}>
+                          {selectedRequest.status}
+                        </Badge>
+                        {canUpdateStatus(selectedRequest) && selectedRequest.status !== "completed" && (
+                          <Button
+                            size="sm"
+                            onClick={() => handleStatusUpdate(selectedRequest.id, "completed")}
+                            disabled={updating}
+                          >
+                            <CheckCircle2 className="w-4 h-4 mr-1" />
+                            Mark Complete
+                          </Button>
+                        )}
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4 text-sm">
@@ -421,10 +491,40 @@ export function ModificationRequestsView({
                       </div>
                     </div>
 
+                    {selectedRequest.assigned_emails && selectedRequest.assigned_emails.length > 0 && (
+                      <div className="pt-2 border-t">
+                        <span className="text-sm font-medium text-muted-foreground">Assigned To:</span>
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          {selectedRequest.assigned_emails.map((email, idx) => (
+                            <Badge key={idx} variant="outline">
+                              {email}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     <div className="pt-2 border-t">
                       <span className="text-sm font-medium text-muted-foreground">Description:</span>
                       <p className="text-sm mt-1 whitespace-pre-wrap">{selectedRequest.description}</p>
                     </div>
+
+                    {selectedRequest.status_history && selectedRequest.status_history.length > 1 && (
+                      <div className="pt-2 border-t">
+                        <span className="text-sm font-medium text-muted-foreground">Status History:</span>
+                        <div className="mt-2 space-y-2">
+                          {selectedRequest.status_history.map((entry, idx) => (
+                            <div key={idx} className="flex items-center gap-2 text-xs">
+                              <div className={cn("w-2 h-2 rounded-full", getStatusColor(entry.status))} />
+                              <span className="font-medium">{entry.status}</span>
+                              <span className="text-muted-foreground">
+                                {format(new Date(entry.changed_at), "MMM dd, yyyy HH:mm")}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>

@@ -7,12 +7,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, Play, Edit, CheckCircle, XCircle, MessageSquare, History, Trash2, Download, TrendingUp, MoreVertical, ArrowLeft, Search } from "lucide-react";
+import { Loader2, Play, Edit, CheckCircle, XCircle, MessageSquare, History, Trash2, Download, TrendingUp, MoreVertical, ArrowLeft, Search, BarChart3 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
 import { ModificationRequestDialog } from "@/components/ModificationRequestDialog";
 import { ChangeHistoryDialog } from "@/components/ChangeHistoryDialog";
 import { ModificationRequestsView } from "@/components/ModificationRequestsView";
+import { ModificationRequestsAnalytics } from "@/components/ModificationRequestsAnalytics";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 interface Campaign {
@@ -58,6 +59,8 @@ export default function ActiPlans() {
   const [modificationDialogOpen, setModificationDialogOpen] = useState(false);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [modificationRequestsViewOpen, setModificationRequestsViewOpen] = useState(false);
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
+  const [isAdminOrOwner, setIsAdminOrOwner] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [campaignToDelete, setCampaignToDelete] = useState<Campaign | null>(null);
@@ -101,6 +104,7 @@ export default function ActiPlans() {
         .eq("user_id", user?.id);
       
       const isAdminOrOwner = userRoles?.some((r: any) => r.role === 'admin' || r.role === 'owner');
+      setIsAdminOrOwner(isAdminOrOwner || false);
 
       // Fetch latest status changes for each campaign
       const campaignIds = campaignsData?.map((c: any) => c.id) || [];
@@ -632,6 +636,12 @@ export default function ActiPlans() {
               aria-label="Search ActiPlans"
             />
           </div>
+          {isAdminOrOwner && (
+            <Button variant="outline" onClick={() => setAnalyticsOpen(true)}>
+              <BarChart3 className="h-4 w-4 mr-2" />
+              Analytics
+            </Button>
+          )}
           <Button onClick={() => window.location.href = "/"}>
             New ActiPlan
           </Button>
@@ -684,12 +694,17 @@ export default function ActiPlans() {
             campaignName={selectedCampaign.name}
           />
 
-          <ModificationRequestsView
-            open={modificationRequestsViewOpen}
-            onOpenChange={setModificationRequestsViewOpen}
-            campaignId={selectedCampaign.id}
-            campaignName={selectedCampaign.name}
-          />
+      <ModificationRequestsView
+        open={modificationRequestsViewOpen}
+        onOpenChange={setModificationRequestsViewOpen}
+        campaignId={selectedCampaign?.id || ""}
+        campaignName={selectedCampaign?.name || ""}
+      />
+
+      <ModificationRequestsAnalytics
+        open={analyticsOpen}
+        onOpenChange={setAnalyticsOpen}
+      />
         </>
       )}
 

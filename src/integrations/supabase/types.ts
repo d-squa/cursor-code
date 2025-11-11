@@ -119,6 +119,7 @@ export type Database = {
           objective: string
           pdf_url: string | null
           platforms: Json
+          published_at: string | null
           start_date: string | null
           status: string | null
           team_id: string | null
@@ -138,6 +139,7 @@ export type Database = {
           objective: string
           pdf_url?: string | null
           platforms?: Json
+          published_at?: string | null
           start_date?: string | null
           status?: string | null
           team_id?: string | null
@@ -157,6 +159,7 @@ export type Database = {
           objective?: string
           pdf_url?: string | null
           platforms?: Json
+          published_at?: string | null
           start_date?: string | null
           status?: string | null
           team_id?: string | null
@@ -283,6 +286,7 @@ export type Database = {
           notify_all_team: boolean | null
           requester_id: string
           status: string
+          status_history: Json | null
           updated_at: string | null
         }
         Insert: {
@@ -295,6 +299,7 @@ export type Database = {
           notify_all_team?: boolean | null
           requester_id: string
           status?: string
+          status_history?: Json | null
           updated_at?: string | null
         }
         Update: {
@@ -307,6 +312,7 @@ export type Database = {
           notify_all_team?: boolean | null
           requester_id?: string
           status?: string
+          status_history?: Json | null
           updated_at?: string | null
         }
         Relationships: [
