@@ -12,6 +12,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { format } from "date-fns";
 import { ModificationRequestDialog } from "@/components/ModificationRequestDialog";
 import { ChangeHistoryDialog } from "@/components/ChangeHistoryDialog";
+import { ModificationRequestsView } from "@/components/ModificationRequestsView";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 interface Campaign {
@@ -56,6 +57,7 @@ export default function ActiPlans() {
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
   const [modificationDialogOpen, setModificationDialogOpen] = useState(false);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
+  const [modificationRequestsViewOpen, setModificationRequestsViewOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [campaignToDelete, setCampaignToDelete] = useState<Campaign | null>(null);
@@ -568,6 +570,16 @@ export default function ActiPlans() {
                   View History
                 </DropdownMenuItem>
 
+                <DropdownMenuItem
+                  onClick={() => {
+                    setSelectedCampaign(campaign);
+                    setModificationRequestsViewOpen(true);
+                  }}
+                >
+                  <MessageSquare className="w-4 h-4 mr-2" />
+                  Check Modification Requests
+                </DropdownMenuItem>
+
                 {canDelete(campaign) && (
                   <>
                     <DropdownMenuSeparator />
@@ -668,6 +680,13 @@ export default function ActiPlans() {
           <ChangeHistoryDialog
             open={historyDialogOpen}
             onOpenChange={setHistoryDialogOpen}
+            campaignId={selectedCampaign.id}
+            campaignName={selectedCampaign.name}
+          />
+
+          <ModificationRequestsView
+            open={modificationRequestsViewOpen}
+            onOpenChange={setModificationRequestsViewOpen}
             campaignId={selectedCampaign.id}
             campaignName={selectedCampaign.name}
           />
