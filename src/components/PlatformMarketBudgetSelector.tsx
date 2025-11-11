@@ -71,12 +71,12 @@ export function PlatformMarketBudgetSelector({
     try {
       // Fetch ad accounts from database
       const { data: adAccountsData, error: adAccountsError } = await supabase
-        .from("meta_ad_accounts")
+        .from("meta_ad_accounts" as any)
         .select("*")
         .order("synced_at", { ascending: false });
 
       if (!adAccountsError && adAccountsData) {
-        setAdAccounts(adAccountsData.map(acc => ({
+        setAdAccounts(adAccountsData.map((acc: any) => ({
           id: acc.account_id,
           name: acc.account_name,
         })));
@@ -84,12 +84,12 @@ export function PlatformMarketBudgetSelector({
 
       // Fetch pages from database
       const { data: pagesData, error: pagesError } = await supabase
-        .from("meta_pages")
+        .from("meta_pages" as any)
         .select("*")
         .order("synced_at", { ascending: false });
 
       if (!pagesError && pagesData) {
-        setPages(pagesData.map(page => ({
+        setPages(pagesData.map((page: any) => ({
           id: page.page_id,
           name: page.page_name,
         })));
@@ -97,12 +97,12 @@ export function PlatformMarketBudgetSelector({
 
       // Fetch pixels from database
       const { data: pixelsData, error: pixelsError } = await supabase
-        .from("meta_pixels")
+        .from("meta_pixels" as any)
         .select("*")
         .order("synced_at", { ascending: false });
 
       if (!pixelsError && pixelsData) {
-        setPixels(pixelsData.map(pixel => ({
+        setPixels(pixelsData.map((pixel: any) => ({
           id: pixel.pixel_id,
           name: pixel.pixel_name,
           adAccountId: pixel.ad_account_id,
@@ -111,12 +111,12 @@ export function PlatformMarketBudgetSelector({
 
       // Fetch catalogs from database
       const { data: catalogsData, error: catalogsError } = await supabase
-        .from("meta_catalogs")
+        .from("meta_catalogs" as any)
         .select("*")
         .order("synced_at", { ascending: false });
 
       if (!catalogsError && catalogsData) {
-        setCatalogs(catalogsData.map(catalog => ({
+        setCatalogs(catalogsData.map((catalog: any) => ({
           id: catalog.catalog_id,
           name: catalog.catalog_name,
         })));
@@ -124,12 +124,12 @@ export function PlatformMarketBudgetSelector({
 
       // Fetch conversion events from database
       const { data: eventsData, error: eventsError } = await supabase
-        .from("meta_conversion_events")
+        .from("meta_conversion_events" as any)
         .select("*")
         .order("synced_at", { ascending: false });
 
       if (!eventsError && eventsData) {
-        setConversionEvents(eventsData.map(event => ({
+        setConversionEvents(eventsData.map((event: any) => ({
           pixelId: event.pixel_id,
           id: event.event_name,
           name: event.event_name,
@@ -139,12 +139,12 @@ export function PlatformMarketBudgetSelector({
 
       // Fetch Instagram accounts from database
       const { data: igData, error: igError } = await supabase
-        .from("meta_instagram_accounts")
+        .from("meta_instagram_accounts" as any)
         .select("*")
         .order("synced_at", { ascending: false });
 
       if (!igError && igData) {
-        setInstagramAccounts(igData.map(ig => ({
+        setInstagramAccounts(igData.map((ig: any) => ({
           id: ig.instagram_account_id,
           username: ig.username,
           name: ig.username,
