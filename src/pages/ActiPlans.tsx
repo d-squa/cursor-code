@@ -7,13 +7,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, Play, Edit, CheckCircle, XCircle, MessageSquare, History, Trash2, Download, TrendingUp, MoreVertical, ArrowLeft } from "lucide-react";
+import { Loader2, Play, Edit, CheckCircle, XCircle, MessageSquare, History, Trash2, Download, TrendingUp, MoreVertical, ArrowLeft, Search } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
 import { ModificationRequestDialog } from "@/components/ModificationRequestDialog";
 import { ChangeHistoryDialog } from "@/components/ChangeHistoryDialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-
+import { Input } from "@/components/ui/input";
 interface Campaign {
   id: string;
   name: string;
@@ -58,7 +58,7 @@ export default function ActiPlans() {
   const [actionLoading, setActionLoading] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [campaignToDelete, setCampaignToDelete] = useState<Campaign | null>(null);
-
+  const [search, setSearch] = useState("");
   useEffect(() => {
     if (user) {
       loadCampaigns();
@@ -67,17 +67,29 @@ export default function ActiPlans() {
 
   const loadCampaigns = async () => {
     try {
-      // Fetch campaigns with creator, team, and user role information
+      // Fetch campaigns
       const { data: campaignsData, error: campaignsError } = await supabase
         .from("campaigns")
-        .select(`
-          *,
-          creator:profiles!user_id(email, company_name),
-          team:teams!team_id(name)
-        `)
+        .select("*")
         .order("created_at", { ascending: false });
 
       if (campaignsError) throw campaignsError;
+
+      // Fetch creator profiles and team names
+      const userIds = [...new Set((campaignsData || []).map((c: any) => c.user_id))];
+      const teamIds = [...new Set((campaignsData || []).map((c: any) => c.team_id).filter(Boolean))];
+
+      const [{ data: creators }, { data: teamsData }] = await Promise.all([
+        userIds.length > 0
+          ? supabase.from("profiles").select("id, email, company_name").in("id", userIds)
+          : Promise.resolve({ data: [] as any[] } as any),
+        teamIds.length > 0
+          ? supabase.from("teams").select("id, name").in("id", teamIds)
+          : Promise.resolve({ data: [] as any[] } as any)
+      ]);
+
+      const profilesMap: Record<string, any> = Object.fromEntries((creators || []).map((p: any) => [p.id, p]));
+      const teamsMap: Record<string, any> = Object.fromEntries((teamsData || []).map((t: any) => [t.id, t]));
 
       // Fetch user's roles to determine permissions
       const { data: userRoles } = await supabase
@@ -135,6 +147,12 @@ export default function ActiPlans() {
 
         return {
           ...campaign,
+          creator: profilesMap[campaign.user_id]
+            ? { email: profilesMap[campaign.user_id].email, company_name: profilesMap[campaign.user_id].company_name }
+            : undefined,
+          team: campaign.team_id && teamsMap[campaign.team_id]
+            ? { name: teamsMap[campaign.team_id].name }
+            : undefined,
           user_role: userRole?.role,
           can_edit: canEdit,
           last_status_change: latestChange ? {
@@ -322,8 +340,16 @@ export default function ActiPlans() {
   };
 
   const filterCampaigns = (status: string) => {
-    if (status === "all") return campaigns;
-    return campaigns.filter((c) => c.status === status);
+    const list = status === "all" ? campaigns : campaigns.filter((c) => c.status === status);
+    const q = search.trim().toLowerCase();
+    if (!q) return list;
+    return list.filter((c) => {
+      const inName = c.name?.toLowerCase().includes(q);
+      const inCreator = c.creator?.email?.toLowerCase().includes(q);
+      const inTeam = c.team?.name?.toLowerCase().includes(q);
+      const inPlatform = (c.platforms || []).some((p: any) => ((p.name || p.type || "") + "").toLowerCase().includes(q));
+      return inName || inCreator || inTeam || inPlatform;
+    });
   };
 
   const renderCampaignCard = (campaign: Campaign) => (
@@ -569,16 +595,29 @@ export default function ActiPlans() {
 
   return (
     <div className="container mx-auto py-8">
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/")}>
+          <Button variant="ghost" size="icon" onClick={() => navigate("/")} aria-label="Back to create ActiPlan">
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <h1 className="text-3xl font-bold">ActiPlans</h1>
         </div>
-        <Button onClick={() => window.location.href = "/"}>
-          New ActiPlan
-        </Button>
+
+        <div className="flex items-center gap-3 w-full sm:w-auto">
+          <div className="relative w-full sm:w-80">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by name, creator, team, or platform"
+              className="pl-9"
+              aria-label="Search ActiPlans"
+            />
+          </div>
+          <Button onClick={() => window.location.href = "/"}>
+            New ActiPlan
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="all" className="space-y-6">
