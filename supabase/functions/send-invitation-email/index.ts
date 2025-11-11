@@ -20,12 +20,19 @@ const handler = async (req: Request): Promise<Response> => {
   try {
     const { email, teamName, role, invitationToken }: InvitationRequest = await req.json();
     
+    console.log("Processing invitation for:", email);
+    
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
     if (!resendApiKey) {
+      console.error("RESEND_API_KEY not configured");
       throw new Error("Email service not configured. Please add RESEND_API_KEY secret.");
     }
     
-    const invitationUrl = `${Deno.env.get("VITE_SUPABASE_URL")?.replace('/api', '') || 'http://localhost:5173'}/accept-invitation?token=${invitationToken}`;
+    // Get the base URL for the invitation link
+    const baseUrl = Deno.env.get("SUPABASE_URL")?.replace('/api', '').replace('https://tewjsubccoizrjroaydy.supabase.co', 'https://2d3133ec-291e-4366-9711-2433a9063016.lovableproject.com') || 'http://localhost:5173';
+    const invitationUrl = `${baseUrl}/accept-invitation?token=${invitationToken}`;
+    
+    console.log("Invitation URL:", invitationUrl);
 
     const emailData = {
       from: "ActiPlan <onboarding@resend.dev>",
@@ -54,6 +61,8 @@ const handler = async (req: Request): Promise<Response> => {
       `,
     };
 
+    console.log("Sending email with data:", { to: email, subject: emailData.subject });
+
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -63,10 +72,12 @@ const handler = async (req: Request): Promise<Response> => {
       body: JSON.stringify(emailData),
     });
 
+    console.log("Resend API response status:", response.status);
+
     if (!response.ok) {
       const error = await response.text();
-      console.error(`Failed to send invitation email:`, error);
-      throw new Error(`Failed to send invitation email`);
+      console.error(`Resend API error (${response.status}):`, error);
+      throw new Error(`Resend API error: ${error}`);
     }
 
     const result = await response.json();
@@ -77,9 +88,16 @@ const handler = async (req: Request): Promise<Response> => {
       headers: { "Content-Type": "application/json", ...corsHeaders },
     });
   } catch (error: any) {
-    console.error("Error sending invitation email:", error);
+    console.error("Error in send-invitation-email function:", error);
+    console.error("Error details:", {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message || "Failed to send invitation email"
+      }),
       {
         status: 500,
         headers: { "Content-Type": "application/json", ...corsHeaders },
