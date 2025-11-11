@@ -76,6 +76,8 @@ export function PlatformCustomization({
   const [expandedCampaigns, setExpandedCampaigns] = useState<{ [key: string]: boolean }>({});
   const [adAccounts, setAdAccounts] = useState<Array<{ id: string; name: string }>>([]);
   const [loadingAdAccounts, setLoadingAdAccounts] = useState(false);
+  const [pages, setPages] = useState<Array<{ id: string; name: string }>>([]);
+  const [loadingPages, setLoadingPages] = useState(false);
   const [conversionEvents, setConversionEvents] = useState<{ [pixelId: string]: Array<{ id: string; name: string }> }>({});
   const [loadingConversionEvents, setLoadingConversionEvents] = useState<{ [pixelId: string]: boolean }>({});
 
@@ -229,29 +231,43 @@ export function PlatformCustomization({
     setExpandedCampaigns(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  // Fetch ad accounts when component mounts
+  // Fetch ad accounts and pages when component mounts
   useEffect(() => {
-    const fetchAdAccounts = async () => {
+    const fetchMetaData = async () => {
       setLoadingAdAccounts(true);
+      setLoadingPages(true);
+      
       try {
-        const { data, error } = await supabase.functions.invoke("meta-ad-accounts", {
-          headers: {
-            Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
-          },
+        const session = await supabase.auth.getSession();
+        const authHeader = {
+          Authorization: `Bearer ${session.data.session?.access_token}`,
+        };
+
+        // Fetch ad accounts
+        const { data: adAccountsData, error: adAccountsError } = await supabase.functions.invoke("meta-ad-accounts", {
+          headers: authHeader,
         });
 
-        if (error) throw error;
+        if (adAccountsError) throw adAccountsError;
+        setAdAccounts(adAccountsData.adAccounts || []);
 
-        setAdAccounts(data.adAccounts || []);
+        // Fetch pages
+        const { data: pagesData, error: pagesError } = await supabase.functions.invoke("meta-pages", {
+          headers: authHeader,
+        });
+
+        if (pagesError) throw pagesError;
+        setPages(pagesData.pages || []);
       } catch (error: any) {
-        console.error("Error fetching ad accounts:", error);
-        toast.error("Failed to fetch ad accounts");
+        console.error("Error fetching Meta data:", error);
+        toast.error("Failed to fetch Meta data");
       } finally {
         setLoadingAdAccounts(false);
+        setLoadingPages(false);
       }
     };
 
-    fetchAdAccounts();
+    fetchMetaData();
   }, []);
 
   // Fetch conversion events for a pixel
@@ -470,6 +486,38 @@ return (
                                   }}
                                   placeholder="Enter Meta Pixel ID"
                                 />
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Facebook Page</Label>
+                                <Select
+                                  value={market.pageId || ""}
+                                  onValueChange={(value) => {
+                                    const page = pages.find(p => p.id === value);
+                                    updateMarketField(platform.id, market.id, "pageId", value);
+                                    updateMarketField(platform.id, market.id, "page", page?.name || "");
+                                  }}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder={loadingPages ? "Loading..." : "Select Facebook Page"} />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {loadingPages ? (
+                                      <div className="flex items-center justify-center p-4">
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                      </div>
+                                    ) : pages.length === 0 ? (
+                                      <div className="p-4 text-sm text-muted-foreground text-center">
+                                        No pages found. Make sure you have admin access to Facebook pages.
+                                      </div>
+                                    ) : (
+                                      pages.map((page) => (
+                                        <SelectItem key={page.id} value={page.id}>
+                                          {page.name}
+                                        </SelectItem>
+                                      ))
+                                    )}
+                                  </SelectContent>
+                                </Select>
                               </div>
                               {needsConversionEvent(market) && market.pixel && (
                                 <div className="space-y-2">

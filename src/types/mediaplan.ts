@@ -8,6 +8,7 @@ export interface Market {
   accountName?: string;
   adAccountId?: string; // Meta Ad Account ID
   page?: string;
+  pageId?: string; // Meta Page ID
   pixel?: string;
   catalog?: string;
   conversionEvent?: string; // Conversion event for conversion campaigns

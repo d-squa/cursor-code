@@ -15,6 +15,9 @@ verify_jwt = true
 [functions.meta-ad-accounts]
 verify_jwt = true
 
+[functions.meta-pages]
+verify_jwt = true
+
 [functions.meta-conversion-events]
 verify_jwt = true
 
