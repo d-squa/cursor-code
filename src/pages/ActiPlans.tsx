@@ -72,8 +72,8 @@ export default function ActiPlans() {
         .from("campaigns")
         .select(`
           *,
-          creator:profiles!campaigns_user_id_fkey(email, company_name),
-          team:teams(name)
+          creator:profiles!user_id(email, company_name),
+          team:teams!team_id(name)
         `)
         .order("created_at", { ascending: false });
 
@@ -87,17 +87,38 @@ export default function ActiPlans() {
 
       // Fetch latest status changes for each campaign
       const campaignIds = campaignsData?.map((c: any) => c.id) || [];
-      const { data: statusChanges } = await supabase
-        .from("campaign_change_history")
-        .select(`
-          campaign_id,
-          action,
-          created_at,
-          user:profiles!campaign_change_history_user_id_fkey(email)
-        `)
-        .in("campaign_id", campaignIds)
-        .in("action", ["approved", "rejected", "pushed_to_dsp"])
-        .order("created_at", { ascending: false });
+      let statusChanges: any[] = [];
+      
+      if (campaignIds.length > 0) {
+        const { data } = await supabase
+          .from("campaign_change_history")
+          .select(`
+            campaign_id,
+            action,
+            created_at,
+            user_id
+          `)
+          .in("campaign_id", campaignIds)
+          .in("action", ["approved", "rejected", "pushed_to_dsp"])
+          .order("created_at", { ascending: false });
+        
+        statusChanges = data || [];
+        
+        // Fetch user emails for status changes
+        const userIds = [...new Set(statusChanges.map((s: any) => s.user_id))];
+        if (userIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from("profiles")
+            .select("id, email")
+            .in("id", userIds);
+          
+          // Map profiles to status changes
+          statusChanges = statusChanges.map((change: any) => ({
+            ...change,
+            user_email: profiles?.find((p: any) => p.id === change.user_id)?.email
+          }));
+        }
+      }
 
       // Map the data with permissions and last status change
       const enrichedCampaigns = campaignsData?.map((campaign: any) => {
@@ -117,7 +138,7 @@ export default function ActiPlans() {
           user_role: userRole?.role,
           can_edit: canEdit,
           last_status_change: latestChange ? {
-            user_email: latestChange.user?.email,
+            user_email: latestChange.user_email,
             action: latestChange.action,
             created_at: latestChange.created_at
           } : undefined
