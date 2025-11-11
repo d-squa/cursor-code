@@ -164,22 +164,22 @@ export default function AcceptInvitation() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="max-w-md w-full">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="h-6 w-6 text-primary" />
-            <CardTitle>Accept Invitation</CardTitle>
-          </div>
-          <CardDescription>
-            You've been invited to join <strong>{invitation?.teams?.name}</strong> as a{" "}
-            <strong>{invitation?.role}</strong>
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {!user ? (
-            <>
-              <p className="text-sm text-muted-foreground">
-                Create a password to accept this invitation and create your account.
-              </p>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="h-6 w-6 text-primary" />
+              <CardTitle>Join ActiPlan</CardTitle>
+            </div>
+            <CardDescription>
+              You've been invited to join <strong>{invitation?.teams?.name}</strong> on ActiPlan as a{" "}
+              <strong>{invitation?.role}</strong>
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {!user ? (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  Create your ActiPlan account to accept this invitation and start collaborating.
+                </p>
               
               <div>
                 <Label htmlFor="email">Email</Label>
@@ -230,7 +230,7 @@ export default function AcceptInvitation() {
             className="w-full"
           >
             {accepting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {user ? "Accept Invitation" : "Create Account & Accept"}
+            {user ? "Accept & Join Team" : "Create ActiPlan Account & Join"}
           </Button>
 
           {!user && (

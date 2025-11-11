@@ -29,14 +29,7 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     // Get the base URL for the invitation link
-    const baseUrl =
-      Deno.env
-        .get("SUPABASE_URL")
-        ?.replace("/api", "")
-        .replace(
-          "https://tewjsubccoizrjroaydy.supabase.co",
-          "https://2d3133ec-291e-4366-9711-2433a9063016.lovableproject.com",
-        ) || "http://localhost:5173";
+    const baseUrl = "https://actiplan-blueprint-creation.lovable.app";
     const invitationUrl = `${baseUrl}/accept-invitation?token=${invitationToken}`;
 
     console.log("Invitation URL:", invitationUrl);

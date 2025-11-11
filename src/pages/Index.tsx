@@ -46,16 +46,16 @@ const Index = () => {
             </div>
             <nav className="flex items-center gap-2">
               <button 
+                onClick={() => navigate("/performance")}
+                className="px-4 py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
+              >
+                Dashboard
+              </button>
+              <button 
                 onClick={() => navigate("/actiplans")}
                 className="px-4 py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
               >
                 ActiPlans
-              </button>
-              <button 
-                onClick={() => navigate("/platforms")}
-                className="px-4 py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
-              >
-                Connect Platforms
               </button>
               <Button 
                 variant="ghost" 
