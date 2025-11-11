@@ -106,30 +106,107 @@ export default function Performance() {
     
     setMetricsLoading(true);
     try {
-      // TODO: Call Meta Insights API to get actual performance data
-      // For now, simulate with random data
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const plannedMetrics = selectedCampaign.forecast_data?.totalMetrics || {};
-      
-      // Simulate actual metrics (80-120% of planned)
-      const variance = () => 0.8 + Math.random() * 0.4;
-      setActualMetrics({
-        reach: Math.round((plannedMetrics.reach || 0) * variance()),
-        impressions: Math.round((plannedMetrics.impressions || 0) * variance()),
-        spend: Math.round((selectedCampaign.total_budget || 0) * variance() * 100) / 100,
-        cpm: Math.round(((plannedMetrics.cpm || 0) * variance()) * 100) / 100,
-        frequency: Math.round(((plannedMetrics.frequency || 2) * variance()) * 100) / 100,
-      });
+      // Check for cached insights first
+      const { data: cachedInsights, error: cacheError } = await supabase
+        .from("campaign_insights")
+        .select("*")
+        .eq("campaign_id", selectedCampaign.id)
+        .order("fetched_at", { ascending: false })
+        .limit(1);
 
-      // Generate weekly data
-      generateWeeklyData();
+      let insights = cachedInsights?.[0];
+      const cacheAge = insights ? Date.now() - new Date(insights.fetched_at).getTime() : Infinity;
+      const isStale = cacheAge > 30 * 60 * 1000; // 30 minutes
+
+      // If no cache or stale, fetch fresh data
+      if (!insights || isStale) {
+        console.log("Fetching fresh insights from API...");
+        
+        const { data, error } = await supabase.functions.invoke("fetch-campaign-insights", {
+          body: {
+            campaignId: selectedCampaign.id,
+            forceRefresh: false,
+          },
+        });
+
+        if (error) {
+          console.error("Error fetching insights:", error);
+          // Fall back to forecast data if API fails
+          useForecastData();
+          return;
+        }
+
+        if (data?.insights && data.insights.length > 0) {
+          insights = data.insights[0];
+        } else {
+          console.log("No insights available, using forecast data");
+          useForecastData();
+          return;
+        }
+      } else {
+        console.log(`Using cached insights (${Math.round(cacheAge / 1000)}s old)`);
+      }
+
+      // Use actual metrics from insights
+      if (insights?.metrics) {
+        const metrics = insights.metrics as any;
+        setActualMetrics({
+          reach: metrics.reach || 0,
+          impressions: metrics.impressions || 0,
+          spend: metrics.spend || 0,
+          cpm: metrics.cpm || 0,
+          frequency: metrics.frequency || 0,
+        });
+
+        // Use weekly metrics from insights
+        const weeklyMetrics = insights.weekly_metrics as any[];
+        if (weeklyMetrics && Array.isArray(weeklyMetrics) && weeklyMetrics.length > 0) {
+          const plannedMetrics = selectedCampaign.forecast_data?.totalMetrics || {};
+          const weekCount = weeklyMetrics.length;
+          const weeklyPlanned = {
+            reach: Math.round((plannedMetrics.reach || 0) / weekCount),
+            impressions: Math.round((plannedMetrics.impressions || 0) / weekCount),
+            spend: Math.round((selectedCampaign.total_budget || 0) / weekCount * 100) / 100,
+          };
+
+          setWeeklyData(weeklyMetrics.map((week: any, idx: number) => ({
+            week: week.week || `Week ${idx + 1}`,
+            plannedReach: weeklyPlanned.reach,
+            actualReach: week.reach || 0,
+            plannedImpressions: weeklyPlanned.impressions,
+            actualImpressions: week.impressions || 0,
+            plannedSpend: weeklyPlanned.spend,
+            actualSpend: week.spend || 0,
+          })));
+        } else {
+          generateWeeklyData();
+        }
+      } else {
+        useForecastData();
+      }
     } catch (error: any) {
       console.error("Error loading metrics:", error);
       toast.error("Failed to load performance metrics");
+      useForecastData();
     } finally {
       setMetricsLoading(false);
     }
+  };
+
+  const useForecastData = () => {
+    console.log("Using simulated data based on forecast");
+    const plannedMetrics = selectedCampaign?.forecast_data?.totalMetrics || {};
+    const variance = () => 0.8 + Math.random() * 0.4;
+    
+    setActualMetrics({
+      reach: Math.round((plannedMetrics.reach || 0) * variance()),
+      impressions: Math.round((plannedMetrics.impressions || 0) * variance()),
+      spend: Math.round((selectedCampaign?.total_budget || 0) * variance() * 100) / 100,
+      cpm: Math.round(((plannedMetrics.cpm || 0) * variance()) * 100) / 100,
+      frequency: Math.round(((plannedMetrics.frequency || 2) * variance()) * 100) / 100,
+    });
+    
+    generateWeeklyData();
   };
 
   const generateWeeklyData = () => {

@@ -14,6 +14,53 @@ export type Database = {
   }
   public: {
     Tables: {
+      campaign_insights: {
+        Row: {
+          ad_account_id: string | null
+          campaign_dsp_id: string | null
+          campaign_id: string
+          created_at: string
+          fetched_at: string
+          id: string
+          metrics: Json
+          platform: string
+          updated_at: string
+          weekly_metrics: Json
+        }
+        Insert: {
+          ad_account_id?: string | null
+          campaign_dsp_id?: string | null
+          campaign_id: string
+          created_at?: string
+          fetched_at?: string
+          id?: string
+          metrics?: Json
+          platform: string
+          updated_at?: string
+          weekly_metrics?: Json
+        }
+        Update: {
+          ad_account_id?: string | null
+          campaign_dsp_id?: string | null
+          campaign_id?: string
+          created_at?: string
+          fetched_at?: string
+          id?: string
+          metrics?: Json
+          platform?: string
+          updated_at?: string
+          weekly_metrics?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_insights_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaigns: {
         Row: {
           budget_allocation: Json
