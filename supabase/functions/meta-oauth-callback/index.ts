@@ -109,6 +109,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
+        platformId: platformData.id,
         platformsConnected: 1,
         adAccounts: adAccounts.map((acc: any) => ({
           id: acc.id,

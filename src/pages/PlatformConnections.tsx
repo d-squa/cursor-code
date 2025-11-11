@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { PLATFORM_CONFIG } from "@/config/platforms";
+import PlatformAdAccountSelector from "@/components/PlatformAdAccountSelector";
 
 interface ConnectedPlatform {
   id: string;
@@ -37,7 +38,10 @@ export default function PlatformConnections() {
   const [platforms, setPlatforms] = useState<ConnectedPlatform[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-
+  const [adAccountOptions, setAdAccountOptions] = useState<{ id: string; name: string }[]>([]);
+  const [newPlatformId, setNewPlatformId] = useState<string | null>(null);
+  const [selectingAccount, setSelectingAccount] = useState(false);
+  const [accountSelectorOpen, setAccountSelectorOpen] = useState(false);
   useEffect(() => {
     if (!authLoading && !user) {
       navigate("/auth");
@@ -105,6 +109,34 @@ export default function PlatformConnections() {
     }
   };
 
+  const handleSaveAdAccount = async (account: { id: string; name: string }) => {
+    if (!newPlatformId) return;
+    try {
+      setSelectingAccount(true);
+      const { error } = await supabase
+        .from("connected_platforms")
+        .update({
+          ad_account_id: account.id,
+          ad_account_name: account.name,
+          is_active: true,
+        })
+        .eq("id", newPlatformId);
+
+      if (error) throw error;
+
+      toast.success("Ad account linked.");
+      setAccountSelectorOpen(false);
+      setNewPlatformId(null);
+      setAdAccountOptions([]);
+      fetchConnectedPlatforms();
+    } catch (e: any) {
+      console.error("Failed to link ad account:", e);
+      toast.error(e?.message || "Failed to link ad account");
+    } finally {
+      setSelectingAccount(false);
+    }
+  };
+
   // Handle OAuth callback
   useEffect(() => {
     const handleOAuthCallback = async () => {
@@ -123,6 +155,16 @@ export default function PlatformConnections() {
           if (error) throw error;
 
           toast.success("Platform connected! Please select an ad account to link.");
+
+          if (data?.platformId) {
+            setNewPlatformId(data.platformId);
+          }
+
+          if (Array.isArray(data?.adAccounts) && data.adAccounts.length > 0) {
+            setAdAccountOptions(data.adAccounts);
+            setAccountSelectorOpen(true);
+          }
+
           await fetchConnectedPlatforms();
         } catch (error: any) {
           console.error("OAuth callback error:", error);
@@ -272,6 +314,14 @@ export default function PlatformConnections() {
             )}
           </CardContent>
         </Card>
+
+        <PlatformAdAccountSelector
+          open={accountSelectorOpen}
+          onOpenChange={setAccountSelectorOpen}
+          adAccounts={adAccountOptions}
+          onSelect={handleSaveAdAccount}
+          loading={selectingAccount}
+        />
       </div>
     </div>
   );
