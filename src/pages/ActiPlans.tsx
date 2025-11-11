@@ -26,6 +26,7 @@ interface Campaign {
   user_id: string;
   forecast_data?: any;
   pdf_url?: string | null;
+  platforms?: any[];
 }
 
 export default function ActiPlans() {
@@ -353,9 +354,12 @@ export default function ActiPlans() {
                 {campaign.status === "live" && (
                   <>
                     {(canEdit(campaign) || canApprove(campaign) || canPushToDSP(campaign)) && <DropdownMenuSeparator />}
-                    <DropdownMenuItem onClick={() => window.location.href = `/performance/${campaign.id}`}>
+                    <DropdownMenuItem onClick={() => {
+                      const platform = campaign.platforms?.[0]?.type || campaign.platforms?.[0]?.name || "";
+                      window.location.href = `/performance?campaignId=${campaign.id}&platform=${platform}`;
+                    }}>
                       <TrendingUp className="w-4 h-4 mr-2" />
-                      View Performance
+                      View Dashboard
                     </DropdownMenuItem>
                   </>
                 )}

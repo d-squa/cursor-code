@@ -9,6 +9,7 @@ import PlatformConnections from "./pages/PlatformConnections";
 import Teams from "./pages/Teams";
 import Settings from "./pages/Settings";
 import ActiPlans from "./pages/ActiPlans";
+import Performance from "./pages/Performance";
 import AccountSettings from "./pages/settings/AccountSettings";
 import PlanManagement from "./pages/settings/PlanManagement";
 import BillingManagement from "./pages/settings/BillingManagement";
@@ -26,6 +27,8 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/actiplans" element={<ActiPlans />} />
+          <Route path="/performance/:id" element={<Performance />} />
+          <Route path="/performance" element={<Performance />} />
           <Route path="/platforms" element={<PlatformConnections />} />
           <Route path="/teams" element={<Teams />} />
           <Route path="/settings" element={<Settings />}>
