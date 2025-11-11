@@ -44,19 +44,38 @@ export function ChangeHistoryDialog({
   const loadHistory = async () => {
     setLoading(true);
     try {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from("campaign_change_history")
-        .select(`
-          *,
-          profiles (
-            email
-          )
-        `)
+        .select("*")
         .eq("campaign_id", campaignId)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setHistory((data as any) || []);
+
+      // Fetch profiles separately
+      const userIds = [...new Set((data || []).map((entry: any) => entry.user_id).filter(Boolean))];
+      const profilesMap: Record<string, any> = {};
+
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, email")
+          .in("id", userIds);
+
+        (profiles || []).forEach((p: any) => {
+          profilesMap[p.id] = p;
+        });
+      }
+
+      // Map profiles to history entries
+      const enrichedHistory = (data || []).map((entry: any) => ({
+        ...entry,
+        profiles: entry.user_id && profilesMap[entry.user_id]
+          ? { email: profilesMap[entry.user_id].email }
+          : null,
+      }));
+
+      setHistory(enrichedHistory);
     } catch (error: any) {
       console.error("Error loading history:", error);
       toast.error("Failed to load change history");

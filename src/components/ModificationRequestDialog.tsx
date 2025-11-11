@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -25,6 +26,17 @@ interface TeamMember {
   role: string;
 }
 
+interface Platform {
+  id: string;
+  name: string;
+  type: string;
+}
+
+interface Market {
+  id: string;
+  name: string;
+}
+
 export function ModificationRequestDialog({
   open,
   onOpenChange,
@@ -40,63 +52,81 @@ export function ModificationRequestDialog({
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(false);
+  const [platforms, setPlatforms] = useState<Platform[]>([]);
+  const [selectedPlatform, setSelectedPlatform] = useState("");
+  const [selectedMarket, setSelectedMarket] = useState("");
 
   useEffect(() => {
     if (open) {
       loadTeamMembers();
+      loadCampaignDetails();
     }
   }, [open]);
+
+  const loadCampaignDetails = async () => {
+    try {
+      const { data: campaign } = await supabase
+        .from("campaigns")
+        .select("platforms, market_splits")
+        .eq("id", campaignId)
+        .single();
+
+      if (campaign && Array.isArray(campaign.platforms)) {
+        setPlatforms(campaign.platforms as unknown as Platform[]);
+      }
+    } catch (error) {
+      console.error("Error loading campaign details:", error);
+    }
+  };
 
   const loadTeamMembers = async () => {
     setLoadingMembers(true);
     try {
-      // Get the campaign creator's team
+      // Get the campaign's team
       const { data: campaign } = await supabase
         .from("campaigns")
-        .select("user_id")
+        .select("team_id")
         .eq("id", campaignId)
         .single();
 
-      if (!campaign) return;
+      if (!campaign || !campaign.team_id) {
+        setTeamMembers([]);
+        return;
+      }
 
-      // Get all users in the same teams as the campaign creator
-      const { data: userTeams } = await supabase
-        .from("user_roles")
-        .select("team_id")
-        .eq("user_id", campaign.user_id);
-
-      if (!userTeams || userTeams.length === 0) return;
-
-      const teamIds = userTeams.map((t) => t.team_id);
-
-      // Get all team members from these teams
+      // Get all team members from the campaign's team
       const { data: members } = await supabase
         .from("user_roles")
-        .select(`
-          user_id,
-          role,
-          profiles!inner(id, email)
-        `)
-        .in("team_id", teamIds)
+        .select("user_id, role")
+        .eq("team_id", campaign.team_id)
         .neq("user_id", user?.id); // Exclude current user
 
-      if (members) {
-        const uniqueMembers = Array.from(
-          new Map(
-            members.map((m: any) => [
-              m.profiles.id,
-              {
-                id: m.profiles.id,
-                email: m.profiles.email,
-                role: m.role,
-              },
-            ])
-          ).values()
-        );
-        setTeamMembers(uniqueMembers);
+      if (!members || members.length === 0) {
+        setTeamMembers([]);
+        return;
+      }
+
+      // Get profiles for the team members
+      const userIds = members.map((m: any) => m.user_id);
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, email")
+        .in("id", userIds);
+
+      if (profiles) {
+        const enrichedMembers = members.map((m: any) => {
+          const profile = profiles.find((p: any) => p.id === m.user_id);
+          return {
+            id: m.user_id,
+            email: profile?.email || "Unknown",
+            role: m.role,
+          };
+        });
+        setTeamMembers(enrichedMembers);
       }
     } catch (error) {
       console.error("Error loading team members:", error);
+      toast.error("Failed to load team members");
     } finally {
       setLoadingMembers(false);
     }
@@ -123,6 +153,15 @@ export function ModificationRequestDialog({
 
     setLoading(true);
     try {
+      // Build detailed description
+      let fullDescription = description.trim();
+      if (selectedPlatform && selectedPlatform !== "_none") {
+        fullDescription = `Platform: ${selectedPlatform}\n${fullDescription}`;
+      }
+      if (selectedMarket) {
+        fullDescription = `Market/Campaign: ${selectedMarket}\n${fullDescription}`;
+      }
+
       // Create modification request
       const { error: requestError } = await supabase
         .from("modification_requests")
@@ -130,7 +169,7 @@ export function ModificationRequestDialog({
           campaign_id: campaignId,
           requester_id: user?.id,
           change_type: changeType,
-          description: description.trim(),
+          description: fullDescription,
           status: "sent",
           assigned_to: notifyType === "specific" ? selectedMembers : [],
           notify_all_team: notifyType === "all",
@@ -152,7 +191,7 @@ export function ModificationRequestDialog({
         user_id: user?.id,
         action: "modification_requested",
         change_type: changeType,
-        description: description.trim(),
+        description: fullDescription,
       });
 
       // Send notification
@@ -161,7 +200,7 @@ export function ModificationRequestDialog({
           campaignId,
           campaignName,
           changeType,
-          description: description.trim(),
+          description: fullDescription,
           notifyAllTeam: notifyType === "all",
           assignedTo: notifyType === "specific" ? selectedMembers : [],
         },
@@ -170,6 +209,8 @@ export function ModificationRequestDialog({
       toast.success("Modification request sent successfully");
       setChangeType("");
       setDescription("");
+      setSelectedPlatform("");
+      setSelectedMarket("");
       setNotifyType("all");
       setSelectedMembers([]);
       onSuccess();
@@ -204,8 +245,38 @@ export function ModificationRequestDialog({
                 <SelectItem value="market">Market</SelectItem>
                 <SelectItem value="targeting">Targeting</SelectItem>
                 <SelectItem value="goals">Goals</SelectItem>
+                <SelectItem value="creative">Creative</SelectItem>
+                <SelectItem value="other">Other</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          {platforms.length > 0 && (
+            <div className="space-y-2">
+              <Label>Platform (Optional)</Label>
+              <Select value={selectedPlatform} onValueChange={setSelectedPlatform}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select platform" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">All Platforms</SelectItem>
+                  {platforms.map((platform) => (
+                    <SelectItem key={platform.id || platform.name} value={platform.name || platform.type}>
+                      {platform.name || platform.type}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label>Market/Campaign (Optional)</Label>
+            <Input
+              placeholder="e.g., US Market, Brand Awareness Campaign"
+              value={selectedMarket}
+              onChange={(e) => setSelectedMarket(e.target.value)}
+            />
           </div>
 
           <div className="space-y-2">

@@ -45,6 +45,7 @@ interface Campaign {
   };
   user_role?: string;
   can_edit?: boolean;
+  is_admin_or_owner?: boolean;
 }
 
 export default function ActiPlans() {
@@ -96,6 +97,8 @@ export default function ActiPlans() {
         .from("user_roles")
         .select("team_id, role")
         .eq("user_id", user?.id);
+      
+      const isAdminOrOwner = userRoles?.some((r: any) => r.role === 'admin' || r.role === 'owner');
 
       // Fetch latest status changes for each campaign
       const campaignIds = campaignsData?.map((c: any) => c.id) || [];
@@ -156,6 +159,7 @@ export default function ActiPlans() {
             : undefined,
           user_role: userRole?.role,
           can_edit: canEdit,
+          is_admin_or_owner: isAdminOrOwner,
           last_status_change: latestChange ? {
             user_email: latestChange.user_email,
             action: latestChange.action,
@@ -381,9 +385,9 @@ export default function ActiPlans() {
               <p className="text-muted-foreground">Creator</p>
               <p className="font-medium truncate">{campaign.creator?.email?.split('@')[0] || 'Unknown'}</p>
             </div>
-            {campaign.team && (
+            {campaign.team && campaign.is_admin_or_owner && (
               <div>
-                <p className="text-muted-foreground">Team</p>
+                <p className="text-muted-foreground">Assigned Team</p>
                 <p className="font-medium truncate">{campaign.team.name}</p>
               </div>
             )}
