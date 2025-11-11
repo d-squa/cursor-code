@@ -3,8 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 interface ApprovalEmailRequest {
@@ -44,7 +43,7 @@ serve(async (req: Request): Promise<Response> => {
     // Send email via Resend API
     const emailPromises = recipientEmails.map(async (email) => {
       const emailData = {
-        from: `${senderName} <onboarding@resend.dev>`,
+        from: `${senderName} <do-not-reply@actiplan.app>`,
         to: [email],
         subject: `Media Plan Approval Request: ${planName}`,
         html: `
@@ -54,23 +53,25 @@ serve(async (req: Request): Promise<Response> => {
           
           <h2>Plan Summary</h2>
           <ul>
-            <li><strong>Total Budget:</strong> $${planDetails.totalBudget?.toLocaleString() || 'N/A'}</li>
+            <li><strong>Total Budget:</strong> $${planDetails.totalBudget?.toLocaleString() || "N/A"}</li>
             <li><strong>Duration:</strong> ${planDetails.startDate} to ${planDetails.endDate}</li>
-            <li><strong>Strategy:</strong> ${planDetails.strategyFocus || 'Custom'}</li>
-            <li><strong>Platforms:</strong> ${planDetails.platforms?.map((p: any) => p.name).join(', ') || 'N/A'}</li>
+            <li><strong>Strategy:</strong> ${planDetails.strategyFocus || "Custom"}</li>
+            <li><strong>Platforms:</strong> ${planDetails.platforms?.map((p: any) => p.name).join(", ") || "N/A"}</li>
           </ul>
           
           <p>Please review the attached PDF for complete details.</p>
           
           <p>Best regards,<br>${senderName}</p>
         `,
-        attachments: pdfBase64 ? [
-          {
-            filename: `${planName.replace(/\s+/g, '-').toLowerCase()}-media-plan.pdf`,
-            content: pdfBase64.split(',')[1] || pdfBase64, // Remove data URL prefix if present
-            type: 'application/pdf',
-          },
-        ] : [],
+        attachments: pdfBase64
+          ? [
+              {
+                filename: `${planName.replace(/\s+/g, "-").toLowerCase()}-media-plan.pdf`,
+                content: pdfBase64.split(",")[1] || pdfBase64, // Remove data URL prefix if present
+                type: "application/pdf",
+              },
+            ]
+          : [],
       };
 
       const response = await fetch("https://api.resend.com/emails", {
@@ -96,10 +97,10 @@ serve(async (req: Request): Promise<Response> => {
     console.log("Emails sent successfully:", results);
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
+      JSON.stringify({
+        success: true,
         message: `Approval emails sent to ${recipientEmails.length} recipient(s)`,
-        results 
+        results,
       }),
       {
         status: 200,
@@ -107,16 +108,13 @@ serve(async (req: Request): Promise<Response> => {
           "Content-Type": "application/json",
           ...corsHeaders,
         },
-      }
+      },
     );
   } catch (error: any) {
     console.error("Error in send-approval-email function:", error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      }
-    );
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { "Content-Type": "application/json", ...corsHeaders },
+    });
   }
 });
