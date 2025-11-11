@@ -52,16 +52,15 @@ const handler = async (req: Request): Promise<Response> => {
 
     const creatorEmail = profile.email;
 
-    const subject = action === "approved" 
-      ? `ActiPlan Approved: ${campaignName}`
-      : `ActiPlan Rejected: ${campaignName}`;
+    const subject = action === "approved" ? `ActiPlan Approved: ${campaignName}` : `ActiPlan Rejected: ${campaignName}`;
 
-    const message = action === "approved"
-      ? `Your ActiPlan "${campaignName}" has been approved and is ready to launch! You can now push it to the DSP.`
-      : `Your ActiPlan "${campaignName}" has been rejected. Please review the feedback and create a new plan.`;
+    const message =
+      action === "approved"
+        ? `Your ActiPlan "${campaignName}" has been approved and is ready to launch! You can now push it to the DSP.`
+        : `Your ActiPlan "${campaignName}" has been rejected. Please review the feedback and create a new plan.`;
 
     const { error: emailError } = await resend.emails.send({
-      from: "ActiPlan <onboarding@resend.dev>",
+      from: "ActiPlan <do-not-reply@actiplan.app>",
       to: [creatorEmail],
       subject,
       html: `
@@ -81,13 +80,10 @@ const handler = async (req: Request): Promise<Response> => {
     });
   } catch (error: any) {
     console.error("Error in send-approval-notification:", error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      }
-    );
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { "Content-Type": "application/json", ...corsHeaders },
+    });
   }
 };
 

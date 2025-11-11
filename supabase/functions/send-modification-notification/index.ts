@@ -33,31 +33,24 @@ const handler = async (req: Request): Promise<Response> => {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { 
-      campaignId, 
-      campaignName, 
-      changeType, 
-      description, 
+    const {
+      campaignId,
+      campaignName,
+      changeType,
+      description,
       notifyAllTeam = false,
-      assignedTo = []
+      assignedTo = [],
     }: ModificationNotificationRequest = await req.json();
 
     let recipientEmails: string[] = [];
 
     if (notifyAllTeam) {
       // Get campaign creator's team
-      const { data: campaign } = await supabase
-        .from("campaigns")
-        .select("user_id")
-        .eq("id", campaignId)
-        .single();
+      const { data: campaign } = await supabase.from("campaigns").select("user_id").eq("id", campaignId).single();
 
       if (campaign) {
         // Get all teams the creator belongs to
-        const { data: userTeams } = await supabase
-          .from("user_roles")
-          .select("team_id")
-          .eq("user_id", campaign.user_id);
+        const { data: userTeams } = await supabase.from("user_roles").select("team_id").eq("user_id", campaign.user_id);
 
         if (userTeams && userTeams.length > 0) {
           const teamIds = userTeams.map((t) => t.team_id);
@@ -69,18 +62,13 @@ const handler = async (req: Request): Promise<Response> => {
             .in("team_id", teamIds);
 
           if (members) {
-            recipientEmails = Array.from(
-              new Set(members.map((m: any) => m.profiles.email))
-            );
+            recipientEmails = Array.from(new Set(members.map((m: any) => m.profiles.email)));
           }
         }
       }
     } else if (assignedTo.length > 0) {
       // Get specific team members
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("email")
-        .in("id", assignedTo);
+      const { data: profiles } = await supabase.from("profiles").select("email").in("id", assignedTo);
 
       if (profiles) {
         recipientEmails = profiles.map((p) => p.email);
@@ -89,17 +77,14 @@ const handler = async (req: Request): Promise<Response> => {
 
     if (recipientEmails.length === 0) {
       console.log("No recipients found for notification");
-      return new Response(
-        JSON.stringify({ success: true, message: "No recipients to notify" }),
-        {
-          status: 200,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        }
-      );
+      return new Response(JSON.stringify({ success: true, message: "No recipients to notify" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
     }
 
     const { error: emailError } = await resend.emails.send({
-      from: "ActiPlan <onboarding@resend.dev>",
+      from: "ActiPlan <do-not-reply@actiplan.app>",
       to: recipientEmails,
       subject: `Modification Requested: ${campaignName}`,
       html: `
@@ -121,13 +106,10 @@ const handler = async (req: Request): Promise<Response> => {
     });
   } catch (error: any) {
     console.error("Error in send-modification-notification:", error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      }
-    );
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { "Content-Type": "application/json", ...corsHeaders },
+    });
   }
 };
 
