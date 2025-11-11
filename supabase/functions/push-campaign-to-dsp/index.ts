@@ -46,20 +46,49 @@ const handler = async (req: Request): Promise<Response> => {
     const results = [];
 
     // Process each platform in the campaign
-    const campaignPlatforms = campaign.platforms || [];
+    // Extract platform configurations from market_splits
+    const marketSplits = campaign.market_splits || {};
     
-    for (const platformConfig of campaignPlatforms) {
-      const platform = platforms.find(p => p.platform_type === platformConfig.name);
+    for (const [platformId, markets] of Object.entries(marketSplits)) {
+      // Find the platform in campaign.platforms to get the name
+      const campaignPlatform = (campaign.platforms || []).find((p: any) => p.id === platformId);
+      if (!campaignPlatform) {
+        console.warn(`Platform ${platformId} not found in campaign.platforms`);
+        continue;
+      }
+      
+      const platformName = campaignPlatform.name;
+      const budgetAllocation = campaign.budget_allocation || {};
+      const platformBudgetPercentage = budgetAllocation[platformId] || 0;
+      
+      // Find connected platform
+      const platform = platforms.find(p => 
+        p.platform_type.toLowerCase() === platformName.toLowerCase() || 
+        (platformName.includes('Meta') && p.platform_type === 'meta')
+      );
       
       if (!platform) {
-        console.warn(`Platform ${platformConfig.name} not connected`);
+        console.warn(`Platform ${platformName} not connected for user`);
+        results.push({
+          platform: platformName,
+          error: "Platform not connected",
+          markets: markets
+        });
         continue;
       }
 
-      if (platformConfig.name === "Meta") {
+      // Create platform config structure
+      const platformConfig = {
+        id: platformId,
+        name: platformName,
+        budgetPercentage: platformBudgetPercentage,
+        markets: markets
+      };
+
+      if (platformName.includes('Meta') || platformName.includes('Facebook')) {
         const result = await pushToMeta(campaign, platformConfig, platform);
         results.push(result);
-      } else if (platformConfig.name === "Google Ads") {
+      } else if (platformName.includes('Google')) {
         const result = await pushToGoogleAds(campaign, platformConfig, platform);
         results.push(result);
       }
@@ -88,96 +117,203 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
   console.log("Pushing to Meta...");
   
   const results = [];
+  const errors = [];
   
-  for (const market of platformConfig.markets || []) {
-    for (const phase of market.phases || []) {
-      // Create campaign
-      const campaignPayload = {
-        name: `${campaign.name} - ${market.name} - ${phase.name}`,
-        objective: phase.objective || "OUTCOME_AWARENESS",
-        status: "PAUSED",
-        special_ad_categories: [],
-      };
+  // Extract markets from the correct structure
+  const markets = platformConfig.markets || [];
+  
+  for (const market of markets) {
+    // Get phases, or create a default phase if none exist
+    const phases = market.phases || [{
+      id: 'default-phase',
+      name: market.name,
+      startDate: campaign.start_date,
+      endDate: campaign.end_date,
+      budgetPercentage: 100,
+      objective: market.objective || campaign.objective || "OUTCOME_TRAFFIC",
+      optimizationGoal: market.optimizationGoal || "LINK_CLICKS"
+    }];
+    
+    for (const phase of phases) {
+      try {
+        // Determine objective from phase or market configuration
+        const objective = phase.objective || market.objective || campaign.objective || "OUTCOME_TRAFFIC";
+        const optimizationGoal = phase.optimizationGoal || market.optimizationGoal || "LINK_CLICKS";
+        
+        // Create campaign
+        const campaignPayload = {
+          name: `${campaign.name} - ${market.name}${phases.length > 1 ? ` - ${phase.name}` : ''}`,
+          objective: objective,
+          status: "PAUSED",
+          special_ad_categories: [],
+        };
 
-      const campaignResponse = await fetch(
-        `https://graph.facebook.com/v21.0/${platform.ad_account_id}/campaigns`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            ...campaignPayload,
-            access_token: platform.access_token,
-          }),
+        console.log("Creating Meta campaign:", campaignPayload);
+
+        const campaignResponse = await fetch(
+          `https://graph.facebook.com/v21.0/${platform.ad_account_id}/campaigns`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              ...campaignPayload,
+              access_token: platform.access_token,
+            }),
+          }
+        );
+
+        const campaignData = await campaignResponse.json();
+        
+        if (campaignData.error) {
+          console.error("Meta Campaign Creation Error:", campaignData.error);
+          errors.push({
+            market: market.name,
+            phase: phase.name,
+            error: campaignData.error.message,
+            type: 'campaign_creation'
+          });
+          continue;
         }
-      );
 
-      const campaignData = await campaignResponse.json();
-      
-      if (campaignData.error) {
-        throw new Error(`Meta API Error: ${campaignData.error.message}`);
-      }
+        console.log("Meta campaign created:", campaignData.id);
 
-      console.log("Meta campaign created:", campaignData.id);
-
-      // Create ad set
-      const adSetPayload = {
-        name: `${phase.name} - Ad Set`,
-        campaign_id: campaignData.id,
-        daily_budget: Math.round((campaign.total_budget * (platformConfig.budgetPercentage / 100) * (market.budgetPercentage / 100) * (phase.budgetPercentage / 100)) / 30),
-        billing_event: "IMPRESSIONS",
-        optimization_goal: phase.optimizationGoal || "REACH",
-        bid_strategy: "LOWEST_COST_WITHOUT_CAP",
-        status: "PAUSED",
-        start_time: new Date(campaign.start_date).toISOString(),
-        end_time: new Date(campaign.end_date).toISOString(),
-        targeting: {
+        // Calculate budget
+        const totalCampaignBudget = campaign.total_budget || 0;
+        const platformBudgetPercentage = platformConfig.budgetPercentage || 100;
+        const marketBudgetPercentage = market.budgetPercentage || 100;
+        const phaseBudgetPercentage = phase.budgetPercentage || 100;
+        
+        const phaseBudget = (totalCampaignBudget * platformBudgetPercentage / 100) * (marketBudgetPercentage / 100) * (phaseBudgetPercentage / 100);
+        
+        // Calculate duration in days
+        const startDate = new Date(phase.startDate || campaign.start_date);
+        const endDate = new Date(phase.endDate || campaign.end_date);
+        const durationDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+        
+        // Determine if lifetime or daily budget
+        const isLifetimeBudget = market.isLifetimeBudget || false;
+        
+        // Build targeting
+        const targeting: any = {
           geo_locations: {
-            countries: market.countries || ["US"],
+            countries: Array.isArray(market.countries) && market.countries.length > 0 
+              ? market.countries 
+              : [market.name.substring(0, 2).toUpperCase()]
           },
           age_min: market.ageMin || 18,
           age_max: market.ageMax || 65,
-          genders: market.gender === "male" ? [1] : market.gender === "female" ? [2] : [0],
-          publisher_platforms: market.publisherPlatforms || ["facebook", "instagram"],
-          facebook_positions: market.positions?.facebook || ["feed"],
-          instagram_positions: market.positions?.instagram || ["stream"],
-        },
-      };
-
-      const adSetResponse = await fetch(
-        `https://graph.facebook.com/v21.0/${platform.ad_account_id}/adsets`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            ...adSetPayload,
-            access_token: platform.access_token,
-          }),
+        };
+        
+        // Add gender targeting if specified
+        if (market.gender) {
+          if (market.gender === "male") {
+            targeting.genders = [1];
+          } else if (market.gender === "female") {
+            targeting.genders = [2];
+          }
         }
-      );
+        
+        // Add publisher platforms
+        if (market.publisherPlatforms && market.publisherPlatforms.length > 0) {
+          targeting.publisher_platforms = market.publisherPlatforms;
+        }
+        
+        // Add placements/positions
+        if (market.positions) {
+          if (market.positions.facebook && market.positions.facebook.length > 0) {
+            targeting.facebook_positions = market.positions.facebook;
+          }
+          if (market.positions.instagram && market.positions.instagram.length > 0) {
+            targeting.instagram_positions = market.positions.instagram;
+          }
+          if (market.positions.audience_network && market.positions.audience_network.length > 0) {
+            targeting.audience_network_positions = market.positions.audience_network;
+          }
+        }
+        
+        // Add detailed targeting (interests, behaviors)
+        if (market.detailedTargeting && market.detailedTargeting.length > 0) {
+          targeting.flexible_spec = market.detailedTargeting.map((t: any) => ({
+            [t.type]: [{ id: t.id, name: t.name }]
+          }));
+        }
 
-      const adSetData = await adSetResponse.json();
-      
-      if (adSetData.error) {
-        throw new Error(`Meta API Error: ${adSetData.error.message}`);
+        // Create ad set
+        const adSetPayload: any = {
+          name: `${phase.name} - Ad Set`,
+          campaign_id: campaignData.id,
+          billing_event: "IMPRESSIONS",
+          optimization_goal: optimizationGoal,
+          bid_strategy: "LOWEST_COST_WITHOUT_CAP",
+          status: "PAUSED",
+          start_time: startDate.toISOString(),
+          end_time: endDate.toISOString(),
+          targeting: targeting,
+        };
+        
+        // Set budget (convert to cents)
+        if (isLifetimeBudget) {
+          adSetPayload.lifetime_budget = Math.round(phaseBudget * 100);
+        } else {
+          adSetPayload.daily_budget = Math.round((phaseBudget / durationDays) * 100);
+        }
+
+        console.log("Creating Meta ad set:", adSetPayload);
+
+        const adSetResponse = await fetch(
+          `https://graph.facebook.com/v21.0/${platform.ad_account_id}/adsets`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              ...adSetPayload,
+              access_token: platform.access_token,
+            }),
+          }
+        );
+
+        const adSetData = await adSetResponse.json();
+        
+        if (adSetData.error) {
+          console.error("Meta Ad Set Creation Error:", adSetData.error);
+          errors.push({
+            market: market.name,
+            phase: phase.name,
+            error: adSetData.error.message,
+            type: 'adset_creation',
+            campaignId: campaignData.id
+          });
+          continue;
+        }
+
+        console.log("Meta ad set created:", adSetData.id);
+
+        results.push({
+          platform: "Meta",
+          market: market.name,
+          phase: phase.name,
+          campaignId: campaignData.id,
+          adSetId: adSetData.id,
+          budget: phaseBudget,
+          budgetType: isLifetimeBudget ? 'lifetime' : 'daily',
+        });
+      } catch (error: any) {
+        console.error(`Error processing market ${market.name}, phase ${phase.name}:`, error);
+        errors.push({
+          market: market.name,
+          phase: phase.name,
+          error: error.message,
+          type: 'processing_error'
+        });
       }
-
-      console.log("Meta ad set created:", adSetData.id);
-
-      results.push({
-        platform: "Meta",
-        market: market.name,
-        phase: phase.name,
-        campaignId: campaignData.id,
-        adSetId: adSetData.id,
-      });
     }
   }
 
-  return { platform: "Meta", results };
+  return { platform: "Meta", results, errors: errors.length > 0 ? errors : undefined };
 }
 
 async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any) {

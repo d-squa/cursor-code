@@ -63,6 +63,7 @@ export function CampaignForecast({
   const [debugInfo, setDebugInfo] = useState<{startTimeUnix: number; endTimeUnix: number; startDateFormatted: string; endDateFormatted: string} | null>(null);
   const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
   const [pdfBase64Data, setPdfBase64Data] = useState<string>("");
+  const [pushingToDSP, setPushingToDSP] = useState(false);
 
   // Auto-save forecast data when it changes
   useEffect(() => {
@@ -96,6 +97,32 @@ export function CampaignForecast({
 
     saveForecastData();
   }, [forecasts, campaignId]);
+
+  const handlePushToDSP = async () => {
+    if (!campaignId) {
+      toast.error("Please save the campaign first");
+      return;
+    }
+
+    setPushingToDSP(true);
+    try {
+      const { supabase } = await import("@/integrations/supabase/client");
+      
+      const { data, error } = await supabase.functions.invoke('push-campaign-to-dsp', {
+        body: { campaignId }
+      });
+
+      if (error) throw error;
+
+      toast.success("Campaign pushed to DSP successfully!");
+      console.log("DSP Push Results:", data);
+    } catch (error: any) {
+      console.error("Error pushing to DSP:", error);
+      toast.error(error.message || "Failed to push campaign to DSP");
+    } finally {
+      setPushingToDSP(false);
+    }
+  };
 
   const handleDownloadPDF = async () => {
     const totalMetrics = getTotalMetrics();
@@ -1092,6 +1119,23 @@ export function CampaignForecast({
             >
               <Mail className="h-4 w-4 mr-2" />
               Send for Approval
+            </Button>
+            <Button 
+              variant="gradient" 
+              onClick={handlePushToDSP} 
+              disabled={Object.keys(forecasts).length === 0 || !campaignId || pushingToDSP}
+            >
+              {pushingToDSP ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Pushing to DSP...
+                </>
+              ) : (
+                <>
+                  <Target className="h-4 w-4 mr-2" />
+                  Push to DSP
+                </>
+              )}
             </Button>
             <Button onClick={onFinalize} disabled={Object.keys(forecasts).length === 0}>
               Save Draft
