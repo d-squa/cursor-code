@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -39,9 +39,10 @@ export default function PlatformConnections() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [adAccountOptions, setAdAccountOptions] = useState<{ id: string; name: string }[]>([]);
-  const [newPlatformId, setNewPlatformId] = useState<string | null>(null);
+  const [tempAccessToken, setTempAccessToken] = useState<string>("");
   const [selectingAccount, setSelectingAccount] = useState(false);
   const [accountSelectorOpen, setAccountSelectorOpen] = useState(false);
+  const processingOAuthRef = useRef(false);
   useEffect(() => {
     if (!authLoading && !user) {
       navigate("/auth");
@@ -109,29 +110,37 @@ export default function PlatformConnections() {
     }
   };
 
-  const handleSaveAdAccount = async (account: { id: string; name: string }) => {
-    if (!newPlatformId) return;
+  const handleSaveAdAccounts = async (accounts: { id: string; name: string }[]) => {
+    if (accounts.length === 0) return;
+    
     try {
       setSelectingAccount(true);
+      
+      // Create a connected_platform entry for each selected ad account
+      const platforms = accounts.map(acc => ({
+        user_id: user!.id,
+        platform_type: "meta",
+        platform_name: "Meta (Facebook & Instagram)",
+        access_token: tempAccessToken,
+        ad_account_id: acc.id,
+        ad_account_name: acc.name,
+        is_active: true,
+      }));
+
       const { error } = await supabase
         .from("connected_platforms")
-        .update({
-          ad_account_id: account.id,
-          ad_account_name: account.name,
-          is_active: true,
-        })
-        .eq("id", newPlatformId);
+        .insert(platforms);
 
       if (error) throw error;
 
-      toast.success("Ad account linked.");
+      toast.success(`${accounts.length} ad account${accounts.length > 1 ? 's' : ''} linked successfully.`);
       setAccountSelectorOpen(false);
-      setNewPlatformId(null);
+      setTempAccessToken("");
       setAdAccountOptions([]);
       fetchConnectedPlatforms();
     } catch (e: any) {
-      console.error("Failed to link ad account:", e);
-      toast.error(e?.message || "Failed to link ad account");
+      console.error("Failed to link ad accounts:", e);
+      toast.error(e?.message || "Failed to link ad accounts");
     } finally {
       setSelectingAccount(false);
     }
@@ -144,7 +153,11 @@ export default function PlatformConnections() {
       const code = urlParams.get("code");
       const state = urlParams.get("state");
 
-      if (code && state) {
+      if (code && state && !processingOAuthRef.current) {
+        processingOAuthRef.current = true;
+        // Clear URL immediately to prevent reuse
+        window.history.replaceState({}, document.title, window.location.pathname);
+        
         setSaving(true);
         try {
           const redirectUri = `${window.location.origin}/platforms`;
@@ -154,10 +167,10 @@ export default function PlatformConnections() {
 
           if (error) throw error;
 
-          toast.success("Platform connected! Please select an ad account to link.");
+          toast.success("Platform connected! Please select ad accounts to link.");
 
-          if (data?.platformId) {
-            setNewPlatformId(data.platformId);
+          if (data?.access_token) {
+            setTempAccessToken(data.access_token);
           }
 
           if (Array.isArray(data?.adAccounts) && data.adAccounts.length > 0) {
@@ -171,9 +184,8 @@ export default function PlatformConnections() {
           const msg = (error?.message || "Failed to complete authentication");
           toast.error(msg + ". Please restart the connection process.");
         } finally {
-          // Always clear URL parameters to avoid reusing/rehitting expired codes on refresh
-          window.history.replaceState({}, document.title, window.location.pathname);
           setSaving(false);
+          processingOAuthRef.current = false;
         }
       }
     };
@@ -319,7 +331,7 @@ export default function PlatformConnections() {
           open={accountSelectorOpen}
           onOpenChange={setAccountSelectorOpen}
           adAccounts={adAccountOptions}
-          onSelect={handleSaveAdAccount}
+          onSelect={handleSaveAdAccounts}
           loading={selectingAccount}
         />
       </div>
