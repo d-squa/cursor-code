@@ -25,27 +25,28 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/auth" element={<Auth />} />
-          <Route path="/accept-invitation" element={<AcceptInvitation />} />
-          <Route path="/actiplans" element={<ActiPlans />} />
-          <Route path="/performance/:id" element={<Performance />} />
-          <Route path="/performance" element={<Performance />} />
-          <Route path="/platforms" element={<PlatformConnections />} />
-          <Route path="/teams" element={<Teams />} />
-          <Route path="/settings" element={<Settings />}>
-            <Route index element={<Navigate to="/settings/users" replace />} />
-            <Route path="users" element={<UserManagement />} />
-            <Route path="platforms" element={<PlatformConnections />} />
-            <Route path="teams" element={<Teams />} />
-            <Route path="account" element={<AccountSettings />} />
-            <Route path="plans" element={<PlanManagement />} />
-            <Route path="billing" element={<BillingManagement />} />
-          </Route>
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+          <Routes>
+            <Route path="/" element={<Performance />} />
+            <Route path="/auth" element={<Auth />} />
+            <Route path="/accept-invitation" element={<AcceptInvitation />} />
+            <Route path="/create-campaign" element={<Index />} />
+            <Route path="/actiplans" element={<ActiPlans />} />
+            <Route path="/performance/:id" element={<Performance />} />
+            <Route path="/performance" element={<Performance />} />
+            <Route path="/platforms" element={<PlatformConnections />} />
+            <Route path="/teams" element={<Teams />} />
+            <Route path="/settings" element={<Settings />}>
+              <Route index element={<Navigate to="/settings/users" replace />} />
+              <Route path="users" element={<UserManagement />} />
+              <Route path="platforms" element={<PlatformConnections />} />
+              <Route path="teams" element={<Teams />} />
+              <Route path="account" element={<AccountSettings />} />
+              <Route path="plans" element={<PlanManagement />} />
+              <Route path="billing" element={<BillingManagement />} />
+            </Route>
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
+import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Loader2, TrendingUp, TrendingDown, ArrowLeft, RefreshCcw } from "lucide-react";
+import { Loader2, TrendingUp, TrendingDown, ArrowLeft, RefreshCcw, Lock } from "lucide-react";
 import { format, eachWeekOfInterval, startOfWeek, endOfWeek } from "date-fns";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 
@@ -43,6 +43,7 @@ export default function Performance() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
+  const navigate = useNavigate();
   
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
@@ -52,12 +53,40 @@ export default function Performance() {
   const [metricsLoading, setMetricsLoading] = useState(false);
   const [actualMetrics, setActualMetrics] = useState<PerformanceMetrics | null>(null);
   const [weeklyData, setWeeklyData] = useState<WeeklyData[]>([]);
+  const [hasAccess, setHasAccess] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate("/auth");
+    }
+  }, [user, loading, navigate]);
 
   useEffect(() => {
     if (user) {
+      checkUserAccess();
       loadCampaigns();
     }
   }, [user]);
+
+  const checkUserAccess = async () => {
+    try {
+      // Check if user has admin or campaign_manager role
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user?.id)
+        .in("role", ["admin", "campaign_manager", "owner"]);
+
+      if (error) throw error;
+      
+      // For now, grant access if user has appropriate role, otherwise show upgrade message
+      setHasAccess(data && data.length > 0);
+    } catch (error) {
+      console.error("Error checking access:", error);
+      // Default to no access on error
+      setHasAccess(false);
+    }
+  };
 
   useEffect(() => {
     if (campaigns.length > 0) {
@@ -294,9 +323,58 @@ export default function Performance() {
     );
   }
 
+  // Upgrade message overlay when user doesn't have access
+  const UpgradeOverlay = () => (
+    <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+      <Card className="w-full max-w-md mx-4">
+        <CardHeader className="text-center">
+          <div className="mx-auto mb-4 w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+            <Lock className="w-8 h-8 text-primary" />
+          </div>
+          <CardTitle className="text-2xl">Upgrade Your Plan</CardTitle>
+          <CardDescription className="text-base mt-2">
+            Access the Performance Dashboard with detailed analytics, real-time metrics, and comprehensive reporting.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-sm">
+              <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+              <span>Real-time campaign performance tracking</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm">
+              <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+              <span>Planned vs actual metrics comparison</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm">
+              <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+              <span>Weekly performance reports</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm">
+              <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+              <span>Advanced analytics and insights</span>
+            </div>
+          </div>
+          <Button 
+            className="w-full" 
+            size="lg"
+            onClick={() => navigate("/settings/plans")}
+          >
+            Upgrade Now
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/20">
-      <div className="container mx-auto py-6 space-y-6">
+      <div className="container mx-auto py-6 space-y-6 relative">
+        {/* Show overlay if user doesn't have access */}
+        {hasAccess === false && <UpgradeOverlay />}
+        
+        {/* Blur content when no access */}
+        <div className={hasAccess === false ? "filter blur-md pointer-events-none" : ""}>
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -530,6 +608,7 @@ export default function Performance() {
             </CardContent>
           </Card>
         )}
+        </div>
       </div>
     </div>
   );

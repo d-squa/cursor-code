@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { UserPlus, Trash2, Mail } from "lucide-react";
+import { UserPlus, Trash2, Mail, Send, Copy } from "lucide-react";
 
 export default function UserManagement() {
   const { user } = useAuth();
@@ -159,6 +159,47 @@ export default function UserManagement() {
     },
   });
 
+  // Resend invitation mutation
+  const resendInvitation = useMutation({
+    mutationFn: async (invitation: any) => {
+      // Get team name for email
+      const { data: team } = await supabase
+        .from("teams")
+        .select("name")
+        .eq("id", invitation.team_id)
+        .single();
+
+      // Send invitation email
+      const { error: emailError } = await supabase.functions.invoke("send-invitation-email", {
+        body: {
+          email: invitation.email,
+          teamName: team?.name || "Team",
+          role: invitation.role,
+          invitationToken: invitation.token,
+        },
+      });
+
+      if (emailError) throw emailError;
+    },
+    onSuccess: () => {
+      toast.success("Invitation resent successfully!");
+    },
+    onError: (error) => {
+      toast.error("Failed to resend invitation: " + error.message);
+    },
+  });
+
+  const copyInvitationUrl = (token: string) => {
+    const baseUrl = window.location.origin;
+    const invitationUrl = `${baseUrl}/accept-invitation?token=${token}`;
+    
+    navigator.clipboard.writeText(invitationUrl).then(() => {
+      toast.success("Invitation URL copied to clipboard!");
+    }).catch(() => {
+      toast.error("Failed to copy URL");
+    });
+  };
+
   const handleInvite = () => {
     if (!inviteEmail || !inviteRole || !inviteTeamId) {
       toast.error("Please fill in all fields");
@@ -287,13 +328,32 @@ export default function UserManagement() {
                     {new Date(invitation.expires_at).toLocaleDateString()}
                   </TableCell>
                   <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => cancelInvitation.mutate(invitation.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => resendInvitation.mutate(invitation)}
+                        title="Resend invitation"
+                      >
+                        <Send className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => copyInvitationUrl(invitation.token)}
+                        title="Copy invitation URL"
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => cancelInvitation.mutate(invitation.id)}
+                        title="Cancel invitation"
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
