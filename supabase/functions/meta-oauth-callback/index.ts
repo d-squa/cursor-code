@@ -72,13 +72,32 @@ serve(async (req) => {
       throw new Error("No ad accounts found");
     }
 
-    // Return token and ad accounts for user selection
-    // Frontend will create connected_platforms entries for selected accounts
+    // Create a single Meta platform connection (not tied to specific ad accounts yet)
+    const { data: platformData, error: platformError } = await supabase
+      .from("connected_platforms")
+      .insert({
+        user_id: user.id,
+        platform_type: "meta",
+        platform_name: "Meta (Facebook & Instagram)",
+        access_token: access_token,
+        is_active: true,
+      })
+      .select()
+      .single();
+
+    if (platformError) {
+      console.error("Failed to insert platform:", platformError);
+      throw new Error("Failed to save platform connection");
+    }
+
+    console.log("Platform connected, ID:", platformData.id);
+
+    // Return token and ad accounts - frontend will trigger sync after user confirms
 
     return new Response(
       JSON.stringify({
         success: true,
-        access_token: access_token,
+        platformId: platformData.id,
         adAccounts: adAccounts.map((acc: any) => ({
           id: acc.id,
           name: acc.name

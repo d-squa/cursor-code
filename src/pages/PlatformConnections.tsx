@@ -39,7 +39,6 @@ export default function PlatformConnections() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [adAccountOptions, setAdAccountOptions] = useState<{ id: string; name: string }[]>([]);
-  const [tempAccessToken, setTempAccessToken] = useState<string>("");
   const [selectingAccount, setSelectingAccount] = useState(false);
   const [accountSelectorOpen, setAccountSelectorOpen] = useState(false);
   const processingOAuthRef = useRef(false);
@@ -116,31 +115,24 @@ export default function PlatformConnections() {
     try {
       setSelectingAccount(true);
       
-      // Create a connected_platform entry for each selected ad account
-      const platforms = accounts.map(acc => ({
-        user_id: user!.id,
-        platform_type: "meta",
-        platform_name: "Meta (Facebook & Instagram)",
-        access_token: tempAccessToken,
-        ad_account_id: acc.id,
-        ad_account_name: acc.name,
-        is_active: true,
-      }));
-
-      const { error } = await supabase
-        .from("connected_platforms")
-        .insert(platforms);
-
-      if (error) throw error;
-
-      toast.success(`${accounts.length} ad account${accounts.length > 1 ? 's' : ''} linked successfully.`);
+      // Just acknowledge the selection and trigger full sync
+      toast.success("Syncing Meta resources (Pages, Pixels, Events, Catalogs, Instagram)...");
+      
+      const { error: syncError } = await supabase.functions.invoke("sync-meta-resources");
+      
+      if (syncError) {
+        console.error("Sync error:", syncError);
+        toast.error("Failed to sync some resources. Try reconnecting.");
+      } else {
+        toast.success("All Meta resources synced! You can now use them in campaigns.");
+      }
+      
       setAccountSelectorOpen(false);
-      setTempAccessToken("");
       setAdAccountOptions([]);
       fetchConnectedPlatforms();
     } catch (e: any) {
-      console.error("Failed to link ad accounts:", e);
-      toast.error(e?.message || "Failed to link ad accounts");
+      console.error("Failed to sync:", e);
+      toast.error(e?.message || "Failed to sync resources");
     } finally {
       setSelectingAccount(false);
     }
@@ -167,11 +159,7 @@ export default function PlatformConnections() {
 
           if (error) throw error;
 
-          toast.success("Platform connected! Please select ad accounts to link.");
-
-          if (data?.access_token) {
-            setTempAccessToken(data.access_token);
-          }
+          toast.success("Platform connected! Confirm to sync all Meta resources.");
 
           if (Array.isArray(data?.adAccounts) && data.adAccounts.length > 0) {
             setAdAccountOptions(data.adAccounts);
