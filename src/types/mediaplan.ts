@@ -6,9 +6,11 @@ export interface Market {
   useGlobalFunnel?: boolean;
   adFormats?: string[];
   accountName?: string;
+  adAccountId?: string; // Meta Ad Account ID
   page?: string;
   pixel?: string;
   catalog?: string;
+  conversionEvent?: string; // Conversion event for conversion campaigns
   strategyFocus?: string;
   instagramActorId?: string;
   // Campaign settings

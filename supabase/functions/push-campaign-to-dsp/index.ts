@@ -160,6 +160,30 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
   const markets = platformConfig.markets || [];
   
   for (const market of markets) {
+    // Validate required fields for conversion campaigns
+    const requiresConversionEvent = market.phases && market.phases.some((phase: any) => {
+      const phaseName = phase.name?.toLowerCase() || "";
+      const objective = phase.objective?.toLowerCase() || "";
+      return (
+        phaseName.includes("conversion") ||
+        phaseName.includes("purchase") ||
+        phaseName.includes("sales") ||
+        phaseName.includes("lead") ||
+        objective.includes("conversion") ||
+        objective.includes("sales") ||
+        objective.includes("lead")
+      );
+    });
+
+    if (requiresConversionEvent && (!market.pixel || !market.conversionEvent)) {
+      errors.push({
+        market: market.name,
+        error: "Pixel and Conversion Event are required for conversion campaigns. Please configure them in the campaign customization.",
+        type: 'validation_error'
+      });
+      continue;
+    }
+
     // Get phases, or create a default phase if none exist
     const phases = market.phases || [{
       id: 'default-phase',
@@ -302,6 +326,14 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
           end_time: endDate.toISOString(),
           targeting: targeting,
         };
+        
+        // Add conversion tracking if it's a conversion campaign
+        if (market.pixel && market.conversionEvent) {
+          adSetPayload.promoted_object = {
+            pixel_id: market.pixel,
+            custom_event_type: market.conversionEvent,
+          };
+        }
         
         // Set budget (convert to cents)
         if (isLifetimeBudget) {
