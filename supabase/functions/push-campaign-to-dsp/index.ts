@@ -113,6 +113,43 @@ const handler = async (req: Request): Promise<Response> => {
   }
 };
 
+// Helper function to map phase names to valid Meta objectives
+function getMetaObjectiveFromPhase(phaseName: string, strategyFocus?: string): { objective: string; optimizationGoal: string } {
+  const lowerPhaseName = phaseName.toLowerCase();
+  
+  // Map phase names to Meta objectives
+  if (lowerPhaseName.includes('awareness') || lowerPhaseName.includes('reach')) {
+    return { objective: 'OUTCOME_AWARENESS', optimizationGoal: 'REACH' };
+  }
+  
+  if (lowerPhaseName.includes('engagement') || lowerPhaseName.includes('interest')) {
+    return { objective: 'OUTCOME_ENGAGEMENT', optimizationGoal: 'POST_ENGAGEMENT' };
+  }
+  
+  if (lowerPhaseName.includes('consideration') || lowerPhaseName.includes('intent')) {
+    return { objective: 'OUTCOME_TRAFFIC', optimizationGoal: 'LINK_CLICKS' };
+  }
+  
+  if (lowerPhaseName.includes('lead')) {
+    return { objective: 'OUTCOME_LEADS', optimizationGoal: 'LEAD_GENERATION' };
+  }
+  
+  if (lowerPhaseName.includes('conversion') || lowerPhaseName.includes('purchase') || lowerPhaseName.includes('sales')) {
+    // Check strategy focus for more specific mapping
+    if (strategyFocus === 'purchase' || strategyFocus === 'conversions') {
+      return { objective: 'OUTCOME_SALES', optimizationGoal: 'OFFSITE_CONVERSIONS' };
+    }
+    return { objective: 'OUTCOME_SALES', optimizationGoal: 'OFFSITE_CONVERSIONS' };
+  }
+  
+  if (lowerPhaseName.includes('app')) {
+    return { objective: 'OUTCOME_APP_PROMOTION', optimizationGoal: 'APP_INSTALLS' };
+  }
+  
+  // Default fallback
+  return { objective: 'OUTCOME_TRAFFIC', optimizationGoal: 'LINK_CLICKS' };
+}
+
 async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
   console.log("Pushing to Meta...");
   
@@ -136,9 +173,22 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
     
     for (const phase of phases) {
       try {
-        // Determine objective from phase or market configuration
-        const objective = phase.objective || market.objective || campaign.objective || "OUTCOME_TRAFFIC";
-        const optimizationGoal = phase.optimizationGoal || market.optimizationGoal || "LINK_CLICKS";
+        // Map phase objective to valid Meta objective
+        let objective = phase.objective || market.objective || campaign.objective || "OUTCOME_TRAFFIC";
+        let optimizationGoal = phase.optimizationGoal || market.optimizationGoal || "LINK_CLICKS";
+        
+        // If objective is "auto" or invalid, map from phase name
+        const validObjectives = ['APP_INSTALLS', 'BRAND_AWARENESS', 'EVENT_RESPONSES', 'LEAD_GENERATION', 
+          'LINK_CLICKS', 'LOCAL_AWARENESS', 'MESSAGES', 'OFFER_CLAIMS', 'PAGE_LIKES', 'POST_ENGAGEMENT', 
+          'PRODUCT_CATALOG_SALES', 'REACH', 'STORE_VISITS', 'VIDEO_VIEWS', 'OUTCOME_AWARENESS', 
+          'OUTCOME_ENGAGEMENT', 'OUTCOME_LEADS', 'OUTCOME_SALES', 'OUTCOME_TRAFFIC', 'OUTCOME_APP_PROMOTION', 'CONVERSIONS'];
+        
+        if (!validObjectives.includes(objective)) {
+          const mapped = getMetaObjectiveFromPhase(phase.name, market.strategyFocus || campaign.strategy_focus);
+          objective = mapped.objective;
+          optimizationGoal = mapped.optimizationGoal;
+          console.log(`Mapped phase "${phase.name}" to objective: ${objective}, optimization goal: ${optimizationGoal}`);
+        }
         
         // Create campaign
         const campaignPayload = {
