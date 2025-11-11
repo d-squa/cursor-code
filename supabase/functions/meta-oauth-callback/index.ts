@@ -72,49 +72,44 @@ serve(async (req) => {
       throw new Error("No ad accounts found");
     }
 
-    // Store each ad account as a separate connected platform
-    const connectedPlatforms = [];
-    
-    for (const adAccount of adAccounts) {
-      const { data: platformData, error: platformError } = await supabase
-        .from("connected_platforms")
-        .insert({
-          user_id: user.id,
-          platform_type: "meta",
-          platform_name: "Meta (Facebook & Instagram)",
-          access_token: access_token,
-          ad_account_id: adAccount.id,
-          ad_account_name: adAccount.name,
-        })
-        .select()
-        .single();
+    // Create a single connected platform entry for Meta
+    const { data: platformData, error: platformError } = await supabase
+      .from("connected_platforms")
+      .insert({
+        user_id: user.id,
+        platform_type: "meta",
+        platform_name: "Meta (Facebook & Instagram)",
+        access_token: access_token,
+        is_active: true,
+      })
+      .select()
+      .single();
 
-      if (platformError) {
-        console.error("Failed to insert platform:", platformError);
-        continue;
-      }
+    if (platformError) {
+      console.error("Failed to insert platform:", platformError);
+      throw new Error("Failed to save platform connection");
+    }
 
-      connectedPlatforms.push(platformData);
+    // Connected platform created
 
-      // Sync platform accounts (pages, Instagram accounts)
-      try {
-        await fetch(`${supabaseUrl}/functions/v1/sync-platform-accounts`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${supabaseKey}`,
-          },
-          body: JSON.stringify({ connectedPlatformId: platformData.id })
-        });
-      } catch (syncError) {
-        console.error("Failed to sync accounts:", syncError);
-      }
+    // Sync platform accounts (pages, Instagram accounts)
+    try {
+      await fetch(`${supabaseUrl}/functions/v1/sync-platform-accounts`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${supabaseKey}`,
+        },
+        body: JSON.stringify({ connectedPlatformId: platformData.id })
+      });
+    } catch (syncError) {
+      console.error("Failed to sync accounts:", syncError);
     }
 
     return new Response(
       JSON.stringify({
         success: true,
-        platformsConnected: connectedPlatforms.length,
+        platformsConnected: 1,
         adAccounts: adAccounts.map((acc: any) => ({
           id: acc.id,
           name: acc.name

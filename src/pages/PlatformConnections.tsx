@@ -123,15 +123,14 @@ export default function PlatformConnections() {
           if (error) throw error;
 
           toast.success("Platform connected! Please select an ad account to link.");
-          
-          // Clear URL parameters
-          window.history.replaceState({}, document.title, window.location.pathname);
-          
           await fetchConnectedPlatforms();
         } catch (error: any) {
           console.error("OAuth callback error:", error);
-          toast.error(error.message || "Failed to complete authentication");
+          const msg = (error?.message || "Failed to complete authentication");
+          toast.error(msg + ". Please restart the connection process.");
         } finally {
+          // Always clear URL parameters to avoid reusing/rehitting expired codes on refresh
+          window.history.replaceState({}, document.title, window.location.pathname);
           setSaving(false);
         }
       }
@@ -247,9 +246,13 @@ export default function PlatformConnections() {
                               </Badge>
                             )}
                           </div>
-                          <p className="text-sm text-muted-foreground">
-                            {platform.ad_account_name} • {platform.ad_account_id}
-                          </p>
+                          {platform.ad_account_name ? (
+                            <p className="text-sm text-muted-foreground">
+                              {platform.ad_account_name} • {platform.ad_account_id}
+                            </p>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">No ad account linked yet</p>
+                          )}
                           <p className="text-xs text-muted-foreground">
                             Connected {new Date(platform.created_at).toLocaleDateString()}
                           </p>
