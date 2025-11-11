@@ -201,7 +201,7 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
         console.log("Creating Meta campaign:", campaignPayload);
 
         const campaignResponse = await fetch(
-          `https://graph.facebook.com/v21.0/${platform.ad_account_id}/campaigns`,
+          `https://graph.facebook.com/v22.0/${platform.ad_account_id}/campaigns`,
           {
             method: "POST",
             headers: {
@@ -313,7 +313,7 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
         console.log("Creating Meta ad set:", adSetPayload);
 
         const adSetResponse = await fetch(
-          `https://graph.facebook.com/v21.0/${platform.ad_account_id}/adsets`,
+          `https://graph.facebook.com/v22.0/${platform.ad_account_id}/adsets`,
           {
             method: "POST",
             headers: {
