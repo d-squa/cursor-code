@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, Play, Edit, CheckCircle, XCircle, MessageSquare, History, Trash2, Download, TrendingUp } from "lucide-react";
+import { Loader2, Play, Edit, CheckCircle, XCircle, MessageSquare, History, Trash2, Download, TrendingUp, MoreVertical } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
 import { ModificationRequestDialog } from "@/components/ModificationRequestDialog";
 import { ChangeHistoryDialog } from "@/components/ChangeHistoryDialog";
@@ -270,45 +271,7 @@ export default function ActiPlans() {
             </div>
           )}
 
-          <div className="flex flex-wrap gap-1.5 pt-2">
-            {canEdit(campaign) && (
-              <Button size="sm" variant="outline" onClick={() => window.location.href = `/?campaignId=${campaign.id}`}>
-                <Edit className="w-3 h-3 mr-1" />
-                Edit
-              </Button>
-            )}
-            
-            {canApprove(campaign) && (
-              <>
-                <Button size="sm" onClick={() => handleApprove(campaign)} disabled={actionLoading}>
-                  <CheckCircle className="w-3 h-3 mr-1" />
-                  Approve
-                </Button>
-                <Button size="sm" variant="destructive" onClick={() => handleReject(campaign)} disabled={actionLoading}>
-                  <XCircle className="w-3 h-3 mr-1" />
-                  Reject
-                </Button>
-                <Button 
-                  size="sm" 
-                  variant="outline"
-                  onClick={() => {
-                    setSelectedCampaign(campaign);
-                    setModificationDialogOpen(true);
-                  }}
-                >
-                  <MessageSquare className="w-3 h-3 mr-1" />
-                  Request
-                </Button>
-              </>
-            )}
-
-            {canPushToDSP(campaign) && (
-              <Button size="sm" onClick={() => handlePushToDSP(campaign)} disabled={actionLoading}>
-                {actionLoading ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Play className="w-3 h-3 mr-1" />}
-                Push
-              </Button>
-            )}
-            
+          <div className="flex items-center gap-2 pt-2">
             {campaign.pdf_url && (
               <Button 
                 size="sm" 
@@ -336,31 +299,96 @@ export default function ActiPlans() {
               </Button>
             )}
 
-            {canDelete(campaign) && (
-              <Button 
-                size="sm" 
-                variant="destructive"
-                onClick={() => {
-                  setCampaignToDelete(campaign);
-                  setDeleteDialogOpen(true);
-                }}
-              >
-                <Trash2 className="w-3 h-3 mr-1" />
-                Delete
-              </Button>
-            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {canEdit(campaign) && (
+                  <DropdownMenuItem onClick={() => window.location.href = `/?campaignId=${campaign.id}`}>
+                    <Edit className="w-4 h-4 mr-2" />
+                    Edit ActiPlan
+                  </DropdownMenuItem>
+                )}
+                
+                {canApprove(campaign) && (
+                  <>
+                    <DropdownMenuItem onClick={() => handleApprove(campaign)} disabled={actionLoading}>
+                      <CheckCircle className="w-4 h-4 mr-2" />
+                      Approve ActiPlan
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onClick={() => handleReject(campaign)} 
+                      disabled={actionLoading}
+                      className="text-destructive"
+                    >
+                      <XCircle className="w-4 h-4 mr-2" />
+                      Reject Campaign
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setSelectedCampaign(campaign);
+                        setModificationDialogOpen(true);
+                      }}
+                    >
+                      <MessageSquare className="w-4 h-4 mr-2" />
+                      Request Changes
+                    </DropdownMenuItem>
+                  </>
+                )}
 
-            <Button 
-              size="sm" 
-              variant="ghost"
-              onClick={() => {
-                setSelectedCampaign(campaign);
-                setHistoryDialogOpen(true);
-              }}
-            >
-              <History className="w-3 h-3 mr-1" />
-              History
-            </Button>
+                {canPushToDSP(campaign) && (
+                  <>
+                    {canApprove(campaign) && <DropdownMenuSeparator />}
+                    <DropdownMenuItem onClick={() => handlePushToDSP(campaign)} disabled={actionLoading}>
+                      {actionLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Play className="w-4 h-4 mr-2" />}
+                      Launch Campaign
+                    </DropdownMenuItem>
+                  </>
+                )}
+
+                {campaign.status === "live" && (
+                  <>
+                    {(canEdit(campaign) || canApprove(campaign) || canPushToDSP(campaign)) && <DropdownMenuSeparator />}
+                    <DropdownMenuItem onClick={() => window.location.href = `/performance/${campaign.id}`}>
+                      <TrendingUp className="w-4 h-4 mr-2" />
+                      View Performance
+                    </DropdownMenuItem>
+                  </>
+                )}
+
+                {(canEdit(campaign) || canApprove(campaign) || canPushToDSP(campaign) || campaign.status === "live") && <DropdownMenuSeparator />}
+                
+                <DropdownMenuItem
+                  onClick={() => {
+                    setSelectedCampaign(campaign);
+                    setHistoryDialogOpen(true);
+                  }}
+                >
+                  <History className="w-4 h-4 mr-2" />
+                  View History
+                </DropdownMenuItem>
+
+                {canDelete(campaign) && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      onClick={() => {
+                        setCampaignToDelete(campaign);
+                        setDeleteDialogOpen(true);
+                      }}
+                      className="text-destructive"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete ActiPlan
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </CardContent>
