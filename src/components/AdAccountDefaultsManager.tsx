@@ -28,9 +28,10 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   userId: string;
+  connectedPlatformId: string | null;
 }
 
-export default function AdAccountDefaultsManager({ open, onOpenChange, userId }: Props) {
+export default function AdAccountDefaultsManager({ open, onOpenChange, userId, connectedPlatformId }: Props) {
   const [adAccounts, setAdAccounts] = useState<AdAccount[]>([]);
   const [pixels, setPixels] = useState<MetaResource[]>([]);
   const [pages, setPages] = useState<MetaResource[]>([]);
@@ -39,22 +40,36 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId }:
   const [conversionEvents, setConversionEvents] = useState<MetaResource[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [unlinking, setUnlinking] = useState<string | null>(null);
   const [localDefaults, setLocalDefaults] = useState<Record<string, Partial<AdAccount>>>({});
 
   useEffect(() => {
-    if (open && userId) {
+    if (open && userId && connectedPlatformId) {
       loadData();
     }
-  }, [open, userId]);
+  }, [open, userId, connectedPlatformId]);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      // Load ad accounts
+      if (!connectedPlatformId) return;
+
+      // Get linked account IDs from platform_accounts
+      const { data: linkedAccounts, error: linkedError } = await supabase
+        .from("platform_accounts")
+        .select("account_id")
+        .eq("connected_platform_id", connectedPlatformId);
+
+      if (linkedError) throw linkedError;
+      
+      const linkedAccountIds = linkedAccounts?.map(a => a.account_id) || [];
+
+      // Load only linked ad accounts
       const { data: accountsData, error: accountsError } = await supabase
         .from("meta_ad_accounts")
         .select("*")
-        .eq("user_id", userId);
+        .eq("user_id", userId)
+        .in("account_id", linkedAccountIds);
 
       if (accountsError) throw accountsError;
       setAdAccounts(accountsData || []);
@@ -105,6 +120,32 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId }:
         [field]: value || undefined,
       },
     }));
+  };
+
+  const handleUnlink = async (accountId: string) => {
+    setUnlinking(accountId);
+    try {
+      if (!connectedPlatformId) return;
+
+      // Delete from platform_accounts
+      const { error: unlinkError } = await supabase
+        .from("platform_accounts")
+        .delete()
+        .eq("connected_platform_id", connectedPlatformId)
+        .eq("account_id", accountId);
+
+      if (unlinkError) throw unlinkError;
+
+      toast.success("Ad account unlinked successfully");
+      
+      // Reload data
+      await loadData();
+    } catch (error: any) {
+      console.error("Error unlinking account:", error);
+      toast.error("Failed to unlink ad account");
+    } finally {
+      setUnlinking(null);
+    }
   };
 
   const handleSave = async () => {
@@ -165,8 +206,28 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId }:
               <div className="space-y-6">
                 {adAccounts.map((account) => (
                   <div key={account.id} className="p-4 border rounded-lg space-y-4 bg-card">
-                    <div className="font-semibold text-lg">{account.account_name}</div>
-                    <div className="text-xs text-muted-foreground mb-3">{account.account_id}</div>
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="font-semibold text-lg">{account.account_name}</div>
+                        <div className="text-xs text-muted-foreground">{account.account_id}</div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleUnlink(account.account_id)}
+                        disabled={unlinking === account.account_id}
+                        className="text-destructive hover:text-destructive"
+                      >
+                        {unlinking === account.account_id ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Unlinking...
+                          </>
+                        ) : (
+                          "Unlink"
+                        )}
+                      </Button>
+                    </div>
 
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">

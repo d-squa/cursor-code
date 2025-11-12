@@ -54,6 +54,7 @@ export default function PlatformConnections() {
   const [selectingAccount, setSelectingAccount] = useState(false);
   const [accountSelectorOpen, setAccountSelectorOpen] = useState(false);
   const [defaultsManagerOpen, setDefaultsManagerOpen] = useState(false);
+  const [selectedPlatformForDefaults, setSelectedPlatformForDefaults] = useState<string | null>(null);
   const processingOAuthRef = useRef(false);
   useEffect(() => {
     if (!authLoading && !user) {
@@ -173,6 +174,7 @@ const { data, error } = await supabase
       } else {
         toast.success("Sync complete! You can now set default resources per account.");
         // Open the defaults manager after successful sync
+        setSelectedPlatformForDefaults(metaPlatform.id);
         setDefaultsManagerOpen(true);
       }
       
@@ -369,7 +371,10 @@ const { data, error } = await supabase
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => setDefaultsManagerOpen(true)}
+                            onClick={() => {
+                              setSelectedPlatformForDefaults(platform.id);
+                              setDefaultsManagerOpen(true);
+                            }}
                           >
                             Manage Defaults
                           </Button>
@@ -403,6 +408,7 @@ const { data, error } = await supabase
             open={defaultsManagerOpen}
             onOpenChange={setDefaultsManagerOpen}
             userId={user.id}
+            connectedPlatformId={selectedPlatformForDefaults}
           />
         )}
       </div>
