@@ -179,7 +179,6 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId }:
                             <SelectValue placeholder="Select pixel" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">None</SelectItem>
                             {pixels.map((p) => (
                               <SelectItem key={p.id} value={p.id}>
                                 {p.name}
@@ -199,7 +198,6 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId }:
                             <SelectValue placeholder="Select page" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">None</SelectItem>
                             {pages.map((p) => (
                               <SelectItem key={p.id} value={p.id}>
                                 {p.name}
@@ -219,7 +217,6 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId }:
                             <SelectValue placeholder="Select Instagram account" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">None</SelectItem>
                             {instagramAccounts.map((ig) => (
                               <SelectItem key={ig.id} value={ig.id}>
                                 @{ig.name}
@@ -239,7 +236,6 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId }:
                             <SelectValue placeholder="Select catalog" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">None</SelectItem>
                             {catalogs.map((c) => (
                               <SelectItem key={c.id} value={c.id}>
                                 {c.name}
@@ -259,7 +255,6 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId }:
                             <SelectValue placeholder="Select conversion event" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="">None</SelectItem>
                             {conversionEvents.map((e) => (
                               <SelectItem key={e.id} value={e.id}>
                                 {e.name}
