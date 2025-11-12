@@ -16,6 +16,7 @@ interface AdAccount {
   default_page_id?: string;
   default_instagram_account_id?: string;
   default_catalog_id?: string;
+  default_product_set_id?: string;
   default_conversion_event?: string;
 }
 
@@ -37,6 +38,7 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId, c
   const [pages, setPages] = useState<MetaResource[]>([]);
   const [instagramAccounts, setInstagramAccounts] = useState<MetaResource[]>([]);
   const [catalogs, setCatalogs] = useState<MetaResource[]>([]);
+  const [productSets, setProductSets] = useState<MetaResource[]>([]);
   const [conversionEvents, setConversionEvents] = useState<MetaResource[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -82,17 +84,19 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId, c
           default_page_id: acc.default_page_id,
           default_instagram_account_id: acc.default_instagram_account_id,
           default_catalog_id: acc.default_catalog_id,
+          default_product_set_id: acc.default_product_set_id,
           default_conversion_event: acc.default_conversion_event,
         };
       });
       setLocalDefaults(defaults);
 
       // Load all resources
-      const [pixelsRes, pagesRes, igRes, catalogsRes, eventsRes] = await Promise.all([
+      const [pixelsRes, pagesRes, igRes, catalogsRes, productSetsRes, eventsRes] = await Promise.all([
         supabase.from("meta_pixels").select("pixel_id, pixel_name").eq("user_id", userId),
         supabase.from("meta_pages").select("page_id, page_name").eq("user_id", userId),
         supabase.from("meta_instagram_accounts").select("instagram_account_id, username").eq("user_id", userId),
         supabase.from("meta_catalogs").select("catalog_id, catalog_name").eq("user_id", userId),
+        supabase.from("meta_product_sets").select("product_set_id, product_set_name").eq("user_id", userId),
         supabase.from("meta_conversion_events").select("event_name").eq("user_id", userId),
       ]);
 
@@ -100,6 +104,7 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId, c
       setPages((pagesRes.data || []).map((p) => ({ id: p.page_id, name: p.page_name })));
       setInstagramAccounts((igRes.data || []).map((ig) => ({ id: ig.instagram_account_id, name: ig.username })));
       setCatalogs((catalogsRes.data || []).map((c) => ({ id: c.catalog_id, name: c.catalog_name })));
+      setProductSets((productSetsRes.data || []).map((ps) => ({ id: ps.product_set_id, name: ps.product_set_name })));
       
       // Get unique event names
       const uniqueEvents = Array.from(new Set((eventsRes.data || []).map((e) => e.event_name)));
@@ -165,6 +170,7 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId, c
             default_page_id: update.default_page_id,
             default_instagram_account_id: update.default_instagram_account_id,
             default_catalog_id: update.default_catalog_id,
+            default_product_set_id: update.default_product_set_id,
             default_conversion_event: update.default_conversion_event,
           })
           .eq("id", update.id);
@@ -239,7 +245,7 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId, c
                           <SelectTrigger>
                             <SelectValue placeholder="Select pixel" />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="bg-popover z-50">
                             {pixels.map((p) => (
                               <SelectItem key={p.id} value={p.id}>
                                 {p.name}
@@ -258,7 +264,7 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId, c
                           <SelectTrigger>
                             <SelectValue placeholder="Select page" />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="bg-popover z-50">
                             {pages.map((p) => (
                               <SelectItem key={p.id} value={p.id}>
                                 {p.name}
@@ -277,7 +283,7 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId, c
                           <SelectTrigger>
                             <SelectValue placeholder="Select Instagram account" />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="bg-popover z-50">
                             {instagramAccounts.map((ig) => (
                               <SelectItem key={ig.id} value={ig.id}>
                                 @{ig.name}
@@ -296,7 +302,7 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId, c
                           <SelectTrigger>
                             <SelectValue placeholder="Select catalog" />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="bg-popover z-50">
                             {catalogs.map((c) => (
                               <SelectItem key={c.id} value={c.id}>
                                 {c.name}
@@ -306,7 +312,26 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId, c
                         </Select>
                       </div>
 
-                      <div className="space-y-2 col-span-2">
+                      <div className="space-y-2">
+                        <Label>Default Product Set</Label>
+                        <Select
+                          value={localDefaults[account.id]?.default_product_set_id || ""}
+                          onValueChange={(val) => updateDefault(account.id, "default_product_set_id", val)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select product set" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-popover z-50">
+                            {productSets.map((ps) => (
+                              <SelectItem key={ps.id} value={ps.id}>
+                                {ps.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
                         <Label>Default Conversion Event</Label>
                         <Select
                           value={localDefaults[account.id]?.default_conversion_event || ""}
@@ -315,7 +340,7 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId, c
                           <SelectTrigger>
                             <SelectValue placeholder="Select conversion event" />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="bg-popover z-50">
                             {conversionEvents.map((e) => (
                               <SelectItem key={e.id} value={e.id}>
                                 {e.name}

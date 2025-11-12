@@ -58,6 +58,7 @@ serve(async (req) => {
       pages: 0,
       pixels: 0,
       catalogs: 0,
+      productSets: 0,
       instagramAccounts: 0,
       conversionEvents: 0,
     };
@@ -187,24 +188,88 @@ serve(async (req) => {
 
     // 4. Sync Catalogs
     try {
-      const catalogsResponse = await fetch(
-        `https://graph.facebook.com/v21.0/me/businesses?fields=owned_product_catalogs{id,name}&access_token=${accessToken}`
-      );
-      const catalogsData = await catalogsResponse.json();
+      const { data: adAccounts } = await supabase
+        .from("meta_ad_accounts")
+        .select("account_id")
+        .eq("user_id", user.id);
 
       const allCatalogs: any[] = [];
-      if (catalogsData.data) {
-        catalogsData.data.forEach((business: any) => {
-          if (business.owned_product_catalogs?.data) {
-            business.owned_product_catalogs.data.forEach((catalog: any) => {
-              allCatalogs.push({
-                user_id: user.id,
-                catalog_id: catalog.id,
-                catalog_name: catalog.name,
+      const allProductSets: any[] = [];
+
+      if (adAccounts && adAccounts.length > 0) {
+        for (const account of adAccounts) {
+          try {
+            // Fetch catalogs from ad account
+            const catalogsResponse = await fetch(
+              `https://graph.facebook.com/v21.0/${account.account_id}/product_catalogs?fields=id,name&limit=100&access_token=${accessToken}`
+            );
+            const catalogsData = await catalogsResponse.json();
+
+            if (catalogsData.data) {
+              catalogsData.data.forEach((catalog: any) => {
+                // Avoid duplicates
+                if (!allCatalogs.find(c => c.catalog_id === catalog.id)) {
+                  allCatalogs.push({
+                    user_id: user.id,
+                    catalog_id: catalog.id,
+                    catalog_name: catalog.name,
+                  });
+                }
               });
-            });
+
+              // Fetch product sets for each catalog
+              for (const catalog of catalogsData.data) {
+                try {
+                  const productSetsResponse = await fetch(
+                    `https://graph.facebook.com/v21.0/${catalog.id}/product_sets?fields=id,name&limit=100&access_token=${accessToken}`
+                  );
+                  const productSetsData = await productSetsResponse.json();
+
+                  if (productSetsData.data) {
+                    productSetsData.data.forEach((productSet: any) => {
+                      allProductSets.push({
+                        user_id: user.id,
+                        catalog_id: catalog.id,
+                        product_set_id: productSet.id,
+                        product_set_name: productSet.name,
+                      });
+                    });
+                  }
+                } catch (error) {
+                  console.error(`Error fetching product sets for catalog ${catalog.id}:`, error);
+                }
+              }
+            }
+          } catch (error) {
+            console.error(`Error fetching catalogs for account ${account.account_id}:`, error);
           }
-        });
+        }
+      }
+
+      // Try business endpoint as fallback
+      try {
+        const catalogsResponse = await fetch(
+          `https://graph.facebook.com/v21.0/me/businesses?fields=owned_product_catalogs{id,name}&access_token=${accessToken}`
+        );
+        const catalogsData = await catalogsResponse.json();
+
+        if (catalogsData.data) {
+          catalogsData.data.forEach((business: any) => {
+            if (business.owned_product_catalogs?.data) {
+              business.owned_product_catalogs.data.forEach((catalog: any) => {
+                if (!allCatalogs.find(c => c.catalog_id === catalog.id)) {
+                  allCatalogs.push({
+                    user_id: user.id,
+                    catalog_id: catalog.id,
+                    catalog_name: catalog.name,
+                  });
+                }
+              });
+            }
+          });
+        }
+      } catch (error) {
+        console.log("Business endpoint not accessible, using ad account catalogs only");
       }
 
       if (allCatalogs.length > 0) {
@@ -216,8 +281,18 @@ serve(async (req) => {
           console.log(`Synced ${syncResults.catalogs} catalogs`);
         }
       }
+
+      if (allProductSets.length > 0) {
+        await supabase.from("meta_product_sets").delete().eq("user_id", user.id);
+        const { error: productSetsError } = await supabase.from("meta_product_sets").insert(allProductSets);
+        
+        if (!productSetsError) {
+          syncResults.productSets = allProductSets.length;
+          console.log(`Synced ${syncResults.productSets} product sets`);
+        }
+      }
     } catch (error) {
-      console.error("Error syncing catalogs:", error);
+      console.error("Error syncing catalogs and product sets:", error);
     }
 
     // 5. Sync Conversion Events (for each pixel)

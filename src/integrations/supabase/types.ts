@@ -287,6 +287,7 @@ export type Database = {
           default_instagram_account_id: string | null
           default_page_id: string | null
           default_pixel_id: string | null
+          default_product_set_id: string | null
           id: string
           synced_at: string
           user_id: string
@@ -302,6 +303,7 @@ export type Database = {
           default_instagram_account_id?: string | null
           default_page_id?: string | null
           default_pixel_id?: string | null
+          default_product_set_id?: string | null
           id?: string
           synced_at?: string
           user_id: string
@@ -317,6 +319,7 @@ export type Database = {
           default_instagram_account_id?: string | null
           default_page_id?: string | null
           default_pixel_id?: string | null
+          default_product_set_id?: string | null
           id?: string
           synced_at?: string
           user_id?: string
@@ -465,6 +468,36 @@ export type Database = {
           id?: string
           pixel_id?: string
           pixel_name?: string
+          synced_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      meta_product_sets: {
+        Row: {
+          catalog_id: string
+          created_at: string
+          id: string
+          product_set_id: string
+          product_set_name: string
+          synced_at: string
+          user_id: string
+        }
+        Insert: {
+          catalog_id: string
+          created_at?: string
+          id?: string
+          product_set_id: string
+          product_set_name: string
+          synced_at?: string
+          user_id: string
+        }
+        Update: {
+          catalog_id?: string
+          created_at?: string
+          id?: string
+          product_set_id?: string
+          product_set_name?: string
           synced_at?: string
           user_id?: string
         }
