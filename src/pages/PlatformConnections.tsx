@@ -16,14 +16,25 @@ import { PLATFORM_CONFIG } from "@/config/platforms";
 import PlatformAdAccountSelector from "@/components/PlatformAdAccountSelector";
 import AdAccountDefaultsManager from "@/components/AdAccountDefaultsManager";
 
+interface PlatformAccount {
+  id: string;
+  connected_platform_id: string;
+  account_type: string;
+  account_name: string;
+  account_id: string;
+  created_at: string;
+  metadata?: any;
+}
+
 interface ConnectedPlatform {
   id: string;
   platform_type: string;
   platform_name: string;
-  ad_account_id: string;
-  ad_account_name: string;
+  ad_account_id: string | null;
+  ad_account_name: string | null;
   is_active: boolean;
   created_at: string;
+  platform_accounts?: PlatformAccount[];
 }
 
 const PLATFORM_TYPES = [
@@ -58,9 +69,9 @@ export default function PlatformConnections() {
 
   const fetchConnectedPlatforms = async () => {
     try {
-      const { data, error } = await supabase
+const { data, error } = await supabase
         .from("connected_platforms")
-        .select("*")
+        .select("*, platform_accounts(*)")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -114,11 +125,39 @@ export default function PlatformConnections() {
   const handleSaveAdAccounts = async (accounts: { id: string; name: string }[]) => {
     if (accounts.length === 0) return;
     
+    setSelectingAccount(true);
     try {
-      setSelectingAccount(true);
-      
-      // Just acknowledge the selection and trigger full sync
-      toast.success("Syncing Meta resources (Pages, Pixels, Events, Catalogs, Instagram)...");
+      // Find the most recently connected Meta platform
+      const metaPlatform = platforms.find((p) => p.platform_type === "meta");
+      if (!metaPlatform) {
+        toast.error("No Meta platform connection found.");
+        return;
+      }
+
+      // Avoid duplicates by checking existing linked accounts
+      const { data: existing, error: existingErr } = await supabase
+        .from("platform_accounts")
+        .select("account_id")
+        .eq("connected_platform_id", metaPlatform.id);
+
+      if (existingErr) throw existingErr;
+
+      const existingIds = new Set((existing || []).map((e: any) => e.account_id));
+      const toInsert = accounts
+        .filter((a) => !existingIds.has(a.id))
+        .map((a) => ({
+          connected_platform_id: metaPlatform.id,
+          account_type: "ad_account",
+          account_id: a.id,
+          account_name: a.name,
+        }));
+
+      if (toInsert.length > 0) {
+        const { error: insertErr } = await supabase.from("platform_accounts").insert(toInsert);
+        if (insertErr) throw insertErr;
+      }
+
+      toast.success("Linking accounts and syncing Meta resources...");
 
       // Include auth token so the backend can identify the user
       const session = await supabase.auth.getSession();
@@ -130,19 +169,19 @@ export default function PlatformConnections() {
       
       if (syncError) {
         console.error("Sync error:", syncError);
-        toast.error("Failed to sync some resources. Try reconnecting.");
+        toast.error("Some resources failed to sync. You can retry later.");
       } else {
-        toast.success("All Meta resources synced! Now set default resources per account.");
+        toast.success("Sync complete! You can now set default resources per account.");
         // Open the defaults manager after successful sync
         setDefaultsManagerOpen(true);
       }
       
       setAccountSelectorOpen(false);
       setAdAccountOptions([]);
-      fetchConnectedPlatforms();
+      await fetchConnectedPlatforms();
     } catch (e: any) {
-      console.error("Failed to sync:", e);
-      toast.error(e?.message || "Failed to sync resources");
+      console.error("Failed to link/sync:", e);
+      toast.error(e?.message || "Failed to link accounts or sync resources");
     } finally {
       setSelectingAccount(false);
     }
@@ -297,12 +336,28 @@ export default function PlatformConnections() {
                               </Badge>
                             )}
                           </div>
-                          {platform.ad_account_name ? (
+                          {platform.platform_accounts && platform.platform_accounts.length > 0 ? (
+                            <>
+                              <p className="text-sm text-muted-foreground">
+                                Linked ad accounts: {platform.platform_accounts.length}
+                              </p>
+                              <div className="text-xs text-muted-foreground">
+                                {platform.platform_accounts.slice(0, 3).map((acc) => (
+                                  <div key={acc.id}>
+                                    {acc.account_name} • {acc.account_id}
+                                  </div>
+                                ))}
+                                {platform.platform_accounts.length > 3 && (
+                                  <div>+ {platform.platform_accounts.length - 3} more</div>
+                                )}
+                              </div>
+                            </>
+                          ) : platform.ad_account_name ? (
                             <p className="text-sm text-muted-foreground">
                               {platform.ad_account_name} • {platform.ad_account_id}
                             </p>
                           ) : (
-                            <p className="text-sm text-muted-foreground">No ad account linked yet</p>
+                            <p className="text-sm text-muted-foreground">No ad accounts linked yet</p>
                           )}
                            <p className="text-xs text-muted-foreground">
                             Connected {new Date(platform.created_at).toLocaleDateString()}
