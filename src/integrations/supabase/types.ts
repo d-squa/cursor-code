@@ -275,6 +275,201 @@ export type Database = {
           },
         ]
       }
+      meta_ad_accounts: {
+        Row: {
+          account_id: string
+          account_name: string
+          account_status: string | null
+          created_at: string
+          currency: string | null
+          default_catalog_id: string | null
+          default_conversion_event: string | null
+          default_instagram_account_id: string | null
+          default_page_id: string | null
+          default_pixel_id: string | null
+          id: string
+          synced_at: string
+          user_id: string
+        }
+        Insert: {
+          account_id: string
+          account_name: string
+          account_status?: string | null
+          created_at?: string
+          currency?: string | null
+          default_catalog_id?: string | null
+          default_conversion_event?: string | null
+          default_instagram_account_id?: string | null
+          default_page_id?: string | null
+          default_pixel_id?: string | null
+          id?: string
+          synced_at?: string
+          user_id: string
+        }
+        Update: {
+          account_id?: string
+          account_name?: string
+          account_status?: string | null
+          created_at?: string
+          currency?: string | null
+          default_catalog_id?: string | null
+          default_conversion_event?: string | null
+          default_instagram_account_id?: string | null
+          default_page_id?: string | null
+          default_pixel_id?: string | null
+          id?: string
+          synced_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      meta_catalogs: {
+        Row: {
+          catalog_id: string
+          catalog_name: string
+          created_at: string
+          id: string
+          synced_at: string
+          user_id: string
+        }
+        Insert: {
+          catalog_id: string
+          catalog_name: string
+          created_at?: string
+          id?: string
+          synced_at?: string
+          user_id: string
+        }
+        Update: {
+          catalog_id?: string
+          catalog_name?: string
+          created_at?: string
+          id?: string
+          synced_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      meta_conversion_events: {
+        Row: {
+          created_at: string
+          event_name: string
+          event_type: string | null
+          id: string
+          pixel_id: string
+          synced_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_name: string
+          event_type?: string | null
+          id?: string
+          pixel_id: string
+          synced_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          event_name?: string
+          event_type?: string | null
+          id?: string
+          pixel_id?: string
+          synced_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      meta_instagram_accounts: {
+        Row: {
+          created_at: string
+          id: string
+          instagram_account_id: string
+          synced_at: string
+          user_id: string
+          username: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          instagram_account_id: string
+          synced_at?: string
+          user_id: string
+          username: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          instagram_account_id?: string
+          synced_at?: string
+          user_id?: string
+          username?: string
+        }
+        Relationships: []
+      }
+      meta_pages: {
+        Row: {
+          access_token: string | null
+          category: string | null
+          created_at: string
+          id: string
+          page_id: string
+          page_name: string
+          synced_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token?: string | null
+          category?: string | null
+          created_at?: string
+          id?: string
+          page_id: string
+          page_name: string
+          synced_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string | null
+          category?: string | null
+          created_at?: string
+          id?: string
+          page_id?: string
+          page_name?: string
+          synced_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      meta_pixels: {
+        Row: {
+          ad_account_id: string
+          created_at: string
+          id: string
+          pixel_id: string
+          pixel_name: string
+          synced_at: string
+          user_id: string
+        }
+        Insert: {
+          ad_account_id: string
+          created_at?: string
+          id?: string
+          pixel_id: string
+          pixel_name: string
+          synced_at?: string
+          user_id: string
+        }
+        Update: {
+          ad_account_id?: string
+          created_at?: string
+          id?: string
+          pixel_id?: string
+          pixel_name?: string
+          synced_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       modification_requests: {
         Row: {
           assigned_to: string[] | null

@@ -14,6 +14,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { PLATFORM_CONFIG } from "@/config/platforms";
 import PlatformAdAccountSelector from "@/components/PlatformAdAccountSelector";
+import AdAccountDefaultsManager from "@/components/AdAccountDefaultsManager";
 
 interface ConnectedPlatform {
   id: string;
@@ -41,6 +42,7 @@ export default function PlatformConnections() {
   const [adAccountOptions, setAdAccountOptions] = useState<{ id: string; name: string }[]>([]);
   const [selectingAccount, setSelectingAccount] = useState(false);
   const [accountSelectorOpen, setAccountSelectorOpen] = useState(false);
+  const [defaultsManagerOpen, setDefaultsManagerOpen] = useState(false);
   const processingOAuthRef = useRef(false);
   useEffect(() => {
     if (!authLoading && !user) {
@@ -130,7 +132,9 @@ export default function PlatformConnections() {
         console.error("Sync error:", syncError);
         toast.error("Failed to sync some resources. Try reconnecting.");
       } else {
-        toast.success("All Meta resources synced! You can now use them in campaigns.");
+        toast.success("All Meta resources synced! Now set default resources per account.");
+        // Open the defaults manager after successful sync
+        setDefaultsManagerOpen(true);
       }
       
       setAccountSelectorOpen(false);
@@ -300,18 +304,29 @@ export default function PlatformConnections() {
                           ) : (
                             <p className="text-sm text-muted-foreground">No ad account linked yet</p>
                           )}
-                          <p className="text-xs text-muted-foreground">
+                           <p className="text-xs text-muted-foreground">
                             Connected {new Date(platform.created_at).toLocaleDateString()}
                           </p>
                         </div>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDisconnectPlatform(platform.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex gap-2">
+                        {platform.platform_type === "meta" && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setDefaultsManagerOpen(true)}
+                          >
+                            Manage Defaults
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDisconnectPlatform(platform.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   );
                 })}
@@ -327,6 +342,14 @@ export default function PlatformConnections() {
           onSelect={handleSaveAdAccounts}
           loading={selectingAccount}
         />
+
+        {user && (
+          <AdAccountDefaultsManager
+            open={defaultsManagerOpen}
+            onOpenChange={setDefaultsManagerOpen}
+            userId={user.id}
+          />
+        )}
       </div>
     </div>
   );
