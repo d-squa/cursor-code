@@ -616,14 +616,14 @@ export function MediaPlanEditor() {
         )}
       </Card>
 
-      {/* Step 2: Strategy Configuration */}
+      {/* Step 2: Targeting */}
       {currentStep >= 2 && (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Step 2: Strategy Configuration</CardTitle>
-                <CardDescription>Define your campaign strategy, phases, and campaigns</CardDescription>
+                <CardTitle>Step 2: Targeting</CardTitle>
+                <CardDescription>Define your audience targeting parameters</CardDescription>
               </div>
               {currentStep > 2 && (
                 <Button variant="ghost" size="sm" onClick={() => setCurrentStep(2)}>
@@ -634,218 +634,27 @@ export function MediaPlanEditor() {
           </CardHeader>
           {currentStep === 2 ? (
             <CardContent className="space-y-6">
-              <div className="grid gap-6 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Strategy Type</Label>
-                  <Select
-                    value={genericConfig.strategy || ""}
-                    onValueChange={(value) => setGenericConfig({ ...genericConfig, strategy: value as any })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select strategy" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="auto-detect">Auto-Detect (Based on selections)</SelectItem>
-                      <SelectItem value="full-funnel">Pre-Defined Full-Funnel</SelectItem>
-                      <SelectItem value="manual">Manual Strategy</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {genericConfig.strategy !== "manual" && (
-                  <div className="space-y-2">
-                    <Label>Strategy Focus</Label>
-                    {genericConfig.strategy === "auto-detect" ? (
-                      <Input
-                        value="Auto"
-                        disabled
-                        className="bg-muted"
-                      />
-                    ) : (
-                      <Select
-                        value={genericConfig.strategyFocus || ""}
-                        onValueChange={(value) => {
-                          setGenericConfig({ ...genericConfig, strategyFocus: value as any });
-                          // Auto-generate global funnel phases based on strategy focus
-                          if (startDate && endDate) {
-                            const phases = getDefaultPhases(value, startDate, endDate);
-                            setGlobalFunnel(phases);
-                          }
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select focus" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Awareness">Awareness</SelectItem>
-                          <SelectItem value="Market Presence">Market Presence</SelectItem>
-                          <SelectItem value="In-App Actions">In-App Actions</SelectItem>
-                          <SelectItem value="Purchases">Purchases</SelectItem>
-                          <SelectItem value="Actions">Actions</SelectItem>
-                          <SelectItem value="Conversions">Conversions</SelectItem>
-                          <SelectItem value="Leads">Leads</SelectItem>
-                          <SelectItem value="Revenue">Revenue</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    )}
-                    {(platformsWithMarkets.some(p => p.markets.some(m => m.pixel || m.catalog))) && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        💡 Auto-detected based on pixel/catalog configuration
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-
-{genericConfig.strategy === "auto-detect" ? (
-                <div className="space-y-4">
-                  <p className="text-sm text-muted-foreground">
-                    Auto-detect previews per platform/market based on selected ad formats, pixel and catalog.
-                  </p>
-                  <div className="space-y-3">
-                    {platformsWithMarkets.map((p) => (
-                      <div key={p.id} className="border rounded-lg p-3">
-                        <h4 className="font-medium text-sm">{p.name}</h4>
-                        <div className="mt-2 space-y-2">
-                          {p.markets.map((m) => {
-                            const adFormats = m.adFormats || genericConfig.targeting?.adFormats || [];
-                            const hasPixel = !!m.pixel;
-                            const hasCatalog = !!m.catalog;
-                            const focus = (determineStrategyFocus({ adFormats, hasPixel, hasCatalog }) || "conversions").replace("-", " ").toUpperCase();
-                            const phasesPreview = (startDate && endDate)
-                              ? generateAutoDetectPhases(adFormats, hasPixel, hasCatalog, startDate, endDate)
-                              : [];
-                            return (
-                              <div key={m.id} className="text-xs bg-muted/30 rounded p-2">
-                                <div className="flex justify-between items-center">
-                                  <span className="font-medium">{m.name}</span>
-                                  <Badge variant="outline" className="text-[10px]">{focus}</Badge>
-                                </div>
-                                <div className="text-muted-foreground mt-1">
-                                  Formats: {adFormats.length ? adFormats.join(", ") : "—"} • Pixel: {hasPixel ? "Yes" : "No"} • Catalog: {hasCatalog ? "Yes" : "No"}
-                                </div>
-                                {phasesPreview && phasesPreview.length > 0 && (
-                                  <div className="mt-1 text-muted-foreground">
-                                    Preview phases: {phasesPreview.map((ph) => ph.name).join(" → ")}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="flex justify-end">
-                    <Button
-                      onClick={() => {
-                        const updatedPlatforms = platformsWithMarkets.map((platform) => ({
-                          ...platform,
-                          markets: platform.markets.map((market) => {
-                            const adFormats = market.adFormats || genericConfig.targeting?.adFormats || [];
-                            const hasPixel = !!market.pixel;
-                            const hasCatalog = !!market.catalog;
-                            const detectedFocus = determineStrategyFocus({ adFormats, hasPixel, hasCatalog });
-                            const phases = generateAutoDetectPhases(adFormats, hasPixel, hasCatalog, startDate, endDate);
-                            return {
-                              ...market,
-                              strategyFocus: detectedFocus || "conversions",
-                            phases: phases.map((p) => ({
-                              ...p,
-                              id: `phase-${market.id}-${p.id}`,
-                            })),
-                            };
-                          }),
-                        }));
-                        setPlatformsWithMarkets(updatedPlatforms);
-                        // Also set global editable phases to mirror auto-detected ones for editing below
-                        try {
-                          const samplePlatform = platformsWithMarkets[0];
-                          const sampleMarket = samplePlatform?.markets?.[0];
-                          const gAdFormats = sampleMarket?.adFormats || genericConfig.targeting?.adFormats || [];
-                          const gHasPixel = !!sampleMarket?.pixel;
-                          const gHasCatalog = !!sampleMarket?.catalog;
-                          const genericPhases = generateAutoDetectPhases(gAdFormats, gHasPixel, gHasCatalog, startDate, endDate) || [];
-                          setGenericConfig(prev => ({
-                            ...prev,
-                            hasPhases: true,
-                            phases: genericPhases.map(p => ({ ...p, id: `phase-global-${p.id}` })),
-                          }));
-                        } catch (e) {
-                          // no-op
-                        }
-                        toast.success("Auto-detected phases applied to all markets");
-                      }}
-                    >
-                      Apply Auto-Detected Phases
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <GlobalFunnelPhasing
-                    startDate={startDate}
-                    endDate={endDate}
-                    globalFunnel={globalFunnel}
-                    onGlobalFunnelChange={(newFunnel) => {
-                      // Update global funnel and immediately propagate to all markets
-                      setGlobalFunnel(newFunnel);
-                      setPlatformsWithMarkets(
-                        platformsWithMarkets.map(p => ({
-                          ...p,
-                          markets: p.markets.map(m => ({
-                            ...m,
-                            strategyFocus: genericConfig.strategyFocus, // Propagate strategy focus
-                            phases: newFunnel.map(stage => ({
-                              id: `phase-${m.id}-${stage.id}`,
-                              name: stage.name,
-                              startDate: stage.startDate,
-                              endDate: stage.endDate,
-                              budgetPercentage: stage.budgetPercentage,
-                            })),
-                            useGlobalFunnel: true,
-                          }))
-                        }))
-                      );
-                    }}
-                    onSaveGlobal={() => {
-                      toast.success("Global funnel phasing applied to all platforms and markets");
-                    }}
-                  />
-
-                  <HierarchicalTimelineScheduler
-                    platforms={platformsWithMarkets}
-                    setPlatforms={setPlatformsWithMarkets}
-                    startDate={startDate}
-                    endDate={endDate}
-                    globalFunnel={globalFunnel}
-                  />
-                </>
-              )}
-
-              {/* Editable per-phase configuration (always visible) */}
-              {startDate && endDate && (
-                <div className="mt-6">
-                  <PhaseScheduler
-                    phases={genericConfig.phases || []}
-                    onPhasesChange={(phases) => setGenericConfig({ ...genericConfig, phases })}
-                    startDate={startDate}
-                    endDate={endDate}
-                    platformName={platformsWithMarkets[0]?.name || "Facebook (Meta)"}
-                  />
-                </div>
-              )}
+              <TargetingConfigComponent
+                targeting={genericConfig.targeting || {}}
+                onUpdate={(targeting) => {
+                  setGenericConfig({
+                    ...genericConfig,
+                    targeting,
+                  });
+                }}
+                platformName={platformsWithMarkets[0]?.name || "Facebook (Meta)"}
+                showAdFormats={true}
+              />
 
               <div className="flex justify-between pt-4">
                 <Button variant="outline" onClick={() => setCurrentStep(1)}>
                   Back
                 </Button>
                 <Button 
-                  onClick={() => setCurrentStep(3)} 
-                  disabled={!isStrategyComplete()}
+                  onClick={() => setCurrentStep(3)}
+                  disabled={!genericConfig.targeting?.adFormats || genericConfig.targeting.adFormats.length === 0}
                 >
-                  Next: Targeting
+                  Next
                 </Button>
               </div>
             </CardContent>

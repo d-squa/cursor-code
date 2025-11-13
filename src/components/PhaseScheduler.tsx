@@ -293,7 +293,13 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate, pla
       : phaseName.toLowerCase().includes("consideration")
       ? "Consideration"
       : "Conversion";
-    return platformObjectiveMapping[platformName]?.[phaseType] || [];
+    
+    // Try exact match first, then fallback to Meta for facebook/instagram
+    let objectives = platformObjectiveMapping[platformName]?.[phaseType];
+    if (!objectives && platformName.toLowerCase().includes("meta")) {
+      objectives = platformObjectiveMapping["Facebook (Meta)"]?.[phaseType];
+    }
+    return objectives || ["Awareness", "Traffic", "Engagement", "Conversions"];
   };
 
   const getOptimizationGoals = (objective: string) => {
