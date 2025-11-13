@@ -214,26 +214,32 @@ serve(async (req) => {
 
     // 4. Sync Catalogs
     try {
-      const { data: adAccounts } = await supabase
-        .from("meta_ad_accounts")
-        .select("account_id")
-        .eq("user_id", user.id);
-
       const allCatalogs: any[] = [];
       const allProductSets: any[] = [];
 
-      if (adAccounts && adAccounts.length > 0) {
-        for (const account of adAccounts) {
-          try {
-            // Fetch catalogs from ad account
-            const catalogsResponse = await fetch(
-              `https://graph.facebook.com/v21.0/${account.account_id}/product_catalogs?fields=id,name&limit=100&access_token=${accessToken}`
-            );
-            const catalogsData = await catalogsResponse.json();
+      // Fetch all accessible businesses first
+      const businessesResp = await fetch(
+        `https://graph.facebook.com/v21.0/me/businesses?fields=id,name&access_token=${accessToken}`
+      );
+      const businessesData = await businessesResp.json();
+      
+      console.log(`Found ${businessesData?.data?.length || 0} accessible businesses`);
 
-            if (catalogsData.data) {
-              catalogsData.data.forEach((catalog: any) => {
-                // Avoid duplicates
+      // Fetch catalogs from all accessible businesses
+      if (Array.isArray(businessesData?.data) && businessesData.data.length > 0) {
+        for (const biz of businessesData.data) {
+          console.log(`Fetching catalogs for business ${biz.id} (${biz.name})`);
+          
+          try {
+            // Try owned_product_catalogs
+            const ownedCatalogsResp = await fetch(
+              `https://graph.facebook.com/v21.0/${biz.id}/owned_product_catalogs?fields=id,name&limit=100&access_token=${accessToken}`
+            );
+            const ownedCatalogsData = await ownedCatalogsResp.json();
+
+            if (Array.isArray(ownedCatalogsData?.data)) {
+              console.log(`Found ${ownedCatalogsData.data.length} owned catalogs for business ${biz.id}`);
+              ownedCatalogsData.data.forEach((catalog: any) => {
                 if (!allCatalogs.find(c => c.catalog_id === catalog.id)) {
                   allCatalogs.push({
                     user_id: user.id,
@@ -242,140 +248,57 @@ serve(async (req) => {
                   });
                 }
               });
-
-              // Fetch product sets for each catalog
-              for (const catalog of catalogsData.data) {
-                try {
-                  const productSetsResponse = await fetch(
-                    `https://graph.facebook.com/v21.0/${catalog.id}/product_sets?fields=id,name&limit=100&access_token=${accessToken}`
-                  );
-                  const productSetsData = await productSetsResponse.json();
-
-                  if (productSetsData.data) {
-                    productSetsData.data.forEach((productSet: any) => {
-                      allProductSets.push({
-                        user_id: user.id,
-                        catalog_id: catalog.id,
-                        product_set_id: productSet.id,
-                        product_set_name: productSet.name,
-                      });
-                    });
-                  }
-                } catch (error) {
-                  console.error(`Error fetching product sets for catalog ${catalog.id}:`, error);
-                }
-              }
             }
-          } catch (error) {
-            console.error(`Error fetching catalogs for account ${account.account_id}:`, error);
-          }
-        }
-      }
 
-      // Fetch catalogs from business manager if available
-      if (businessManagerId) {
-        try {
-          const bmCatalogsResponse = await fetch(
-            `https://graph.facebook.com/v21.0/${businessManagerId}/owned_product_catalogs?fields=id,name&limit=100&access_token=${accessToken}`
-          );
-          const bmCatalogsData = await bmCatalogsResponse.json();
+            // Try client_product_catalogs as well
+            const clientCatalogsResp = await fetch(
+              `https://graph.facebook.com/v21.0/${biz.id}/client_product_catalogs?fields=id,name&limit=100&access_token=${accessToken}`
+            );
+            const clientCatalogsData = await clientCatalogsResp.json();
 
-          if (bmCatalogsData.data) {
-            bmCatalogsData.data.forEach((catalog: any) => {
-              if (!allCatalogs.find(c => c.catalog_id === catalog.id)) {
-                allCatalogs.push({
-                  user_id: user.id,
-                  catalog_id: catalog.id,
-                  catalog_name: catalog.name,
-                });
-              }
-            });
-            console.log(`Found ${bmCatalogsData.data.length} catalogs from business manager`);
-            
-            // Fetch product sets for business manager catalogs
-            for (const catalog of bmCatalogsData.data) {
-              try {
-                const productSetsResponse = await fetch(
-                  `https://graph.facebook.com/v21.0/${catalog.id}/product_sets?fields=id,name&limit=100&access_token=${accessToken}`
-                );
-                const productSetsData = await productSetsResponse.json();
-
-                if (productSetsData.data) {
-                  productSetsData.data.forEach((productSet: any) => {
-                    allProductSets.push({
-                      user_id: user.id,
-                      catalog_id: catalog.id,
-                      product_set_id: productSet.id,
-                      product_set_name: productSet.name,
-                    });
+            if (Array.isArray(clientCatalogsData?.data)) {
+              console.log(`Found ${clientCatalogsData.data.length} client catalogs for business ${biz.id}`);
+              clientCatalogsData.data.forEach((catalog: any) => {
+                if (!allCatalogs.find(c => c.catalog_id === catalog.id)) {
+                  allCatalogs.push({
+                    user_id: user.id,
+                    catalog_id: catalog.id,
+                    catalog_name: catalog.name,
                   });
                 }
-              } catch (error) {
-                console.error(`Error fetching product sets for catalog ${catalog.id}:`, error);
-              }
+              });
             }
+          } catch (err) {
+            console.error(`Error fetching catalogs for business ${biz.id}:`, err);
           }
-        } catch (error) {
-          console.log("Error fetching catalogs from business manager:", error);
         }
       }
-      
-      // Try fallback: iterate all accessible businesses and fetch their catalogs
-      try {
-        const businessesResp = await fetch(
-          `https://graph.facebook.com/v21.0/me/businesses?fields=id,name&access_token=${accessToken}`
-        );
-        const businessesData = await businessesResp.json();
 
-        if (Array.isArray(businessesData?.data) && businessesData.data.length > 0) {
-          for (const biz of businessesData.data) {
-            try {
-              const bizCatalogsResp = await fetch(
-                `https://graph.facebook.com/v21.0/${biz.id}/owned_product_catalogs?fields=id,name&limit=100&access_token=${accessToken}`
-              );
-              const bizCatalogsData = await bizCatalogsResp.json();
+      // Fetch product sets for all catalogs found
+      if (allCatalogs.length > 0) {
+        console.log(`Fetching product sets for ${allCatalogs.length} catalogs`);
+        for (const catalog of allCatalogs) {
+          try {
+            const productSetsResponse = await fetch(
+              `https://graph.facebook.com/v21.0/${catalog.catalog_id}/product_sets?fields=id,name&limit=100&access_token=${accessToken}`
+            );
+            const productSetsData = await productSetsResponse.json();
 
-              if (Array.isArray(bizCatalogsData?.data)) {
-                bizCatalogsData.data.forEach((catalog: any) => {
-                  if (!allCatalogs.find(c => c.catalog_id === catalog.id)) {
-                    allCatalogs.push({
-                      user_id: user.id,
-                      catalog_id: catalog.id,
-                      catalog_name: catalog.name,
-                    });
-                  }
+            if (Array.isArray(productSetsData?.data)) {
+              console.log(`Found ${productSetsData.data.length} product sets for catalog ${catalog.catalog_id}`);
+              productSetsData.data.forEach((productSet: any) => {
+                allProductSets.push({
+                  user_id: user.id,
+                  catalog_id: catalog.catalog_id,
+                  product_set_id: productSet.id,
+                  product_set_name: productSet.name,
                 });
-
-                // Fetch product sets for each catalog found under this business
-                for (const catalog of bizCatalogsData.data) {
-                  try {
-                    const productSetsResponse = await fetch(
-                      `https://graph.facebook.com/v21.0/${catalog.id}/product_sets?fields=id,name&limit=100&access_token=${accessToken}`
-                    );
-                    const productSetsData = await productSetsResponse.json();
-
-                    if (Array.isArray(productSetsData?.data)) {
-                      productSetsData.data.forEach((productSet: any) => {
-                        allProductSets.push({
-                          user_id: user.id,
-                          catalog_id: catalog.id,
-                          product_set_id: productSet.id,
-                          product_set_name: productSet.name,
-                        });
-                      });
-                    }
-                  } catch (err) {
-                    console.error(`Error fetching product sets for catalog ${catalog.id}:`, err);
-                  }
-                }
-              }
-            } catch (err) {
-              console.error(`Error fetching catalogs for business ${biz.id}:`, err);
+              });
             }
+          } catch (err) {
+            console.error(`Error fetching product sets for catalog ${catalog.catalog_id}:`, err);
           }
         }
-      } catch (error) {
-        console.log("Businesses endpoint not accessible or insufficient permissions");
       }
 
       if (allCatalogs.length > 0) {

@@ -52,6 +52,8 @@ export function PlatformMarketBudgetSelector({
   const [loadingPixels, setLoadingPixels] = useState(false);
   const [catalogs, setCatalogs] = useState<Array<{ id: string; name: string }>>([]);
   const [loadingCatalogs, setLoadingCatalogs] = useState(false);
+  const [productSets, setProductSets] = useState<Array<{ id: string; name: string; catalogId: string }>>([]);
+  const [loadingProductSets, setLoadingProductSets] = useState(false);
   const [conversionEvents, setConversionEvents] = useState<Array<{ pixelId: string; id: string; name: string; type: string }>>([]);
   const [loadingConversionEvents, setLoadingConversionEvents] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -66,6 +68,7 @@ export function PlatformMarketBudgetSelector({
     setLoadingPages(true);
     setLoadingPixels(true);
     setLoadingCatalogs(true);
+    setLoadingProductSets(true);
     setLoadingConversionEvents(true);
     
     try {
@@ -122,6 +125,20 @@ export function PlatformMarketBudgetSelector({
         })));
       }
 
+      // Fetch product sets from database
+      const { data: productSetsData, error: productSetsError } = await supabase
+        .from("meta_product_sets" as any)
+        .select("*")
+        .order("synced_at", { ascending: false });
+
+      if (!productSetsError && productSetsData) {
+        setProductSets(productSetsData.map((ps: any) => ({
+          id: ps.product_set_id,
+          name: ps.product_set_name,
+          catalogId: ps.catalog_id,
+        })));
+      }
+
       // Fetch conversion events from database
       const { data: eventsData, error: eventsError } = await supabase
         .from("meta_conversion_events" as any)
@@ -159,6 +176,7 @@ export function PlatformMarketBudgetSelector({
       setLoadingPages(false);
       setLoadingPixels(false);
       setLoadingCatalogs(false);
+      setLoadingProductSets(false);
       setLoadingConversionEvents(false);
     }
   };
@@ -810,16 +828,26 @@ export function PlatformMarketBudgetSelector({
                                       <SelectValue placeholder="Select Product Set" />
                                     </SelectTrigger>
                                     <SelectContent className="z-50 bg-background">
-                                      {catalogs.length === 0 ? (
+                                      {loadingProductSets ? (
+                                        <div className="flex items-center justify-center p-4">
+                                          <Loader2 className="h-4 w-4 animate-spin" />
+                                        </div>
+                                      ) : !market.catalog ? (
                                         <div className="p-4 text-xs text-muted-foreground text-center">
-                                          No product sets found. Click Refresh Meta Data.
+                                          Select a catalog first
+                                        </div>
+                                      ) : productSets.filter(ps => ps.catalogId === market.catalog).length === 0 ? (
+                                        <div className="p-4 text-xs text-muted-foreground text-center">
+                                          No product sets found for this catalog. Click Refresh Meta Data.
                                         </div>
                                       ) : (
-                                        catalogs.map((catalog) => (
-                                          <SelectItem key={catalog.id} value={catalog.id}>
-                                            {catalog.name}
-                                          </SelectItem>
-                                        ))
+                                        productSets
+                                          .filter(ps => ps.catalogId === market.catalog)
+                                          .map((productSet) => (
+                                            <SelectItem key={productSet.id} value={productSet.id}>
+                                              {productSet.name}
+                                            </SelectItem>
+                                          ))
                                       )}
                                     </SelectContent>
                                   </Select>
