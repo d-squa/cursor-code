@@ -643,17 +643,14 @@ export function MediaPlanEditor() {
                   });
                 }}
                 platformName={platformsWithMarkets[0]?.name || "Facebook (Meta)"}
-                showAdFormats={true}
+                showAdFormats={false}
               />
 
               <div className="flex justify-between pt-4">
                 <Button variant="outline" onClick={() => setCurrentStep(1)}>
                   Back
                 </Button>
-                <Button 
-                  onClick={() => setCurrentStep(3)}
-                  disabled={!genericConfig.targeting?.adFormats || genericConfig.targeting.adFormats.length === 0}
-                >
+                <Button onClick={() => setCurrentStep(3)}>
                   Next
                 </Button>
               </div>
@@ -675,14 +672,13 @@ export function MediaPlanEditor() {
         </Card>
       )}
 
-      {/* Step 3: Targeting */}
+      {/* Step 3: Strategy Configuration */}
       {currentStep === 3 && (
         <GenericStrategyConfig
           config={genericConfig}
           setConfig={setGenericConfig}
           startDate={startDate}
           endDate={endDate}
-          showOnlyTargeting
           hasPixel={platformsWithMarkets.some(p => p.markets.some(m => !!m.pixel || !!m.conversionEvent))}
           hasCatalog={platformsWithMarkets.some(p => p.markets.some(m => !!m.catalog || !!m.productSet))}
           onNext={() => {
