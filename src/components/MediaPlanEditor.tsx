@@ -13,6 +13,7 @@ import { HierarchicalTimelineScheduler } from "./HierarchicalTimelineScheduler";
 import { GlobalFunnelPhasing } from "./GlobalFunnelPhasing";
 import { TargetingConfigComponent } from "./TargetingConfig";
 import { CampaignForecast } from "./CampaignForecast";
+import { PhaseScheduler } from "./PhaseScheduler";
 import { getDefaultPhases, generateAutoDetectPhases } from "@/utils/funnelPhases";
 import { Calendar, Download, Rocket, Loader2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
@@ -758,6 +759,22 @@ export function MediaPlanEditor() {
                           }),
                         }));
                         setPlatformsWithMarkets(updatedPlatforms);
+                        // Also set global editable phases to mirror auto-detected ones for editing below
+                        try {
+                          const samplePlatform = platformsWithMarkets[0];
+                          const sampleMarket = samplePlatform?.markets?.[0];
+                          const gAdFormats = sampleMarket?.adFormats || genericConfig.targeting?.adFormats || [];
+                          const gHasPixel = !!sampleMarket?.pixel;
+                          const gHasCatalog = !!sampleMarket?.catalog;
+                          const genericPhases = generateAutoDetectPhases(gAdFormats, gHasPixel, gHasCatalog, startDate, endDate) || [];
+                          setGenericConfig(prev => ({
+                            ...prev,
+                            hasPhases: true,
+                            phases: genericPhases.map(p => ({ ...p, id: `phase-global-${p.id}` })),
+                          }));
+                        } catch (e) {
+                          // no-op
+                        }
                         toast.success("Auto-detected phases applied to all markets");
                       }}
                     >
@@ -805,6 +822,19 @@ export function MediaPlanEditor() {
                     globalFunnel={globalFunnel}
                   />
                 </>
+              )}
+
+              {/* Editable per-phase configuration (always visible) */}
+              {startDate && endDate && (
+                <div className="mt-6">
+                  <PhaseScheduler
+                    phases={genericConfig.phases || []}
+                    onPhasesChange={(phases) => setGenericConfig({ ...genericConfig, phases })}
+                    startDate={startDate}
+                    endDate={endDate}
+                    platformName={platformsWithMarkets[0]?.name || "Facebook (Meta)"}
+                  />
+                </div>
               )}
 
               <div className="flex justify-between pt-4">
