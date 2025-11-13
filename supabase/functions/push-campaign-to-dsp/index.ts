@@ -344,8 +344,8 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
           targeting: targeting,
         };
         
-        // Add conversion tracking if it's a conversion campaign
-        if (market.pixel && market.conversionEvent) {
+        // Add conversion tracking ONLY for conversion-optimized ad sets
+        if (market.pixel && market.conversionEvent && adSetPayload.optimization_goal === 'OFFSITE_CONVERSIONS') {
           // Meta's valid custom_event_type values
           const validEventTypes = [
             'AD_IMPRESSION', 'RATE', 'TUTORIAL_COMPLETION', 'CONTACT', 'CUSTOMIZE_PRODUCT', 
@@ -356,19 +356,19 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
             'LEVEL_ACHIEVED', 'ACHIEVEMENT_UNLOCKED', 'SPENT_CREDITS', 'LISTING_INTERACTION', 
             'D2_RETENTION', 'D7_RETENTION', 'OTHER'
           ];
-          
           // Normalize and validate conversion event
           const normalizedEvent = market.conversionEvent.toUpperCase().trim();
           const eventType = validEventTypes.includes(normalizedEvent) ? normalizedEvent : 'OTHER';
-          
           if (!validEventTypes.includes(normalizedEvent)) {
             console.warn(`Invalid conversion event "${market.conversionEvent}" for market ${market.name}, using "OTHER" as fallback`);
           }
-          
           adSetPayload.promoted_object = {
             pixel_id: market.pixel,
             custom_event_type: eventType,
           };
+          console.info(`Including promoted_object for optimization_goal=${adSetPayload.optimization_goal}`);
+        } else if (adSetPayload.optimization_goal !== 'OFFSITE_CONVERSIONS' && (market.pixel || market.conversionEvent)) {
+          console.info(`Skipping promoted_object for optimization_goal=${adSetPayload.optimization_goal}`);
         }
         
         // Set budget (convert to cents)
