@@ -65,15 +65,41 @@ serve(async (req) => {
 
     // 1. Sync Ad Accounts
     try {
-      let adAccountsUrl = businessManagerId
-        ? `https://graph.facebook.com/v21.0/${businessManagerId}/owned_ad_accounts?fields=id,name,account_status,currency&limit=100&access_token=${accessToken}`
-        : `https://graph.facebook.com/v21.0/me/adaccounts?fields=id,name,account_status,currency&limit=100&access_token=${accessToken}`;
+      const allAdAccounts: any[] = [];
       
-      const adAccountsResponse = await fetch(adAccountsUrl);
-      const adAccountsData = await adAccountsResponse.json();
+      if (businessManagerId) {
+        // Fetch owned ad accounts
+        const ownedUrl = `https://graph.facebook.com/v21.0/${businessManagerId}/owned_ad_accounts?fields=id,name,account_status,currency&limit=100&access_token=${accessToken}`;
+        const ownedResponse = await fetch(ownedUrl);
+        const ownedData = await ownedResponse.json();
+        
+        if (ownedData.data) {
+          allAdAccounts.push(...ownedData.data);
+          console.log(`Found ${ownedData.data.length} owned ad accounts`);
+        }
+        
+        // Fetch client ad accounts (shared with business manager)
+        const clientUrl = `https://graph.facebook.com/v21.0/${businessManagerId}/client_ad_accounts?fields=id,name,account_status,currency&limit=100&access_token=${accessToken}`;
+        const clientResponse = await fetch(clientUrl);
+        const clientData = await clientResponse.json();
+        
+        if (clientData.data) {
+          allAdAccounts.push(...clientData.data);
+          console.log(`Found ${clientData.data.length} client ad accounts`);
+        }
+      } else {
+        // Fallback to user's ad accounts
+        const meUrl = `https://graph.facebook.com/v21.0/me/adaccounts?fields=id,name,account_status,currency&limit=100&access_token=${accessToken}`;
+        const meResponse = await fetch(meUrl);
+        const meData = await meResponse.json();
+        
+        if (meData.data) {
+          allAdAccounts.push(...meData.data);
+        }
+      }
 
-      if (adAccountsData.data && adAccountsData.data.length > 0) {
-        const accountsToInsert = adAccountsData.data.map((acc: any) => ({
+      if (allAdAccounts.length > 0) {
+        const accountsToInsert = allAdAccounts.map((acc: any) => ({
           user_id: user.id,
           account_id: acc.id,
           account_name: acc.name,
@@ -86,7 +112,7 @@ serve(async (req) => {
         
         if (!insertError) {
           syncResults.adAccounts = accountsToInsert.length;
-          console.log(`Synced ${syncResults.adAccounts} ad accounts`);
+          console.log(`Synced ${syncResults.adAccounts} ad accounts total`);
         }
       }
     } catch (error) {
@@ -246,7 +272,55 @@ serve(async (req) => {
         }
       }
 
-      // Try business endpoint as fallback
+      // Fetch catalogs from business manager if available
+      if (businessManagerId) {
+        try {
+          const bmCatalogsResponse = await fetch(
+            `https://graph.facebook.com/v21.0/${businessManagerId}/owned_product_catalogs?fields=id,name&limit=100&access_token=${accessToken}`
+          );
+          const bmCatalogsData = await bmCatalogsResponse.json();
+
+          if (bmCatalogsData.data) {
+            bmCatalogsData.data.forEach((catalog: any) => {
+              if (!allCatalogs.find(c => c.catalog_id === catalog.id)) {
+                allCatalogs.push({
+                  user_id: user.id,
+                  catalog_id: catalog.id,
+                  catalog_name: catalog.name,
+                });
+              }
+            });
+            console.log(`Found ${bmCatalogsData.data.length} catalogs from business manager`);
+            
+            // Fetch product sets for business manager catalogs
+            for (const catalog of bmCatalogsData.data) {
+              try {
+                const productSetsResponse = await fetch(
+                  `https://graph.facebook.com/v21.0/${catalog.id}/product_sets?fields=id,name&limit=100&access_token=${accessToken}`
+                );
+                const productSetsData = await productSetsResponse.json();
+
+                if (productSetsData.data) {
+                  productSetsData.data.forEach((productSet: any) => {
+                    allProductSets.push({
+                      user_id: user.id,
+                      catalog_id: catalog.id,
+                      product_set_id: productSet.id,
+                      product_set_name: productSet.name,
+                    });
+                  });
+                }
+              } catch (error) {
+                console.error(`Error fetching product sets for catalog ${catalog.id}:`, error);
+              }
+            }
+          }
+        } catch (error) {
+          console.log("Error fetching catalogs from business manager:", error);
+        }
+      }
+      
+      // Try fallback to user's businesses
       try {
         const catalogsResponse = await fetch(
           `https://graph.facebook.com/v21.0/me/businesses?fields=owned_product_catalogs{id,name}&access_token=${accessToken}`
@@ -269,7 +343,7 @@ serve(async (req) => {
           });
         }
       } catch (error) {
-        console.log("Business endpoint not accessible, using ad account catalogs only");
+        console.log("Business endpoint not accessible");
       }
 
       if (allCatalogs.length > 0) {
@@ -295,24 +369,28 @@ serve(async (req) => {
       console.error("Error syncing catalogs and product sets:", error);
     }
 
-    // 5. Sync Conversion Events (for each pixel)
+    // 5. Sync Conversion Events (standard + custom conversions)
     try {
       const { data: pixels } = await supabase
         .from("meta_pixels")
         .select("pixel_id")
         .eq("user_id", user.id);
+      
+      const { data: adAccounts } = await supabase
+        .from("meta_ad_accounts")
+        .select("account_id")
+        .eq("user_id", user.id);
+
+      const allEvents: any[] = [];
+
+      // Add standard events for each pixel
+      const standardEvents = [
+        "PageView", "ViewContent", "Search", "AddToCart", "AddToWishlist",
+        "InitiateCheckout", "AddPaymentInfo", "Purchase", "Lead", "CompleteRegistration"
+      ];
 
       if (pixels && pixels.length > 0) {
-        const allEvents: any[] = [];
-
-        // Add standard events
-        const standardEvents = [
-          "PageView", "ViewContent", "Search", "AddToCart", "AddToWishlist",
-          "InitiateCheckout", "AddPaymentInfo", "Purchase", "Lead", "CompleteRegistration"
-        ];
-
         for (const pixel of pixels) {
-          // Add standard events
           standardEvents.forEach(eventName => {
             allEvents.push({
               user_id: user.id,
@@ -321,29 +399,46 @@ serve(async (req) => {
               event_type: "standard",
             });
           });
+        }
+      }
 
-          // Fetch custom events
+      // Fetch custom conversions from ad accounts
+      if (adAccounts && adAccounts.length > 0) {
+        for (const account of adAccounts) {
           try {
-            const eventsResponse = await fetch(
-              `https://graph.facebook.com/v21.0/${pixel.pixel_id}?fields=id,name&access_token=${accessToken}`
+            const customConversionsResponse = await fetch(
+              `https://graph.facebook.com/v21.0/${account.account_id}/customconversions?fields=id,name,pixel{id}&limit=100&access_token=${accessToken}`
             );
-            const eventsData = await eventsResponse.json();
+            const customConversionsData = await customConversionsResponse.json();
 
-            // Note: Custom events are typically managed via Events Manager
-            // This is a placeholder for custom event fetching
+            if (customConversionsData.data) {
+              customConversionsData.data.forEach((conversion: any) => {
+                // Only add if we have a pixel ID for this conversion
+                const pixelId = conversion.pixel?.id;
+                if (pixelId) {
+                  allEvents.push({
+                    user_id: user.id,
+                    pixel_id: pixelId,
+                    event_name: conversion.name,
+                    event_type: "custom",
+                  });
+                }
+              });
+              console.log(`Found ${customConversionsData.data.length} custom conversions for account ${account.account_id}`);
+            }
           } catch (error) {
-            console.error(`Error fetching events for pixel ${pixel.pixel_id}:`, error);
+            console.error(`Error fetching custom conversions for account ${account.account_id}:`, error);
           }
         }
+      }
 
-        if (allEvents.length > 0) {
-          await supabase.from("meta_conversion_events").delete().eq("user_id", user.id);
-          const { error: eventsError } = await supabase.from("meta_conversion_events").insert(allEvents);
-          
-          if (!eventsError) {
-            syncResults.conversionEvents = allEvents.length;
-            console.log(`Synced ${syncResults.conversionEvents} conversion events`);
-          }
+      if (allEvents.length > 0) {
+        await supabase.from("meta_conversion_events").delete().eq("user_id", user.id);
+        const { error: eventsError } = await supabase.from("meta_conversion_events").insert(allEvents);
+        
+        if (!eventsError) {
+          syncResults.conversionEvents = allEvents.length;
+          console.log(`Synced ${syncResults.conversionEvents} conversion events (standard + custom)`);
         }
       }
     } catch (error) {
