@@ -197,9 +197,9 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
     
     for (const phase of phases) {
       try {
-        // Map phase objective to valid Meta objective
-        let objective = phase.objective || market.objective || campaign.objective || "OUTCOME_TRAFFIC";
-        let optimizationGoal = phase.optimizationGoal || market.optimizationGoal || "LINK_CLICKS";
+        // Map phase objective to valid Meta objective - check forecast fields first
+        let objective = phase.objective || (market as any).phaseObjective || market.objective || campaign.objective || "OUTCOME_TRAFFIC";
+        let optimizationGoal = phase.optimizationGoal || (market as any).phaseOptimizationGoal || market.optimizationGoal || "LINK_CLICKS";
         
         // If objective is "auto" or invalid, map from phase name
         const validObjectives = ['APP_INSTALLS', 'BRAND_AWARENESS', 'EVENT_RESPONSES', 'LEAD_GENERATION', 
