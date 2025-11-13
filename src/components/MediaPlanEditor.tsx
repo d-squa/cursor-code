@@ -918,8 +918,6 @@ export function MediaPlanEditor() {
           onBack={() => setCurrentStep(2)}
           isTargetingComplete={isTargetingComplete()}
           platformName={(platformsWithMarkets.find(p => p.id !== "")?.name) || platformsWithMarkets[0]?.name || "Facebook (Meta)"}
-          hasPixel={platformsWithMarkets.some(p => p.markets.some(m => m.pixel))}
-          hasCatalog={platformsWithMarkets.some(p => p.markets.some(m => m.catalog))}
         />
       )}
 
