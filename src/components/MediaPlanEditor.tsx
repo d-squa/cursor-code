@@ -657,16 +657,26 @@ export function MediaPlanEditor() {
             </CardContent>
           ) : (
             <CardContent className="py-4">
-              <div className="text-sm text-muted-foreground space-y-1">
-                <div className="flex justify-between">
-                  <span>Strategy:</span>
-                  <span className="font-medium text-foreground capitalize">{genericConfig.strategy?.replace('-', ' ')}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Focus:</span>
-                  <span className="font-medium text-foreground capitalize">{genericConfig.strategyFocus?.replace('-', ' ')}</span>
-                </div>
+            <div className="text-sm text-muted-foreground space-y-1">
+              <div className="flex justify-between">
+                <span>Age Range:</span>
+                <span className="font-medium text-foreground">
+                  {genericConfig.targeting?.ageMin || 18} - {genericConfig.targeting?.ageMax || 65}
+                </span>
               </div>
+              <div className="flex justify-between">
+                <span>Gender:</span>
+                <span className="font-medium text-foreground capitalize">
+                  {genericConfig.targeting?.genders?.join(', ') || 'All'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span>Devices:</span>
+                <span className="font-medium text-foreground">
+                  {genericConfig.targeting?.devices?.join(', ') || 'All'}
+                </span>
+              </div>
+            </div>
             </CardContent>
           )}
         </Card>
@@ -674,92 +684,171 @@ export function MediaPlanEditor() {
 
       {/* Step 3: Strategy Configuration */}
       {currentStep === 3 && (
-        <GenericStrategyConfig
-          config={genericConfig}
-          setConfig={setGenericConfig}
-          startDate={startDate}
-          endDate={endDate}
-          hasPixel={platformsWithMarkets.some(p => p.markets.some(m => !!m.pixel || !!m.conversionEvent))}
-          hasCatalog={platformsWithMarkets.some(p => p.markets.some(m => !!m.catalog || !!m.productSet))}
-          onNext={() => {
-            // Generate phases per platform/market based on strategy type
-            if (genericConfig.strategy === "auto-detect") {
-              // Auto-detect: Generate phases based on market-specific configuration
-              const updatedPlatforms = platformsWithMarkets.map(platform => ({
-                ...platform,
-                markets: platform.markets.map(market => {
-                  const adFormats = market.adFormats || genericConfig.targeting?.adFormats || [];
-                  const hasPixel = !!market.pixel;
-                  const hasCatalog = !!market.catalog;
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Step 3: Strategy Configuration</CardTitle>
+                <CardDescription>Choose your campaign strategy approach</CardDescription>
+              </div>
+              {currentStep > 3 && (
+                <Button variant="ghost" size="sm" onClick={() => setCurrentStep(3)}>
+                  Edit
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          {currentStep === 3 ? (
+            <CardContent className="space-y-6">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="strategy">Strategy Type</Label>
+                  <Select 
+                    value={genericConfig.strategy || "auto-detect"}
+                    onValueChange={(value: any) => {
+                      setGenericConfig({ ...genericConfig, strategy: value });
+                      ensureDraft();
+                    }}
+                  >
+                    <SelectTrigger id="strategy">
+                      <SelectValue placeholder="Select strategy" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="auto-detect">Auto-Detect (Recommended)</SelectItem>
+                      <SelectItem value="full-funnel">Full-Funnel</SelectItem>
+                      <SelectItem value="manual">Manual</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-sm text-muted-foreground">
+                    {genericConfig.strategy === "auto-detect" && "Automatically detects the best strategy based on your targeting and platform configuration"}
+                    {genericConfig.strategy === "full-funnel" && "Runs campaigns across all funnel stages (Awareness → Consideration → Conversion → Loyalty)"}
+                    {genericConfig.strategy === "manual" && "Create custom campaigns with your own configuration"}
+                  </p>
+                </div>
 
-                  const detectedFocus = determineStrategyFocus({
-                    adFormats,
-                    hasPixel,
-                    hasCatalog,
-                  });
+                {genericConfig.strategy !== "auto-detect" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="focus">Strategy Focus</Label>
+                    <Select 
+                      value={genericConfig.strategyFocus || "conversions"}
+                      onValueChange={(value: any) => {
+                        setGenericConfig({ ...genericConfig, strategyFocus: value });
+                        ensureDraft();
+                      }}
+                    >
+                      <SelectTrigger id="focus">
+                        <SelectValue placeholder="Select focus" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="purchase">Purchase</SelectItem>
+                        <SelectItem value="leads">Leads</SelectItem>
+                        <SelectItem value="app-installs">App Installs</SelectItem>
+                        <SelectItem value="conversions">Conversions</SelectItem>
+                        <SelectItem value="brand-awareness">Brand Awareness</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
 
-                  const phases = generateAutoDetectPhases(
-                    adFormats,
-                    hasPixel,
-                    hasCatalog,
-                    startDate,
-                    endDate
-                  );
-                  return {
-                    ...market,
-                    strategyFocus: detectedFocus || "conversions",
-                  phases: phases.map(p => ({
-                    ...p,
-                    id: `phase-${market.id}-${p.id}`,
-                  }))
-                  };
-                })
-              }));
-              setPlatformsWithMarkets(updatedPlatforms);
-            } else if (genericConfig.strategy === "full-funnel" && genericConfig.strategyFocus && genericConfig.strategyFocus !== "auto") {
-              // Full-funnel: Apply the global funnel phases to all markets
-              const phases = getDefaultPhases(genericConfig.strategyFocus, startDate, endDate);
-              const updatedPlatforms = platformsWithMarkets.map(platform => ({
-                ...platform,
-                markets: platform.markets.map(market => ({
-                  ...market,
-                phases: phases.map(p => ({
-                  ...p,
-                  id: `phase-${market.id}-${p.id}`,
-                }))
-                }))
-              }));
-              setPlatformsWithMarkets(updatedPlatforms);
-            } else if (genericConfig.strategy === "manual") {
-              // Manual: Create empty phase structure for user to fill
-              const updatedPlatforms = platformsWithMarkets.map(platform => ({
-                ...platform,
-                markets: platform.markets.map(market => ({
-                  ...market,
-                  phases: [{
-                    id: `phase-${market.id}-${Date.now()}`,
-                    name: "Campaign 1",
-                    startDate: startDate,
-                    endDate: endDate,
-                    budgetPercentage: 100,
-                  }]
-                }))
-              }));
-              setPlatformsWithMarkets(updatedPlatforms);
-            }
-            // Skip step 4 (Platform Customization) - now handled in step 2
-            saveCampaignDraft().then(() => setCurrentStep(5));
-          }}
-          onBack={() => setCurrentStep(2)}
-          isTargetingComplete={isTargetingComplete()}
-          platformName={(platformsWithMarkets.find(p => p.id !== "")?.name) || platformsWithMarkets[0]?.name || "Facebook (Meta)"}
-        />
+              <div className="flex justify-between pt-4">
+                <Button variant="outline" onClick={() => setCurrentStep(2)}>
+                  Back
+                </Button>
+                <Button 
+                  onClick={async () => {
+                    // Generate phases per platform/market based on strategy type
+                    if (genericConfig.strategy === "auto-detect") {
+                      const updatedPlatforms = platformsWithMarkets.map(platform => ({
+                        ...platform,
+                        markets: platform.markets.map(market => {
+                          const adFormats = market.adFormats || genericConfig.targeting?.adFormats || [];
+                          const hasPixel = !!market.pixel;
+                          const hasCatalog = !!market.catalog;
+
+                          const detectedFocus = determineStrategyFocus({
+                            adFormats,
+                            hasPixel,
+                            hasCatalog,
+                          });
+
+                          const phases = generateAutoDetectPhases(
+                            adFormats,
+                            hasPixel,
+                            hasCatalog,
+                            startDate,
+                            endDate
+                          );
+                          return {
+                            ...market,
+                            strategyFocus: detectedFocus || "conversions",
+                            phases: phases.map(p => ({
+                              ...p,
+                              id: `phase-${market.id}-${p.id}`,
+                            }))
+                          };
+                        })
+                      }));
+                      setPlatformsWithMarkets(updatedPlatforms);
+                    } else if (genericConfig.strategy === "full-funnel" && genericConfig.strategyFocus && genericConfig.strategyFocus !== "auto") {
+                      const phases = getDefaultPhases(genericConfig.strategyFocus, startDate, endDate);
+                      const updatedPlatforms = platformsWithMarkets.map(platform => ({
+                        ...platform,
+                        markets: platform.markets.map(market => ({
+                          ...market,
+                          phases: phases.map(p => ({
+                            ...p,
+                            id: `phase-${market.id}-${p.id}`,
+                          }))
+                        }))
+                      }));
+                      setPlatformsWithMarkets(updatedPlatforms);
+                    } else if (genericConfig.strategy === "manual") {
+                      const updatedPlatforms = platformsWithMarkets.map(platform => ({
+                        ...platform,
+                        markets: platform.markets.map(market => ({
+                          ...market,
+                          phases: [{
+                            id: `phase-${market.id}-${Date.now()}`,
+                            name: "Campaign 1",
+                            startDate: startDate,
+                            endDate: endDate,
+                            budgetPercentage: 100,
+                          }]
+                        }))
+                      }));
+                      setPlatformsWithMarkets(updatedPlatforms);
+                    }
+                    await ensureDraft();
+                    setCurrentStep(4);
+                  }}
+                  disabled={!genericConfig.strategy || (genericConfig.strategy !== "auto-detect" && !genericConfig.strategyFocus)}
+                >
+                  Next: Forecast & Save
+                </Button>
+              </div>
+            </CardContent>
+          ) : (
+            <CardContent className="py-4">
+              <div className="text-sm text-muted-foreground space-y-1">
+                <div className="flex justify-between">
+                  <span>Strategy:</span>
+                  <span className="font-medium text-foreground capitalize">{genericConfig.strategy?.replace('-', ' ')}</span>
+                </div>
+                {genericConfig.strategy !== "auto-detect" && (
+                  <div className="flex justify-between">
+                    <span>Focus:</span>
+                    <span className="font-medium text-foreground capitalize">{genericConfig.strategyFocus?.replace('-', ' ')}</span>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          )}
+        </Card>
       )}
 
-      {/* Step 4: Platform Customization - REMOVED, now integrated in Step 2 */}
-
-      {/* Step 5: Campaign Forecast */}
-      {currentStep >= 5 && currentStep === 5 && (
+      {/* Step 4: Campaign Forecast */}
+      {currentStep === 4 && (
         <CampaignForecast
           platforms={platformsWithMarkets}
           totalBudget={parseFloat(totalBudget) || 0}
