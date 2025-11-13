@@ -29,6 +29,8 @@ export interface Market {
     facebook?: string[];
     instagram?: string[];
     audience_network?: string[];
+    messenger?: string[];
+    threads?: string[];
   };
   detailedTargeting?: Array<{ id: string; type: string; name?: string }>;
 }
@@ -58,6 +60,8 @@ export interface Phase {
     facebook?: string[];
     instagram?: string[];
     audience_network?: string[];
+    messenger?: string[];
+    threads?: string[];
   };
   countries?: string[];
   gender?: string;

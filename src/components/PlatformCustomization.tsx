@@ -232,7 +232,7 @@ export function PlatformCustomization({
     );
   };
 
-// Auto-generate market phases for Auto-Detect when entering customization
+// Auto-regenerate market phases when targeting/config changes in Step 2
 useEffect(() => {
   if (genericConfig.strategy !== "auto-detect") return;
   if (!startDate || !endDate) return;
@@ -240,14 +240,13 @@ useEffect(() => {
   let changed = false;
   const updated = platforms.map((platform) => {
     const updatedMarkets = platform.markets.map((market) => {
-      const hasPhases = Array.isArray(market.phases) && market.phases.length > 0;
+      // Always use the latest ad formats from genericConfig if market doesn't override
       const adFormats = market.adFormats || genericConfig.targeting?.adFormats || [];
       const hasPixel = !!market.pixel;
       const hasCatalog = !!market.catalog;
 
-      if (hasPhases || (!adFormats.length && !hasPixel && !hasCatalog)) {
-        return market;
-      }
+      // Skip if no configuration to detect from
+      if (!adFormats.length && !hasPixel && !hasCatalog) return market;
 
       const detectedFocus = determineStrategyFocus({
         adFormats,
@@ -255,7 +254,7 @@ useEffect(() => {
         hasCatalog,
       });
 
-      const phases = generateAutoDetectPhases(
+      const newPhases = generateAutoDetectPhases(
         adFormats,
         hasPixel,
         hasCatalog,
@@ -263,17 +262,35 @@ useEffect(() => {
         endDate
       );
 
-      if (!phases || phases.length === 0) return market;
-      changed = true;
+      if (!newPhases || newPhases.length === 0) return market;
 
-      return {
-        ...market,
-        strategyFocus: detectedFocus || "conversions",
-        phases: phases.map((p) => ({
-          ...p,
-          id: `phase-${market.id}-${p.id}`,
-        })),
-      };
+      // Check if phases need regeneration by comparing structure
+      const currentPhaseNames = (market.phases || []).map(p => p.name).sort().join(',');
+      const newPhaseNames = newPhases.map(p => p.name).sort().join(',');
+      
+      // Only regenerate if phase structure changed (different phase names)
+      if (currentPhaseNames !== newPhaseNames) {
+        changed = true;
+        return {
+          ...market,
+          strategyFocus: detectedFocus || "conversions",
+          phases: newPhases.map((p) => ({
+            ...p,
+            id: `phase-${market.id}-${p.id}`,
+          })),
+        };
+      }
+
+      // Update strategy focus even if phases didn't change
+      if (market.strategyFocus !== (detectedFocus || "conversions")) {
+        changed = true;
+        return {
+          ...market,
+          strategyFocus: detectedFocus || "conversions",
+        };
+      }
+
+      return market;
     });
     return { ...platform, markets: updatedMarkets };
   });
@@ -281,7 +298,7 @@ useEffect(() => {
   if (changed) {
     onPlatformsUpdate(updated);
   }
-}, [platforms, genericConfig.strategy, genericConfig.targeting?.adFormats, startDate, endDate, onPlatformsUpdate]);
+}, [platforms, genericConfig.strategy, genericConfig.targeting?.adFormats, genericConfig.strategyFocus, startDate, endDate, onPlatformsUpdate]);
 
 return (
   <Card>

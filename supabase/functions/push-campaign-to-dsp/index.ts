@@ -322,6 +322,12 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
           if (market.positions.audience_network && market.positions.audience_network.length > 0) {
             targeting.audience_network_positions = market.positions.audience_network;
           }
+          if (market.positions.messenger && market.positions.messenger.length > 0) {
+            targeting.messenger_positions = market.positions.messenger;
+          }
+          if (market.positions.threads && market.positions.threads.length > 0) {
+            targeting.threads_positions = market.positions.threads;
+          }
         }
         
         // Add detailed targeting (interests, behaviors)
