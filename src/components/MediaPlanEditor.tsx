@@ -745,11 +745,43 @@ export function MediaPlanEditor() {
                         <SelectItem value="app-installs">App Installs</SelectItem>
                         <SelectItem value="conversions">Conversions</SelectItem>
                         <SelectItem value="brand-awareness">Brand Awareness</SelectItem>
+                        <SelectItem value="engagement">Engagement</SelectItem>
+                        <SelectItem value="reach">Reach</SelectItem>
                       </SelectContent>
                     </Select>
+                    <p className="text-sm text-muted-foreground">
+                      Select the primary goal for your campaign
+                    </p>
                   </div>
                 )}
               </div>
+
+              {/* Show PhaseScheduler only if there's exactly 1 market across all platforms */}
+              {(() => {
+                const totalMarkets = platformsWithMarkets.reduce((sum, p) => sum + (p.enabled ? p.markets.length : 0), 0);
+                const singlePlatform = platformsWithMarkets.find(p => p.enabled && p.markets.length > 0);
+                const singleMarket = totalMarkets === 1 && singlePlatform ? singlePlatform.markets[0] : null;
+                
+                return totalMarkets === 1 && singleMarket ? (
+                  <div className="mt-6 pt-6 border-t">
+                    <PhaseScheduler
+                      phases={singleMarket.phases || []}
+                      onPhasesChange={(phases) => {
+                        setPlatformsWithMarkets(platformsWithMarkets.map(p => 
+                          p.id === singlePlatform?.id ? {
+                            ...p,
+                            markets: p.markets.map(m => m.id === singleMarket.id ? { ...m, phases } : m)
+                          } : p
+                        ));
+                      }}
+                      startDate={startDate}
+                      endDate={endDate}
+                      platformName={singlePlatform?.name || "Facebook (Meta)"}
+                      platformId={singlePlatform?.id}
+                    />
+                  </div>
+                ) : null;
+              })()}
 
               <div className="flex justify-between pt-4">
                 <Button variant="outline" onClick={() => setCurrentStep(2)}>
@@ -757,67 +789,72 @@ export function MediaPlanEditor() {
                 </Button>
                 <Button 
                   onClick={async () => {
-                    // Generate phases per platform/market based on strategy type
-                    if (genericConfig.strategy === "auto-detect") {
-                      const updatedPlatforms = platformsWithMarkets.map(platform => ({
-                        ...platform,
-                        markets: platform.markets.map(market => {
-                          const adFormats = market.adFormats || genericConfig.targeting?.adFormats || [];
-                          const hasPixel = !!market.pixel;
-                          const hasCatalog = !!market.catalog;
+                    // Generate phases per platform/market based on strategy type (only for multiple markets)
+                    const totalMarkets = platformsWithMarkets.reduce((sum, p) => sum + (p.enabled ? p.markets.length : 0), 0);
+                    
+                    // Skip auto-generation if there's only 1 market (phases are configured in PhaseScheduler above)
+                    if (totalMarkets > 1) {
+                      if (genericConfig.strategy === "auto-detect") {
+                        const updatedPlatforms = platformsWithMarkets.map(platform => ({
+                          ...platform,
+                          markets: platform.markets.map(market => {
+                            const adFormats = market.adFormats || genericConfig.targeting?.adFormats || [];
+                            const hasPixel = !!market.pixel;
+                            const hasCatalog = !!market.catalog;
 
-                          const detectedFocus = determineStrategyFocus({
-                            adFormats,
-                            hasPixel,
-                            hasCatalog,
-                          });
+                            const detectedFocus = determineStrategyFocus({
+                              adFormats,
+                              hasPixel,
+                              hasCatalog,
+                            });
 
-                          const phases = generateAutoDetectPhases(
-                            adFormats,
-                            hasPixel,
-                            hasCatalog,
-                            startDate,
-                            endDate
-                          );
-                          return {
+                            const phases = generateAutoDetectPhases(
+                              adFormats,
+                              hasPixel,
+                              hasCatalog,
+                              startDate,
+                              endDate
+                            );
+                            return {
+                              ...market,
+                              strategyFocus: detectedFocus || "conversions",
+                              phases: phases.map(p => ({
+                                ...p,
+                                id: `phase-${market.id}-${p.id}`,
+                              }))
+                            };
+                          })
+                        }));
+                        setPlatformsWithMarkets(updatedPlatforms);
+                      } else if (genericConfig.strategy === "full-funnel" && genericConfig.strategyFocus && genericConfig.strategyFocus !== "auto") {
+                        const phases = getDefaultPhases(genericConfig.strategyFocus, startDate, endDate);
+                        const updatedPlatforms = platformsWithMarkets.map(platform => ({
+                          ...platform,
+                          markets: platform.markets.map(market => ({
                             ...market,
-                            strategyFocus: detectedFocus || "conversions",
                             phases: phases.map(p => ({
                               ...p,
                               id: `phase-${market.id}-${p.id}`,
                             }))
-                          };
-                        })
-                      }));
-                      setPlatformsWithMarkets(updatedPlatforms);
-                    } else if (genericConfig.strategy === "full-funnel" && genericConfig.strategyFocus && genericConfig.strategyFocus !== "auto") {
-                      const phases = getDefaultPhases(genericConfig.strategyFocus, startDate, endDate);
-                      const updatedPlatforms = platformsWithMarkets.map(platform => ({
-                        ...platform,
-                        markets: platform.markets.map(market => ({
-                          ...market,
-                          phases: phases.map(p => ({
-                            ...p,
-                            id: `phase-${market.id}-${p.id}`,
                           }))
-                        }))
-                      }));
-                      setPlatformsWithMarkets(updatedPlatforms);
-                    } else if (genericConfig.strategy === "manual") {
-                      const updatedPlatforms = platformsWithMarkets.map(platform => ({
-                        ...platform,
-                        markets: platform.markets.map(market => ({
-                          ...market,
-                          phases: [{
-                            id: `phase-${market.id}-${Date.now()}`,
-                            name: "Campaign 1",
-                            startDate: startDate,
-                            endDate: endDate,
-                            budgetPercentage: 100,
-                          }]
-                        }))
-                      }));
-                      setPlatformsWithMarkets(updatedPlatforms);
+                        }));
+                        setPlatformsWithMarkets(updatedPlatforms);
+                      } else if (genericConfig.strategy === "manual") {
+                        const updatedPlatforms = platformsWithMarkets.map(platform => ({
+                          ...platform,
+                          markets: platform.markets.map(market => ({
+                            ...market,
+                            phases: [{
+                              id: `phase-${market.id}-${Date.now()}`,
+                              name: "Campaign 1",
+                              startDate: startDate,
+                              endDate: endDate,
+                              budgetPercentage: 100,
+                            }]
+                          }))
+                        }));
+                        setPlatformsWithMarkets(updatedPlatforms);
+                      }
                     }
                     await ensureDraft();
                     setCurrentStep(4);
