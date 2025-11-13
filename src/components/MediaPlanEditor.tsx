@@ -11,6 +11,7 @@ import { GenericConfig } from "./GenericStrategyConfig";
 import { PlatformMarketBudgetSelector } from "./PlatformMarketBudgetSelector";
 import { StrategyCampaignConfig } from "./StrategyCampaignConfig";
 import { CampaignForecast } from "./CampaignForecast";
+import { TargetingConfigComponent } from "./TargetingConfig";
 import { getDefaultPhases, generateAutoDetectPhases } from "@/utils/funnelPhases";
 import { Calendar, Download, Rocket, Loader2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
@@ -587,7 +588,7 @@ export function MediaPlanEditor() {
                 onClick={async () => { await ensureDraft(); setCurrentStep(2); }} 
                 disabled={!isActivationDetailsComplete()}
               >
-                Next: Strategy Configuration
+                Next: Strategy & Phasing
               </Button>
             </div>
           </CardContent>
@@ -613,7 +614,7 @@ export function MediaPlanEditor() {
         )}
       </Card>
 
-      {/* Step 2: Strategy & Campaign Configuration (Combined) */}
+      {/* Step 2: Strategy & Phasing */}
       {currentStep >= 2 && currentStep === 2 && (
         <StrategyCampaignConfig
           platforms={platformsWithMarkets}
@@ -621,7 +622,6 @@ export function MediaPlanEditor() {
           onPlatformsUpdate={setPlatformsWithMarkets}
           onGenericConfigUpdate={setGenericConfig}
           onNext={async () => {
-            // Save draft before showing forecast
             await saveCampaignDraft();
             setCurrentStep(3);
           }}
@@ -633,8 +633,42 @@ export function MediaPlanEditor() {
         />
       )}
 
-      {/* Step 3: Campaign Forecast */}
+      {/* Step 3: Targeting Configuration */}
       {currentStep >= 3 && currentStep === 3 && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Step 3: Targeting Configuration</CardTitle>
+                <CardDescription>Define audience targeting parameters</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <TargetingConfigComponent
+              targeting={genericConfig.targeting || {}}
+              onUpdate={(targeting) => setGenericConfig({ ...genericConfig, targeting })}
+              platformName="Generic"
+              showAdFormats={false}
+            />
+            
+            <div className="flex justify-between pt-4">
+              <Button variant="outline" onClick={() => setCurrentStep(2)}>
+                Back to Strategy
+              </Button>
+              <Button onClick={async () => {
+                await saveCampaignDraft();
+                setCurrentStep(4);
+              }}>
+                Next: Campaign Forecast
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Step 4: Campaign Forecast */}
+      {currentStep >= 4 && currentStep === 4 && (
         <CampaignForecast
           platforms={platformsWithMarkets}
           totalBudget={parseFloat(totalBudget) || 0}
@@ -642,7 +676,7 @@ export function MediaPlanEditor() {
           startDate={startDate}
           endDate={endDate}
           campaignId={savedCampaignId || undefined}
-          onBack={() => setCurrentStep(2)}
+          onBack={() => setCurrentStep(3)}
           onFinalize={handleLaunch}
         />
       )}

@@ -13,7 +13,7 @@ import { determineStrategyFocus } from "@/utils/strategyFocusMapping";
 import { generateAutoDetectPhases } from "@/utils/funnelPhases";
 import { CampaignPublisherConfig } from "./CampaignPublisherConfig";
 import { getObjectiveFromPhaseName } from "@/utils/phaseObjectiveMapping";
-import { TargetingConfigComponent } from "./TargetingConfig";
+import { AdFormatSelector } from "./AdFormatSelector";
 
 interface StrategyCampaignConfigProps {
   platforms: PlatformWithMarkets[];
@@ -131,29 +131,75 @@ export function StrategyCampaignConfig({
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>Step 2: Strategy & Campaign Configuration</CardTitle>
-            <CardDescription>Define strategy, targeting, phasing, and campaign details</CardDescription>
+            <CardTitle>Step 2: Strategy & Phasing</CardTitle>
+            <CardDescription>Define campaign strategy and configure phasing</CardDescription>
           </div>
           <div className="flex items-center gap-2">
             {isStrategyComplete() && <Badge variant="outline" className="bg-green-50"><CheckCircle2 className="w-3 h-3 mr-1" />Strategy</Badge>}
-            {isTargetingComplete() && <Badge variant="outline" className="bg-green-50"><CheckCircle2 className="w-3 h-3 mr-1" />Targeting</Badge>}
+            {isTargetingComplete() && <Badge variant="outline" className="bg-green-50"><CheckCircle2 className="w-3 h-3 mr-1" />Ad Formats</Badge>}
             {isCustomizationComplete() && <Badge variant="outline" className="bg-green-50"><CheckCircle2 className="w-3 h-3 mr-1" />Phasing</Badge>}
           </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Strategy & Targeting - Top Level */}
+        {/* Strategy Configuration - Top Level */}
         <Card>
           <CardHeader>
-            <CardTitle>Strategy & Targeting</CardTitle>
-            <CardDescription>Configure campaign strategy and targeting parameters</CardDescription>
+            <CardTitle>Campaign Strategy</CardTitle>
+            <CardDescription>Configure strategy approach and ad formats</CardDescription>
           </CardHeader>
-          <CardContent>
-            <TargetingConfigComponent
-              targeting={genericConfig.targeting || {}}
-              onUpdate={(targeting) => onGenericConfigUpdate({ ...genericConfig, targeting })}
-              platformName="Generic"
-            />
+          <CardContent className="space-y-4">
+            {/* Strategy */}
+            <div className="space-y-2">
+              <Label>Strategy Approach</Label>
+              <Select
+                value={genericConfig.strategy || "auto-detect"}
+                onValueChange={(value) => onGenericConfigUpdate({ ...genericConfig, strategy: value as any })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select strategy" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto-detect">Auto-Detect (Recommended)</SelectItem>
+                  <SelectItem value="manual">Manual Configuration</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Strategy Focus */}
+            <div className="space-y-2">
+              <Label>Strategy Focus</Label>
+              <Select
+                value={genericConfig.strategyFocus || "auto"}
+                onValueChange={(value) => onGenericConfigUpdate({ ...genericConfig, strategyFocus: value as any })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select focus" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">Auto-Detect</SelectItem>
+                  <SelectItem value="purchase">Purchase</SelectItem>
+                  <SelectItem value="leads">Lead Generation</SelectItem>
+                  <SelectItem value="app-installs">App Installs</SelectItem>
+                  <SelectItem value="conversions">Conversions</SelectItem>
+                  <SelectItem value="brand-awareness">Brand Awareness</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Ad Formats */}
+            <div className="space-y-2">
+              <Label>Ad Formats</Label>
+              <p className="text-xs text-muted-foreground">Select ad formats to enable phase generation</p>
+              <AdFormatSelector
+                platformName="Generic"
+                selectedFormats={genericConfig.targeting?.adFormats || []}
+                onFormatsChange={(formats) => onGenericConfigUpdate({ 
+                  ...genericConfig, 
+                  targeting: { ...genericConfig.targeting, adFormats: formats } 
+                })}
+              />
+            </div>
           </CardContent>
         </Card>
 
@@ -443,7 +489,7 @@ export function StrategyCampaignConfig({
             onClick={onNext}
             disabled={!canProceed}
           >
-            Next: Campaign Forecast
+            Next: Targeting Configuration
           </Button>
         </div>
       </CardContent>
