@@ -845,6 +845,8 @@ export function MediaPlanEditor() {
           startDate={startDate}
           endDate={endDate}
           showOnlyTargeting
+          hasPixel={platformsWithMarkets.some(p => p.markets.some(m => !!m.pixel || !!m.conversionEvent))}
+          hasCatalog={platformsWithMarkets.some(p => p.markets.some(m => !!m.catalog || !!m.productSet))}
           onNext={() => {
             // Generate phases per platform/market based on strategy type
             if (genericConfig.strategy === "auto-detect") {

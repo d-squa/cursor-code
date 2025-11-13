@@ -822,7 +822,11 @@ export function PlatformMarketBudgetSelector({
                                   <Label className="text-xs">Catalog</Label>
                                   <Select
                                     value={market.catalog || ""}
-                                    onValueChange={(value) => updateMarketField(platformIndex, market.id, 'catalog', value)}
+                                    onValueChange={(value) => {
+                                      updateMarketField(platformIndex, market.id, 'catalog', value);
+                                      // Reset product set when catalog changes
+                                      updateMarketField(platformIndex, market.id, 'productSet', "");
+                                    }}
                                   >
                                     <SelectTrigger className="h-7 text-xs">
                                       <SelectValue placeholder={loadingCatalogs ? "Loading..." : "Select Catalog"} />

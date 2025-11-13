@@ -217,56 +217,86 @@ serve(async (req) => {
       const allCatalogs: any[] = [];
       const allProductSets: any[] = [];
 
-      // Fetch all accessible businesses first
-      const businessesResp = await fetch(
-        `https://graph.facebook.com/v21.0/me/businesses?fields=id,name&access_token=${accessToken}`
-      );
-      const businessesData = await businessesResp.json();
-      
-      console.log(`Found ${businessesData?.data?.length || 0} accessible businesses`);
+      // Prefer fetching from the selected Business Manager if available
+      if (businessManagerId) {
+        console.log(`Fetching catalogs for business manager ${businessManagerId}`);
+        try {
+          // Try owned catalogs
+          for (const edge of ["owned_product_catalogs", "client_product_catalogs", "product_catalogs"]) {
+            try {
+              const url = `https://graph.facebook.com/v21.0/${businessManagerId}/${edge}?fields=id,name&limit=100&access_token=${accessToken}`;
+              const resp = await fetch(url);
+              const json = await resp.json();
+              if (json?.error) {
+                console.error(`Error fetching ${edge} for BM ${businessManagerId}:`, json.error);
+              }
+              if (Array.isArray(json?.data)) {
+                console.log(`Found ${json.data.length} catalogs via ${edge}`);
+                json.data.forEach((catalog: any) => {
+                  if (!allCatalogs.find(c => c.catalog_id === catalog.id)) {
+                    allCatalogs.push({
+                      user_id: user.id,
+                      catalog_id: catalog.id,
+                      catalog_name: catalog.name,
+                    });
+                  }
+                });
+              }
+            } catch (e) {
+              console.error(`Exception fetching ${edge} for BM ${businessManagerId}:`, e);
+            }
+          }
+        } catch (e) {
+          console.error("Failed BM-specific catalog fetch:", e);
+        }
+      }
 
-      // Fetch catalogs from all accessible businesses using the general product_catalogs endpoint
-      if (Array.isArray(businessesData?.data) && businessesData.data.length > 0) {
-        for (const biz of businessesData.data) {
-          console.log(`Fetching catalogs for business ${biz.id} (${biz.name})`);
-          
-          try {
-            // Use the general product_catalogs endpoint which includes all accessible catalogs
-            const catalogsResp = await fetch(
-              `https://graph.facebook.com/v21.0/${biz.id}/product_catalogs?fields=id,name&limit=100&access_token=${accessToken}`
-            );
-            const catalogsData = await catalogsResp.json();
+      // Fallback: Fetch all accessible businesses and their catalogs
+      if (allCatalogs.length === 0) {
+        const businessesResp = await fetch(
+          `https://graph.facebook.com/v21.0/me/businesses?fields=id,name&access_token=${accessToken}`
+        );
+        const businessesData = await businessesResp.json();
+        console.log(`Found ${businessesData?.data?.length || 0} accessible businesses`);
 
-            if (catalogsData?.error) {
-              console.error(`Error fetching catalogs for business ${biz.id}:`, catalogsData.error);
-            } else if (Array.isArray(catalogsData?.data)) {
-              console.log(`Found ${catalogsData.data.length} catalogs for business ${biz.id}`);
-              catalogsData.data.forEach((catalog: any) => {
-                if (!allCatalogs.find(c => c.catalog_id === catalog.id)) {
-                  allCatalogs.push({
-                    user_id: user.id,
-                    catalog_id: catalog.id,
-                    catalog_name: catalog.name,
+        if (Array.isArray(businessesData?.data) && businessesData.data.length > 0) {
+          for (const biz of businessesData.data) {
+            console.log(`Fetching catalogs for business ${biz.id} (${biz.name})`);
+            for (const edge of ["owned_product_catalogs", "client_product_catalogs", "product_catalogs"]) {
+              try {
+                const catalogsResp = await fetch(
+                  `https://graph.facebook.com/v21.0/${biz.id}/${edge}?fields=id,name&limit=100&access_token=${accessToken}`
+                );
+                const catalogsData = await catalogsResp.json();
+                if (catalogsData?.error) {
+                  console.error(`Error fetching ${edge} for business ${biz.id}:`, catalogsData.error);
+                } else if (Array.isArray(catalogsData?.data)) {
+                  console.log(`Found ${catalogsData.data.length} catalogs via ${edge} for business ${biz.id}`);
+                  catalogsData.data.forEach((catalog: any) => {
+                    if (!allCatalogs.find(c => c.catalog_id === catalog.id)) {
+                      allCatalogs.push({
+                        user_id: user.id,
+                        catalog_id: catalog.id,
+                        catalog_name: catalog.name,
+                      });
+                    }
                   });
                 }
-              });
+              } catch (err) {
+                console.error(`Error fetching ${edge} for business ${biz.id}:`, err);
+              }
             }
-          } catch (err) {
-            console.error(`Error fetching catalogs for business ${biz.id}:`, err);
           }
         }
       }
 
-      // Also try fetching catalogs from ad accounts if no catalogs found
+      // Also try fetching catalogs from ad accounts if still no catalogs found
       if (allCatalogs.length === 0) {
         console.log('No catalogs found from businesses, trying user ad accounts...');
-        
-        // Fetch the ad accounts we just synced for this user
         const { data: userAdAccounts } = await supabase
           .from("meta_ad_accounts")
           .select("account_id")
           .eq("user_id", user.id);
-        
         if (userAdAccounts && userAdAccounts.length > 0) {
           for (const adAccount of userAdAccounts) {
             try {
@@ -274,7 +304,6 @@ serve(async (req) => {
                 `https://graph.facebook.com/v21.0/${adAccount.account_id}/product_catalogs?fields=id,name&limit=100&access_token=${accessToken}`
               );
               const catalogsData = await catalogsResp.json();
-
               if (Array.isArray(catalogsData?.data)) {
                 console.log(`Found ${catalogsData.data.length} catalogs for ad account ${adAccount.account_id}`);
                 catalogsData.data.forEach((catalog: any) => {
@@ -303,7 +332,6 @@ serve(async (req) => {
               `https://graph.facebook.com/v21.0/${catalog.catalog_id}/product_sets?fields=id,name&limit=100&access_token=${accessToken}`
             );
             const productSetsData = await productSetsResponse.json();
-
             if (Array.isArray(productSetsData?.data)) {
               console.log(`Found ${productSetsData.data.length} product sets for catalog ${catalog.catalog_id}`);
               productSetsData.data.forEach((productSet: any) => {
@@ -324,7 +352,6 @@ serve(async (req) => {
       if (allCatalogs.length > 0) {
         await supabase.from("meta_catalogs").delete().eq("user_id", user.id);
         const { error: catalogsError } = await supabase.from("meta_catalogs").insert(allCatalogs);
-        
         if (!catalogsError) {
           syncResults.catalogs = allCatalogs.length;
           console.log(`Synced ${syncResults.catalogs} catalogs`);
@@ -334,7 +361,6 @@ serve(async (req) => {
       if (allProductSets.length > 0) {
         await supabase.from("meta_product_sets").delete().eq("user_id", user.id);
         const { error: productSetsError } = await supabase.from("meta_product_sets").insert(allProductSets);
-        
         if (!productSetsError) {
           syncResults.productSets = allProductSets.length;
           console.log(`Synced ${syncResults.productSets} product sets`);
