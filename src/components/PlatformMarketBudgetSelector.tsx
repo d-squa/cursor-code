@@ -57,6 +57,7 @@ export function PlatformMarketBudgetSelector({
   const [conversionEvents, setConversionEvents] = useState<Array<{ pixelId: string; id: string; name: string; type: string }>>([]);
   const [loadingConversionEvents, setLoadingConversionEvents] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [adAccountDefaults, setAdAccountDefaults] = useState<Record<string, any>>({});
   
   const totalAllocated = platforms.reduce((sum, p) => sum + p.budgetPercentage, 0);
   const usedPlatformIds = platforms.map(p => p.id).filter(id => id !== "");
@@ -72,7 +73,7 @@ export function PlatformMarketBudgetSelector({
     setLoadingConversionEvents(true);
     
     try {
-      // Fetch ad accounts from database
+      // Fetch ad accounts from database with their defaults
       const { data: adAccountsData, error: adAccountsError } = await supabase
         .from("meta_ad_accounts" as any)
         .select("*")
@@ -83,6 +84,20 @@ export function PlatformMarketBudgetSelector({
           id: acc.account_id,
           name: acc.account_name,
         })));
+        
+        // Store defaults for quick access
+        const defaults: Record<string, any> = {};
+        adAccountsData.forEach((acc: any) => {
+          defaults[acc.account_id] = {
+            pixelId: acc.default_pixel_id,
+            pageId: acc.default_page_id,
+            instagramActorId: acc.default_instagram_account_id,
+            catalog: acc.default_catalog_id,
+            productSet: acc.default_product_set_id,
+            conversionEvent: acc.default_conversion_event,
+          };
+        });
+        setAdAccountDefaults(defaults);
       }
 
       // Fetch pages from database
@@ -660,6 +675,20 @@ export function PlatformMarketBudgetSelector({
                                       const account = adAccounts.find(a => a.id === value);
                                       updateMarketField(platformIndex, market.id, 'adAccountId', value);
                                       updateMarketField(platformIndex, market.id, 'accountName', account?.name || "");
+                                      
+                                      // Load defaults for this ad account
+                                      const defaults = adAccountDefaults[value];
+                                      if (defaults) {
+                                        if (defaults.pixelId) updateMarketField(platformIndex, market.id, 'pixel', defaults.pixelId);
+                                        if (defaults.pageId) {
+                                          updateMarketField(platformIndex, market.id, 'pageId', defaults.pageId);
+                                          updateMarketField(platformIndex, market.id, 'page', defaults.pageId);
+                                        }
+                                        if (defaults.instagramActorId) updateMarketField(platformIndex, market.id, 'instagramActorId', defaults.instagramActorId);
+                                        if (defaults.catalog) updateMarketField(platformIndex, market.id, 'catalog', defaults.catalog);
+                                        if (defaults.productSet) updateMarketField(platformIndex, market.id, 'productSet', defaults.productSet);
+                                        if (defaults.conversionEvent) updateMarketField(platformIndex, market.id, 'conversionEvent', defaults.conversionEvent);
+                                      }
                                     }}
                                   >
                                     <SelectTrigger className="h-7 text-xs">

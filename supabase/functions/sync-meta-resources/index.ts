@@ -225,40 +225,23 @@ serve(async (req) => {
       
       console.log(`Found ${businessesData?.data?.length || 0} accessible businesses`);
 
-      // Fetch catalogs from all accessible businesses
+      // Fetch catalogs from all accessible businesses using the general product_catalogs endpoint
       if (Array.isArray(businessesData?.data) && businessesData.data.length > 0) {
         for (const biz of businessesData.data) {
           console.log(`Fetching catalogs for business ${biz.id} (${biz.name})`);
           
           try {
-            // Try owned_product_catalogs
-            const ownedCatalogsResp = await fetch(
-              `https://graph.facebook.com/v21.0/${biz.id}/owned_product_catalogs?fields=id,name&limit=100&access_token=${accessToken}`
+            // Use the general product_catalogs endpoint which includes all accessible catalogs
+            const catalogsResp = await fetch(
+              `https://graph.facebook.com/v21.0/${biz.id}/product_catalogs?fields=id,name&limit=100&access_token=${accessToken}`
             );
-            const ownedCatalogsData = await ownedCatalogsResp.json();
+            const catalogsData = await catalogsResp.json();
 
-            if (Array.isArray(ownedCatalogsData?.data)) {
-              console.log(`Found ${ownedCatalogsData.data.length} owned catalogs for business ${biz.id}`);
-              ownedCatalogsData.data.forEach((catalog: any) => {
-                if (!allCatalogs.find(c => c.catalog_id === catalog.id)) {
-                  allCatalogs.push({
-                    user_id: user.id,
-                    catalog_id: catalog.id,
-                    catalog_name: catalog.name,
-                  });
-                }
-              });
-            }
-
-            // Try client_product_catalogs as well
-            const clientCatalogsResp = await fetch(
-              `https://graph.facebook.com/v21.0/${biz.id}/client_product_catalogs?fields=id,name&limit=100&access_token=${accessToken}`
-            );
-            const clientCatalogsData = await clientCatalogsResp.json();
-
-            if (Array.isArray(clientCatalogsData?.data)) {
-              console.log(`Found ${clientCatalogsData.data.length} client catalogs for business ${biz.id}`);
-              clientCatalogsData.data.forEach((catalog: any) => {
+            if (catalogsData?.error) {
+              console.error(`Error fetching catalogs for business ${biz.id}:`, catalogsData.error);
+            } else if (Array.isArray(catalogsData?.data)) {
+              console.log(`Found ${catalogsData.data.length} catalogs for business ${biz.id}`);
+              catalogsData.data.forEach((catalog: any) => {
                 if (!allCatalogs.find(c => c.catalog_id === catalog.id)) {
                   allCatalogs.push({
                     user_id: user.id,
@@ -270,6 +253,43 @@ serve(async (req) => {
             }
           } catch (err) {
             console.error(`Error fetching catalogs for business ${biz.id}:`, err);
+          }
+        }
+      }
+
+      // Also try fetching catalogs from ad accounts if no catalogs found
+      if (allCatalogs.length === 0) {
+        console.log('No catalogs found from businesses, trying user ad accounts...');
+        
+        // Fetch the ad accounts we just synced for this user
+        const { data: userAdAccounts } = await supabase
+          .from("meta_ad_accounts")
+          .select("account_id")
+          .eq("user_id", user.id);
+        
+        if (userAdAccounts && userAdAccounts.length > 0) {
+          for (const adAccount of userAdAccounts) {
+            try {
+              const catalogsResp = await fetch(
+                `https://graph.facebook.com/v21.0/${adAccount.account_id}/product_catalogs?fields=id,name&limit=100&access_token=${accessToken}`
+              );
+              const catalogsData = await catalogsResp.json();
+
+              if (Array.isArray(catalogsData?.data)) {
+                console.log(`Found ${catalogsData.data.length} catalogs for ad account ${adAccount.account_id}`);
+                catalogsData.data.forEach((catalog: any) => {
+                  if (!allCatalogs.find(c => c.catalog_id === catalog.id)) {
+                    allCatalogs.push({
+                      user_id: user.id,
+                      catalog_id: catalog.id,
+                      catalog_name: catalog.name,
+                    });
+                  }
+                });
+              }
+            } catch (err) {
+              console.error(`Error fetching catalogs for ad account ${adAccount.account_id}:`, err);
+            }
           }
         }
       }

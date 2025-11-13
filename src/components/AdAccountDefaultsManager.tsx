@@ -141,6 +141,22 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId, c
 
       if (unlinkError) throw unlinkError;
 
+      // Clear any defaults for this unlinked ad account
+      const { error: clearError } = await supabase
+        .from("meta_ad_accounts")
+        .update({
+          default_pixel_id: null,
+          default_page_id: null,
+          default_instagram_account_id: null,
+          default_catalog_id: null,
+          default_product_set_id: null,
+          default_conversion_event: null,
+        })
+        .eq("account_id", accountId)
+        .eq("user_id", userId);
+
+      if (clearError) console.error("Error clearing defaults:", clearError);
+
       toast.success("Ad account unlinked successfully");
       
       // Reload data
