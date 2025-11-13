@@ -12,7 +12,6 @@ import { PlatformMarketBudgetSelector } from "./PlatformMarketBudgetSelector";
 import { HierarchicalTimelineScheduler } from "./HierarchicalTimelineScheduler";
 import { GlobalFunnelPhasing } from "./GlobalFunnelPhasing";
 import { TargetingConfigComponent } from "./TargetingConfig";
-import { PlatformCustomization } from "./PlatformCustomization";
 import { CampaignForecast } from "./CampaignForecast";
 import { getDefaultPhases, generateAutoDetectPhases } from "@/utils/funnelPhases";
 import { Calendar, Download, Rocket, Loader2 } from "lucide-react";
@@ -913,7 +912,8 @@ export function MediaPlanEditor() {
               }));
               setPlatformsWithMarkets(updatedPlatforms);
             }
-            setCurrentStep(4);
+            // Skip step 4 (Platform Customization) - now handled in step 2
+            saveCampaignDraft().then(() => setCurrentStep(5));
           }}
           onBack={() => setCurrentStep(2)}
           isTargetingComplete={isTargetingComplete()}
@@ -921,22 +921,7 @@ export function MediaPlanEditor() {
         />
       )}
 
-      {/* Step 4: Platform Customization */}
-      {currentStep >= 4 && currentStep === 4 && (
-        <PlatformCustomization
-          platforms={platformsWithMarkets}
-          genericConfig={genericConfig}
-          onPlatformsUpdate={setPlatformsWithMarkets}
-          onNext={async () => {
-            // Save draft before showing forecast
-            await saveCampaignDraft();
-            setCurrentStep(5);
-          }}
-          onBack={() => setCurrentStep(3)}
-          startDate={startDate}
-          endDate={endDate}
-        />
-      )}
+      {/* Step 4: Platform Customization - REMOVED, now integrated in Step 2 */}
 
       {/* Step 5: Campaign Forecast */}
       {currentStep >= 5 && currentStep === 5 && (
@@ -947,7 +932,7 @@ export function MediaPlanEditor() {
           startDate={startDate}
           endDate={endDate}
           campaignId={savedCampaignId || undefined}
-          onBack={() => setCurrentStep(4)}
+          onBack={() => setCurrentStep(3)}
           onFinalize={handleLaunch}
         />
       )}

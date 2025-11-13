@@ -190,27 +190,22 @@ export function GenericStrategyConfig({
             
             {config.strategy === "auto-detect" && (
               <p className="text-sm text-muted-foreground">
-                Auto-detect strategy will automatically configure campaigns based on your selections.
+                Phases are auto-generated based on your targeting configuration. You can customize each phase below.
               </p>
             )}
 
-            {(startDate && endDate && (config.strategy === "full-funnel" || config.strategy === "manual")) ? (
+            {startDate && endDate ? (
               <PhaseScheduler
                 phases={config.phases || []}
                 onPhasesChange={(phases) => updateConfig("phases", phases)}
                 startDate={startDate}
                 endDate={endDate}
                 platformId="meta"
+                platformName={platformName || "Facebook (Meta)"}
               />
-            ) : config.strategy === "auto-detect" ? (
-              <p className="text-sm text-muted-foreground">
-                Auto-detect strategy does not require phase scheduling.
-              </p>
             ) : (
               <p className="text-sm text-muted-foreground">
-                {startDate && endDate
-                  ? "Phase scheduling is available for full-funnel and manual strategies."
-                  : "Set activation start and end dates to schedule phases."}
+                Set activation start and end dates to configure phases.
               </p>
             )}
 
@@ -276,15 +271,14 @@ export function GenericStrategyConfig({
               <CardDescription>Configure phase timing for your strategy</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-            {(config.strategy === "full-funnel" || config.strategy === "manual") && startDate && endDate ? (
+            {startDate && endDate ? (
               <PhaseScheduler
                 phases={config.phases || []}
                 onPhasesChange={(phases) => updateConfig("phases", phases)}
                 startDate={startDate}
                 endDate={endDate}
+                platformName={platformName || "Facebook (Meta)"}
               />
-            ) : config.strategy === "auto-detect" ? (
-              <p className="text-sm text-muted-foreground">Auto-detect strategy does not require phase scheduling.</p>
             ) : (
               <p className="text-sm text-muted-foreground">Set activation start and end dates to schedule phases.</p>
             )}
