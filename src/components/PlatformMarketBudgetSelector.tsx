@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, X, Copy, Loader2 } from "lucide-react";
 import { PlatformWithMarkets, Market } from "@/types/mediaplan";
 import { AdFormatSelector } from "./AdFormatSelector";
+import { PhaseScheduler } from "./PhaseScheduler";
 import { getTestPresets, getRFTestPreset } from "@/utils/testPresets";
 import { supabase } from "@/integrations/supabase/client";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -19,6 +20,10 @@ interface PlatformMarketBudgetSelectorProps {
   platforms: PlatformWithMarkets[];
   setPlatforms: (platforms: PlatformWithMarkets[]) => void;
   totalBudget: number;
+  startDate?: string;
+  endDate?: string;
+  genericConfig?: any;
+  setGenericConfig?: (config: any) => void;
   setStartDate?: (date: string) => void;
   setEndDate?: (date: string) => void;
   setTotalBudget?: (budget: string) => void;
@@ -37,6 +42,10 @@ export function PlatformMarketBudgetSelector({
   platforms, 
   setPlatforms,
   totalBudget,
+  startDate,
+  endDate,
+  genericConfig,
+  setGenericConfig,
   setStartDate,
   setEndDate,
   setTotalBudget
@@ -945,6 +954,20 @@ export function PlatformMarketBudgetSelector({
                                 className="w-full"
                               />
                             </div>
+
+                            {/* Phase Scheduler - Per Market */}
+                            {startDate && endDate && (
+                              <div className="mt-4 pt-4 border-t">
+                                <PhaseScheduler
+                                  phases={market.phases || []}
+                                  onPhasesChange={(phases) => updateMarketField(platformIndex, market.id, 'phases', phases)}
+                                  startDate={startDate}
+                                  endDate={endDate}
+                                  platformName={platform.name}
+                                  platformId={platform.id}
+                                />
+                              </div>
+                            )}
                           </div>
                         );
                       })}
