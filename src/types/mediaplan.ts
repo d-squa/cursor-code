@@ -11,6 +11,7 @@ export interface Market {
   pageId?: string; // Meta Page ID
   pixel?: string;
   catalog?: string;
+  productSet?: string; // Meta Product Set ID
   conversionEvent?: string; // Conversion event for conversion campaigns
   strategyFocus?: string;
   instagramActorId?: string;

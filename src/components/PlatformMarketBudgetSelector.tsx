@@ -637,7 +637,7 @@ export function PlatformMarketBudgetSelector({
                                     Ad Account {needsConversionEvent(market, platform.name) && <span className="text-destructive">*</span>}
                                   </Label>
                                   <Select
-                                    value={market.adAccountId || ""}
+                                    value={market.adAccountId || market.accountName || ""}
                                     onValueChange={(value) => {
                                       const account = adAccounts.find(a => a.id === value);
                                       updateMarketField(platformIndex, market.id, 'adAccountId', value);
@@ -654,45 +654,12 @@ export function PlatformMarketBudgetSelector({
                                         </div>
                                       ) : adAccounts.length === 0 ? (
                                         <div className="p-4 text-xs text-muted-foreground text-center">
-                                          No ad accounts found. Connect your Meta account first.
+                                          No ad accounts found. Click Refresh Meta Data.
                                         </div>
                                       ) : (
                                         adAccounts.map((account) => (
                                           <SelectItem key={account.id} value={account.id}>
                                             {account.name}
-                                          </SelectItem>
-                                        ))
-                                      )}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-
-                                <div className="space-y-1">
-                                  <Label className="text-xs">Facebook Page</Label>
-                                  <Select
-                                    value={market.pageId || ""}
-                                    onValueChange={(value) => {
-                                      const page = pages.find(p => p.id === value);
-                                      updateMarketField(platformIndex, market.id, 'pageId', value);
-                                      updateMarketField(platformIndex, market.id, 'page', page?.name || "");
-                                    }}
-                                  >
-                                    <SelectTrigger className="h-7 text-xs">
-                                      <SelectValue placeholder={loadingPages ? "Loading..." : "Select Facebook Page"} />
-                                    </SelectTrigger>
-                                    <SelectContent className="z-50 bg-background">
-                                      {loadingPages ? (
-                                        <div className="flex items-center justify-center p-4">
-                                          <Loader2 className="h-4 w-4 animate-spin" />
-                                        </div>
-                                      ) : pages.length === 0 ? (
-                                        <div className="p-4 text-xs text-muted-foreground text-center">
-                                          No pages found. Make sure you have admin access to Facebook pages.
-                                        </div>
-                                      ) : (
-                                        pages.map((page) => (
-                                          <SelectItem key={page.id} value={page.id}>
-                                            {page.name}
                                           </SelectItem>
                                         ))
                                       )}
@@ -733,61 +700,32 @@ export function PlatformMarketBudgetSelector({
                                   </Select>
                                 </div>
 
-                                {needsConversionEvent(market, platform.name) && market.pixel && (
-                                  <div className="space-y-1">
-                                    <Label className="text-xs">
-                                      Conversion Event <span className="text-destructive">*</span>
-                                    </Label>
-                                    <Select
-                                      value={market.conversionEvent || ""}
-                                      onValueChange={(value) => updateMarketField(platformIndex, market.id, 'conversionEvent', value)}
-                                    >
-                                      <SelectTrigger className="h-7 text-xs">
-                                        <SelectValue placeholder={loadingConversionEvents ? "Loading..." : "Select Event"} />
-                                      </SelectTrigger>
-                                      <SelectContent className="z-50 bg-background">
-                                        {loadingConversionEvents ? (
-                                          <div className="flex items-center justify-center p-4">
-                                            <Loader2 className="h-4 w-4 animate-spin" />
-                                          </div>
-                                        ) : getConversionEventsForPixel(market.pixel).length > 0 ? (
-                                          getConversionEventsForPixel(market.pixel).map((event) => (
-                                            <SelectItem key={event.id} value={event.id}>
-                                              {event.name}
-                                            </SelectItem>
-                                          ))
-                                        ) : (
-                                          <div className="p-4 text-xs text-muted-foreground text-center">
-                                            No events found. Click Refresh Meta Data.
-                                          </div>
-                                        )}
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-                                )}
-
                                 <div className="space-y-1">
-                                  <Label className="text-xs">Catalog</Label>
+                                  <Label className="text-xs">Facebook Page</Label>
                                   <Select
-                                    value={market.catalog || ""}
-                                    onValueChange={(value) => updateMarketField(platformIndex, market.id, 'catalog', value)}
+                                    value={market.page || market.pageId || ""}
+                                    onValueChange={(value) => {
+                                      const page = pages.find(p => p.id === value);
+                                      updateMarketField(platformIndex, market.id, 'pageId', value);
+                                      updateMarketField(platformIndex, market.id, 'page', value);
+                                    }}
                                   >
                                     <SelectTrigger className="h-7 text-xs">
-                                      <SelectValue placeholder={loadingCatalogs ? "Loading..." : "Select Catalog"} />
+                                      <SelectValue placeholder={loadingPages ? "Loading..." : "Select Facebook Page"} />
                                     </SelectTrigger>
                                     <SelectContent className="z-50 bg-background">
-                                      {loadingCatalogs ? (
+                                      {loadingPages ? (
                                         <div className="flex items-center justify-center p-4">
                                           <Loader2 className="h-4 w-4 animate-spin" />
                                         </div>
-                                      ) : catalogs.length === 0 ? (
+                                      ) : pages.length === 0 ? (
                                         <div className="p-4 text-xs text-muted-foreground text-center">
-                                          No catalogs found. Click Refresh Meta Data.
+                                          No pages found. Click Refresh Meta Data.
                                         </div>
                                       ) : (
-                                        catalogs.map((catalog) => (
-                                          <SelectItem key={catalog.id} value={catalog.id}>
-                                            {catalog.name}
+                                        pages.map((page) => (
+                                          <SelectItem key={page.id} value={page.id}>
+                                            {page.name}
                                           </SelectItem>
                                         ))
                                       )}
@@ -832,6 +770,93 @@ export function PlatformMarketBudgetSelector({
                                     </SelectContent>
                                   </Select>
                                 </div>
+
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Catalog</Label>
+                                  <Select
+                                    value={market.catalog || ""}
+                                    onValueChange={(value) => updateMarketField(platformIndex, market.id, 'catalog', value)}
+                                  >
+                                    <SelectTrigger className="h-7 text-xs">
+                                      <SelectValue placeholder={loadingCatalogs ? "Loading..." : "Select Catalog"} />
+                                    </SelectTrigger>
+                                    <SelectContent className="z-50 bg-background">
+                                      {loadingCatalogs ? (
+                                        <div className="flex items-center justify-center p-4">
+                                          <Loader2 className="h-4 w-4 animate-spin" />
+                                        </div>
+                                      ) : catalogs.length === 0 ? (
+                                        <div className="p-4 text-xs text-muted-foreground text-center">
+                                          No catalogs found. Click Refresh Meta Data.
+                                        </div>
+                                      ) : (
+                                        catalogs.map((catalog) => (
+                                          <SelectItem key={catalog.id} value={catalog.id}>
+                                            {catalog.name}
+                                          </SelectItem>
+                                        ))
+                                      )}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Product Set</Label>
+                                  <Select
+                                    value={market.productSet || ""}
+                                    onValueChange={(value) => updateMarketField(platformIndex, market.id, 'productSet', value)}
+                                  >
+                                    <SelectTrigger className="h-7 text-xs">
+                                      <SelectValue placeholder="Select Product Set" />
+                                    </SelectTrigger>
+                                    <SelectContent className="z-50 bg-background">
+                                      {catalogs.length === 0 ? (
+                                        <div className="p-4 text-xs text-muted-foreground text-center">
+                                          No product sets found. Click Refresh Meta Data.
+                                        </div>
+                                      ) : (
+                                        catalogs.map((catalog) => (
+                                          <SelectItem key={catalog.id} value={catalog.id}>
+                                            {catalog.name}
+                                          </SelectItem>
+                                        ))
+                                      )}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+
+                                {needsConversionEvent(market, platform.name) && market.pixel && (
+                                  <div className="space-y-1 col-span-2">
+                                    <Label className="text-xs">
+                                      Conversion Event <span className="text-destructive">*</span>
+                                    </Label>
+                                    <Select
+                                      value={market.conversionEvent || ""}
+                                      onValueChange={(value) => updateMarketField(platformIndex, market.id, 'conversionEvent', value)}
+                                    >
+                                      <SelectTrigger className="h-7 text-xs">
+                                        <SelectValue placeholder={loadingConversionEvents ? "Loading..." : "Select Event"} />
+                                      </SelectTrigger>
+                                      <SelectContent className="z-50 bg-background">
+                                        {loadingConversionEvents ? (
+                                          <div className="flex items-center justify-center p-4">
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                          </div>
+                                        ) : getConversionEventsForPixel(market.pixel).length > 0 ? (
+                                          getConversionEventsForPixel(market.pixel).map((event) => (
+                                            <SelectItem key={event.id} value={event.id}>
+                                              {event.name}
+                                            </SelectItem>
+                                          ))
+                                        ) : (
+                                          <div className="p-4 text-xs text-muted-foreground text-center">
+                                            No events found. Click Refresh Meta Data.
+                                          </div>
+                                        )}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                )}
                               </div>
                             )}
 
