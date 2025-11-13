@@ -6,10 +6,16 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, X, GripVertical, Link2 } from "lucide-react";
+import { Plus, X, GripVertical, Link2, ChevronDown } from "lucide-react";
 import { Phase } from "./PlatformConfiguration";
 import { format, addDays, differenceInDays, parseISO } from "date-fns";
 import { platformAdFormats } from "@/utils/adFormats";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { CampaignPublisherConfig } from "./CampaignPublisherConfig";
+import { TargetingConfigComponent } from "./TargetingConfig";
+import { getOptimizationGoalForFocus } from "@/utils/strategyFocusMapping";
 
 interface PhaseSchedulerProps {
   phases: Phase[];
@@ -17,6 +23,7 @@ interface PhaseSchedulerProps {
   startDate: string;
   endDate: string;
   platformId?: string;
+  platformName: string;
 }
 
 interface DraggingState {
@@ -25,10 +32,45 @@ interface DraggingState {
   initialX: number;
 }
 
-export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate, platformId = "meta" }: PhaseSchedulerProps) {
+// Platform-specific objective mappings
+const platformObjectiveMapping: Record<string, Record<string, string[]>> = {
+  "Facebook (Meta)": {
+    "Awareness": ["Brand Awareness", "Reach"],
+    "Consideration": ["Traffic", "Engagement", "App Installs", "Video Views", "Lead Generation"],
+    "Conversion": ["Conversions", "Catalog Sales"],
+  },
+  "Instagram (Meta)": {
+    "Awareness": ["Brand Awareness", "Reach"],
+    "Consideration": ["Traffic", "Engagement", "Video Views"],
+    "Conversion": ["Conversions", "Shopping"],
+  },
+  "Google Ads": {
+    "Awareness": ["Display", "Video", "Discovery"],
+    "Consideration": ["Search", "Shopping", "Video"],
+    "Conversion": ["Performance Max", "Shopping", "Search"],
+  },
+  "YouTube (Google)": {
+    "Awareness": ["Video Reach", "Brand Awareness"],
+    "Consideration": ["Video Views", "Consideration"],
+    "Conversion": ["Conversions", "Action"],
+  },
+  "LinkedIn": {
+    "Awareness": ["Brand Awareness", "Reach"],
+    "Consideration": ["Website Visits", "Engagement", "Video Views"],
+    "Conversion": ["Lead Generation", "Conversions"],
+  },
+  "TikTok": {
+    "Awareness": ["Reach", "Video Views"],
+    "Consideration": ["Traffic", "Community Interaction"],
+    "Conversion": ["Conversions", "App Installs"],
+  },
+};
+
+export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate, platformId = "meta", platformName }: PhaseSchedulerProps) {
   const [dragging, setDragging] = useState<DraggingState | null>(null);
   const [editingName, setEditingName] = useState<string | null>(null);
   const [editingBudget, setEditingBudget] = useState<string | null>(null);
+  const [expandedPhases, setExpandedPhases] = useState<{ [key: string]: boolean }>({});
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Initialize default phases if empty
@@ -239,6 +281,44 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate, pla
     if (!isNaN(numValue) && numValue >= 0 && numValue <= 100) {
       updatePhaseBudget(phaseId, numValue);
     }
+  };
+
+  const updatePhaseField = (phaseId: string, field: string, value: any) => {
+    onPhasesChange(phases.map(p => p.id === phaseId ? { ...p, [field]: value } : p));
+  };
+
+  const getAvailableObjectives = (phaseName: string) => {
+    const phaseType = phaseName.toLowerCase().includes("awareness")
+      ? "Awareness"
+      : phaseName.toLowerCase().includes("consideration")
+      ? "Consideration"
+      : "Conversion";
+    return platformObjectiveMapping[platformName]?.[phaseType] || [];
+  };
+
+  const getOptimizationGoals = (objective: string) => {
+    // Return optimization goals based on objective
+    const objectiveLower = objective.toLowerCase();
+    if (objectiveLower.includes("awareness") || objectiveLower.includes("reach")) {
+      return ["Impressions", "Reach", "Brand Awareness"];
+    } else if (objectiveLower.includes("traffic")) {
+      return ["Link Clicks", "Landing Page Views", "Impressions"];
+    } else if (objectiveLower.includes("engagement")) {
+      return ["Post Engagement", "Page Likes", "Event Responses"];
+    } else if (objectiveLower.includes("video")) {
+      return ["ThruPlay", "2-Second Video Views", "Video Views"];
+    } else if (objectiveLower.includes("lead")) {
+      return ["Leads", "Conversions"];
+    } else if (objectiveLower.includes("conversion") || objectiveLower.includes("catalog") || objectiveLower.includes("shopping")) {
+      return ["Conversions", "Value", "Link Clicks"];
+    } else if (objectiveLower.includes("app")) {
+      return ["App Installs", "App Events", "Value"];
+    }
+    return ["Conversions", "Link Clicks", "Impressions"];
+  };
+
+  const togglePhaseExpansion = (phaseId: string) => {
+    setExpandedPhases(prev => ({ ...prev, [phaseId]: !prev[phaseId] }));
   };
 
   const getPhaseColor = (index: number) => {
@@ -561,35 +641,137 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate, pla
           })}
         </div>
 
-        {/* Phase list summary */}
-        <div className="mt-4 space-y-2">
-          {phases.map((phase, index) => (
-            <div key={phase.id} className="flex items-center justify-between text-xs p-2 rounded bg-muted/30">
-              <div className="flex items-center gap-2 flex-1">
-                <div className={`w-3 h-3 rounded ${phase.isLoyaltyPhase ? 'bg-amber-500/40' : getPhaseColor(index).split(" ")[0]}`} />
-                <span className="font-medium">{phase.name}</span>
-                {phase.assetTypes && phase.assetTypes.length > 0 && (
-                  <Badge variant="outline" className="text-[10px]">
-                    {phase.assetTypes.length} format{phase.assetTypes.length !== 1 ? 's' : ''}
-                  </Badge>
-                )}
-              </div>
-              <div className="flex items-center gap-3 text-muted-foreground">
-                <span>
-                  {phase.startDate && phase.endDate ? (
-                    <>
-                      {format(parseISO(phase.startDate), "MMM d")} - {format(parseISO(phase.endDate), "MMM d")}
-                      {" "}({differenceInDays(parseISO(phase.endDate), parseISO(phase.startDate)) + 1} days)
-                    </>
-                  ) : "Dates not set"}
-                </span>
-                <span className="font-semibold text-foreground w-12 text-right">{phase.budgetPercentage}%</span>
-              </div>
-            </div>
-          ))}
+        {/* Phase configuration list */}
+        <div className="mt-6 space-y-3">
+          <div className="flex items-center justify-between mb-2">
+            <Label className="text-sm font-semibold">Phase Configuration</Label>
+            <p className="text-xs text-muted-foreground">Configure objectives, targeting, and placements for each phase</p>
+          </div>
+          
+          {phases.map((phase, index) => {
+            const phaseDays = phase.startDate && phase.endDate ? 
+              differenceInDays(parseISO(phase.endDate), parseISO(phase.startDate)) + 1 : 0;
+            const availableObjectives = getAvailableObjectives(phase.name);
+            
+            return (
+              <Collapsible
+                key={phase.id}
+                open={expandedPhases[phase.id]}
+                onOpenChange={() => togglePhaseExpansion(phase.id)}
+              >
+                <div className="border rounded-lg bg-card">
+                  <CollapsibleTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      className="w-full flex items-center justify-between p-4 hover:bg-muted/50"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-3 h-3 rounded ${phase.isLoyaltyPhase ? 'bg-amber-500/40' : getPhaseColor(index).split(" ")[0]}`} />
+                        <span className="font-medium">{phase.name}</span>
+                        {phase.startDate && phase.endDate && (
+                          <Badge variant="outline" className="text-xs">
+                            {format(parseISO(phase.startDate), "MMM d")} - {format(parseISO(phase.endDate), "MMM d")} ({phaseDays} days)
+                          </Badge>
+                        )}
+                        <Badge variant="secondary" className="text-xs">
+                          {phase.budgetPercentage}% budget
+                        </Badge>
+                      </div>
+                      <ChevronDown className={`h-4 w-4 transition-transform ${expandedPhases[phase.id] ? 'rotate-180' : ''}`} />
+                    </Button>
+                  </CollapsibleTrigger>
+
+                  <CollapsibleContent>
+                    <div className="p-4 pt-0 space-y-4 border-t">
+                      {/* Objective Selection */}
+                      <div className="space-y-2">
+                        <Label htmlFor={`objective-${phase.id}`}>Campaign Objective</Label>
+                        <Select
+                          value={phase.objective || ""}
+                          onValueChange={(value) => updatePhaseField(phase.id, "objective", value)}
+                        >
+                          <SelectTrigger id={`objective-${phase.id}`}>
+                            <SelectValue placeholder="Select objective" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availableObjectives.map((obj) => (
+                              <SelectItem key={obj} value={obj}>
+                                {obj}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Optimization Goal */}
+                      {phase.objective && (
+                        <div className="space-y-2">
+                          <Label htmlFor={`optimization-${phase.id}`}>Optimization Goal</Label>
+                          <Select
+                            value={phase.optimizationGoal || ""}
+                            onValueChange={(value) => updatePhaseField(phase.id, "optimizationGoal", value)}
+                          >
+                            <SelectTrigger id={`optimization-${phase.id}`}>
+                              <SelectValue placeholder="Select optimization goal" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {getOptimizationGoals(phase.objective).map((goal) => (
+                                <SelectItem key={goal} value={goal}>
+                                  {goal}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
+                      {/* Publisher Platforms & Placements */}
+                      <div className="space-y-2">
+                        <CampaignPublisherConfig
+                          platformName={platformName}
+                          publisherPlatforms={phase.publisherPlatforms || []}
+                          positions={phase.positions || {}}
+                          onPublisherPlatformsChange={(publishers) => 
+                            updatePhaseField(phase.id, "publisherPlatforms", publishers)
+                          }
+                          onPositionsChange={(positions) => 
+                            updatePhaseField(phase.id, "positions", positions)
+                          }
+                        />
+                      </div>
+
+                      {/* Override Targeting */}
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor={`override-targeting-${phase.id}`}>Override Targeting</Label>
+                          <Switch
+                            id={`override-targeting-${phase.id}`}
+                            checked={phase.overrideTargeting || false}
+                            onCheckedChange={(checked) => 
+                              updatePhaseField(phase.id, "overrideTargeting", checked)
+                            }
+                          />
+                        </div>
+                        
+                        {phase.overrideTargeting && (
+                          <TargetingConfigComponent
+                            targeting={phase.targeting || {}}
+                            onUpdate={(targeting) => updatePhaseField(phase.id, "targeting", targeting)}
+                            platformName={platformName}
+                            showAdFormats={false}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  </CollapsibleContent>
+                </div>
+              </Collapsible>
+            );
+          })}
+          
           {phases.length > 0 && (
-            <div className="flex items-center justify-between text-xs font-semibold pt-2 border-t">
-              <span>Total Allocation</span>
+            <div className="flex items-center justify-between text-xs font-semibold pt-2 border-t mt-4">
+              <span>Total Budget Allocation</span>
               <span className={phases.reduce((sum, p) => sum + p.budgetPercentage, 0) === 100 ? "text-primary" : "text-destructive"}>
                 {phases.reduce((sum, p) => sum + p.budgetPercentage, 0)}%
               </span>

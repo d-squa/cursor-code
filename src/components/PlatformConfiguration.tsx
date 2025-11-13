@@ -28,6 +28,22 @@ export interface Phase {
     messenger?: string[];
     threads?: string[];
   };
+  overrideTargeting?: boolean;
+  targeting?: {
+    adFormats?: string[];
+    ageMin?: number;
+    ageMax?: number;
+    genders?: string[];
+    devices?: string[];
+    targetingExpansion?: boolean;
+    os?: string[];
+    language?: string;
+    interests?: string;
+    websiteAudience?: string;
+    keywordList?: string;
+    customerList?: string;
+    lookalikeAudience?: string;
+  };
 }
 
 export interface Campaign {
@@ -479,6 +495,7 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
                     startDate={startDate}
                     endDate={endDate}
                     platformId={platform.id}
+                    platformName={platform.name}
                   />
                 )}
               </div>
