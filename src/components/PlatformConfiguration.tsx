@@ -18,6 +18,16 @@ export interface Phase {
   budgetPercentage: number;
   assetTypes?: string[];
   isLoyaltyPhase?: boolean;
+  objective?: string;
+  optimizationGoal?: string;
+  publisherPlatforms?: string[];
+  positions?: {
+    facebook?: string[];
+    instagram?: string[];
+    audience_network?: string[];
+    messenger?: string[];
+    threads?: string[];
+  };
 }
 
 export interface Campaign {

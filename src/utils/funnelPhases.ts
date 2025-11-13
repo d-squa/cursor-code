@@ -1,3 +1,5 @@
+import { getObjectiveFromPhaseName } from './phaseObjectiveMapping';
+
 // Funnel phase mapping based on Strategy Focus
 export interface PhaseTemplate {
   name: string;
@@ -103,12 +105,17 @@ export const getDefaultPhases = (strategyFocus: string, startDate: string, endDa
       ? new Date(end) 
       : new Date(phaseStart.getTime() + (daysPerPhase * 1000 * 60 * 60 * 24));
     
+    // Auto-determine objective and optimization goal based on phase name
+    const { objective, optimizationGoal } = getObjectiveFromPhaseName(phase.name, strategyFocus);
+    
     return {
       id: `phase-${index}-${Date.now()}`,
       name: phase.name,
       startDate: phaseStart.toISOString().split('T')[0],
       endDate: phaseEnd.toISOString().split('T')[0],
       budgetPercentage: budgetPerPhase,
+      objective,
+      optimizationGoal,
     };
   });
 };

@@ -10,12 +10,16 @@ interface CampaignPublisherConfigProps {
     facebook?: string[];
     instagram?: string[];
     audience_network?: string[];
+    messenger?: string[];
+    threads?: string[];
   };
   onPublisherPlatformsChange: (platforms: string[]) => void;
   onPositionsChange: (positions: {
     facebook?: string[];
     instagram?: string[];
     audience_network?: string[];
+    messenger?: string[];
+    threads?: string[];
   }) => void;
 }
 
@@ -24,11 +28,15 @@ const placementOptions: Record<string, Record<string, string[]>> = {
   "Facebook (Meta)": {
     facebook: ["feed", "instant_article", "instream_video", "marketplace", "right_column", "search", "video_feeds", "story"],
     instagram: ["stream", "story", "explore", "explore_home", "reels"],
-    audience_network: ["native_banner_interstitial", "instream_video", "rewarded_video"]
+    audience_network: ["native_banner_interstitial", "instream_video", "rewarded_video"],
+    messenger: ["messenger_home", "sponsored_messages", "story"],
+    threads: ["threads"]
   },
   "Instagram (Meta)": {
     instagram: ["stream", "story", "explore", "explore_home", "reels"],
     facebook: ["feed", "story"],
+    messenger: ["messenger_home", "sponsored_messages"],
+    threads: ["threads"]
   }
 };
 
@@ -42,13 +50,24 @@ export function CampaignPublisherConfig({
   // Get available publisher platforms based on platform name
   const getAvailablePublisherPlatforms = () => {
     if (platformName.includes("Meta")) {
-      return ["facebook", "instagram", "audience_network", "messenger"];
+      return ["facebook", "instagram", "audience_network", "messenger", "threads"];
     }
     return [];
   };
 
   const availablePublisherPlatforms = getAvailablePublisherPlatforms();
   const availablePlacements = placementOptions[platformName] || {};
+
+  // Set default Advantage+ audience (all publishers) on mount if nothing selected
+  if (availablePublisherPlatforms.length > 0 && publisherPlatforms.length === 0) {
+    onPublisherPlatformsChange(availablePublisherPlatforms);
+    // Set automatic placements for all publishers by default
+    const defaultPositions: any = {};
+    availablePublisherPlatforms.forEach(pub => {
+      defaultPositions[pub] = ["automatic"];
+    });
+    onPositionsChange(defaultPositions);
+  }
 
   if (availablePublisherPlatforms.length === 0) {
     return null;
@@ -75,14 +94,30 @@ export function CampaignPublisherConfig({
     <div className="space-y-4">
       {/* Publisher Platforms Selection */}
       <div className="space-y-2">
-        <Label>Publisher Platforms</Label>
+        <Label>Publisher Platforms (Advantage+ Audience)</Label>
+        <p className="text-xs text-muted-foreground">
+          All publishers selected by default for maximum reach (Advantage+ audience)
+        </p>
         <MultiSelect
           options={availablePublisherPlatforms.map(p => ({ 
             value: p, 
             label: p.charAt(0).toUpperCase() + p.slice(1).replace('_', ' ') 
           }))}
           value={publisherPlatforms}
-          onChange={onPublisherPlatformsChange}
+          onChange={(selected) => {
+            onPublisherPlatformsChange(selected);
+            // Ensure removed publishers don't have positions
+            const updatedPositions = { ...positions };
+            availablePublisherPlatforms.forEach(pub => {
+              if (!selected.includes(pub)) {
+                delete updatedPositions[pub as keyof typeof positions];
+              } else if (!updatedPositions[pub as keyof typeof positions]) {
+                // Add automatic placement for newly selected publishers
+                (updatedPositions as any)[pub] = ["automatic"];
+              }
+            });
+            onPositionsChange(updatedPositions);
+          }}
           placeholder="Select publisher platforms"
           emptyText="No publisher platforms"
         />
