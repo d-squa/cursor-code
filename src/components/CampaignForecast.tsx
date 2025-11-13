@@ -64,6 +64,34 @@ export function CampaignForecast({
   const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
   const [pdfBase64Data, setPdfBase64Data] = useState<string>("");
   const [pushingToDSP, setPushingToDSP] = useState(false);
+  const [hasExistingForecast, setHasExistingForecast] = useState(false);
+
+  // Load existing forecast on mount
+  useEffect(() => {
+    const loadExistingForecast = async () => {
+      if (!campaignId) return;
+
+      try {
+        const { supabase } = await import("@/integrations/supabase/client");
+        const { data: campaign } = await supabase
+          .from('campaigns')
+          .select('forecast_data')
+          .eq('id', campaignId)
+          .single();
+
+        const forecastData = campaign?.forecast_data as any;
+        if (forecastData?.forecasts && Object.keys(forecastData.forecasts).length > 0) {
+          setForecasts(forecastData.forecasts);
+          setHasExistingForecast(true);
+          console.log("Loaded existing forecast data");
+        }
+      } catch (error) {
+        console.error("Error loading existing forecast:", error);
+      }
+    };
+
+    loadExistingForecast();
+  }, [campaignId]);
 
   // Auto-save forecast data when it changes
   useEffect(() => {
@@ -533,6 +561,7 @@ export function CampaignForecast({
 
   const handleFetchForecasts = async () => {
     setLoading(true);
+    setHasExistingForecast(false);
     try {
       const newForecasts: Record<string, CampaignForecast[]> = {};
 
@@ -729,6 +758,7 @@ export function CampaignForecast({
       console.error(error);
     } finally {
       setLoading(false);
+      setHasExistingForecast(true);
     }
   };
 
@@ -853,15 +883,25 @@ export function CampaignForecast({
           <div>
             <CardTitle>Step 5: Campaign Forecast</CardTitle>
             <CardDescription>
-              View projected performance metrics for your campaigns
+              {hasExistingForecast 
+                ? "View and refresh your campaign forecast" 
+                : "View projected performance metrics for your campaigns"}
             </CardDescription>
           </div>
-          {!loading && Object.keys(forecasts).length === 0 && (
-            <Button onClick={handleFetchForecasts}>
-              <TrendingUp className="h-4 w-4 mr-2" />
-              Fetch Forecasts
-            </Button>
-          )}
+          <div className="flex gap-2">
+            {!loading && Object.keys(forecasts).length === 0 && (
+              <Button onClick={handleFetchForecasts}>
+                <TrendingUp className="h-4 w-4 mr-2" />
+                Fetch Forecasts
+              </Button>
+            )}
+            {!loading && Object.keys(forecasts).length > 0 && (
+              <Button onClick={handleFetchForecasts} variant="outline">
+                <TrendingUp className="h-4 w-4 mr-2" />
+                Refresh Forecast
+              </Button>
+            )}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
