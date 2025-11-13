@@ -222,10 +222,27 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
           special_ad_categories: [],
         };
 
-        console.log("Creating Meta campaign:", campaignPayload);
+        // Resolve Meta ad account id with fallbacks and ensure proper act_ prefix
+        const resolvedAdAccount = (market as any).adAccountId || (market as any).ad_account_id || platform.ad_account_id || Deno.env.get("META_AD_ACCOUNT_ID");
+        const adAccountPath = resolvedAdAccount
+          ? (String(resolvedAdAccount).startsWith("act_") ? String(resolvedAdAccount) : `act_${String(resolvedAdAccount).replace(/^act_/, "")}`)
+          : null;
+
+        if (!adAccountPath) {
+          console.error("Missing Meta ad account id for market:", market.name);
+          errors.push({
+            market: market.name,
+            phase: phase.name,
+            error: "Missing Meta ad account id",
+            type: 'validation_error'
+          });
+          continue;
+        }
+
+        console.log("Creating Meta campaign on:", adAccountPath, campaignPayload);
 
         const campaignResponse = await fetch(
-          `https://graph.facebook.com/v22.0/${platform.ad_account_id}/campaigns`,
+          `https://graph.facebook.com/v22.0/${adAccountPath}/campaigns`,
           {
             method: "POST",
             headers: {
@@ -345,7 +362,7 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
         console.log("Creating Meta ad set:", adSetPayload);
 
         const adSetResponse = await fetch(
-          `https://graph.facebook.com/v22.0/${platform.ad_account_id}/adsets`,
+          `https://graph.facebook.com/v22.0/${adAccountPath}/adsets`,
           {
             method: "POST",
             headers: {
