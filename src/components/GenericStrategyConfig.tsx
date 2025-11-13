@@ -117,10 +117,20 @@ export function GenericStrategyConfig({
           }];
         }
       } else if (strategy === "auto-detect") {
-        // Auto-detect: set strategyFocus to "auto"
+        // Auto-detect: set strategyFocus to "auto" and enable phases
         updatedConfig.strategyFocus = "auto";
         updatedConfig.campaigns = [];
-        updatedConfig.hasPhases = false;
+        updatedConfig.hasPhases = true;
+        // Generate default phases for auto-detect if none exist
+        if ((!updatedConfig.phases || updatedConfig.phases.length === 0) && startDate && endDate) {
+          updatedConfig.phases = [{
+            id: `phase-${Date.now()}`,
+            name: "Campaign 1",
+            startDate: startDate,
+            endDate: endDate,
+            budgetPercentage: 100,
+          }];
+        }
       }
     }
     
