@@ -72,6 +72,23 @@ serve(async (req) => {
       throw new Error("No ad accounts found");
     }
 
+    // Try to fetch accessible Business Managers and pick the first one
+    let selectedBmId: string | null = null;
+    let businessesMeta: Array<{ id: string; name: string }> = [];
+    try {
+      const businessesResponse = await fetch(
+        `https://graph.facebook.com/v21.0/me/businesses?fields=id,name&access_token=${access_token}`
+      );
+      const businessesData = await businessesResponse.json();
+      const businesses = Array.isArray(businessesData?.data) ? businessesData.data : [];
+      businessesMeta = businesses.map((b: any) => ({ id: b.id, name: b.name }));
+      if (businesses.length > 0) {
+        selectedBmId = businesses[0].id;
+      }
+    } catch (e) {
+      console.log("No accessible business managers or insufficient permissions");
+    }
+
     // Create a single Meta platform connection (not tied to specific ad accounts yet)
     const { data: platformData, error: platformError } = await supabase
       .from("connected_platforms")
@@ -81,6 +98,8 @@ serve(async (req) => {
         platform_name: "Meta (Facebook & Instagram)",
         access_token: access_token,
         is_active: true,
+        business_manager_id: selectedBmId,
+        metadata: businessesMeta.length > 0 ? { businesses: businessesMeta } : null,
       })
       .select()
       .single();

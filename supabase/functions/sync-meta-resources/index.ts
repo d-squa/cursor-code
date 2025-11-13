@@ -320,30 +320,62 @@ serve(async (req) => {
         }
       }
       
-      // Try fallback to user's businesses
+      // Try fallback: iterate all accessible businesses and fetch their catalogs
       try {
-        const catalogsResponse = await fetch(
-          `https://graph.facebook.com/v21.0/me/businesses?fields=owned_product_catalogs{id,name}&access_token=${accessToken}`
+        const businessesResp = await fetch(
+          `https://graph.facebook.com/v21.0/me/businesses?fields=id,name&access_token=${accessToken}`
         );
-        const catalogsData = await catalogsResponse.json();
+        const businessesData = await businessesResp.json();
 
-        if (catalogsData.data) {
-          catalogsData.data.forEach((business: any) => {
-            if (business.owned_product_catalogs?.data) {
-              business.owned_product_catalogs.data.forEach((catalog: any) => {
-                if (!allCatalogs.find(c => c.catalog_id === catalog.id)) {
-                  allCatalogs.push({
-                    user_id: user.id,
-                    catalog_id: catalog.id,
-                    catalog_name: catalog.name,
-                  });
+        if (Array.isArray(businessesData?.data) && businessesData.data.length > 0) {
+          for (const biz of businessesData.data) {
+            try {
+              const bizCatalogsResp = await fetch(
+                `https://graph.facebook.com/v21.0/${biz.id}/owned_product_catalogs?fields=id,name&limit=100&access_token=${accessToken}`
+              );
+              const bizCatalogsData = await bizCatalogsResp.json();
+
+              if (Array.isArray(bizCatalogsData?.data)) {
+                bizCatalogsData.data.forEach((catalog: any) => {
+                  if (!allCatalogs.find(c => c.catalog_id === catalog.id)) {
+                    allCatalogs.push({
+                      user_id: user.id,
+                      catalog_id: catalog.id,
+                      catalog_name: catalog.name,
+                    });
+                  }
+                });
+
+                // Fetch product sets for each catalog found under this business
+                for (const catalog of bizCatalogsData.data) {
+                  try {
+                    const productSetsResponse = await fetch(
+                      `https://graph.facebook.com/v21.0/${catalog.id}/product_sets?fields=id,name&limit=100&access_token=${accessToken}`
+                    );
+                    const productSetsData = await productSetsResponse.json();
+
+                    if (Array.isArray(productSetsData?.data)) {
+                      productSetsData.data.forEach((productSet: any) => {
+                        allProductSets.push({
+                          user_id: user.id,
+                          catalog_id: catalog.id,
+                          product_set_id: productSet.id,
+                          product_set_name: productSet.name,
+                        });
+                      });
+                    }
+                  } catch (err) {
+                    console.error(`Error fetching product sets for catalog ${catalog.id}:`, err);
+                  }
                 }
-              });
+              }
+            } catch (err) {
+              console.error(`Error fetching catalogs for business ${biz.id}:`, err);
             }
-          });
+          }
         }
       } catch (error) {
-        console.log("Business endpoint not accessible");
+        console.log("Businesses endpoint not accessible or insufficient permissions");
       }
 
       if (allCatalogs.length > 0) {
