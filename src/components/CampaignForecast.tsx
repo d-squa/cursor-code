@@ -572,9 +572,14 @@ export function CampaignForecast({
         for (const market of platform.markets) {
           const marketBudget = platformBudget * (market.budgetPercentage / 100);
           
+          console.log(`📊 Processing market: ${market.name}, Phases:`, market.phases?.length || 0);
+          console.log('Market data:', { id: market.id, name: market.name, phases: market.phases });
+          
           // Each phase is a campaign - fetch forecast for each
           if (market.phases && market.phases.length > 0) {
+            console.log(`✅ Market ${market.name} has ${market.phases.length} phases, processing all...`);
             for (const phase of market.phases) {
+              console.log(`  → Processing phase: ${phase.name}`);
               const campaignBudget = marketBudget * (phase.budgetPercentage / 100);
               
               try {
@@ -665,7 +670,9 @@ export function CampaignForecast({
                 });
               }
             }
+            console.log(`✅ Completed ${market.phases.length} phases for ${market.name}`);
           } else {
+            console.log(`⚠️ Market ${market.name} has NO phases (${market.phases?.length || 0}), creating single forecast`);
             // Fallback: if no phases, treat entire market as one campaign
             try {
               const forecast = await fetchForecast(platform.id, market.id, marketBudget, market);
@@ -726,9 +733,11 @@ export function CampaignForecast({
           }
         }
 
+        console.log(`📈 Platform ${platform.name}: Generated ${campaignForecasts.length} campaign forecasts`);
         newForecasts[platform.id] = campaignForecasts;
       }
 
+      console.log('🎯 Total forecasts created:', Object.entries(newForecasts).map(([key, val]) => `${key}: ${val.length}`).join(', '));
       setForecasts(newForecasts);
       
       // Save forecast data to database if we have a campaign ID
