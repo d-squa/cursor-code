@@ -29,6 +29,47 @@ const mapFocusToTemplate = (focus?: string): string | undefined => {
   }
 };
 
+// Translate internal objective/goals to UI labels expected by PhaseScheduler
+const objectiveToLabel = (obj?: string): string | undefined => {
+  switch (obj) {
+    case "OUTCOME_AWARENESS":
+      return "Brand Awareness";
+    case "OUTCOME_ENGAGEMENT":
+      return "Engagement";
+    case "OUTCOME_TRAFFIC":
+      return "Traffic";
+    case "OUTCOME_APP_PROMOTION":
+      return "App Installs";
+    case "OUTCOME_LEADS":
+      return "Lead Generation";
+    case "OUTCOME_SALES":
+      return "Conversions";
+    default:
+      return undefined;
+  }
+};
+
+const optimizationToLabel = (goal?: string): string | undefined => {
+  switch (goal) {
+    case "REACH":
+      return "Reach";
+    case "POST_ENGAGEMENT":
+      return "Post Engagement";
+    case "LANDING_PAGE_VIEWS":
+      return "Landing Page Views";
+    case "LEADS":
+      return "Leads";
+    case "OFFSITE_CONVERSIONS":
+      return "Conversions";
+    case "APP_INSTALLS":
+      return "App Installs";
+    case "LINK_CLICKS":
+      return "Link Clicks";
+    default:
+      return undefined;
+  }
+};
+
 export interface GenericConfig {
   strategy?: "auto-detect" | "full-funnel" | "manual";
   strategyFocus?: "purchase" | "leads" | "app-installs" | "conversions" | "brand-awareness" | "auto";
@@ -126,8 +167,8 @@ export function GenericStrategyConfig({
             const objectiveData = getObjectiveFromPhaseName(phase.name, focus);
             return {
               ...phase,
-              objective: objectiveData.objective,
-              optimizationGoal: objectiveData.optimizationGoal,
+              objective: objectiveToLabel(objectiveData.objective) || "Conversions",
+              optimizationGoal: optimizationToLabel(objectiveData.optimizationGoal) || "Conversions",
             };
           });
           updatedConfig.campaigns = [
