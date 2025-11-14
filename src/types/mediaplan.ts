@@ -13,6 +13,7 @@ export interface Market {
   catalog?: string;
   productSet?: string; // Meta Product Set ID
   conversionEvent?: string; // Conversion event for conversion campaigns
+  strategy?: string; // Strategy type per market
   strategyFocus?: string;
   instagramActorId?: string;
   // Campaign settings

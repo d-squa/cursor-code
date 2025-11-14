@@ -466,10 +466,22 @@ export function MediaPlanEditor() {
             pixel: m.pixel,
             catalog: m.catalog,
             conversionEvent: m.conversionEvent,
+            productSet: m.productSet,
+            instagramActorId: m.instagramActorId,
             adFormats: m.adFormats,
             phases: m.phases,
+            strategy: m.strategy,
+            strategyFocus: m.strategyFocus,
             isCBOEnabled: m.isCBOEnabled,
             isLifetimeBudget: m.isLifetimeBudget,
+            countries: m.countries,
+            gender: m.gender,
+            languages: m.languages,
+            ageMin: m.ageMin,
+            ageMax: m.ageMax,
+            publisherPlatforms: m.publisherPlatforms,
+            positions: m.positions,
+            detailedTargeting: m.detailedTargeting,
           })),
         }), {}),
         generic_config: {
@@ -770,7 +782,7 @@ export function MediaPlanEditor() {
                       <PhaseScheduler
                         phases={singleMarket.phases || []}
                         onPhasesChange={(phases) => {
-                          setPlatformsWithMarkets(platformsWithMarkets.map(p => 
+                          setPlatformsWithMarkets(prev => prev.map(p => 
                             p.id === singlePlatform?.id ? {
                               ...p,
                               markets: p.markets.map(m => m.id === singleMarket.id ? { ...m, phases } : m)
@@ -781,14 +793,21 @@ export function MediaPlanEditor() {
                         endDate={endDate}
                         platformName={singlePlatform?.name || "Facebook (Meta)"}
                         platformId={singlePlatform?.id}
+                        strategyFocus={singleMarket.strategyFocus || genericConfig.strategyFocus}
+                        marketTargeting={{
+                          ageMin: singleMarket.ageMin || genericConfig.targeting?.ageMin,
+                          ageMax: singleMarket.ageMax || genericConfig.targeting?.ageMax,
+                          gender: singleMarket.gender || genericConfig.targeting?.genders?.[0],
+                          devices: genericConfig.targeting?.devices,
+                        }}
                       />
                     </div>
                   ) : null;
                 } else if (totalMarkets > 1) {
-                  // Multiple markets: show PhaseScheduler for each market
+                  // Multiple markets: show strategy controls and PhaseScheduler for each market
                   return (
                     <div className="mt-6 pt-6 border-t space-y-6">
-                      <h3 className="text-lg font-semibold">Phase Scheduling per Market</h3>
+                      <h3 className="text-lg font-semibold">Market Configuration</h3>
                       {platformsWithMarkets.map(platform => 
                         platform.enabled && platform.markets.length > 0 ? (
                           <div key={platform.id} className="space-y-4">
@@ -797,10 +816,94 @@ export function MediaPlanEditor() {
                                 <h4 className="font-medium mb-4">
                                   {platform.name} - {market.name}
                                 </h4>
+                                
+                                {/* Per-Market Strategy Configuration */}
+                                <div className="space-y-4 mb-6 p-4 bg-muted/50 rounded-lg">
+                                  <div className="space-y-2">
+                                    <Label>Strategy Type</Label>
+                                    <Select 
+                                      value={market.strategy || genericConfig.strategy || "auto-detect"}
+                                      onValueChange={(value) => {
+                                        setPlatformsWithMarkets(prev => prev.map(p => 
+                                          p.id === platform.id ? {
+                                            ...p,
+                                            markets: p.markets.map(m => 
+                                              m.id === market.id ? { ...m, strategy: value } : m
+                                            )
+                                          } : p
+                                        ));
+                                        ensureDraft();
+                                      }}
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Select strategy" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="auto-detect">Auto-Detect (Recommended)</SelectItem>
+                                        <SelectItem value="full-funnel">Full-Funnel</SelectItem>
+                                        <SelectItem value="manual">Manual</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+
+                                  {(market.strategy || genericConfig.strategy) !== "auto-detect" && (
+                                    <div className="space-y-2">
+                                      <Label>Strategy Focus</Label>
+                                      <Select 
+                                        value={market.strategyFocus || genericConfig.strategyFocus || "conversions"}
+                                        onValueChange={(value) => {
+                                          setPlatformsWithMarkets(prev => prev.map(p => 
+                                            p.id === platform.id ? {
+                                              ...p,
+                                              markets: p.markets.map(m => 
+                                                m.id === market.id ? { ...m, strategyFocus: value } : m
+                                              )
+                                            } : p
+                                          ));
+                                          ensureDraft();
+                                        }}
+                                      >
+                                        <SelectTrigger>
+                                          <SelectValue placeholder="Select focus" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="conversions">Conversions</SelectItem>
+                                          <SelectItem value="leads">Leads</SelectItem>
+                                          <SelectItem value="brand-awareness">Brand Awareness</SelectItem>
+                                          <SelectItem value="app-installs">App Installs</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  )}
+
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      const currentStrategy = market.strategy || genericConfig.strategy;
+                                      const currentFocus = market.strategyFocus || genericConfig.strategyFocus;
+                                      
+                                      setPlatformsWithMarkets(prev => prev.map(p => ({
+                                        ...p,
+                                        markets: p.markets.map(m => ({
+                                          ...m,
+                                          strategy: currentStrategy,
+                                          strategyFocus: currentFocus
+                                        }))
+                                      })));
+                                      
+                                      toast.success("Strategy applied to all markets");
+                                      ensureDraft();
+                                    }}
+                                  >
+                                    Apply Strategy to All Markets
+                                  </Button>
+                                </div>
+
                                 <PhaseScheduler
                                   phases={market.phases || []}
                                   onPhasesChange={(phases) => {
-                                    setPlatformsWithMarkets(platformsWithMarkets.map(p => 
+                                    setPlatformsWithMarkets(prev => prev.map(p => 
                                       p.id === platform.id ? {
                                         ...p,
                                         markets: p.markets.map(m => m.id === market.id ? { ...m, phases } : m)
@@ -811,6 +914,13 @@ export function MediaPlanEditor() {
                                   endDate={endDate}
                                   platformName={platform.name}
                                   platformId={platform.id}
+                                  strategyFocus={market.strategyFocus || genericConfig.strategyFocus}
+                                  marketTargeting={{
+                                    ageMin: market.ageMin || genericConfig.targeting?.ageMin,
+                                    ageMax: market.ageMax || genericConfig.targeting?.ageMax,
+                                    gender: market.gender || genericConfig.targeting?.genders?.[0],
+                                    devices: genericConfig.targeting?.devices,
+                                  }}
                                 />
                               </Card>
                             ))}

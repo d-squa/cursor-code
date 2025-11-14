@@ -381,6 +381,9 @@ export function PlatformMarketBudgetSelector({
             name: marketName,
             budgetPercentage: 0,
             phases: [],
+            // Inherit strategy from genericConfig if available
+            strategy: genericConfig?.strategy,
+            strategyFocus: genericConfig?.strategyFocus,
             // Default targeting for Meta R&F
             countries: ["US"],
             ageMin: 18,

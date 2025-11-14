@@ -24,6 +24,13 @@ interface PhaseSchedulerProps {
   endDate: string;
   platformId?: string;
   platformName: string;
+  strategyFocus?: string;
+  marketTargeting?: {
+    ageMin?: number;
+    ageMax?: number;
+    gender?: string;
+    devices?: string[];
+  };
 }
 
 interface DraggingState {
@@ -66,7 +73,7 @@ const platformObjectiveMapping: Record<string, Record<string, string[]>> = {
   },
 };
 
-export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate, platformId = "meta", platformName }: PhaseSchedulerProps) {
+export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate, platformId = "meta", platformName, strategyFocus, marketTargeting }: PhaseSchedulerProps) {
   const [dragging, setDragging] = useState<DraggingState | null>(null);
   const [editingName, setEditingName] = useState<string | null>(null);
   const [editingBudget, setEditingBudget] = useState<string | null>(null);
@@ -90,6 +97,8 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate, pla
             budgetPercentage: 50,
             assetTypes: [],
             isLoyaltyPhase: false,
+            objective: strategyFocus ? getDefaultObjectiveForFocus(strategyFocus, "Awareness") : undefined,
+            optimizationGoal: strategyFocus ? getOptimizationGoalForFocus(strategyFocus as any, platformId || "meta") : undefined,
           },
           {
             id: "phase-consideration",
@@ -99,6 +108,8 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate, pla
             budgetPercentage: 30,
             assetTypes: [],
             isLoyaltyPhase: false,
+            objective: strategyFocus ? getDefaultObjectiveForFocus(strategyFocus, "Consideration") : undefined,
+            optimizationGoal: strategyFocus ? getOptimizationGoalForFocus(strategyFocus as any, platformId || "meta") : undefined,
           },
           {
             id: "phase-conversion",
@@ -108,6 +119,8 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate, pla
             budgetPercentage: 20,
             assetTypes: [],
             isLoyaltyPhase: false,
+            objective: strategyFocus ? getDefaultObjectiveForFocus(strategyFocus, "Conversion") : undefined,
+            optimizationGoal: strategyFocus ? getOptimizationGoalForFocus(strategyFocus as any, platformId || "meta") : undefined,
           },
           {
             id: "phase-loyalty",
@@ -117,12 +130,28 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate, pla
             budgetPercentage: 0,
             assetTypes: [],
             isLoyaltyPhase: true,
+            objective: "Conversions",
+            optimizationGoal: "Value",
           },
         ];
         onPhasesChange(defaultPhases);
       }
     }
   }, [startDate, endDate]);
+
+  // Helper function to get default objective based on strategy focus and phase
+  const getDefaultObjectiveForFocus = (focus: string, phaseName: string): string => {
+    if (focus === "conversions") {
+      return phaseName === "Awareness" ? "Brand Awareness" : phaseName === "Consideration" ? "Traffic" : "Conversions";
+    } else if (focus === "leads") {
+      return phaseName === "Awareness" ? "Brand Awareness" : phaseName === "Consideration" ? "Traffic" : "Lead Generation";
+    } else if (focus === "brand-awareness") {
+      return phaseName === "Conversion" ? "Conversions" : "Brand Awareness";
+    } else if (focus === "app-installs") {
+      return phaseName === "Awareness" ? "Brand Awareness" : "App Installs";
+    }
+    return "Conversions";
+  };
 
   // Validate dates
   if (!startDate || !endDate) {
@@ -689,12 +718,57 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate, pla
 
                   <CollapsibleContent>
                     <div className="p-4 pt-0 space-y-4 border-t">
+                      {/* Targeting Summary */}
+                      {marketTargeting && (
+                        <div className="p-3 bg-muted/50 rounded-lg space-y-2">
+                          <Label className="text-sm font-semibold">Inherited Targeting</Label>
+                          <div className="text-xs text-muted-foreground space-y-1">
+                            <div className="flex justify-between">
+                              <span>Age Range:</span>
+                              <span className="font-medium text-foreground">
+                                {marketTargeting.ageMin || 18} - {marketTargeting.ageMax || 65}
+                              </span>
+                            </div>
+                            {marketTargeting.gender && (
+                              <div className="flex justify-between">
+                                <span>Gender:</span>
+                                <span className="font-medium text-foreground capitalize">
+                                  {marketTargeting.gender}
+                                </span>
+                              </div>
+                            )}
+                            {marketTargeting.devices && marketTargeting.devices.length > 0 && (
+                              <div className="flex justify-between">
+                                <span>Devices:</span>
+                                <span className="font-medium text-foreground">
+                                  {marketTargeting.devices.join(', ')}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
                       {/* Objective Selection */}
                       <div className="space-y-2">
-                        <Label htmlFor={`objective-${phase.id}`}>Campaign Objective</Label>
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor={`objective-${phase.id}`}>Campaign Objective</Label>
+                          {phase.objective && phase.optimizationGoal && (
+                            <Badge variant="secondary" className="text-xs">
+                              Goal: {phase.optimizationGoal}
+                            </Badge>
+                          )}
+                        </div>
                         <Select
                           value={phase.objective || ""}
-                          onValueChange={(value) => updatePhaseField(phase.id, "objective", value)}
+                          onValueChange={(value) => {
+                            updatePhaseField(phase.id, "objective", value);
+                            // Auto-set optimization goal based on objective
+                            const goals = getOptimizationGoals(value);
+                            if (goals.length > 0) {
+                              updatePhaseField(phase.id, "optimizationGoal", goals[0]);
+                            }
+                          }}
                         >
                           <SelectTrigger id={`objective-${phase.id}`}>
                             <SelectValue placeholder="Select objective" />
