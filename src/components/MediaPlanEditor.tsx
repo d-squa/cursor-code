@@ -756,31 +756,72 @@ export function MediaPlanEditor() {
                 )}
               </div>
 
-              {/* Show PhaseScheduler only if there's exactly 1 market across all platforms */}
+              {/* Phase Scheduling */}
               {(() => {
                 const totalMarkets = platformsWithMarkets.reduce((sum, p) => sum + (p.enabled ? p.markets.length : 0), 0);
-                const singlePlatform = platformsWithMarkets.find(p => p.enabled && p.markets.length > 0);
-                const singleMarket = totalMarkets === 1 && singlePlatform ? singlePlatform.markets[0] : null;
                 
-                return totalMarkets === 1 && singleMarket ? (
-                  <div className="mt-6 pt-6 border-t">
-                    <PhaseScheduler
-                      phases={singleMarket.phases || []}
-                      onPhasesChange={(phases) => {
-                        setPlatformsWithMarkets(platformsWithMarkets.map(p => 
-                          p.id === singlePlatform?.id ? {
-                            ...p,
-                            markets: p.markets.map(m => m.id === singleMarket.id ? { ...m, phases } : m)
-                          } : p
-                        ));
-                      }}
-                      startDate={startDate}
-                      endDate={endDate}
-                      platformName={singlePlatform?.name || "Facebook (Meta)"}
-                      platformId={singlePlatform?.id}
-                    />
-                  </div>
-                ) : null;
+                if (totalMarkets === 1) {
+                  // Single market: show single PhaseScheduler
+                  const singlePlatform = platformsWithMarkets.find(p => p.enabled && p.markets.length > 0);
+                  const singleMarket = singlePlatform ? singlePlatform.markets[0] : null;
+                  
+                  return singleMarket ? (
+                    <div className="mt-6 pt-6 border-t">
+                      <PhaseScheduler
+                        phases={singleMarket.phases || []}
+                        onPhasesChange={(phases) => {
+                          setPlatformsWithMarkets(platformsWithMarkets.map(p => 
+                            p.id === singlePlatform?.id ? {
+                              ...p,
+                              markets: p.markets.map(m => m.id === singleMarket.id ? { ...m, phases } : m)
+                            } : p
+                          ));
+                        }}
+                        startDate={startDate}
+                        endDate={endDate}
+                        platformName={singlePlatform?.name || "Facebook (Meta)"}
+                        platformId={singlePlatform?.id}
+                      />
+                    </div>
+                  ) : null;
+                } else if (totalMarkets > 1) {
+                  // Multiple markets: show PhaseScheduler for each market
+                  return (
+                    <div className="mt-6 pt-6 border-t space-y-6">
+                      <h3 className="text-lg font-semibold">Phase Scheduling per Market</h3>
+                      {platformsWithMarkets.map(platform => 
+                        platform.enabled && platform.markets.length > 0 ? (
+                          <div key={platform.id} className="space-y-4">
+                            {platform.markets.map(market => (
+                              <Card key={market.id} className="p-4">
+                                <h4 className="font-medium mb-4">
+                                  {platform.name} - {market.name}
+                                </h4>
+                                <PhaseScheduler
+                                  phases={market.phases || []}
+                                  onPhasesChange={(phases) => {
+                                    setPlatformsWithMarkets(platformsWithMarkets.map(p => 
+                                      p.id === platform.id ? {
+                                        ...p,
+                                        markets: p.markets.map(m => m.id === market.id ? { ...m, phases } : m)
+                                      } : p
+                                    ));
+                                  }}
+                                  startDate={startDate}
+                                  endDate={endDate}
+                                  platformName={platform.name}
+                                  platformId={platform.id}
+                                />
+                              </Card>
+                            ))}
+                          </div>
+                        ) : null
+                      )}
+                    </div>
+                  );
+                }
+                
+                return null;
               })()}
 
               <div className="flex justify-between pt-4">
