@@ -7,6 +7,8 @@ import { PhaseScheduler } from "./PhaseScheduler";
 import { Phase, Campaign } from "./PlatformConfiguration";
 import { TargetingConfig, TargetingConfigComponent } from "./TargetingConfig";
 import { determineStrategyFocus } from "@/utils/strategyFocusMapping";
+import { getDefaultPhases, funnelTemplates } from "@/utils/funnelPhases";
+import { getObjectiveFromPhaseName } from "@/utils/phaseObjectiveMapping";
 import { useEffect } from "react";
 
 export interface GenericConfig {
