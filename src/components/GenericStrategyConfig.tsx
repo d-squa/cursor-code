@@ -180,33 +180,34 @@ export function GenericStrategyConfig({
           updatedConfig.hasPhases = true;
         }
       } else if (strategy === "manual") {
-        // Manual strategy: user creates custom phases/campaigns
+        // Manual/Custom strategy: user creates phases from scratch - start with empty timeline
         updatedConfig.campaigns = [];
         updatedConfig.hasPhases = true;
-        if ((!updatedConfig.phases || updatedConfig.phases.length === 0) && startDate && endDate) {
-          updatedConfig.phases = [{
-            id: `phase-${Date.now()}`,
-            name: "Campaign 1",
-            startDate: startDate,
-            endDate: endDate,
-            budgetPercentage: 100,
-          }];
-        }
+        updatedConfig.phases = [];
       } else if (strategy === "auto-detect") {
-        // Auto-detect: set strategyFocus to "auto" and enable phases
-        updatedConfig.strategyFocus = "auto";
+        // Auto-detect: use the auto-determined focus to generate phases
+        if (focus && focus !== "auto" && startDate && endDate) {
+          const templateKey = mapFocusToTemplate(focus as string);
+          if (templateKey) {
+            const defaultPhases = getDefaultPhases(templateKey, startDate, endDate);
+            updatedConfig.phases = defaultPhases.map(phase => {
+              const objectiveData = getObjectiveFromPhaseName(phase.name, focus);
+              return {
+                ...phase,
+                objective: objectiveToLabel(objectiveData.objective) || "Conversions",
+                optimizationGoal: optimizationToLabel(objectiveData.optimizationGoal) || "Conversions",
+              };
+            });
+          } else {
+            // Fallback if no template found
+            updatedConfig.phases = [];
+          }
+        } else {
+          // No focus determined yet, start with empty phases
+          updatedConfig.phases = [];
+        }
         updatedConfig.campaigns = [];
         updatedConfig.hasPhases = true;
-        // Generate default phases for auto-detect if none exist
-        if ((!updatedConfig.phases || updatedConfig.phases.length === 0) && startDate && endDate) {
-          updatedConfig.phases = [{
-            id: `phase-${Date.now()}`,
-            name: "Campaign 1",
-            startDate: startDate,
-            endDate: endDate,
-            budgetPercentage: 100,
-          }];
-        }
       }
     }
     
@@ -323,9 +324,9 @@ export function GenericStrategyConfig({
                     <SelectValue placeholder="Select strategy" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="auto-detect">Auto-Detect</SelectItem>
+                    <SelectItem value="auto-detect">Auto-Generate</SelectItem>
                     <SelectItem value="full-funnel">Full-Funnel</SelectItem>
-                    <SelectItem value="manual">Manual</SelectItem>
+                    <SelectItem value="manual">Custom</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
