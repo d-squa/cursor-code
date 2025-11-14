@@ -9,7 +9,7 @@ import { TargetingConfig, TargetingConfigComponent } from "./TargetingConfig";
 import { determineStrategyFocus } from "@/utils/strategyFocusMapping";
 import { getDefaultPhases, funnelTemplates } from "@/utils/funnelPhases";
 import { getObjectiveFromPhaseName } from "@/utils/phaseObjectiveMapping";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 export interface GenericConfig {
   strategy?: "auto-detect" | "full-funnel" | "manual";
@@ -51,6 +51,14 @@ export function GenericStrategyConfig({
   hasPixel = false,
   hasCatalog = false,
 }: GenericStrategyConfigProps) {
+  const [strategyFocusOpen, setStrategyFocusOpen] = useState(false);
+  
+  // Set default strategy to auto-detect if not set
+  useEffect(() => {
+    if (!config.strategy) {
+      updateConfig("strategy", "auto-detect");
+    }
+  }, []);
   
   // Auto-determine strategy focus based on ad formats and platform config
   useEffect(() => {
@@ -80,31 +88,35 @@ export function GenericStrategyConfig({
   }, [config.strategy, config.targeting?.adFormats, hasPixel, hasCatalog]);
   const updateConfig = (field: keyof GenericConfig, value: any) => {
     const updatedConfig = { ...config, [field]: value };
-    setConfig(updatedConfig);
     
     // Auto-generate campaigns when strategy changes
     if (field === "strategy" || field === "strategyFocus") {
       const strategy = field === "strategy" ? value : config.strategy;
       const focus = field === "strategyFocus" ? value : config.strategyFocus;
       
-      if (strategy === "full-funnel") {
+      // Open strategy focus dropdown when switching to full-funnel
+      if (field === "strategy" && value === "full-funnel") {
+        setStrategyFocusOpen(true);
+      }
+      
+      if (strategy === "full-funnel" && focus) {
+        // Generate phases based on strategy focus
+        const defaultPhases = getDefaultPhases(focus as any, startDate, endDate);
+        updatedConfig.phases = defaultPhases.map(phase => {
+          const objectiveData = getObjectiveFromPhaseName(phase.name, focus);
+          return {
+            ...phase,
+            objective: objectiveData.objective,
+            optimizationGoal: objectiveData.optimizationGoal,
+          };
+        });
         updatedConfig.campaigns = [
           { id: "awareness", name: "Awareness Campaign", funnelStage: "awareness" },
           { id: "consideration", name: "Consideration Campaign", funnelStage: "consideration" },
           { id: "conversion", name: "Conversion Campaign", funnelStage: "conversion" },
           { id: "loyalty", name: "Loyalty Campaign", funnelStage: "loyalty" },
         ];
-        // Auto-enable phasing for full-funnel
         updatedConfig.hasPhases = true;
-        if ((!updatedConfig.phases || updatedConfig.phases.length === 0) && startDate && endDate) {
-          updatedConfig.phases = [{
-            id: `phase-${Date.now()}`,
-            name: "Phase 1",
-            startDate: startDate,
-            endDate: endDate,
-            budgetPercentage: 100,
-          }];
-        }
       } else if (strategy === "manual") {
         // Manual strategy: user creates custom phases/campaigns
         updatedConfig.campaigns = [];
@@ -233,6 +245,54 @@ export function GenericStrategyConfig({
         </Card>
       ) : (
         <>
+          <Card>
+            <CardHeader>
+              <CardTitle>Campaign Strategy</CardTitle>
+              <CardDescription>Select your campaign approach</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-4">
+                <Label>Strategy Type</Label>
+                <Select
+                  value={config.strategy || "auto-detect"}
+                  onValueChange={(value) => updateConfig("strategy", value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select strategy" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto-detect">Auto-Detect</SelectItem>
+                    <SelectItem value="full-funnel">Full-Funnel</SelectItem>
+                    <SelectItem value="manual">Manual</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {config.strategy === "full-funnel" && (
+                <div className="space-y-4">
+                  <Label>Strategy Focus</Label>
+                  <Select
+                    value={config.strategyFocus}
+                    onValueChange={(value) => updateConfig("strategyFocus", value)}
+                    open={strategyFocusOpen}
+                    onOpenChange={setStrategyFocusOpen}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select focus" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="purchase">Purchase</SelectItem>
+                      <SelectItem value="leads">Leads</SelectItem>
+                      <SelectItem value="app-installs">App Installs</SelectItem>
+                      <SelectItem value="conversions">Conversions</SelectItem>
+                      <SelectItem value="brand-awareness">Brand Awareness</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>Targeting</CardTitle>
