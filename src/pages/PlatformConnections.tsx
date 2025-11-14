@@ -106,20 +106,22 @@ const { data, error } = await supabase
   };
 
   const handleDisconnectPlatform = async (platformId: string) => {
-    if (!confirm("Are you sure you want to disconnect this platform?")) return;
+    if (!confirm("Are you sure you want to disconnect this platform? All related data will be permanently deleted.")) return;
 
     try {
-      const { error } = await supabase
-        .from("connected_platforms")
-        .delete()
-        .eq("id", platformId);
+      toast.loading("Disconnecting and purging platform data...");
+
+      const { data, error } = await supabase.functions.invoke("purge-platform-data", {
+        body: { connectedPlatformId: platformId },
+      });
 
       if (error) throw error;
-      toast.success("Platform disconnected");
+
+      toast.success("Platform and all related data have been removed");
       fetchConnectedPlatforms();
     } catch (error: any) {
       console.error("Error disconnecting platform:", error);
-      toast.error("Failed to disconnect platform");
+      toast.error(error.message || "Failed to disconnect platform");
     }
   };
 

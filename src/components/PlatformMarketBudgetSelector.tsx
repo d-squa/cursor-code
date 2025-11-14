@@ -260,8 +260,7 @@ export function PlatformMarketBudgetSelector({
   };
 
   // Check if market needs conversion event (has conversion-related phases)
-  const needsConversionEvent = (market: any, platformName: string) => {
-    if (!platformName.toLowerCase().includes("meta")) return false;
+  const needsConversionEvent = (market: any) => {
     if (!market.phases || market.phases.length === 0) return false;
     
     return market.phases.some((phase: any) => {
@@ -480,9 +479,17 @@ export function PlatformMarketBudgetSelector({
         i === platformIndex 
           ? { 
               ...p, 
-              markets: p.markets.map(m => 
-                m.id === marketId ? { ...m, [field]: value } : m
-              )
+              markets: p.markets.map(m => {
+                if (m.id === marketId) {
+                  const updated = { ...m, [field]: value };
+                  // Initialize phases array if updating adAccountId and phases don't exist
+                  if (field === 'adAccountId' && (!updated.phases || updated.phases.length === 0)) {
+                    updated.phases = [];
+                  }
+                  return updated;
+                }
+                return m;
+              })
             }
           : p
       )
@@ -679,7 +686,7 @@ export function PlatformMarketBudgetSelector({
                               <div className="grid grid-cols-2 gap-2">
                                 <div className="space-y-1">
                                   <Label className="text-xs">
-                                    Ad Account {needsConversionEvent(market, platform.name) && <span className="text-destructive">*</span>}
+                                    Ad Account {needsConversionEvent(market) && <span className="text-destructive">*</span>}
                                   </Label>
                                   <Select
                                     value={market.adAccountId || ""}
@@ -898,7 +905,7 @@ export function PlatformMarketBudgetSelector({
                                   </Select>
                                 </div>
 
-                                {needsConversionEvent(market, platform.name) && market.pixel && (
+                                {platform.id === "meta" && market.pixel && needsConversionEvent(market) && (
                                   <div className="space-y-1 col-span-2">
                                     <Label className="text-xs">
                                       Conversion Event <span className="text-destructive">*</span>
