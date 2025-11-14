@@ -25,6 +25,23 @@ import { Platform, PlatformConfiguration } from "./PlatformConfiguration";
 import { determineStrategyFocus } from "@/utils/strategyFocusMapping";
 import { Badge } from "@/components/ui/badge";
 
+// Helper: map internal focus to funnel template key
+const mapFocusToTemplate = (focus?: string): string | undefined => {
+  switch (focus) {
+    case "purchase":
+      return "Purchases";
+    case "leads":
+      return "Leads";
+    case "app-installs":
+      return "In-App Actions";
+    case "conversions":
+      return "Conversions";
+    case "brand-awareness":
+      return "Awareness";
+    default:
+      return undefined;
+  }
+};
 
 export function MediaPlanEditor() {
   const { user } = useAuth();
@@ -739,8 +756,25 @@ export function MediaPlanEditor() {
                           <div className="space-y-2">
                             <Label>Strategy Type</Label>
                             <Select 
-                              value={singleMarket.strategy || genericConfig.strategy || "auto-generate"}
+                              value={singleMarket.strategy || genericConfig.strategy || "auto-detect"}
                               onValueChange={(value) => {
+                                const adFormats = singleMarket.adFormats || genericConfig.targeting?.adFormats || [];
+                                const hasPixel = !!singleMarket.pixel;
+                                const hasCatalog = !!singleMarket.catalog;
+                                let newPhases: any[] = [];
+                                
+                                if (value === "auto-detect") {
+                                  newPhases = generateAutoDetectPhases(adFormats, hasPixel, hasCatalog, startDate, endDate) || [];
+                                } else if (value === "full-funnel") {
+                                  const focus = singleMarket.strategyFocus || genericConfig.strategyFocus;
+                                  const templateKey = mapFocusToTemplate(focus);
+                                  if (templateKey) {
+                                    newPhases = getDefaultPhases(templateKey, startDate, endDate) || [];
+                                  }
+                                } else if (value === "manual") {
+                                  newPhases = [];
+                                }
+                                
                                 setPlatformsWithMarkets(prev => prev.map(p => 
                                   p.id === singlePlatform?.id ? {
                                     ...p,
@@ -748,7 +782,7 @@ export function MediaPlanEditor() {
                                       m.id === singleMarket.id ? { 
                                         ...m, 
                                         strategy: value,
-                                        phases: [] // Clear phases when strategy changes
+                                        phases: newPhases
                                       } : m
                                     )
                                   } : p
@@ -759,9 +793,9 @@ export function MediaPlanEditor() {
                                 <SelectValue placeholder="Select strategy type" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="auto-generate">Auto-Generate</SelectItem>
+                                <SelectItem value="auto-detect">Auto-Generate</SelectItem>
                                 <SelectItem value="full-funnel">Full-Funnel</SelectItem>
-                                <SelectItem value="custom">Custom</SelectItem>
+                                <SelectItem value="manual">Custom</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
@@ -772,11 +806,13 @@ export function MediaPlanEditor() {
                               <Select 
                                 value={singleMarket.strategyFocus || genericConfig.strategyFocus || "auto"}
                                 onValueChange={(value) => {
+                                  const templateKey = mapFocusToTemplate(value);
+                                  const newPhases = templateKey ? getDefaultPhases(templateKey, startDate, endDate) : [];
                                   setPlatformsWithMarkets(prev => prev.map(p => 
                                     p.id === singlePlatform?.id ? {
                                       ...p,
                                       markets: p.markets.map(m => 
-                                        m.id === singleMarket.id ? { ...m, strategyFocus: value } : m
+                                        m.id === singleMarket.id ? { ...m, strategyFocus: value, phases: newPhases } : m
                                       )
                                     } : p
                                   ));
@@ -845,6 +881,23 @@ export function MediaPlanEditor() {
                                     <Select 
                                       value={market.strategy || genericConfig.strategy || "auto-detect"}
                                       onValueChange={(value) => {
+                                        const adFormats = market.adFormats || genericConfig.targeting?.adFormats || [];
+                                        const hasPixel = !!market.pixel;
+                                        const hasCatalog = !!market.catalog;
+                                        let newPhases: any[] = [];
+
+                                        if (value === "auto-detect") {
+                                          newPhases = generateAutoDetectPhases(adFormats, hasPixel, hasCatalog, startDate, endDate) || [];
+                                        } else if (value === "full-funnel") {
+                                          const focus = market.strategyFocus || genericConfig.strategyFocus;
+                                          const templateKey = mapFocusToTemplate(focus);
+                                          if (templateKey) {
+                                            newPhases = getDefaultPhases(templateKey, startDate, endDate) || [];
+                                          }
+                                        } else if (value === "manual") {
+                                          newPhases = [];
+                                        }
+
                                         setPlatformsWithMarkets(prev => prev.map(p => 
                                           p.id === platform.id ? {
                                             ...p,
@@ -852,8 +905,7 @@ export function MediaPlanEditor() {
                                               m.id === market.id ? { 
                                                 ...m, 
                                                 strategy: value,
-                                                // Clear phases when switching strategy
-                                                phases: []
+                                                phases: newPhases
                                               } : m
                                             )
                                           } : p
@@ -865,9 +917,9 @@ export function MediaPlanEditor() {
                                         <SelectValue placeholder="Select strategy" />
                                       </SelectTrigger>
                                       <SelectContent>
-                                        <SelectItem value="auto-generate">Auto-Generate</SelectItem>
+                                        <SelectItem value="auto-detect">Auto-Generate</SelectItem>
                                         <SelectItem value="full-funnel">Full-Funnel</SelectItem>
-                                        <SelectItem value="custom">Custom</SelectItem>
+                                        <SelectItem value="manual">Custom</SelectItem>
                                       </SelectContent>
                                     </Select>
                                   </div>
@@ -878,11 +930,13 @@ export function MediaPlanEditor() {
                                       <Select 
                                         value={market.strategyFocus || genericConfig.strategyFocus || "auto"}
                                         onValueChange={(value) => {
+                                          const templateKey = mapFocusToTemplate(value);
+                                          const newPhases = templateKey ? getDefaultPhases(templateKey, startDate, endDate) : [];
                                           setPlatformsWithMarkets(prev => prev.map(p => 
                                             p.id === platform.id ? {
                                               ...p,
                                               markets: p.markets.map(m => 
-                                                m.id === market.id ? { ...m, strategyFocus: value } : m
+                                                m.id === market.id ? { ...m, strategyFocus: value, phases: newPhases } : m
                                               )
                                             } : p
                                           ));
@@ -913,16 +967,33 @@ export function MediaPlanEditor() {
                                       
                                       setPlatformsWithMarkets(prev => prev.map(p => ({
                                         ...p,
-                                        markets: p.markets.map(m => ({
-                                          ...m,
-                                          strategy: currentStrategy,
-                                          strategyFocus: currentFocus,
-                                          // Clear phases so they regenerate with the new strategy
-                                          phases: []
-                                        }))
+                                        markets: p.markets.map(m => {
+                                          const adFormats = m.adFormats || genericConfig.targeting?.adFormats || [];
+                                          const hasPixel = !!m.pixel;
+                                          const hasCatalog = !!m.catalog;
+                                          let newPhases: any[] = [];
+
+                                          if (currentStrategy === "auto-detect") {
+                                            newPhases = generateAutoDetectPhases(adFormats, hasPixel, hasCatalog, startDate, endDate) || [];
+                                          } else if (currentStrategy === "full-funnel") {
+                                            const templateKey = mapFocusToTemplate(currentFocus);
+                                            if (templateKey) {
+                                              newPhases = getDefaultPhases(templateKey, startDate, endDate) || [];
+                                            }
+                                          } else if (currentStrategy === "manual") {
+                                            newPhases = [];
+                                          }
+
+                                          return {
+                                            ...m,
+                                            strategy: currentStrategy,
+                                            strategyFocus: currentFocus,
+                                            phases: newPhases
+                                          };
+                                        })
                                       })));
                                       
-                                      toast.success("Strategy applied to all markets. Phases will regenerate.");
+                                      toast.success("Strategy applied to all markets. Phases regenerated.");
                                       ensureDraft();
                                     }}
                                   >
