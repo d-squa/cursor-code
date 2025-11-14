@@ -726,12 +726,79 @@ export function MediaPlanEditor() {
                 const totalMarkets = platformsWithMarkets.reduce((sum, p) => sum + (p.enabled ? p.markets.length : 0), 0);
                 
                 if (totalMarkets === 1) {
-                  // Single market: show single PhaseScheduler
+                  // Single market: show strategy configuration and PhaseScheduler
                   const singlePlatform = platformsWithMarkets.find(p => p.enabled && p.markets.length > 0);
                   const singleMarket = singlePlatform ? singlePlatform.markets[0] : null;
                   
                   return singleMarket ? (
-                    <div className="mt-6 pt-6 border-t">
+                    <div className="mt-6 pt-6 border-t space-y-6">
+                      {/* Strategy Configuration for Single Market */}
+                      <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
+                        <h4 className="font-medium">Campaign Strategy</h4>
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <div className="space-y-2">
+                            <Label>Strategy Type</Label>
+                            <Select 
+                              value={singleMarket.strategy || genericConfig.strategy || "auto-generate"}
+                              onValueChange={(value) => {
+                                setPlatformsWithMarkets(prev => prev.map(p => 
+                                  p.id === singlePlatform?.id ? {
+                                    ...p,
+                                    markets: p.markets.map(m => 
+                                      m.id === singleMarket.id ? { 
+                                        ...m, 
+                                        strategy: value,
+                                        phases: [] // Clear phases when strategy changes
+                                      } : m
+                                    )
+                                  } : p
+                                ));
+                              }}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select strategy type" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="auto-generate">Auto-Generate</SelectItem>
+                                <SelectItem value="full-funnel">Full-Funnel</SelectItem>
+                                <SelectItem value="custom">Custom</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {(singleMarket.strategy || genericConfig.strategy) === "full-funnel" && (
+                            <div className="space-y-2">
+                              <Label>Strategy Focus</Label>
+                              <Select 
+                                value={singleMarket.strategyFocus || genericConfig.strategyFocus || "auto"}
+                                onValueChange={(value) => {
+                                  setPlatformsWithMarkets(prev => prev.map(p => 
+                                    p.id === singlePlatform?.id ? {
+                                      ...p,
+                                      markets: p.markets.map(m => 
+                                        m.id === singleMarket.id ? { ...m, strategyFocus: value } : m
+                                      )
+                                    } : p
+                                  ));
+                                }}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select focus" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="auto" disabled>Select a focus…</SelectItem>
+                                  <SelectItem value="purchase">Purchase</SelectItem>
+                                  <SelectItem value="leads">Leads</SelectItem>
+                                  <SelectItem value="app-installs">App Installs</SelectItem>
+                                  <SelectItem value="conversions">Conversions</SelectItem>
+                                  <SelectItem value="brand-awareness">Brand Awareness</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
                       <PhaseScheduler
                         phases={singleMarket.phases || []}
                         onPhasesChange={(phases) => {
@@ -798,18 +865,18 @@ export function MediaPlanEditor() {
                                         <SelectValue placeholder="Select strategy" />
                                       </SelectTrigger>
                                       <SelectContent>
-                                        <SelectItem value="auto-detect">Auto-Detect (Recommended)</SelectItem>
+                                        <SelectItem value="auto-generate">Auto-Generate</SelectItem>
                                         <SelectItem value="full-funnel">Full-Funnel</SelectItem>
-                                        <SelectItem value="manual">Manual</SelectItem>
+                                        <SelectItem value="custom">Custom</SelectItem>
                                       </SelectContent>
                                     </Select>
                                   </div>
 
-                                  {(market.strategy || genericConfig.strategy) !== "auto-detect" && (
+                                  {(market.strategy || genericConfig.strategy) === "full-funnel" && (
                                     <div className="space-y-2">
                                       <Label>Strategy Focus</Label>
                                       <Select 
-                                        value={market.strategyFocus || genericConfig.strategyFocus || "conversions"}
+                                        value={market.strategyFocus || genericConfig.strategyFocus || "auto"}
                                         onValueChange={(value) => {
                                           setPlatformsWithMarkets(prev => prev.map(p => 
                                             p.id === platform.id ? {
@@ -826,13 +893,12 @@ export function MediaPlanEditor() {
                                           <SelectValue placeholder="Select focus" />
                                         </SelectTrigger>
                                         <SelectContent>
+                                          <SelectItem value="auto" disabled>Select a focus…</SelectItem>
                                           <SelectItem value="purchase">Purchase</SelectItem>
-                                          <SelectItem value="conversions">Conversions</SelectItem>
                                           <SelectItem value="leads">Leads</SelectItem>
-                                          <SelectItem value="brand-awareness">Brand Awareness</SelectItem>
                                           <SelectItem value="app-installs">App Installs</SelectItem>
-                                          <SelectItem value="engagement">Engagement</SelectItem>
-                                          <SelectItem value="reach">Reach</SelectItem>
+                                          <SelectItem value="conversions">Conversions</SelectItem>
+                                          <SelectItem value="brand-awareness">Brand Awareness</SelectItem>
                                         </SelectContent>
                                       </Select>
                                     </div>
