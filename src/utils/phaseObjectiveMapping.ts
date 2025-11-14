@@ -20,8 +20,8 @@ export function getObjectiveFromPhaseName(
   // Awareness/Reach phases
   if (normalizedPhase.includes("awareness") || normalizedPhase.includes("reach") || normalizedPhase.includes("visibility")) {
     return {
-      objective: "OUTCOME_AWARENESS",
-      optimizationGoal: "REACH",
+      objective: "Brand Awareness",
+      optimizationGoal: "Reach",
       destination: "On Your Ad"
     };
   }
@@ -29,8 +29,8 @@ export function getObjectiveFromPhaseName(
   // Video/Engagement phases
   if (normalizedPhase.includes("engagement") || normalizedPhase.includes("authority") || normalizedPhase.includes("trust")) {
     return {
-      objective: "OUTCOME_ENGAGEMENT",
-      optimizationGoal: "POST_ENGAGEMENT",
+      objective: "Engagement",
+      optimizationGoal: "Post Engagement",
       destination: "Post Engagement"
     };
   }
@@ -38,8 +38,8 @@ export function getObjectiveFromPhaseName(
   // Consideration phases
   if (normalizedPhase.includes("consideration") || normalizedPhase.includes("interest") || normalizedPhase.includes("preference")) {
     return {
-      objective: "OUTCOME_TRAFFIC",
-      optimizationGoal: "LANDING_PAGE_VIEWS",
+      objective: "Traffic",
+      optimizationGoal: "Landing Page Views",
       destination: "Website"
     };
   }
@@ -48,14 +48,14 @@ export function getObjectiveFromPhaseName(
   if (normalizedPhase.includes("capture") || normalizedPhase.includes("nurture") || strategyFocus === "Leads") {
     if (normalizedPhase.includes("capture")) {
       return {
-        objective: "OUTCOME_LEADS",
-        optimizationGoal: "LEADS",
+        objective: "Lead Generation",
+        optimizationGoal: "Leads",
         destination: "Instant Forms"
       };
     }
     return {
-      objective: "OUTCOME_LEADS",
-      optimizationGoal: "OFFSITE_CONVERSIONS",
+      objective: "Lead Generation",
+      optimizationGoal: "Conversions",
       destination: "Website"
     };
   }
@@ -63,8 +63,8 @@ export function getObjectiveFromPhaseName(
   // Conversion/Purchase phases
   if (normalizedPhase.includes("conversion") || normalizedPhase.includes("purchase") || normalizedPhase.includes("intent")) {
     return {
-      objective: "OUTCOME_SALES",
-      optimizationGoal: "OFFSITE_CONVERSIONS",
+      objective: "Conversions",
+      optimizationGoal: "Conversions",
       destination: "Website"
     };
   }
@@ -72,8 +72,8 @@ export function getObjectiveFromPhaseName(
   // Loyalty/Retention phases
   if (normalizedPhase.includes("loyalty") || normalizedPhase.includes("retention") || normalizedPhase.includes("expansion")) {
     return {
-      objective: "OUTCOME_SALES",
-      optimizationGoal: "OFFSITE_CONVERSIONS",
+      objective: "Conversions",
+      optimizationGoal: "Value",
       destination: "Website"
     };
   }
@@ -81,16 +81,16 @@ export function getObjectiveFromPhaseName(
   // App-specific phases
   if (normalizedPhase.includes("acquisition") || normalizedPhase.includes("onboarding") || normalizedPhase.includes("activation")) {
     return {
-      objective: "OUTCOME_APP_PROMOTION",
-      optimizationGoal: "APP_INSTALLS",
+      objective: "App Installs",
+      optimizationGoal: "App Installs",
       destination: "App"
     };
   }
   
   // Default to traffic
   return {
-    objective: "OUTCOME_TRAFFIC",
-    optimizationGoal: "LINK_CLICKS",
+    objective: "Traffic",
+    optimizationGoal: "Link Clicks",
     destination: "Website"
   };
 }
