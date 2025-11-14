@@ -227,11 +227,15 @@ export function MediaPlanEditor() {
               pageId: m.pageId,
               pixel: m.pixel,
               catalog: m.catalog,
+              productSet: m.productSet,
               conversionEvent: m.conversionEvent,
               adFormats: m.adFormats,
               phases: m.phases,
               isCBOEnabled: m.isCBOEnabled,
               isLifetimeBudget: m.isLifetimeBudget,
+              instagramActorId: m.instagramActorId,
+              strategy: m.strategy,
+              strategyFocus: m.strategyFocus,
             })),
           }), {}),
           generic_config: {
@@ -385,11 +389,15 @@ export function MediaPlanEditor() {
             pageId: m.pageId,
             pixel: m.pixel,
             catalog: m.catalog,
+            productSet: m.productSet,
             conversionEvent: m.conversionEvent,
             adFormats: m.adFormats,
             phases: m.phases,
             isCBOEnabled: m.isCBOEnabled,
             isLifetimeBudget: m.isLifetimeBudget,
+            instagramActorId: m.instagramActorId,
+            strategy: m.strategy,
+            strategyFocus: m.strategyFocus,
           })),
         }), {}),
         generic_config: {
@@ -465,11 +473,11 @@ export function MediaPlanEditor() {
             pageId: m.pageId,
             pixel: m.pixel,
             catalog: m.catalog,
-            conversionEvent: m.conversionEvent,
             productSet: m.productSet,
-            instagramActorId: m.instagramActorId,
+            conversionEvent: m.conversionEvent,
             adFormats: m.adFormats,
             phases: m.phases,
+            instagramActorId: m.instagramActorId,
             strategy: m.strategy,
             strategyFocus: m.strategyFocus,
             isCBOEnabled: m.isCBOEnabled,
@@ -602,7 +610,7 @@ export function MediaPlanEditor() {
                 onClick={async () => { await ensureDraft(); setCurrentStep(2); }} 
                 disabled={!isActivationDetailsComplete()}
               >
-                Next: Strategy Configuration
+                Next: Targeting
               </Button>
             </div>
           </CardContent>
@@ -663,7 +671,7 @@ export function MediaPlanEditor() {
                   Back
                 </Button>
                 <Button onClick={() => setCurrentStep(3)}>
-                  Next
+                  Next: Strategy Configuration
                 </Button>
               </div>
             </CardContent>
@@ -712,61 +720,6 @@ export function MediaPlanEditor() {
           </CardHeader>
           {currentStep === 3 ? (
             <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="strategy">Strategy Type</Label>
-                  <Select 
-                    value={genericConfig.strategy || "auto-detect"}
-                    onValueChange={(value: any) => {
-                      setGenericConfig({ ...genericConfig, strategy: value });
-                      ensureDraft();
-                    }}
-                  >
-                    <SelectTrigger id="strategy">
-                      <SelectValue placeholder="Select strategy" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="auto-detect">Auto-Detect (Recommended)</SelectItem>
-                      <SelectItem value="full-funnel">Full-Funnel</SelectItem>
-                      <SelectItem value="manual">Manual</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-sm text-muted-foreground">
-                    {genericConfig.strategy === "auto-detect" && "Automatically detects the best strategy based on your targeting and platform configuration"}
-                    {genericConfig.strategy === "full-funnel" && "Runs campaigns across all funnel stages (Awareness → Consideration → Conversion → Loyalty)"}
-                    {genericConfig.strategy === "manual" && "Create custom campaigns with your own configuration"}
-                  </p>
-                </div>
-
-                {genericConfig.strategy !== "auto-detect" && (
-                  <div className="space-y-2">
-                    <Label htmlFor="focus">Strategy Focus</Label>
-                    <Select 
-                      value={genericConfig.strategyFocus || "conversions"}
-                      onValueChange={(value: any) => {
-                        setGenericConfig({ ...genericConfig, strategyFocus: value });
-                        ensureDraft();
-                      }}
-                    >
-                      <SelectTrigger id="focus">
-                        <SelectValue placeholder="Select focus" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="purchase">Purchase</SelectItem>
-                        <SelectItem value="leads">Leads</SelectItem>
-                        <SelectItem value="app-installs">App Installs</SelectItem>
-                        <SelectItem value="conversions">Conversions</SelectItem>
-                        <SelectItem value="brand-awareness">Brand Awareness</SelectItem>
-                        <SelectItem value="engagement">Engagement</SelectItem>
-                        <SelectItem value="reach">Reach</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-sm text-muted-foreground">
-                      Select the primary goal for your campaign
-                    </p>
-                  </div>
-                )}
-              </div>
 
               {/* Phase Scheduling */}
               {(() => {
@@ -793,6 +746,7 @@ export function MediaPlanEditor() {
                         endDate={endDate}
                         platformName={singlePlatform?.name || "Facebook (Meta)"}
                         platformId={singlePlatform?.id}
+                        strategy={singleMarket.strategy || genericConfig.strategy}
                         strategyFocus={singleMarket.strategyFocus || genericConfig.strategyFocus}
                         marketTargeting={{
                           ageMin: singleMarket.ageMin || genericConfig.targeting?.ageMin,
@@ -819,7 +773,7 @@ export function MediaPlanEditor() {
                                 
                                 {/* Per-Market Strategy Configuration */}
                                 <div className="space-y-4 mb-6 p-4 bg-muted/50 rounded-lg">
-                                  <div className="space-y-2">
+                                   <div className="space-y-2">
                                     <Label>Strategy Type</Label>
                                     <Select 
                                       value={market.strategy || genericConfig.strategy || "auto-detect"}
@@ -828,7 +782,12 @@ export function MediaPlanEditor() {
                                           p.id === platform.id ? {
                                             ...p,
                                             markets: p.markets.map(m => 
-                                              m.id === market.id ? { ...m, strategy: value } : m
+                                              m.id === market.id ? { 
+                                                ...m, 
+                                                strategy: value,
+                                                // Clear phases when switching strategy
+                                                phases: []
+                                              } : m
                                             )
                                           } : p
                                         ));
@@ -867,10 +826,13 @@ export function MediaPlanEditor() {
                                           <SelectValue placeholder="Select focus" />
                                         </SelectTrigger>
                                         <SelectContent>
+                                          <SelectItem value="purchase">Purchase</SelectItem>
                                           <SelectItem value="conversions">Conversions</SelectItem>
                                           <SelectItem value="leads">Leads</SelectItem>
                                           <SelectItem value="brand-awareness">Brand Awareness</SelectItem>
                                           <SelectItem value="app-installs">App Installs</SelectItem>
+                                          <SelectItem value="engagement">Engagement</SelectItem>
+                                          <SelectItem value="reach">Reach</SelectItem>
                                         </SelectContent>
                                       </Select>
                                     </div>
@@ -888,11 +850,13 @@ export function MediaPlanEditor() {
                                         markets: p.markets.map(m => ({
                                           ...m,
                                           strategy: currentStrategy,
-                                          strategyFocus: currentFocus
+                                          strategyFocus: currentFocus,
+                                          // Clear phases so they regenerate with the new strategy
+                                          phases: []
                                         }))
                                       })));
                                       
-                                      toast.success("Strategy applied to all markets");
+                                      toast.success("Strategy applied to all markets. Phases will regenerate.");
                                       ensureDraft();
                                     }}
                                   >
@@ -914,6 +878,7 @@ export function MediaPlanEditor() {
                                   endDate={endDate}
                                   platformName={platform.name}
                                   platformId={platform.id}
+                                  strategy={market.strategy || genericConfig.strategy}
                                   strategyFocus={market.strategyFocus || genericConfig.strategyFocus}
                                   marketTargeting={{
                                     ageMin: market.ageMin || genericConfig.targeting?.ageMin,

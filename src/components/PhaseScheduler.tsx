@@ -25,6 +25,7 @@ interface PhaseSchedulerProps {
   platformId?: string;
   platformName: string;
   strategyFocus?: string;
+  strategy?: string;
   marketTargeting?: {
     ageMin?: number;
     ageMax?: number;
@@ -73,7 +74,7 @@ const platformObjectiveMapping: Record<string, Record<string, string[]>> = {
   },
 };
 
-export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate, platformId = "meta", platformName, strategyFocus, marketTargeting }: PhaseSchedulerProps) {
+export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate, platformId = "meta", platformName, strategyFocus, strategy, marketTargeting }: PhaseSchedulerProps) {
   const [dragging, setDragging] = useState<DraggingState | null>(null);
   const [editingName, setEditingName] = useState<string | null>(null);
   const [editingBudget, setEditingBudget] = useState<string | null>(null);
@@ -88,56 +89,71 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate, pla
       const totalDays = differenceInDays(campaignEnd, campaignStart);
       
       if (totalDays > 0) {
-        const defaultPhases: Phase[] = [
-          {
-            id: "phase-awareness",
-            name: "Awareness",
-            startDate: format(campaignStart, "yyyy-MM-dd"),
-            endDate: format(addDays(campaignStart, Math.floor(totalDays * 0.5)), "yyyy-MM-dd"),
-            budgetPercentage: 50,
-            assetTypes: [],
-            isLoyaltyPhase: false,
-            objective: strategyFocus ? getDefaultObjectiveForFocus(strategyFocus, "Awareness") : undefined,
-            optimizationGoal: strategyFocus ? getOptimizationGoalForFocus(strategyFocus as any, platformId || "meta") : undefined,
-          },
-          {
-            id: "phase-consideration",
-            name: "Consideration",
-            startDate: format(addDays(campaignStart, Math.floor(totalDays * 0.5)), "yyyy-MM-dd"),
-            endDate: format(addDays(campaignStart, Math.floor(totalDays * 0.8)), "yyyy-MM-dd"),
-            budgetPercentage: 30,
-            assetTypes: [],
-            isLoyaltyPhase: false,
-            objective: strategyFocus ? getDefaultObjectiveForFocus(strategyFocus, "Consideration") : undefined,
-            optimizationGoal: strategyFocus ? getOptimizationGoalForFocus(strategyFocus as any, platformId || "meta") : undefined,
-          },
-          {
-            id: "phase-conversion",
-            name: "Conversion",
-            startDate: format(addDays(campaignStart, Math.floor(totalDays * 0.8)), "yyyy-MM-dd"),
-            endDate: format(campaignEnd, "yyyy-MM-dd"),
-            budgetPercentage: 20,
-            assetTypes: [],
-            isLoyaltyPhase: false,
-            objective: strategyFocus ? getDefaultObjectiveForFocus(strategyFocus, "Conversion") : undefined,
-            optimizationGoal: strategyFocus ? getOptimizationGoalForFocus(strategyFocus as any, platformId || "meta") : undefined,
-          },
-          {
-            id: "phase-loyalty",
-            name: "Loyalty",
+        // For manual strategy, start with one empty phase
+        if (strategy === "manual") {
+          const manualPhase: Phase = {
+            id: `phase-${Date.now()}`,
+            name: "Phase 1",
             startDate: format(campaignStart, "yyyy-MM-dd"),
             endDate: format(campaignEnd, "yyyy-MM-dd"),
-            budgetPercentage: 0,
+            budgetPercentage: 100,
             assetTypes: [],
-            isLoyaltyPhase: true,
-            objective: "Conversions",
-            optimizationGoal: "Value",
-          },
-        ];
-        onPhasesChange(defaultPhases);
+            isLoyaltyPhase: false,
+          };
+          onPhasesChange([manualPhase]);
+        } else {
+          // Default phases for auto-detect and full-funnel
+          const defaultPhases: Phase[] = [
+            {
+              id: "phase-awareness",
+              name: "Awareness",
+              startDate: format(campaignStart, "yyyy-MM-dd"),
+              endDate: format(addDays(campaignStart, Math.floor(totalDays * 0.5)), "yyyy-MM-dd"),
+              budgetPercentage: 50,
+              assetTypes: [],
+              isLoyaltyPhase: false,
+              objective: strategyFocus ? getDefaultObjectiveForFocus(strategyFocus, "Awareness") : undefined,
+              optimizationGoal: strategyFocus ? getOptimizationGoalForFocus(strategyFocus as any, platformId || "meta") : undefined,
+            },
+            {
+              id: "phase-consideration",
+              name: "Consideration",
+              startDate: format(addDays(campaignStart, Math.floor(totalDays * 0.5)), "yyyy-MM-dd"),
+              endDate: format(addDays(campaignStart, Math.floor(totalDays * 0.8)), "yyyy-MM-dd"),
+              budgetPercentage: 30,
+              assetTypes: [],
+              isLoyaltyPhase: false,
+              objective: strategyFocus ? getDefaultObjectiveForFocus(strategyFocus, "Consideration") : undefined,
+              optimizationGoal: strategyFocus ? getOptimizationGoalForFocus(strategyFocus as any, platformId || "meta") : undefined,
+            },
+            {
+              id: "phase-conversion",
+              name: "Conversion",
+              startDate: format(addDays(campaignStart, Math.floor(totalDays * 0.8)), "yyyy-MM-dd"),
+              endDate: format(campaignEnd, "yyyy-MM-dd"),
+              budgetPercentage: 20,
+              assetTypes: [],
+              isLoyaltyPhase: false,
+              objective: strategyFocus ? getDefaultObjectiveForFocus(strategyFocus, "Conversion") : undefined,
+              optimizationGoal: strategyFocus ? getOptimizationGoalForFocus(strategyFocus as any, platformId || "meta") : undefined,
+            },
+            {
+              id: "phase-loyalty",
+              name: "Loyalty",
+              startDate: format(campaignStart, "yyyy-MM-dd"),
+              endDate: format(campaignEnd, "yyyy-MM-dd"),
+              budgetPercentage: 0,
+              assetTypes: [],
+              isLoyaltyPhase: true,
+              objective: "Conversions",
+              optimizationGoal: "Value",
+            },
+          ];
+          onPhasesChange(defaultPhases);
+        }
       }
     }
-  }, [startDate, endDate]);
+  }, [startDate, endDate, strategy]);
 
   // Helper function to get default objective based on strategy focus and phase
   const getDefaultObjectiveForFocus = (focus: string, phaseName: string): string => {

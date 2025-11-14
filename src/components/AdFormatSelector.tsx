@@ -33,19 +33,6 @@ export function AdFormatSelector({ platformName, selectedFormats, onFormatsChang
         placeholder="Select ad formats"
         emptyText="No ad formats"
       />
-
-      {selectedFormats.length > 0 && (
-        <div className="flex flex-wrap gap-2 mt-2">
-          {selectedFormats.map((format) => (
-            <Badge key={format} variant="secondary" className="gap-1">
-              {format}
-              <button onClick={() => removeFormat(format)} className="ml-1 hover:bg-muted rounded-full">
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

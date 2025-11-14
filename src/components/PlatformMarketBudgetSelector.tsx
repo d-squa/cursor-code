@@ -682,7 +682,7 @@ export function PlatformMarketBudgetSelector({
                                     Ad Account {needsConversionEvent(market, platform.name) && <span className="text-destructive">*</span>}
                                   </Label>
                                   <Select
-                                    value={market.adAccountId || market.accountName || ""}
+                                    value={market.adAccountId || ""}
                                     onValueChange={(value) => {
                                       const account = adAccounts.find(a => a.id === value);
                                       updateMarketField(platformIndex, market.id, 'adAccountId', value);
@@ -728,7 +728,7 @@ export function PlatformMarketBudgetSelector({
 
                                 <div className="space-y-1">
                                   <Label className="text-xs">
-                                    Pixel {needsConversionEvent(market, platform.name) && <span className="text-destructive">*</span>}
+                                    Pixel
                                   </Label>
                                   <Select
                                     value={market.pixel || ""}
@@ -934,11 +934,14 @@ export function PlatformMarketBudgetSelector({
                             )}
 
                             {/* Ad Formats */}
-                            <AdFormatSelector
-                              platformName={platform.name}
-                              selectedFormats={market.adFormats || []}
-                              onFormatsChange={(formats) => updateMarketField(platformIndex, market.id, 'adFormats', formats)}
-                            />
+                            <div className="space-y-1">
+                              <Label className="text-xs">Ad Formats</Label>
+                              <AdFormatSelector
+                                platformName={platform.name}
+                                selectedFormats={market.adFormats || []}
+                                onFormatsChange={(formats) => updateMarketField(platformIndex, market.id, 'adFormats', formats)}
+                              />
+                            </div>
 
                             {/* Market Budget */}
                             <div className="space-y-1">
