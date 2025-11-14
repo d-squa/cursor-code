@@ -87,19 +87,35 @@ const { data, error } = await supabase
 
   const handleConnectPlatform = async (platformType: string) => {
     if (platformType === "meta") {
-      // Redirect to Meta OAuth
-      const redirectUri = `${window.location.origin}/platforms`;
-      const clientId = PLATFORM_CONFIG.meta.appId;
-      
-      if (!clientId) {
-        toast.error("Meta App ID not configured. Please add VITE_META_APP_ID to your environment variables.");
-        return;
-      }
+      try {
+        // Redirect to Meta OAuth
+        const redirectUri = `${window.location.origin}/platforms`;
+        const clientId = PLATFORM_CONFIG.meta.appId;
+        
+        console.log("Meta OAuth - Client ID:", clientId ? "Configured" : "Missing");
+        console.log("Meta OAuth - Redirect URI:", redirectUri);
+        
+        if (!clientId) {
+          toast.error("Meta App ID not configured. Please contact support.");
+          return;
+        }
 
-      const scope = PLATFORM_CONFIG.meta.oauthScopes;
-      const oauthUrl = `https://www.facebook.com/${PLATFORM_CONFIG.meta.apiVersion}/dialog/oauth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&state=${platformType}`;
-      
-      window.location.href = oauthUrl;
+        const scope = PLATFORM_CONFIG.meta.oauthScopes;
+        const oauthUrl = `https://www.facebook.com/${PLATFORM_CONFIG.meta.apiVersion}/dialog/oauth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&state=${platformType}`;
+        
+        console.log("Meta OAuth - Redirecting to:", oauthUrl);
+        
+        // Add a small delay to ensure UI updates before redirect
+        toast.loading("Redirecting to Facebook...");
+        
+        setTimeout(() => {
+          window.location.href = oauthUrl;
+        }, 100);
+        
+      } catch (error: any) {
+        console.error("Error connecting to Meta:", error);
+        toast.error(error.message || "Failed to connect to Facebook");
+      }
     } else {
       toast.error("This platform is not yet supported");
     }
