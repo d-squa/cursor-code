@@ -332,18 +332,23 @@ export function CampaignForecast({
         let destination: string;
         
         // Check if phase has explicit objective/optimization goal set
-        if (market.phaseObjective && market.phaseOptimizationGoal) {
+        // Use phase-level settings if they exist and are not empty
+        if (market.phaseObjective && market.phaseOptimizationGoal && 
+            market.phaseObjective.trim() !== '' && market.phaseOptimizationGoal.trim() !== '') {
           objective = market.phaseObjective;
           optimizationGoal = market.phaseOptimizationGoal;
+          console.log(`✅ Using explicit phase objective: ${objective} / ${optimizationGoal}`);
           // Determine destination from optimization goal
           const goalMetricsLookup = getOptimizationGoalMetrics(objective, optimizationGoal);
           destination = goalMetricsLookup?.destination || "Website";
         } else if (market.phaseName) {
           // Auto-detect from phase name
+          console.log(`🔍 Auto-detecting objective from phase name: ${market.phaseName}`);
           const autoDetected = getObjectiveFromPhaseName(market.phaseName, strategyFocusValue);
           objective = autoDetected.objective;
           optimizationGoal = autoDetected.optimizationGoal;
           destination = autoDetected.destination;
+          console.log(`✅ Auto-detected: ${objective} / ${optimizationGoal}`);
         } else {
           // Fallback to strategy focus
           if (strategyFocusValue === 'brand-awareness') {
@@ -441,32 +446,29 @@ export function CampaignForecast({
 
           toast.success('Using Meta reach estimates for this forecast');
           
-          // Map strategy focus to optimization goal for fallback
-          const strategyFocusValue = market.strategyFocus || genericConfig.strategyFocus || 'conversions';
-          let optimizationGoal = "OFFSITE_CONVERSIONS";
-          let objective = "OUTCOME_SALES";
-          let destination = "Website";
+          // Determine objective/goal - prefer phase settings, fallback to auto-detect or strategy focus
+          let optimizationGoal: string;
+          let objective: string;
+          let destination: string;
           
-          if (strategyFocusValue === 'brand-awareness') {
-            objective = "OUTCOME_AWARENESS";
-            optimizationGoal = "IMPRESSIONS";
-            destination = "On Your Ad";
-          } else if (strategyFocusValue === 'leads') {
-            objective = "OUTCOME_LEADS";
-            optimizationGoal = "LEADS";
-            destination = "Instant Forms";
-          } else if (strategyFocusValue === 'app-installs') {
-            objective = "OUTCOME_APP_PROMOTION";
-            optimizationGoal = "APP_INSTALLS";
-            destination = "App";
-          } else if (strategyFocusValue === 'purchase') {
-            objective = "OUTCOME_SALES";
-            optimizationGoal = "OFFSITE_CONVERSIONS";
+          if (market.phaseObjective && market.phaseOptimizationGoal && 
+              market.phaseObjective.trim() !== '' && market.phaseOptimizationGoal.trim() !== '') {
+            objective = market.phaseObjective;
+            optimizationGoal = market.phaseOptimizationGoal;
             destination = "Website";
+          } else if (market.phaseName) {
+            const strategyFocusValue = market.strategyFocus || genericConfig.strategyFocus || 'conversions';
+            const autoDetected = getObjectiveFromPhaseName(market.phaseName, strategyFocusValue);
+            objective = autoDetected.objective;
+            optimizationGoal = autoDetected.optimizationGoal;
+            destination = autoDetected.destination;
           } else {
-            objective = "OUTCOME_TRAFFIC";
-            optimizationGoal = "LINK_CLICKS";
-            destination = "Website";
+            // Fallback to strategy focus for market-level forecasts
+            const strategyFocusValue = market.strategyFocus || genericConfig.strategyFocus || 'conversions';
+            const autoDetected = getObjectiveFromPhaseName('default', strategyFocusValue);
+            objective = autoDetected.objective;
+            optimizationGoal = autoDetected.optimizationGoal;
+            destination = autoDetected.destination;
           }
           const goalMetrics = getOptimizationGoalMetrics(objective, optimizationGoal, destination);
           
@@ -622,31 +624,22 @@ export function CampaignForecast({
                 toast.error(`Could not fetch forecast for ${market.name} - ${phase.name}. Using estimates.`);
                 
                 // Return estimated metrics as fallback
-                const strategyFocusValue = market.strategyFocus || genericConfig.strategyFocus || 'conversions';
-                let optimizationGoal = "OFFSITE_CONVERSIONS";
-                let objective = "OUTCOME_SALES";
-                let destination = "Website";
+                // Use phase objective if available, otherwise auto-detect from phase name
+                let optimizationGoal: string;
+                let objective: string;
+                let destination: string;
                 
-                if (strategyFocusValue === 'brand-awareness') {
-                  objective = "OUTCOME_AWARENESS";
-                  optimizationGoal = "IMPRESSIONS";
-                  destination = "On Your Ad";
-                } else if (strategyFocusValue === 'leads') {
-                  objective = "OUTCOME_LEADS";
-                  optimizationGoal = "LEADS";
-                  destination = "Instant Forms";
-                } else if (strategyFocusValue === 'app-installs') {
-                  objective = "OUTCOME_APP_PROMOTION";
-                  optimizationGoal = "APP_INSTALLS";
-                  destination = "App";
-                } else if (strategyFocusValue === 'purchase') {
-                  objective = "OUTCOME_SALES";
-                  optimizationGoal = "OFFSITE_CONVERSIONS";
+                if (phase.objective && phase.optimizationGoal) {
+                  objective = phase.objective;
+                  optimizationGoal = phase.optimizationGoal;
                   destination = "Website";
                 } else {
-                  objective = "OUTCOME_TRAFFIC";
-                  optimizationGoal = "LINK_CLICKS";
-                  destination = "Website";
+                  // Auto-detect from phase name
+                  const strategyFocusValue = market.strategyFocus || genericConfig.strategyFocus || 'conversions';
+                  const autoDetected = getObjectiveFromPhaseName(phase.name, strategyFocusValue);
+                  objective = autoDetected.objective;
+                  optimizationGoal = autoDetected.optimizationGoal;
+                  destination = autoDetected.destination;
                 }
                 const goalMetrics = getOptimizationGoalMetrics(objective, optimizationGoal, destination);
                 
@@ -685,32 +678,12 @@ export function CampaignForecast({
               console.error(`Forecast error for ${platform.id} - ${market.name}:`, error);
               toast.error(`Could not fetch forecast for ${market.name}. Using estimates.`);
               
+              // Use market strategy focus to determine objective
               const strategyFocusValue = market.strategyFocus || genericConfig.strategyFocus || 'conversions';
-              let optimizationGoal = "OFFSITE_CONVERSIONS";
-              let objective = "OUTCOME_SALES";
-              let destination = "Website";
-              
-              if (strategyFocusValue === 'brand-awareness') {
-                objective = "OUTCOME_AWARENESS";
-                optimizationGoal = "IMPRESSIONS";
-                destination = "On Your Ad";
-              } else if (strategyFocusValue === 'leads') {
-                objective = "OUTCOME_LEADS";
-                optimizationGoal = "LEADS";
-                destination = "Instant Forms";
-              } else if (strategyFocusValue === 'app-installs') {
-                objective = "OUTCOME_APP_PROMOTION";
-                optimizationGoal = "APP_INSTALLS";
-                destination = "App";
-              } else if (strategyFocusValue === 'purchase') {
-                objective = "OUTCOME_SALES";
-                optimizationGoal = "OFFSITE_CONVERSIONS";
-                destination = "Website";
-              } else {
-                objective = "OUTCOME_TRAFFIC";
-                optimizationGoal = "LINK_CLICKS";
-                destination = "Website";
-              }
+              const autoDetected = getObjectiveFromPhaseName('default', strategyFocusValue);
+              const objective = autoDetected.objective;
+              const optimizationGoal = autoDetected.optimizationGoal;
+              const destination = autoDetected.destination;
               const goalMetrics = getOptimizationGoalMetrics(objective, optimizationGoal, destination);
               
               campaignForecasts.push({
