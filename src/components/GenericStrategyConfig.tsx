@@ -110,8 +110,6 @@ export function GenericStrategyConfig({
   hasPixel = false,
   hasCatalog = false,
 }: GenericStrategyConfigProps) {
-  const [strategyFocusOpen, setStrategyFocusOpen] = useState(false);
-  
   // Set default strategy to auto-detect if not set
   useEffect(() => {
     if (!config.strategy) {
@@ -120,6 +118,7 @@ export function GenericStrategyConfig({
   }, []);
   
   // Auto-determine strategy focus based on ad formats and platform config
+  // ONLY runs in auto-detect mode
   useEffect(() => {
     // Only auto-set if strategy is "auto-detect"
     if (config.strategy === "auto-detect") {
@@ -154,9 +153,8 @@ export function GenericStrategyConfig({
       const focus = field === "strategyFocus" ? value : config.strategyFocus;
       
       if (field === "strategy" && value === "full-funnel") {
-        // Reset focus to placeholder and open the dropdown to prompt selection
+        // Reset focus to placeholder when switching to full-funnel
         updatedConfig.strategyFocus = "auto";
-        setStrategyFocusOpen(true);
       }
       
       if (strategy === "full-funnel" && focus) {
@@ -337,8 +335,6 @@ export function GenericStrategyConfig({
                   <Select
                     value={config.strategyFocus || "auto"}
                     onValueChange={(value) => updateConfig("strategyFocus", value)}
-                    open={strategyFocusOpen}
-                    onOpenChange={setStrategyFocusOpen}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select focus" />
