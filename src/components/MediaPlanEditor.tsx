@@ -1042,71 +1042,95 @@ export function MediaPlanEditor() {
                 </Button>
                 <Button 
                   onClick={async () => {
-                    // Generate phases per platform/market based on strategy type (only for multiple markets)
+                    // Only generate phases if markets don't have phases yet
                     const totalMarkets = platformsWithMarkets.reduce((sum, p) => sum + (p.enabled ? p.markets.length : 0), 0);
                     
                     // Skip auto-generation if there's only 1 market (phases are configured in PhaseScheduler above)
                     if (totalMarkets > 1) {
-                      if (genericConfig.strategy === "auto-detect") {
-                        const updatedPlatforms = platformsWithMarkets.map(platform => ({
-                          ...platform,
-                          markets: platform.markets.map(market => {
-                            const adFormats = market.adFormats || genericConfig.targeting?.adFormats || [];
-                            const hasPixel = !!market.pixel;
-                            const hasCatalog = !!market.catalog;
+                      // Check if any market is missing phases
+                      const needsPhaseGeneration = platformsWithMarkets.some(platform => 
+                        platform.enabled && platform.markets.some(market => !market.phases || market.phases.length === 0)
+                      );
 
-                            const detectedFocus = determineStrategyFocus({
-                              adFormats,
-                              hasPixel,
-                              hasCatalog,
-                            });
+                      if (needsPhaseGeneration) {
+                        if (genericConfig.strategy === "auto-detect") {
+                          const updatedPlatforms = platformsWithMarkets.map(platform => ({
+                            ...platform,
+                            markets: platform.markets.map(market => {
+                              // Only generate if market doesn't have phases
+                              if (market.phases && market.phases.length > 0) {
+                                return market;
+                              }
 
-                            const phases = generateAutoDetectPhases(
-                              adFormats,
-                              hasPixel,
-                              hasCatalog,
-                              startDate,
-                              endDate
-                            );
-                            return {
-                              ...market,
-                              strategyFocus: detectedFocus || "conversions",
-                              phases: phases.map(p => ({
-                                ...p,
-                                id: `phase-${market.id}-${p.id}`,
-                              }))
-                            };
-                          })
-                        }));
-                        setPlatformsWithMarkets(updatedPlatforms);
-                      } else if (genericConfig.strategy === "full-funnel" && genericConfig.strategyFocus && genericConfig.strategyFocus !== "auto") {
-                        const phases = getDefaultPhases(genericConfig.strategyFocus, startDate, endDate);
-                        const updatedPlatforms = platformsWithMarkets.map(platform => ({
-                          ...platform,
-                          markets: platform.markets.map(market => ({
-                            ...market,
-                            phases: phases.map(p => ({
-                              ...p,
-                              id: `phase-${market.id}-${p.id}`,
-                            }))
-                          }))
-                        }));
-                        setPlatformsWithMarkets(updatedPlatforms);
-                      } else if (genericConfig.strategy === "manual") {
-                        const updatedPlatforms = platformsWithMarkets.map(platform => ({
-                          ...platform,
-                          markets: platform.markets.map(market => ({
-                            ...market,
-                            phases: [{
-                              id: `phase-${market.id}-${Date.now()}`,
-                              name: "Campaign 1",
-                              startDate: startDate,
-                              endDate: endDate,
-                              budgetPercentage: 100,
-                            }]
-                          }))
-                        }));
-                        setPlatformsWithMarkets(updatedPlatforms);
+                              const adFormats = market.adFormats || genericConfig.targeting?.adFormats || [];
+                              const hasPixel = !!market.pixel;
+                              const hasCatalog = !!market.catalog;
+
+                              const detectedFocus = determineStrategyFocus({
+                                adFormats,
+                                hasPixel,
+                                hasCatalog,
+                              });
+
+                              const phases = generateAutoDetectPhases(
+                                adFormats,
+                                hasPixel,
+                                hasCatalog,
+                                startDate,
+                                endDate
+                              );
+                              return {
+                                ...market,
+                                strategyFocus: detectedFocus || "conversions",
+                                phases: phases.map(p => ({
+                                  ...p,
+                                  id: `phase-${market.id}-${p.id}`,
+                                }))
+                              };
+                            })
+                          }));
+                          setPlatformsWithMarkets(updatedPlatforms);
+                        } else if (genericConfig.strategy === "full-funnel" && genericConfig.strategyFocus && genericConfig.strategyFocus !== "auto") {
+                          const phases = getDefaultPhases(genericConfig.strategyFocus, startDate, endDate);
+                          const updatedPlatforms = platformsWithMarkets.map(platform => ({
+                            ...platform,
+                            markets: platform.markets.map(market => {
+                              // Only generate if market doesn't have phases
+                              if (market.phases && market.phases.length > 0) {
+                                return market;
+                              }
+                              return {
+                                ...market,
+                                phases: phases.map(p => ({
+                                  ...p,
+                                  id: `phase-${market.id}-${p.id}`,
+                                }))
+                              };
+                            })
+                          }));
+                          setPlatformsWithMarkets(updatedPlatforms);
+                        } else if (genericConfig.strategy === "manual") {
+                          const updatedPlatforms = platformsWithMarkets.map(platform => ({
+                            ...platform,
+                            markets: platform.markets.map(market => {
+                              // Only generate if market doesn't have phases
+                              if (market.phases && market.phases.length > 0) {
+                                return market;
+                              }
+                              return {
+                                ...market,
+                                phases: [{
+                                  id: `phase-${market.id}-${Date.now()}`,
+                                  name: "Campaign 1",
+                                  startDate: startDate,
+                                  endDate: endDate,
+                                  budgetPercentage: 100,
+                                }]
+                              };
+                            })
+                          }));
+                          setPlatformsWithMarkets(updatedPlatforms);
+                        }
                       }
                     }
                     await ensureDraft();
