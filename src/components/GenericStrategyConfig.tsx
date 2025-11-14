@@ -11,6 +11,24 @@ import { getDefaultPhases, funnelTemplates } from "@/utils/funnelPhases";
 import { getObjectiveFromPhaseName } from "@/utils/phaseObjectiveMapping";
 import { useEffect, useState } from "react";
 
+// Map strategy focus values to funnel template keys
+const mapFocusToTemplate = (focus?: string): string | undefined => {
+  switch (focus) {
+    case "purchase":
+      return "Purchases";
+    case "leads":
+      return "Leads";
+    case "app-installs":
+      return "In-App Actions";
+    case "conversions":
+      return "Conversions";
+    case "brand-awareness":
+      return "Awareness";
+    default:
+      return undefined;
+  }
+};
+
 export interface GenericConfig {
   strategy?: "auto-detect" | "full-funnel" | "manual";
   strategyFocus?: "purchase" | "leads" | "app-installs" | "conversions" | "brand-awareness" | "auto";
@@ -94,29 +112,32 @@ export function GenericStrategyConfig({
       const strategy = field === "strategy" ? value : config.strategy;
       const focus = field === "strategyFocus" ? value : config.strategyFocus;
       
-      // Open strategy focus dropdown when switching to full-funnel
       if (field === "strategy" && value === "full-funnel") {
+        // Reset focus to placeholder and open the dropdown to prompt selection
+        updatedConfig.strategyFocus = "auto";
         setStrategyFocusOpen(true);
       }
       
       if (strategy === "full-funnel" && focus) {
-        // Generate phases based on strategy focus
-        const defaultPhases = getDefaultPhases(focus as any, startDate, endDate);
-        updatedConfig.phases = defaultPhases.map(phase => {
-          const objectiveData = getObjectiveFromPhaseName(phase.name, focus);
-          return {
-            ...phase,
-            objective: objectiveData.objective,
-            optimizationGoal: objectiveData.optimizationGoal,
-          };
-        });
-        updatedConfig.campaigns = [
-          { id: "awareness", name: "Awareness Campaign", funnelStage: "awareness" },
-          { id: "consideration", name: "Consideration Campaign", funnelStage: "consideration" },
-          { id: "conversion", name: "Conversion Campaign", funnelStage: "conversion" },
-          { id: "loyalty", name: "Loyalty Campaign", funnelStage: "loyalty" },
-        ];
-        updatedConfig.hasPhases = true;
+        const templateKey = mapFocusToTemplate(focus as string);
+        if (templateKey && startDate && endDate) {
+          const defaultPhases = getDefaultPhases(templateKey, startDate, endDate);
+          updatedConfig.phases = defaultPhases.map(phase => {
+            const objectiveData = getObjectiveFromPhaseName(phase.name, focus);
+            return {
+              ...phase,
+              objective: objectiveData.objective,
+              optimizationGoal: objectiveData.optimizationGoal,
+            };
+          });
+          updatedConfig.campaigns = [
+            { id: "awareness", name: "Awareness Campaign", funnelStage: "awareness" },
+            { id: "consideration", name: "Consideration Campaign", funnelStage: "consideration" },
+            { id: "conversion", name: "Conversion Campaign", funnelStage: "conversion" },
+            { id: "loyalty", name: "Loyalty Campaign", funnelStage: "loyalty" },
+          ];
+          updatedConfig.hasPhases = true;
+        }
       } else if (strategy === "manual") {
         // Manual strategy: user creates custom phases/campaigns
         updatedConfig.campaigns = [];
@@ -272,7 +293,7 @@ export function GenericStrategyConfig({
                 <div className="space-y-4">
                   <Label>Strategy Focus</Label>
                   <Select
-                    value={config.strategyFocus}
+                    value={config.strategyFocus || "auto"}
                     onValueChange={(value) => updateConfig("strategyFocus", value)}
                     open={strategyFocusOpen}
                     onOpenChange={setStrategyFocusOpen}
@@ -281,6 +302,9 @@ export function GenericStrategyConfig({
                       <SelectValue placeholder="Select focus" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="auto" disabled>
+                        Select a focus…
+                      </SelectItem>
                       <SelectItem value="purchase">Purchase</SelectItem>
                       <SelectItem value="leads">Leads</SelectItem>
                       <SelectItem value="app-installs">App Installs</SelectItem>
