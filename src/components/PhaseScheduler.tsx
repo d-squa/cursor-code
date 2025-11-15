@@ -332,40 +332,47 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate, pla
     onPhasesChange(phases.map(p => p.id === phaseId ? { ...p, [field]: value } : p));
   };
 
-  const getAvailableObjectives = (phaseName: string) => {
-    const phaseType = phaseName.toLowerCase().includes("awareness")
-      ? "Awareness"
-      : phaseName.toLowerCase().includes("consideration")
-      ? "Consideration"
-      : "Conversion";
+  const getAvailableObjectives = () => {
+    // Return ALL objectives for the platform, not filtered by phase
+    const allObjectives: string[] = [];
+    const platformMapping = platformObjectiveMapping[platformName] || 
+                           (platformName.toLowerCase().includes("meta") ? platformObjectiveMapping["Facebook (Meta)"] : null);
     
-    // Try exact match first, then fallback to Meta for facebook/instagram
-    let objectives = platformObjectiveMapping[platformName]?.[phaseType];
-    if (!objectives && platformName.toLowerCase().includes("meta")) {
-      objectives = platformObjectiveMapping["Facebook (Meta)"]?.[phaseType];
+    if (platformMapping) {
+      // Combine all objectives from all funnel stages
+      Object.values(platformMapping).forEach(objectives => {
+        objectives.forEach(obj => {
+          if (!allObjectives.includes(obj)) {
+            allObjectives.push(obj);
+          }
+        });
+      });
     }
-    return objectives || ["Awareness", "Traffic", "Engagement", "Conversions"];
+    
+    // Fallback to common objectives if platform not found
+    return allObjectives.length > 0 ? allObjectives : [
+      "Brand Awareness", "Reach", "Traffic", "Engagement", 
+      "Video Views", "Lead Generation", "App Installs", "Conversions", "Catalog Sales"
+    ];
   };
 
-  const getOptimizationGoals = (objective: string) => {
-    // Return optimization goals based on objective
-    const objectiveLower = objective.toLowerCase();
-    if (objectiveLower.includes("awareness") || objectiveLower.includes("reach")) {
-      return ["Impressions", "Reach", "Brand Awareness"];
-    } else if (objectiveLower.includes("traffic")) {
-      return ["Link Clicks", "Landing Page Views", "Impressions"];
-    } else if (objectiveLower.includes("engagement")) {
-      return ["Post Engagement", "Page Likes", "Event Responses"];
-    } else if (objectiveLower.includes("video")) {
-      return ["ThruPlay", "2-Second Video Views", "Video Views"];
-    } else if (objectiveLower.includes("lead")) {
-      return ["Leads", "Conversions"];
-    } else if (objectiveLower.includes("conversion") || objectiveLower.includes("catalog") || objectiveLower.includes("shopping")) {
-      return ["Conversions", "Value", "Link Clicks"];
-    } else if (objectiveLower.includes("app")) {
-      return ["App Installs", "App Events", "Value"];
+  const getOptimizationGoals = () => {
+    // Return ALL optimization goals for the platform
+    const platformGoals: Record<string, string[]> = {
+      "Facebook (Meta)": ["Impressions", "Reach", "Brand Awareness", "Link Clicks", "Landing Page Views", "Post Engagement", "Page Likes", "Event Responses", "ThruPlay", "2-Second Video Views", "Video Views", "Leads", "Conversions", "Value", "App Installs", "App Events"],
+      "Instagram (Meta)": ["Impressions", "Reach", "Link Clicks", "Landing Page Views", "Post Engagement", "Profile Visits", "Video Views", "Conversions", "Value"],
+      "Google Ads": ["Clicks", "Impressions", "Conversions", "Conversion Value", "Views", "Engagement"],
+      "YouTube (Google)": ["Views", "Impressions", "Conversions", "View Rate", "CPV"],
+      "LinkedIn": ["Impressions", "Clicks", "Landing Page Actions", "Conversions", "Video Views", "Engagement"],
+      "TikTok": ["Reach", "Click", "Video Views", "Engagement", "Conversion", "Value", "App Installs"],
+    };
+    
+    let goals = platformGoals[platformName];
+    if (!goals && platformName.toLowerCase().includes("meta")) {
+      goals = platformGoals["Facebook (Meta)"];
     }
-    return ["Conversions", "Link Clicks", "Impressions"];
+    
+    return goals || ["Impressions", "Clicks", "Conversions", "Link Clicks", "Reach", "Video Views", "Engagement"];
   };
 
   const togglePhaseExpansion = (phaseId: string) => {
@@ -702,7 +709,7 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate, pla
           {phases.map((phase, index) => {
             const phaseDays = phase.startDate && phase.endDate ? 
               differenceInDays(parseISO(phase.endDate), parseISO(phase.startDate)) + 1 : 0;
-            const availableObjectives = getAvailableObjectives(phase.name);
+            const availableObjectives = getAvailableObjectives();
             
             return (
               <Collapsible
@@ -779,11 +786,6 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate, pla
                           value={phase.objective || ""}
                           onValueChange={(value) => {
                             updatePhaseField(phase.id, "objective", value);
-                            // Auto-set optimization goal based on objective
-                            const goals = getOptimizationGoals(value);
-                            if (goals.length > 0) {
-                              updatePhaseField(phase.id, "optimizationGoal", goals[0]);
-                            }
                           }}
                         >
                           <SelectTrigger id={`objective-${phase.id}`}>
@@ -800,26 +802,24 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate, pla
                       </div>
 
                       {/* Optimization Goal */}
-                      {phase.objective && (
-                        <div className="space-y-2">
-                          <Label htmlFor={`optimization-${phase.id}`}>Optimization Goal</Label>
-                          <Select
-                            value={phase.optimizationGoal || ""}
-                            onValueChange={(value) => updatePhaseField(phase.id, "optimizationGoal", value)}
-                          >
-                            <SelectTrigger id={`optimization-${phase.id}`}>
-                              <SelectValue placeholder="Select optimization goal" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {getOptimizationGoals(phase.objective).map((goal) => (
-                                <SelectItem key={goal} value={goal}>
-                                  {goal}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      )}
+                      <div className="space-y-2">
+                        <Label htmlFor={`optimization-${phase.id}`}>Optimization Goal</Label>
+                        <Select
+                          value={phase.optimizationGoal || ""}
+                          onValueChange={(value) => updatePhaseField(phase.id, "optimizationGoal", value)}
+                        >
+                          <SelectTrigger id={`optimization-${phase.id}`}>
+                            <SelectValue placeholder="Select optimization goal" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {getOptimizationGoals().map((goal) => (
+                              <SelectItem key={goal} value={goal}>
+                                {goal}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
 
                       {/* Publisher Platforms & Placements */}
                       <div className="space-y-2">

@@ -473,7 +473,7 @@ return (
                                                           <SelectItem value="AUTO_DETECT" className="text-blue-600 font-medium">
                                                             🔄 Auto-detect from phase
                                                           </SelectItem>
-                                                          {platform.name.includes("Meta") && (
+                                                          {platform.name.includes("Meta") ? (
                                                             <>
                                                               <SelectItem value="OUTCOME_AWARENESS">Awareness</SelectItem>
                                                               <SelectItem value="OUTCOME_TRAFFIC">Traffic</SelectItem>
@@ -481,9 +481,40 @@ return (
                                                               <SelectItem value="OUTCOME_LEADS">Lead Generation</SelectItem>
                                                               <SelectItem value="OUTCOME_APP_PROMOTION">App Promotion</SelectItem>
                                                               <SelectItem value="OUTCOME_SALES">Sales</SelectItem>
+                                                              <SelectItem value="Brand Awareness">Brand Awareness</SelectItem>
+                                                              <SelectItem value="Reach">Reach</SelectItem>
+                                                              <SelectItem value="Video Views">Video Views</SelectItem>
+                                                              <SelectItem value="Catalog Sales">Catalog Sales</SelectItem>
                                                             </>
-                                                          )}
-                                                          {!platform.name.includes("Meta") && (
+                                                          ) : platform.name.includes("Google") || platform.name.includes("YouTube") ? (
+                                                            <>
+                                                              <SelectItem value="Display">Display</SelectItem>
+                                                              <SelectItem value="Search">Search</SelectItem>
+                                                              <SelectItem value="Shopping">Shopping</SelectItem>
+                                                              <SelectItem value="Video">Video</SelectItem>
+                                                              <SelectItem value="Discovery">Discovery</SelectItem>
+                                                              <SelectItem value="Performance Max">Performance Max</SelectItem>
+                                                              <SelectItem value="App">App</SelectItem>
+                                                            </>
+                                                          ) : platform.name.includes("LinkedIn") ? (
+                                                            <>
+                                                              <SelectItem value="Brand Awareness">Brand Awareness</SelectItem>
+                                                              <SelectItem value="Website Visits">Website Visits</SelectItem>
+                                                              <SelectItem value="Engagement">Engagement</SelectItem>
+                                                              <SelectItem value="Video Views">Video Views</SelectItem>
+                                                              <SelectItem value="Lead Generation">Lead Generation</SelectItem>
+                                                              <SelectItem value="Conversions">Conversions</SelectItem>
+                                                            </>
+                                                          ) : platform.name.includes("TikTok") ? (
+                                                            <>
+                                                              <SelectItem value="Reach">Reach</SelectItem>
+                                                              <SelectItem value="Traffic">Traffic</SelectItem>
+                                                              <SelectItem value="Video Views">Video Views</SelectItem>
+                                                              <SelectItem value="Community Interaction">Community Interaction</SelectItem>
+                                                              <SelectItem value="App Installs">App Installs</SelectItem>
+                                                              <SelectItem value="Conversions">Conversions</SelectItem>
+                                                            </>
+                                                          ) : (
                                                             <>
                                                               <SelectItem value="Awareness">Awareness</SelectItem>
                                                               <SelectItem value="Consideration">Consideration</SelectItem>
@@ -514,18 +545,61 @@ return (
                                                           <SelectItem value="AUTO_DETECT" className="text-blue-600 font-medium">
                                                             🔄 Auto-detect from phase
                                                           </SelectItem>
-                                                          <SelectItem value="LINK_CLICKS">Link Clicks</SelectItem>
-                                                          <SelectItem value="LANDING_PAGE_VIEWS">Landing Page Views</SelectItem>
-                                                          <SelectItem value="LEADS">Leads</SelectItem>
-                                                          <SelectItem value="OFFSITE_CONVERSIONS">Conversions</SelectItem>
-                                                          <SelectItem value="APP_INSTALLS">App Installs</SelectItem>
-                                                          <SelectItem value="APP_EVENTS">App Events</SelectItem>
-                                                          <SelectItem value="POST_ENGAGEMENT">Post Engagement</SelectItem>
-                                                          <SelectItem value="THRUPLAY">ThruPlay</SelectItem>
-                                                          <SelectItem value="REACH">Reach</SelectItem>
-                                                          <SelectItem value="IMPRESSIONS">Impressions</SelectItem>
-                                                          <SelectItem value="CONVERSATIONS">Conversations</SelectItem>
-                                                          <SelectItem value="VALUE">Conversion Value (ROAS)</SelectItem>
+                                                          {platform.name.includes("Meta") ? (
+                                                            <>
+                                                              <SelectItem value="LINK_CLICKS">Link Clicks</SelectItem>
+                                                              <SelectItem value="LANDING_PAGE_VIEWS">Landing Page Views</SelectItem>
+                                                              <SelectItem value="LEADS">Leads</SelectItem>
+                                                              <SelectItem value="OFFSITE_CONVERSIONS">Conversions</SelectItem>
+                                                              <SelectItem value="APP_INSTALLS">App Installs</SelectItem>
+                                                              <SelectItem value="APP_EVENTS">App Events</SelectItem>
+                                                              <SelectItem value="POST_ENGAGEMENT">Post Engagement</SelectItem>
+                                                              <SelectItem value="PAGE_LIKES">Page Likes</SelectItem>
+                                                              <SelectItem value="THRUPLAY">ThruPlay</SelectItem>
+                                                              <SelectItem value="VIDEO_VIEWS">Video Views</SelectItem>
+                                                              <SelectItem value="REACH">Reach</SelectItem>
+                                                              <SelectItem value="IMPRESSIONS">Impressions</SelectItem>
+                                                              <SelectItem value="CONVERSATIONS">Conversations</SelectItem>
+                                                              <SelectItem value="VALUE">Conversion Value (ROAS)</SelectItem>
+                                                            </>
+                                                          ) : platform.name.includes("Google") || platform.name.includes("YouTube") ? (
+                                                            <>
+                                                              <SelectItem value="Clicks">Clicks</SelectItem>
+                                                              <SelectItem value="Impressions">Impressions</SelectItem>
+                                                              <SelectItem value="Conversions">Conversions</SelectItem>
+                                                              <SelectItem value="Conversion Value">Conversion Value</SelectItem>
+                                                              <SelectItem value="Views">Views</SelectItem>
+                                                              <SelectItem value="View Rate">View Rate</SelectItem>
+                                                              <SelectItem value="Engagement">Engagement</SelectItem>
+                                                              <SelectItem value="CPV">CPV (Cost Per View)</SelectItem>
+                                                            </>
+                                                          ) : platform.name.includes("LinkedIn") ? (
+                                                            <>
+                                                              <SelectItem value="Impressions">Impressions</SelectItem>
+                                                              <SelectItem value="Clicks">Clicks</SelectItem>
+                                                              <SelectItem value="Landing Page Actions">Landing Page Actions</SelectItem>
+                                                              <SelectItem value="Conversions">Conversions</SelectItem>
+                                                              <SelectItem value="Video Views">Video Views</SelectItem>
+                                                              <SelectItem value="Engagement">Engagement</SelectItem>
+                                                            </>
+                                                          ) : platform.name.includes("TikTok") ? (
+                                                            <>
+                                                              <SelectItem value="Reach">Reach</SelectItem>
+                                                              <SelectItem value="Click">Click</SelectItem>
+                                                              <SelectItem value="Video Views">Video Views</SelectItem>
+                                                              <SelectItem value="Engagement">Engagement</SelectItem>
+                                                              <SelectItem value="Conversion">Conversion</SelectItem>
+                                                              <SelectItem value="Value">Value</SelectItem>
+                                                              <SelectItem value="App Installs">App Installs</SelectItem>
+                                                            </>
+                                                          ) : (
+                                                            <>
+                                                              <SelectItem value="Impressions">Impressions</SelectItem>
+                                                              <SelectItem value="Clicks">Clicks</SelectItem>
+                                                              <SelectItem value="Conversions">Conversions</SelectItem>
+                                                              <SelectItem value="Engagement">Engagement</SelectItem>
+                                                            </>
+                                                          )}
                                                         </SelectContent>
                                                       </Select>
                                                     </div>
