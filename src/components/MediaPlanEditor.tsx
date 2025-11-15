@@ -182,11 +182,11 @@ export function MediaPlanEditor() {
     { id: "pinterest", name: "Pinterest", enabled: false, budgetPercentage: 0 },
   ]);
 
-  // Auto-update strategy focus based on pixel/catalog in markets
+  // Auto-update strategy focus based on pixel/catalog/ad formats when using auto-detect strategy
   useEffect(() => {
-    // Only auto-detect when strategyFocus is "auto"
-    if (genericConfig.strategyFocus !== "auto") return;
-    
+    // Only auto-detect when strategy is set to "auto-detect"
+    if (genericConfig.strategy !== "auto-detect") return;
+
     const hasPixel = platformsWithMarkets.some(p => p.markets.some(m => m.pixel));
     const hasCatalog = platformsWithMarkets.some(p => p.markets.some(m => m.catalog));
     const adFormats = genericConfig.targeting?.adFormats || [];
@@ -197,11 +197,11 @@ export function MediaPlanEditor() {
       hasCatalog,
     });
 
-    // Always update from "auto" to detected focus
-    if (determinedFocus) {
+    // Update to detected focus if available and different
+    if (determinedFocus && determinedFocus !== genericConfig.strategyFocus) {
       setGenericConfig(prev => ({ ...prev, strategyFocus: determinedFocus }));
     }
-  }, [platformsWithMarkets, genericConfig.targeting?.adFormats, genericConfig.strategyFocus]);
+  }, [platformsWithMarkets, genericConfig.targeting?.adFormats, genericConfig.strategy]);
 
   // Auto-save draft whenever key fields change
   useEffect(() => {
