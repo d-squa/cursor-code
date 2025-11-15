@@ -186,19 +186,20 @@ export function MediaPlanEditor() {
   useEffect(() => {
     const hasPixel = platformsWithMarkets.some(p => p.markets.some(m => m.pixel));
     const hasCatalog = platformsWithMarkets.some(p => p.markets.some(m => m.catalog));
-    
-    if (hasPixel || hasCatalog) {
+    const adFormats = genericConfig.targeting?.adFormats || [];
+
+    if (hasPixel || hasCatalog || adFormats.length > 0) {
       const determinedFocus = determineStrategyFocus({
-        adFormats: genericConfig.targeting?.adFormats || [],
+        adFormats,
         hasPixel,
         hasCatalog,
       });
-      
+
       if (determinedFocus && determinedFocus !== genericConfig.strategyFocus) {
         setGenericConfig(prev => ({ ...prev, strategyFocus: determinedFocus }));
       }
     }
-  }, [platformsWithMarkets]);
+  }, [platformsWithMarkets, genericConfig.targeting?.adFormats]);
 
   // Auto-save draft whenever key fields change
   useEffect(() => {

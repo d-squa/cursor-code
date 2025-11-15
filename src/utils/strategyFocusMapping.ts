@@ -16,10 +16,9 @@ interface StrategyFocusInput {
 export function determineStrategyFocus(input: StrategyFocusInput): StrategyFocus | undefined {
   const { adFormats = [], hasPixel = false, hasCatalog = false } = input;
 
-  // If no ad formats selected, return undefined
-  if (adFormats.length === 0) {
-    return undefined;
-  }
+  // Note: even if no ad formats are selected, we can still infer from pixel/catalog.
+  // So we do NOT early-return here.
+
 
   // Priority 1: Check for specific ad formats that strongly indicate a focus
   const formatString = adFormats.join(" ").toLowerCase();
