@@ -15,7 +15,8 @@ import { TargetingConfigComponent } from "./TargetingConfig";
 import { CampaignForecast } from "./CampaignForecast";
 import { PhaseScheduler } from "./PhaseScheduler";
 import { getDefaultPhases, generateAutoDetectPhases } from "@/utils/funnelPhases";
-import { Calendar, Download, Rocket, Loader2 } from "lucide-react";
+import { Calendar, Download, Rocket, Loader2, ChevronDown, ChevronUp } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -75,6 +76,7 @@ export function MediaPlanEditor() {
   });
   const [platformsWithMarkets, setPlatformsWithMarkets] = useState<PlatformWithMarkets[]>([]);
   const [globalFunnel, setGlobalFunnel] = useState<FunnelStage[]>([]);
+  const [expandedPlatforms, setExpandedPlatforms] = useState<Record<string, boolean>>({});
   
   // Resolve effective strategy focus at render-time (never "auto")
   const effectiveStrategyFocus = useMemo(() => {
@@ -979,12 +981,28 @@ export function MediaPlanEditor() {
                       <h3 className="text-lg font-semibold">Market Configuration</h3>
                       {platformsWithMarkets.map(platform => 
                         platform.enabled && platform.markets.length > 0 ? (
-                          <div key={platform.id} className="space-y-4">
-                            {platform.markets.map(market => (
-                              <Card key={market.id} className="p-4">
-                                <h4 className="font-medium mb-4">
-                                  {platform.name} - {market.name}
-                                </h4>
+                          <Collapsible
+                            key={platform.id}
+                            open={expandedPlatforms[platform.id]}
+                            onOpenChange={(open) => setExpandedPlatforms(prev => ({ ...prev, [platform.id]: open }))}
+                            className="border rounded-lg"
+                          >
+                            <CollapsibleTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                className="w-full justify-between p-4 hover:bg-accent"
+                              >
+                                <span className="font-semibold text-lg">{platform.name}</span>
+                                {expandedPlatforms[platform.id] ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+                              </Button>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent className="px-4 pb-4">
+                              <div className="space-y-4">
+                                {platform.markets.map(market => (
+                                  <Card key={market.id} className="p-4">
+                                    <h4 className="font-medium mb-4">
+                                      {market.name}
+                                    </h4>
                                 
                                 {/* Per-Market Strategy Configuration */}
                                 <div className="space-y-4 mb-6 p-4 bg-muted/50 rounded-lg">
@@ -1135,10 +1153,12 @@ export function MediaPlanEditor() {
                                     gender: market.gender || genericConfig.targeting?.genders?.[0],
                                     devices: genericConfig.targeting?.devices,
                                   }}
-                                />
-                              </Card>
-                            ))}
-                          </div>
+                                  />
+                                </Card>
+                              ))}
+                              </div>
+                            </CollapsibleContent>
+                          </Collapsible>
                         ) : null
                       )}
                     </div>
