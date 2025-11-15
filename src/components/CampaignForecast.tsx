@@ -44,13 +44,13 @@ interface ForecastMetrics {
 interface PhaseForecast {
   phaseName: string;
   budget: number;
-  dates: string;
+  startDate: string;
+  endDate: string;
   kpi: string;
   optimizationGoal: string;
   result: number;
   costPerResult: number;
   resultRate: number;
-  resultRateName: string;
 }
 
 interface MarketForecast {
@@ -61,16 +61,30 @@ interface MarketForecast {
   reach: number;
   cpm: number;
   frequency: number;
+  sov: number;
   resultsByGoal: Array<{
     goal: string;
     kpi: string;
-    label: string;
     result: number;
     costPerResult: number;
     resultRate: number;
-    rateName: string;
   }>;
-  phases?: PhaseForecast[];
+  phases: PhaseForecast[];
+}
+
+interface ActiplanForecast {
+  totalBudget: number;
+  totalAudienceSize: number;
+  totalImpressions: number;
+  totalReach: number;
+  avgCPM: number;
+  frequency: number;
+  sov: number;
+  marketDeliverables: Record<string, Array<{
+    kpi: string;
+    result: number;
+  }>>;
+  markets: MarketForecast[];
 }
 
 interface CampaignForecast {
@@ -93,12 +107,13 @@ export function CampaignForecast({
 }: CampaignForecastProps) {
   const [loading, setLoading] = useState(false);
   const [forecasts, setForecasts] = useState<Record<string, CampaignForecast[]>>({});
-  const [marketForecasts, setMarketForecasts] = useState<Record<string, MarketForecast[]>>({});
+  const [actiplanForecasts, setActiplanForecasts] = useState<Record<string, ActiplanForecast>>({});
   const [debugInfo, setDebugInfo] = useState<{startTimeUnix: number; endTimeUnix: number; startDateFormatted: string; endDateFormatted: string} | null>(null);
   const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
   const [pdfBase64Data, setPdfBase64Data] = useState<string>("");
   const [pushingToDSP, setPushingToDSP] = useState(false);
   const [hasExistingForecast, setHasExistingForecast] = useState(false);
+  const [expandedPlatforms, setExpandedPlatforms] = useState<Set<string>>(new Set());
   const [expandedMarkets, setExpandedMarkets] = useState<Set<string>>(new Set());
 
   // Load existing forecast on mount
@@ -117,6 +132,9 @@ export function CampaignForecast({
         const forecastData = campaign?.forecast_data as any;
         if (forecastData?.forecasts && Object.keys(forecastData.forecasts).length > 0) {
           setForecasts(forecastData.forecasts);
+          if (forecastData.actiplanForecasts) {
+            setActiplanForecasts(forecastData.actiplanForecasts);
+          }
           setHasExistingForecast(true);
           console.log("Loaded existing forecast data");
         }
@@ -141,6 +159,7 @@ export function CampaignForecast({
           .update({ 
             forecast_data: {
               forecasts,
+              actiplanForecasts,
               totalMetrics: totalMetrics ? {
                 reach: totalMetrics.reach,
                 impressions: totalMetrics.impressions,
@@ -159,7 +178,7 @@ export function CampaignForecast({
     };
 
     saveForecastData();
-  }, [forecasts, campaignId]);
+  }, [forecasts, actiplanForecasts, campaignId]);
 
   const handlePushToDSP = async () => {
     if (!campaignId) {
@@ -601,10 +620,12 @@ export function CampaignForecast({
     setHasExistingForecast(false);
     try {
       const newForecasts: Record<string, CampaignForecast[]> = {};
+      const newActiplanForecasts: Record<string, ActiplanForecast> = {};
 
       for (const platform of platforms) {
         const platformBudget = totalBudget * (platform.budgetPercentage / 100);
         const campaignForecasts: CampaignForecast[] = [];
+        const marketForecastsArray: MarketForecast[] = [];
 
         for (const market of platform.markets) {
           const marketBudget = platformBudget * (market.budgetPercentage / 100);
@@ -612,74 +633,76 @@ export function CampaignForecast({
           console.log(`📊 Processing market: ${market.name}, Phases:`, market.phases?.length || 0);
           console.log('Market data:', { id: market.id, name: market.name, phases: market.phases });
           
-          // HYBRID APPROACH: Get market-level R&F prediction, then split proportionally
-          if (market.phases && market.phases.length > 0) {
-            console.log(`✅ Market ${market.name} has ${market.phases.length} phases, using hybrid forecast...`);
-            
-            // Step 1: Get accurate market-level R&F prediction
-            let marketForecast: ForecastMetrics;
-            try {
-              marketForecast = await fetchForecast(
-                platform.id,
-                market.id,
-                marketBudget,
-                market,
-                startDate,
-                endDate
-              );
-              console.log(`✅ Got market-level forecast for ${market.name}:`, {
-                reach: marketForecast.reach,
-                impressions: marketForecast.impressions,
-                cpm: marketForecast.cpm
-              });
-            } catch (error: any) {
-              console.error(`Failed to get market-level forecast for ${market.name}:`, error);
-              toast.error(`Could not fetch market forecast for ${market.name}. Using fallback estimates.`);
+            // HYBRID APPROACH: Get market-level R&F prediction, then split proportionally
+            if (market.phases && market.phases.length > 0) {
+              console.log(`✅ Market ${market.name} has ${market.phases.length} phases, using hybrid forecast...`);
               
-              // Fallback to estimates
-              const estimatedImpressions = marketBudget * 1000;
-              const estimatedReach = estimatedImpressions * 0.7;
-              marketForecast = {
-                audienceSize: estimatedReach * 10,
-                reach: estimatedReach,
-                impressions: estimatedImpressions,
-                cpm: (marketBudget / estimatedImpressions) * 1000,
-                result: 0,
-                resultLabel: "Conversions",
-                resultKPI: "conversions",
-                costPerResult: 0,
-                resultRate: 0,
-                resultRateName: "CVR",
-              };
-            }
+              // Step 1: Get accurate market-level R&F prediction
+              let marketMetrics: ForecastMetrics;
+              try {
+                marketMetrics = await fetchForecast(
+                  platform.id,
+                  market.id,
+                  marketBudget,
+                  market,
+                  startDate,
+                  endDate
+                );
+                console.log(`✅ Got market-level forecast for ${market.name}:`, {
+                  reach: marketMetrics.reach,
+                  impressions: marketMetrics.impressions,
+                  cpm: marketMetrics.cpm
+                });
+              } catch (error: any) {
+                console.error(`Failed to get market-level forecast for ${market.name}:`, error);
+                toast.error(`Could not fetch market forecast for ${market.name}. Using fallback estimates.`);
+                
+                // Fallback to estimates
+                const estimatedImpressions = marketBudget * 1000;
+                const estimatedReach = estimatedImpressions * 0.7;
+                marketMetrics = {
+                  audienceSize: estimatedReach * 10,
+                  reach: estimatedReach,
+                  impressions: estimatedImpressions,
+                  cpm: (marketBudget / estimatedImpressions) * 1000,
+                  result: 0,
+                  resultLabel: "Conversions",
+                  resultKPI: "conversions",
+                  costPerResult: 0,
+                  resultRate: 0,
+                  resultRateName: "CVR",
+                };
+              }
 
-            // Step 2: Split impressions/reach proportionally by phase budget %
-            for (const phase of market.phases) {
-              console.log(`  → Processing phase: ${phase.name}`);
-              const campaignBudget = marketBudget * (phase.budgetPercentage / 100);
-              const budgetRatio = phase.budgetPercentage / 100;
-              
-              // Proportionally allocate market-level metrics
-              const phaseImpressions = Math.round(marketForecast.impressions * budgetRatio);
-              const phaseReach = Math.round(marketForecast.reach * budgetRatio);
-              const phaseCPM = marketForecast.cpm; // CPM stays constant
-              const phaseAudienceSize = Math.round(marketForecast.audienceSize * budgetRatio);
-              
-              // Step 3: Apply optimization goal modifiers for phase-specific metrics
-              let optimizationGoal: string;
-              let objective: string;
-              let destination: string;
-              
-              if (phase.objective && phase.optimizationGoal) {
-                objective = phase.objective;
-                optimizationGoal = phase.optimizationGoal;
-                destination = "Website";
-              } else {
-                // Auto-detect from phase name
-                const strategyFocusValue = market.strategyFocus || genericConfig.strategyFocus || 'conversions';
-                const autoDetected = getObjectiveFromPhaseName(phase.name, strategyFocusValue);
-                objective = autoDetected.objective;
-                optimizationGoal = autoDetected.optimizationGoal;
+              const phaseForecasts: PhaseForecast[] = [];
+              const resultsByGoal: Record<string, { kpi: string; result: number; cost: number; impressions: number }> = {};
+
+              // Step 2: Split impressions/reach proportionally by phase budget %
+              for (const phase of market.phases) {
+                console.log(`  → Processing phase: ${phase.name}`);
+                const campaignBudget = marketBudget * (phase.budgetPercentage / 100);
+                const budgetRatio = phase.budgetPercentage / 100;
+                
+                // Proportionally allocate market-level metrics
+                const phaseImpressions = Math.round(marketMetrics.impressions * budgetRatio);
+                const phaseReach = Math.round(marketMetrics.reach * budgetRatio);
+                const phaseCPM = marketMetrics.cpm; // CPM stays constant
+                
+                // Step 3: Apply optimization goal modifiers for phase-specific metrics
+                let optimizationGoal: string;
+                let objective: string;
+                let destination: string;
+                
+                if (phase.objective && phase.optimizationGoal) {
+                  objective = phase.objective;
+                  optimizationGoal = phase.optimizationGoal;
+                  destination = "Website";
+                } else {
+                  // Auto-detect from phase name
+                  const strategyFocusValue = market.strategyFocus || genericConfig.strategyFocus || 'conversions';
+                  const autoDetected = getObjectiveFromPhaseName(phase.name, strategyFocusValue);
+                  objective = autoDetected.objective;
+                  optimizationGoal = autoDetected.optimizationGoal;
                 destination = autoDetected.destination;
               }
               
@@ -697,14 +720,41 @@ export function CampaignForecast({
                 result,
                 resultLabel: getResultLabel(optimizationGoal)
               });
+
+              // Store phase forecast
+              phaseForecasts.push({
+                phaseName: phase.name,
+                budget: campaignBudget,
+                startDate: phase.startDate,
+                endDate: phase.endDate,
+                kpi: goalMetrics?.kpi || optimizationGoal,
+                optimizationGoal,
+                result,
+                costPerResult: parseFloat(costPerResult.toFixed(2)),
+                resultRate: parseFloat(resultRate.toFixed(2)),
+              });
+
+              // Aggregate results by goal
+              if (!resultsByGoal[optimizationGoal]) {
+                resultsByGoal[optimizationGoal] = {
+                  kpi: goalMetrics?.kpi || optimizationGoal,
+                  result: 0,
+                  cost: 0,
+                  impressions: 0
+                };
+              }
+              resultsByGoal[optimizationGoal].result += result;
+              resultsByGoal[optimizationGoal].cost += campaignBudget;
+              resultsByGoal[optimizationGoal].impressions += phaseImpressions;
               
+              // Store for old format (backward compatibility)
               campaignForecasts.push({
                 market: `${market.name} - ${phase.name}`,
                 budget: campaignBudget,
                 campaign: phase.name,
                 dates: `${phase.startDate} → ${phase.endDate}`,
                 metrics: {
-                  audienceSize: phaseAudienceSize,
+                  audienceSize: Math.round(marketMetrics.audienceSize * budgetRatio),
                   reach: phaseReach,
                   impressions: phaseImpressions,
                   cpm: phaseCPM,
@@ -720,6 +770,28 @@ export function CampaignForecast({
                 },
               });
             }
+
+            // Create market forecast with aggregated results by goal
+            const marketResultsByGoal = Object.entries(resultsByGoal).map(([goal, data]) => ({
+              goal,
+              kpi: data.kpi,
+              result: data.result,
+              costPerResult: data.result > 0 ? data.cost / data.result : 0,
+              resultRate: data.impressions > 0 ? (data.result / data.impressions) * 100 : 0,
+            }));
+
+            marketForecastsArray.push({
+              marketName: market.name,
+              budget: marketBudget,
+              audienceSize: marketMetrics.audienceSize,
+              impressions: marketMetrics.impressions,
+              reach: marketMetrics.reach,
+              cpm: marketMetrics.cpm,
+              frequency: marketMetrics.reach > 0 ? marketMetrics.impressions / marketMetrics.reach : 0,
+              sov: 0, // Will calculate after all markets are processed
+              resultsByGoal: marketResultsByGoal,
+              phases: phaseForecasts,
+            });
           } else {
             // No phases - fetch forecast for entire market
             console.log(`❌ Market ${market.name} has no phases, fetching single forecast...`);
@@ -732,6 +804,31 @@ export function CampaignForecast({
                 startDate,
                 endDate
               );
+              
+              const goalMetrics = getOptimizationGoalMetrics(
+                forecast.objective || "OUTCOME_TRAFFIC",
+                forecast.optimizationGoal || "LINK_CLICKS",
+                forecast.destination || "Website"
+              );
+
+              marketForecastsArray.push({
+                marketName: market.name,
+                budget: marketBudget,
+                audienceSize: forecast.audienceSize,
+                impressions: forecast.impressions,
+                reach: forecast.reach,
+                cpm: forecast.cpm,
+                frequency: forecast.reach > 0 ? forecast.impressions / forecast.reach : 0,
+                sov: 0,
+                resultsByGoal: [{
+                  goal: forecast.optimizationGoal || "LINK_CLICKS",
+                  kpi: goalMetrics?.kpi || forecast.resultKPI,
+                  result: forecast.result,
+                  costPerResult: forecast.costPerResult,
+                  resultRate: forecast.resultRate,
+                }],
+                phases: [],
+              });
               
               campaignForecasts.push({
                 market: market.name,
@@ -751,6 +848,25 @@ export function CampaignForecast({
               const result = calculateResultFromImpressions(estimatedImpressions, marketBudget, autoDetected.optimizationGoal);
               const goalMetrics = getOptimizationGoalMetrics(autoDetected.objective, autoDetected.optimizationGoal, autoDetected.destination);
               
+              marketForecastsArray.push({
+                marketName: market.name,
+                budget: marketBudget,
+                audienceSize: estimatedReach * 10,
+                impressions: estimatedImpressions,
+                reach: estimatedReach,
+                cpm: (marketBudget / estimatedImpressions) * 1000,
+                frequency: estimatedReach > 0 ? estimatedImpressions / estimatedReach : 0,
+                sov: 0,
+                resultsByGoal: [{
+                  goal: autoDetected.optimizationGoal,
+                  kpi: goalMetrics?.kpi || autoDetected.optimizationGoal,
+                  result,
+                  costPerResult: result > 0 ? marketBudget / result : 0,
+                  resultRate: estimatedImpressions > 0 ? (result / estimatedImpressions) * 100 : 0,
+                }],
+                phases: [],
+              });
+
               campaignForecasts.push({
                 market: market.name,
                 budget: marketBudget,
@@ -774,10 +890,46 @@ export function CampaignForecast({
           }
         }
 
+        // Calculate SOV for each market
+        const totalImpressions = marketForecastsArray.reduce((sum, m) => sum + m.impressions, 0);
+        marketForecastsArray.forEach(market => {
+          market.sov = totalImpressions > 0 ? (market.impressions / totalImpressions) * 100 : 0;
+        });
+
+        // Build Actiplan aggregation
+        const totalAudienceSize = marketForecastsArray.reduce((sum, m) => sum + m.audienceSize, 0);
+        const totalReach = marketForecastsArray.reduce((sum, m) => sum + m.reach, 0);
+        const totalImp = marketForecastsArray.reduce((sum, m) => sum + m.impressions, 0);
+        const avgCPM = totalImp > 0 ? (platformBudget / totalImp) * 1000 : 0;
+        const frequency = totalReach > 0 ? totalImp / totalReach : 0;
+        const platformSOV = totalImpressions > 0 ? (totalImp / totalImpressions) * 100 : 0;
+
+        // Aggregate deliverables by market
+        const marketDeliverables: Record<string, Array<{ kpi: string; result: number }>> = {};
+        marketForecastsArray.forEach(market => {
+          marketDeliverables[market.marketName] = market.resultsByGoal.map(r => ({
+            kpi: r.kpi,
+            result: r.result,
+          }));
+        });
+
+        newActiplanForecasts[platform.id] = {
+          totalBudget: platformBudget,
+          totalAudienceSize,
+          totalImpressions: totalImp,
+          totalReach,
+          avgCPM,
+          frequency,
+          sov: platformSOV,
+          marketDeliverables,
+          markets: marketForecastsArray,
+        };
+
         newForecasts[platform.id] = campaignForecasts;
       }
 
       setForecasts(newForecasts);
+      setActiplanForecasts(newActiplanForecasts);
       toast.success("Forecasts fetched successfully!");
     } catch (error) {
       toast.error("Failed to fetch forecasts");
@@ -1093,7 +1245,7 @@ export function CampaignForecast({
               </>
             )}
 
-            {/* Detailed Metrics by Platform */}
+            {/* Detailed Forecast by Platform */}
             <Tabs defaultValue={platforms[0]?.id} className="w-full">
               <TabsList className="grid w-full" style={{ gridTemplateColumns: `repeat(${platforms.length}, 1fr)` }}>
                 {platforms.map((platform) => (
@@ -1103,64 +1255,198 @@ export function CampaignForecast({
                 ))}
               </TabsList>
 
-              {platforms.map((platform) => (
-                <TabsContent key={platform.id} value={platform.id}>
-                  <div className="rounded-md border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Campaign</TableHead>
-                          <TableHead>Objective / Goal</TableHead>
-                          <TableHead>Dates</TableHead>
-                          <TableHead>Budget</TableHead>
-                          <TableHead>Impressions</TableHead>
-                          <TableHead>Reach</TableHead>
-                          <TableHead>CPM</TableHead>
-                          <TableHead>Result</TableHead>
-                          <TableHead>Cost/Result</TableHead>
-                          <TableHead>Result Rate</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {forecasts[platform.id]?.map((forecast, idx) => {
-                          return (
-                            <TableRow key={idx}>
-                              <TableCell className="font-medium">
-                                <div>{forecast.market}</div>
-                                {forecast.campaign && (
-                                  <div className="text-xs text-muted-foreground">{forecast.campaign}</div>
-                                )}
-                              </TableCell>
-                              <TableCell>
-                                <div className="text-sm">
-                                  <Badge variant="outline" className="mb-1">{forecast.metrics.objective || 'N/A'}</Badge>
-                                  <div className="text-xs text-muted-foreground">
-                                    {forecast.metrics.optimizationGoal || 'N/A'}
-                                  </div>
-                                </div>
-                              </TableCell>
-                              <TableCell className="text-xs">{forecast.dates || 'N/A'}</TableCell>
-                              <TableCell>${formatNumber(forecast.budget)}</TableCell>
-                              <TableCell>{formatNumber(forecast.metrics.impressions)}</TableCell>
-                              <TableCell>{formatNumber(forecast.metrics.reach)}</TableCell>
-                              <TableCell>${forecast.metrics.cpm.toFixed(2)}</TableCell>
-                              <TableCell>
-                                <div>{formatNumber(forecast.metrics.result)}</div>
-                                <div className="text-xs text-muted-foreground">{forecast.metrics.resultKPI}</div>
-                              </TableCell>
-                              <TableCell>${forecast.metrics.costPerResult.toFixed(2)}</TableCell>
-                              <TableCell>
-                                <div>{forecast.metrics.resultRate.toFixed(2)}%</div>
-                                <div className="text-xs text-muted-foreground">{forecast.metrics.resultRateName}</div>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </TabsContent>
-              ))}
+              {platforms.map((platform) => {
+                const actiplan = actiplanForecasts[platform.id];
+                if (!actiplan) return null;
+
+                return (
+                  <TabsContent key={platform.id} value={platform.id} className="space-y-4">
+                    {/* Actiplan Deliverables */}
+                    <Card>
+                      <CardHeader
+                        className="cursor-pointer hover:bg-muted/50 transition-colors"
+                        onClick={() => {
+                          const newExpanded = new Set(expandedPlatforms);
+                          if (newExpanded.has(platform.id)) {
+                            newExpanded.delete(platform.id);
+                          } else {
+                            newExpanded.add(platform.id);
+                          }
+                          setExpandedPlatforms(newExpanded);
+                        }}
+                      >
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="text-lg">Actiplan Deliverables</CardTitle>
+                          <Button variant="ghost" size="sm">
+                            {expandedPlatforms.has(platform.id) ? "Collapse" : "Expand"}
+                          </Button>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-4">
+                          {/* Top-level metrics table */}
+                          <div className="rounded-md border overflow-x-auto">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Total Budget</TableHead>
+                                  <TableHead>Total Audience Size</TableHead>
+                                  <TableHead>Total Impressions</TableHead>
+                                  <TableHead>Total Reach</TableHead>
+                                  <TableHead>Avg. CPM</TableHead>
+                                  <TableHead>Frequency</TableHead>
+                                  <TableHead>SOV</TableHead>
+                                  {/* Market deliverables columns */}
+                                  {Object.keys(actiplan.marketDeliverables).map(marketName => (
+                                    <TableHead key={marketName} colSpan={actiplan.marketDeliverables[marketName].length}>
+                                      {marketName} Deliverables
+                                    </TableHead>
+                                  ))}
+                                </TableRow>
+                                <TableRow>
+                                  <TableHead></TableHead>
+                                  <TableHead></TableHead>
+                                  <TableHead></TableHead>
+                                  <TableHead></TableHead>
+                                  <TableHead></TableHead>
+                                  <TableHead></TableHead>
+                                  <TableHead></TableHead>
+                                  {/* KPI sub-headers */}
+                                  {Object.entries(actiplan.marketDeliverables).map(([marketName, deliverables]) => 
+                                    deliverables.map((d, idx) => (
+                                      <TableHead key={`${marketName}-${idx}`} className="text-xs">{d.kpi}</TableHead>
+                                    ))
+                                  )}
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                <TableRow>
+                                  <TableCell className="font-semibold">${formatNumber(actiplan.totalBudget)}</TableCell>
+                                  <TableCell>{formatNumber(actiplan.totalAudienceSize)}</TableCell>
+                                  <TableCell>{formatNumber(actiplan.totalImpressions)}</TableCell>
+                                  <TableCell>{formatNumber(actiplan.totalReach)}</TableCell>
+                                  <TableCell>${actiplan.avgCPM.toFixed(2)}</TableCell>
+                                  <TableCell>{actiplan.frequency.toFixed(2)}</TableCell>
+                                  <TableCell>{actiplan.sov.toFixed(0)}%</TableCell>
+                                  {/* Market deliverables values */}
+                                  {Object.values(actiplan.marketDeliverables).map((deliverables, idx) =>
+                                    deliverables.map((d, dIdx) => (
+                                      <TableCell key={`${idx}-${dIdx}`}>{formatNumber(d.result)}</TableCell>
+                                    ))
+                                  )}
+                                </TableRow>
+                              </TableBody>
+                            </Table>
+                          </div>
+
+                          {/* Markets (collapsible) */}
+                          {expandedPlatforms.has(platform.id) && (
+                            <div className="space-y-4 mt-6">
+                              {actiplan.markets.map((market, mIdx) => {
+                                const marketKey = `${platform.id}-${mIdx}`;
+                                const isExpanded = expandedMarkets.has(marketKey);
+
+                                return (
+                                  <Card key={marketKey} className="border-2">
+                                    <CardHeader
+                                      className="cursor-pointer hover:bg-muted/50 transition-colors"
+                                      onClick={() => {
+                                        const newExpanded = new Set(expandedMarkets);
+                                        if (newExpanded.has(marketKey)) {
+                                          newExpanded.delete(marketKey);
+                                        } else {
+                                          newExpanded.add(marketKey);
+                                        }
+                                        setExpandedMarkets(newExpanded);
+                                      }}
+                                    >
+                                      <div className="flex items-center justify-between">
+                                        <CardTitle className="text-base">{market.marketName} Forecast</CardTitle>
+                                        <Button variant="ghost" size="sm">
+                                          {isExpanded ? "Collapse" : "Expand"}
+                                        </Button>
+                                      </div>
+                                    </CardHeader>
+                                    <CardContent>
+                                      {/* Market-level metrics */}
+                                      <div className="rounded-md border overflow-x-auto">
+                                        <Table>
+                                          <TableHeader>
+                                            <TableRow>
+                                              <TableHead>Budget</TableHead>
+                                              <TableHead>Audience Size</TableHead>
+                                              <TableHead>Impression</TableHead>
+                                              <TableHead>Reach</TableHead>
+                                              <TableHead>CPM</TableHead>
+                                              <TableHead>Frequency</TableHead>
+                                              <TableHead>SoV</TableHead>
+                                              {/* Market-specific KPIs */}
+                                              {market.resultsByGoal.map((goal, gIdx) => (
+                                                <TableHead key={gIdx} className="text-xs">{goal.kpi}</TableHead>
+                                              ))}
+                                            </TableRow>
+                                          </TableHeader>
+                                          <TableBody>
+                                            <TableRow>
+                                              <TableCell className="font-semibold">${formatNumber(market.budget)}</TableCell>
+                                              <TableCell>{formatNumber(market.audienceSize)}</TableCell>
+                                              <TableCell>{formatNumber(market.impressions)}</TableCell>
+                                              <TableCell>{formatNumber(market.reach)}</TableCell>
+                                              <TableCell>${market.cpm.toFixed(2)}</TableCell>
+                                              <TableCell>{market.frequency.toFixed(2)}</TableCell>
+                                              <TableCell>{market.sov.toFixed(0)}%</TableCell>
+                                              {/* Market results */}
+                                              {market.resultsByGoal.map((goal, gIdx) => (
+                                                <TableCell key={gIdx}>{formatNumber(goal.result)}</TableCell>
+                                              ))}
+                                            </TableRow>
+                                          </TableBody>
+                                        </Table>
+                                      </div>
+
+                                      {/* Phases (shown when expanded) */}
+                                      {isExpanded && market.phases.length > 0 && (
+                                        <div className="mt-4 rounded-md border">
+                                          <Table>
+                                            <TableHeader>
+                                              <TableRow>
+                                                <TableHead>Phase</TableHead>
+                                                <TableHead>KPI</TableHead>
+                                                <TableHead>Start Date</TableHead>
+                                                <TableHead>End Date</TableHead>
+                                                <TableHead>Budget</TableHead>
+                                                <TableHead>Result</TableHead>
+                                                <TableHead>Cost/Result</TableHead>
+                                              </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                              {market.phases.map((phase, pIdx) => (
+                                                <TableRow key={pIdx}>
+                                                  <TableCell className="font-medium">{phase.phaseName}</TableCell>
+                                                  <TableCell>{phase.kpi}</TableCell>
+                                                  <TableCell className="text-xs">{phase.startDate}</TableCell>
+                                                  <TableCell className="text-xs">{phase.endDate}</TableCell>
+                                                  <TableCell>${formatNumber(phase.budget)}</TableCell>
+                                                  <TableCell>{formatNumber(phase.result)}</TableCell>
+                                                  <TableCell>${phase.costPerResult.toFixed(3)}</TableCell>
+                                                </TableRow>
+                                              ))}
+                                            </TableBody>
+                                          </Table>
+                                        </div>
+                                      )}
+                                    </CardContent>
+                                  </Card>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+                );
+              })}
             </Tabs>
           </>
         )}
