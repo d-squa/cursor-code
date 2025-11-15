@@ -16,6 +16,13 @@ import { ApprovalDialog } from "./ApprovalDialog";
 import { ActiplanDeliverablesView } from "./ActiplanDeliverablesView";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
+// Helper to normalize strategyFocus, filtering out "auto" placeholder
+const getEffectiveStrategyFocus = (marketFocus?: string, genericFocus?: string): string => {
+  if (marketFocus && marketFocus !== "auto") return marketFocus;
+  if (genericFocus && genericFocus !== "auto") return genericFocus;
+  return "conversions";
+};
+
 interface CampaignForecastProps {
   platforms: PlatformWithMarkets[];
   totalBudget: number;
@@ -410,7 +417,7 @@ export function CampaignForecast({
 
         // Map strategy focus to optimization goal
         // Priority: phase-level settings > auto-detect from phase name > strategy focus
-        const strategyFocusValue = market.strategyFocus || genericConfig.strategyFocus || 'conversions';
+        const strategyFocusValue = getEffectiveStrategyFocus(market.strategyFocus, genericConfig.strategyFocus);
         let optimizationGoal: string;
         let objective: string;
         let destination: string;
@@ -541,14 +548,14 @@ export function CampaignForecast({
             optimizationGoal = market.phaseOptimizationGoal;
             destination = "Website";
           } else if (market.phaseName) {
-            const strategyFocusValue = market.strategyFocus || genericConfig.strategyFocus || 'conversions';
+            const strategyFocusValue = getEffectiveStrategyFocus(market.strategyFocus, genericConfig.strategyFocus);
             const autoDetected = getObjectiveFromPhaseName(market.phaseName, strategyFocusValue);
             objective = autoDetected.objective;
             optimizationGoal = autoDetected.optimizationGoal;
             destination = autoDetected.destination;
           } else {
             // Fallback to strategy focus for market-level forecasts
-            const strategyFocusValue = market.strategyFocus || genericConfig.strategyFocus || 'conversions';
+            const strategyFocusValue = getEffectiveStrategyFocus(market.strategyFocus, genericConfig.strategyFocus);
             const autoDetected = getObjectiveFromPhaseName('default', strategyFocusValue);
             objective = autoDetected.objective;
             optimizationGoal = autoDetected.optimizationGoal;
@@ -596,7 +603,7 @@ export function CampaignForecast({
     const reach = Math.floor(impressions / avgFrequency);
     
     // Map strategy focus to optimization goal for mock
-    const strategyFocusValue = market.strategyFocus || genericConfig.strategyFocus || 'conversions';
+    const strategyFocusValue = getEffectiveStrategyFocus(market.strategyFocus, genericConfig.strategyFocus);
     let optimizationGoal = "OFFSITE_CONVERSIONS";
     let objective = "OUTCOME_SALES";
     let destination = "Website";
@@ -729,7 +736,7 @@ export function CampaignForecast({
                   destination = "Website";
                 } else {
                   // Auto-detect from phase name
-                  const strategyFocusValue = market.strategyFocus || genericConfig.strategyFocus || 'conversions';
+                  const strategyFocusValue = getEffectiveStrategyFocus(market.strategyFocus, genericConfig.strategyFocus);
                   const autoDetected = getObjectiveFromPhaseName(phase.name, strategyFocusValue);
                   objective = autoDetected.objective;
                   optimizationGoal = autoDetected.optimizationGoal;
@@ -870,7 +877,7 @@ export function CampaignForecast({
               toast.error(`Could not fetch forecast for ${market.name}. Using estimates.`);
               
               // Fallback estimates
-              const strategyFocusValue = market.strategyFocus || genericConfig.strategyFocus || 'conversions';
+              const strategyFocusValue = getEffectiveStrategyFocus(market.strategyFocus, genericConfig.strategyFocus);
               const autoDetected = getObjectiveFromPhaseName('default', strategyFocusValue);
               
               const estimatedImpressions = marketBudget * 1000;

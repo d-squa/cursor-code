@@ -184,22 +184,24 @@ export function MediaPlanEditor() {
 
   // Auto-update strategy focus based on pixel/catalog in markets
   useEffect(() => {
+    // Only auto-detect when strategyFocus is "auto"
+    if (genericConfig.strategyFocus !== "auto") return;
+    
     const hasPixel = platformsWithMarkets.some(p => p.markets.some(m => m.pixel));
     const hasCatalog = platformsWithMarkets.some(p => p.markets.some(m => m.catalog));
     const adFormats = genericConfig.targeting?.adFormats || [];
 
-    if (hasPixel || hasCatalog || adFormats.length > 0) {
-      const determinedFocus = determineStrategyFocus({
-        adFormats,
-        hasPixel,
-        hasCatalog,
-      });
+    const determinedFocus = determineStrategyFocus({
+      adFormats,
+      hasPixel,
+      hasCatalog,
+    });
 
-      if (determinedFocus && determinedFocus !== genericConfig.strategyFocus) {
-        setGenericConfig(prev => ({ ...prev, strategyFocus: determinedFocus }));
-      }
+    // Always update from "auto" to detected focus
+    if (determinedFocus) {
+      setGenericConfig(prev => ({ ...prev, strategyFocus: determinedFocus }));
     }
-  }, [platformsWithMarkets, genericConfig.targeting?.adFormats]);
+  }, [platformsWithMarkets, genericConfig.targeting?.adFormats, genericConfig.strategyFocus]);
 
   // Auto-save draft whenever key fields change
   useEffect(() => {
