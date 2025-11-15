@@ -10,12 +10,13 @@ import { Switch } from "@/components/ui/switch";
 import { PlatformWithMarkets } from "@/types/mediaplan";
 import { GenericConfig } from "./GenericStrategyConfig";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { CheckCircle2, Edit, ChevronDown, ChevronUp } from "lucide-react";
+import { CheckCircle2, Edit, ChevronDown, ChevronUp, Copy, Trash2 } from "lucide-react";
 import { determineStrategyFocus, getOptimizationGoalForFocus } from "@/utils/strategyFocusMapping";
 import { generateAutoDetectPhases } from "@/utils/funnelPhases";
 import { CampaignPublisherConfig } from "./CampaignPublisherConfig";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { getObjectiveFromPhaseName, getStrategyLabel } from "@/utils/phaseObjectiveMapping";
+import { useToast } from "@/components/ui/use-toast";
 
 interface PlatformCustomizationProps {
   platforms: PlatformWithMarkets[];
@@ -72,6 +73,8 @@ export function PlatformCustomization({
 }: PlatformCustomizationProps) {
   const [editingMode, setEditingMode] = useState<{ [key: string]: boolean }>({});
   const [expandedCampaigns, setExpandedCampaigns] = useState<{ [key: string]: boolean }>({});
+  const [budgetWarning, setBudgetWarning] = useState<string>("");
+  const { toast } = useToast();
 
   // Auto-generate phases on mount if using auto-detect and phases are missing
   useEffect(() => {
@@ -223,6 +226,111 @@ export function PlatformCustomization({
     setExpandedCampaigns(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
+  const deleteMarket = (platformId: string, marketId: string) => {
+    const platform = platforms.find(p => p.id === platformId);
+    if (!platform || platform.markets.length <= 1) {
+      toast({
+        title: "Cannot delete market",
+        description: "Cannot delete the last market in a platform.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const updatedPlatforms = platforms.map(p => {
+      if (p.id === platformId) {
+        const remainingMarkets = p.markets.filter(m => m.id !== marketId);
+        // Recalculate budget percentages to maintain 100%
+        const totalPercentage = remainingMarkets.reduce((sum, m) => sum + m.budgetPercentage, 0);
+        const adjustedMarkets = remainingMarkets.map(m => ({
+          ...m,
+          budgetPercentage: totalPercentage > 0 ? Math.round((m.budgetPercentage / totalPercentage) * 100) : Math.round(100 / remainingMarkets.length)
+        }));
+        return { ...p, markets: adjustedMarkets };
+      }
+      return p;
+    });
+    onPlatformsUpdate(updatedPlatforms);
+    toast({
+      title: "Market deleted",
+      description: "Market budgets have been recalculated to maintain 100%.",
+    });
+  };
+
+  const duplicateMarket = (platformId: string, marketId: string) => {
+    const platform = platforms.find(p => p.id === platformId);
+    const market = platform?.markets.find(m => m.id === marketId);
+    
+    if (!market) return;
+
+    const newMarket = {
+      ...market,
+      id: `market-${Date.now()}`,
+      name: `${market.name} (Copy)`,
+      budgetPercentage: 0, // Start with 0% budget
+      phases: market.phases?.map(phase => ({
+        ...phase,
+        id: `phase-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+      }))
+    };
+
+    const updatedPlatforms = platforms.map(p => {
+      if (p.id === platformId) {
+        return {
+          ...p,
+          markets: [...p.markets, newMarket]
+        };
+      }
+      return p;
+    });
+    
+    // Check if total budget exceeds 100%
+    const totalBudget = updatedPlatforms
+      .find(p => p.id === platformId)!
+      .markets.reduce((sum, m) => sum + m.budgetPercentage, 0);
+    
+    if (totalBudget > 100) {
+      setBudgetWarning(`Warning: Total market budget (${totalBudget}%) exceeds 100% for this platform. Please adjust market budgets.`);
+      toast({
+        title: "Budget warning",
+        description: `Total market budget is ${totalBudget}%. Please adjust to equal 100%.`,
+        variant: "destructive",
+      });
+    }
+    
+    onPlatformsUpdate(updatedPlatforms);
+    toast({
+      title: "Market duplicated",
+      description: "Please allocate budget for the new market.",
+    });
+  };
+
+  const updateMarketBudget = (platformId: string, marketId: string, newBudget: number) => {
+    const updatedPlatforms = platforms.map(p => {
+      if (p.id === platformId) {
+        return {
+          ...p,
+          markets: p.markets.map(m => 
+            m.id === marketId ? { ...m, budgetPercentage: newBudget } : m
+          )
+        };
+      }
+      return p;
+    });
+
+    // Validate total budget
+    const platform = updatedPlatforms.find(p => p.id === platformId);
+    const totalBudget = platform!.markets.reduce((sum, m) => sum + m.budgetPercentage, 0);
+    
+    if (totalBudget !== 100) {
+      setBudgetWarning(`Warning: Total market budget is ${totalBudget}%. It should equal 100% of platform budget.`);
+    } else {
+      setBudgetWarning("");
+    }
+    
+    onPlatformsUpdate(updatedPlatforms);
+  };
+
   const isCustomizationComplete = () => {
     return platforms.every((platform) =>
       platform.markets.every((market) => {
@@ -338,10 +446,20 @@ return (
                 <p><strong>Strategy:</strong> {genericConfig.strategy === 'manual' ? 'Manual Strategy' : genericConfig.strategyFocus ? getStrategyLabel(genericConfig.strategy, genericConfig.strategyFocus) : 'Custom Strategy'}</p>
               </div>
 
+              {budgetWarning && (
+                <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg text-sm text-yellow-600 dark:text-yellow-400">
+                  {budgetWarning}
+                </div>
+              )}
+
               <Accordion type="single" collapsible className="w-full">
-                {platform.markets.map((market) => (
+                {platform.markets.map((market, marketIdx) => {
+                  const totalMarketBudget = platform.markets.reduce((sum, m) => sum + m.budgetPercentage, 0);
+                  const isBudgetValid = totalMarketBudget === 100;
+                  
+                  return (
                   <AccordionItem key={market.id} value={market.id}>
-                    <AccordionTrigger className="hover:no-underline">
+                    <AccordionTrigger className="hover:no-underline group">
                       <div className="flex items-center justify-between w-full pr-4">
                         <div className="flex items-center gap-2">
                           <span className="font-medium">{market.name}</span>
@@ -351,9 +469,47 @@ return (
                             </Badge>
                           )}
                         </div>
-                        <Badge variant="secondary">
-                          {market.budgetPercentage}% of platform budget
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1">
+                            <Input
+                              type="number"
+                              value={market.budgetPercentage}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                updateMarketBudget(platform.id, market.id, Number(e.target.value));
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-16 h-7 text-xs"
+                              min="0"
+                              max="100"
+                            />
+                            <span className="text-xs text-muted-foreground">%</span>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              duplicateMarket(platform.id, market.id);
+                            }}
+                          >
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                          {platform.markets.length > 1 && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteMarket(platform.id, market.id);
+                              }}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </AccordionTrigger>
                     <AccordionContent>
@@ -723,7 +879,8 @@ return (
                       </div>
                     </AccordionContent>
                   </AccordionItem>
-                ))}
+                  );
+                })}
               </Accordion>
             </TabsContent>
           ))}
