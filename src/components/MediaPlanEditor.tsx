@@ -25,6 +25,9 @@ import { PlatformWithMarkets, FunnelStage } from "@/types/mediaplan";
 import { Platform, PlatformConfiguration } from "./PlatformConfiguration";
 import { determineStrategyFocus } from "@/utils/strategyFocusMapping";
 import { Badge } from "@/components/ui/badge";
+import { PlatformSelectionDialog } from "./PlatformSelectionDialog";
+import { MarketSelectionDialog } from "./MarketSelectionDialog";
+import { MARKET_OPTIONS } from "@/utils/markets";
 
 // Helper: map internal focus to funnel template key
 const mapFocusToTemplate = (focus?: string): string | undefined => {
@@ -77,6 +80,15 @@ export function MediaPlanEditor() {
   const [platformsWithMarkets, setPlatformsWithMarkets] = useState<PlatformWithMarkets[]>([]);
   const [globalFunnel, setGlobalFunnel] = useState<FunnelStage[]>([]);
   const [expandedPlatforms, setExpandedPlatforms] = useState<Record<string, boolean>>({});
+  
+  // Dialog states
+  const [platformDialogOpen, setPlatformDialogOpen] = useState(false);
+  const [marketDialogOpen, setMarketDialogOpen] = useState(false);
+  const [pendingDuplication, setPendingDuplication] = useState<{
+    type: 'platform' | 'market';
+    platformId?: string;
+    marketId?: string;
+  } | null>(null);
   
   // Resolve effective strategy focus at render-time (never "auto")
   const effectiveStrategyFocus = useMemo(() => {
@@ -642,28 +654,106 @@ export function MediaPlanEditor() {
     }
   };
 
+  const getAvailablePlatforms = () => {
+    const allPlatforms = [
+      { id: "meta", name: "Meta" },
+      { id: "google", name: "Google Ads" },
+      { id: "linkedin", name: "LinkedIn" },
+      { id: "tiktok", name: "TikTok" },
+      { id: "snapchat", name: "Snapchat" },
+      { id: "pinterest", name: "Pinterest" },
+    ];
+    
+    const usedPlatformIds = platformsWithMarkets.map(p => p.id);
+    return allPlatforms.filter(p => !usedPlatformIds.includes(p.id));
+  };
+
   const duplicatePlatform = (platformId: string) => {
     const platformToDuplicate = platformsWithMarkets.find(p => p.id === platformId);
     if (!platformToDuplicate) return;
+    
+    setPendingDuplication({ type: 'platform', platformId });
+    setPlatformDialogOpen(true);
+  };
 
+  const handlePlatformDuplicationConfirm = (newPlatformId: string) => {
+    if (!pendingDuplication || pendingDuplication.type !== 'platform') return;
+    
+    const platformToDuplicate = platformsWithMarkets.find(p => p.id === pendingDuplication.platformId);
+    if (!platformToDuplicate) return;
+
+    const newPlatformName = getAvailablePlatforms().find(p => p.id === newPlatformId)?.name || newPlatformId;
+    
     const newPlatform = {
       ...platformToDuplicate,
-      id: `${platformToDuplicate.id}-${Date.now()}`,
-      name: `${platformToDuplicate.name} (Copy)`,
+      id: newPlatformId,
+      name: newPlatformName,
       markets: platformToDuplicate.markets.map(market => ({
         ...market,
-        id: `${market.id}-${Date.now()}`,
-        name: `${market.name} (Copy)`,
+        id: `${market.id}-${Date.now()}-${Math.random().toString(36).substring(7)}`,
       })),
     };
     
     setPlatformsWithMarkets(prev => [...prev, newPlatform]);
+    setPendingDuplication(null);
     ensureDraft();
+    toast.success("Platform duplicated successfully");
   };
 
   const deletePlatform = (platformId: string) => {
     setPlatformsWithMarkets(prev => prev.filter(p => p.id !== platformId));
     ensureDraft();
+    toast.success("Platform deleted successfully");
+  };
+
+  const duplicateMarket = (platformId: string, marketId: string) => {
+    setPendingDuplication({ type: 'market', platformId, marketId });
+    setMarketDialogOpen(true);
+  };
+
+  const handleMarketDuplicationConfirm = (marketValue: string, marketLabel: string) => {
+    if (!pendingDuplication || pendingDuplication.type !== 'market') return;
+    
+    const { platformId, marketId } = pendingDuplication;
+    if (!platformId || !marketId) return;
+    
+    setPlatformsWithMarkets(prev => prev.map(platform => {
+      if (platform.id !== platformId) return platform;
+      
+      const marketToDuplicate = platform.markets.find(m => m.id === marketId);
+      if (!marketToDuplicate) return platform;
+      
+      const newMarket = {
+        ...marketToDuplicate,
+        id: `${marketValue}-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+        name: marketValue,
+      };
+      
+      return {
+        ...platform,
+        markets: [...platform.markets, newMarket],
+      };
+    }));
+    
+    setPendingDuplication(null);
+    ensureDraft();
+    toast.success(`Market "${marketLabel}" duplicated successfully`);
+  };
+
+  const deleteMarket = (platformId: string, marketId: string) => {
+    setPlatformsWithMarkets(prev => prev.map(platform => {
+      if (platform.id !== platformId) return platform;
+      return {
+        ...platform,
+        markets: platform.markets.filter(m => m.id !== marketId),
+      };
+    }));
+    ensureDraft();
+    toast.success("Market deleted successfully");
+  };
+
+  const getMarketLabel = (marketValue: string) => {
+    return MARKET_OPTIONS.find(m => m.value === marketValue)?.label || marketValue;
   };
 
   return (
@@ -1054,9 +1144,33 @@ export function MediaPlanEditor() {
                               <div className="space-y-4">
                                 {platform.markets.map(market => (
                                   <Card key={market.id} className="p-4">
-                                    <h4 className="font-medium mb-4">
-                                      {market.name}
-                                    </h4>
+                                    <div className="flex items-center justify-between mb-4">
+                                      <h4 className="font-medium">
+                                        {getMarketLabel(market.name)}
+                                      </h4>
+                                      <div className="flex gap-1">
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-8 w-8 p-0 hover:bg-accent"
+                                          onClick={() => duplicateMarket(platform.id, market.id)}
+                                          title="Duplicate market"
+                                        >
+                                          <Copy className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-8 w-8 p-0 hover:bg-destructive/20"
+                                          onClick={() => deleteMarket(platform.id, market.id)}
+                                          title="Delete market"
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </div>
+                                    </div>
                                 
                                 {/* Per-Market Strategy Configuration */}
                                 <div className="space-y-4 mb-6 p-4 bg-muted/50 rounded-lg">
@@ -1360,6 +1474,20 @@ export function MediaPlanEditor() {
           onFinalize={handleLaunch}
         />
       )}
+      
+      {/* Dialogs */}
+      <PlatformSelectionDialog
+        open={platformDialogOpen}
+        onOpenChange={setPlatformDialogOpen}
+        availablePlatforms={getAvailablePlatforms()}
+        onConfirm={handlePlatformDuplicationConfirm}
+      />
+      
+      <MarketSelectionDialog
+        open={marketDialogOpen}
+        onOpenChange={setMarketDialogOpen}
+        onConfirm={handleMarketDuplicationConfirm}
+      />
     </div>
   );
 }
