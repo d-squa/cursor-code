@@ -15,6 +15,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
+import { MARKET_OPTIONS } from "@/utils/markets";
 
 interface PlatformMarketBudgetSelectorProps {
   platforms: PlatformWithMarkets[];
@@ -365,26 +366,24 @@ export function PlatformMarketBudgetSelector({
     setPlatforms(
       platforms.map((p, i) => {
         if (i === index) {
-          const usedMarketNames = p.markets.map(m => m.name.toLowerCase());
-          let marketNum = p.markets.length + 1;
-          let marketName = `Market ${marketNum}`;
+          // Find the first unused market from MARKET_OPTIONS
+          const usedMarketValues = p.markets.map(m => m.name);
+          const availableMarket = MARKET_OPTIONS.find(opt => !usedMarketValues.includes(opt.value));
           
-          while (usedMarketNames.includes(marketName.toLowerCase())) {
-            marketNum++;
-            marketName = `Market ${marketNum}`;
-          }
+          // If no available market, use the first one (user can change it)
+          const marketValue = availableMarket?.value || MARKET_OPTIONS[0].value;
           
           // Apply default targeting values for R&F compatibility
           const newMarket: Market = {
             id: `market-${Date.now()}`,
-            name: marketName,
+            name: marketValue,
             budgetPercentage: 0,
             phases: [],
             // Inherit strategy from genericConfig if available
             strategy: genericConfig?.strategy,
             strategyFocus: genericConfig?.strategyFocus,
             // Default targeting for Meta R&F
-            countries: ["US"],
+            countries: [marketValue],
             ageMin: 18,
             ageMax: 65,
             gender: "all",
@@ -652,12 +651,21 @@ export function PlatformMarketBudgetSelector({
                         return (
                           <div key={market.id} className="p-3 bg-muted/50 rounded-md space-y-3">
                             <div className="flex items-center justify-between gap-2">
-                              <Input
+                              <Select
                                 value={market.name}
-                                onChange={(e) => updateMarketName(platformIndex, market.id, e.target.value)}
-                                className="h-7 text-sm flex-1"
-                                placeholder="Market name"
-                              />
+                                onValueChange={(value) => updateMarketName(platformIndex, market.id, value)}
+                              >
+                                <SelectTrigger className="h-7 text-sm flex-1">
+                                  <SelectValue placeholder="Select market" />
+                                </SelectTrigger>
+                                <SelectContent className="max-h-[300px]">
+                                  {MARKET_OPTIONS.map((option) => (
+                                    <SelectItem key={option.value} value={option.value}>
+                                      {option.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
                               <div className="flex items-center gap-1">
                                 <Button
                                   type="button"
