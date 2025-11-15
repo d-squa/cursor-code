@@ -111,7 +111,7 @@ export function PlatformMarketBudgetSelector({
 
       // Fetch pages from database
       const { data: pagesData, error: pagesError } = await supabase
-        .from("meta_pages" as any)
+        .from("meta_pages_safe" as any)
         .select("*")
         .order("synced_at", { ascending: false });
 
@@ -235,7 +235,7 @@ export function PlatformMarketBudgetSelector({
       try {
         // Fetch connected platforms
         const { data: platformsData, error: platformsError } = await supabase
-          .from("connected_platforms")
+          .from("connected_platforms_safe")
           .select("*")
           .eq("is_active", true);
 

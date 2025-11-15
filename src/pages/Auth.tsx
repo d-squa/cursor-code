@@ -100,8 +100,11 @@ export default function Auth() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 placeholder="••••••••"
-                minLength={6}
+                minLength={8}
               />
+              <p className="text-xs text-muted-foreground mt-1">
+                Minimum 8 characters required
+              </p>
             </div>
             {!isLogin && (
               <div className="space-y-2">

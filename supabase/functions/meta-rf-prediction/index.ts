@@ -13,8 +13,33 @@ serve(async (req) => {
   }
 
   try {
+    // Authentication check
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Authentication required' }), { 
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Initialize Supabase for auth verification first
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
+    const supabaseAuth = createClient(supabaseUrl, supabaseKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: 'Invalid authentication token' }), { 
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
     const body = await req.json();
-    console.log("Meta R&F prediction request (keys):", Object.keys(body));
+    console.log("Meta R&F prediction request (authenticated user):", user.id);
 
     // Get credentials from connected platform
     const connectedPlatformId = body.connectedPlatformId;
@@ -22,12 +47,14 @@ serve(async (req) => {
       throw new Error("connectedPlatformId is required");
     }
 
-    // Initialize Supabase client
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    // Input validation
+    if (body.budget && (body.budget < 100 || body.budget > 10000000)) {
+      throw new Error('Budget must be between 100 and 10,000,000');
+    }
 
-    const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    // Initialize Supabase service client for accessing connected_platforms
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Fetch platform credentials (prefer connected platform, fallback to global secrets)
     const { data: platform, error: platformError } = await supabase

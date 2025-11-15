@@ -599,6 +599,13 @@ export type Database = {
             referencedRelation: "connected_platforms"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "platform_accounts_connected_platform_id_fkey"
+            columns: ["connected_platform_id"]
+            isOneToOne: false
+            referencedRelation: "connected_platforms_safe"
+            referencedColumns: ["id"]
+          },
         ]
       }
       profiles: {
@@ -686,7 +693,81 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      connected_platforms_safe: {
+        Row: {
+          ad_account_id: string | null
+          ad_account_name: string | null
+          business_manager_id: string | null
+          created_at: string | null
+          id: string | null
+          is_active: boolean | null
+          metadata: Json | null
+          platform_name: string | null
+          platform_type: string | null
+          token_expires_at: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          ad_account_id?: string | null
+          ad_account_name?: string | null
+          business_manager_id?: string | null
+          created_at?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          metadata?: Json | null
+          platform_name?: string | null
+          platform_type?: string | null
+          token_expires_at?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          ad_account_id?: string | null
+          ad_account_name?: string | null
+          business_manager_id?: string | null
+          created_at?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          metadata?: Json | null
+          platform_name?: string | null
+          platform_type?: string | null
+          token_expires_at?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      meta_pages_safe: {
+        Row: {
+          category: string | null
+          created_at: string | null
+          id: string | null
+          page_id: string | null
+          page_name: string | null
+          synced_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string | null
+          id?: string | null
+          page_id?: string | null
+          page_name?: string | null
+          synced_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          category?: string | null
+          created_at?: string | null
+          id?: string | null
+          page_id?: string | null
+          page_name?: string | null
+          synced_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       has_role: {

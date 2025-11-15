@@ -28,6 +28,34 @@ serve(async (req) => {
   }
 
   try {
+    // Authentication check
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Authentication required' }), { 
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Initialize Supabase for auth verification
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseKey = Deno.env.get("SUPABASE_ANON_KEY");
+    if (supabaseUrl && supabaseKey) {
+      const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
+      const supabase = createClient(supabaseUrl, supabaseKey, {
+        global: { headers: { Authorization: authHeader } }
+      });
+
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        return new Response(JSON.stringify({ error: 'Invalid authentication token' }), { 
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+      console.log("Google Ads forecast request (authenticated user):", user.id);
+    }
+
     console.log("Starting Google Ads forecast request");
 
     // Get OAuth credentials from environment
@@ -37,7 +65,7 @@ serve(async (req) => {
     const developerToken = Deno.env.get('GOOGLE_ADS_DEVELOPER_TOKEN');
 
     if (!clientId || !clientSecret || !refreshToken || !developerToken) {
-      throw new Error('Missing required Google Ads credentials');
+      throw new Error('Google Ads credentials not configured. Please connect your Google Ads account in Settings.');
     }
 
     console.log("Credentials loaded successfully");

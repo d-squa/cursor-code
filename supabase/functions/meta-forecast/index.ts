@@ -11,15 +11,48 @@ serve(async (req) => {
   }
 
   try {
+    // Authentication check
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Authentication required' }), { 
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Initialize Supabase for auth verification
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: 'Invalid authentication token' }), { 
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
     const body = await req.json();
-    console.log("Meta forecast request:", JSON.stringify(body, null, 2));
+    console.log("Meta forecast request (authenticated user):", user.id);
+
+    // Input validation
+    if (!body.markets || !Array.isArray(body.markets) || body.markets.length === 0) {
+      throw new Error('Markets array is required and must not be empty');
+    }
+    if (body.markets.length > 50) {
+      throw new Error('Maximum 50 markets allowed per request');
+    }
 
     const accessToken = Deno.env.get("META_ACCESS_TOKEN");
     const adAccountId = Deno.env.get("META_AD_ACCOUNT_ID");
 
     if (!accessToken || !adAccountId) {
-      console.error("Missing credentials - accessToken:", !!accessToken, "adAccountId:", !!adAccountId);
-      throw new Error("Meta credentials not configured. Need META_ACCESS_TOKEN and META_AD_ACCOUNT_ID");
+      console.error("Missing Meta API credentials");
+      throw new Error("Platform credentials not configured. Please connect your Meta account in Settings.");
     }
 
     console.log("Using ad account:", adAccountId);
