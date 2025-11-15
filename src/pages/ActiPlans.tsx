@@ -377,119 +377,140 @@ export default function ActiPlans() {
     });
   };
 
-  const renderCampaignCard = (campaign: Campaign) => (
-    <Card key={campaign.id} className="hover:shadow-md transition-shadow">
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <CardTitle className="text-lg truncate">{campaign.name}</CardTitle>
-              {campaign.bo_number && (
-                <Badge variant="secondary" className="text-xs font-mono">
-                  {campaign.bo_number}
-                </Badge>
-              )}
-            </div>
-            <CardDescription className="text-xs">
-              {format(new Date(campaign.start_date), "MMM dd")} - {format(new Date(campaign.end_date), "MMM dd, yyyy")}
-            </CardDescription>
-          </div>
-          <div className="flex flex-col items-end gap-1">
-            {getStatusBadge(campaign.status)}
-            {campaign.last_status_change && campaign.last_status_change.user_email && (
-              <span className="text-xs text-muted-foreground">
-                by {campaign.last_status_change.user_email.split('@')[0]}
-              </span>
-            )}
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="pt-0">
-        <div className="space-y-3">
-          {/* Creator and Team Info */}
-          <div className="grid grid-cols-2 gap-2 text-xs pb-2 border-b">
-            <div>
-              <p className="text-muted-foreground">Creator</p>
-              <p className="font-medium truncate">{campaign.creator?.email ? campaign.creator.email.split('@')[0] : 'Unknown'}</p>
-            </div>
-            {campaign.team && campaign.is_admin_or_owner && (
-              <div>
-                <p className="text-muted-foreground">Assigned Team</p>
-                <p className="font-medium truncate">{campaign.team.name}</p>
+  const renderCampaignCard = (campaign: Campaign) => {
+    // Extract forecast metrics from campaign.forecast_data
+    const forecastData = campaign.forecast_data as any;
+    const actiplanForecasts = forecastData?.actiplanForecasts;
+    
+    // Get platforms and markets from campaign data
+    const platforms = (campaign.platforms as any[] || []).filter(p => p.enabled).map(p => p.name);
+    const allMarkets = (campaign.platforms as any[] || [])
+      .filter(p => p.enabled)
+      .flatMap(p => p.markets || [])
+      .map(m => m.name);
+    const uniqueMarkets = [...new Set(allMarkets)];
+    
+    // Get unique objectives from phases across all markets
+    const allObjectives = (campaign.platforms as any[] || [])
+      .filter(p => p.enabled)
+      .flatMap(p => p.markets || [])
+      .flatMap(m => m.phases || [])
+      .map(phase => phase.objective)
+      .filter(Boolean);
+    const uniqueObjectives = [...new Set(allObjectives)];
+
+    return (
+      <Card key={campaign.id} className="hover:shadow-md transition-shadow">
+        <CardHeader className="pb-3">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <CardTitle className="text-lg truncate">{campaign.name}</CardTitle>
+                {campaign.bo_number && (
+                  <Badge variant="secondary" className="text-xs font-mono">
+                    {campaign.bo_number}
+                  </Badge>
+                )}
               </div>
-            )}
-          </div>
-
-          {/* User Permission */}
-          {campaign.user_role && (
-            <div className="flex items-center gap-2 text-xs">
-              <Badge variant="outline" className="text-xs">
-                {campaign.user_role === 'campaign_manager' ? 'Campaign Manager' : 
-                 campaign.user_role.charAt(0).toUpperCase() + campaign.user_role.slice(1)}
-              </Badge>
-              {campaign.can_edit && (
-                <span className="text-muted-foreground">• Can edit</span>
+              <CardDescription className="text-xs">
+                {format(new Date(campaign.start_date), "MMM dd")} - {format(new Date(campaign.end_date), "MMM dd, yyyy")}
+              </CardDescription>
+            </div>
+            <div className="flex flex-col items-end gap-1">
+              {getStatusBadge(campaign.status)}
+              {campaign.last_status_change && campaign.last_status_change.user_email && (
+                <span className="text-xs text-muted-foreground">
+                  by {campaign.last_status_change.user_email.split('@')[0]}
+                </span>
               )}
             </div>
-          )}
-
-          {/* Markets, Platforms & Objectives */}
-          {(campaign.market_splits || campaign.platforms) && (
-            <div className="space-y-2 text-xs pt-2 border-t">
-              {campaign.market_splits && (
-                <div>
-                  <p className="text-muted-foreground font-medium mb-1">Markets</p>
-                  <div className="flex flex-wrap gap-1">
-                    {Object.keys(campaign.market_splits).map((market) => (
-                      <Badge key={market} variant="secondary" className="text-xs">
-                        {market}
-                      </Badge>
-                    ))}
-                  </div>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-6">
+          <div className="space-y-4">
+            <div className="flex items-start justify-between gap-6">
+              <div className="space-y-2 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Created by:</span>
+                  <span className="text-sm font-medium">{campaign.creator?.email ? campaign.creator.email.split('@')[0] : 'Unknown'}</span>
                 </div>
-              )}
-              {campaign.platforms && campaign.platforms.length > 0 && (
-                <div>
-                  <p className="text-muted-foreground font-medium mb-1">Platforms & Objectives</p>
-                  <div className="space-y-1">
-                    {campaign.platforms.map((platform: any, idx: number) => (
-                      <div key={idx} className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-xs">
-                          {platform.name || platform.type}
-                        </Badge>
-                        {platform.objective && (
-                          <span className="text-muted-foreground">→ {platform.objective}</span>
-                        )}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Team:</span>
+                  <span className="text-sm font-medium">{campaign.team?.name || 'Personal'}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Budget:</span>
+                  <span className="text-sm font-medium">
+                    ${Number(campaign.total_budget).toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Markets:</span>
+                  <span className="text-sm font-medium">{uniqueMarkets.join(', ') || 'None'}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Platforms:</span>
+                  <span className="text-sm font-medium">{platforms.join(', ') || 'None'}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Objectives:</span>
+                  <span className="text-sm font-medium">{uniqueObjectives.join(', ') || 'None'}</span>
+                </div>
+              </div>
+              
+              {actiplanForecasts && Object.keys(actiplanForecasts).length > 0 && (
+                <div className="flex-1 border-l pl-6">
+                  <h4 className="text-sm font-semibold mb-3">Actiplan Deliverables</h4>
+                  {Object.entries(actiplanForecasts).map(([platformId, forecast]: [string, any]) => {
+                    const totalAudience = forecast.totalAudienceSize || 0;
+                    const totalImpressions = forecast.totalImpressions || 0;
+                    const totalReach = forecast.totalReach || 0;
+                    const avgCPM = forecast.avgCPM || 0;
+                    const frequency = forecast.frequency || 0;
+                    const sov = forecast.sov || 0;
+                    const marketDeliverables = forecast.marketDeliverables || {};
+
+                    return (
+                      <div key={platformId} className="grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <span className="text-muted-foreground">Audience Size:</span>
+                          <div className="font-medium">{totalAudience.toLocaleString()}</div>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Impressions:</span>
+                          <div className="font-medium">{totalImpressions.toLocaleString()}</div>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Reach:</span>
+                          <div className="font-medium">{totalReach.toLocaleString()}</div>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Avg. CPM:</span>
+                          <div className="font-medium">${avgCPM.toFixed(2)}</div>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Frequency:</span>
+                          <div className="font-medium">{frequency.toFixed(2)}</div>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">SOV:</span>
+                          <div className="font-medium">{sov.toFixed(1)}%</div>
+                        </div>
+                        {Object.entries(marketDeliverables).map(([marketName, kpis]: [string, any]) => (
+                          kpis.map((kpiData: any, idx: number) => (
+                            <div key={`${marketName}-${idx}`} className="col-span-2 pt-2 border-t">
+                              <span className="text-muted-foreground text-xs uppercase">{kpiData.kpi}:</span>
+                              <div className="font-medium">{kpiData.result.toLocaleString()}</div>
+                            </div>
+                          ))
+                        ))}
                       </div>
-                    ))}
-                  </div>
+                    );
+                  })}
                 </div>
               )}
-            </div>
-          )}
 
-          <div className="flex items-center justify-between text-sm pt-2 border-t">
-            <span className="text-muted-foreground">Budget</span>
-            <span className="font-semibold">${campaign.total_budget.toLocaleString()}</span>
           </div>
-          
-          {campaign.forecast_data?.totalMetrics && (
-            <div className="grid grid-cols-3 gap-2 text-xs pt-2 border-t">
-              <div>
-                <p className="text-muted-foreground">Reach</p>
-                <p className="font-medium">{(campaign.forecast_data.totalMetrics.reach / 1000).toFixed(0)}K</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">Impressions</p>
-                <p className="font-medium">{(campaign.forecast_data.totalMetrics.impressions / 1000).toFixed(0)}K</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">CPM</p>
-                <p className="font-medium">${campaign.forecast_data.totalMetrics.cpm?.toFixed(2)}</p>
-              </div>
-            </div>
-          )}
-
           <div className="flex items-center gap-2 pt-2">
             {campaign.pdf_url && (
               <Button 
@@ -623,9 +644,10 @@ export default function ActiPlans() {
             </DropdownMenu>
           </div>
         </div>
-      </CardContent>
-    </Card>
-  );
+        </CardContent>
+      </Card>
+    );
+  };
 
   if (loading) {
     return (
