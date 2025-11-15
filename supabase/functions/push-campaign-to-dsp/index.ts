@@ -12,14 +12,33 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
+    // Authentication check
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Authentication required' }), { 
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
     if (!supabaseUrl || !supabaseKey) {
-      throw new Error("Supabase configuration missing");
+      throw new Error("Service configuration error");
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Verify user authentication
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: 'Invalid authentication token' }), { 
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
 
     const { campaignId } = await req.json();
 
@@ -32,7 +51,15 @@ const handler = async (req: Request): Promise<Response> => {
 
     if (campaignError) throw campaignError;
 
-    console.log("Pushing campaign to DSP:", campaign.name);
+    // Verify user owns the campaign
+    if (campaign.user_id !== user.id) {
+      return new Response(JSON.stringify({ error: 'Unauthorized: You do not own this campaign' }), { 
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    console.log("Pushing campaign to DSP:", campaign.name, "for user:", user.id);
 
     // Get user's connected platforms
     const { data: platforms, error: platformsError } = await supabase

@@ -93,7 +93,7 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId, c
       // Load all resources
       const [pixelsRes, pagesRes, igRes, catalogsRes, productSetsRes, eventsRes] = await Promise.all([
         supabase.from("meta_pixels").select("pixel_id, pixel_name").eq("user_id", userId),
-        supabase.from("meta_pages").select("page_id, page_name").eq("user_id", userId),
+        supabase.from("meta_pages_safe").select("page_id, page_name").eq("user_id", userId),
         supabase.from("meta_instagram_accounts").select("instagram_account_id, username").eq("user_id", userId),
         supabase.from("meta_catalogs").select("catalog_id, catalog_name").eq("user_id", userId),
         supabase.from("meta_product_sets").select("product_set_id, product_set_name").eq("user_id", userId),

@@ -70,8 +70,8 @@ export default function PlatformConnections() {
 
   const fetchConnectedPlatforms = async () => {
     try {
-const { data, error } = await supabase
-        .from("connected_platforms")
+      const { data, error } = await supabase
+        .from("connected_platforms_safe")
         .select("*, platform_accounts(*)")
         .order("created_at", { ascending: false });
 

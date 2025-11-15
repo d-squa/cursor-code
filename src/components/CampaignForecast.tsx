@@ -268,7 +268,7 @@ export function CampaignForecast({
 
         if (!connectedPlatformId) {
           const { data: connectedPlatforms } = await supabase
-            .from('connected_platforms')
+            .from('connected_platforms_safe')
             .select('id')
             .eq('platform_type', 'meta')
             .order('created_at', { ascending: false })

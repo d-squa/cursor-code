@@ -1,13 +1,13 @@
 project_id = "tewjsubccoizrjroaydy"
 
 [functions.google-ads-forecast]
-verify_jwt = false
+verify_jwt = true
 
 [functions.meta-forecast]
-verify_jwt = false
+verify_jwt = true
 
 [functions.meta-rf-prediction]
-verify_jwt = false
+verify_jwt = true
 
 [functions.meta-accounts]
 verify_jwt = true
