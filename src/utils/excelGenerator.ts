@@ -6,38 +6,30 @@ export function generateMediaPlanExcel(data: MediaPlanData): Blob {
   const workbook = XLSX.utils.book_new();
 
   // Sheet 1: Actiplan Deliverables Overview
-  if (data.actiplanForecasts && Object.keys(data.actiplanForecasts).length > 0) {
-    const platforms = Object.values(data.actiplanForecasts);
-    const totalAudienceSize = platforms.reduce((sum, p) => sum + p.totalAudienceSize, 0);
-    const totalImpressions = platforms.reduce((sum, p) => sum + p.totalImpressions, 0);
-    const totalReach = platforms.reduce((sum, p) => sum + p.totalReach, 0);
-    const avgCPM = totalImpressions > 0 ? (data.totalBudget / (totalImpressions / 1000)) : 0;
-    const frequency = totalReach > 0 ? totalImpressions / totalReach : 0;
-    const sov = totalAudienceSize > 0 ? (totalReach / totalAudienceSize) * 100 : 0;
+  if (data.actiplanForecasts) {
+    const actiplan = data.actiplanForecasts;
 
     const overviewData = [
       ['Actiplan Deliverables', ''],
       ['Plan Name', data.name],
-      ['Total Budget', `$${data.totalBudget.toLocaleString()}`],
+      ['Total Budget', `$${actiplan.totalBudget.toLocaleString()}`],
       ['Duration', `${format(new Date(data.startDate), 'MMM d, yyyy')} - ${format(new Date(data.endDate), 'MMM d, yyyy')}`],
       ['Strategy', data.genericConfig.strategyFocus || 'Custom'],
       ['', ''],
-      ['Total Audience Size', totalAudienceSize],
-      ['Total Impressions', totalImpressions],
-      ['Total Reach', totalReach],
-      ['Avg. CPM', avgCPM],
-      ['Frequency', frequency],
-      ['SOV', `${sov.toFixed(1)}%`],
+      ['Total Audience Size', actiplan.totalAudienceSize],
+      ['Total Impressions', actiplan.totalImpressions],
+      ['Total Reach', actiplan.totalReach],
+      ['Avg. CPM', actiplan.avgCPM],
+      ['Frequency', actiplan.frequency],
+      ['SOV', `${actiplan.sov.toFixed(1)}%`],
     ];
 
     // Add market deliverables
-    platforms.forEach((platform) => {
-      Object.entries(platform.marketDeliverables).forEach(([marketName, kpis]) => {
-        overviewData.push(['', '']);
-        overviewData.push([`${marketName} Deliverables`, '']);
-        kpis.forEach((kpi) => {
-          overviewData.push([kpi.kpi, kpi.result]);
-        });
+    Object.entries(actiplan.marketDeliverables).forEach(([marketName, kpis]) => {
+      overviewData.push(['', '']);
+      overviewData.push([`${marketName} Deliverables`, '']);
+      kpis.forEach((kpi) => {
+        overviewData.push([kpi.kpi, kpi.result]);
       });
     });
 
@@ -46,18 +38,43 @@ export function generateMediaPlanExcel(data: MediaPlanData): Blob {
     XLSX.utils.book_append_sheet(workbook, ws1, 'Actiplan Overview');
   }
 
-  // Sheet 2: Market Forecasts
-  if (data.actiplanForecasts && Object.keys(data.actiplanForecasts).length > 0) {
+  // Sheet 2: Platform Forecasts
+  if (data.actiplanForecasts) {
+    const platformData: any[][] = [
+      ['Platform', 'Budget', 'Audience Size', 'Impressions', 'Reach', 'CPM', 'Frequency', 'SOV']
+    ];
+
+    data.actiplanForecasts.platforms.forEach((platform) => {
+      platformData.push([
+        platform.platformName,
+        platform.totalBudget,
+        platform.totalAudienceSize,
+        platform.totalImpressions,
+        platform.totalReach,
+        platform.avgCPM,
+        platform.frequency,
+        `${platform.sov.toFixed(1)}%`
+      ]);
+    });
+
+    const ws2 = XLSX.utils.aoa_to_sheet(platformData);
+    ws2['!cols'] = [
+      { wch: 15 }, { wch: 12 }, { wch: 15 }, { wch: 15 }, 
+      { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 10 }
+    ];
+    XLSX.utils.book_append_sheet(workbook, ws2, 'Platform Forecasts');
+  }
+
+  // Sheet 3: Market Forecasts
+  if (data.actiplanForecasts) {
     const marketData: any[][] = [
       ['Platform', 'Market', 'Budget', 'Audience Size', 'Impressions', 'Reach', 'CPM', 'Frequency', 'SOV']
     ];
 
-    Object.entries(data.actiplanForecasts).forEach(([platformId, actiplan]) => {
-      const platformName = data.platforms.find(p => p.id === platformId)?.name || platformId;
-      
-      actiplan.markets.forEach((market) => {
+    data.actiplanForecasts.platforms.forEach((platform) => {
+      platform.markets.forEach((market) => {
         marketData.push([
-          platformName,
+          platform.platformName,
           market.marketName,
           market.budget,
           market.audienceSize,
@@ -70,27 +87,25 @@ export function generateMediaPlanExcel(data: MediaPlanData): Blob {
       });
     });
 
-    const ws2 = XLSX.utils.aoa_to_sheet(marketData);
-    ws2['!cols'] = [
+    const ws3 = XLSX.utils.aoa_to_sheet(marketData);
+    ws3['!cols'] = [
       { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 15 }, 
       { wch: 15 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 10 }
     ];
-    XLSX.utils.book_append_sheet(workbook, ws2, 'Market Forecasts');
+    XLSX.utils.book_append_sheet(workbook, ws3, 'Market Forecasts');
   }
 
-  // Sheet 3: Market KPI Results
-  if (data.actiplanForecasts && Object.keys(data.actiplanForecasts).length > 0) {
+  // Sheet 4: Market KPI Results
+  if (data.actiplanForecasts) {
     const kpiData: any[][] = [
       ['Platform', 'Market', 'KPI', 'Result', 'Cost per Result', 'Result Rate']
     ];
 
-    Object.entries(data.actiplanForecasts).forEach(([platformId, actiplan]) => {
-      const platformName = data.platforms.find(p => p.id === platformId)?.name || platformId;
-      
-      actiplan.markets.forEach((market) => {
+    data.actiplanForecasts.platforms.forEach((platform) => {
+      platform.markets.forEach((market) => {
         market.resultsByGoal.forEach((result) => {
           kpiData.push([
-            platformName,
+            platform.platformName,
             market.marketName,
             result.kpi,
             result.result,
@@ -101,27 +116,25 @@ export function generateMediaPlanExcel(data: MediaPlanData): Blob {
       });
     });
 
-    const ws3 = XLSX.utils.aoa_to_sheet(kpiData);
-    ws3['!cols'] = [
+    const ws4 = XLSX.utils.aoa_to_sheet(kpiData);
+    ws4['!cols'] = [
       { wch: 15 }, { wch: 15 }, { wch: 20 }, 
       { wch: 15 }, { wch: 15 }, { wch: 12 }
     ];
-    XLSX.utils.book_append_sheet(workbook, ws3, 'KPI Results');
+    XLSX.utils.book_append_sheet(workbook, ws4, 'KPI Results');
   }
 
-  // Sheet 4: Phase Details
-  if (data.actiplanForecasts && Object.keys(data.actiplanForecasts).length > 0) {
+  // Sheet 5: Phase Details
+  if (data.actiplanForecasts) {
     const phaseData: any[][] = [
       ['Platform', 'Market', 'Phase', 'KPI', 'Start Date', 'End Date', 'Budget', 'Result', 'Cost per Result']
     ];
 
-    Object.entries(data.actiplanForecasts).forEach(([platformId, actiplan]) => {
-      const platformName = data.platforms.find(p => p.id === platformId)?.name || platformId;
-      
-      actiplan.markets.forEach((market) => {
+    data.actiplanForecasts.platforms.forEach((platform) => {
+      platform.markets.forEach((market) => {
         market.phases.forEach((phase) => {
           phaseData.push([
-            platformName,
+            platform.platformName,
             market.marketName,
             phase.phaseName,
             phase.kpi,
@@ -135,15 +148,15 @@ export function generateMediaPlanExcel(data: MediaPlanData): Blob {
       });
     });
 
-    const ws4 = XLSX.utils.aoa_to_sheet(phaseData);
-    ws4['!cols'] = [
+    const ws5 = XLSX.utils.aoa_to_sheet(phaseData);
+    ws5['!cols'] = [
       { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 20 }, 
       { wch: 13 }, { wch: 13 }, { wch: 12 }, { wch: 12 }, { wch: 15 }
     ];
-    XLSX.utils.book_append_sheet(workbook, ws4, 'Phase Details');
+    XLSX.utils.book_append_sheet(workbook, ws5, 'Phase Details');
   }
 
-  // Sheet 5: Platform Allocation
+  // Sheet 6: Platform Allocation
   const platformData: any[][] = [
     ['Platform', 'Budget %', 'Budget ($)', 'Markets']
   ];
@@ -157,9 +170,9 @@ export function generateMediaPlanExcel(data: MediaPlanData): Blob {
     ]);
   });
 
-  const ws5 = XLSX.utils.aoa_to_sheet(platformData);
-  ws5['!cols'] = [{ wch: 15 }, { wch: 12 }, { wch: 15 }, { wch: 30 }];
-  XLSX.utils.book_append_sheet(workbook, ws5, 'Platform Allocation');
+  const ws6 = XLSX.utils.aoa_to_sheet(platformData);
+  ws6['!cols'] = [{ wch: 15 }, { wch: 12 }, { wch: 15 }, { wch: 30 }];
+  XLSX.utils.book_append_sheet(workbook, ws6, 'Platform Allocation');
 
   // Generate Excel file
   const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
