@@ -96,6 +96,53 @@ export function MediaPlanEditor() {
     strategyFocus: effectiveStrategyFocus,
   }), [genericConfig, effectiveStrategyFocus]);
 
+  // Render-time auto-detect for Step 3 (Strategy Configuration)
+  useEffect(() => {
+    if (currentStep !== 3) return;
+
+    // 1) Set global strategy focus when in auto-detect
+    if (genericConfig.strategy === "auto-detect") {
+      const hasPixel = platformsWithMarkets.some(p => p.markets.some(m => m.pixel));
+      const hasCatalog = platformsWithMarkets.some(p => p.markets.some(m => m.catalog));
+      const marketAdFormats = platformsWithMarkets.flatMap(p => p.markets.flatMap(m => (m as any).adFormats || []));
+      const adFormats = Array.from(new Set([...(genericConfig.targeting?.adFormats || []), ...marketAdFormats]));
+      const detected = determineStrategyFocus({ adFormats, hasPixel, hasCatalog }) || "conversions";
+      if (genericConfig.strategyFocus !== detected) {
+        setGenericConfig(prev => ({ ...prev, strategyFocus: detected }));
+      }
+    }
+
+    // 2) Set per-market strategyFocus and phases in auto-detect
+    let changed = false;
+    const updated = platformsWithMarkets.map(platform => ({
+      ...platform,
+      markets: platform.markets.map(market => {
+        const strategy = market.strategy || genericConfig.strategy;
+        if (strategy !== "auto-detect") return market;
+
+        const marketAdFormats = (market as any).adFormats || [];
+        const adFormats = Array.from(new Set([...(genericConfig.targeting?.adFormats || []), ...marketAdFormats]));
+        const hasPixel = !!market.pixel;
+        const hasCatalog = !!market.catalog;
+        const detected = determineStrategyFocus({ adFormats, hasPixel, hasCatalog }) || "conversions";
+
+        const needsFocusUpdate = !market.strategyFocus || market.strategyFocus === "auto" || market.strategyFocus !== detected;
+        const needsPhases = !market.phases || market.phases.length === 0;
+
+        if (!needsFocusUpdate && !needsPhases) return market;
+
+        changed = true;
+        return {
+          ...market,
+          strategyFocus: detected,
+          phases: needsPhases ? (generateAutoDetectPhases(adFormats, hasPixel, hasCatalog, startDate, endDate) || []) : market.phases,
+        };
+      })
+    }));
+
+    if (changed) setPlatformsWithMarkets(updated);
+  }, [currentStep, platformsWithMarkets, genericConfig.strategy, genericConfig.strategyFocus, genericConfig.targeting?.adFormats, startDate, endDate]);
+
   // Hydrate editor from a saved campaign record
   const hydrateFromCampaign = (c: any) => {
     try {
