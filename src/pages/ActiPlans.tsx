@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, Play, Edit, CheckCircle, XCircle, MessageSquare, History, Trash2, Download, TrendingUp, MoreVertical, ArrowLeft, Search, BarChart3 } from "lucide-react";
+import { Loader2, Play, Edit, CheckCircle, XCircle, MessageSquare, History, Trash2, Download, TrendingUp, MoreVertical, ArrowLeft, Search, BarChart3, FileText, FileSpreadsheet, ChevronDown } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
 import { ModificationRequestDialog } from "@/components/ModificationRequestDialog";
@@ -16,6 +16,7 @@ import { ModificationRequestsView } from "@/components/ModificationRequestsView"
 import { ModificationRequestsAnalytics } from "@/components/ModificationRequestsAnalytics";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
+import { downloadMediaPlanExcel } from "@/utils/excelGenerator";
 interface Campaign {
   id: string;
   name: string;
@@ -512,31 +513,68 @@ export default function ActiPlans() {
 
           </div>
           <div className="flex items-center gap-2 pt-2">
-            {campaign.pdf_url && (
-              <Button 
-                size="sm" 
-                variant="outline"
-                onClick={async () => {
-                  try {
-                    const { data } = await supabase.storage
-                      .from('campaign-pdfs')
-                      .download(campaign.pdf_url!);
-                    if (data) {
-                      const url = URL.createObjectURL(data);
-                      const a = document.createElement('a');
-                      a.href = url;
-                      a.download = `${campaign.name}-media-plan.pdf`;
-                      a.click();
-                      URL.revokeObjectURL(url);
-                    }
-                  } catch (error) {
-                    toast.error("Failed to download PDF");
-                  }
-                }}
-              >
-                <Download className="w-3 h-3 mr-1" />
-                PDF
-              </Button>
+            {(campaign.pdf_url || campaign.forecast_data) && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" variant="outline">
+                    <Download className="w-3 h-3 mr-1" />
+                    Download
+                    <ChevronDown className="w-3 h-3 ml-1" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuItem 
+                    onClick={async () => {
+                      try {
+                        if (campaign.pdf_url) {
+                          const { data } = await supabase.storage
+                            .from('campaign-pdfs')
+                            .download(campaign.pdf_url);
+                          if (data) {
+                            const url = URL.createObjectURL(data);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `${campaign.name}-media-plan.pdf`;
+                            a.click();
+                            URL.revokeObjectURL(url);
+                          }
+                        } else {
+                          toast.error("No PDF available");
+                        }
+                      } catch (error) {
+                        toast.error("Failed to download PDF");
+                      }
+                    }}
+                  >
+                    <FileText className="w-4 h-4 mr-2" />
+                    Download as PDF
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => {
+                      try {
+                        const planData = {
+                          name: campaign.name,
+                          totalBudget: campaign.total_budget,
+                          startDate: campaign.start_date,
+                          endDate: campaign.end_date,
+                          platforms: campaign.platforms || [],
+                          genericConfig: (campaign as any).generic_config || {},
+                          forecasts: campaign.forecast_data,
+                          actiplanForecasts: campaign.forecast_data?.actiplanForecasts,
+                        };
+                        downloadMediaPlanExcel(planData);
+                        toast.success("Excel file downloaded successfully!");
+                      } catch (error) {
+                        console.error("Error generating Excel:", error);
+                        toast.error("Failed to generate Excel file");
+                      }
+                    }}
+                  >
+                    <FileSpreadsheet className="w-4 h-4 mr-2" />
+                    Download as Excel
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
 
             <DropdownMenu>

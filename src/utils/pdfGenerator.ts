@@ -10,6 +10,44 @@ export interface MediaPlanData {
   platforms: any[];
   genericConfig: any;
   forecasts?: any;
+  actiplanForecasts?: Record<string, {
+    totalBudget: number;
+    totalAudienceSize: number;
+    totalImpressions: number;
+    totalReach: number;
+    avgCPM: number;
+    frequency: number;
+    sov: number;
+    marketDeliverables: Record<string, Array<{ kpi: string; result: number }>>;
+    markets: Array<{
+      marketName: string;
+      budget: number;
+      audienceSize: number;
+      impressions: number;
+      reach: number;
+      cpm: number;
+      frequency: number;
+      sov: number;
+      resultsByGoal: Array<{
+        goal: string;
+        kpi: string;
+        result: number;
+        costPerResult: number;
+        resultRate: number;
+      }>;
+      phases: Array<{
+        phaseName: string;
+        budget: number;
+        startDate: string;
+        endDate: string;
+        kpi: string;
+        optimizationGoal: string;
+        result: number;
+        costPerResult: number;
+        resultRate: number;
+      }>;
+    }>;
+  }>;
 }
 
 export function generateMediaPlanPDF(data: MediaPlanData): Blob {
@@ -32,19 +70,30 @@ export function generateMediaPlanPDF(data: MediaPlanData): Blob {
   doc.text(`Strategy: ${data.genericConfig.strategyFocus || 'Custom'}`, 20, yPos);
   yPos += 15;
 
-  // Overview Scorecards
-  if (data.forecasts) {
+  // Actiplan Deliverables Overview
+  if (data.actiplanForecasts && Object.keys(data.actiplanForecasts).length > 0) {
     doc.setFontSize(14);
-    doc.text('Performance Overview', 20, yPos);
+    doc.text('Actiplan Deliverables', 20, yPos);
     yPos += 10;
+
+    // Aggregate all platform metrics
+    const platforms = Object.values(data.actiplanForecasts);
+    const totalAudienceSize = platforms.reduce((sum, p) => sum + p.totalAudienceSize, 0);
+    const totalImpressions = platforms.reduce((sum, p) => sum + p.totalImpressions, 0);
+    const totalReach = platforms.reduce((sum, p) => sum + p.totalReach, 0);
+    const avgCPM = totalImpressions > 0 ? (data.totalBudget / (totalImpressions / 1000)) : 0;
+    const frequency = totalReach > 0 ? totalImpressions / totalReach : 0;
+    const sov = totalAudienceSize > 0 ? (totalReach / totalAudienceSize) * 100 : 0;
 
     const overviewData = [
       ['Metric', 'Value'],
-      ['Total Reach', data.forecasts.totalReach?.toLocaleString() || 'N/A'],
-      ['Audience Size', data.forecasts.audienceSize?.toLocaleString() || 'N/A'],
-      ['SOV (Share of Voice)', `${data.forecasts.sov?.toFixed(2)}%` || 'N/A'],
-      ['CPM', `$${data.forecasts.cpm?.toFixed(2)}` || 'N/A'],
-      ['Total Impressions', data.forecasts.totalImpressions?.toLocaleString() || 'N/A'],
+      ['Total Budget', `$${data.totalBudget.toLocaleString()}`],
+      ['Total Audience Size', totalAudienceSize.toLocaleString()],
+      ['Total Impressions', totalImpressions.toLocaleString()],
+      ['Total Reach', totalReach.toLocaleString()],
+      ['Avg. CPM', `$${avgCPM.toFixed(2)}`],
+      ['Frequency', frequency.toFixed(2)],
+      ['SOV', `${sov.toFixed(1)}%`],
     ];
 
     autoTable(doc, {
@@ -83,38 +132,98 @@ export function generateMediaPlanPDF(data: MediaPlanData): Blob {
 
   yPos = (doc as any).lastAutoTable.finalY + 15;
 
-  // Campaign Forecast Details
-  if (data.forecasts && data.forecasts.campaigns) {
-    if (yPos > 250) {
-      doc.addPage();
-      yPos = 20;
-    }
+  // Market Forecasts by Platform
+  if (data.actiplanForecasts && Object.keys(data.actiplanForecasts).length > 0) {
+    Object.entries(data.actiplanForecasts).forEach(([platformId, actiplan]) => {
+      if (yPos > 230) {
+        doc.addPage();
+        yPos = 20;
+      }
 
-    doc.setFontSize(14);
-    doc.text('Campaign Forecasts', 20, yPos);
-    yPos += 10;
+      const platformName = data.platforms.find(p => p.id === platformId)?.name || platformId;
+      
+      doc.setFontSize(14);
+      doc.text(`${platformName} - Market Forecasts`, 20, yPos);
+      yPos += 10;
 
-    const campaignData: any[] = [];
-    data.forecasts.campaigns.forEach((campaign: any) => {
-      campaignData.push([
-        campaign.name || campaign.market,
-        campaign.objective || 'N/A',
-        `$${campaign.budget?.toLocaleString() || '0'}`,
-        campaign.impressions?.toLocaleString() || 'N/A',
-        campaign.reach?.toLocaleString() || 'N/A',
-        `$${campaign.cpm?.toFixed(2) || '0'}`,
-        campaign.result?.toLocaleString() || 'N/A',
-        `$${campaign.costPerResult?.toFixed(2) || '0'}`,
-      ]);
-    });
+      actiplan.markets.forEach((market) => {
+        if (yPos > 240) {
+          doc.addPage();
+          yPos = 20;
+        }
 
-    autoTable(doc, {
-      startY: yPos,
-      head: [['Campaign', 'Objective', 'Budget', 'Impressions', 'Reach', 'CPM', 'Result', 'Cost/Result']],
-      body: campaignData,
-      theme: 'grid',
-      headStyles: { fillColor: [66, 139, 202] },
-      styles: { fontSize: 8 },
+        doc.setFontSize(12);
+        doc.text(`Market: ${market.marketName}`, 20, yPos);
+        yPos += 8;
+
+        // Market-level metrics
+        const marketMetrics = [
+          ['Budget', `$${market.budget.toLocaleString()}`],
+          ['Audience Size', market.audienceSize.toLocaleString()],
+          ['Impressions', market.impressions.toLocaleString()],
+          ['Reach', market.reach.toLocaleString()],
+          ['CPM', `$${market.cpm.toFixed(2)}`],
+          ['Frequency', market.frequency.toFixed(2)],
+          ['SOV', `${market.sov.toFixed(1)}%`],
+        ];
+
+        autoTable(doc, {
+          startY: yPos,
+          body: marketMetrics,
+          theme: 'plain',
+          styles: { fontSize: 9 },
+          columnStyles: {
+            0: { fontStyle: 'bold', cellWidth: 50 },
+            1: { cellWidth: 70 }
+          }
+        });
+
+        yPos = (doc as any).lastAutoTable.finalY + 8;
+
+        // Market KPI Results
+        if (market.resultsByGoal.length > 0) {
+          const kpiData = market.resultsByGoal.map(r => [
+            r.kpi,
+            r.result.toLocaleString(),
+            `$${r.costPerResult.toFixed(2)}`,
+            `${r.resultRate.toFixed(2)}%`
+          ]);
+
+          autoTable(doc, {
+            startY: yPos,
+            head: [['KPI', 'Result', 'Cost/Result', 'Rate']],
+            body: kpiData,
+            theme: 'grid',
+            headStyles: { fillColor: [100, 180, 100], fontSize: 9 },
+            styles: { fontSize: 8 },
+          });
+
+          yPos = (doc as any).lastAutoTable.finalY + 8;
+        }
+
+        // Phase-level details
+        if (market.phases.length > 0) {
+          const phaseData = market.phases.map(p => [
+            p.phaseName,
+            p.kpi,
+            `${format(new Date(p.startDate), 'MMM d')} - ${format(new Date(p.endDate), 'MMM d')}`,
+            `$${p.budget.toLocaleString()}`,
+            p.result.toLocaleString(),
+            `$${p.costPerResult.toFixed(2)}`
+          ]);
+
+          autoTable(doc, {
+            startY: yPos,
+            head: [['Phase', 'KPI', 'Dates', 'Budget', 'Result', 'Cost/Result']],
+            body: phaseData,
+            theme: 'striped',
+            headStyles: { fillColor: [66, 139, 202], fontSize: 9 },
+            styles: { fontSize: 8 },
+          });
+
+          yPos = (doc as any).lastAutoTable.finalY + 12;
+        }
+      });
     });
   }
 

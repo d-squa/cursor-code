@@ -6,12 +6,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { PlatformWithMarkets } from "@/types/mediaplan";
 import { GenericConfig } from "./GenericStrategyConfig";
-import { Loader2, TrendingUp, Users, Eye, Target, DollarSign, Download, Mail } from "lucide-react";
+import { Loader2, TrendingUp, Users, Eye, Target, DollarSign, Download, Mail, FileSpreadsheet, FileText, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { getOptimizationGoalMetrics, getResultLabel, calculateResultFromImpressions } from "@/utils/optimizationGoals";
 import { getObjectiveFromPhaseName } from "@/utils/phaseObjectiveMapping";
 import { downloadMediaPlanPDF } from "@/utils/pdfGenerator";
+import { downloadMediaPlanExcel } from "@/utils/excelGenerator";
 import { ApprovalDialog } from "./ApprovalDialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 interface CampaignForecastProps {
   platforms: PlatformWithMarkets[];
@@ -206,7 +208,7 @@ export function CampaignForecast({
     }
   };
 
-  const handleDownloadPDF = async () => {
+  const getPlanData = () => {
     const totalMetrics = getTotalMetrics();
     const campaignsData = Object.entries(forecasts).flatMap(([platformId, platformForecasts]) => 
       platformForecasts.map(f => ({
@@ -221,7 +223,7 @@ export function CampaignForecast({
       }))
     );
 
-    const planData = {
+    return {
       name: `${genericConfig.strategyFocus || 'Media'} Plan`,
       totalBudget,
       startDate,
@@ -236,7 +238,12 @@ export function CampaignForecast({
         totalImpressions: totalMetrics.impressions,
         campaigns: campaignsData,
       } : undefined,
+      actiplanForecasts,
     };
+  };
+
+  const handleDownloadPDF = async () => {
+    const planData = getPlanData();
 
     try {
       const { generateMediaPlanPDF } = await import("@/utils/pdfGenerator");
@@ -273,6 +280,18 @@ export function CampaignForecast({
     } catch (error) {
       console.error("Error generating PDF:", error);
       toast.error("Failed to generate PDF");
+    }
+  };
+
+  const handleDownloadExcel = async () => {
+    const planData = getPlanData();
+
+    try {
+      downloadMediaPlanExcel(planData);
+      toast.success("Excel file downloaded successfully!");
+    } catch (error) {
+      console.error("Error generating Excel:", error);
+      toast.error("Failed to generate Excel file");
     }
   };
 
@@ -1455,14 +1474,28 @@ export function CampaignForecast({
             Back
           </Button>
           <div className="flex gap-2">
-            <Button 
-              variant="outline" 
-              onClick={handleDownloadPDF} 
-              disabled={Object.keys(forecasts).length === 0}
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Download PDF
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  disabled={Object.keys(forecasts).length === 0}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Download
+                  <ChevronDown className="h-4 w-4 ml-2" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleDownloadPDF}>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Download as PDF
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleDownloadExcel}>
+                  <FileSpreadsheet className="h-4 w-4 mr-2" />
+                  Download as Excel
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button 
               variant="outline" 
               onClick={() => setApprovalDialogOpen(true)} 
