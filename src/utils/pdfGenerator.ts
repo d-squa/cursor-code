@@ -10,7 +10,7 @@ export interface MediaPlanData {
   platforms: any[];
   genericConfig: any;
   forecasts?: any;
-  actiplanForecasts?: Record<string, {
+  actiplanForecasts?: {
     totalBudget: number;
     totalAudienceSize: number;
     totalImpressions: number;
@@ -19,35 +19,46 @@ export interface MediaPlanData {
     frequency: number;
     sov: number;
     marketDeliverables: Record<string, Array<{ kpi: string; result: number }>>;
-    markets: Array<{
-      marketName: string;
-      budget: number;
-      audienceSize: number;
-      impressions: number;
-      reach: number;
-      cpm: number;
+    platforms: Array<{
+      platformId: string;
+      platformName: string;
+      totalBudget: number;
+      totalAudienceSize: number;
+      totalImpressions: number;
+      totalReach: number;
+      avgCPM: number;
       frequency: number;
       sov: number;
-      resultsByGoal: Array<{
-        goal: string;
-        kpi: string;
-        result: number;
-        costPerResult: number;
-        resultRate: number;
-      }>;
-      phases: Array<{
-        phaseName: string;
+      markets: Array<{
+        marketName: string;
         budget: number;
-        startDate: string;
-        endDate: string;
-        kpi: string;
-        optimizationGoal: string;
-        result: number;
-        costPerResult: number;
-        resultRate: number;
+        audienceSize: number;
+        impressions: number;
+        reach: number;
+        cpm: number;
+        frequency: number;
+        sov: number;
+        resultsByGoal: Array<{
+          goal: string;
+          kpi: string;
+          result: number;
+          costPerResult: number;
+          resultRate: number;
+        }>;
+        phases: Array<{
+          phaseName: string;
+          budget: number;
+          startDate: string;
+          endDate: string;
+          kpi: string;
+          optimizationGoal: string;
+          result: number;
+          costPerResult: number;
+          resultRate: number;
+        }>;
       }>;
     }>;
-  }>;
+  };
 }
 
 export function generateMediaPlanPDF(data: MediaPlanData): Blob {
@@ -71,29 +82,20 @@ export function generateMediaPlanPDF(data: MediaPlanData): Blob {
   yPos += 15;
 
   // Actiplan Deliverables Overview
-  if (data.actiplanForecasts && Object.keys(data.actiplanForecasts).length > 0) {
+  if (data.actiplanForecasts) {
     doc.setFontSize(14);
     doc.text('Actiplan Deliverables', 20, yPos);
     yPos += 10;
 
-    // Aggregate all platform metrics
-    const platforms = Object.values(data.actiplanForecasts);
-    const totalAudienceSize = platforms.reduce((sum, p) => sum + p.totalAudienceSize, 0);
-    const totalImpressions = platforms.reduce((sum, p) => sum + p.totalImpressions, 0);
-    const totalReach = platforms.reduce((sum, p) => sum + p.totalReach, 0);
-    const avgCPM = totalImpressions > 0 ? (data.totalBudget / (totalImpressions / 1000)) : 0;
-    const frequency = totalReach > 0 ? totalImpressions / totalReach : 0;
-    const sov = totalAudienceSize > 0 ? (totalReach / totalAudienceSize) * 100 : 0;
-
     const overviewData = [
       ['Metric', 'Value'],
-      ['Total Budget', `$${data.totalBudget.toLocaleString()}`],
-      ['Total Audience Size', totalAudienceSize.toLocaleString()],
-      ['Total Impressions', totalImpressions.toLocaleString()],
-      ['Total Reach', totalReach.toLocaleString()],
-      ['Avg. CPM', `$${avgCPM.toFixed(2)}`],
-      ['Frequency', frequency.toFixed(2)],
-      ['SOV', `${sov.toFixed(1)}%`],
+      ['Total Budget', `$${data.actiplanForecasts.totalBudget.toLocaleString()}`],
+      ['Total Audience Size', data.actiplanForecasts.totalAudienceSize.toLocaleString()],
+      ['Total Impressions', data.actiplanForecasts.totalImpressions.toLocaleString()],
+      ['Total Reach', data.actiplanForecasts.totalReach.toLocaleString()],
+      ['Avg. CPM', `$${data.actiplanForecasts.avgCPM.toFixed(2)}`],
+      ['Frequency', data.actiplanForecasts.frequency.toFixed(2)],
+      ['SOV', `${data.actiplanForecasts.sov.toFixed(1)}%`],
     ];
 
     autoTable(doc, {
@@ -132,28 +134,51 @@ export function generateMediaPlanPDF(data: MediaPlanData): Blob {
 
   yPos = (doc as any).lastAutoTable.finalY + 15;
 
-  // Market Forecasts by Platform
-  if (data.actiplanForecasts && Object.keys(data.actiplanForecasts).length > 0) {
-    Object.entries(data.actiplanForecasts).forEach(([platformId, actiplan]) => {
+  // Platform and Market Forecasts
+  if (data.actiplanForecasts) {
+    data.actiplanForecasts.platforms.forEach((platform) => {
       if (yPos > 230) {
         doc.addPage();
         yPos = 20;
       }
 
-      const platformName = data.platforms.find(p => p.id === platformId)?.name || platformId;
-      
       doc.setFontSize(14);
-      doc.text(`${platformName} - Market Forecasts`, 20, yPos);
+      doc.text(`${platform.platformName} Deliverables`, 20, yPos);
       yPos += 10;
 
-      actiplan.markets.forEach((market) => {
+      // Platform-level metrics
+      const platformMetrics = [
+        ['Budget', `$${platform.totalBudget.toLocaleString()}`],
+        ['Audience Size', platform.totalAudienceSize.toLocaleString()],
+        ['Impressions', platform.totalImpressions.toLocaleString()],
+        ['Reach', platform.totalReach.toLocaleString()],
+        ['CPM', `$${platform.avgCPM.toFixed(2)}`],
+        ['Frequency', platform.frequency.toFixed(2)],
+        ['SOV', `${platform.sov.toFixed(1)}%`],
+      ];
+
+      autoTable(doc, {
+        startY: yPos,
+        body: platformMetrics,
+        theme: 'plain',
+        styles: { fontSize: 10 },
+        columnStyles: {
+          0: { fontStyle: 'bold', cellWidth: 60 },
+          1: { cellWidth: 80 }
+        }
+      });
+
+      yPos = (doc as any).lastAutoTable.finalY + 12;
+
+      // Markets under platform
+      platform.markets.forEach((market) => {
         if (yPos > 240) {
           doc.addPage();
           yPos = 20;
         }
 
         doc.setFontSize(12);
-        doc.text(`Market: ${market.marketName}`, 20, yPos);
+        doc.text(`Market: ${market.marketName}`, 25, yPos);
         yPos += 8;
 
         // Market-level metrics
