@@ -135,6 +135,7 @@ export function CampaignForecast({
   const [hasExistingForecast, setHasExistingForecast] = useState(false);
   const [expandedPlatforms, setExpandedPlatforms] = useState<Record<string, boolean>>({});
   const [expandedMarkets, setExpandedMarkets] = useState<Record<string, boolean>>({});
+  const [existingLoadComplete, setExistingLoadComplete] = useState(false);
 
   // Load existing forecast on mount
   useEffect(() => {
@@ -165,6 +166,19 @@ export function CampaignForecast({
 
     loadExistingForecast();
   }, [campaignId]);
+
+  // Auto-fetch forecasts once existing-load check completes and none exist yet
+  useEffect(() => {
+    if (!existingLoadComplete) return;
+    if (loading) return;
+    if (hasExistingForecast) return;
+    if (Object.keys(forecasts).length > 0) return;
+    if (!totalBudget || totalBudget <= 0) return;
+    if (!platforms || platforms.length === 0) return;
+
+    // Trigger a single automatic fetch on first load of the Forecast step
+    handleFetchForecasts();
+  }, [existingLoadComplete, loading, hasExistingForecast, forecasts, totalBudget, platforms]);
 
   // Auto-save forecast data when it changes
   useEffect(() => {
