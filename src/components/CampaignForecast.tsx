@@ -13,6 +13,7 @@ import { getObjectiveFromPhaseName } from "@/utils/phaseObjectiveMapping";
 import { downloadMediaPlanPDF } from "@/utils/pdfGenerator";
 import { downloadMediaPlanExcel } from "@/utils/excelGenerator";
 import { ApprovalDialog } from "./ApprovalDialog";
+import { ActiplanDeliverablesView } from "./ActiplanDeliverablesView";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 interface CampaignForecastProps {
@@ -74,6 +75,19 @@ interface MarketForecast {
   phases: PhaseForecast[];
 }
 
+interface PlatformForecast {
+  platformId: string;
+  platformName: string;
+  totalBudget: number;
+  totalAudienceSize: number;
+  totalImpressions: number;
+  totalReach: number;
+  avgCPM: number;
+  frequency: number;
+  sov: number;
+  markets: MarketForecast[];
+}
+
 interface ActiplanForecast {
   totalBudget: number;
   totalAudienceSize: number;
@@ -82,11 +96,8 @@ interface ActiplanForecast {
   avgCPM: number;
   frequency: number;
   sov: number;
-  marketDeliverables: Record<string, Array<{
-    kpi: string;
-    result: number;
-  }>>;
-  markets: MarketForecast[];
+  marketDeliverables: Record<string, Array<{ kpi: string; result: number }>>;
+  platforms: PlatformForecast[];
 }
 
 interface CampaignForecast {
@@ -109,14 +120,14 @@ export function CampaignForecast({
 }: CampaignForecastProps) {
   const [loading, setLoading] = useState(false);
   const [forecasts, setForecasts] = useState<Record<string, CampaignForecast[]>>({});
-  const [actiplanForecasts, setActiplanForecasts] = useState<Record<string, ActiplanForecast>>({});
+  const [actiplanForecast, setActiplanForecast] = useState<ActiplanForecast | null>(null);
   const [debugInfo, setDebugInfo] = useState<{startTimeUnix: number; endTimeUnix: number; startDateFormatted: string; endDateFormatted: string} | null>(null);
   const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
   const [pdfBase64Data, setPdfBase64Data] = useState<string>("");
   const [pushingToDSP, setPushingToDSP] = useState(false);
   const [hasExistingForecast, setHasExistingForecast] = useState(false);
-  const [expandedPlatforms, setExpandedPlatforms] = useState<Set<string>>(new Set());
-  const [expandedMarkets, setExpandedMarkets] = useState<Set<string>>(new Set());
+  const [expandedPlatforms, setExpandedPlatforms] = useState<Record<string, boolean>>({});
+  const [expandedMarkets, setExpandedMarkets] = useState<Record<string, boolean>>({});
 
   // Load existing forecast on mount
   useEffect(() => {
@@ -134,8 +145,8 @@ export function CampaignForecast({
         const forecastData = campaign?.forecast_data as any;
         if (forecastData?.forecasts && Object.keys(forecastData.forecasts).length > 0) {
           setForecasts(forecastData.forecasts);
-          if (forecastData.actiplanForecasts) {
-            setActiplanForecasts(forecastData.actiplanForecasts);
+          if (forecastData.actiplanForecast) {
+            setActiplanForecast(forecastData.actiplanForecast);
           }
           setHasExistingForecast(true);
           console.log("Loaded existing forecast data");
@@ -161,7 +172,7 @@ export function CampaignForecast({
           .update({ 
             forecast_data: {
               forecasts,
-              actiplanForecasts,
+              actiplanForecast,
               totalMetrics: totalMetrics ? {
                 reach: totalMetrics.reach,
                 impressions: totalMetrics.impressions,
@@ -180,7 +191,7 @@ export function CampaignForecast({
     };
 
     saveForecastData();
-  }, [forecasts, actiplanForecasts, campaignId]);
+  }, [forecasts, actiplanForecast, campaignId]);
 
   const handlePushToDSP = async () => {
     if (!campaignId) {
@@ -238,7 +249,7 @@ export function CampaignForecast({
         totalImpressions: totalMetrics.impressions,
         campaigns: campaignsData,
       } : undefined,
-      actiplanForecasts,
+      actiplanForecast,
     };
   };
 
@@ -639,7 +650,7 @@ export function CampaignForecast({
     setHasExistingForecast(false);
     try {
       const newForecasts: Record<string, CampaignForecast[]> = {};
-      const newActiplanForecasts: Record<string, ActiplanForecast> = {};
+      const platformForecasts: PlatformForecast[] = [];
 
       for (const platform of platforms) {
         const platformBudget = totalBudget * (platform.budgetPercentage / 100);
@@ -914,40 +925,67 @@ export function CampaignForecast({
           market.sov = market.audienceSize > 0 ? (market.reach / market.audienceSize) * 100 : 0;
         });
 
-        // Build Actiplan aggregation
-        const totalAudienceSize = marketForecastsArray.reduce((sum, m) => sum + m.audienceSize, 0);
-        const totalReach = marketForecastsArray.reduce((sum, m) => sum + m.reach, 0);
-        const totalImp = marketForecastsArray.reduce((sum, m) => sum + m.impressions, 0);
-        const avgCPM = totalImp > 0 ? (platformBudget / (totalImp / 1000)) : 0;
-        const frequency = totalReach > 0 ? totalImp / totalReach : 0;
-        const platformSOV = totalAudienceSize > 0 ? (totalReach / totalAudienceSize) * 100 : 0;
+        // Build Platform aggregation
+        const platformTotalAudienceSize = marketForecastsArray.reduce((sum, m) => sum + m.audienceSize, 0);
+        const platformTotalReach = marketForecastsArray.reduce((sum, m) => sum + m.reach, 0);
+        const platformTotalImp = marketForecastsArray.reduce((sum, m) => sum + m.impressions, 0);
+        const platformAvgCPM = platformTotalImp > 0 ? (platformBudget / (platformTotalImp / 1000)) : 0;
+        const platformFrequency = platformTotalReach > 0 ? platformTotalImp / platformTotalReach : 0;
+        const platformSOV = platformTotalAudienceSize > 0 ? (platformTotalReach / platformTotalAudienceSize) * 100 : 0;
 
-        // Aggregate deliverables by market
-        const marketDeliverables: Record<string, Array<{ kpi: string; result: number }>> = {};
-        marketForecastsArray.forEach(market => {
-          marketDeliverables[market.marketName] = market.resultsByGoal.map(r => ({
-            kpi: r.kpi,
-            result: r.result,
-          }));
-        });
-
-        newActiplanForecasts[platform.id] = {
+        platformForecasts.push({
+          platformId: platform.id,
+          platformName: platform.name,
           totalBudget: platformBudget,
-          totalAudienceSize,
-          totalImpressions: totalImp,
-          totalReach,
-          avgCPM,
-          frequency,
+          totalAudienceSize: platformTotalAudienceSize,
+          totalImpressions: platformTotalImp,
+          totalReach: platformTotalReach,
+          avgCPM: platformAvgCPM,
+          frequency: platformFrequency,
           sov: platformSOV,
-          marketDeliverables,
           markets: marketForecastsArray,
-        };
+        });
 
         newForecasts[platform.id] = campaignForecasts;
       }
 
+      // Build Actiplan-level aggregation from platforms
+      const actiplanTotalBudget = platformForecasts.reduce((sum, p) => sum + p.totalBudget, 0);
+      const actiplanTotalAudienceSize = platformForecasts.reduce((sum, p) => sum + p.totalAudienceSize, 0);
+      const actiplanTotalImpressions = platformForecasts.reduce((sum, p) => sum + p.totalImpressions, 0);
+      const actiplanTotalReach = platformForecasts.reduce((sum, p) => sum + p.totalReach, 0);
+      const actiplanAvgCPM = actiplanTotalImpressions > 0 ? actiplanTotalBudget / (actiplanTotalImpressions / 1000) : 0;
+      const actiplanFrequency = actiplanTotalReach > 0 ? actiplanTotalImpressions / actiplanTotalReach : 0;
+      const actiplanSOV = actiplanTotalAudienceSize > 0 ? (actiplanTotalReach / actiplanTotalAudienceSize) * 100 : 0;
+
+      // Aggregate market deliverables across all platforms
+      const marketDeliverables: Record<string, Array<{ kpi: string; result: number }>> = {};
+      platformForecasts.forEach(platform => {
+        platform.markets.forEach(market => {
+          if (!marketDeliverables[market.marketName]) {
+            marketDeliverables[market.marketName] = [];
+          }
+          market.resultsByGoal.forEach(r => {
+            marketDeliverables[market.marketName].push({
+              kpi: r.kpi,
+              result: r.result,
+            });
+          });
+        });
+      });
+
       setForecasts(newForecasts);
-      setActiplanForecasts(newActiplanForecasts);
+      setActiplanForecast({
+        totalBudget: actiplanTotalBudget,
+        totalAudienceSize: actiplanTotalAudienceSize,
+        totalImpressions: actiplanTotalImpressions,
+        totalReach: actiplanTotalReach,
+        avgCPM: actiplanAvgCPM,
+        frequency: actiplanFrequency,
+        sov: actiplanSOV,
+        marketDeliverables,
+        platforms: platformForecasts,
+      });
       toast.success("Forecasts fetched successfully!");
     } catch (error) {
       toast.error("Failed to fetch forecasts");
@@ -1263,209 +1301,10 @@ export function CampaignForecast({
               </>
             )}
 
-            {/* Detailed Forecast by Platform */}
-            <Tabs defaultValue={platforms[0]?.id} className="w-full">
-              <TabsList className="grid w-full" style={{ gridTemplateColumns: `repeat(${platforms.length}, 1fr)` }}>
-                {platforms.map((platform) => (
-                  <TabsTrigger key={platform.id} value={platform.id}>
-                    {platform.name}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-
-              {platforms.map((platform) => {
-                const actiplan = actiplanForecasts[platform.id];
-                if (!actiplan) return null;
-
-                return (
-                  <TabsContent key={platform.id} value={platform.id} className="space-y-4">
-                    {/* Actiplan Deliverables */}
-                    <Card>
-                      <CardHeader
-                        className="cursor-pointer hover:bg-muted/50 transition-colors"
-                        onClick={() => {
-                          const newExpanded = new Set(expandedPlatforms);
-                          if (newExpanded.has(platform.id)) {
-                            newExpanded.delete(platform.id);
-                          } else {
-                            newExpanded.add(platform.id);
-                          }
-                          setExpandedPlatforms(newExpanded);
-                        }}
-                      >
-                        <div className="flex items-center justify-between">
-                          <CardTitle className="text-lg">Actiplan Deliverables</CardTitle>
-                          <Button variant="ghost" size="sm">
-                            {expandedPlatforms.has(platform.id) ? "Collapse" : "Expand"}
-                          </Button>
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-4">
-                          {/* Top-level metrics table */}
-                          <div className="rounded-md border overflow-x-auto">
-                            <Table>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead>Total Budget</TableHead>
-                                  <TableHead>Total Audience Size</TableHead>
-                                  <TableHead>Total Impressions</TableHead>
-                                  <TableHead>Total Reach</TableHead>
-                                  <TableHead>Avg. CPM</TableHead>
-                                  <TableHead>Frequency</TableHead>
-                                  <TableHead>SOV</TableHead>
-                                  {/* Market deliverables columns */}
-                                  {Object.keys(actiplan.marketDeliverables).map(marketName => (
-                                    <TableHead key={marketName} colSpan={actiplan.marketDeliverables[marketName].length}>
-                                      {marketName} Deliverables
-                                    </TableHead>
-                                  ))}
-                                </TableRow>
-                                <TableRow>
-                                  <TableHead></TableHead>
-                                  <TableHead></TableHead>
-                                  <TableHead></TableHead>
-                                  <TableHead></TableHead>
-                                  <TableHead></TableHead>
-                                  <TableHead></TableHead>
-                                  <TableHead></TableHead>
-                                  {/* KPI sub-headers */}
-                                  {Object.entries(actiplan.marketDeliverables).map(([marketName, deliverables]) => 
-                                    deliverables.map((d, idx) => (
-                                      <TableHead key={`${marketName}-${idx}`} className="text-xs">{d.kpi}</TableHead>
-                                    ))
-                                  )}
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                <TableRow>
-                                  <TableCell className="font-semibold">${formatNumber(actiplan.totalBudget)}</TableCell>
-                                  <TableCell>{formatNumber(actiplan.totalAudienceSize)}</TableCell>
-                                  <TableCell>{formatNumber(actiplan.totalImpressions)}</TableCell>
-                                  <TableCell>{formatNumber(actiplan.totalReach)}</TableCell>
-                                  <TableCell>${actiplan.avgCPM.toFixed(2)}</TableCell>
-                                  <TableCell>{actiplan.frequency.toFixed(2)}</TableCell>
-                                  <TableCell>{actiplan.sov.toFixed(0)}%</TableCell>
-                                  {/* Market deliverables values */}
-                                  {Object.values(actiplan.marketDeliverables).map((deliverables, idx) =>
-                                    deliverables.map((d, dIdx) => (
-                                      <TableCell key={`${idx}-${dIdx}`}>{formatNumber(d.result)}</TableCell>
-                                    ))
-                                  )}
-                                </TableRow>
-                              </TableBody>
-                            </Table>
-                          </div>
-
-                          {/* Markets (collapsible) */}
-                          {expandedPlatforms.has(platform.id) && (
-                            <div className="space-y-4 mt-6">
-                              {actiplan.markets.map((market, mIdx) => {
-                                const marketKey = `${platform.id}-${mIdx}`;
-                                const isExpanded = expandedMarkets.has(marketKey);
-
-                                return (
-                                  <Card key={marketKey} className="border-2">
-                                    <CardHeader
-                                      className="cursor-pointer hover:bg-muted/50 transition-colors"
-                                      onClick={() => {
-                                        const newExpanded = new Set(expandedMarkets);
-                                        if (newExpanded.has(marketKey)) {
-                                          newExpanded.delete(marketKey);
-                                        } else {
-                                          newExpanded.add(marketKey);
-                                        }
-                                        setExpandedMarkets(newExpanded);
-                                      }}
-                                    >
-                                      <div className="flex items-center justify-between">
-                                        <CardTitle className="text-base">{market.marketName} Forecast</CardTitle>
-                                        <Button variant="ghost" size="sm">
-                                          {isExpanded ? "Collapse" : "Expand"}
-                                        </Button>
-                                      </div>
-                                    </CardHeader>
-                                    <CardContent>
-                                      {/* Market-level metrics */}
-                                      <div className="rounded-md border overflow-x-auto">
-                                        <Table>
-                                          <TableHeader>
-                                            <TableRow>
-                                              <TableHead>Budget</TableHead>
-                                              <TableHead>Audience Size</TableHead>
-                                              <TableHead>Impression</TableHead>
-                                              <TableHead>Reach</TableHead>
-                                              <TableHead>CPM</TableHead>
-                                              <TableHead>Frequency</TableHead>
-                                              <TableHead>SoV</TableHead>
-                                              {/* Market-specific KPIs */}
-                                              {market.resultsByGoal.map((goal, gIdx) => (
-                                                <TableHead key={gIdx} className="text-xs">{goal.kpi}</TableHead>
-                                              ))}
-                                            </TableRow>
-                                          </TableHeader>
-                                          <TableBody>
-                                            <TableRow>
-                                              <TableCell className="font-semibold">${formatNumber(market.budget)}</TableCell>
-                                              <TableCell>{formatNumber(market.audienceSize)}</TableCell>
-                                              <TableCell>{formatNumber(market.impressions)}</TableCell>
-                                              <TableCell>{formatNumber(market.reach)}</TableCell>
-                                              <TableCell>${market.cpm.toFixed(2)}</TableCell>
-                                              <TableCell>{market.frequency.toFixed(2)}</TableCell>
-                                              <TableCell>{market.sov.toFixed(0)}%</TableCell>
-                                              {/* Market results */}
-                                              {market.resultsByGoal.map((goal, gIdx) => (
-                                                <TableCell key={gIdx}>{formatNumber(goal.result)}</TableCell>
-                                              ))}
-                                            </TableRow>
-                                          </TableBody>
-                                        </Table>
-                                      </div>
-
-                                      {/* Phases (shown when expanded) */}
-                                      {isExpanded && market.phases.length > 0 && (
-                                        <div className="mt-4 rounded-md border">
-                                          <Table>
-                                            <TableHeader>
-                                              <TableRow>
-                                                <TableHead>Phase</TableHead>
-                                                <TableHead>KPI</TableHead>
-                                                <TableHead>Start Date</TableHead>
-                                                <TableHead>End Date</TableHead>
-                                                <TableHead>Budget</TableHead>
-                                                <TableHead>Result</TableHead>
-                                                <TableHead>Cost/Result</TableHead>
-                                              </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                              {market.phases.map((phase, pIdx) => (
-                                                <TableRow key={pIdx}>
-                                                  <TableCell className="font-medium">{phase.phaseName}</TableCell>
-                                                  <TableCell>{phase.kpi}</TableCell>
-                                                  <TableCell className="text-xs">{phase.startDate}</TableCell>
-                                                  <TableCell className="text-xs">{phase.endDate}</TableCell>
-                                                  <TableCell>${formatNumber(phase.budget)}</TableCell>
-                                                  <TableCell>{formatNumber(phase.result)}</TableCell>
-                                                  <TableCell>${phase.costPerResult.toFixed(3)}</TableCell>
-                                                </TableRow>
-                                              ))}
-                                            </TableBody>
-                                          </Table>
-                                        </div>
-                                      )}
-                                    </CardContent>
-                                  </Card>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </TabsContent>
-                );
-              })}
-            </Tabs>
+            {/* Actiplan Deliverables View */}
+            {actiplanForecast && (
+              <ActiplanDeliverablesView actiplanForecast={actiplanForecast} />
+            )}
           </>
         )}
 
