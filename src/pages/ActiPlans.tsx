@@ -359,8 +359,9 @@ export default function ActiPlans() {
   const canDelete = (campaign: Campaign) => {
     const isCreator = campaign.user_id === user?.id;
     const isTeamOwnerOrAdmin = campaign.is_admin_or_owner === true;
+    const isNotLive = campaign.status !== "live";
     
-    return (isCreator || isTeamOwnerOrAdmin) && campaign.status === "rejected";
+    return (isCreator || isTeamOwnerOrAdmin) && isNotLive;
   };
 
   const filterCampaigns = (status: string) => {
