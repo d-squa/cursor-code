@@ -18,7 +18,7 @@ export interface MediaPlanData {
     avgCPM: number;
     frequency: number;
     sov: number;
-    marketDeliverables: Record<string, Array<{ kpi: string; result: number }>>;
+    platformDeliverables: Record<string, Array<{ kpi: string; result: number }>>;
     platforms: Array<{
       platformId: string;
       platformName: string;
@@ -107,6 +107,41 @@ export function generateMediaPlanPDF(data: MediaPlanData): Blob {
     });
 
     yPos = (doc as any).lastAutoTable.finalY + 15;
+
+    // Platform Deliverables
+    if (Object.keys(data.actiplanForecasts.platformDeliverables).length > 0) {
+      doc.setFontSize(14);
+      doc.text('Platform Deliverables', 20, yPos);
+      yPos += 10;
+
+      Object.entries(data.actiplanForecasts.platformDeliverables).forEach(([platformName, kpis]) => {
+        if (yPos > 240) {
+          doc.addPage();
+          yPos = 20;
+        }
+
+        doc.setFontSize(12);
+        doc.text(platformName, 25, yPos);
+        yPos += 8;
+
+        const kpiData = kpis.map(kpi => [kpi.kpi, kpi.result.toLocaleString()]);
+
+        autoTable(doc, {
+          startY: yPos,
+          body: kpiData,
+          theme: 'plain',
+          styles: { fontSize: 9 },
+          columnStyles: {
+            0: { fontStyle: 'bold', cellWidth: 80 },
+            1: { cellWidth: 60 }
+          }
+        });
+
+        yPos = (doc as any).lastAutoTable.finalY + 10;
+      });
+
+      yPos += 5;
+    }
   }
 
   // Platforms & Markets
