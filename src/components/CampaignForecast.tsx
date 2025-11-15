@@ -890,19 +890,18 @@ export function CampaignForecast({
           }
         }
 
-        // Calculate SOV for each market
-        const totalImpressions = marketForecastsArray.reduce((sum, m) => sum + m.impressions, 0);
+        // Calculate SOV for each market (SOV = Reach / Audience Size)
         marketForecastsArray.forEach(market => {
-          market.sov = totalImpressions > 0 ? (market.impressions / totalImpressions) * 100 : 0;
+          market.sov = market.audienceSize > 0 ? (market.reach / market.audienceSize) * 100 : 0;
         });
 
         // Build Actiplan aggregation
         const totalAudienceSize = marketForecastsArray.reduce((sum, m) => sum + m.audienceSize, 0);
         const totalReach = marketForecastsArray.reduce((sum, m) => sum + m.reach, 0);
         const totalImp = marketForecastsArray.reduce((sum, m) => sum + m.impressions, 0);
-        const avgCPM = totalImp > 0 ? (platformBudget / totalImp) * 1000 : 0;
+        const avgCPM = totalImp > 0 ? (platformBudget / (totalImp / 1000)) : 0;
         const frequency = totalReach > 0 ? totalImp / totalReach : 0;
-        const platformSOV = totalImpressions > 0 ? (totalImp / totalImpressions) * 100 : 0;
+        const platformSOV = totalAudienceSize > 0 ? (totalReach / totalAudienceSize) * 100 : 0;
 
         // Aggregate deliverables by market
         const marketDeliverables: Record<string, Array<{ kpi: string; result: number }>> = {};
