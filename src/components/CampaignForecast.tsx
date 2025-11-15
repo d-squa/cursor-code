@@ -577,98 +577,127 @@ export function CampaignForecast({
           console.log(`📊 Processing market: ${market.name}, Phases:`, market.phases?.length || 0);
           console.log('Market data:', { id: market.id, name: market.name, phases: market.phases });
           
-          // Each phase is a campaign - fetch forecast for each
+          // HYBRID APPROACH: Get market-level R&F prediction, then split proportionally
           if (market.phases && market.phases.length > 0) {
-            console.log(`✅ Market ${market.name} has ${market.phases.length} phases, processing all...`);
+            console.log(`✅ Market ${market.name} has ${market.phases.length} phases, using hybrid forecast...`);
+            
+            // Step 1: Get accurate market-level R&F prediction
+            let marketForecast: ForecastMetrics;
+            try {
+              marketForecast = await fetchForecast(
+                platform.id,
+                market.id,
+                marketBudget,
+                market,
+                startDate,
+                endDate
+              );
+              console.log(`✅ Got market-level forecast for ${market.name}:`, {
+                reach: marketForecast.reach,
+                impressions: marketForecast.impressions,
+                cpm: marketForecast.cpm
+              });
+            } catch (error: any) {
+              console.error(`Failed to get market-level forecast for ${market.name}:`, error);
+              toast.error(`Could not fetch market forecast for ${market.name}. Using fallback estimates.`);
+              
+              // Fallback to estimates
+              const estimatedImpressions = marketBudget * 1000;
+              const estimatedReach = estimatedImpressions * 0.7;
+              marketForecast = {
+                audienceSize: estimatedReach * 10,
+                reach: estimatedReach,
+                impressions: estimatedImpressions,
+                cpm: (marketBudget / estimatedImpressions) * 1000,
+                result: 0,
+                resultLabel: "Conversions",
+                resultKPI: "conversions",
+                costPerResult: 0,
+                resultRate: 0,
+                resultRateName: "CVR",
+              };
+            }
+
+            // Step 2: Split impressions/reach proportionally by phase budget %
             for (const phase of market.phases) {
               console.log(`  → Processing phase: ${phase.name}`);
               const campaignBudget = marketBudget * (phase.budgetPercentage / 100);
+              const budgetRatio = phase.budgetPercentage / 100;
               
-              try {
-                // Create a campaign-specific market object with phase overrides
-                const campaignMarket = {
-                  ...market,
-                  // Override with phase-specific settings
-                  publisherPlatforms: phase.publisherPlatforms || market.publisherPlatforms,
-                  positions: phase.positions || market.positions,
-                  ageMin: phase.ageMin || market.ageMin,
-                  ageMax: phase.ageMax || market.ageMax,
-                  gender: phase.gender || market.gender,
-                  countries: phase.countries || market.countries,
-                  languages: phase.languages || market.languages,
-                  detailedTargeting: phase.detailedTargeting || market.detailedTargeting,
-                  // Add phase objective and optimization goal
-                  phaseObjective: phase.objective,
-                  phaseOptimizationGoal: phase.optimizationGoal,
-                  phaseName: phase.name,
-                };
-
-                const forecast = await fetchForecast(
-                  platform.id,
-                  market.id,
-                  campaignBudget,
-                  campaignMarket,
-                  phase.startDate,
-                  phase.endDate
-                );
-                
-                campaignForecasts.push({
-                  market: `${market.name} - ${phase.name}`,
-                  budget: campaignBudget,
-                  campaign: phase.name,
-                  dates: `${phase.startDate} → ${phase.endDate}`,
-                  metrics: forecast,
-                });
-              } catch (error: any) {
-                console.error(`Forecast error for ${platform.id} - ${market.name} - ${phase.name}:`, error);
-                toast.error(`Could not fetch forecast for ${market.name} - ${phase.name}. Using estimates.`);
-                
-                // Return estimated metrics as fallback
-                // Use phase objective if available, otherwise auto-detect from phase name
-                let optimizationGoal: string;
-                let objective: string;
-                let destination: string;
-                
-                if (phase.objective && phase.optimizationGoal) {
-                  objective = phase.objective;
-                  optimizationGoal = phase.optimizationGoal;
-                  destination = "Website";
-                } else {
-                  // Auto-detect from phase name
-                  const strategyFocusValue = market.strategyFocus || genericConfig.strategyFocus || 'conversions';
-                  const autoDetected = getObjectiveFromPhaseName(phase.name, strategyFocusValue);
-                  objective = autoDetected.objective;
-                  optimizationGoal = autoDetected.optimizationGoal;
-                  destination = autoDetected.destination;
-                }
-                const goalMetrics = getOptimizationGoalMetrics(objective, optimizationGoal, destination);
-                
-                campaignForecasts.push({
-                  market: `${market.name} - ${phase.name}`,
-                  budget: campaignBudget,
-                  campaign: phase.name,
-                  dates: `${phase.startDate} → ${phase.endDate}`,
-                  metrics: {
-                    audienceSize: Math.round(campaignBudget * 100),
-                    reach: Math.round(campaignBudget * 50),
-                    impressions: Math.round(campaignBudget * 100),
-                    cpm: 10,
-                    result: Math.round(campaignBudget * 5),
-                    resultLabel: getResultLabel(optimizationGoal),
-                    resultKPI: goalMetrics?.kpi || optimizationGoal,
-                    costPerResult: 2.0,
-                    resultRate: 5.0,
-                    resultRateName: goalMetrics?.rateName || "Rate",
-                  },
-                });
+              // Proportionally allocate market-level metrics
+              const phaseImpressions = Math.round(marketForecast.impressions * budgetRatio);
+              const phaseReach = Math.round(marketForecast.reach * budgetRatio);
+              const phaseCPM = marketForecast.cpm; // CPM stays constant
+              const phaseAudienceSize = Math.round(marketForecast.audienceSize * budgetRatio);
+              
+              // Step 3: Apply optimization goal modifiers for phase-specific metrics
+              let optimizationGoal: string;
+              let objective: string;
+              let destination: string;
+              
+              if (phase.objective && phase.optimizationGoal) {
+                objective = phase.objective;
+                optimizationGoal = phase.optimizationGoal;
+                destination = "Website";
+              } else {
+                // Auto-detect from phase name
+                const strategyFocusValue = market.strategyFocus || genericConfig.strategyFocus || 'conversions';
+                const autoDetected = getObjectiveFromPhaseName(phase.name, strategyFocusValue);
+                objective = autoDetected.objective;
+                optimizationGoal = autoDetected.optimizationGoal;
+                destination = autoDetected.destination;
               }
+              
+              const goalMetrics = getOptimizationGoalMetrics(objective, optimizationGoal, destination);
+              
+              // Calculate results using optimization goal modifiers
+              const result = calculateResultFromImpressions(phaseImpressions, campaignBudget, optimizationGoal);
+              const resultRate = phaseImpressions > 0 ? (result / phaseImpressions) * 100 : 0;
+              const costPerResult = result > 0 ? campaignBudget / result : 0;
+              
+              console.log(`  ✓ Phase ${phase.name} allocated:`, {
+                budgetRatio: `${(budgetRatio * 100).toFixed(1)}%`,
+                impressions: phaseImpressions,
+                reach: phaseReach,
+                result,
+                resultLabel: getResultLabel(optimizationGoal)
+              });
+              
+              campaignForecasts.push({
+                market: `${market.name} - ${phase.name}`,
+                budget: campaignBudget,
+                campaign: phase.name,
+                dates: `${phase.startDate} → ${phase.endDate}`,
+                metrics: {
+                  audienceSize: phaseAudienceSize,
+                  reach: phaseReach,
+                  impressions: phaseImpressions,
+                  cpm: phaseCPM,
+                  result,
+                  resultLabel: getResultLabel(optimizationGoal),
+                  resultKPI: goalMetrics?.kpi || optimizationGoal,
+                  costPerResult: parseFloat(costPerResult.toFixed(2)),
+                  resultRate: parseFloat(resultRate.toFixed(2)),
+                  resultRateName: goalMetrics?.rateName || "Rate",
+                  objective,
+                  optimizationGoal,
+                  destination,
+                },
+              });
             }
-            console.log(`✅ Completed ${market.phases.length} phases for ${market.name}`);
           } else {
-            console.log(`⚠️ Market ${market.name} has NO phases (${market.phases?.length || 0}), creating single forecast`);
-            // Fallback: if no phases, treat entire market as one campaign
+            // No phases - fetch forecast for entire market
+            console.log(`❌ Market ${market.name} has no phases, fetching single forecast...`);
             try {
-              const forecast = await fetchForecast(platform.id, market.id, marketBudget, market);
+              const forecast = await fetchForecast(
+                platform.id,
+                market.id,
+                marketBudget,
+                market,
+                startDate,
+                endDate
+              );
+              
               campaignForecasts.push({
                 market: market.name,
                 budget: marketBudget,
@@ -678,63 +707,43 @@ export function CampaignForecast({
               console.error(`Forecast error for ${platform.id} - ${market.name}:`, error);
               toast.error(`Could not fetch forecast for ${market.name}. Using estimates.`);
               
-              // Use market strategy focus to determine objective
+              // Fallback estimates
               const strategyFocusValue = market.strategyFocus || genericConfig.strategyFocus || 'conversions';
               const autoDetected = getObjectiveFromPhaseName('default', strategyFocusValue);
-              const objective = autoDetected.objective;
-              const optimizationGoal = autoDetected.optimizationGoal;
-              const destination = autoDetected.destination;
-              const goalMetrics = getOptimizationGoalMetrics(objective, optimizationGoal, destination);
+              
+              const estimatedImpressions = marketBudget * 1000;
+              const estimatedReach = estimatedImpressions * 0.7;
+              const result = calculateResultFromImpressions(estimatedImpressions, marketBudget, autoDetected.optimizationGoal);
+              const goalMetrics = getOptimizationGoalMetrics(autoDetected.objective, autoDetected.optimizationGoal, autoDetected.destination);
               
               campaignForecasts.push({
                 market: market.name,
                 budget: marketBudget,
                 metrics: {
-                  audienceSize: Math.round(marketBudget * 100),
-                  reach: Math.round(marketBudget * 50),
-                  impressions: Math.round(marketBudget * 100),
-                  cpm: 10,
-                  result: Math.round(marketBudget * 5),
-                  resultLabel: getResultLabel(optimizationGoal),
-                  resultKPI: goalMetrics?.kpi || optimizationGoal,
-                  costPerResult: 2.0,
-                  resultRate: 5.0,
+                  audienceSize: estimatedReach * 10,
+                  reach: estimatedReach,
+                  impressions: estimatedImpressions,
+                  cpm: (marketBudget / estimatedImpressions) * 1000,
+                  result,
+                  resultLabel: getResultLabel(autoDetected.optimizationGoal),
+                  resultKPI: goalMetrics?.kpi || autoDetected.optimizationGoal,
+                  costPerResult: result > 0 ? marketBudget / result : 0,
+                  resultRate: estimatedImpressions > 0 ? (result / estimatedImpressions) * 100 : 0,
                   resultRateName: goalMetrics?.rateName || "Rate",
+                  objective: autoDetected.objective,
+                  optimizationGoal: autoDetected.optimizationGoal,
+                  destination: autoDetected.destination,
                 },
               });
             }
           }
         }
 
-        console.log(`📈 Platform ${platform.name}: Generated ${campaignForecasts.length} campaign forecasts`);
         newForecasts[platform.id] = campaignForecasts;
       }
 
-      console.log('🎯 Total forecasts created:', Object.entries(newForecasts).map(([key, val]) => `${key}: ${val.length}`).join(', '));
       setForecasts(newForecasts);
-      
-      // Save forecast data to database if we have a campaign ID
-      if (campaignId) {
-        try {
-          const { supabase } = await import("@/integrations/supabase/client");
-          await (supabase as any).from('campaigns')
-            .update({ 
-              forecast_data: {
-                forecasts: newForecasts,
-                totalMetrics: getTotalMetricsFromForecasts(newForecasts),
-                generatedAt: new Date().toISOString(),
-              }
-            })
-            .eq('id', campaignId);
-          
-          toast.success("Forecasts fetched and saved successfully!");
-        } catch (err) {
-          console.error("Error saving forecast data:", err);
-          toast.success("Forecasts fetched successfully!");
-        }
-      } else {
-        toast.success("Forecasts fetched successfully!");
-      }
+      toast.success("Forecasts fetched successfully!");
     } catch (error) {
       toast.error("Failed to fetch forecasts");
       console.error(error);

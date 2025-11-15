@@ -770,12 +770,21 @@ export type Database = {
       }
     }
     Functions: {
+      get_platform_token: {
+        Args: { platform_id: string; token_type?: string }
+        Returns: string
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
         Returns: boolean
+      }
+      migrate_tokens_to_vault: { Args: never; Returns: undefined }
+      store_platform_token: {
+        Args: { platform_id: string; token_type?: string; token_value: string }
+        Returns: undefined
       }
     }
     Enums: {
