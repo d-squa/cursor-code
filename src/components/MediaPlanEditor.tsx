@@ -85,7 +85,8 @@ export function MediaPlanEditor() {
     }
     const hasPixel = platformsWithMarkets.some(p => p.markets.some(m => m.pixel));
     const hasCatalog = platformsWithMarkets.some(p => p.markets.some(m => m.catalog));
-    const adFormats = genericConfig.targeting?.adFormats || [];
+    const marketAdFormats = platformsWithMarkets.flatMap(p => p.markets.flatMap(m => (m as any).adFormats || []));
+    const adFormats = Array.from(new Set([...(genericConfig.targeting?.adFormats || []), ...marketAdFormats]));
     const detected = determineStrategyFocus({ adFormats, hasPixel, hasCatalog });
     return detected || "conversions";
   }, [genericConfig.strategy, genericConfig.strategyFocus, genericConfig.targeting?.adFormats, platformsWithMarkets]);
@@ -208,7 +209,8 @@ export function MediaPlanEditor() {
 
     const hasPixel = platformsWithMarkets.some(p => p.markets.some(m => m.pixel));
     const hasCatalog = platformsWithMarkets.some(p => p.markets.some(m => m.catalog));
-    const adFormats = genericConfig.targeting?.adFormats || [];
+    const marketAdFormats = platformsWithMarkets.flatMap(p => p.markets.flatMap(m => (m as any).adFormats || []));
+    const adFormats = Array.from(new Set([...(genericConfig.targeting?.adFormats || []), ...marketAdFormats]));
 
     const determinedFocus = determineStrategyFocus({
       adFormats,
