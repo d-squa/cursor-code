@@ -47,6 +47,7 @@ export function MediaPlanEditor() {
   const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [campaignName, setCampaignName] = useState<string>("Q1 2025 Campaign");
+  const [boNumber, setBoNumber] = useState<string>("");
   const [totalBudget, setTotalBudget] = useState<string>("100000");
   
   // Initialize dates: start = today+1, end = today+1 month
@@ -95,6 +96,7 @@ export function MediaPlanEditor() {
   const hydrateFromCampaign = (c: any) => {
     try {
       setCampaignName(c.name || "");
+      setBoNumber(c.bo_number || "");
       setTotalBudget(String(c.total_budget ?? ""));
       setStartDate(c.start_date || defaultDates.start);
       setEndDate(c.end_date || defaultDates.end);
@@ -272,12 +274,12 @@ export function MediaPlanEditor() {
     }, 1000); // Debounce for 1 second
 
     return () => clearTimeout(timer);
-  }, [campaignName, totalBudget, startDate, endDate, platformsWithMarkets, genericConfig, savedCampaignId, user]);
+  }, [campaignName, boNumber, totalBudget, startDate, endDate, platformsWithMarkets, genericConfig, savedCampaignId, user]);
 
   const isActivationDetailsComplete = () => {
     const allPlatformsSelected = platformsWithMarkets.every(p => p.id !== "");
     const allHaveMarkets = platformsWithMarkets.every(p => p.markets.length > 0);
-    return !!(campaignName.trim() && totalBudget && startDate && endDate && allPlatformsSelected && allHaveMarkets);
+    return !!(campaignName.trim() && boNumber.trim() && totalBudget && startDate && endDate && allPlatformsSelected && allHaveMarkets);
   };
 
   const isStrategyComplete = () => {
@@ -365,6 +367,24 @@ export function MediaPlanEditor() {
       toast.error("Please enter a campaign name");
       return;
     }
+    
+    if (!boNumber.trim()) {
+      toast.error("Please enter a BO number");
+      return;
+    }
+
+    // Check if BO number is unique
+    const { data: existingCampaign } = await supabase
+      .from("campaigns")
+      .select("id")
+      .eq("bo_number", boNumber.trim())
+      .neq("id", savedCampaignId || "")
+      .single();
+    
+    if (existingCampaign) {
+      toast.error("BO number must be unique. This number is already in use.");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -388,6 +408,7 @@ export function MediaPlanEditor() {
       const { data: campaign, error } = await supabase.from("campaigns").insert({
         user_id: user.id,
         name: campaignName,
+        bo_number: boNumber.trim(),
         objective: genericConfig.strategyFocus || "conversions",
         total_budget: parseFloat(totalBudget) || 0,
         start_date: startDate || null,
@@ -456,6 +477,24 @@ export function MediaPlanEditor() {
       toast.error("Please enter a campaign name");
       return null;
     }
+    
+    if (!boNumber.trim()) {
+      toast.error("Please enter a BO number");
+      return null;
+    }
+
+    // Check if BO number is unique
+    const { data: existingCampaign } = await supabase
+      .from("campaigns")
+      .select("id")
+      .eq("bo_number", boNumber.trim())
+      .neq("id", savedCampaignId || "")
+      .single();
+    
+    if (existingCampaign) {
+      toast.error("BO number must be unique. This number is already in use.");
+      return null;
+    }
 
     if (savedCampaignId) {
       return savedCampaignId;
@@ -472,6 +511,7 @@ export function MediaPlanEditor() {
       const { data: campaign, error } = await supabase.from("campaigns").insert({
         user_id: user.id,
         name: campaignName,
+        bo_number: boNumber.trim(),
         objective: genericConfig.strategyFocus || "conversions",
         total_budget: parseFloat(totalBudget) || 0,
         start_date: startDate || null,
@@ -564,14 +604,27 @@ export function MediaPlanEditor() {
         </CardHeader>
         {currentStep === 1 ? (
           <CardContent className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="name">Activation Name</Label>
-              <Input
-                id="name"
-                value={campaignName}
-                onChange={(e) => { setCampaignName(e.target.value); ensureDraft(); }}
-                placeholder="e.g., Q1 2024 Brand Activation"
-              />
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="name">Activation Name</Label>
+                <Input
+                  id="name"
+                  value={campaignName}
+                  onChange={(e) => { setCampaignName(e.target.value); ensureDraft(); }}
+                  placeholder="e.g., Q1 2024 Brand Activation"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="bo-number">BO Number *</Label>
+                <Input
+                  id="bo-number"
+                  value={boNumber}
+                  onChange={(e) => { setBoNumber(e.target.value); ensureDraft(); }}
+                  placeholder="e.g., BO-2025-001"
+                  required
+                />
+                <p className="text-xs text-muted-foreground">Unique financial reference for invoicing</p>
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="budget">Total Activation Budget ($)</Label>
@@ -637,6 +690,10 @@ export function MediaPlanEditor() {
               <div className="flex justify-between">
                 <span>Name:</span>
                 <span className="font-medium text-foreground">{campaignName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>BO Number:</span>
+                <span className="font-medium text-foreground">{boNumber}</span>
               </div>
               <div className="flex justify-between">
                 <span>Budget:</span>

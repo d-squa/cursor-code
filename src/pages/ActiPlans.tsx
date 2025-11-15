@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 interface Campaign {
   id: string;
   name: string;
+  bo_number?: string | null;
   status: string;
   total_budget: number;
   start_date: string;
@@ -380,7 +381,14 @@ export default function ActiPlans() {
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
-            <CardTitle className="text-lg truncate">{campaign.name}</CardTitle>
+            <div className="flex items-center gap-2 mb-1">
+              <CardTitle className="text-lg truncate">{campaign.name}</CardTitle>
+              {campaign.bo_number && (
+                <Badge variant="secondary" className="text-xs font-mono">
+                  {campaign.bo_number}
+                </Badge>
+              )}
+            </div>
             <CardDescription className="text-xs">
               {format(new Date(campaign.start_date), "MMM dd")} - {format(new Date(campaign.end_date), "MMM dd, yyyy")}
             </CardDescription>
@@ -653,7 +661,10 @@ export default function ActiPlans() {
               Analytics
             </Button>
           )}
-          <Button onClick={() => window.location.href = "/"}>
+          <Button onClick={() => {
+            localStorage.removeItem('draftCampaignId');
+            window.location.href = "/";
+          }}>
             New ActiPlan
           </Button>
         </div>
