@@ -15,7 +15,7 @@ interface ActiplanDeliverablesViewProps {
     avgCPM: number;
     frequency: number;
     sov: number;
-    marketDeliverables: Record<string, Array<{ kpi: string; result: number }>>;
+    platformDeliverables: Record<string, Array<{ kpi: string; result: number }>>;
     platforms: Array<{
       platformId: string;
       platformName: string;
@@ -103,14 +103,14 @@ export function ActiplanDeliverablesView({ actiplanForecast }: ActiplanDeliverab
             </div>
           </div>
 
-          {/* Market Deliverables */}
-          {Object.keys(actiplanForecast.marketDeliverables).length > 0 && (
+          {/* Platform Deliverables */}
+          {Object.keys(actiplanForecast.platformDeliverables).length > 0 && (
             <div className="space-y-3">
-              <h4 className="font-semibold">Market Deliverables</h4>
+              <h4 className="font-semibold">Platform Deliverables</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {Object.entries(actiplanForecast.marketDeliverables).map(([marketName, kpis]) => (
-                  <div key={marketName} className="p-3 bg-muted/20 rounded-lg">
-                    <div className="font-medium text-sm mb-2">{marketName}</div>
+                {Object.entries(actiplanForecast.platformDeliverables).map(([platformName, kpis]) => (
+                  <div key={platformName} className="p-3 bg-muted/20 rounded-lg">
+                    <div className="font-medium text-sm mb-2">{platformName}</div>
                     <div className="space-y-1">
                       {kpis.map((kpi, idx) => (
                         <div key={idx} className="flex justify-between text-xs">

@@ -103,7 +103,7 @@ interface ActiplanForecast {
   avgCPM: number;
   frequency: number;
   sov: number;
-  marketDeliverables: Record<string, Array<{ kpi: string; result: number }>>;
+  platformDeliverables: Record<string, Array<{ kpi: string; result: number }>>;
   platforms: PlatformForecast[];
 }
 
@@ -979,18 +979,25 @@ export function CampaignForecast({
       const actiplanFrequency = actiplanTotalReach > 0 ? actiplanTotalImpressions / actiplanTotalReach : 0;
       const actiplanSOV = actiplanTotalAudienceSize > 0 ? (actiplanTotalReach / actiplanTotalAudienceSize) * 100 : 0;
 
-      // Aggregate market deliverables across all platforms
-      const marketDeliverables: Record<string, Array<{ kpi: string; result: number }>> = {};
+      // Aggregate platform deliverables
+      const platformDeliverables: Record<string, Array<{ kpi: string; result: number }>> = {};
       platformForecasts.forEach(platform => {
+        if (!platformDeliverables[platform.platformName]) {
+          platformDeliverables[platform.platformName] = [];
+        }
+        // Aggregate all KPIs from all markets in this platform
         platform.markets.forEach(market => {
-          if (!marketDeliverables[market.marketName]) {
-            marketDeliverables[market.marketName] = [];
-          }
           market.resultsByGoal.forEach(r => {
-            marketDeliverables[market.marketName].push({
-              kpi: r.kpi,
-              result: r.result,
-            });
+            // Check if this KPI already exists for this platform
+            const existing = platformDeliverables[platform.platformName].find(d => d.kpi === r.kpi);
+            if (existing) {
+              existing.result += r.result;
+            } else {
+              platformDeliverables[platform.platformName].push({
+                kpi: r.kpi,
+                result: r.result,
+              });
+            }
           });
         });
       });
@@ -1004,7 +1011,7 @@ export function CampaignForecast({
         avgCPM: actiplanAvgCPM,
         frequency: actiplanFrequency,
         sov: actiplanSOV,
-        marketDeliverables,
+        platformDeliverables,
         platforms: platformForecasts,
       });
       toast.success("Forecasts fetched successfully!");
@@ -1196,130 +1203,6 @@ export function CampaignForecast({
                   </p>
                 </CardContent>
               </Card>
-            )}
-            
-            {/* Summary Cards */}
-            {getTotalMetrics() && (
-              <>
-                <div className="grid gap-4 md:grid-cols-5">
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm font-medium flex items-center gap-2">
-                        <Users className="h-4 w-4" />
-                        Total Reach
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">{formatNumber(getTotalMetrics()!.reach)}</div>
-                      {getTotalMetrics()!.hasMultipleCampaigns && (
-                        <p className="text-xs text-muted-foreground">
-                          Includes duplication
-                        </p>
-                      )}
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm font-medium flex items-center gap-2">
-                        <Target className="h-4 w-4" />
-                        Audience Size
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">{formatNumber(getTotalMetrics()!.audienceSize)}</div>
-                      {getTotalMetrics()!.hasMultipleCampaigns && (
-                        <p className="text-xs text-muted-foreground">
-                          Max across campaigns
-                        </p>
-                      )}
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm font-medium flex items-center gap-2">
-                        <TrendingUp className="h-4 w-4" />
-                        SOV (Share of Voice)
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">{getTotalMetrics()!.sov.toFixed(2)}%</div>
-                      <p className="text-xs text-muted-foreground">
-                        (Reach/Audience Size) × 100
-                      </p>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm font-medium flex items-center gap-2">
-                        <Eye className="h-4 w-4" />
-                        CPM
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">${getTotalMetrics()!.cpm.toFixed(2)}</div>
-                      <p className="text-xs text-muted-foreground">
-                        {formatNumber(getTotalMetrics()!.impressions)} impressions
-                      </p>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm font-medium flex items-center gap-2">
-                        <DollarSign className="h-4 w-4" />
-                        Total Budget
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-2xl font-bold">${formatNumber(getTotalMetrics()!.totalBudget)}</div>
-                      <p className="text-xs text-muted-foreground">
-                        Across all campaigns
-                      </p>
-                    </CardContent>
-                  </Card>
-                </div>
-
-                {/* Results by Optimization Goal */}
-                {getTotalMetrics()!.resultsByGoal.length > 0 && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-base">Results by Optimization Goal</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        {getTotalMetrics()!.resultsByGoal.map((goalData, idx) => (
-                          <div key={idx} className="border rounded-lg p-4">
-                            <div className="flex items-center justify-between mb-3">
-                              <div>
-                                <h4 className="font-medium">{goalData.label}</h4>
-                                <p className="text-xs text-muted-foreground">KPI: {goalData.kpi}</p>
-                              </div>
-                              <Badge variant="outline">{goalData.goal}</Badge>
-                            </div>
-                            <div className="grid grid-cols-3 gap-4 text-sm">
-                              <div>
-                                <p className="text-muted-foreground mb-1">Result</p>
-                                <p className="font-semibold text-lg">{formatNumber(goalData.result)}</p>
-                              </div>
-                              <div>
-                                <p className="text-muted-foreground mb-1">Cost/Result</p>
-                                <p className="font-semibold text-lg">${goalData.costPerResult.toFixed(2)}</p>
-                              </div>
-                              <div>
-                                <p className="text-muted-foreground mb-1">Result Rate ({goalData.rateName})</p>
-                                <p className="font-semibold text-lg">{goalData.resultRate.toFixed(2)}%</p>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-              </>
             )}
 
             {/* Actiplan Deliverables View */}

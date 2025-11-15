@@ -24,10 +24,10 @@ export function generateMediaPlanExcel(data: MediaPlanData): Blob {
       ['SOV', `${actiplan.sov.toFixed(1)}%`],
     ];
 
-    // Add market deliverables
-    Object.entries(actiplan.marketDeliverables).forEach(([marketName, kpis]) => {
+    // Add platform deliverables
+    Object.entries(actiplan.platformDeliverables).forEach(([platformName, kpis]) => {
       overviewData.push(['', '']);
-      overviewData.push([`${marketName} Deliverables`, '']);
+      overviewData.push([`${platformName} Deliverables`, '']);
       kpis.forEach((kpi) => {
         overviewData.push([kpi.kpi, kpi.result]);
       });
