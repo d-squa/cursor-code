@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -76,6 +76,25 @@ export function MediaPlanEditor() {
   const [platformsWithMarkets, setPlatformsWithMarkets] = useState<PlatformWithMarkets[]>([]);
   const [globalFunnel, setGlobalFunnel] = useState<FunnelStage[]>([]);
   
+  // Resolve effective strategy focus at render-time (never "auto")
+  const effectiveStrategyFocus = useMemo(() => {
+    if (genericConfig.strategy !== "auto-detect") {
+      return (genericConfig.strategyFocus && genericConfig.strategyFocus !== "auto")
+        ? genericConfig.strategyFocus
+        : "conversions";
+    }
+    const hasPixel = platformsWithMarkets.some(p => p.markets.some(m => m.pixel));
+    const hasCatalog = platformsWithMarkets.some(p => p.markets.some(m => m.catalog));
+    const adFormats = genericConfig.targeting?.adFormats || [];
+    const detected = determineStrategyFocus({ adFormats, hasPixel, hasCatalog });
+    return detected || "conversions";
+  }, [genericConfig.strategy, genericConfig.strategyFocus, genericConfig.targeting?.adFormats, platformsWithMarkets]);
+
+  const genericConfigResolved: GenericConfig = useMemo(() => ({
+    ...genericConfig,
+    strategyFocus: effectiveStrategyFocus,
+  }), [genericConfig, effectiveStrategyFocus]);
+
   // Hydrate editor from a saved campaign record
   const hydrateFromCampaign = (c: any) => {
     try {
@@ -1210,7 +1229,7 @@ export function MediaPlanEditor() {
         <CampaignForecast
           platforms={platformsWithMarkets}
           totalBudget={parseFloat(totalBudget) || 0}
-          genericConfig={genericConfig}
+          genericConfig={genericConfigResolved}
           startDate={startDate}
           endDate={endDate}
           campaignId={savedCampaignId || undefined}
