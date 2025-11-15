@@ -29,6 +29,7 @@ interface ForecastMetrics {
   reach: number;
   impressions: number;
   cpm: number;
+  frequency?: number;
   result: number;
   resultLabel: string;
   resultKPI: string;
@@ -38,6 +39,38 @@ interface ForecastMetrics {
   objective?: string;
   optimizationGoal?: string;
   destination?: string;
+}
+
+interface PhaseForecast {
+  phaseName: string;
+  budget: number;
+  dates: string;
+  kpi: string;
+  optimizationGoal: string;
+  result: number;
+  costPerResult: number;
+  resultRate: number;
+  resultRateName: string;
+}
+
+interface MarketForecast {
+  marketName: string;
+  budget: number;
+  audienceSize: number;
+  impressions: number;
+  reach: number;
+  cpm: number;
+  frequency: number;
+  resultsByGoal: Array<{
+    goal: string;
+    kpi: string;
+    label: string;
+    result: number;
+    costPerResult: number;
+    resultRate: number;
+    rateName: string;
+  }>;
+  phases?: PhaseForecast[];
 }
 
 interface CampaignForecast {
@@ -60,11 +93,13 @@ export function CampaignForecast({
 }: CampaignForecastProps) {
   const [loading, setLoading] = useState(false);
   const [forecasts, setForecasts] = useState<Record<string, CampaignForecast[]>>({});
+  const [marketForecasts, setMarketForecasts] = useState<Record<string, MarketForecast[]>>({});
   const [debugInfo, setDebugInfo] = useState<{startTimeUnix: number; endTimeUnix: number; startDateFormatted: string; endDateFormatted: string} | null>(null);
   const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
   const [pdfBase64Data, setPdfBase64Data] = useState<string>("");
   const [pushingToDSP, setPushingToDSP] = useState(false);
   const [hasExistingForecast, setHasExistingForecast] = useState(false);
+  const [expandedMarkets, setExpandedMarkets] = useState<Set<string>>(new Set());
 
   // Load existing forecast on mount
   useEffect(() => {
