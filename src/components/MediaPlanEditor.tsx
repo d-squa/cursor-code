@@ -15,7 +15,7 @@ import { TargetingConfigComponent } from "./TargetingConfig";
 import { CampaignForecast } from "./CampaignForecast";
 import { PhaseScheduler } from "./PhaseScheduler";
 import { getDefaultPhases, generateAutoDetectPhases } from "@/utils/funnelPhases";
-import { Calendar, Download, Rocket, Loader2, ChevronDown, ChevronUp } from "lucide-react";
+import { Calendar, Download, Rocket, Loader2, ChevronDown, ChevronUp, Copy, Trash2 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
@@ -642,6 +642,30 @@ export function MediaPlanEditor() {
     }
   };
 
+  const duplicatePlatform = (platformId: string) => {
+    const platformToDuplicate = platformsWithMarkets.find(p => p.id === platformId);
+    if (!platformToDuplicate) return;
+
+    const newPlatform = {
+      ...platformToDuplicate,
+      id: `${platformToDuplicate.id}-${Date.now()}`,
+      name: `${platformToDuplicate.name} (Copy)`,
+      markets: platformToDuplicate.markets.map(market => ({
+        ...market,
+        id: `${market.id}-${Date.now()}`,
+        name: `${market.name} (Copy)`,
+      })),
+    };
+    
+    setPlatformsWithMarkets(prev => [...prev, newPlatform]);
+    ensureDraft();
+  };
+
+  const deletePlatform = (platformId: string) => {
+    setPlatformsWithMarkets(prev => prev.filter(p => p.id !== platformId));
+    ensureDraft();
+  };
+
   return (
     <div className="space-y-6">
       {/* Step 1: Activation Details */}
@@ -988,13 +1012,43 @@ export function MediaPlanEditor() {
                             className="border rounded-lg"
                           >
                             <CollapsibleTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                className="w-full justify-between p-4 hover:bg-accent"
-                              >
-                                <span className="font-semibold text-lg">{platform.name}</span>
-                                {expandedPlatforms[platform.id] ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
-                              </Button>
+                              <div className="flex items-center gap-2 w-full">
+                                <Button
+                                  variant="ghost"
+                                  className="flex-1 justify-between p-4 hover:bg-accent"
+                                >
+                                  <span className="font-semibold text-lg">{platform.name}</span>
+                                  {expandedPlatforms[platform.id] ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+                                </Button>
+                                <div className="flex gap-1 pr-4">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0 hover:bg-accent"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      duplicatePlatform(platform.id);
+                                    }}
+                                    title="Duplicate platform"
+                                  >
+                                    <Copy className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0 hover:bg-destructive/20"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      deletePlatform(platform.id);
+                                    }}
+                                    title="Delete platform"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </div>
                             </CollapsibleTrigger>
                             <CollapsibleContent className="px-4 pb-4">
                               <div className="space-y-4">
