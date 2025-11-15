@@ -381,7 +381,7 @@ export default function ActiPlans() {
   const renderCampaignCard = (campaign: Campaign) => {
     // Extract forecast metrics from campaign.forecast_data
     const forecastData = campaign.forecast_data as any;
-    const actiplanForecasts = forecastData?.actiplanForecasts;
+    const actiplanForecast = forecastData?.actiplanForecast;
     
     // Get platforms and markets from campaign data
     const platforms = (campaign.platforms as any[] || []).filter(p => p.enabled).map(p => p.name);
@@ -459,55 +459,56 @@ export default function ActiPlans() {
                 </div>
               </div>
               
-              {actiplanForecasts && Object.keys(actiplanForecasts).length > 0 && (
+              {actiplanForecast && (
                 <div className="flex-1 border-l pl-6">
                   <h4 className="text-sm font-semibold mb-3">Actiplan Deliverables</h4>
-                  {Object.entries(actiplanForecasts).map(([platformId, forecast]: [string, any]) => {
-                    const totalAudience = forecast.totalAudienceSize || 0;
-                    const totalImpressions = forecast.totalImpressions || 0;
-                    const totalReach = forecast.totalReach || 0;
-                    const avgCPM = forecast.avgCPM || 0;
-                    const frequency = forecast.frequency || 0;
-                    const sov = forecast.sov || 0;
-                    const marketDeliverables = forecast.marketDeliverables || {};
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Total Audience</p>
+                      <p className="text-sm font-semibold">{actiplanForecast.totalAudienceSize?.toLocaleString() || 0}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Total Impressions</p>
+                      <p className="text-sm font-semibold">{actiplanForecast.totalImpressions?.toLocaleString() || 0}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Total Reach</p>
+                      <p className="text-sm font-semibold">{actiplanForecast.totalReach?.toLocaleString() || 0}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Avg. CPM</p>
+                      <p className="text-sm font-semibold">${actiplanForecast.avgCPM?.toFixed(2) || '0.00'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Frequency</p>
+                      <p className="text-sm font-semibold">{actiplanForecast.frequency?.toFixed(2) || '0.00'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">SOV</p>
+                      <p className="text-sm font-semibold">{actiplanForecast.sov?.toFixed(1) || '0.0'}%</p>
+                    </div>
+                  </div>
 
-                    return (
-                      <div key={platformId} className="grid grid-cols-2 gap-3 text-sm">
-                        <div>
-                          <span className="text-muted-foreground">Audience Size:</span>
-                          <div className="font-medium">{totalAudience.toLocaleString()}</div>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Impressions:</span>
-                          <div className="font-medium">{totalImpressions.toLocaleString()}</div>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Reach:</span>
-                          <div className="font-medium">{totalReach.toLocaleString()}</div>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Avg. CPM:</span>
-                          <div className="font-medium">${avgCPM.toFixed(2)}</div>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Frequency:</span>
-                          <div className="font-medium">{frequency.toFixed(2)}</div>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">SOV:</span>
-                          <div className="font-medium">{sov.toFixed(1)}%</div>
-                        </div>
-                        {Object.entries(marketDeliverables).map(([marketName, kpis]: [string, any]) => (
-                          kpis.map((kpiData: any, idx: number) => (
-                            <div key={`${marketName}-${idx}`} className="col-span-2 pt-2 border-t">
-                              <span className="text-muted-foreground text-xs uppercase">{kpiData.kpi}:</span>
-                              <div className="font-medium">{kpiData.result.toLocaleString()}</div>
+                  {/* Market Deliverables */}
+                  {actiplanForecast.marketDeliverables && Object.keys(actiplanForecast.marketDeliverables).length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold">Market Deliverables</p>
+                      <div className="grid grid-cols-1 gap-2">
+                        {Object.entries(actiplanForecast.marketDeliverables).map(([marketName, kpis]: [string, any]) => (
+                          <div key={marketName} className="p-2 bg-muted/30 rounded">
+                            <p className="text-xs font-medium mb-1">{marketName}</p>
+                            <div className="flex flex-wrap gap-2">
+                              {kpis.map((kpi: any, idx: number) => (
+                                <span key={idx} className="text-xs">
+                                  {kpi.kpi}: {kpi.result.toLocaleString()}
+                                </span>
+                              ))}
                             </div>
-                          ))
+                          </div>
                         ))}
                       </div>
-                    );
-                  })}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -560,7 +561,7 @@ export default function ActiPlans() {
                           platforms: campaign.platforms || [],
                           genericConfig: (campaign as any).generic_config || {},
                           forecasts: campaign.forecast_data,
-                          actiplanForecasts: campaign.forecast_data?.actiplanForecasts,
+                          actiplanForecast: campaign.forecast_data?.actiplanForecast,
                         };
                         downloadMediaPlanExcel(planData);
                         toast.success("Excel file downloaded successfully!");
