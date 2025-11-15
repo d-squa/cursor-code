@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, X, GripVertical, Link2, ChevronDown } from "lucide-react";
+import { Plus, X, GripVertical, Link2, ChevronDown, Copy, Trash2 } from "lucide-react";
 import { Phase } from "./PlatformConfiguration";
 import { format, addDays, differenceInDays, parseISO } from "date-fns";
 import { platformAdFormats } from "@/utils/adFormats";
@@ -288,6 +288,18 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate, pla
     onPhasesChange(phases.filter(p => p.id !== phaseId));
   };
 
+  const duplicatePhase = (phaseId: string) => {
+    const phaseToDuplicate = phases.find(p => p.id === phaseId);
+    if (!phaseToDuplicate) return;
+    
+    const newPhase = {
+      ...phaseToDuplicate,
+      id: `phase-${Date.now()}`,
+      name: `${phaseToDuplicate.name} (Copy)`,
+    };
+    onPhasesChange([...phases, newPhase]);
+  };
+
   const updatePhaseName = (phaseId: string, name: string) => {
     onPhasesChange(phases.map(p => p.id === phaseId ? { ...p, name } : p));
     setEditingName(null);
@@ -547,15 +559,28 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate, pla
                       </PopoverContent>
                     </Popover>
                   </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 w-6 p-0 hover:bg-destructive/20"
-                    onClick={() => removePhase(phase.id)}
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
+                  <div className="flex gap-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 hover:bg-accent"
+                      onClick={() => duplicatePhase(phase.id)}
+                      title="Duplicate phase"
+                    >
+                      <Plus className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 hover:bg-destructive/20"
+                      onClick={() => removePhase(phase.id)}
+                      title="Delete phase"
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
                 </div>
 
                 {/* End handle */}
@@ -676,15 +701,28 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate, pla
                       </PopoverContent>
                     </Popover>
                   </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-5 w-5 p-0 hover:bg-destructive/20"
-                    onClick={() => removePhase(phase.id)}
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
+                  <div className="flex gap-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-5 w-5 p-0 hover:bg-accent"
+                      onClick={() => duplicatePhase(phase.id)}
+                      title="Duplicate phase"
+                    >
+                      <Plus className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-5 w-5 p-0 hover:bg-destructive/20"
+                      onClick={() => removePhase(phase.id)}
+                      title="Delete phase"
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
                 </div>
 
                 {/* End handle */}
