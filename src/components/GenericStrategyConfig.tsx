@@ -110,12 +110,18 @@ export function GenericStrategyConfig({
   hasPixel = false,
   hasCatalog = false,
 }: GenericStrategyConfigProps) {
-  // Set default strategy to auto-detect if not set
+  // Initialize strategy to auto-detect on mount if not set
+  const [isInitialized, setIsInitialized] = useState(false);
+  
   useEffect(() => {
-    if (!config.strategy) {
+    if (!isInitialized && !config.strategy) {
       updateConfig("strategy", "auto-detect");
+      setIsInitialized(true);
+    } else if (!isInitialized && config.strategy) {
+      // Strategy already set, mark as initialized
+      setIsInitialized(true);
     }
-  }, []);
+  }, [config.strategy, isInitialized]);
   
   // Auto-determine strategy focus based on ad formats and platform config
   // ONLY runs in auto-detect mode
@@ -184,12 +190,12 @@ export function GenericStrategyConfig({
         updatedConfig.phases = [];
       } else if (strategy === "auto-detect") {
         // Auto-detect: use the auto-determined focus to generate phases
-        if (focus && focus !== "auto" && startDate && endDate) {
-          const templateKey = mapFocusToTemplate(focus as string);
+        if (focus && startDate && endDate) {
+          const templateKey = mapFocusToTemplate(focus === "auto" ? "conversions" : focus as string);
           if (templateKey) {
             const defaultPhases = getDefaultPhases(templateKey, startDate, endDate);
             updatedConfig.phases = defaultPhases.map(phase => {
-              const objectiveData = getObjectiveFromPhaseName(phase.name, focus);
+              const objectiveData = getObjectiveFromPhaseName(phase.name, focus === "auto" ? "conversions" : focus);
               return {
                 ...phase,
                 objective: objectiveToLabel(objectiveData.objective) || "Conversions",
@@ -201,7 +207,7 @@ export function GenericStrategyConfig({
             updatedConfig.phases = [];
           }
         } else {
-          // No focus determined yet, start with empty phases
+          // No dates set yet, start with empty phases
           updatedConfig.phases = [];
         }
         updatedConfig.campaigns = [];
