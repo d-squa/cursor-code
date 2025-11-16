@@ -15,6 +15,7 @@ import { downloadMediaPlanExcel } from "@/utils/excelGenerator";
 import { ApprovalDialog } from "./ApprovalDialog";
 import { ActiplanDeliverablesView } from "./ActiplanDeliverablesView";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { getAllBenchmarks, BenchmarkData } from "@/utils/benchmarkData";
 
 // Helper to normalize strategyFocus, filtering out "auto" placeholder
 const getEffectiveStrategyFocus = (marketFocus?: string, genericFocus?: string): string => {
@@ -136,6 +137,7 @@ export function CampaignForecast({
   const [expandedPlatforms, setExpandedPlatforms] = useState<Record<string, boolean>>({});
   const [expandedMarkets, setExpandedMarkets] = useState<Record<string, boolean>>({});
   const [existingLoadComplete, setExistingLoadComplete] = useState(false);
+  const [benchmarks, setBenchmarks] = useState<Map<string, BenchmarkData>>(new Map());
 
   // Load existing forecast on mount
   useEffect(() => {
@@ -164,7 +166,14 @@ export function CampaignForecast({
       }
     };
 
+    const loadBenchmarks = async () => {
+      const benchmarkData = await getAllBenchmarks();
+      setBenchmarks(benchmarkData);
+      console.log(`Loaded ${benchmarkData.size} benchmarks`);
+    };
+
     loadExistingForecast();
+    loadBenchmarks();
   }, [campaignId]);
 
   // Auto-fetch forecasts once existing-load check completes and none exist yet
@@ -482,12 +491,29 @@ export function CampaignForecast({
         
         const goalMetrics = getOptimizationGoalMetrics(objective, optimizationGoal, destination);
         
-        // Calculate result based on optimization goal
-        const result = calculateResultFromImpressions(
+        // Calculate result based on optimization goal (initially)
+        let result = calculateResultFromImpressions(
           data.forecast.impressions,
           budget,
           optimizationGoal
         );
+        
+        // Calculate cost per result using benchmark if available
+        const benchmarkKey = `${market.name}_${optimizationGoal}`;
+        const benchmark = benchmarks.get(benchmarkKey);
+        
+        let costPerResult: number;
+        
+        if (benchmark?.avg_cost_per_result && benchmark.avg_cost_per_result > 0) {
+          // Use benchmark data
+          costPerResult = benchmark.avg_cost_per_result;
+          result = budget / costPerResult; // Recalculate result based on benchmark
+          console.log(`✓ Using benchmark CPR for ${market.name}/${optimizationGoal}: $${costPerResult.toFixed(2)}`);
+        } else {
+          // Use calculated data
+          costPerResult = result > 0 ? budget / result : 0;
+          console.log(`✓ Using calculated CPR for ${market.name}/${optimizationGoal}: $${costPerResult.toFixed(2)}`);
+        }
         
         // Calculate result rate
         let resultRate = 0;
@@ -497,9 +523,6 @@ export function CampaignForecast({
             ? (result / data.forecast.impressions) * 100 
             : 0;
         }
-        
-        // Calculate cost per result
-        const costPerResult = result > 0 ? budget / result : 0;
 
         // Transform Meta API response to our format
         return {
@@ -578,9 +601,22 @@ export function CampaignForecast({
           const goalMetrics = getOptimizationGoalMetrics(objective, optimizationGoal, destination);
           
           const impressions = Number((fallbackData as any).impressions) || 0;
-          const result = calculateResultFromImpressions(impressions, budget, optimizationGoal);
+          let result = calculateResultFromImpressions(impressions, budget, optimizationGoal);
+          
+          // Apply benchmark if available
+          const benchmarkKey = `${market.name}_${optimizationGoal}`;
+          const benchmark = benchmarks.get(benchmarkKey);
+          
+          let costPerResult: number;
+          if (benchmark?.avg_cost_per_result && benchmark.avg_cost_per_result > 0) {
+            costPerResult = benchmark.avg_cost_per_result;
+            result = budget / costPerResult;
+            console.log(`✓ Using benchmark CPR (fallback) for ${market.name}/${optimizationGoal}: $${costPerResult.toFixed(2)}`);
+          } else {
+            costPerResult = result > 0 ? budget / result : 0;
+          }
+          
           const resultRate = impressions > 0 ? (result / impressions) * 100 : 0;
-          const costPerResult = result > 0 ? budget / result : 0;
 
           return {
             audienceSize: (fallbackData as any).reach * 10,
@@ -645,9 +681,22 @@ export function CampaignForecast({
     }
     const goalMetrics = getOptimizationGoalMetrics(objective, optimizationGoal, destination);
     
-    const result = calculateResultFromImpressions(impressions, budget, optimizationGoal);
+    let result = calculateResultFromImpressions(impressions, budget, optimizationGoal);
+    
+    // Apply benchmark if available
+    const benchmarkKey = `${market.name}_${optimizationGoal}`;
+    const benchmark = benchmarks.get(benchmarkKey);
+    
+    let costPerResult: number;
+    if (benchmark?.avg_cost_per_result && benchmark.avg_cost_per_result > 0) {
+      costPerResult = benchmark.avg_cost_per_result;
+      result = budget / costPerResult;
+      console.log(`✓ Using benchmark CPR (mock) for ${market.name}/${optimizationGoal}: $${costPerResult.toFixed(2)}`);
+    } else {
+      costPerResult = result > 0 ? budget / result : 0;
+    }
+    
     const resultRate = impressions > 0 ? (result / impressions) * 100 : 0;
-    const costPerResult = result > 0 ? budget / result : 0;
 
     return {
       audienceSize: reach * 10,
@@ -760,9 +809,22 @@ export function CampaignForecast({
               const goalMetrics = getOptimizationGoalMetrics(objective, optimizationGoal, destination);
               
               // Calculate results using optimization goal modifiers
-              const result = calculateResultFromImpressions(phaseImpressions, campaignBudget, optimizationGoal);
+              let result = calculateResultFromImpressions(phaseImpressions, campaignBudget, optimizationGoal);
+              
+              // Apply benchmark if available
+              const benchmarkKey = `${market.name}_${optimizationGoal}`;
+              const benchmark = benchmarks.get(benchmarkKey);
+              
+              let costPerResult: number;
+              if (benchmark?.avg_cost_per_result && benchmark.avg_cost_per_result > 0) {
+                costPerResult = benchmark.avg_cost_per_result;
+                result = campaignBudget / costPerResult;
+                console.log(`✓ Using benchmark CPR (phase) for ${market.name}/${optimizationGoal}: $${costPerResult.toFixed(2)}`);
+              } else {
+                costPerResult = result > 0 ? campaignBudget / result : 0;
+              }
+              
               const resultRate = phaseImpressions > 0 ? (result / phaseImpressions) * 100 : 0;
-              const costPerResult = result > 0 ? campaignBudget / result : 0;
               
               console.log(`  ✓ Phase ${phase.name} allocated:`, {
                 budgetRatio: `${(budgetRatio * 100).toFixed(1)}%`,
