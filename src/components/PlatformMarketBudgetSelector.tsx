@@ -116,11 +116,18 @@ export function PlatformMarketBudgetSelector({
         .select("*")
         .order("synced_at", { ascending: false });
 
+      if (pagesError) {
+        console.error("Error fetching pages:", pagesError);
+      }
+      
       if (!pagesError && pagesData) {
+        console.log("Loaded pages:", pagesData);
         setPages(pagesData.map((page: any) => ({
           id: page.page_id,
           name: page.page_name,
         })));
+      } else if (!pagesError && !pagesData) {
+        console.warn("No pages data returned");
       }
 
       // Fetch pixels from database
@@ -156,12 +163,19 @@ export function PlatformMarketBudgetSelector({
         .select("*")
         .order("synced_at", { ascending: false });
 
+      if (productSetsError) {
+        console.error("Error fetching product sets:", productSetsError);
+      }
+
       if (!productSetsError && productSetsData) {
+        console.log("Loaded product sets:", productSetsData);
         setProductSets(productSetsData.map((ps: any) => ({
           id: ps.product_set_id,
           name: ps.product_set_name,
           catalogId: ps.catalog_id,
         })));
+      } else if (!productSetsError && !productSetsData) {
+        console.warn("No product sets data returned");
       }
 
       // Fetch conversion events from database
