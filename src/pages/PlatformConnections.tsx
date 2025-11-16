@@ -103,21 +103,19 @@ export default function PlatformConnections() {
 
         const scope = useManagedLogin ? PLATFORM_CONFIG.meta.managedLoginScopes : PLATFORM_CONFIG.meta.oauthScopes;
         
-        // Build OAuth URL with support for managed accounts
+        // Build OAuth URL matching working Supermetrics flow
         const oauthParams = new URLSearchParams({
-          client_id: clientId,
-          config_id: PLATFORM_CONFIG.meta.configId,
-          redirect_uri: redirectUri,
-          scope: scope,
           response_type: 'code',
+          scope: PLATFORM_CONFIG.meta.oauthScopes,
+          client_id: clientId,
+          redirect_uri: redirectUri,
           state: platformType,
-          auth_type: 'reauthenticate', // Force reauth to support managed accounts
-          display: 'popup'
+          ret: 'login'
         });
         
-        // Use business.facebook.com for managed accounts (OpenID), www.facebook.com for regular
+        // Use business.facebook.com for managed accounts, www.facebook.com for regular
         const baseUrl = useManagedLogin ? 'https://business.facebook.com' : 'https://www.facebook.com';
-        const oauthUrl = `${baseUrl}/${PLATFORM_CONFIG.meta.apiVersion}/dialog/oauth?${oauthParams.toString()}`;
+        const oauthUrl = `${baseUrl}/dialog/oauth?${oauthParams.toString()}`;
         
         console.log("Meta OAuth - Redirecting to:", oauthUrl.replace(clientId, 'HIDDEN'));
         
