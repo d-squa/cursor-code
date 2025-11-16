@@ -187,7 +187,6 @@ export function HierarchicalTimelineScheduler({
   };
 
   const updatePhaseName = (platformId: string, marketId: string, phaseId: string, name: string) => {
-    markAsCustom(platformId, marketId);
     setPlatforms(
       platforms.map(p => {
         if (p.id === platformId) {
@@ -197,6 +196,7 @@ export function HierarchicalTimelineScheduler({
               if (m.id === marketId) {
                 return {
                   ...m,
+                  useGlobalFunnel: false,
                   phases: m.phases?.map(ph => ph.id === phaseId ? { ...ph, name } : ph)
                 };
               }
@@ -210,7 +210,6 @@ export function HierarchicalTimelineScheduler({
   };
 
   const updatePhaseBudget = (platformId: string, marketId: string, phaseId: string, percentage: number) => {
-    markAsCustom(platformId, marketId);
     setPlatforms(
       platforms.map(p => {
         if (p.id === platformId) {
@@ -220,6 +219,7 @@ export function HierarchicalTimelineScheduler({
               if (m.id === marketId) {
                 return {
                   ...m,
+                  useGlobalFunnel: false,
                   phases: m.phases?.map(ph => 
                     ph.id === phaseId 
                       ? { ...ph, budgetPercentage: Math.max(0, Math.min(100, percentage)) }
