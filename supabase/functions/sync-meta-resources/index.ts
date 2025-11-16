@@ -448,6 +448,21 @@ serve(async (req) => {
 
     console.log("Sync completed:", syncResults);
 
+    // Trigger benchmark sync in background
+    try {
+      const benchmarkUrl = `${supabaseUrl}/functions/v1/sync-campaign-benchmarks`;
+      fetch(benchmarkUrl, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${authHeader.replace("Bearer ", "")}`,
+          "Content-Type": "application/json"
+        }
+      }).catch(err => console.error("Background benchmark sync error:", err));
+      console.log("Benchmark sync triggered in background");
+    } catch (error) {
+      console.error("Error triggering benchmark sync:", error);
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true, 

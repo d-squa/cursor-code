@@ -106,6 +106,54 @@ export type Database = {
           },
         ]
       }
+      campaign_performance_benchmarks: {
+        Row: {
+          avg_cost_per_result: number | null
+          campaign_count: number
+          created_at: string
+          date_range_end: string
+          date_range_start: string
+          id: string
+          impressions: number
+          market: string
+          optimization_goal: string
+          total_results: number
+          total_spend: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avg_cost_per_result?: number | null
+          campaign_count?: number
+          created_at?: string
+          date_range_end: string
+          date_range_start: string
+          id?: string
+          impressions?: number
+          market: string
+          optimization_goal: string
+          total_results?: number
+          total_spend?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avg_cost_per_result?: number | null
+          campaign_count?: number
+          created_at?: string
+          date_range_end?: string
+          date_range_start?: string
+          id?: string
+          impressions?: number
+          market?: string
+          optimization_goal?: string
+          total_results?: number
+          total_spend?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       campaigns: {
         Row: {
           bo_number: string | null
