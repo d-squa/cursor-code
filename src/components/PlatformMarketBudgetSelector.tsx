@@ -553,11 +553,11 @@ export function PlatformMarketBudgetSelector({
   };
 
   const updateMarketField = (platformIndex: number, marketId: string, field: keyof Market, value: any) => {
-    setPlatforms(
-      platforms.map((p, i) => 
-        i === platformIndex 
-          ? { 
-              ...p, 
+    setPlatforms(prev =>
+      prev.map((p, i) =>
+        i === platformIndex
+          ? {
+              ...p,
               markets: p.markets.map(m => {
                 if (m.id === marketId) {
                   const updated = { ...m, [field]: value };
@@ -568,7 +568,7 @@ export function PlatformMarketBudgetSelector({
                   return updated;
                 }
                 return m;
-              })
+              }),
             }
           : p
       )
