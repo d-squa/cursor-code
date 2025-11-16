@@ -115,7 +115,9 @@ export default function PlatformConnections() {
           display: 'popup'
         });
         
-        const oauthUrl = `https://www.facebook.com/${PLATFORM_CONFIG.meta.apiVersion}/dialog/oauth?${oauthParams.toString()}`;
+        // Use business.facebook.com for managed accounts (OpenID), www.facebook.com for regular
+        const baseUrl = useManagedLogin ? 'https://business.facebook.com' : 'https://www.facebook.com';
+        const oauthUrl = `${baseUrl}/${PLATFORM_CONFIG.meta.apiVersion}/dialog/oauth?${oauthParams.toString()}`;
         
         console.log("Meta OAuth - Redirecting to:", oauthUrl.replace(clientId, 'HIDDEN'));
         
