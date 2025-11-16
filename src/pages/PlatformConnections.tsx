@@ -85,7 +85,7 @@ export default function PlatformConnections() {
     }
   };
 
-  const handleConnectPlatform = async (platformType: string) => {
+  const handleConnectPlatform = async (platformType: string, useManagedLogin = false) => {
     if (platformType === "meta") {
       try {
         // Redirect to Meta OAuth
@@ -94,13 +94,14 @@ export default function PlatformConnections() {
         
         console.log("Meta OAuth - Client ID:", clientId ? "Configured" : "Missing");
         console.log("Meta OAuth - Redirect URI:", redirectUri);
+        console.log("Meta OAuth - Managed Login:", useManagedLogin);
         
         if (!clientId) {
           toast.error("Meta App ID not configured. Please contact support.");
           return;
         }
 
-        const scope = PLATFORM_CONFIG.meta.oauthScopes;
+        const scope = useManagedLogin ? PLATFORM_CONFIG.meta.managedLoginScopes : PLATFORM_CONFIG.meta.oauthScopes;
         
         // Build OAuth URL with support for managed accounts
         const oauthParams = new URLSearchParams({
@@ -327,13 +328,32 @@ export default function PlatformConnections() {
                 <p className="text-muted-foreground mb-4">
                   Connect your first advertising platform to get started
                 </p>
-                <div className="flex gap-2 justify-center">
+                <div className="flex gap-2 justify-center flex-wrap">
                   {PLATFORM_TYPES.map((platform) => {
                     const Icon = platform.icon;
+                    if (platform.id === "meta") {
+                      return (
+                        <div key={platform.id} className="flex gap-2">
+                          <Button
+                            onClick={() => handleConnectPlatform(platform.id, false)}
+                          >
+                            {Icon && <Icon className="h-4 w-4 mr-2" />}
+                            {platform.name}
+                          </Button>
+                          <Button
+                            onClick={() => handleConnectPlatform(platform.id, true)}
+                            variant="outline"
+                          >
+                            {Icon && <Icon className="h-4 w-4 mr-2" />}
+                            Managed (OpenID)
+                          </Button>
+                        </div>
+                      );
+                    }
                     return (
                       <Button
                         key={platform.id}
-                        onClick={() => handleConnectPlatform(platform.id)}
+                        onClick={() => handleConnectPlatform(platform.id, false)}
                       >
                         {Icon && <Icon className="h-4 w-4 mr-2" />}
                         {platform.name}
