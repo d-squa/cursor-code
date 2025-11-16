@@ -106,12 +106,17 @@ export default function PlatformConnections() {
         // Build OAuth URL matching working Supermetrics flow
         const oauthParams = new URLSearchParams({
           response_type: 'code',
-          scope: PLATFORM_CONFIG.meta.oauthScopes,
+          scope,
           client_id: clientId,
           redirect_uri: redirectUri,
           state: platformType,
           ret: 'login'
         });
+        
+        // Include Facebook Login for Business configuration when using Managed Login (OpenID)
+        if (useManagedLogin && PLATFORM_CONFIG.meta.configId) {
+          oauthParams.set('config_id', PLATFORM_CONFIG.meta.configId);
+        }
         
         // Use business.facebook.com for managed accounts, www.facebook.com for regular
         const baseUrl = useManagedLogin ? 'https://business.facebook.com' : 'https://www.facebook.com';
