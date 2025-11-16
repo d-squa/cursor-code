@@ -220,13 +220,13 @@ export function MediaPlanEditor() {
   // Restore draft by URL param or localStorage (latest draft)
   useEffect(() => {
     const restore = async () => {
-      if (!user) return;
+      if (!user || isHydrated) return;
       
       // Check if user explicitly wants a new campaign
       const urlParams = new URLSearchParams(window.location.search);
       const isNewCampaign = urlParams.get('new') === 'true';
       
-      console.log('MediaPlanEditor restore:', { isNewCampaign, url: window.location.href });
+      console.log('MediaPlanEditor restore:', { isNewCampaign, isHydrated, url: window.location.href });
       
       if (isNewCampaign) {
         // Clear the URL param and start fresh
@@ -276,7 +276,7 @@ export function MediaPlanEditor() {
       }
     };
     restore();
-  }, [user]);
+  }, [user, isHydrated]);
   
   // Legacy platforms for step 5 (Platform Configuration)
   const [platforms, setPlatforms] = useState<Platform[]>([
