@@ -794,50 +794,62 @@ export function PlatformMarketBudgetSelector({
                                     value={market.adAccountId || ""}
                                     onValueChange={(value) => {
                                       const account = adAccounts.find(a => a.id === value);
-                                      updateMarketField(platformIndex, market.id, 'adAccountId', value);
-                                      updateMarketField(platformIndex, market.id, 'accountName', account?.name || "");
-                                      
-                                      // Load defaults for this ad account
                                       const defaults = adAccountDefaults[value];
-                                      if (defaults) {
-                                        console.log("Applying defaults for ad account:", value, defaults);
-                                        
-                                        // Apply pixel default
-                                        if (defaults.pixelId) {
-                                          updateMarketField(platformIndex, market.id, 'pixel', defaults.pixelId);
-                                        }
-                                        
-                                        // Apply page default
-                                        if (defaults.pageId) {
-                                          const page = pages.find(p => p.id === defaults.pageId);
-                                          updateMarketField(platformIndex, market.id, 'pageId', defaults.pageId);
-                                          updateMarketField(platformIndex, market.id, 'page', page?.name || defaults.pageId);
-                                        }
-                                        
-                                        // Apply Instagram account default
-                                        if (defaults.instagramActorId) {
-                                          updateMarketField(platformIndex, market.id, 'instagramActorId', defaults.instagramActorId);
-                                        }
-                                        
-                                        // Apply catalog default
-                                        if (defaults.catalog) {
-                                          updateMarketField(platformIndex, market.id, 'catalog', defaults.catalog);
-                                        }
-                                        
-                                        // Apply product set default
-                                        if (defaults.productSet) {
-                                          updateMarketField(platformIndex, market.id, 'productSet', defaults.productSet);
-                                        }
-                                        
-                                        // Apply conversion event default
-                                        if (defaults.conversionEvent) {
-                                          updateMarketField(platformIndex, market.id, 'conversionEvent', defaults.conversionEvent);
-                                        }
-                                        
-                                        toast.success("Applied default settings for this ad account");
-                                      } else {
-                                        console.log("No defaults found for ad account:", value);
-                                      }
+                                      
+                                      // Batch all updates including defaults into a single state update
+                                      setPlatforms(prev =>
+                                        prev.map((p, i) =>
+                                          i === platformIndex
+                                            ? {
+                                                ...p,
+                                                markets: p.markets.map(m => {
+                                                  if (m.id === market.id) {
+                                                    const updated: Market = {
+                                                      ...m,
+                                                      adAccountId: value,
+                                                      accountName: account?.name || "",
+                                                    };
+                                                    
+                                                    // Apply defaults if available
+                                                    if (defaults) {
+                                                      console.log("Applying defaults for ad account:", value, defaults);
+                                                      
+                                                      if (defaults.pixelId) {
+                                                        updated.pixel = defaults.pixelId;
+                                                      }
+                                                      if (defaults.pageId) {
+                                                        updated.pageId = defaults.pageId;
+                                                        updated.page = defaults.pageId;
+                                                      }
+                                                      if (defaults.instagramActorId) {
+                                                        updated.instagramActorId = defaults.instagramActorId;
+                                                      }
+                                                      if (defaults.catalog) {
+                                                        updated.catalog = defaults.catalog;
+                                                      }
+                                                      if (defaults.productSet) {
+                                                        updated.productSet = defaults.productSet;
+                                                      }
+                                                      if (defaults.conversionEvent) {
+                                                        updated.conversionEvent = defaults.conversionEvent;
+                                                      }
+                                                      
+                                                      toast.success("Applied default settings for this ad account");
+                                                    }
+                                                    
+                                                    // Initialize phases array if it doesn't exist
+                                                    if (!updated.phases || updated.phases.length === 0) {
+                                                      updated.phases = [];
+                                                    }
+                                                    
+                                                    return updated;
+                                                  }
+                                                  return m;
+                                                }),
+                                              }
+                                            : p
+                                        )
+                                      );
                                     }}
                                   >
                                     <SelectTrigger className="h-7 text-xs">
