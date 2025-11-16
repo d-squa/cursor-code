@@ -14,12 +14,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ChevronDown } from "lucide-react";
 import { toast } from "sonner";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { MARKET_OPTIONS } from "@/utils/markets";
 
 interface PlatformMarketBudgetSelectorProps {
   platforms: PlatformWithMarkets[];
-  setPlatforms: (platforms: PlatformWithMarkets[]) => void;
+  setPlatforms: React.Dispatch<React.SetStateAction<PlatformWithMarkets[]>>;
   totalBudget: number;
   startDate?: string;
   endDate?: string;
