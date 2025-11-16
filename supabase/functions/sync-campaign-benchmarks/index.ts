@@ -41,7 +41,11 @@ serve(async (req) => {
       throw new Error("Unauthorized");
     }
 
-    console.log("Starting benchmark sync for user:", user.id);
+    console.log("=".repeat(60));
+    console.log("🚀 STARTING BENCHMARK SYNC");
+    console.log("User ID:", user.id);
+    console.log("Timestamp:", new Date().toISOString());
+    console.log("=".repeat(60));
 
     // Get active Meta connection
     const { data: connection, error: connError } = await supabase
@@ -53,13 +57,19 @@ serve(async (req) => {
       .single();
 
     if (connError || !connection) {
+      console.error("❌ No active Meta connection found:", connError);
       throw new Error("No active Meta connection found");
     }
 
+    console.log("✅ Meta connection found:", connection.platform_name);
+
     const accessToken = connection.access_token;
     if (!accessToken) {
+      console.error("❌ No access token available");
       throw new Error("No access token available");
     }
+
+    console.log("✅ Access token retrieved");
 
     // Get all ad accounts for the user
     const { data: adAccounts } = await supabase
@@ -68,14 +78,14 @@ serve(async (req) => {
       .eq("user_id", user.id);
 
     if (!adAccounts || adAccounts.length === 0) {
-      console.log("No ad accounts found");
+      console.log("⚠️ No ad accounts found for user");
       return new Response(
         JSON.stringify({ message: "No ad accounts found" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log(`Processing ${adAccounts.length} ad accounts`);
+    console.log(`📊 Found ${adAccounts.length} ad accounts to process`);
 
     // Calculate date range (last 3 months)
     const endDate = new Date();
@@ -85,12 +95,16 @@ serve(async (req) => {
     const dateRangeStart = startDate.toISOString().split("T")[0];
     const dateRangeEnd = endDate.toISOString().split("T")[0];
 
+    console.log(`📅 Date Range: ${dateRangeStart} to ${dateRangeEnd}`);
+
     // Process each ad account
     const benchmarkMap = new Map<string, BenchmarkData>();
+    let processedAccounts = 0;
+    let failedAccounts = 0;
 
     for (const account of adAccounts) {
       try {
-        console.log(`Processing account: ${account.account_id}`);
+        console.log(`\n📱 Processing account ${processedAccounts + 1}/${adAccounts.length}: ${account.account_id}`);
         
         // Fetch campaigns in batches to avoid API limits
         await processCampaignsBatch(
@@ -101,41 +115,71 @@ serve(async (req) => {
           benchmarkMap
         );
         
+        processedAccounts++;
+        console.log(`✅ Account ${account.account_id} processed successfully`);
+        
         // Add delay between accounts to avoid rate limiting
         await new Promise(resolve => setTimeout(resolve, 1000));
       } catch (error) {
-        console.error(`Error processing account ${account.account_id}:`, error);
+        failedAccounts++;
+        console.error(`❌ Error processing account ${account.account_id}:`, error);
         // Continue with next account
       }
     }
 
+    console.log(`\n📊 Processing Summary:`);
+    console.log(`  - Accounts processed: ${processedAccounts}`);
+    console.log(`  - Accounts failed: ${failedAccounts}`);
+    console.log(`  - Unique benchmarks found: ${benchmarkMap.size}`);
+
     // Store benchmarks in database
-    console.log(`Storing ${benchmarkMap.size} benchmarks`);
+    console.log(`\n💾 Storing ${benchmarkMap.size} benchmarks in database...`);
+    
+    let storedCount = 0;
+    let storageErrors = 0;
     
     for (const [key, benchmark] of benchmarkMap.entries()) {
       const avgCostPerResult = benchmark.total_results > 0
         ? benchmark.total_spend / benchmark.total_results
         : null;
 
-      await supabase
-        .from("campaign_performance_benchmarks")
-        .upsert({
-          user_id: user.id,
-          market: benchmark.market,
-          optimization_goal: benchmark.optimization_goal,
-          avg_cost_per_result: avgCostPerResult,
-          total_spend: benchmark.total_spend,
-          total_results: benchmark.total_results,
-          impressions: benchmark.impressions,
-          campaign_count: benchmark.campaign_count,
-          date_range_start: dateRangeStart,
-          date_range_end: dateRangeEnd,
-        }, {
-          onConflict: "user_id,market,optimization_goal,date_range_start,date_range_end"
-        });
+      try {
+        const { error } = await supabase
+          .from("campaign_performance_benchmarks")
+          .upsert({
+            user_id: user.id,
+            market: benchmark.market,
+            optimization_goal: benchmark.optimization_goal,
+            avg_cost_per_result: avgCostPerResult,
+            total_spend: benchmark.total_spend,
+            total_results: benchmark.total_results,
+            impressions: benchmark.impressions,
+            campaign_count: benchmark.campaign_count,
+            date_range_start: dateRangeStart,
+            date_range_end: dateRangeEnd,
+          }, {
+            onConflict: "user_id,market,optimization_goal,date_range_start,date_range_end"
+          });
+
+        if (error) {
+          console.error(`❌ Error storing benchmark ${key}:`, error);
+          storageErrors++;
+        } else {
+          console.log(`✅ Stored: ${benchmark.market} / ${benchmark.optimization_goal} - CPR: $${avgCostPerResult?.toFixed(2) || 'N/A'} (${benchmark.campaign_count} campaigns)`);
+          storedCount++;
+        }
+      } catch (error) {
+        console.error(`❌ Exception storing benchmark ${key}:`, error);
+        storageErrors++;
+      }
     }
 
-    console.log("Benchmark sync completed successfully");
+    console.log(`\n💾 Storage Summary:`);
+    console.log(`  - Successfully stored: ${storedCount}`);
+    console.log(`  - Storage errors: ${storageErrors}`);
+    console.log("\n" + "=".repeat(60));
+    console.log("✅ BENCHMARK SYNC COMPLETED");
+    console.log("=".repeat(60));
 
     return new Response(
       JSON.stringify({
@@ -162,24 +206,33 @@ async function processCampaignsBatch(
   benchmarkMap: Map<string, BenchmarkData>
 ): Promise<void> {
   let nextUrl = `https://graph.facebook.com/v21.0/act_${accountId}/campaigns?fields=id,name,objective,status&limit=100&access_token=${accessToken}`;
+  let totalCampaigns = 0;
+  let pageNumber = 0;
 
   while (nextUrl) {
+    pageNumber++;
+    console.log(`  📄 Fetching campaigns page ${pageNumber}...`);
+    
     const campaignsResponse = await fetch(nextUrl);
     
     if (!campaignsResponse.ok) {
       const errorText = await campaignsResponse.text();
-      console.error(`Error fetching campaigns: ${errorText}`);
+      console.error(`  ❌ Error fetching campaigns page ${pageNumber}: ${errorText}`);
       break;
     }
 
     const campaignsData = await campaignsResponse.json();
     const campaigns = campaignsData.data || [];
 
-    console.log(`Processing ${campaigns.length} campaigns from account ${accountId}`);
+    console.log(`  ✅ Retrieved ${campaigns.length} campaigns from page ${pageNumber}`);
+    totalCampaigns += campaigns.length;
 
     // Process campaigns in smaller batches to avoid timeouts
     for (let i = 0; i < campaigns.length; i += 20) {
       const batch = campaigns.slice(i, i + 20);
+      const batchNumber = Math.floor(i / 20) + 1;
+      console.log(`    🔄 Processing batch ${batchNumber} (campaigns ${i + 1}-${Math.min(i + 20, campaigns.length)})...`);
+      
       await Promise.all(
         batch.map((campaign: any) => 
           processCampaignInsights(
@@ -200,10 +253,13 @@ async function processCampaignsBatch(
     nextUrl = campaignsData.paging?.next || null;
     
     if (nextUrl) {
+      console.log(`  ➡️  More campaigns available, fetching next page...`);
       // Add delay before fetching next page
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
   }
+  
+  console.log(`  ✅ Total campaigns processed for account: ${totalCampaigns}`);
 }
 
 async function processCampaignInsights(
@@ -224,13 +280,20 @@ async function processCampaignInsights(
     const insightsResponse = await fetch(insightsUrl);
     
     if (!insightsResponse.ok) {
+      console.log(`      ⚠️  Skipping campaign ${campaign.id} - no insights available`);
       return; // Skip this campaign on error
     }
 
     const insightsData = await insightsResponse.json();
     const insights: CampaignInsight[] = insightsData.data || [];
 
+    if (insights.length === 0) {
+      console.log(`      ⚠️  Campaign ${campaign.name || campaign.id} - no data for date range`);
+      return;
+    }
+
     const objective = campaign.objective || "UNKNOWN";
+    let benchmarksAdded = 0;
 
     for (const insight of insights) {
       const country = insight.country || "UNKNOWN";
@@ -276,6 +339,7 @@ async function processCampaignInsights(
         benchmark.total_results += results;
         benchmark.impressions += impressions;
         benchmark.campaign_count += 1;
+        benchmarksAdded++;
       }
 
       // If no actions, still store by objective
@@ -297,9 +361,14 @@ async function processCampaignInsights(
         benchmark.total_spend += spend;
         benchmark.impressions += impressions;
         benchmark.campaign_count += 1;
+        benchmarksAdded++;
       }
     }
+    
+    if (benchmarksAdded > 0) {
+      console.log(`      ✅ Campaign ${campaign.name || campaign.id} - added ${benchmarksAdded} benchmark(s)`);
+    }
   } catch (error) {
-    console.error(`Error processing campaign ${campaign.id}:`, error);
+    console.error(`      ❌ Error processing campaign ${campaign.id}:`, error);
   }
 }

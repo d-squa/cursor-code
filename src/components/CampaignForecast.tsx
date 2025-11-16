@@ -167,9 +167,15 @@ export function CampaignForecast({
     };
 
     const loadBenchmarks = async () => {
+      console.log("📊 Loading benchmarks...");
       const benchmarkData = await getAllBenchmarks();
       setBenchmarks(benchmarkData);
-      console.log(`Loaded ${benchmarkData.size} benchmarks`);
+      console.log(`✅ Loaded ${benchmarkData.size} benchmarks:`);
+      
+      // Log details of each benchmark
+      benchmarkData.forEach((benchmark, key) => {
+        console.log(`  • ${key}: CPR=$${benchmark.avg_cost_per_result?.toFixed(2) || 'N/A'}, Campaigns=${benchmark.campaign_count}`);
+      });
     };
 
     loadExistingForecast();
