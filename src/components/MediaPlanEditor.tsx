@@ -221,7 +221,19 @@ export function MediaPlanEditor() {
   useEffect(() => {
     const restore = async () => {
       if (!user) return;
-      let cid = new URLSearchParams(window.location.search).get('campaignId') || localStorage.getItem('draftCampaignId') || '';
+      
+      // Check if user explicitly wants a new campaign
+      const urlParams = new URLSearchParams(window.location.search);
+      const isNewCampaign = urlParams.get('new') === 'true';
+      
+      if (isNewCampaign) {
+        // Clear the URL param and start fresh
+        window.history.replaceState({}, '', '/');
+        setIsHydrated(true);
+        return;
+      }
+      
+      let cid = urlParams.get('campaignId') || localStorage.getItem('draftCampaignId') || '';
       if (!cid) {
         const { data } = await supabase
           .from('campaigns')
