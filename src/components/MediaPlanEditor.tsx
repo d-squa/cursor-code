@@ -226,14 +226,21 @@ export function MediaPlanEditor() {
       const urlParams = new URLSearchParams(window.location.search);
       const isNewCampaign = urlParams.get('new') === 'true';
       
+      console.log('MediaPlanEditor restore:', { isNewCampaign, url: window.location.href });
+      
       if (isNewCampaign) {
         // Clear the URL param and start fresh
+        console.log('Starting fresh campaign - clearing all state');
         window.history.replaceState({}, '', '/');
+        localStorage.removeItem('draftCampaignId');
+        setSavedCampaignId(null);
         setIsHydrated(true);
         return;
       }
       
       let cid = urlParams.get('campaignId') || localStorage.getItem('draftCampaignId') || '';
+      console.log('Checking for existing draft:', { cid, hasUrlParam: !!urlParams.get('campaignId'), hasLocalStorage: !!localStorage.getItem('draftCampaignId') });
+      
       if (!cid) {
         const { data } = await supabase
           .from('campaigns')
@@ -243,7 +250,10 @@ export function MediaPlanEditor() {
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();
-        if (data) cid = (data as any).id;
+        if (data) {
+          cid = (data as any).id;
+          console.log('Found latest draft from database:', cid);
+        }
       }
       if (cid) {
         const { data: c, error } = await supabase
@@ -252,13 +262,16 @@ export function MediaPlanEditor() {
           .eq('id', cid)
           .single();
         if (!error && c) {
+          console.log('Loading draft campaign:', cid);
           setSavedCampaignId((c as any).id);
           localStorage.setItem('draftCampaignId', (c as any).id);
           hydrateFromCampaign(c);
         } else {
+          console.log('No draft found, starting fresh');
           setIsHydrated(true);
         }
       } else {
+        console.log('No campaign ID found, starting fresh');
         setIsHydrated(true);
       }
     };
