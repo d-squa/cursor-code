@@ -101,9 +101,21 @@ export default function PlatformConnections() {
         }
 
         const scope = PLATFORM_CONFIG.meta.oauthScopes;
-        const oauthUrl = `https://www.facebook.com/${PLATFORM_CONFIG.meta.apiVersion}/dialog/oauth?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&state=${platformType}`;
         
-        console.log("Meta OAuth - Redirecting to:", oauthUrl);
+        // Build OAuth URL with support for managed accounts
+        const oauthParams = new URLSearchParams({
+          client_id: clientId,
+          redirect_uri: redirectUri,
+          scope: scope,
+          response_type: 'code',
+          state: platformType,
+          auth_type: 'reauthenticate', // Force reauth to support managed accounts
+          display: 'popup'
+        });
+        
+        const oauthUrl = `https://www.facebook.com/${PLATFORM_CONFIG.meta.apiVersion}/dialog/oauth?${oauthParams.toString()}`;
+        
+        console.log("Meta OAuth - Redirecting to:", oauthUrl.replace(clientId, 'HIDDEN'));
         
         // Add a small delay to ensure UI updates before redirect
         toast.loading("Redirecting to Facebook...");

@@ -44,6 +44,7 @@ serve(async (req) => {
       throw new Error("Meta credentials not configured");
     }
 
+    console.log("Exchanging code for access token...");
     const tokenResponse = await fetch(
       `https://graph.facebook.com/v21.0/oauth/access_token?client_id=${clientId}&client_secret=${clientSecret}&redirect_uri=${encodeURIComponent(redirectUri)}&code=${code}`
     );
@@ -51,42 +52,74 @@ serve(async (req) => {
     if (!tokenResponse.ok) {
       const errorData = await tokenResponse.json();
       console.error("Token exchange failed:", errorData);
-      throw new Error("Failed to exchange code for token");
+      
+      // Check for managed account specific errors
+      if (errorData.error?.message?.includes("managed") || errorData.error?.code === 190) {
+        throw new Error("Managed account authentication failed. Please ensure you're using the correct Meta account type.");
+      }
+      
+      throw new Error(`Failed to exchange code for token: ${errorData.error?.message || 'Unknown error'}`);
     }
 
-    const { access_token } = await tokenResponse.json();
+    const tokenData = await tokenResponse.json();
+    const { access_token } = tokenData;
+    
+    console.log("Successfully obtained access token");
 
-    // Get user's ad accounts
+    // Get user's ad accounts with extended fields
+    console.log("Fetching ad accounts...");
     const adAccountsResponse = await fetch(
-      `https://graph.facebook.com/v21.0/me/adaccounts?fields=id,name,account_status&access_token=${access_token}`
+      `https://graph.facebook.com/v21.0/me/adaccounts?fields=id,name,account_status,currency,timezone_name&access_token=${access_token}`
     );
 
     if (!adAccountsResponse.ok) {
-      throw new Error("Failed to fetch ad accounts");
+      const errorData = await adAccountsResponse.json();
+      console.error("Failed to fetch ad accounts:", errorData);
+      
+      // Check for managed account permission issues
+      if (errorData.error?.code === 200 || errorData.error?.code === 190) {
+        throw new Error("Permission denied. Please ensure your account has access to ad accounts and try reconnecting.");
+      }
+      
+      throw new Error(`Failed to fetch ad accounts: ${errorData.error?.message || 'Unknown error'}`);
     }
 
     const adAccountsData = await adAccountsResponse.json();
     const adAccounts = adAccountsData.data || [];
+    
+    console.log(`Found ${adAccounts.length} ad accounts`);
 
     if (adAccounts.length === 0) {
-      throw new Error("No ad accounts found");
+      throw new Error("No ad accounts found. Please ensure you have access to at least one ad account in your Business Manager.");
     }
 
-    // Try to fetch accessible Business Managers and pick the first one
+    // Try to fetch accessible Business Managers - critical for managed accounts
+    console.log("Fetching Business Managers...");
     let selectedBmId: string | null = null;
     let businessesMeta: Array<{ id: string; name: string }> = [];
+    
     try {
       const businessesResponse = await fetch(
-        `https://graph.facebook.com/v21.0/me/businesses?fields=id,name&access_token=${access_token}`
+        `https://graph.facebook.com/v21.0/me/businesses?fields=id,name,verification_status&access_token=${access_token}`
       );
-      const businessesData = await businessesResponse.json();
-      const businesses = Array.isArray(businessesData?.data) ? businessesData.data : [];
-      businessesMeta = businesses.map((b: any) => ({ id: b.id, name: b.name }));
-      if (businesses.length > 0) {
-        selectedBmId = businesses[0].id;
+      
+      if (businessesResponse.ok) {
+        const businessesData = await businessesResponse.json();
+        const businesses = Array.isArray(businessesData?.data) ? businessesData.data : [];
+        businessesMeta = businesses.map((b: any) => ({ id: b.id, name: b.name }));
+        console.log(`Found ${businesses.length} Business Managers`);
+        
+        if (businesses.length > 0) {
+          selectedBmId = businesses[0].id;
+          console.log(`Selected Business Manager: ${businesses[0].name} (${selectedBmId})`);
+        }
+      } else {
+        const errorData = await businessesResponse.json();
+        console.log("Business Manager fetch warning:", errorData.error?.message);
       }
-    } catch (e) {
-      console.log("No accessible business managers or insufficient permissions");
+    } catch (e: any) {
+      console.log("Could not fetch Business Managers:", e.message);
+      // This is not critical - continue without BM
     }
 
     // Create a single Meta platform connection (not tied to specific ad accounts yet)
