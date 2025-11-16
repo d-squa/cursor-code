@@ -95,7 +95,7 @@ export function PlatformMarketBudgetSelector({
           name: acc.account_name,
         })));
         
-        // Store defaults for quick access
+        // Store defaults for quick access - will be populated after all resources are fetched
         const defaults: Record<string, any> = {};
         adAccountsData.forEach((acc: any) => {
           defaults[acc.account_id] = {
@@ -203,6 +203,86 @@ export function PlatformMarketBudgetSelector({
       setLoadingCatalogs(false);
       setLoadingProductSets(false);
       setLoadingConversionEvents(false);
+      
+      // After all resources are loaded, auto-populate defaults if not already set
+      autoPopulateDefaults();
+    }
+  };
+
+  // Auto-populate defaults for ad accounts that don't have them set
+  const autoPopulateDefaults = async () => {
+    try {
+      const { data: adAccountsData } = await supabase
+        .from("meta_ad_accounts" as any)
+        .select("*");
+
+      if (!adAccountsData) return;
+
+      const updates: any[] = [];
+
+      adAccountsData.forEach((acc: any) => {
+        const needsUpdate = !acc.default_pixel_id || !acc.default_page_id;
+        
+        if (needsUpdate) {
+          const update: any = {
+            account_id: acc.account_id,
+          };
+
+          // Auto-select first pixel for this ad account if not set
+          if (!acc.default_pixel_id) {
+            const firstPixel = pixels.find(p => p.adAccountId === acc.account_id);
+            if (firstPixel) update.default_pixel_id = firstPixel.id;
+          }
+
+          // Auto-select first page if not set
+          if (!acc.default_page_id && pages.length > 0) {
+            update.default_page_id = pages[0].id;
+          }
+
+          // Auto-select first Instagram account if not set
+          if (!acc.default_instagram_account_id && instagramAccounts.length > 0) {
+            update.default_instagram_account_id = instagramAccounts[0].id;
+          }
+
+          // Auto-select first catalog if not set
+          if (!acc.default_catalog_id && catalogs.length > 0) {
+            update.default_catalog_id = catalogs[0].id;
+          }
+
+          // Auto-select first product set if not set
+          if (!acc.default_product_set_id && productSets.length > 0) {
+            update.default_product_set_id = productSets[0].id;
+          }
+
+          // Auto-select first conversion event if not set
+          if (!acc.default_conversion_event && conversionEvents.length > 0) {
+            update.default_conversion_event = conversionEvents[0].id;
+          }
+
+          if (Object.keys(update).length > 1) { // More than just account_id
+            updates.push(update);
+          }
+        }
+      });
+
+      // Batch update all ad accounts with auto-populated defaults
+      if (updates.length > 0) {
+        for (const update of updates) {
+          const accountId = update.account_id;
+          delete update.account_id;
+          
+          await supabase
+            .from("meta_ad_accounts" as any)
+            .update(update)
+            .eq("account_id", accountId);
+        }
+
+        // Refresh the defaults after updating
+        await fetchMetaResources();
+        toast.success(`Auto-populated defaults for ${updates.length} ad account(s)`);
+      }
+    } catch (error) {
+      console.error("Failed to auto-populate defaults:", error);
     }
   };
 
@@ -706,15 +786,43 @@ export function PlatformMarketBudgetSelector({
                                       // Load defaults for this ad account
                                       const defaults = adAccountDefaults[value];
                                       if (defaults) {
-                                        if (defaults.pixelId) updateMarketField(platformIndex, market.id, 'pixel', defaults.pixelId);
-                                        if (defaults.pageId) {
-                                          updateMarketField(platformIndex, market.id, 'pageId', defaults.pageId);
-                                          updateMarketField(platformIndex, market.id, 'page', defaults.pageId);
+                                        console.log("Applying defaults for ad account:", value, defaults);
+                                        
+                                        // Apply pixel default
+                                        if (defaults.pixelId) {
+                                          updateMarketField(platformIndex, market.id, 'pixel', defaults.pixelId);
                                         }
-                                        if (defaults.instagramActorId) updateMarketField(platformIndex, market.id, 'instagramActorId', defaults.instagramActorId);
-                                        if (defaults.catalog) updateMarketField(platformIndex, market.id, 'catalog', defaults.catalog);
-                                        if (defaults.productSet) updateMarketField(platformIndex, market.id, 'productSet', defaults.productSet);
-                                        if (defaults.conversionEvent) updateMarketField(platformIndex, market.id, 'conversionEvent', defaults.conversionEvent);
+                                        
+                                        // Apply page default
+                                        if (defaults.pageId) {
+                                          const page = pages.find(p => p.id === defaults.pageId);
+                                          updateMarketField(platformIndex, market.id, 'pageId', defaults.pageId);
+                                          updateMarketField(platformIndex, market.id, 'page', page?.name || defaults.pageId);
+                                        }
+                                        
+                                        // Apply Instagram account default
+                                        if (defaults.instagramActorId) {
+                                          updateMarketField(platformIndex, market.id, 'instagramActorId', defaults.instagramActorId);
+                                        }
+                                        
+                                        // Apply catalog default
+                                        if (defaults.catalog) {
+                                          updateMarketField(platformIndex, market.id, 'catalog', defaults.catalog);
+                                        }
+                                        
+                                        // Apply product set default
+                                        if (defaults.productSet) {
+                                          updateMarketField(platformIndex, market.id, 'productSet', defaults.productSet);
+                                        }
+                                        
+                                        // Apply conversion event default
+                                        if (defaults.conversionEvent) {
+                                          updateMarketField(platformIndex, market.id, 'conversionEvent', defaults.conversionEvent);
+                                        }
+                                        
+                                        toast.success("Applied default settings for this ad account");
+                                      } else {
+                                        console.log("No defaults found for ad account:", value);
                                       }
                                     }}
                                   >
