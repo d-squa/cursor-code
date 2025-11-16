@@ -384,11 +384,15 @@ export default function ActiPlans() {
     const actiplanForecast = forecastData?.actiplanForecast;
     
     // Get platforms and markets from campaign data
-    const platforms = (campaign.platforms as any[] || []).filter(p => p.enabled).map(p => p.name);
+    const platforms = (campaign.platforms as any[] || [])
+      .filter(p => p.enabled)
+      .map(p => p.name || p.id || 'Unknown')
+      .filter(Boolean);
     const allMarkets = (campaign.platforms as any[] || [])
       .filter(p => p.enabled)
       .flatMap(p => p.markets || [])
-      .map(m => m.name);
+      .map(m => m.name || m.id)
+      .filter(Boolean);
     const uniqueMarkets = [...new Set(allMarkets)];
     
     // Get unique objectives from phases across all markets
