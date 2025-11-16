@@ -934,6 +934,7 @@ export function MediaPlanEditor() {
                 }}
                 platformName={platformsWithMarkets[0]?.name || "Facebook (Meta)"}
                 showAdFormats={false}
+                strategyFocus={effectiveStrategyFocus}
               />
 
               <div className="flex justify-between pt-4">
