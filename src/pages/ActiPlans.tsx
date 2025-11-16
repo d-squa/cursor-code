@@ -729,7 +729,7 @@ export default function ActiPlans() {
           )}
           <Button onClick={() => {
             localStorage.removeItem('draftCampaignId');
-            window.location.href = "/";
+            window.location.href = "/?new=true";
           }}>
             New ActiPlan
           </Button>
