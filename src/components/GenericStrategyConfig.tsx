@@ -244,6 +244,7 @@ export function GenericStrategyConfig({
               targeting={config.targeting || {}}
               onUpdate={(t) => setConfig({ ...config, targeting: t })}
               showAdFormats={false}
+              strategyFocus={config.strategyFocus !== "auto" ? config.strategyFocus : "conversions"}
             />
 
             <div className="flex justify-between pt-4">

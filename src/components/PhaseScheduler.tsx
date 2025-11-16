@@ -893,6 +893,7 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate, pla
                             onUpdate={(targeting) => updatePhaseField(phase.id, "targeting", targeting)}
                             platformName={platformName}
                             showAdFormats={false}
+                            strategyFocus={strategyFocus}
                           />
                         )}
                       </div>
