@@ -89,7 +89,7 @@ export default function PlatformConnections() {
     if (platformType === "meta") {
       try {
         // Redirect to Meta OAuth
-        const redirectUri = "https://actiplan.app/platforms";
+        const redirectUri = "https://actiplan.app/settings/platforms";
         const clientId = PLATFORM_CONFIG.meta.appId;
         
         console.log("Meta OAuth - Client ID:", clientId ? "Configured" : "Missing");
@@ -234,7 +234,7 @@ export default function PlatformConnections() {
         
         setSaving(true);
         try {
-          const redirectUri = `${window.location.origin}/platforms`;
+          const redirectUri = "https://actiplan.app/settings/platforms";
           const { data, error } = await supabase.functions.invoke("meta-oauth-callback", {
             body: { code, platformType: state, redirectUri }
           });
