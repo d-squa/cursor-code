@@ -383,24 +383,24 @@ export default function ActiPlans() {
     const forecastData = campaign.forecast_data as any;
     const actiplanForecast = forecastData?.actiplanForecast;
     
-    // Get platforms and markets from campaign data
-    const platforms = (campaign.platforms as any[] || [])
-      .filter(p => p.enabled)
-      .map(p => p.name || p.id || 'Unknown')
-      .filter(Boolean);
-    const allMarkets = (campaign.platforms as any[] || [])
-      .filter(p => p.enabled)
-      .flatMap(p => p.markets || [])
-      .map(m => m.name || m.id)
+    // Get platforms and markets from campaign data (support both legacy and new shapes)
+    const platforms =
+      Array.isArray(campaign.platforms) && (campaign.platforms as any[]).length > 0
+        ? (campaign.platforms as any[]).map((p: any) => p.name || p.id || 'Unknown').filter(Boolean)
+        : Object.keys((campaign.market_splits as any) || {}).map((id) => id.charAt(0).toUpperCase() + id.slice(1));
+
+    const marketSplits = (campaign.market_splits as any) || {};
+    const allMarkets = Object.values(marketSplits)
+      .flatMap((arr: any) => (Array.isArray(arr) ? arr : []))
+      .map((m: any) => m?.name || m?.id)
       .filter(Boolean);
     const uniqueMarkets = [...new Set(allMarkets)];
     
     // Get unique objectives from phases across all markets
-    const allObjectives = (campaign.platforms as any[] || [])
-      .filter(p => p.enabled)
-      .flatMap(p => p.markets || [])
-      .flatMap(m => m.phases || [])
-      .map(phase => phase.objective)
+    const allObjectives = Object.values(marketSplits)
+      .flatMap((arr: any) => (Array.isArray(arr) ? arr : []))
+      .flatMap((m: any) => Array.isArray(m?.phases) ? m.phases : [])
+      .map((phase: any) => phase?.objective)
       .filter(Boolean);
     const uniqueObjectives = [...new Set(allObjectives)];
 
