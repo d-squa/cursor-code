@@ -105,6 +105,7 @@ export default function PlatformConnections() {
         // Build OAuth URL with support for managed accounts
         const oauthParams = new URLSearchParams({
           client_id: clientId,
+          config_id: PLATFORM_CONFIG.meta.configId,
           redirect_uri: redirectUri,
           scope: scope,
           response_type: 'code',
