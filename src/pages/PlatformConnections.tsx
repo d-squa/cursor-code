@@ -89,7 +89,7 @@ export default function PlatformConnections() {
     if (platformType === "meta") {
       try {
         // Redirect to Meta OAuth
-        const redirectUri = `${window.location.origin}/platforms`;
+        const redirectUri = "https://actiplan.app/platforms";
         const clientId = PLATFORM_CONFIG.meta.appId;
         
         console.log("Meta OAuth - Client ID:", clientId ? "Configured" : "Missing");
