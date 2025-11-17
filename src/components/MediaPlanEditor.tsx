@@ -1575,11 +1575,11 @@ export function MediaPlanEditor() {
         campaigns={selectedMarketForBudget?.phases.map(phase => ({
           id: phase.id,
           name: phase.name,
-          budgetType: phase.budgetType
+          budgetType: phase.budgetType,
+          startDate: phase.startDate,
+          endDate: phase.endDate
         })) || []}
         marketBudget={selectedMarketForBudget?.marketBudget || 0}
-        startDate={startDate}
-        endDate={endDate}
       />
     </div>
   );
