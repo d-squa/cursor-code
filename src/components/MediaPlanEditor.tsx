@@ -1663,6 +1663,19 @@ export function MediaPlanEditor() {
         })) || []}
         marketBudget={selectedMarketForBudget?.marketBudget || 0}
       />
+
+      <BulkBudgetTypeDialog
+        open={bulkBudgetDialogOpen}
+        onOpenChange={setBulkBudgetDialogOpen}
+        platform={bulkPlatform}
+        onSave={(updatedMarkets) => {
+          if (!bulkPlatform) return;
+          setPlatformsWithMarkets(prev => prev.map(p =>
+            p.id === bulkPlatform.id ? { ...p, markets: updatedMarkets } : p
+          ));
+          toast.success("Budget types updated across markets.");
+        }}
+      />
     </div>
   );
 }
