@@ -859,6 +859,35 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate, pla
                         </Select>
                       </div>
 
+                      {/* Budget Type - Inline with validation */}
+                      <div className={`p-4 rounded-lg border-2 ${!phase.budgetType ? 'border-yellow-500 bg-yellow-50 dark:bg-yellow-950/20' : 'border-border bg-muted/50'}`}>
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <Label className="font-medium">Budget Type *</Label>
+                            {!phase.budgetType && (
+                              <Badge variant="outline" className="border-yellow-500 text-yellow-700 dark:text-yellow-300">
+                                Required
+                              </Badge>
+                            )}
+                          </div>
+                          <Select
+                            value={phase.budgetType || ""}
+                            onValueChange={(value: "daily" | "lifetime") => updatePhaseField(phase.id, "budgetType", value)}
+                          >
+                            <SelectTrigger className={!phase.budgetType ? 'border-yellow-500' : ''}>
+                              <SelectValue placeholder="Select budget type" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-popover z-50">
+                              <SelectItem value="daily">Daily Budget</SelectItem>
+                              <SelectItem value="lifetime">Lifetime Budget</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          {!phase.budgetType && (
+                            <p className="text-xs text-yellow-700 dark:text-yellow-300">Please select a budget type to continue</p>
+                          )}
+                        </div>
+                      </div>
+
                       {/* Publisher Platforms & Placements */}
                       <div className="space-y-2">
                         <CampaignPublisherConfig
