@@ -94,6 +94,7 @@ export function PhaseScheduler({
   marketTargeting,
   adAccountDefaults,
   onApplyBudgetTypeToAll,
+  onOpenCustomizeBudgetTypes,
 }: PhaseSchedulerProps) {
   const [dragging, setDragging] = useState<DraggingState | null>(null);
   const [editingName, setEditingName] = useState<string | null>(null);
