@@ -105,8 +105,6 @@ export function PlatformMarketBudgetSelector({
             catalog: acc.default_catalog_id,
             productSet: acc.default_product_set_id,
             conversionEvent: acc.default_conversion_event,
-            conversionBudgetType: acc.default_conversion_budget_type,
-            nonConversionBudgetType: acc.default_non_conversion_budget_type,
           };
         });
         setAdAccountDefaults(defaults);
@@ -1134,12 +1132,6 @@ export function PlatformMarketBudgetSelector({
                                   platformName={platform.name}
                                   platformId={platform.id}
                                   marketBudget={marketBudget}
-                                  adAccountId={market.adAccountId}
-                                  adAccountDefaults={{
-                                    hasDefaults: Boolean(adAccountDefaults[market.adAccountId || ""]?.conversionBudgetType || adAccountDefaults[market.adAccountId || ""]?.nonConversionBudgetType),
-                                    conversionBudgetType: adAccountDefaults[market.adAccountId || ""]?.conversionBudgetType,
-                                    nonConversionBudgetType: adAccountDefaults[market.adAccountId || ""]?.nonConversionBudgetType,
-                                  }}
                                 />
                               </div>
                             )}

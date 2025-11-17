@@ -17,7 +17,6 @@ import { CampaignPublisherConfig } from "./CampaignPublisherConfig";
 import { TargetingConfigComponent } from "./TargetingConfig";
 import { getOptimizationGoalForFocus } from "@/utils/strategyFocusMapping";
 import { BudgetTypeApplyDialog } from "./BudgetTypeApplyDialog";
-import { supabase } from "@/integrations/supabase/client";
 
 interface PhaseSchedulerProps {
   phases: Phase[];
@@ -42,7 +41,6 @@ interface PhaseSchedulerProps {
   onApplyBudgetTypeToAll?: (budgetType: "daily" | "lifetime") => void;
   onOpenCustomizeBudgetTypes?: () => void;
   marketBudget?: number;
-  adAccountId?: string;
 }
 
 interface DraggingState {
@@ -99,7 +97,6 @@ export function PhaseScheduler({
   onApplyBudgetTypeToAll,
   onOpenCustomizeBudgetTypes,
   marketBudget,
-  adAccountId,
 }: PhaseSchedulerProps) {
   console.log("PhaseScheduler marketBudget:", marketBudget);
   const [dragging, setDragging] = useState<DraggingState | null>(null);
@@ -107,34 +104,8 @@ export function PhaseScheduler({
   const [editingBudget, setEditingBudget] = useState<string | null>(null);
   const [expandedPhases, setExpandedPhases] = useState<{ [key: string]: boolean }>({});
   const [budgetTypeDialogOpen, setBudgetTypeDialogOpen] = useState(false);
-  const [fetchedDefaults, setFetchedDefaults] = useState<{ hasDefaults: boolean; conversionBudgetType?: string; nonConversionBudgetType?: string }>();
   const [pendingBudgetType, setPendingBudgetType] = useState<"daily" | "lifetime" | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const fetchDefaults = async () => {
-      if (adAccountDefaults || !adAccountId) return;
-      try {
-        const { data, error } = await supabase
-          .from("meta_ad_accounts" as any)
-          .select("default_conversion_budget_type, default_non_conversion_budget_type")
-          .eq("account_id", adAccountId)
-          .maybeSingle();
-        if (!error && data) {
-          const conv = (data as any).default_conversion_budget_type as string | null;
-          const nonConv = (data as any).default_non_conversion_budget_type as string | null;
-          setFetchedDefaults({
-            hasDefaults: Boolean(conv || nonConv),
-            conversionBudgetType: conv || undefined,
-            nonConversionBudgetType: nonConv || undefined,
-          });
-        }
-      } catch (e) {
-        console.error("Failed to fetch ad account defaults", e);
-      }
-    };
-    fetchDefaults();
-  }, [adAccountDefaults, adAccountId]);
 
   // Initialize default phases if empty
   useEffect(() => {
@@ -932,8 +903,7 @@ export function PhaseScheduler({
                               onPhasesChange(phases.map(p => p.id === phase.id ? { ...p, budgetType: bt } : p));
                               
                               // If no defaults are set, ask if user wants to apply to all
-                              const defaultsSource = adAccountDefaults || fetchedDefaults;
-                              if (!defaultsSource?.hasDefaults && onApplyBudgetTypeToAll && bt) {
+                              if (!adAccountDefaults?.hasDefaults && onApplyBudgetTypeToAll && bt) {
                                 setPendingBudgetType(bt);
                                 setBudgetTypeDialogOpen(true);
                               }
@@ -951,50 +921,6 @@ export function PhaseScheduler({
                           {!phase.budgetType && (
                             <p className="text-xs text-yellow-700 dark:text-yellow-300">Please select a budget type to continue</p>
                           )}
-                          
-                          {/* Auto-applied default explanation */}
-                          {(() => {
-                            console.log("Budget label check:", {
-                              hasBudgetType: !!phase.budgetType,
-                              budgetType: phase.budgetType,
-                              hasDefaults: adAccountDefaults?.hasDefaults,
-                              conversionDefault: adAccountDefaults?.conversionBudgetType,
-                              nonConversionDefault: adAccountDefaults?.nonConversionBudgetType,
-                              objective: phase.objective,
-                              optimizationGoal: phase.optimizationGoal
-                            });
-                            
-                            if (!phase.budgetType || !adAccountDefaults?.hasDefaults) {
-                              return null;
-                            }
-                            
-                            const isNonConversionObjective = phase.objective && ['brand awareness', 'reach', 'traffic', 'engagement', 'video views', 'app installs'].includes(phase.objective.toLowerCase());
-                            const isNonConversionOptGoal = phase.optimizationGoal && ['reach', 'link clicks', 'landing page views', 'post engagement', 'video views', 'app installs'].includes(phase.optimizationGoal.toLowerCase());
-                            const isNonConversion = isNonConversionObjective || isNonConversionOptGoal;
-                            const appliedDefault = isNonConversion ? adAccountDefaults.nonConversionBudgetType : adAccountDefaults.conversionBudgetType;
-                            
-                            console.log("Budget label decision:", {
-                              isNonConversion,
-                              appliedDefault,
-                              currentBudgetType: phase.budgetType,
-                              willShow: appliedDefault === phase.budgetType
-                            });
-                            
-                            // Only show if the current budgetType matches the expected default
-                            if (appliedDefault === phase.budgetType) {
-                              return (
-                                <div className="mt-2 flex items-start gap-2 p-2 rounded-md bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800">
-                                  <Badge variant="outline" className="text-xs bg-blue-100 dark:bg-blue-900 border-blue-300 dark:border-blue-700 shrink-0">
-                                    Auto-applied
-                                  </Badge>
-                                  <p className="text-xs text-blue-700 dark:text-blue-300">
-                                    <strong>{phase.budgetType === 'daily' ? 'Daily' : 'Lifetime'}</strong> budget was auto-applied from ad account defaults ({isNonConversion ? 'Non-Conversion' : 'Conversion'} campaign default)
-                                  </p>
-                                </div>
-                              );
-                            }
-                            return null;
-                          })()}
                           
                           {/* Daily Budget Breakdown */}
                           {(() => {
