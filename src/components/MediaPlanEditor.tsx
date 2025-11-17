@@ -1329,6 +1329,121 @@ export function MediaPlanEditor() {
           {currentStep === 3 ? (
             <CardContent className="space-y-6">
 
+              {genericConfig.parsedTargeting && genericConfig.parsedTargeting.length > 0 && (
+                <div className="space-y-6">
+                  <h3 className="text-lg font-semibold">Applied Audiences</h3>
+                  {genericConfig.parsedTargeting.map((targeting: any, marketIdx: number) => (
+                    <div key={marketIdx} className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-base font-semibold">{targeting.market}</h4>
+                        <div className="flex gap-2 text-sm text-muted-foreground">
+                          {targeting.ageMin && targeting.ageMax && (
+                            <span>Age: {targeting.ageMin}-{targeting.ageMax}</span>
+                          )}
+                          {targeting.gender && targeting.gender.length > 0 && (
+                            <span>• {targeting.gender.join(", ")}</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {/* Interests */}
+                        {targeting.interests?.map((interest: any, idx: number) => (
+                          <AudienceCard
+                            key={`interest-${idx}`}
+                            type="interest"
+                            name={interest.name}
+                            audienceSize={interest.audienceSize}
+                            metadata={{ id: interest.id }}
+                            onRemove={() => {
+                              const newTargeting = [...(genericConfig.parsedTargeting || [])];
+                              newTargeting[marketIdx] = {
+                                ...newTargeting[marketIdx],
+                                interests: (newTargeting[marketIdx].interests || []).filter((_: any, i: number) => i !== idx),
+                              };
+                              setGenericConfig({ ...genericConfig, parsedTargeting: newTargeting });
+                            }}
+                          />
+                        ))}
+
+                        {/* Behaviors */}
+                        {targeting.behaviors?.map((behavior: any, idx: number) => (
+                          <AudienceCard
+                            key={`behavior-${idx}`}
+                            type="behavior"
+                            name={behavior.name}
+                            audienceSize={behavior.audienceSize}
+                            metadata={{ id: behavior.id }}
+                            onRemove={() => {
+                              const newTargeting = [...(genericConfig.parsedTargeting || [])];
+                              newTargeting[marketIdx] = {
+                                ...newTargeting[marketIdx],
+                                behaviors: (newTargeting[marketIdx].behaviors || []).filter((_: any, i: number) => i !== idx),
+                              };
+                              setGenericConfig({ ...genericConfig, parsedTargeting: newTargeting });
+                            }}
+                          />
+                        ))}
+
+                        {/* Custom Audiences */}
+                        {targeting.customAudiences?.map((aud: any, idx: number) => (
+                          <AudienceCard
+                            key={`custom-${idx}`}
+                            type="customAudience"
+                            name={aud.name}
+                            metadata={{ id: aud.id, type: aud.type }}
+                            onRemove={() => {
+                              const newTargeting = [...(genericConfig.parsedTargeting || [])];
+                              newTargeting[marketIdx] = {
+                                ...newTargeting[marketIdx],
+                                customAudiences: (newTargeting[marketIdx].customAudiences || []).filter((_: any, i: number) => i !== idx),
+                              };
+                              setGenericConfig({ ...genericConfig, parsedTargeting: newTargeting });
+                            }}
+                          />
+                        ))}
+
+                        {/* Lookalikes */}
+                        {targeting.lookalikes?.map((ll: any, idx: number) => (
+                          <AudienceCard
+                            key={`lookalike-${idx}`}
+                            type="lookalike"
+                            name={ll.name}
+                            metadata={{ id: ll.id, sourceAudienceId: ll.sourceAudienceId }}
+                            onRemove={() => {
+                              const newTargeting = [...(genericConfig.parsedTargeting || [])];
+                              newTargeting[marketIdx] = {
+                                ...newTargeting[marketIdx],
+                                lookalikes: (newTargeting[marketIdx].lookalikes || []).filter((_: any, i: number) => i !== idx),
+                              };
+                              setGenericConfig({ ...genericConfig, parsedTargeting: newTargeting });
+                            }}
+                          />
+                        ))}
+
+                        {/* Customer Lists */}
+                        {targeting.customerLists?.map((cl: any, idx: number) => (
+                          <AudienceCard
+                            key={`customer-${idx}`}
+                            type="customerList"
+                            name={cl.name}
+                            metadata={{ id: cl.id }}
+                            onRemove={() => {
+                              const newTargeting = [...(genericConfig.parsedTargeting || [])];
+                              newTargeting[marketIdx] = {
+                                ...newTargeting[marketIdx],
+                                customerLists: (newTargeting[marketIdx].customerLists || []).filter((_: any, i: number) => i !== idx),
+                              };
+                              setGenericConfig({ ...genericConfig, parsedTargeting: newTargeting });
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {/* Phase Scheduling */}
               {(() => {
                 const totalMarkets = platformsWithMarkets.reduce((sum, p) => sum + (p.enabled ? p.markets.length : 0), 0);
