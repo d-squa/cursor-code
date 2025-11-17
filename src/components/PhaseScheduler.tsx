@@ -98,6 +98,7 @@ export function PhaseScheduler({
   onOpenCustomizeBudgetTypes,
   marketBudget,
 }: PhaseSchedulerProps) {
+  console.log("PhaseScheduler marketBudget:", marketBudget);
   const [dragging, setDragging] = useState<DraggingState | null>(null);
   const [editingName, setEditingName] = useState<string | null>(null);
   const [editingBudget, setEditingBudget] = useState<string | null>(null);
@@ -922,8 +923,11 @@ export function PhaseScheduler({
                           )}
                           
                           {/* Daily Budget Breakdown */}
-                          {phase.budgetType === "daily" && marketBudget && (
-                            <div className="mt-3 p-3 rounded-md bg-muted/30 border border-border">
+                          {(() => {
+                            console.log("Phase:", phase.id, "budgetType:", phase.budgetType, "marketBudget:", marketBudget);
+                            return phase.budgetType === "daily" && marketBudget && marketBudget > 0 ? (
+                              <div className="mt-3 p-3 rounded-md bg-muted/30 border border-border">
+                                <div className="text-xs font-semibold text-muted-foreground mb-2">Daily Budget Breakdown</div>
                               <div className="space-y-2 text-sm">
                                 <div className="flex items-center justify-between">
                                   <span className="text-muted-foreground">Phase Budget:</span>
@@ -955,7 +959,8 @@ export function PhaseScheduler({
                                 </div>
                               </div>
                             </div>
-                          )}
+                            ) : null;
+                          })()}
                         </div>
                       </div>
 
