@@ -1316,6 +1316,7 @@ export function MediaPlanEditor() {
                           }
                         }}
                         marketBudget={(parseFloat(totalBudget || "0") * ((singlePlatform?.budgetPercentage || 0) / 100) * ((singleMarket.budgetPercentage || 0) / 100))}
+                        adAccountId={singleMarket.adAccountId}
                       />
                     </div>
                   ) : null;
@@ -1569,6 +1570,7 @@ export function MediaPlanEditor() {
                                     setBulkBudgetDialogOpen(true);
                                   }}
                                   marketBudget={(parseFloat(totalBudget || "0") * ((platform.budgetPercentage || 0) / 100) * ((market.budgetPercentage || 0) / 100))}
+                                  adAccountId={market.adAccountId}
                                   />
                                 </Card>
                               ))}
