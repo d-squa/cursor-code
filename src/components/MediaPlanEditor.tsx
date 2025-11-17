@@ -1227,16 +1227,6 @@ export function MediaPlanEditor() {
                           }
                         }}
                       />
-                        platformId={singlePlatform?.id}
-                        strategy={singleMarket.strategy || genericConfig.strategy}
-                        strategyFocus={singleMarket.strategyFocus || genericConfig.strategyFocus}
-                        marketTargeting={{
-                          ageMin: singleMarket.ageMin || genericConfig.targeting?.ageMin,
-                          ageMax: singleMarket.ageMax || genericConfig.targeting?.ageMax,
-                          gender: singleMarket.gender || genericConfig.targeting?.genders?.[0],
-                          devices: genericConfig.targeting?.devices,
-                        }}
-                      />
                     </div>
                   ) : null;
                 } else if (totalMarkets > 1) {
@@ -1244,7 +1234,7 @@ export function MediaPlanEditor() {
                   return (
                     <div className="mt-6 pt-6 border-t space-y-6">
                       <h3 className="text-lg font-semibold">Market Configuration</h3>
-                      {platformsWithMarkets.map(platform => 
+                      {platformsWithMarkets.map(platform => (
                         platform.enabled && platform.markets.length > 0 ? (
                           <Collapsible
                             key={platform.id}
@@ -1495,7 +1485,7 @@ export function MediaPlanEditor() {
                             </CollapsibleContent>
                           </Collapsible>
                         ) : null
-                      )}
+                      ))}
                     </div>
                   );
                 }
