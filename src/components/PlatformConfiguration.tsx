@@ -9,6 +9,8 @@ import { PhaseScheduler } from "./PhaseScheduler";
 import { PlatformConfigFields } from "./PlatformConfigFields";
 import { AdFormatSelector } from "./AdFormatSelector";
 import { getPhasesFromAdFormats } from "@/utils/adFormats";
+import { CampaignBudgetTypeDialog } from "./CampaignBudgetTypeDialog";
+import { useState } from "react";
 
 export interface Phase {
   id: string;
@@ -53,6 +55,7 @@ export interface Campaign {
   objective?: string;
   campaignType?: string;
   optimizationGoal?: string;
+  budgetType?: "daily" | "lifetime";
   targeting?: {
     ageMin?: number;
     ageMax?: number;
@@ -169,6 +172,8 @@ const getFunnelObjectives = (platformId: string, stage: string, focus: string): 
 
 export function PlatformConfiguration({ platforms, setPlatforms, startDate, endDate }: PlatformConfigurationProps) {
   const enabledPlatforms = platforms.filter((p) => p.enabled);
+  const [budgetTypeDialogOpen, setBudgetTypeDialogOpen] = useState(false);
+  const [selectedPlatformForBudget, setSelectedPlatformForBudget] = useState<string | null>(null);
 
   const updatePlatformConfig = (platformId: string, field: keyof PlatformConfig, value: any) => {
     setPlatforms(
@@ -395,6 +400,39 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
     return basicComplete && campaignsComplete;
   };
 
+  const handleOpenBudgetTypeDialog = (platformId: string) => {
+    setSelectedPlatformForBudget(platformId);
+    setBudgetTypeDialogOpen(true);
+  };
+
+  const handleBudgetTypeConfirm = (campaignBudgetTypes: Record<string, "daily" | "lifetime">) => {
+    if (!selectedPlatformForBudget) return;
+    
+    setPlatforms(
+      platforms.map((p) => {
+        if (p.id === selectedPlatformForBudget && p.config?.campaigns) {
+          return {
+            ...p,
+            config: {
+              ...p.config,
+              campaigns: p.config.campaigns.map((c) => ({
+                ...c,
+                budgetType: campaignBudgetTypes[c.id] || "lifetime",
+              })),
+            },
+          };
+        }
+        return p;
+      }),
+    );
+    
+    setBudgetTypeDialogOpen(false);
+    setSelectedPlatformForBudget(null);
+  };
+
+  const selectedPlatform = platforms.find((p) => p.id === selectedPlatformForBudget);
+  const marketBudget = selectedPlatform?.budgetPercentage || 0;
+
   if (enabledPlatforms.length === 0) {
     return null;
   }
@@ -462,6 +500,19 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
                   </div>
                 </div>
 
+                <div className="mt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => handleOpenBudgetTypeDialog(platform.id)}
+                    disabled={!platform.config?.campaigns || platform.config.campaigns.length === 0}
+                  >
+                    Apply Budget Type To All Campaigns Under Market
+                  </Button>
+                </div>
+              </div>
+
+              {/* Phase Configuration */}
+              <div className="space-y-4 p-4 border rounded-lg bg-muted/50">
                 <div className="flex items-center gap-2">
                   <input
                     type="checkbox"
@@ -692,6 +743,16 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
           ))}
         </Tabs>
       </CardContent>
+      
+      <CampaignBudgetTypeDialog
+        open={budgetTypeDialogOpen}
+        onOpenChange={setBudgetTypeDialogOpen}
+        onConfirm={handleBudgetTypeConfirm}
+        campaigns={selectedPlatform?.config?.campaigns || []}
+        marketBudget={marketBudget}
+        startDate={startDate}
+        endDate={endDate}
+      />
     </Card>
   );
 }
