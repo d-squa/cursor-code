@@ -922,6 +922,29 @@ export function PhaseScheduler({
                             <p className="text-xs text-yellow-700 dark:text-yellow-300">Please select a budget type to continue</p>
                           )}
                           
+                          {/* Auto-applied default explanation */}
+                          {phase.budgetType && adAccountDefaults?.hasDefaults && (() => {
+                            const isNonConversionObjective = phase.objective && ['brand awareness', 'reach', 'traffic', 'engagement', 'video views', 'app installs'].includes(phase.objective.toLowerCase());
+                            const isNonConversionOptGoal = phase.optimizationGoal && ['reach', 'link clicks', 'landing page views', 'post engagement', 'video views', 'app installs'].includes(phase.optimizationGoal.toLowerCase());
+                            const isNonConversion = isNonConversionObjective || isNonConversionOptGoal;
+                            const appliedDefault = isNonConversion ? adAccountDefaults.nonConversionBudgetType : adAccountDefaults.conversionBudgetType;
+                            
+                            // Only show if the current budgetType matches the expected default
+                            if (appliedDefault === phase.budgetType) {
+                              return (
+                                <div className="mt-2 flex items-start gap-2 p-2 rounded-md bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800">
+                                  <Badge variant="outline" className="text-xs bg-blue-100 dark:bg-blue-900 border-blue-300 dark:border-blue-700 shrink-0">
+                                    Auto-applied
+                                  </Badge>
+                                  <p className="text-xs text-blue-700 dark:text-blue-300">
+                                    <strong>{phase.budgetType === 'daily' ? 'Daily' : 'Lifetime'}</strong> budget was auto-applied from ad account defaults ({isNonConversion ? 'Non-Conversion' : 'Conversion'} campaign default)
+                                  </p>
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
+                          
                           {/* Daily Budget Breakdown */}
                           {(() => {
                             console.log("Phase:", phase.id, "budgetType:", phase.budgetType, "marketBudget:", marketBudget);
