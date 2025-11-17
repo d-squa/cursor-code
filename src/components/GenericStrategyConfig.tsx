@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { PhaseScheduler } from "./PhaseScheduler";
 import { Phase, Campaign } from "./PlatformConfiguration";
 import { TargetingConfig, TargetingConfigComponent } from "./TargetingConfig";
+import { AudienceSummaryCard } from "./AudienceSummaryCard";
 import { determineStrategyFocus } from "@/utils/strategyFocusMapping";
 import { getDefaultPhases, funnelTemplates } from "@/utils/funnelPhases";
 import { getObjectiveFromPhaseName } from "@/utils/phaseObjectiveMapping";
@@ -245,6 +246,11 @@ export function GenericStrategyConfig({
               onUpdate={(t) => setConfig({ ...config, targeting: t })}
               showAdFormats={false}
               strategyFocus={config.strategyFocus !== "auto" ? config.strategyFocus : "conversions"}
+            />
+
+            <AudienceSummaryCard 
+              targeting={config.targeting}
+              phases={config.phases}
             />
 
             <div className="flex justify-between pt-4">

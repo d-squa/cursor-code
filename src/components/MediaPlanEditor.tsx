@@ -12,6 +12,7 @@ import { PlatformMarketBudgetSelector } from "./PlatformMarketBudgetSelector";
 import { HierarchicalTimelineScheduler } from "./HierarchicalTimelineScheduler";
 import { GlobalFunnelPhasing } from "./GlobalFunnelPhasing";
 import { TargetingConfigComponent } from "./TargetingConfig";
+import { AudienceSummaryCard } from "./AudienceSummaryCard";
 import { CampaignForecast } from "./CampaignForecast";
 import { PhaseScheduler } from "./PhaseScheduler";
 import { getDefaultPhases, generateAutoDetectPhases } from "@/utils/funnelPhases";
@@ -1135,6 +1136,11 @@ export function MediaPlanEditor() {
                 strategyFocus={effectiveStrategyFocus}
               />
 
+              <AudienceSummaryCard 
+                targeting={genericConfig.targeting}
+                phases={genericConfig.phases}
+              />
+
               <div className="flex justify-between pt-4">
                 <Button variant="outline" onClick={() => setCurrentStep(1)}>
                   Back
@@ -1165,6 +1171,13 @@ export function MediaPlanEditor() {
                   {genericConfig.targeting?.devices?.join(', ') || 'All'}
                 </span>
               </div>
+            </div>
+            
+            <div className="mt-4">
+              <AudienceSummaryCard 
+                targeting={genericConfig.targeting}
+                phases={genericConfig.phases}
+              />
             </div>
             </CardContent>
           )}
