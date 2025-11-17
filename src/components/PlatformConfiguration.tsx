@@ -22,6 +22,7 @@ export interface Phase {
   isLoyaltyPhase?: boolean;
   objective?: string;
   optimizationGoal?: string;
+  budgetType?: "daily" | "lifetime";
   publisherPlatforms?: string[];
   positions?: {
     facebook?: string[];
