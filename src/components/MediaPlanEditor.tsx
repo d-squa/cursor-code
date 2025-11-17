@@ -1358,24 +1358,7 @@ export function MediaPlanEditor() {
                                     Apply Strategy to All Markets
                                   </Button>
                                   
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => {
-                                      const platformBudget = (parseFloat(totalBudget) * platform.budgetPercentage) / 100;
-                                      const marketBudget = (platformBudget * market.budgetPercentage) / 100;
-                                      setSelectedMarketForBudget({
-                                        platformId: platform.id,
-                                        marketId: market.id,
-                                        phases: market.phases || [],
-                                        marketBudget
-                                      });
-                                      setBudgetTypeDialogOpen(true);
-                                    }}
-                                    disabled={!market.phases || market.phases.length === 0}
-                                  >
-                                    Apply Budget Type to All Campaigns
-                                  </Button>
+                                    {/* Inline budget type selection is available per phase below. */}
                                 </div>
 
                                 <PhaseScheduler
