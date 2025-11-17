@@ -1567,6 +1567,7 @@ export function MediaPlanEditor() {
                                     setBulkPlatform(platform as any);
                                     setBulkBudgetDialogOpen(true);
                                   }}
+                                  marketBudget={(parseFloat(totalBudget || "0") * ((platform.budgetPercentage || 0) / 100) * ((market.budgetPercentage || 0) / 100))}
                                   />
                                 </Card>
                               ))}
