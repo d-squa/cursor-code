@@ -1131,6 +1131,7 @@ export function PlatformMarketBudgetSelector({
                                   endDate={endDate}
                                   platformName={platform.name}
                                   platformId={platform.id}
+                                  marketBudget={marketBudget}
                                 />
                               </div>
                             )}

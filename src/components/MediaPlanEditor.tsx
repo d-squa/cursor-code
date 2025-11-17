@@ -1315,6 +1315,7 @@ export function MediaPlanEditor() {
                             setBulkBudgetDialogOpen(true);
                           }
                         }}
+                        marketBudget={(parseFloat(totalBudget || "0") * ((singlePlatform?.budgetPercentage || 0) / 100) * ((singleMarket.budgetPercentage || 0) / 100))}
                       />
                     </div>
                   ) : null;
