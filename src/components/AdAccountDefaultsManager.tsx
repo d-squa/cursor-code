@@ -192,6 +192,8 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId, c
             default_catalog_id: update.default_catalog_id,
             default_product_set_id: update.default_product_set_id,
             default_conversion_event: update.default_conversion_event,
+            default_conversion_budget_type: update.default_conversion_budget_type,
+            default_non_conversion_budget_type: update.default_non_conversion_budget_type,
           })
           .eq("id", update.id);
 
