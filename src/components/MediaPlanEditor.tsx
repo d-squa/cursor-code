@@ -620,6 +620,8 @@ export function MediaPlanEditor() {
           nonconv: a.default_non_conversion_budget_type || undefined,
         };
       });
+      
+      let hasChanges = false;
       const updated = platformsWithMarkets.map(p => !p.enabled ? p : ({
         ...p,
         markets: p.markets.map(m => {
@@ -631,9 +633,11 @@ export function MediaPlanEditor() {
             if (ph.budgetType) return ph;
             const phaseObj = (ph.objective || '').toLowerCase();
             const phaseOpt = (ph.optimizationGoal || '').toLowerCase();
-            const isPhaseConversion = phaseObj.includes('conversion') || phaseOpt.includes('conversion') || isMarketConversion;
+            const isFunnelConversion = (ph.funnelStage || '').toLowerCase().includes('conversion');
+            const isPhaseConversion = phaseObj.includes('conversion') || phaseOpt.includes('conversion') || isFunnelConversion || isMarketConversion;
             const candidate = isPhaseConversion ? def.conv : def.nonconv;
             if (candidate === 'daily' || candidate === 'lifetime') {
+              hasChanges = true;
               return { ...ph, budgetType: candidate as 'daily' | 'lifetime' };
             }
             return ph;
@@ -641,9 +645,24 @@ export function MediaPlanEditor() {
           return { ...m, phases };
         })
       }));
-      setPlatformsWithMarkets(updated);
+      
+      if (hasChanges) {
+        setPlatformsWithMarkets(updated);
+      }
     } catch {}
   };
+
+  // Auto-apply budget type defaults when ad accounts or phases change
+  useEffect(() => {
+    const hasAccountsWithPhases = platformsWithMarkets.some(p => 
+      p.enabled && p.markets.some(m => m.adAccountId && m.phases && m.phases.length > 0 && m.phases.some(ph => !ph.budgetType))
+    );
+    if (hasAccountsWithPhases && isHydrated) {
+      applyBudgetTypeDefaultsIfAvailable();
+    }
+  }, [platformsWithMarkets.map(p => 
+    p.markets.map(m => `${m.adAccountId}-${m.phases?.length || 0}-${m.phases?.filter(ph => !ph.budgetType).length || 0}`).join('|')
+  ).join('||'), isHydrated]);
 
   const saveCampaignDraft = async () => {
     if (!campaignName.trim()) {
