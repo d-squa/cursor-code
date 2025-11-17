@@ -371,7 +371,91 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
           ? phase.targeting 
           : (campaign.generic_config?.targeting || {});
 
-        // Add custom audiences (retargeting)
+        // Get parsed targeting from AI brief (new approach)
+        const parsedTargeting = campaign.generic_config?.parsedTargeting || [];
+        const marketTargeting = parsedTargeting.find((t: any) => 
+          t.market.toLowerCase() === market.name.toLowerCase()
+        );
+
+        if (marketTargeting) {
+          console.log(`Using AI-parsed targeting for market ${market.name}:`, marketTargeting);
+          
+          // Override basic demographics with AI-parsed data
+          if (marketTargeting.location && marketTargeting.location.length > 0) {
+            targeting.geo_locations = { countries: marketTargeting.location };
+          }
+          if (marketTargeting.ageMin) {
+            targeting.age_min = marketTargeting.ageMin;
+          }
+          if (marketTargeting.ageMax) {
+            targeting.age_max = marketTargeting.ageMax;
+          }
+          if (marketTargeting.gender && marketTargeting.gender.length > 0) {
+            const genderMap: any = { male: [1], female: [2] };
+            const genders = marketTargeting.gender.flatMap((g: string) => genderMap[g.toLowerCase()] || []);
+            if (genders.length > 0) {
+              targeting.genders = genders;
+            }
+          }
+
+          // Add interests from AI parsing
+          if (marketTargeting.interests && marketTargeting.interests.length > 0) {
+            const interests = marketTargeting.interests.map((i: any) => ({
+              id: i.id,
+              name: i.name
+            }));
+            targeting.flexible_spec = targeting.flexible_spec || [];
+            targeting.flexible_spec.push({ interests });
+            console.log(`Adding ${interests.length} interests from AI parsing:`, interests.map((i: any) => i.name).join(', '));
+          }
+
+          // Add behaviors from AI parsing
+          if (marketTargeting.behaviors && marketTargeting.behaviors.length > 0) {
+            const behaviors = marketTargeting.behaviors.map((b: any) => ({
+              id: b.id,
+              name: b.name
+            }));
+            targeting.flexible_spec = targeting.flexible_spec || [];
+            targeting.flexible_spec.push({ behaviors });
+            console.log(`Adding ${behaviors.length} behaviors from AI parsing:`, behaviors.map((b: any) => b.name).join(', '));
+          }
+
+          // Add custom audiences from AI parsing
+          if (marketTargeting.customAudiences && marketTargeting.customAudiences.length > 0) {
+            targeting.custom_audiences = marketTargeting.customAudiences.map((a: any) => ({
+              id: a.id,
+              name: a.name
+            }));
+            console.log(`Adding ${marketTargeting.customAudiences.length} custom audiences from AI parsing`);
+          }
+
+          // Add lookalike audiences from AI parsing
+          if (marketTargeting.lookalikes && marketTargeting.lookalikes.length > 0) {
+            targeting.custom_audiences = targeting.custom_audiences || [];
+            marketTargeting.lookalikes.forEach((la: any) => {
+              targeting.custom_audiences.push({
+                id: la.id,
+                name: la.name
+              });
+            });
+            console.log(`Adding ${marketTargeting.lookalikes.length} lookalike audiences from AI parsing`);
+          }
+
+          // Add customer lists from AI parsing
+          if (marketTargeting.customerLists && marketTargeting.customerLists.length > 0) {
+            targeting.custom_audiences = targeting.custom_audiences || [];
+            marketTargeting.customerLists.forEach((cl: any) => {
+              targeting.custom_audiences.push({
+                id: cl.id,
+                name: cl.name
+              });
+            });
+            console.log(`Adding ${marketTargeting.customerLists.length} customer lists from AI parsing`);
+          }
+        }
+
+        // Fallback to old targeting config if no AI-parsed targeting
+        if (!marketTargeting) {
         if (targetingConfig.websiteAudience) {
           const audienceNames = targetingConfig.websiteAudience.split(',').map((s: string) => s.trim()).filter(Boolean);
           if (audienceNames.length > 0) {
@@ -382,7 +466,9 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
           }
         }
 
-        // Add lookalike audiences
+        }
+
+        // Fallback to old targeting config if no AI-parsed targeting (continued)
         if (targetingConfig.lookalikeAudience) {
           const lookalikeNames = targetingConfig.lookalikeAudience.split(',').map((s: string) => s.trim()).filter(Boolean);
           if (lookalikeNames.length > 0) {

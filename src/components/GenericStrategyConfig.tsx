@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { PhaseScheduler } from "./PhaseScheduler";
 import { Phase, Campaign } from "./PlatformConfiguration";
 import { TargetingConfig, TargetingConfigComponent } from "./TargetingConfig";
-import { AudienceSummaryCard } from "./AudienceSummaryCard";
+import { TargetingBriefInput } from "./TargetingBriefInput";
+import { TargetingCard } from "./TargetingCard";
 import { determineStrategyFocus } from "@/utils/strategyFocusMapping";
 import { getDefaultPhases, funnelTemplates } from "@/utils/funnelPhases";
 import { getObjectiveFromPhaseName } from "@/utils/phaseObjectiveMapping";
@@ -78,6 +79,8 @@ export interface GenericConfig {
   phases?: Phase[];
   campaigns?: Campaign[];
   targeting?: TargetingConfig;
+  parsedTargeting?: any[];
+  adAccountId?: string;
 }
 
 interface GenericStrategyConfigProps {
@@ -219,6 +222,21 @@ export function GenericStrategyConfig({
     setConfig(updatedConfig);
   };
 
+  const [parsedTargeting, setParsedTargeting] = useState<any[]>(config.parsedTargeting || []);
+
+  const handleTargetingGenerated = (targeting: any[]) => {
+    setParsedTargeting(targeting);
+    const updated = { ...config, parsedTargeting: targeting };
+    setConfig(updated);
+  };
+
+  const handleRemoveTargeting = (index: number) => {
+    const updated = parsedTargeting.filter((_, i) => i !== index);
+    setParsedTargeting(updated);
+    const updatedConfig = { ...config, parsedTargeting: updated };
+    setConfig(updatedConfig);
+  };
+
   const updateTargeting = (field: string, value: any) => {
     const updated = {
       ...config,
@@ -240,18 +258,22 @@ export function GenericStrategyConfig({
             </div>
           </CardHeader>
           <CardContent className="space-y-6">
-            <TargetingConfigComponent
-              platformName={platformName || "Facebook (Meta)"}
-              targeting={config.targeting || {}}
-              onUpdate={(t) => setConfig({ ...config, targeting: t })}
-              showAdFormats={false}
-              strategyFocus={config.strategyFocus !== "auto" ? config.strategyFocus : "conversions"}
-            />
+      <TargetingBriefInput
+        onTargetingGenerated={handleTargetingGenerated}
+      />
 
-            <AudienceSummaryCard 
-              targeting={config.targeting}
-              phases={config.phases}
-            />
+            {parsedTargeting.length > 0 && (
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold">Applied Targeting</h3>
+                {parsedTargeting.map((targeting, idx) => (
+                  <TargetingCard
+                    key={idx}
+                    targeting={targeting}
+                    onRemove={() => handleRemoveTargeting(idx)}
+                  />
+                ))}
+              </div>
+            )}
 
             <div className="flex justify-between pt-4">
               <Button variant="outline" onClick={onBack}>

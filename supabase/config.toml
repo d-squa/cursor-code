@@ -1,5 +1,8 @@
 project_id = "tewjsubccoizrjroaydy"
 
+[functions.parse-targeting-brief]
+verify_jwt = true
+
 [functions.google-ads-forecast]
 verify_jwt = true
 
