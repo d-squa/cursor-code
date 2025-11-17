@@ -603,8 +603,8 @@ export function MediaPlanEditor() {
     return true;
   };
 
-  const applyBudgetTypeDefaultsIfAvailable = async () => {
-    console.log('applyBudgetTypeDefaultsIfAvailable called');
+  const applyBudgetTypeDefaultsIfAvailable = async (skipIfSet = false) => {
+    console.log('applyBudgetTypeDefaultsIfAvailable called, skipIfSet:', skipIfSet);
     try {
       const accountIds = Array.from(new Set(
         platformsWithMarkets.flatMap(p => p.enabled ? p.markets.map(m => m.adAccountId).filter(Boolean) as string[] : [])
@@ -615,6 +615,13 @@ export function MediaPlanEditor() {
         .from('meta_ad_accounts')
         .select('account_id, default_conversion_budget_type, default_non_conversion_budget_type')
         .in('account_id', accountIds);
+      
+      console.log('Fetched accounts with defaults:', accounts?.map(a => ({
+        id: a.account_id,
+        convDefault: a.default_conversion_budget_type,
+        nonConvDefault: a.default_non_conversion_budget_type
+      })));
+      
       const defaultsMap: Record<string, { conv?: string; nonconv?: string }> = {};
       (accounts || []).forEach((a: any) => {
         defaultsMap[a.account_id] = {
@@ -633,7 +640,10 @@ export function MediaPlanEditor() {
           if (!def) return m;
           
           const phases = (m.phases || []).map(ph => {
-            if (ph.budgetType) return ph;
+            // Skip if budget type is already set (including when user explicitly chose "none")
+            if (skipIfSet && ph.budgetType !== undefined) return ph;
+            // Only apply if budget type is truly unset (undefined)
+            if (ph.budgetType !== undefined) return ph;
             
             const phaseObj = (ph.objective || '').toLowerCase();
             const phaseOpt = (ph.optimizationGoal || '').toLowerCase();
@@ -715,13 +725,13 @@ export function MediaPlanEditor() {
   // Auto-apply budget type defaults when ad accounts or phases change
   useEffect(() => {
     const hasAccountsWithPhases = platformsWithMarkets.some(p => 
-      p.enabled && p.markets.some(m => m.adAccountId && m.phases && m.phases.length > 0 && m.phases.some(ph => !ph.budgetType))
+      p.enabled && p.markets.some(m => m.adAccountId && m.phases && m.phases.length > 0 && m.phases.some(ph => ph.budgetType === undefined))
     );
     if (hasAccountsWithPhases && isHydrated) {
-      applyBudgetTypeDefaultsIfAvailable();
+      applyBudgetTypeDefaultsIfAvailable(true);
     }
   }, [platformsWithMarkets.map(p => 
-    p.markets.map(m => `${m.adAccountId}-${m.phases?.length || 0}-${m.phases?.filter(ph => !ph.budgetType).length || 0}`).join('|')
+    p.markets.map(m => `${m.adAccountId}-${m.phases?.length || 0}-${m.phases?.filter(ph => ph.budgetType === undefined).length || 0}`).join('|')
   ).join('||'), isHydrated]);
 
   const saveCampaignDraft = async () => {
