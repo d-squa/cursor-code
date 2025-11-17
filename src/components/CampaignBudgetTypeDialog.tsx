@@ -11,10 +11,8 @@ interface CampaignBudgetTypeDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirm: (campaignBudgetTypes: Record<string, "daily" | "lifetime">) => void;
-  campaigns: Campaign[];
+  campaigns: (Campaign & { startDate?: string; endDate?: string })[];
   marketBudget: number;
-  startDate: string;
-  endDate: string;
   loading?: boolean;
 }
 
@@ -24,8 +22,6 @@ export function CampaignBudgetTypeDialog({
   onConfirm,
   campaigns,
   marketBudget,
-  startDate,
-  endDate,
   loading = false,
 }: CampaignBudgetTypeDialogProps) {
   const [budgetTypes, setBudgetTypes] = useState<Record<string, "daily" | "lifetime">>(() => {
@@ -36,19 +32,26 @@ export function CampaignBudgetTypeDialog({
     return initial;
   });
 
-  const { durationDays, campaignDailyBudgets } = useMemo(() => {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const duration = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-    
+  const { campaignDurations, campaignDailyBudgets } = useMemo(() => {
     const budgetPerCampaign = marketBudget / campaigns.length;
+    const durations: Record<string, number> = {};
     const dailyBudgets: Record<string, number> = {};
+    
     campaigns.forEach((campaign) => {
-      dailyBudgets[campaign.id] = budgetPerCampaign / duration;
+      if (campaign.startDate && campaign.endDate) {
+        const start = new Date(campaign.startDate);
+        const end = new Date(campaign.endDate);
+        const duration = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        durations[campaign.id] = duration;
+        dailyBudgets[campaign.id] = budgetPerCampaign / duration;
+      } else {
+        durations[campaign.id] = 0;
+        dailyBudgets[campaign.id] = 0;
+      }
     });
     
-    return { durationDays: duration, campaignDailyBudgets: dailyBudgets };
-  }, [startDate, endDate, marketBudget, campaigns]);
+    return { campaignDurations: durations, campaignDailyBudgets: dailyBudgets };
+  }, [marketBudget, campaigns]);
 
   const handleConfirm = () => {
     onConfirm(budgetTypes);
@@ -56,11 +59,12 @@ export function CampaignBudgetTypeDialog({
 
   const getBudgetExplanation = (campaignId: string, type: "daily" | "lifetime") => {
     const budgetPerCampaign = marketBudget / campaigns.length;
+    const duration = campaignDurations[campaignId];
     
     if (type === "lifetime") {
-      return `Total budget of $${budgetPerCampaign.toLocaleString()} will be optimized across ${durationDays} days`;
+      return `Total budget of $${budgetPerCampaign.toLocaleString()} will be optimized across ${duration} days`;
     } else {
-      return `Daily spend of $${campaignDailyBudgets[campaignId].toFixed(2)} per day for ${durationDays} days`;
+      return `Daily spend of $${campaignDailyBudgets[campaignId].toFixed(2)} per day for ${duration} days`;
     }
   };
 
@@ -81,10 +85,6 @@ export function CampaignBudgetTypeDialog({
               <span className="font-medium">${marketBudget.toLocaleString()}</span>
               <span className="text-sm text-muted-foreground">market budget</span>
             </div>
-            <div className="flex items-center gap-1">
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-              <span className="font-medium">{durationDays} days</span>
-            </div>
           </div>
 
           {campaigns.map((campaign) => (
@@ -92,7 +92,15 @@ export function CampaignBudgetTypeDialog({
               <CardContent className="p-4">
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <Label className="text-base font-medium">{campaign.name}</Label>
+                    <div className="space-y-1">
+                      <Label className="text-base font-medium">{campaign.name}</Label>
+                      {campaign.startDate && campaign.endDate && (
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Calendar className="h-3 w-3" />
+                          <span>{campaignDurations[campaign.id]} days</span>
+                        </div>
+                      )}
+                    </div>
                     <Select
                       value={budgetTypes[campaign.id]}
                       onValueChange={(value) =>

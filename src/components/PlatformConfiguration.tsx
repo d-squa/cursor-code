@@ -56,6 +56,8 @@ export interface Campaign {
   campaignType?: string;
   optimizationGoal?: string;
   budgetType?: "daily" | "lifetime";
+  startDate?: string;
+  endDate?: string;
   targeting?: {
     ageMin?: number;
     ageMax?: number;
@@ -748,10 +750,12 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
         open={budgetTypeDialogOpen}
         onOpenChange={setBudgetTypeDialogOpen}
         onConfirm={handleBudgetTypeConfirm}
-        campaigns={selectedPlatform?.config?.campaigns || []}
+        campaigns={(selectedPlatform?.config?.campaigns || []).map(c => ({
+          ...c,
+          startDate,
+          endDate
+        }))}
         marketBudget={marketBudget}
-        startDate={startDate}
-        endDate={endDate}
       />
     </Card>
   );
