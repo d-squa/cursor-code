@@ -18,6 +18,8 @@ interface AdAccount {
   default_catalog_id?: string;
   default_product_set_id?: string;
   default_conversion_event?: string;
+  default_conversion_budget_type?: string;
+  default_non_conversion_budget_type?: string;
 }
 
 interface MetaResource {
@@ -86,6 +88,8 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId, c
           default_catalog_id: acc.default_catalog_id,
           default_product_set_id: acc.default_product_set_id,
           default_conversion_event: acc.default_conversion_event,
+          default_conversion_budget_type: acc.default_conversion_budget_type,
+          default_non_conversion_budget_type: acc.default_non_conversion_budget_type,
         };
       });
       setLocalDefaults(defaults);
@@ -362,6 +366,40 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId, c
                                 {e.name}
                               </SelectItem>
                             ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 pt-4 border-t">
+                      <div className="space-y-2">
+                        <Label>Default Budget Type (Conversion Campaigns)</Label>
+                        <Select
+                          value={localDefaults[account.id]?.default_conversion_budget_type || ""}
+                          onValueChange={(val) => updateDefault(account.id, "default_conversion_budget_type", val)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select budget type" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-popover z-50">
+                            <SelectItem value="daily">Daily Budget</SelectItem>
+                            <SelectItem value="lifetime">Lifetime Budget</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Default Budget Type (Non-Conversion Campaigns)</Label>
+                        <Select
+                          value={localDefaults[account.id]?.default_non_conversion_budget_type || ""}
+                          onValueChange={(val) => updateDefault(account.id, "default_non_conversion_budget_type", val)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select budget type" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-popover z-50">
+                            <SelectItem value="daily">Daily Budget</SelectItem>
+                            <SelectItem value="lifetime">Lifetime Budget</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>

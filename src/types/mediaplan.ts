@@ -55,6 +55,7 @@ export interface Phase {
   objective?: string;
   optimizationGoal?: string;
   funnelStage?: string;
+  budgetType?: "daily" | "lifetime";
   // Campaign-level overrides (inherits from market/generic if not set)
   publisherPlatforms?: string[];
   positions?: {

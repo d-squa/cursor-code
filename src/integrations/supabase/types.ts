@@ -334,8 +334,10 @@ export type Database = {
           created_at: string
           currency: string | null
           default_catalog_id: string | null
+          default_conversion_budget_type: string | null
           default_conversion_event: string | null
           default_instagram_account_id: string | null
+          default_non_conversion_budget_type: string | null
           default_page_id: string | null
           default_pixel_id: string | null
           default_product_set_id: string | null
@@ -350,8 +352,10 @@ export type Database = {
           created_at?: string
           currency?: string | null
           default_catalog_id?: string | null
+          default_conversion_budget_type?: string | null
           default_conversion_event?: string | null
           default_instagram_account_id?: string | null
+          default_non_conversion_budget_type?: string | null
           default_page_id?: string | null
           default_pixel_id?: string | null
           default_product_set_id?: string | null
@@ -366,8 +370,10 @@ export type Database = {
           created_at?: string
           currency?: string | null
           default_catalog_id?: string | null
+          default_conversion_budget_type?: string | null
           default_conversion_event?: string | null
           default_instagram_account_id?: string | null
+          default_non_conversion_budget_type?: string | null
           default_page_id?: string | null
           default_pixel_id?: string | null
           default_product_set_id?: string | null
