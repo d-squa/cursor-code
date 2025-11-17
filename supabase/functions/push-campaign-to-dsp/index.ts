@@ -366,6 +366,60 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
           }));
         }
 
+        // Get targeting config from phase override or generic config
+        const targetingConfig = (phase.overrideTargeting && phase.targeting) 
+          ? phase.targeting 
+          : (campaign.generic_config?.targeting || {});
+
+        // Add custom audiences (retargeting)
+        if (targetingConfig.websiteAudience) {
+          const audienceNames = targetingConfig.websiteAudience.split(',').map((s: string) => s.trim()).filter(Boolean);
+          if (audienceNames.length > 0) {
+            // Note: In production, you'd need to fetch actual custom audience IDs from Meta
+            // For now, we're including the names in exclusions as a placeholder
+            targeting.custom_audiences = audienceNames;
+            console.log(`Adding custom audiences (retargeting): ${audienceNames.join(', ')}`);
+          }
+        }
+
+        // Add lookalike audiences
+        if (targetingConfig.lookalikeAudience) {
+          const lookalikeNames = targetingConfig.lookalikeAudience.split(',').map((s: string) => s.trim()).filter(Boolean);
+          if (lookalikeNames.length > 0) {
+            // Note: In production, you'd need to fetch actual lookalike audience IDs from Meta
+            targeting.lookalike_audiences = lookalikeNames;
+            console.log(`Adding lookalike audiences: ${lookalikeNames.join(', ')}`);
+          }
+        }
+
+        // Add interests from targeting config
+        if (targetingConfig.interests) {
+          const interests = targetingConfig.interests.split(',').map((s: string) => s.trim()).filter(Boolean);
+          if (interests.length > 0) {
+            // Add to flexible_spec if it exists, otherwise create it
+            if (!targeting.flexible_spec) {
+              targeting.flexible_spec = [];
+            }
+            // Note: In production, interests would need to be converted to Meta interest IDs
+            targeting.flexible_spec.push({
+              interests: interests.map((name: string) => ({ name }))
+            });
+            console.log(`Adding interests from targeting config: ${interests.join(', ')}`);
+          }
+        }
+
+        // Add customer list (custom audiences from file)
+        if (targetingConfig.customerList) {
+          const customerLists = targetingConfig.customerList.split(',').map((s: string) => s.trim()).filter(Boolean);
+          if (customerLists.length > 0) {
+            if (!targeting.custom_audiences) {
+              targeting.custom_audiences = [];
+            }
+            targeting.custom_audiences.push(...customerLists);
+            console.log(`Adding customer list audiences: ${customerLists.join(', ')}`);
+          }
+        }
+
         // Create ad set
         const adSetPayload: any = {
           name: `${phase.name} - Ad Set`,
