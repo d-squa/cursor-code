@@ -29,6 +29,7 @@ import { PlatformSelectionDialog } from "./PlatformSelectionDialog";
 import { MarketSelectionDialog } from "./MarketSelectionDialog";
 import { MARKET_OPTIONS } from "@/utils/markets";
 import { CampaignBudgetTypeDialog } from "./CampaignBudgetTypeDialog";
+import BulkBudgetTypeDialog from "./BulkBudgetTypeDialog";
 
 // Helper: map internal focus to funnel template key
 const mapFocusToTemplate = (focus?: string): string | undefined => {
@@ -81,6 +82,8 @@ export function MediaPlanEditor() {
   const [platformsWithMarkets, setPlatformsWithMarkets] = useState<PlatformWithMarkets[]>([]);
   const [globalFunnel, setGlobalFunnel] = useState<FunnelStage[]>([]);
   const [expandedPlatforms, setExpandedPlatforms] = useState<Record<string, boolean>>({});
+  const [bulkBudgetDialogOpen, setBulkBudgetDialogOpen] = useState(false);
+  const [bulkPlatform, setBulkPlatform] = useState<PlatformWithMarkets | null>(null);
   
   // Dialog states
   const [platformDialogOpen, setPlatformDialogOpen] = useState(false);
@@ -1208,6 +1211,22 @@ export function MediaPlanEditor() {
                         startDate={startDate}
                         endDate={endDate}
                         platformName={singlePlatform?.name || "Facebook (Meta)"}
+                        onApplyBudgetTypeToAll={(type) => {
+                          setPlatformsWithMarkets(prev => prev.map(p => p.id === singlePlatform?.id ? {
+                            ...p,
+                            markets: p.markets.map(m => ({
+                              ...m,
+                              phases: (m.phases || []).map(ph => ({ ...ph, budgetType: type }))
+                            }))
+                          } : p));
+                        }}
+                        onOpenCustomizeBudgetTypes={() => {
+                          if (singlePlatform) {
+                            setBulkPlatform(singlePlatform as any);
+                            setBulkBudgetDialogOpen(true);
+                          }
+                        }}
+                      />
                         platformId={singlePlatform?.id}
                         strategy={singleMarket.strategy || genericConfig.strategy}
                         strategyFocus={singleMarket.strategyFocus || genericConfig.strategyFocus}
@@ -1460,10 +1479,14 @@ export function MediaPlanEditor() {
                                       ...p,
                                       markets: p.markets.map(m => ({
                                         ...m,
-                                        phases: (m.phases || []).map(ph => ph.budgetType ? ph : { ...ph, budgetType: type })
+                                        phases: (m.phases || []).map(ph => ({ ...ph, budgetType: type }))
                                       }))
                                     } : p));
                                     toast.success(`Applied ${type === 'daily' ? 'Daily' : 'Lifetime'} Budget to all phases in ${platform.name}`);
+                                  }}
+                                  onOpenCustomizeBudgetTypes={() => {
+                                    setBulkPlatform(platform as any);
+                                    setBulkBudgetDialogOpen(true);
                                   }}
                                   />
                                 </Card>

@@ -186,14 +186,14 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId, c
         const { error } = await supabase
           .from("meta_ad_accounts")
           .update({
-            default_pixel_id: update.default_pixel_id,
-            default_page_id: update.default_page_id,
-            default_instagram_account_id: update.default_instagram_account_id,
-            default_catalog_id: update.default_catalog_id,
-            default_product_set_id: update.default_product_set_id,
-            default_conversion_event: update.default_conversion_event,
-            default_conversion_budget_type: update.default_conversion_budget_type,
-            default_non_conversion_budget_type: update.default_non_conversion_budget_type,
+            default_pixel_id: update.default_pixel_id ?? null,
+            default_page_id: update.default_page_id ?? null,
+            default_instagram_account_id: update.default_instagram_account_id ?? null,
+            default_catalog_id: update.default_catalog_id ?? null,
+            default_product_set_id: update.default_product_set_id ?? null,
+            default_conversion_event: update.default_conversion_event ?? null,
+            default_conversion_budget_type: update.default_conversion_budget_type ?? null,
+            default_non_conversion_budget_type: update.default_non_conversion_budget_type ?? null,
           })
           .eq("id", update.id);
 
@@ -384,6 +384,7 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId, c
                             <SelectValue placeholder="Select budget type" />
                           </SelectTrigger>
                           <SelectContent className="bg-popover z-50">
+                            <SelectItem value="">None (not set)</SelectItem>
                             <SelectItem value="daily">Daily Budget</SelectItem>
                             <SelectItem value="lifetime">Lifetime Budget</SelectItem>
                           </SelectContent>
@@ -400,6 +401,7 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId, c
                             <SelectValue placeholder="Select budget type" />
                           </SelectTrigger>
                           <SelectContent className="bg-popover z-50">
+                            <SelectItem value="">None (not set)</SelectItem>
                             <SelectItem value="daily">Daily Budget</SelectItem>
                             <SelectItem value="lifetime">Lifetime Budget</SelectItem>
                           </SelectContent>
