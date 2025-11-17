@@ -39,6 +39,7 @@ interface PhaseSchedulerProps {
     nonConversionBudgetType?: string;
   };
   onApplyBudgetTypeToAll?: (budgetType: "daily" | "lifetime") => void;
+  onOpenCustomizeBudgetTypes?: () => void;
 }
 
 interface DraggingState {
@@ -893,12 +894,13 @@ export function PhaseScheduler({
                           </div>
                           <Select
                             value={phase.budgetType || ""}
-                            onValueChange={(value: "daily" | "lifetime") => {
-                              updatePhaseField(phase.id, "budgetType", value);
+                            onValueChange={(value: string) => {
+                              const bt = (value === "" ? undefined : (value as "daily" | "lifetime"));
+                              updatePhaseField(phase.id, "budgetType", bt as any);
                               
                               // If no defaults are set, ask if user wants to apply to all
-                              if (!adAccountDefaults?.hasDefaults && onApplyBudgetTypeToAll) {
-                                setPendingBudgetType(value);
+                              if (!adAccountDefaults?.hasDefaults && onApplyBudgetTypeToAll && bt) {
+                                setPendingBudgetType(bt);
                                 setBudgetTypeDialogOpen(true);
                               }
                             }}
@@ -907,6 +909,7 @@ export function PhaseScheduler({
                               <SelectValue placeholder="Select budget type" />
                             </SelectTrigger>
                             <SelectContent className="bg-popover z-50">
+                              <SelectItem value="">None (not set)</SelectItem>
                               <SelectItem value="daily">Daily Budget</SelectItem>
                               <SelectItem value="lifetime">Lifetime Budget</SelectItem>
                             </SelectContent>
@@ -984,6 +987,7 @@ export function PhaseScheduler({
               onApplyBudgetTypeToAll(pendingBudgetType);
             }
           }}
+          onCustomize={onOpenCustomizeBudgetTypes}
         />
       )}
     </Card>
