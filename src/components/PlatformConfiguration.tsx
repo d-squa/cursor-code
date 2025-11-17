@@ -9,8 +9,8 @@ import { PhaseScheduler } from "./PhaseScheduler";
 import { PlatformConfigFields } from "./PlatformConfigFields";
 import { AdFormatSelector } from "./AdFormatSelector";
 import { getPhasesFromAdFormats } from "@/utils/adFormats";
-import { CampaignBudgetTypeDialog } from "./CampaignBudgetTypeDialog";
-import { useState } from "react";
+import { AlertCircle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export interface Phase {
   id: string;
@@ -174,8 +174,13 @@ const getFunnelObjectives = (platformId: string, stage: string, focus: string): 
 
 export function PlatformConfiguration({ platforms, setPlatforms, startDate, endDate }: PlatformConfigurationProps) {
   const enabledPlatforms = platforms.filter((p) => p.enabled);
-  const [budgetTypeDialogOpen, setBudgetTypeDialogOpen] = useState(false);
-  const [selectedPlatformForBudget, setSelectedPlatformForBudget] = useState<string | null>(null);
+
+  // Helper to determine if objective is conversion-focused
+  const isConversionObjective = (objective?: string): boolean => {
+    if (!objective) return false;
+    const conversionKeywords = ['conversion', 'purchase', 'lead', 'app install', 'catalog'];
+    return conversionKeywords.some(keyword => objective.toLowerCase().includes(keyword));
+  };
 
   const updatePlatformConfig = (platformId: string, field: keyof PlatformConfig, value: any) => {
     setPlatforms(
@@ -402,39 +407,6 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
     return basicComplete && campaignsComplete;
   };
 
-  const handleOpenBudgetTypeDialog = (platformId: string) => {
-    setSelectedPlatformForBudget(platformId);
-    setBudgetTypeDialogOpen(true);
-  };
-
-  const handleBudgetTypeConfirm = (campaignBudgetTypes: Record<string, "daily" | "lifetime">) => {
-    if (!selectedPlatformForBudget) return;
-    
-    setPlatforms(
-      platforms.map((p) => {
-        if (p.id === selectedPlatformForBudget && p.config?.campaigns) {
-          return {
-            ...p,
-            config: {
-              ...p.config,
-              campaigns: p.config.campaigns.map((c) => ({
-                ...c,
-                budgetType: campaignBudgetTypes[c.id] || "lifetime",
-              })),
-            },
-          };
-        }
-        return p;
-      }),
-    );
-    
-    setBudgetTypeDialogOpen(false);
-    setSelectedPlatformForBudget(null);
-  };
-
-  const selectedPlatform = platforms.find((p) => p.id === selectedPlatformForBudget);
-  const marketBudget = selectedPlatform?.budgetPercentage || 0;
-
   if (enabledPlatforms.length === 0) {
     return null;
   }
@@ -502,15 +474,15 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
                   </div>
                 </div>
 
-                <div className="mt-4">
-                  <Button
-                    variant="outline"
-                    onClick={() => handleOpenBudgetTypeDialog(platform.id)}
-                    disabled={!platform.config?.campaigns || platform.config.campaigns.length === 0}
-                  >
-                    Apply Budget Type To All Campaigns Under Market
-                  </Button>
-                </div>
+                {/* Validation alert for missing budget types */}
+                {platform.config?.campaigns && platform.config.campaigns.some(c => !c.budgetType) && (
+                  <Alert variant="destructive" className="mt-4 border-yellow-500 bg-yellow-50 dark:bg-yellow-950">
+                    <AlertCircle className="h-4 w-4 text-yellow-600" />
+                    <AlertDescription className="text-yellow-800 dark:text-yellow-200">
+                      Some campaigns are missing budget type configuration. Please set a budget type for each campaign before publishing.
+                    </AlertDescription>
+                  </Alert>
+                )}
               </div>
 
               {/* Phase Configuration */}
@@ -657,6 +629,49 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
                           </div>
                         </div>
 
+                        {/* Budget Type Selector - Inline with validation */}
+                        <div className={`p-4 rounded-lg border-2 ${!campaign.budgetType ? 'border-yellow-500 bg-yellow-50 dark:bg-yellow-950/20' : 'border-border bg-muted/50'}`}>
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <Label className="font-medium">Budget Type *</Label>
+                              {!campaign.budgetType && (
+                                <Badge variant="outline" className="border-yellow-500 text-yellow-700 dark:text-yellow-300">
+                                  Required
+                                </Badge>
+                              )}
+                            </div>
+                            <Select
+                              value={campaign.budgetType || ""}
+                              onValueChange={(value: "daily" | "lifetime") => 
+                                updateCampaign(platform.id, campaign.id, "budgetType", value)
+                              }
+                            >
+                              <SelectTrigger className={!campaign.budgetType ? 'border-yellow-500' : ''}>
+                                <SelectValue placeholder="Select budget type" />
+                              </SelectTrigger>
+                              <SelectContent className="bg-popover z-50">
+                                <SelectItem value="daily">
+                                  <div className="flex flex-col">
+                                    <span className="font-medium">Daily Budget</span>
+                                    <span className="text-xs text-muted-foreground">Fixed daily spend limit</span>
+                                  </div>
+                                </SelectItem>
+                                <SelectItem value="lifetime">
+                                  <div className="flex flex-col">
+                                    <span className="font-medium">Lifetime Budget</span>
+                                    <span className="text-xs text-muted-foreground">Total budget optimized over campaign duration</span>
+                                  </div>
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                            {!campaign.budgetType && (
+                              <p className="text-xs text-yellow-700 dark:text-yellow-300">
+                                Please select a budget type to continue
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
                         <div className="space-y-4">
                           <h4 className="font-medium">Demographics</h4>
                           <div className="grid gap-6 md:grid-cols-3">
@@ -745,18 +760,6 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
           ))}
         </Tabs>
       </CardContent>
-      
-      <CampaignBudgetTypeDialog
-        open={budgetTypeDialogOpen}
-        onOpenChange={setBudgetTypeDialogOpen}
-        onConfirm={handleBudgetTypeConfirm}
-        campaigns={(selectedPlatform?.config?.campaigns || []).map(c => ({
-          ...c,
-          startDate,
-          endDate
-        }))}
-        marketBudget={marketBudget}
-      />
     </Card>
   );
 }
