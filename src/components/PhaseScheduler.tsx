@@ -40,6 +40,7 @@ interface PhaseSchedulerProps {
   };
   onApplyBudgetTypeToAll?: (budgetType: "daily" | "lifetime") => void;
   onOpenCustomizeBudgetTypes?: () => void;
+  marketBudget?: number;
 }
 
 interface DraggingState {
@@ -95,6 +96,7 @@ export function PhaseScheduler({
   adAccountDefaults,
   onApplyBudgetTypeToAll,
   onOpenCustomizeBudgetTypes,
+  marketBudget,
 }: PhaseSchedulerProps) {
   const [dragging, setDragging] = useState<DraggingState | null>(null);
   const [editingName, setEditingName] = useState<string | null>(null);
@@ -896,8 +898,8 @@ export function PhaseScheduler({
                           <Select
                             value={phase.budgetType || "none"}
                             onValueChange={(value: string) => {
-                              const bt = (value === "none" ? undefined : (value as "daily" | "lifetime"));
-                              updatePhaseField(phase.id, "budgetType", bt as any);
+                              const bt = value === "none" ? null : (value as "daily" | "lifetime");
+                              onPhasesChange(phases.map(p => p.id === phase.id ? { ...p, budgetType: bt } : p));
                               
                               // If no defaults are set, ask if user wants to apply to all
                               if (!adAccountDefaults?.hasDefaults && onApplyBudgetTypeToAll && bt) {
@@ -917,6 +919,42 @@ export function PhaseScheduler({
                           </Select>
                           {!phase.budgetType && (
                             <p className="text-xs text-yellow-700 dark:text-yellow-300">Please select a budget type to continue</p>
+                          )}
+                          
+                          {/* Daily Budget Breakdown */}
+                          {phase.budgetType === "daily" && marketBudget && (
+                            <div className="mt-3 p-3 rounded-md bg-muted/30 border border-border">
+                              <div className="space-y-2 text-sm">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-muted-foreground">Phase Budget:</span>
+                                  <span className="font-medium">${((marketBudget * phase.budgetPercentage) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-muted-foreground">Duration:</span>
+                                  <span className="font-medium">
+                                    {(() => {
+                                      const start = parseISO(phase.startDate);
+                                      const end = parseISO(phase.endDate);
+                                      const duration = differenceInDays(end, start) + 1;
+                                      return `${duration} day${duration !== 1 ? 's' : ''}`;
+                                    })()}
+                                  </span>
+                                </div>
+                                <div className="flex items-center justify-between pt-2 border-t border-border">
+                                  <span className="text-muted-foreground font-medium">Daily Budget:</span>
+                                  <span className="font-semibold text-primary">
+                                    ${(() => {
+                                      const start = parseISO(phase.startDate);
+                                      const end = parseISO(phase.endDate);
+                                      const duration = differenceInDays(end, start) + 1;
+                                      const phaseBudget = (marketBudget * phase.budgetPercentage) / 100;
+                                      const dailyBudget = phaseBudget / duration;
+                                      return dailyBudget.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                                    })()}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
                           )}
                         </div>
                       </div>
