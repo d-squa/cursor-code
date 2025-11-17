@@ -40,7 +40,7 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    const { campaignId, budgetType = "lifetime" } = await req.json();
+    const { campaignId } = await req.json();
 
     // Get campaign data
     const { data: campaign, error: campaignError } = await supabase
@@ -113,7 +113,7 @@ const handler = async (req: Request): Promise<Response> => {
       };
 
       if (platformName.includes('Meta') || platformName.includes('Facebook')) {
-        const result = await pushToMeta(campaign, platformConfig, platform, budgetType as "daily" | "lifetime");
+        const result = await pushToMeta(campaign, platformConfig, platform);
         results.push(result);
       } else if (platformName.includes('Google')) {
         const result = await pushToGoogleAds(campaign, platformConfig, platform);
@@ -177,7 +177,7 @@ function getMetaObjectiveFromPhase(phaseName: string, strategyFocus?: string): {
   return { objective: 'OUTCOME_TRAFFIC', optimizationGoal: 'LINK_CLICKS' };
 }
 
-async function pushToMeta(campaign: any, platformConfig: any, platform: any, budgetType: "daily" | "lifetime" = "lifetime") {
+async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
   console.log("Pushing to Meta...");
   
   const results = [];
@@ -310,8 +310,8 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, bud
         const endDate = new Date(phase.endDate || campaign.end_date);
         const durationDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
         
-        // Use the budgetType parameter passed from the frontend
-        const isLifetimeBudget = budgetType === "lifetime";
+        // Use the market's isLifetimeBudget setting (default to lifetime if not set)
+        const isLifetimeBudget = market.isLifetimeBudget !== false;
         
         // Build targeting
         const targeting: any = {
