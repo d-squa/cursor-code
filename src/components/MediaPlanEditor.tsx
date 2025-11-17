@@ -28,6 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { PlatformSelectionDialog } from "./PlatformSelectionDialog";
 import { MarketSelectionDialog } from "./MarketSelectionDialog";
 import { MARKET_OPTIONS } from "@/utils/markets";
+import { CampaignBudgetTypeDialog } from "./CampaignBudgetTypeDialog";
 
 // Helper: map internal focus to funnel template key
 const mapFocusToTemplate = (focus?: string): string | undefined => {
@@ -88,6 +89,13 @@ export function MediaPlanEditor() {
     type: 'platform' | 'market';
     platformId?: string;
     marketId?: string;
+  } | null>(null);
+  const [budgetTypeDialogOpen, setBudgetTypeDialogOpen] = useState(false);
+  const [selectedMarketForBudget, setSelectedMarketForBudget] = useState<{
+    platformId: string;
+    marketId: string;
+    phases: any[];
+    marketBudget: number;
   } | null>(null);
   
   // Resolve effective strategy focus at render-time (never "auto")
@@ -781,6 +789,32 @@ export function MediaPlanEditor() {
     return MARKET_OPTIONS.find(m => m.value === marketValue)?.label || marketValue;
   };
 
+  const handleBudgetTypeConfirm = (phaseBudgetTypes: Record<string, "daily" | "lifetime">) => {
+    if (!selectedMarketForBudget) return;
+    
+    const { platformId, marketId } = selectedMarketForBudget;
+    
+    setPlatformsWithMarkets(prev => prev.map(p => 
+      p.id === platformId ? {
+        ...p,
+        markets: p.markets.map(m => 
+          m.id === marketId ? {
+            ...m,
+            phases: (m.phases || []).map((phase: any) => ({
+              ...phase,
+              budgetType: phaseBudgetTypes[phase.id] || "lifetime"
+            }))
+          } : m
+        )
+      } : p
+    ));
+    
+    setBudgetTypeDialogOpen(false);
+    setSelectedMarketForBudget(null);
+    toast.success("Budget types applied to all campaigns");
+    ensureDraft();
+  };
+
   return (
     <div className="space-y-6">
       {/* Step 1: Activation Details */}
@@ -1323,6 +1357,25 @@ export function MediaPlanEditor() {
                                   >
                                     Apply Strategy to All Markets
                                   </Button>
+                                  
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      const platformBudget = (parseFloat(totalBudget) * platform.budgetPercentage) / 100;
+                                      const marketBudget = (platformBudget * market.budgetPercentage) / 100;
+                                      setSelectedMarketForBudget({
+                                        platformId: platform.id,
+                                        marketId: market.id,
+                                        phases: market.phases || [],
+                                        marketBudget
+                                      });
+                                      setBudgetTypeDialogOpen(true);
+                                    }}
+                                    disabled={!market.phases || market.phases.length === 0}
+                                  >
+                                    Apply Budget Type to All Campaigns
+                                  </Button>
                                 </div>
 
                                 <PhaseScheduler
@@ -1513,6 +1566,20 @@ export function MediaPlanEditor() {
         open={marketDialogOpen}
         onOpenChange={setMarketDialogOpen}
         onConfirm={handleMarketDuplicationConfirm}
+      />
+      
+      <CampaignBudgetTypeDialog
+        open={budgetTypeDialogOpen}
+        onOpenChange={setBudgetTypeDialogOpen}
+        onConfirm={handleBudgetTypeConfirm}
+        campaigns={selectedMarketForBudget?.phases.map(phase => ({
+          id: phase.id,
+          name: phase.name,
+          budgetType: phase.budgetType
+        })) || []}
+        marketBudget={selectedMarketForBudget?.marketBudget || 0}
+        startDate={startDate}
+        endDate={endDate}
       />
     </div>
   );

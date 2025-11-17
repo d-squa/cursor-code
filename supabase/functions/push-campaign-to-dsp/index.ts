@@ -310,8 +310,10 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
         const endDate = new Date(phase.endDate || campaign.end_date);
         const durationDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
         
-        // Use the market's isLifetimeBudget setting (default to lifetime if not set)
-        const isLifetimeBudget = market.isLifetimeBudget !== false;
+        // Use the phase's budget type (default to lifetime if not set)
+        const budgetType = phase.budgetType || 'lifetime';
+        const dailyBudget = budgetType === 'daily' ? Math.round(phaseBudget / durationDays * 100) : null;
+        const lifetimeBudget = budgetType === 'lifetime' ? Math.round(phaseBudget * 100) : null;
         
         // Build targeting
         const targeting: any = {
@@ -405,10 +407,10 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
         }
         
         // Set budget (convert to cents)
-        if (isLifetimeBudget) {
-          adSetPayload.lifetime_budget = Math.round(phaseBudget * 100);
-        } else {
-          adSetPayload.daily_budget = Math.round((phaseBudget / durationDays) * 100);
+        if (lifetimeBudget) {
+          adSetPayload.lifetime_budget = lifetimeBudget;
+        } else if (dailyBudget) {
+          adSetPayload.daily_budget = dailyBudget;
         }
 
         console.log("Creating Meta ad set:", adSetPayload);
@@ -450,7 +452,7 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
           campaignId: campaignData.id,
           adSetId: adSetData.id,
           budget: phaseBudget,
-          budgetType: isLifetimeBudget ? 'lifetime' : 'daily',
+          budgetType: budgetType,
         });
       } catch (error: any) {
         console.error(`Error processing market ${market.name}, phase ${phase.name}:`, error);
