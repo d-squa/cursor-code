@@ -16,6 +16,7 @@ import { ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import React, { useState, useEffect } from "react";
 import { MARKET_OPTIONS } from "@/utils/markets";
+import { BudgetTypeDialog } from "./BudgetTypeDialog";
 
 interface PlatformMarketBudgetSelectorProps {
   platforms: PlatformWithMarkets[];
@@ -68,6 +69,8 @@ export function PlatformMarketBudgetSelector({
   const [loadingConversionEvents, setLoadingConversionEvents] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [adAccountDefaults, setAdAccountDefaults] = useState<Record<string, any>>({});
+  const [budgetTypeDialogOpen, setBudgetTypeDialogOpen] = useState(false);
+  const [selectedMarketForBudget, setSelectedMarketForBudget] = useState<{ platformIndex: number; marketId: string; marketBudget: number } | null>(null);
   
   const totalAllocated = platforms.reduce((sum, p) => sum + p.budgetPercentage, 0);
   const usedPlatformIds = platforms.map(p => p.id).filter(id => id !== "");
@@ -564,6 +567,30 @@ export function PlatformMarketBudgetSelector({
           : p
       )
     );
+  };
+
+  const handleBudgetSliderChange = (platformIndex: number, marketId: string, percentage: number) => {
+    // Calculate the actual market budget in dollars
+    const platform = platforms[platformIndex];
+    const platformBudget = (totalBudget * platform.budgetPercentage) / 100;
+    const marketBudget = (platformBudget * percentage) / 100;
+    
+    // Store the selection and open dialog
+    setSelectedMarketForBudget({ platformIndex, marketId, marketBudget });
+    setBudgetTypeDialogOpen(true);
+    
+    // Update the budget percentage immediately
+    updateMarketBudget(platformIndex, marketId, percentage);
+  };
+
+  const handleBudgetTypeConfirm = (budgetType: "daily" | "lifetime") => {
+    if (selectedMarketForBudget) {
+      const { platformIndex, marketId } = selectedMarketForBudget;
+      updateMarketField(platformIndex, marketId, 'isLifetimeBudget', budgetType === 'lifetime');
+      toast.success(`Budget type set to ${budgetType}`);
+    }
+    setBudgetTypeDialogOpen(false);
+    setSelectedMarketForBudget(null);
   };
 
   const updateMarketField = (platformIndex: number, marketId: string, field: keyof Market, value: any) => {
@@ -1102,6 +1129,7 @@ export function PlatformMarketBudgetSelector({
                               </div>
                               <Slider
                                 value={[market.budgetPercentage]}
+                                onValueCommit={([value]) => handleBudgetSliderChange(platformIndex, market.id, value)}
                                 onValueChange={([value]) => updateMarketBudget(platformIndex, market.id, value)}
                                 min={0}
                                 max={100}
@@ -1159,6 +1187,15 @@ export function PlatformMarketBudgetSelector({
           </div>
         )}
       </CardContent>
+
+      <BudgetTypeDialog
+        open={budgetTypeDialogOpen}
+        onOpenChange={setBudgetTypeDialogOpen}
+        onConfirm={handleBudgetTypeConfirm}
+        campaignBudget={selectedMarketForBudget?.marketBudget || 0}
+        startDate={startDate || new Date().toISOString().split('T')[0]}
+        endDate={endDate || new Date().toISOString().split('T')[0]}
+      />
     </Card>
   );
 }
