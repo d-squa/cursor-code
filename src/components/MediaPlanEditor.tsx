@@ -604,10 +604,12 @@ export function MediaPlanEditor() {
   };
 
   const applyBudgetTypeDefaultsIfAvailable = async () => {
+    console.log('applyBudgetTypeDefaultsIfAvailable called');
     try {
       const accountIds = Array.from(new Set(
         platformsWithMarkets.flatMap(p => p.enabled ? p.markets.map(m => m.adAccountId).filter(Boolean) as string[] : [])
       ));
+      console.log('Account IDs found:', accountIds);
       if (accountIds.length === 0) return;
       const { data: accounts } = await supabase
         .from('meta_ad_accounts')
@@ -638,6 +640,23 @@ export function MediaPlanEditor() {
             const phaseFunnel = (ph.funnelStage || '').toLowerCase();
             const marketFocus = (m.strategyFocus || '').toLowerCase();
             
+            // Non-conversion indicators (take priority)
+            const isNonConversionObjective = 
+              phaseObj.includes('brand awareness') ||
+              phaseObj.includes('reach') ||
+              phaseObj.includes('traffic') ||
+              phaseObj.includes('engagement') ||
+              phaseObj.includes('video views') ||
+              phaseObj.includes('app installs');
+            
+            const isNonConversionOptGoal = 
+              phaseOpt.includes('reach') ||
+              phaseOpt.includes('link clicks') ||
+              phaseOpt.includes('landing page views') ||
+              phaseOpt.includes('post engagement') ||
+              phaseOpt.includes('video views') ||
+              phaseOpt.includes('app installs');
+            
             // Conversion indicators
             const isConversionObjective = 
               phaseObj.includes('outcome_sales') || 
@@ -661,7 +680,16 @@ export function MediaPlanEditor() {
               marketFocus.includes('lead') || 
               marketFocus.includes('conversion');
             
-            const isPhaseConversion = isConversionObjective || isConversionOptGoal || isConversionFunnel || isConversionMarket;
+            // Phase-level indicators take priority over market-level
+            let isPhaseConversion: boolean;
+            if (isNonConversionObjective || isNonConversionOptGoal) {
+              isPhaseConversion = false;
+            } else if (isConversionObjective || isConversionOptGoal || isConversionFunnel) {
+              isPhaseConversion = true;
+            } else {
+              isPhaseConversion = isConversionMarket;
+            }
+            
             const candidate = isPhaseConversion ? def.conv : def.nonconv;
             
             console.log(`Phase "${ph.name}": obj=${phaseObj}, opt=${phaseOpt}, funnel=${phaseFunnel}, market=${marketFocus}, isConv=${isPhaseConversion}, applying=${candidate}`);
