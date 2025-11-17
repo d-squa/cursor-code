@@ -17,6 +17,7 @@ import { CampaignPublisherConfig } from "./CampaignPublisherConfig";
 import { TargetingConfigComponent } from "./TargetingConfig";
 import { getOptimizationGoalForFocus } from "@/utils/strategyFocusMapping";
 import { BudgetTypeApplyDialog } from "./BudgetTypeApplyDialog";
+import { supabase } from "@/integrations/supabase/client";
 
 interface PhaseSchedulerProps {
   phases: Phase[];
@@ -41,6 +42,7 @@ interface PhaseSchedulerProps {
   onApplyBudgetTypeToAll?: (budgetType: "daily" | "lifetime") => void;
   onOpenCustomizeBudgetTypes?: () => void;
   marketBudget?: number;
+  adAccountId?: string;
 }
 
 interface DraggingState {
@@ -97,6 +99,7 @@ export function PhaseScheduler({
   onApplyBudgetTypeToAll,
   onOpenCustomizeBudgetTypes,
   marketBudget,
+  adAccountId,
 }: PhaseSchedulerProps) {
   console.log("PhaseScheduler marketBudget:", marketBudget);
   const [dragging, setDragging] = useState<DraggingState | null>(null);
@@ -104,8 +107,34 @@ export function PhaseScheduler({
   const [editingBudget, setEditingBudget] = useState<string | null>(null);
   const [expandedPhases, setExpandedPhases] = useState<{ [key: string]: boolean }>({});
   const [budgetTypeDialogOpen, setBudgetTypeDialogOpen] = useState(false);
+  const [fetchedDefaults, setFetchedDefaults] = useState<{ hasDefaults: boolean; conversionBudgetType?: string; nonConversionBudgetType?: string }>();
   const [pendingBudgetType, setPendingBudgetType] = useState<"daily" | "lifetime" | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const fetchDefaults = async () => {
+      if (adAccountDefaults || !adAccountId) return;
+      try {
+        const { data, error } = await supabase
+          .from("meta_ad_accounts" as any)
+          .select("default_conversion_budget_type, default_non_conversion_budget_type")
+          .eq("account_id", adAccountId)
+          .maybeSingle();
+        if (!error && data) {
+          const conv = (data as any).default_conversion_budget_type as string | null;
+          const nonConv = (data as any).default_non_conversion_budget_type as string | null;
+          setFetchedDefaults({
+            hasDefaults: Boolean(conv || nonConv),
+            conversionBudgetType: conv || undefined,
+            nonConversionBudgetType: nonConv || undefined,
+          });
+        }
+      } catch (e) {
+        console.error("Failed to fetch ad account defaults", e);
+      }
+    };
+    fetchDefaults();
+  }, [adAccountDefaults, adAccountId]);
 
   // Initialize default phases if empty
   useEffect(() => {
@@ -903,7 +932,8 @@ export function PhaseScheduler({
                               onPhasesChange(phases.map(p => p.id === phase.id ? { ...p, budgetType: bt } : p));
                               
                               // If no defaults are set, ask if user wants to apply to all
-                              if (!adAccountDefaults?.hasDefaults && onApplyBudgetTypeToAll && bt) {
+                              const defaultsSource = adAccountDefaults || fetchedDefaults;
+                              if (!defaultsSource?.hasDefaults && onApplyBudgetTypeToAll && bt) {
                                 setPendingBudgetType(bt);
                                 setBudgetTypeDialogOpen(true);
                               }
