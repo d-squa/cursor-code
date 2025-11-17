@@ -16,6 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { CampaignPublisherConfig } from "./CampaignPublisherConfig";
 import { TargetingConfigComponent } from "./TargetingConfig";
 import { getOptimizationGoalForFocus } from "@/utils/strategyFocusMapping";
+import { BudgetTypeApplyDialog } from "./BudgetTypeApplyDialog";
 
 interface PhaseSchedulerProps {
   phases: Phase[];
@@ -32,6 +33,12 @@ interface PhaseSchedulerProps {
     gender?: string;
     devices?: string[];
   };
+  adAccountDefaults?: {
+    hasDefaults: boolean;
+    conversionBudgetType?: string;
+    nonConversionBudgetType?: string;
+  };
+  onApplyBudgetTypeToAll?: (budgetType: "daily" | "lifetime") => void;
 }
 
 interface DraggingState {
@@ -74,11 +81,25 @@ const platformObjectiveMapping: Record<string, Record<string, string[]>> = {
   },
 };
 
-export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate, platformId = "meta", platformName, strategyFocus, strategy, marketTargeting }: PhaseSchedulerProps) {
+export function PhaseScheduler({ 
+  phases, 
+  onPhasesChange, 
+  startDate, 
+  endDate, 
+  platformId = "meta", 
+  platformName, 
+  strategyFocus, 
+  strategy, 
+  marketTargeting,
+  adAccountDefaults,
+  onApplyBudgetTypeToAll,
+}: PhaseSchedulerProps) {
   const [dragging, setDragging] = useState<DraggingState | null>(null);
   const [editingName, setEditingName] = useState<string | null>(null);
   const [editingBudget, setEditingBudget] = useState<string | null>(null);
   const [expandedPhases, setExpandedPhases] = useState<{ [key: string]: boolean }>({});
+  const [budgetTypeDialogOpen, setBudgetTypeDialogOpen] = useState(false);
+  const [pendingBudgetType, setPendingBudgetType] = useState<"daily" | "lifetime" | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Initialize default phases if empty
@@ -872,7 +893,15 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate, pla
                           </div>
                           <Select
                             value={phase.budgetType || ""}
-                            onValueChange={(value: "daily" | "lifetime") => updatePhaseField(phase.id, "budgetType", value)}
+                            onValueChange={(value: "daily" | "lifetime") => {
+                              updatePhaseField(phase.id, "budgetType", value);
+                              
+                              // If no defaults are set, ask if user wants to apply to all
+                              if (!adAccountDefaults?.hasDefaults && onApplyBudgetTypeToAll) {
+                                setPendingBudgetType(value);
+                                setBudgetTypeDialogOpen(true);
+                              }
+                            }}
                           >
                             <SelectTrigger className={!phase.budgetType ? 'border-yellow-500' : ''}>
                               <SelectValue placeholder="Select budget type" />
@@ -943,6 +972,20 @@ export function PhaseScheduler({ phases, onPhasesChange, startDate, endDate, pla
           )}
         </div>
       </CardContent>
+
+      {/* Budget Type Apply Dialog */}
+      {pendingBudgetType && (
+        <BudgetTypeApplyDialog
+          open={budgetTypeDialogOpen}
+          onOpenChange={setBudgetTypeDialogOpen}
+          budgetType={pendingBudgetType}
+          onConfirm={() => {
+            if (onApplyBudgetTypeToAll && pendingBudgetType) {
+              onApplyBudgetTypeToAll(pendingBudgetType);
+            }
+          }}
+        />
+      )}
     </Card>
   );
 }

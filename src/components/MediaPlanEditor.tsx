@@ -574,6 +574,32 @@ export function MediaPlanEditor() {
     }
   };
 
+  const validateBudgetTypes = (): boolean => {
+    const missingBudgetTypes: string[] = [];
+    
+    platformsWithMarkets.forEach((platform) => {
+      platform.markets.forEach((market) => {
+        if (market.phases) {
+          market.phases.forEach((phase) => {
+            if (!phase.budgetType) {
+              missingBudgetTypes.push(`${platform.name} - ${market.name} - ${phase.name}`);
+            }
+          });
+        }
+      });
+    });
+
+    if (missingBudgetTypes.length > 0) {
+      toast.error(
+        `Budget type is required for all phases. Missing in: ${missingBudgetTypes.slice(0, 3).join(", ")}${missingBudgetTypes.length > 3 ? ` and ${missingBudgetTypes.length - 3} more` : ""}`,
+        { duration: 5000 }
+      );
+      return false;
+    }
+    
+    return true;
+  };
+
   const saveCampaignDraft = async () => {
     if (!campaignName.trim()) {
       toast.error("Please enter a campaign name");
@@ -582,6 +608,10 @@ export function MediaPlanEditor() {
     
     if (!boNumber.trim()) {
       toast.error("Please enter a BO number");
+      return null;
+    }
+
+    if (!validateBudgetTypes()) {
       return null;
     }
 
