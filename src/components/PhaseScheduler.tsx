@@ -894,9 +894,9 @@ export function PhaseScheduler({
                             )}
                           </div>
                           <Select
-                            value={phase.budgetType || ""}
+                            value={phase.budgetType || "none"}
                             onValueChange={(value: string) => {
-                              const bt = (value === "" ? undefined : (value as "daily" | "lifetime"));
+                              const bt = (value === "none" ? undefined : (value as "daily" | "lifetime"));
                               updatePhaseField(phase.id, "budgetType", bt as any);
                               
                               // If no defaults are set, ask if user wants to apply to all
@@ -909,11 +909,11 @@ export function PhaseScheduler({
                             <SelectTrigger className={!phase.budgetType ? 'border-yellow-500' : ''}>
                               <SelectValue placeholder="Select budget type" />
                             </SelectTrigger>
-                            <SelectContent className="bg-popover z-50">
-                              <SelectItem value="">None (not set)</SelectItem>
-                              <SelectItem value="daily">Daily Budget</SelectItem>
-                              <SelectItem value="lifetime">Lifetime Budget</SelectItem>
-                            </SelectContent>
+                          <SelectContent className="bg-popover z-50">
+                            <SelectItem value="none">None (not set)</SelectItem>
+                            <SelectItem value="daily">Daily Budget</SelectItem>
+                            <SelectItem value="lifetime">Lifetime Budget</SelectItem>
+                          </SelectContent>
                           </Select>
                           {!phase.budgetType && (
                             <p className="text-xs text-yellow-700 dark:text-yellow-300">Please select a budget type to continue</p>
