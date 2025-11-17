@@ -59,6 +59,7 @@ export interface Campaign {
   budgetType?: "daily" | "lifetime";
   startDate?: string;
   endDate?: string;
+  phases?: Phase[];
   targeting?: {
     ageMin?: number;
     ageMax?: number;
@@ -522,6 +523,32 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
                     endDate={endDate}
                     platformId={platform.id}
                     platformName={platform.name}
+                    adAccountDefaults={{ hasDefaults: false }}
+                    onApplyBudgetTypeToAll={(budgetType) => {
+                      // Apply budget type to all phases across all campaigns in this platform
+                      const updatedPlatforms = platforms.map((p) =>
+                        p.id === platform.id
+                          ? {
+                              ...p,
+                              config: {
+                                ...p.config,
+                                phases: p.config?.phases?.map((phase) => ({
+                                  ...phase,
+                                  budgetType: phase.budgetType || budgetType,
+                                })),
+                                campaigns: p.config?.campaigns?.map((campaign) => ({
+                                  ...campaign,
+                                  phases: campaign.phases?.map((phase) => ({
+                                    ...phase,
+                                    budgetType: phase.budgetType || budgetType,
+                                  })),
+                                })),
+                              },
+                            }
+                          : p
+                      );
+                      setPlatforms(updatedPlatforms);
+                    }}
                   />
                 )}
               </div>
