@@ -923,11 +923,32 @@ export function PhaseScheduler({
                           )}
                           
                           {/* Auto-applied default explanation */}
-                          {phase.budgetType && adAccountDefaults?.hasDefaults && (() => {
+                          {(() => {
+                            console.log("Budget label check:", {
+                              hasBudgetType: !!phase.budgetType,
+                              budgetType: phase.budgetType,
+                              hasDefaults: adAccountDefaults?.hasDefaults,
+                              conversionDefault: adAccountDefaults?.conversionBudgetType,
+                              nonConversionDefault: adAccountDefaults?.nonConversionBudgetType,
+                              objective: phase.objective,
+                              optimizationGoal: phase.optimizationGoal
+                            });
+                            
+                            if (!phase.budgetType || !adAccountDefaults?.hasDefaults) {
+                              return null;
+                            }
+                            
                             const isNonConversionObjective = phase.objective && ['brand awareness', 'reach', 'traffic', 'engagement', 'video views', 'app installs'].includes(phase.objective.toLowerCase());
                             const isNonConversionOptGoal = phase.optimizationGoal && ['reach', 'link clicks', 'landing page views', 'post engagement', 'video views', 'app installs'].includes(phase.optimizationGoal.toLowerCase());
                             const isNonConversion = isNonConversionObjective || isNonConversionOptGoal;
                             const appliedDefault = isNonConversion ? adAccountDefaults.nonConversionBudgetType : adAccountDefaults.conversionBudgetType;
+                            
+                            console.log("Budget label decision:", {
+                              isNonConversion,
+                              appliedDefault,
+                              currentBudgetType: phase.budgetType,
+                              willShow: appliedDefault === phase.budgetType
+                            });
                             
                             // Only show if the current budgetType matches the expected default
                             if (appliedDefault === phase.budgetType) {
