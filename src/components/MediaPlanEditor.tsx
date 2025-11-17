@@ -621,21 +621,51 @@ export function MediaPlanEditor() {
         };
       });
       
+      console.log('Budget type defaults map:', defaultsMap);
+      
       let hasChanges = false;
       const updated = platformsWithMarkets.map(p => !p.enabled ? p : ({
         ...p,
         markets: p.markets.map(m => {
           const def = m.adAccountId ? defaultsMap[m.adAccountId] : undefined;
           if (!def) return m;
-          const marketFocus = (m.strategyFocus || '').toLowerCase();
-          const isMarketConversion = marketFocus.includes('conversion') || marketFocus.includes('purchase') || marketFocus.includes('lead');
+          
           const phases = (m.phases || []).map(ph => {
             if (ph.budgetType) return ph;
+            
             const phaseObj = (ph.objective || '').toLowerCase();
             const phaseOpt = (ph.optimizationGoal || '').toLowerCase();
-            const isFunnelConversion = (ph.funnelStage || '').toLowerCase().includes('conversion');
-            const isPhaseConversion = phaseObj.includes('conversion') || phaseOpt.includes('conversion') || isFunnelConversion || isMarketConversion;
+            const phaseFunnel = (ph.funnelStage || '').toLowerCase();
+            const marketFocus = (m.strategyFocus || '').toLowerCase();
+            
+            // Conversion indicators
+            const isConversionObjective = 
+              phaseObj.includes('outcome_sales') || 
+              phaseObj.includes('outcome_leads') ||
+              phaseObj.includes('conversion');
+            
+            const isConversionOptGoal = 
+              phaseOpt.includes('offsite_conversions') ||
+              phaseOpt.includes('conversions') ||
+              phaseOpt.includes('lead') ||
+              phaseOpt.includes('purchase') ||
+              phaseOpt.includes('complete_registration');
+            
+            const isConversionFunnel = 
+              phaseFunnel.includes('conversion') ||
+              phaseFunnel.includes('purchase') ||
+              phaseFunnel.includes('action');
+            
+            const isConversionMarket = 
+              marketFocus.includes('purchase') || 
+              marketFocus.includes('lead') || 
+              marketFocus.includes('conversion');
+            
+            const isPhaseConversion = isConversionObjective || isConversionOptGoal || isConversionFunnel || isConversionMarket;
             const candidate = isPhaseConversion ? def.conv : def.nonconv;
+            
+            console.log(`Phase "${ph.name}": obj=${phaseObj}, opt=${phaseOpt}, funnel=${phaseFunnel}, market=${marketFocus}, isConv=${isPhaseConversion}, applying=${candidate}`);
+            
             if (candidate === 'daily' || candidate === 'lifetime') {
               hasChanges = true;
               return { ...ph, budgetType: candidate as 'daily' | 'lifetime' };
@@ -649,7 +679,9 @@ export function MediaPlanEditor() {
       if (hasChanges) {
         setPlatformsWithMarkets(updated);
       }
-    } catch {}
+    } catch (e) {
+      console.error('Error applying budget type defaults:', e);
+    }
   };
 
   // Auto-apply budget type defaults when ad accounts or phases change
