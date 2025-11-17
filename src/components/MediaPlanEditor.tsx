@@ -600,6 +600,48 @@ export function MediaPlanEditor() {
     return true;
   };
 
+  const applyBudgetTypeDefaultsIfAvailable = async () => {
+    try {
+      const accountIds = Array.from(new Set(
+        platformsWithMarkets.flatMap(p => p.enabled ? p.markets.map(m => m.adAccountId).filter(Boolean) as string[] : [])
+      ));
+      if (accountIds.length === 0) return;
+      const { data: accounts } = await supabase
+        .from('meta_ad_accounts')
+        .select('account_id, default_conversion_budget_type, default_non_conversion_budget_type')
+        .in('account_id', accountIds);
+      const defaultsMap: Record<string, { conv?: string; nonconv?: string }> = {};
+      (accounts || []).forEach((a: any) => {
+        defaultsMap[a.account_id] = {
+          conv: a.default_conversion_budget_type || undefined,
+          nonconv: a.default_non_conversion_budget_type || undefined,
+        };
+      });
+      const updated = platformsWithMarkets.map(p => !p.enabled ? p : ({
+        ...p,
+        markets: p.markets.map(m => {
+          const def = m.adAccountId ? defaultsMap[m.adAccountId] : undefined;
+          if (!def) return m;
+          const marketFocus = (m.strategyFocus || '').toLowerCase();
+          const isMarketConversion = marketFocus.includes('conversion') || marketFocus.includes('purchase') || marketFocus.includes('lead');
+          const phases = (m.phases || []).map(ph => {
+            if (ph.budgetType) return ph;
+            const phaseObj = (ph.objective || '').toLowerCase();
+            const phaseOpt = (ph.optimizationGoal || '').toLowerCase();
+            const isPhaseConversion = phaseObj.includes('conversion') || phaseOpt.includes('conversion') || isMarketConversion;
+            const candidate = isPhaseConversion ? def.conv : def.nonconv;
+            if (candidate === 'daily' || candidate === 'lifetime') {
+              return { ...ph, budgetType: candidate as 'daily' | 'lifetime' };
+            }
+            return ph;
+          });
+          return { ...m, phases };
+        })
+      }));
+      setPlatformsWithMarkets(updated);
+    } catch {}
+  };
+
   const saveCampaignDraft = async () => {
     if (!campaignName.trim()) {
       toast.error("Please enter a campaign name");
@@ -1413,6 +1455,16 @@ export function MediaPlanEditor() {
                                     gender: market.gender || genericConfig.targeting?.genders?.[0],
                                     devices: genericConfig.targeting?.devices,
                                   }}
+                                  onApplyBudgetTypeToAll={(type) => {
+                                    setPlatformsWithMarkets(prev => prev.map(p => p.id === platform.id ? {
+                                      ...p,
+                                      markets: p.markets.map(m => ({
+                                        ...m,
+                                        phases: (m.phases || []).map(ph => ph.budgetType ? ph : { ...ph, budgetType: type })
+                                      }))
+                                    } : p));
+                                    toast.success(`Applied ${type === 'daily' ? 'Daily' : 'Lifetime'} Budget to all phases in ${platform.name}`);
+                                  }}
                                   />
                                 </Card>
                               ))}
@@ -1524,6 +1576,10 @@ export function MediaPlanEditor() {
                           setPlatformsWithMarkets(updatedPlatforms);
                         }
                       }
+                    }
+                    await applyBudgetTypeDefaultsIfAvailable();
+                    if (!validateBudgetTypes()) {
+                      return;
                     }
                     await ensureDraft();
                     setCurrentStep(4);
