@@ -40,7 +40,7 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    const { campaignId } = await req.json();
+    const { campaignId, budgetType = "lifetime" } = await req.json();
 
     // Get campaign data
     const { data: campaign, error: campaignError } = await supabase
@@ -113,7 +113,7 @@ const handler = async (req: Request): Promise<Response> => {
       };
 
       if (platformName.includes('Meta') || platformName.includes('Facebook')) {
-        const result = await pushToMeta(campaign, platformConfig, platform);
+        const result = await pushToMeta(campaign, platformConfig, platform, budgetType as "daily" | "lifetime");
         results.push(result);
       } else if (platformName.includes('Google')) {
         const result = await pushToGoogleAds(campaign, platformConfig, platform);
@@ -177,7 +177,7 @@ function getMetaObjectiveFromPhase(phaseName: string, strategyFocus?: string): {
   return { objective: 'OUTCOME_TRAFFIC', optimizationGoal: 'LINK_CLICKS' };
 }
 
-async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
+async function pushToMeta(campaign: any, platformConfig: any, platform: any, budgetType: "daily" | "lifetime" = "lifetime") {
   console.log("Pushing to Meta...");
   
   const results = [];
@@ -305,13 +305,13 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
         
         const phaseBudget = (totalCampaignBudget * platformBudgetPercentage / 100) * (marketBudgetPercentage / 100) * (phaseBudgetPercentage / 100);
         
-        // Calculate duration in days
+        // Calculate duration in days (including start and end day)
         const startDate = new Date(phase.startDate || campaign.start_date);
         const endDate = new Date(phase.endDate || campaign.end_date);
-        const durationDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+        const durationDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
         
-        // Determine if lifetime or daily budget
-        const isLifetimeBudget = market.isLifetimeBudget || false;
+        // Use the budgetType parameter passed from the frontend
+        const isLifetimeBudget = budgetType === "lifetime";
         
         // Build targeting
         const targeting: any = {

@@ -17,6 +17,7 @@ import { ModificationRequestsAnalytics } from "@/components/ModificationRequests
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { downloadMediaPlanExcel } from "@/utils/excelGenerator";
+import { BudgetTypeDialog } from "@/components/BudgetTypeDialog";
 interface Campaign {
   id: string;
   name: string;
@@ -67,6 +68,8 @@ export default function ActiPlans() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [campaignToDelete, setCampaignToDelete] = useState<Campaign | null>(null);
   const [search, setSearch] = useState("");
+  const [budgetTypeDialogOpen, setBudgetTypeDialogOpen] = useState(false);
+  const [campaignToPush, setCampaignToPush] = useState<Campaign | null>(null);
   useEffect(() => {
     if (user) {
       loadCampaigns();
@@ -261,11 +264,21 @@ export default function ActiPlans() {
   };
 
   const handlePushToDSP = async (campaign: Campaign) => {
+    setCampaignToPush(campaign);
+    setBudgetTypeDialogOpen(true);
+  };
+
+  const handleBudgetTypeConfirm = async (budgetType: "daily" | "lifetime") => {
+    if (!campaignToPush) return;
+    
     setActionLoading(true);
     try {
       // Call edge function to push to DSP
       const { data, error } = await supabase.functions.invoke("push-campaign-to-dsp", {
-        body: { campaignId: campaign.id },
+        body: { 
+          campaignId: campaignToPush.id,
+          budgetType: budgetType 
+        },
       });
 
       if (error) throw error;
@@ -278,19 +291,21 @@ export default function ActiPlans() {
           pushed_at: new Date().toISOString(),
           status: "live"
         })
-        .eq("id", campaign.id);
+        .eq("id", campaignToPush.id);
 
       await supabase.from("campaign_change_history").insert({
-        campaign_id: campaign.id,
+        campaign_id: campaignToPush.id,
         user_id: user?.id,
         action: "pushed_to_dsp",
         change_type: "status_change",
-        description: "Campaign pushed to DSP and status changed to live",
+        description: `Campaign pushed to DSP with ${budgetType} budget and status changed to live`,
       });
 
       toast.success("Campaign pushed to DSP successfully! Please perform a manual quality check in the Ads Manager.", {
         duration: 6000,
       });
+      setBudgetTypeDialogOpen(false);
+      setCampaignToPush(null);
       loadCampaigns();
     } catch (error: any) {
       console.error("Error pushing to DSP:", error);
@@ -813,6 +828,18 @@ export default function ActiPlans() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {campaignToPush && (
+        <BudgetTypeDialog
+          open={budgetTypeDialogOpen}
+          onOpenChange={setBudgetTypeDialogOpen}
+          onConfirm={handleBudgetTypeConfirm}
+          campaignBudget={campaignToPush.total_budget}
+          startDate={campaignToPush.start_date}
+          endDate={campaignToPush.end_date}
+          loading={actionLoading}
+        />
+      )}
     </div>
   );
 }
