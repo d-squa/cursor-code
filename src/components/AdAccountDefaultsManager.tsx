@@ -377,14 +377,14 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId, c
                       <div className="space-y-2">
                         <Label>Default Budget Type (Conversion Campaigns)</Label>
                         <Select
-                          value={localDefaults[account.id]?.default_conversion_budget_type || ""}
-                          onValueChange={(val) => updateDefault(account.id, "default_conversion_budget_type", val)}
+                          value={localDefaults[account.id]?.default_conversion_budget_type || "none"}
+                          onValueChange={(val) => updateDefault(account.id, "default_conversion_budget_type", val === "none" ? null : val)}
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="Select budget type" />
                           </SelectTrigger>
                           <SelectContent className="bg-popover z-50">
-                            <SelectItem value="">None (not set)</SelectItem>
+                            <SelectItem value="none">None (not set)</SelectItem>
                             <SelectItem value="daily">Daily Budget</SelectItem>
                             <SelectItem value="lifetime">Lifetime Budget</SelectItem>
                           </SelectContent>
@@ -394,14 +394,14 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId, c
                       <div className="space-y-2">
                         <Label>Default Budget Type (Non-Conversion Campaigns)</Label>
                         <Select
-                          value={localDefaults[account.id]?.default_non_conversion_budget_type || ""}
-                          onValueChange={(val) => updateDefault(account.id, "default_non_conversion_budget_type", val)}
+                          value={localDefaults[account.id]?.default_non_conversion_budget_type || "none"}
+                          onValueChange={(val) => updateDefault(account.id, "default_non_conversion_budget_type", val === "none" ? null : val)}
                         >
                           <SelectTrigger>
                             <SelectValue placeholder="Select budget type" />
                           </SelectTrigger>
                           <SelectContent className="bg-popover z-50">
-                            <SelectItem value="">None (not set)</SelectItem>
+                            <SelectItem value="none">None (not set)</SelectItem>
                             <SelectItem value="daily">Daily Budget</SelectItem>
                             <SelectItem value="lifetime">Lifetime Budget</SelectItem>
                           </SelectContent>

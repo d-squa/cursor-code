@@ -40,27 +40,27 @@ export default function BulkBudgetTypeDialog({ open, onOpenChange, platform, onS
     );
   };
 
-  const setMarketAll = (marketId: string, type: "daily" | "lifetime" | "") => {
+  const setMarketAll = (marketId: string, type: "daily" | "lifetime" | "none") => {
     setLocalMarkets((prev) =>
       prev.map((m) =>
         m.id === marketId
           ? {
               ...m,
-              phases: (m.phases || []).map((p) => ({ ...p, budgetType: (type || undefined) as any })),
+              phases: (m.phases || []).map((p) => ({ ...p, budgetType: (type === "none" ? undefined : type) as any })),
             }
           : m
       )
     );
   };
 
-  const setPhase = (marketId: string, phaseId: string, type: "daily" | "lifetime" | "") => {
+  const setPhase = (marketId: string, phaseId: string, type: "daily" | "lifetime" | "none" | undefined) => {
     setLocalMarkets((prev) =>
       prev.map((m) =>
         m.id === marketId
           ? {
               ...m,
               phases: (m.phases || []).map((p) =>
-                p.id === phaseId ? { ...p, budgetType: (type || undefined) as any } : p
+                p.id === phaseId ? { ...p, budgetType: (type === "none" || !type ? undefined : type) as any } : p
               ),
             }
           : m
@@ -98,7 +98,7 @@ export default function BulkBudgetTypeDialog({ open, onOpenChange, platform, onS
                         <SelectValue placeholder="Bulk set" />
                       </SelectTrigger>
                       <SelectContent className="bg-popover z-50">
-                        <SelectItem value="">None (not set)</SelectItem>
+                        <SelectItem value="none">None (not set)</SelectItem>
                         <SelectItem value="daily">Daily</SelectItem>
                         <SelectItem value="lifetime">Lifetime</SelectItem>
                       </SelectContent>
@@ -117,14 +117,14 @@ export default function BulkBudgetTypeDialog({ open, onOpenChange, platform, onS
                         </div>
                         <div className="w-40">
                           <Select
-                            value={phase.budgetType || ""}
-                            onValueChange={(v) => setPhase(market.id, phase.id, v as any)}
+                            value={phase.budgetType || "none"}
+                            onValueChange={(v) => setPhase(market.id, phase.id, v === "none" ? undefined : v as any)}
                           >
                             <SelectTrigger>
                               <SelectValue placeholder="Budget type" />
                             </SelectTrigger>
                             <SelectContent className="bg-popover z-50">
-                              <SelectItem value="">None (not set)</SelectItem>
+                              <SelectItem value="none">None (not set)</SelectItem>
                               <SelectItem value="daily">Daily</SelectItem>
                               <SelectItem value="lifetime">Lifetime</SelectItem>
                             </SelectContent>
