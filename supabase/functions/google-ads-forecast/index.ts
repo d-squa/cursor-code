@@ -41,7 +41,7 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseKey = Deno.env.get("SUPABASE_ANON_KEY");
     if (supabaseUrl && supabaseKey) {
-      const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
+      const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2.76.1");
       const supabase = createClient(supabaseUrl, supabaseKey, {
         global: { headers: { Authorization: authHeader } }
       });
