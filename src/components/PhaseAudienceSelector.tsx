@@ -9,9 +9,34 @@ import { toast } from "sonner";
 import { getAudienceTypesForPhase, getSourcesByTypeForPhase, getAudienceTypeDescription, AudienceTypeMatrixEntry } from "@/utils/audienceTypeMatrix";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
+// Helper function to determine funnel phase from objective and optimization goal
+function determineFunnelPhaseFromObjective(objective: string, optimizationGoal: string): string {
+  const objLower = objective.toLowerCase();
+  const goalLower = optimizationGoal.toLowerCase();
+  
+  // Conversion phase indicators
+  if (objLower.includes('conversion') || objLower.includes('catalog') || 
+      goalLower.includes('conversion') || goalLower.includes('purchase') || 
+      goalLower.includes('value') || goalLower.includes('roas')) {
+    return 'Conversion';
+  }
+  
+  // Awareness phase indicators
+  if (objLower.includes('awareness') || objLower.includes('reach') || 
+      goalLower.includes('awareness') || goalLower.includes('reach') || 
+      goalLower.includes('impression')) {
+    return 'Awareness';
+  }
+  
+  // Consideration phase (default for everything else)
+  return 'Consideration';
+}
+
 interface PhaseAudienceSelectorProps {
   phaseName: string;
   phaseId: string;
+  phaseObjective?: string;
+  phaseOptimizationGoal?: string;
   adAccountId: string;
   onAudiencesSelected: (audiences: SelectedAudience[]) => void;
   initialSelection?: SelectedAudience[];
@@ -37,6 +62,8 @@ interface FetchedAudience {
 export function PhaseAudienceSelector({
   phaseName,
   phaseId,
+  phaseObjective,
+  phaseOptimizationGoal,
   adAccountId,
   onAudiencesSelected,
   initialSelection = []
@@ -49,19 +76,27 @@ export function PhaseAudienceSelector({
   const [matrixEntries, setMatrixEntries] = useState<AudienceTypeMatrixEntry[]>([]);
 
   useEffect(() => {
-    const entries = getAudienceTypesForPhase(phaseName, "Meta");
+    // Use objective and optimization goal to determine the funnel phase
+    const determinedPhase = phaseObjective && phaseOptimizationGoal 
+      ? determineFunnelPhaseFromObjective(phaseObjective, phaseOptimizationGoal)
+      : phaseName;
+    
+    const entries = getAudienceTypesForPhase(determinedPhase, "Meta");
     setMatrixEntries(entries);
     
-    console.log(`🎯 Phase "${phaseName}" - Applicable Audience Types:`, {
+    console.log(`🎯 Phase "${phaseName}" - Objective: ${phaseObjective}, Goal: ${phaseOptimizationGoal}`, {
       phase: phaseName,
       phaseId,
+      determinedPhase,
+      objective: phaseObjective,
+      optimizationGoal: phaseOptimizationGoal,
       audienceTypes: entries.map(e => `${e.type} (${e.source})`)
     });
 
-    if (entries.length > 0) {
+    if (entries.length > 0 && adAccountId) {
       loadAudiences(entries);
     }
-  }, [phaseName, phaseId, adAccountId]);
+  }, [phaseName, phaseId, phaseObjective, phaseOptimizationGoal, adAccountId]);
 
   const loadAudiences = async (entries: AudienceTypeMatrixEntry[]) => {
     setLoading(true);

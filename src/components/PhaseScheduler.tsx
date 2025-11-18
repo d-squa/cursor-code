@@ -17,6 +17,7 @@ import { CampaignPublisherConfig } from "./CampaignPublisherConfig";
 import { TargetingConfigComponent } from "./TargetingConfig";
 import { getOptimizationGoalForFocus } from "@/utils/strategyFocusMapping";
 import { BudgetTypeApplyDialog } from "./BudgetTypeApplyDialog";
+import { PhaseAudienceSelector } from "./PhaseAudienceSelector";
 
 interface PhaseSchedulerProps {
   phases: Phase[];
@@ -43,6 +44,7 @@ interface PhaseSchedulerProps {
   onApplyBudgetTypeToAll?: (budgetType: "daily" | "lifetime") => void;
   onOpenCustomizeBudgetTypes?: () => void;
   marketBudget?: number;
+  adAccountId?: string;
 }
 
 interface DraggingState {
@@ -99,6 +101,7 @@ export function PhaseScheduler({
   onApplyBudgetTypeToAll,
   onOpenCustomizeBudgetTypes,
   marketBudget,
+  adAccountId
 }: PhaseSchedulerProps) {
   console.log("PhaseScheduler marketBudget:", marketBudget);
   const [dragging, setDragging] = useState<DraggingState | null>(null);
@@ -1022,6 +1025,29 @@ export function PhaseScheduler({
                           />
                         )}
                       </div>
+
+                      {/* Audience Selection */}
+                      {adAccountId && phase.objective && phase.optimizationGoal && (
+                        <div className="space-y-3 border-t pt-4 mt-4">
+                          <div className="flex items-center gap-2">
+                            <Label>Audience Selection</Label>
+                            <Badge variant="secondary" className="text-xs">
+                              Based on {phase.objective} / {phase.optimizationGoal}
+                            </Badge>
+                          </div>
+                          <PhaseAudienceSelector
+                            phaseName={phase.name}
+                            phaseId={phase.id}
+                            phaseObjective={phase.objective}
+                            phaseOptimizationGoal={phase.optimizationGoal}
+                            adAccountId={adAccountId}
+                            onAudiencesSelected={(audiences) => {
+                              updatePhaseField(phase.id, "audiences", audiences);
+                            }}
+                            initialSelection={phase.audiences || []}
+                          />
+                        </div>
+                      )}
                     </div>
                   </CollapsibleContent>
                 </div>

@@ -1339,6 +1339,7 @@ export function MediaPlanEditor() {
                         startDate={startDate}
                         endDate={endDate}
                         platformName={singlePlatform?.name || "Facebook (Meta)"}
+                        adAccountId={singleMarket.adAccountId}
                         onApplyBudgetTypeToAll={(type) => {
                           setPlatformsWithMarkets(prev => prev.map(p => p.id === singlePlatform?.id ? {
                             ...p,
@@ -1585,6 +1586,7 @@ export function MediaPlanEditor() {
                                   endDate={endDate}
                                   platformName={platform.name}
                                   platformId={platform.id}
+                                  adAccountId={market.adAccountId}
                                   strategy={market.strategy || genericConfig.strategy}
                                   strategyFocus={market.strategyFocus || genericConfig.strategyFocus}
                                   marketTargeting={{

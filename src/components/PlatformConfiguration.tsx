@@ -47,6 +47,14 @@ export interface Phase {
     customerList?: string;
     lookalikeAudience?: string;
   };
+  audiences?: Array<{
+    id: string;
+    name: string;
+    type: string;
+    source: string;
+    subtype?: string;
+    approximate_count?: number;
+  }>;
 }
 
 export interface Campaign {
