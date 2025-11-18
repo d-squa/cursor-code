@@ -14,6 +14,8 @@ import { GlobalFunnelPhasing } from "./GlobalFunnelPhasing";
 import { TargetingConfigComponent } from "./TargetingConfig";
 import { TargetingBriefInput } from "./TargetingBriefInput";
 import { AudienceCard } from "./AudienceCard";
+import { BasicTargeting, BasicTargetingConfig } from "./BasicTargeting";
+import { PhaseAudienceSelector, SelectedAudience } from "./PhaseAudienceSelector";
 import { CampaignForecast } from "./CampaignForecast";
 import { PhaseScheduler } from "./PhaseScheduler";
 import { getDefaultPhases, generateAutoDetectPhases } from "@/utils/funnelPhases";
@@ -86,6 +88,13 @@ export function MediaPlanEditor() {
   const [expandedPlatforms, setExpandedPlatforms] = useState<Record<string, boolean>>({});
   const [bulkBudgetDialogOpen, setBulkBudgetDialogOpen] = useState(false);
   const [bulkPlatform, setBulkPlatform] = useState<PlatformWithMarkets | null>(null);
+  
+  // Basic targeting (Step 2)
+  const [basicTargeting, setBasicTargeting] = useState<BasicTargetingConfig>({});
+  
+  // Phase audiences (Step 3.5 - after strategy config)
+  const [phaseAudiences, setPhaseAudiences] = useState<Record<string, SelectedAudience[]>>({});
+  const [firstAdAccountId, setFirstAdAccountId] = useState<string | null>(null);
   
   // Dialog states
   const [platformDialogOpen, setPlatformDialogOpen] = useState(false);
@@ -290,6 +299,25 @@ export function MediaPlanEditor() {
     };
     restore();
   }, [user, isHydrated]);
+  
+  // Fetch first ad account ID for audience fetching
+  useEffect(() => {
+    const fetchAdAccountId = async () => {
+      if (!user) return;
+      const { data, error } = await supabase
+        .from('meta_ad_accounts')
+        .select('account_id')
+        .eq('user_id', user.id)
+        .limit(1)
+        .single();
+      
+      if (!error && data) {
+        setFirstAdAccountId(data.account_id);
+        console.log('✅ Loaded Ad Account ID:', data.account_id);
+      }
+    };
+    fetchAdAccountId();
+  }, [user]);
   
   // Legacy platforms for step 5 (Platform Configuration)
   const [platforms, setPlatforms] = useState<Platform[]>([
@@ -1106,14 +1134,14 @@ export function MediaPlanEditor() {
         )}
       </Card>
 
-      {/* Step 2: Targeting */}
+      {/* Step 2: Basic Targeting */}
       {currentStep >= 2 && (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Step 2: Targeting</CardTitle>
-                <CardDescription>Define your audience targeting parameters</CardDescription>
+                <CardTitle>Step 2: Basic Targeting</CardTitle>
+                <CardDescription>Define core demographics that will apply to all campaigns</CardDescription>
               </div>
               {currentStep > 2 && (
                 <Button variant="ghost" size="sm" onClick={() => setCurrentStep(2)}>
@@ -1123,189 +1151,60 @@ export function MediaPlanEditor() {
             </div>
           </CardHeader>
           {currentStep === 2 ? (
-            <CardContent className="space-y-6">
-              <TargetingConfigComponent
-                targeting={genericConfig.targeting || {}}
+            <CardContent>
+              <BasicTargeting
+                targeting={basicTargeting}
                 onUpdate={(targeting) => {
-                  setGenericConfig({
-                    ...genericConfig,
-                    targeting,
-                  });
+                  setBasicTargeting(targeting);
+                  console.log('📋 Basic Targeting Mode: User-defined demographics', targeting);
                 }}
-                platformName={platformsWithMarkets[0]?.name || "Facebook (Meta)"}
-                showAdFormats={false}
-                strategyFocus={effectiveStrategyFocus}
               />
-
-              {/* Display parsed targeting as individual audience cards */}
-              {genericConfig.parsedTargeting && genericConfig.parsedTargeting.length > 0 && (
-                <div className="space-y-6">
-                  <h3 className="text-lg font-semibold">Applied Campaign Audiences</h3>
-                  {genericConfig.parsedTargeting.map((targeting: any, marketIdx: number) => (
-                    <div key={marketIdx} className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-base font-semibold">{targeting.market}</h4>
-                        <div className="flex gap-2 text-sm text-muted-foreground">
-                          {targeting.ageMin && targeting.ageMax && (
-                            <span>Age: {targeting.ageMin}-{targeting.ageMax}</span>
-                          )}
-                          {targeting.gender && targeting.gender.length > 0 && (
-                            <span>• {targeting.gender.join(", ")}</span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                        {/* Interests */}
-                        {targeting.interests?.map((interest: any, idx: number) => (
-                          <AudienceCard
-                            key={`interest-${idx}`}
-                            type="interest"
-                            name={interest.name}
-                            audienceSize={interest.audienceSize}
-                            metadata={{ id: interest.id }}
-                            onRemove={() => {
-                              const newTargeting = [...genericConfig.parsedTargeting!];
-                              newTargeting[marketIdx] = {
-                                ...newTargeting[marketIdx],
-                                interests: newTargeting[marketIdx].interests?.filter((_: any, i: number) => i !== idx),
-                              };
-                              setGenericConfig({ ...genericConfig, parsedTargeting: newTargeting });
-                            }}
-                          />
-                        ))}
-
-                        {/* Behaviors */}
-                        {targeting.behaviors?.map((behavior: any, idx: number) => (
-                          <AudienceCard
-                            key={`behavior-${idx}`}
-                            type="behavior"
-                            name={behavior.name}
-                            audienceSize={behavior.audienceSize}
-                            metadata={{ id: behavior.id }}
-                            onRemove={() => {
-                              const newTargeting = [...genericConfig.parsedTargeting!];
-                              newTargeting[marketIdx] = {
-                                ...newTargeting[marketIdx],
-                                behaviors: newTargeting[marketIdx].behaviors?.filter((_: any, i: number) => i !== idx),
-                              };
-                              setGenericConfig({ ...genericConfig, parsedTargeting: newTargeting });
-                            }}
-                          />
-                        ))}
-
-                        {/* Custom Audiences */}
-                        {targeting.customAudiences?.map((audience: any, idx: number) => (
-                          <AudienceCard
-                            key={`custom-${idx}`}
-                            type="customAudience"
-                            name={audience.name}
-                            metadata={{ id: audience.id, type: audience.type }}
-                            onRemove={() => {
-                              const newTargeting = [...genericConfig.parsedTargeting!];
-                              newTargeting[marketIdx] = {
-                                ...newTargeting[marketIdx],
-                                customAudiences: newTargeting[marketIdx].customAudiences?.filter((_: any, i: number) => i !== idx),
-                              };
-                              setGenericConfig({ ...genericConfig, parsedTargeting: newTargeting });
-                            }}
-                          />
-                        ))}
-
-                        {/* Lookalikes */}
-                        {targeting.lookalikes?.map((audience: any, idx: number) => (
-                          <AudienceCard
-                            key={`lookalike-${idx}`}
-                            type="lookalike"
-                            name={audience.name}
-                            metadata={{ id: audience.id, sourceAudienceId: audience.sourceAudienceId }}
-                            onRemove={() => {
-                              const newTargeting = [...genericConfig.parsedTargeting!];
-                              newTargeting[marketIdx] = {
-                                ...newTargeting[marketIdx],
-                                lookalikes: newTargeting[marketIdx].lookalikes?.filter((_: any, i: number) => i !== idx),
-                              };
-                              setGenericConfig({ ...genericConfig, parsedTargeting: newTargeting });
-                            }}
-                          />
-                        ))}
-
-                        {/* Customer Lists */}
-                        {targeting.customerLists?.map((list: any, idx: number) => (
-                          <AudienceCard
-                            key={`customerlist-${idx}`}
-                            type="customerList"
-                            name={list.name}
-                            metadata={{ id: list.id }}
-                            onRemove={() => {
-                              const newTargeting = [...genericConfig.parsedTargeting!];
-                              newTargeting[marketIdx] = {
-                                ...newTargeting[marketIdx],
-                                customerLists: newTargeting[marketIdx].customerLists?.filter((_: any, i: number) => i !== idx),
-                              };
-                              setGenericConfig({ ...genericConfig, parsedTargeting: newTargeting });
-                            }}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div className="flex justify-between pt-4">
+              <div className="mt-6 flex justify-between">
                 <Button variant="outline" onClick={() => setCurrentStep(1)}>
                   Back
                 </Button>
-                <Button onClick={() => setCurrentStep(3)}>
-                  Next: Strategy Configuration
+                <Button onClick={() => {
+                  setCurrentStep(3);
+                  ensureDraft();
+                }}>
+                  Continue to Strategy
                 </Button>
               </div>
             </CardContent>
           ) : (
-            <CardContent className="py-4">
-            <div className="text-sm text-muted-foreground space-y-1">
-              <div className="flex justify-between">
-                <span>Age Range:</span>
-                <span className="font-medium text-foreground">
-                  {genericConfig.targeting?.ageMin || 18} - {genericConfig.targeting?.ageMax || 65}
-                </span>
+            <CardContent>
+              <div className="grid gap-3 text-sm text-muted-foreground">
+                {basicTargeting.ageMin && basicTargeting.ageMax && (
+                  <div className="flex justify-between">
+                    <span>Age Range:</span>
+                    <span className="font-medium text-foreground">{basicTargeting.ageMin} - {basicTargeting.ageMax}</span>
+                  </div>
+                )}
+                {basicTargeting.genders && basicTargeting.genders.length > 0 && (
+                  <div className="flex justify-between">
+                    <span>Gender:</span>
+                    <span className="font-medium text-foreground">{basicTargeting.genders.join(", ")}</span>
+                  </div>
+                )}
+                {basicTargeting.language && (
+                  <div className="flex justify-between">
+                    <span>Language:</span>
+                    <span className="font-medium text-foreground">{basicTargeting.language}</span>
+                  </div>
+                )}
+                {basicTargeting.devices && basicTargeting.devices.length > 0 && (
+                  <div className="flex justify-between">
+                    <span>Devices:</span>
+                    <span className="font-medium text-foreground">{basicTargeting.devices.join(", ")}</span>
+                  </div>
+                )}
+                {basicTargeting.os && basicTargeting.os.length > 0 && (
+                  <div className="flex justify-between">
+                    <span>Operating Systems:</span>
+                    <span className="font-medium text-foreground">{basicTargeting.os.join(", ")}</span>
+                  </div>
+                )}
               </div>
-              <div className="flex justify-between">
-                <span>Gender:</span>
-                <span className="font-medium text-foreground capitalize">
-                  {genericConfig.targeting?.genders?.join(', ') || 'All'}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span>Devices:</span>
-                <span className="font-medium text-foreground">
-                  {genericConfig.targeting?.devices?.join(', ') || 'All'}
-                </span>
-              </div>
-            </div>
-            
-            {/* Display parsed targeting in collapsed view */}
-            {genericConfig.parsedTargeting && genericConfig.parsedTargeting.length > 0 && (
-              <div className="mt-4 space-y-2">
-                <h4 className="text-sm font-semibold">Campaign Audiences:</h4>
-                {genericConfig.parsedTargeting.map((targeting: any, idx: number) => {
-                  const audienceCount = 
-                    (targeting.interests?.length || 0) +
-                    (targeting.behaviors?.length || 0) +
-                    (targeting.customAudiences?.length || 0) +
-                    (targeting.lookalikes?.length || 0) +
-                    (targeting.customerLists?.length || 0);
-                  
-                  return (
-                    <div key={idx} className="flex justify-between text-sm">
-                      <span>{targeting.market}:</span>
-                      <span className="font-medium text-foreground">{audienceCount} audiences</span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
             </CardContent>
           )}
         </Card>
