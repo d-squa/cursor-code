@@ -212,6 +212,11 @@ export function MediaPlanEditor() {
             lookalikeAudience: ""
           }
         });
+        
+        // Restore basic targeting if it exists
+        if (c.generic_config.basicTargeting) {
+          setBasicTargeting(c.generic_config.basicTargeting);
+        }
       } else {
         setGenericConfig(prev => ({ ...prev, strategyFocus: c.objective || prev.strategyFocus }));
       }
@@ -399,6 +404,7 @@ export function MediaPlanEditor() {
             phases: genericConfig.phases,
             campaigns: genericConfig.campaigns,
             targeting: genericConfig.targeting,
+            basicTargeting: basicTargeting,
           } as any,
         }).eq("id", savedCampaignId);
         
@@ -409,7 +415,7 @@ export function MediaPlanEditor() {
     }, 1000); // Debounce for 1 second
 
     return () => clearTimeout(timer);
-  }, [campaignName, boNumber, totalBudget, startDate, endDate, platformsWithMarkets, genericConfig, savedCampaignId, user]);
+  }, [campaignName, boNumber, totalBudget, startDate, endDate, platformsWithMarkets, genericConfig, basicTargeting, savedCampaignId, user]);
 
   const isActivationDetailsComplete = () => {
     const allPlatformsSelected = platformsWithMarkets.every(p => p.id !== "");
