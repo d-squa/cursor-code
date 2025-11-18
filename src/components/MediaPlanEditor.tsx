@@ -1158,6 +1158,7 @@ export function MediaPlanEditor() {
                   setBasicTargeting(targeting);
                   console.log('📋 Basic Targeting Mode: User-defined demographics', targeting);
                 }}
+                adAccountId={firstAdAccountId || undefined}
               />
               <div className="mt-6 flex justify-between">
                 <Button variant="outline" onClick={() => setCurrentStep(1)}>

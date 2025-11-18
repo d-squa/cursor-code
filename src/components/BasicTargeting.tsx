@@ -3,9 +3,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2 } from "lucide-react";
+import { Loader2, Sparkles, Search } from "lucide-react";
 import { toast } from "sonner";
 import { MultiSelect } from "@/components/ui/multi-select";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 
 export interface BasicTargetingConfig {
   ageMin?: number;
@@ -14,11 +19,15 @@ export interface BasicTargetingConfig {
   devices?: string[];
   os?: string[];
   languages?: string[];
+  productBrief?: string;
+  aiInterests?: string[];
+  aiBehaviors?: string[];
 }
 
 interface BasicTargetingProps {
   targeting: BasicTargetingConfig;
   onUpdate: (targeting: BasicTargetingConfig) => void;
+  adAccountId?: string;
 }
 
 interface TargetingOption {
@@ -27,13 +36,24 @@ interface TargetingOption {
   name: string;
 }
 
-export function BasicTargeting({ targeting, onUpdate }: BasicTargetingProps) {
+export function BasicTargeting({ targeting, onUpdate, adAccountId }: BasicTargetingProps) {
   const [loading, setLoading] = useState(false);
   const [genderOptions, setGenderOptions] = useState<TargetingOption[]>([]);
   const [deviceOptions, setDeviceOptions] = useState<TargetingOption[]>([]);
   const [osOptions, setOsOptions] = useState<TargetingOption[]>([]);
   const [languageOptions, setLanguageOptions] = useState<TargetingOption[]>([]);
   const [ageOptions, setAgeOptions] = useState<TargetingOption[]>([]);
+  
+  // AI recommendations state
+  const [generatingAI, setGeneratingAI] = useState(false);
+  const [recommendedInterests, setRecommendedInterests] = useState<Array<{id: string, name: string, audienceSize?: number, selected: boolean}>>([]);
+  const [recommendedBehaviors, setRecommendedBehaviors] = useState<Array<{id: string, name: string, audienceSize?: number, selected: boolean}>>([]);
+  
+  // Search state
+  const [searchType, setSearchType] = useState<'interests' | 'behaviors'>('interests');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Array<{id: string, name: string, audienceSize?: number}>>([]);
+  const [searching, setSearching] = useState(false);
 
   useEffect(() => {
     loadTargetingOptions();
@@ -93,6 +113,109 @@ export function BasicTargeting({ targeting, onUpdate }: BasicTargetingProps) {
       fullTargeting: updated
     });
   };
+
+  const handleGenerateRecommendations = async () => {
+    if (!targeting.productBrief?.trim()) {
+      toast.error('Please enter a product brief');
+      return;
+    }
+    if (!adAccountId) {
+      toast.error('Ad account not selected');
+      return;
+    }
+
+    setGeneratingAI(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-audience-recommendations', {
+        body: { brief: targeting.productBrief, adAccountId }
+      });
+
+      if (error) throw error;
+
+      const interests = data.interests?.map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        audienceSize: item.audienceSize,
+        selected: true
+      })) || [];
+
+      const behaviors = data.behaviors?.map((item: any) => ({
+        id: item.id,
+        name: item.name,
+        audienceSize: item.audienceSize,
+        selected: true
+      })) || [];
+
+      setRecommendedInterests(interests);
+      setRecommendedBehaviors(behaviors);
+      
+      toast.success('AI recommendations generated!');
+    } catch (error: any) {
+      console.error('Error generating recommendations:', error);
+      toast.error(error.message || 'Failed to generate recommendations');
+    } finally {
+      setGeneratingAI(false);
+    }
+  };
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) {
+      toast.error('Please enter a search term');
+      return;
+    }
+    if (!adAccountId) {
+      toast.error('Ad account not selected');
+      return;
+    }
+
+    setSearching(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('search-meta-targeting', {
+        body: { query: searchQuery, type: searchType, adAccountId }
+      });
+
+      if (error) throw error;
+
+      setSearchResults(data.results || []);
+    } catch (error: any) {
+      console.error('Error searching:', error);
+      toast.error(error.message || 'Failed to search');
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const handleToggleRecommendation = (type: 'interests' | 'behaviors', id: string) => {
+    if (type === 'interests') {
+      setRecommendedInterests(prev => prev.map(item => 
+        item.id === id ? { ...item, selected: !item.selected } : item
+      ));
+    } else {
+      setRecommendedBehaviors(prev => prev.map(item => 
+        item.id === id ? { ...item, selected: !item.selected } : item
+      ));
+    }
+  };
+
+  const handleAddSearchResult = (result: any) => {
+    if (searchType === 'interests') {
+      setRecommendedInterests(prev => [...prev, { ...result, selected: true }]);
+    } else {
+      setRecommendedBehaviors(prev => [...prev, { ...result, selected: true }]);
+    }
+    setSearchResults(prev => prev.filter(r => r.id !== result.id));
+  };
+
+  // Update targeting config when recommendations change
+  useEffect(() => {
+    const selectedInterests = recommendedInterests.filter(i => i.selected).map(i => i.name);
+    const selectedBehaviors = recommendedBehaviors.filter(b => b.selected).map(b => b.name);
+    
+    if (selectedInterests.length > 0 || selectedBehaviors.length > 0) {
+      updateField('aiInterests', selectedInterests);
+      updateField('aiBehaviors', selectedBehaviors);
+    }
+  }, [recommendedInterests, recommendedBehaviors]);
 
   const handleMultiSelectWithAll = (field: keyof BasicTargetingConfig, newValues: string[]) => {
     const previousValues = (targeting[field] as string[]) || [];
