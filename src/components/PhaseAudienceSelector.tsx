@@ -43,6 +43,7 @@ interface PhaseAudienceSelectorProps {
   adAccountId: string;
   onAudiencesSelected: (audiences: SelectedAudience[]) => void;
   initialSelection?: SelectedAudience[];
+  initialBasicTargeting?: any;
 }
 
 export interface SelectedAudience {
@@ -75,7 +76,8 @@ export function PhaseAudienceSelector({
   phaseOptimizationGoal,
   adAccountId,
   onAudiencesSelected,
-  initialSelection = []
+  initialSelection = [],
+  initialBasicTargeting = {}
 }: PhaseAudienceSelectorProps) {
   const [loading, setLoading] = useState(false);
   const [audiencesByType, setAudiencesByType] = useState<Record<string, FetchedAudience[]>>({});
@@ -97,7 +99,7 @@ export function PhaseAudienceSelector({
   const [searching, setSearching] = useState(false);
   
   // Basic targeting for awareness
-  const [basicTargeting, setBasicTargeting] = useState<any>({});
+  const [basicTargeting, setBasicTargeting] = useState<any>(initialBasicTargeting);
   
   // Collapsible sections state - all start collapsed
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
