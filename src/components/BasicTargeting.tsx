@@ -5,14 +5,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { MultiSelect } from "@/components/ui/multi-select";
 
 export interface BasicTargetingConfig {
   ageMin?: number;
   ageMax?: number;
-  genders?: string[];
-  devices?: string[];
-  os?: string[];
+  gender?: string;
+  device?: string;
+  os?: string;
   language?: string;
 }
 
@@ -106,9 +105,10 @@ export function BasicTargeting({ targeting, onUpdate }: BasicTargetingProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Step 2.1: Basic Targeting</CardTitle>
+        <CardTitle>Basic Targeting</CardTitle>
         <CardDescription>
-          Define core demographics that will apply to all campaigns. This targeting will be used as the base for all phases.
+          Define core demographics that will apply to all campaigns as a starting point. 
+          You can override these selections per campaign phase later in the strategy configuration.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -123,7 +123,7 @@ export function BasicTargeting({ targeting, onUpdate }: BasicTargetingProps) {
               <SelectTrigger id="ageMin">
                 <SelectValue placeholder="Select min age" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-background z-50">
                 {ageOptions.map((age) => (
                   <SelectItem key={age.id} value={age.id}>
                     {age.name}
@@ -142,7 +142,7 @@ export function BasicTargeting({ targeting, onUpdate }: BasicTargetingProps) {
               <SelectTrigger id="ageMax">
                 <SelectValue placeholder="Select max age" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-background z-50">
                 {ageOptions.map((age) => (
                   <SelectItem key={age.id} value={age.id}>
                     {age.name}
@@ -155,26 +155,37 @@ export function BasicTargeting({ targeting, onUpdate }: BasicTargetingProps) {
 
         {/* Gender */}
         <div className="space-y-2">
-          <Label>Gender</Label>
-          <MultiSelect
-            options={genderOptions.map(g => ({ label: g.name, value: g.id }))}
-            value={targeting.genders || []}
-            onChange={(values) => updateField('genders', values)}
-            placeholder="Select genders"
-          />
+          <Label htmlFor="gender">Gender</Label>
+          <Select
+            value={targeting.gender || 'all'}
+            onValueChange={(value) => updateField('gender', value)}
+          >
+            <SelectTrigger id="gender">
+              <SelectValue placeholder="Select gender" />
+            </SelectTrigger>
+            <SelectContent className="bg-background z-50">
+              <SelectItem value="all">All</SelectItem>
+              {genderOptions.map((gender) => (
+                <SelectItem key={gender.id} value={gender.id}>
+                  {gender.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Language */}
         <div className="space-y-2">
           <Label htmlFor="language">Language</Label>
           <Select
-            value={targeting.language}
+            value={targeting.language || 'all'}
             onValueChange={(value) => updateField('language', value)}
           >
             <SelectTrigger id="language">
               <SelectValue placeholder="Select language" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="bg-background z-50">
+              <SelectItem value="all">All</SelectItem>
               {languageOptions.map((lang) => (
                 <SelectItem key={lang.id} value={lang.id}>
                   {lang.name}
@@ -186,24 +197,44 @@ export function BasicTargeting({ targeting, onUpdate }: BasicTargetingProps) {
 
         {/* Device */}
         <div className="space-y-2">
-          <Label>Device</Label>
-          <MultiSelect
-            options={deviceOptions.map(d => ({ label: d.name, value: d.id }))}
-            value={targeting.devices || []}
-            onChange={(values) => updateField('devices', values)}
-            placeholder="Select devices"
-          />
+          <Label htmlFor="device">Device</Label>
+          <Select
+            value={targeting.device || 'all'}
+            onValueChange={(value) => updateField('device', value)}
+          >
+            <SelectTrigger id="device">
+              <SelectValue placeholder="Select device" />
+            </SelectTrigger>
+            <SelectContent className="bg-background z-50">
+              <SelectItem value="all">All</SelectItem>
+              {deviceOptions.map((device) => (
+                <SelectItem key={device.id} value={device.id}>
+                  {device.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Operating System */}
         <div className="space-y-2">
-          <Label>Operating System</Label>
-          <MultiSelect
-            options={osOptions.map(o => ({ label: o.name, value: o.id }))}
-            value={targeting.os || []}
-            onChange={(values) => updateField('os', values)}
-            placeholder="Select operating systems"
-          />
+          <Label htmlFor="os">Operating System</Label>
+          <Select
+            value={targeting.os || 'all'}
+            onValueChange={(value) => updateField('os', value)}
+          >
+            <SelectTrigger id="os">
+              <SelectValue placeholder="Select operating system" />
+            </SelectTrigger>
+            <SelectContent className="bg-background z-50">
+              <SelectItem value="all">All</SelectItem>
+              {osOptions.map((os) => (
+                <SelectItem key={os.id} value={os.id}>
+                  {os.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </CardContent>
     </Card>
