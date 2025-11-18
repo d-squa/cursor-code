@@ -38,3 +38,9 @@ verify_jwt = true
 
 [functions.fetch-meta-audiences]
 verify_jwt = true
+
+[functions.generate-audience-recommendations]
+verify_jwt = true
+
+[functions.search-meta-targeting]
+verify_jwt = true
