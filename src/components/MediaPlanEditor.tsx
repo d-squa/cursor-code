@@ -1180,28 +1180,28 @@ export function MediaPlanEditor() {
                     <span className="font-medium text-foreground">{basicTargeting.ageMin} - {basicTargeting.ageMax}</span>
                   </div>
                 )}
-                {basicTargeting.genders && basicTargeting.genders.length > 0 && (
+                {basicTargeting.gender && (
                   <div className="flex justify-between">
                     <span>Gender:</span>
-                    <span className="font-medium text-foreground">{basicTargeting.genders.join(", ")}</span>
+                    <span className="font-medium text-foreground">{basicTargeting.gender === 'all' ? 'All' : basicTargeting.gender}</span>
                   </div>
                 )}
                 {basicTargeting.language && (
                   <div className="flex justify-between">
                     <span>Language:</span>
-                    <span className="font-medium text-foreground">{basicTargeting.language}</span>
+                    <span className="font-medium text-foreground">{basicTargeting.language === 'all' ? 'All' : basicTargeting.language}</span>
                   </div>
                 )}
-                {basicTargeting.devices && basicTargeting.devices.length > 0 && (
+                {basicTargeting.device && (
                   <div className="flex justify-between">
-                    <span>Devices:</span>
-                    <span className="font-medium text-foreground">{basicTargeting.devices.join(", ")}</span>
+                    <span>Device:</span>
+                    <span className="font-medium text-foreground">{basicTargeting.device === 'all' ? 'All' : basicTargeting.device}</span>
                   </div>
                 )}
-                {basicTargeting.os && basicTargeting.os.length > 0 && (
+                {basicTargeting.os && (
                   <div className="flex justify-between">
-                    <span>Operating Systems:</span>
-                    <span className="font-medium text-foreground">{basicTargeting.os.join(", ")}</span>
+                    <span>Operating System:</span>
+                    <span className="font-medium text-foreground">{basicTargeting.os === 'all' ? 'All' : basicTargeting.os}</span>
                   </div>
                 )}
               </div>
