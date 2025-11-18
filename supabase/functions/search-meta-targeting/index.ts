@@ -73,7 +73,20 @@ serve(async (req) => {
     const searchData = await searchResponse.json();
     const results = [];
 
-    // Get audience size estimates for each result
+    // Get audience size estimates for each result with timeout
+    const fetchWithTimeout = async (url: string, timeoutMs: number = 3000) => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const response = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeout);
+        return response;
+      } catch (e) {
+        clearTimeout(timeout);
+        throw e;
+      }
+    };
+
     for (const item of searchData.data || []) {
       let audienceSize;
       try {
@@ -82,7 +95,7 @@ serve(async (req) => {
           [type]: [{ id: item.id }]
         }))}&access_token=${accessToken}`;
         
-        const reachResponse = await fetch(reachUrl);
+        const reachResponse = await fetchWithTimeout(reachUrl, 3000);
         if (reachResponse.ok) {
           const reachData = await reachResponse.json();
           if (reachData.data && reachData.data[0]) {
@@ -90,7 +103,7 @@ serve(async (req) => {
           }
         }
       } catch (e) {
-        console.log('Could not fetch reach estimate for', item.name);
+        console.log('Could not fetch reach estimate for', item.name, '- timeout or error');
       }
 
       results.push({

@@ -211,10 +211,12 @@ export function BasicTargeting({ targeting, onUpdate, adAccountId }: BasicTarget
     const selectedInterests = recommendedInterests.filter(i => i.selected).map(i => i.name);
     const selectedBehaviors = recommendedBehaviors.filter(b => b.selected).map(b => b.name);
     
-    if (selectedInterests.length > 0 || selectedBehaviors.length > 0) {
-      updateField('aiInterests', selectedInterests);
-      updateField('aiBehaviors', selectedBehaviors);
-    }
+    // Remove duplicates
+    const uniqueInterests = Array.from(new Set(selectedInterests));
+    const uniqueBehaviors = Array.from(new Set(selectedBehaviors));
+    
+    updateField('aiInterests', uniqueInterests);
+    updateField('aiBehaviors', uniqueBehaviors);
   }, [recommendedInterests, recommendedBehaviors]);
 
   const handleMultiSelectWithAll = (field: keyof BasicTargetingConfig, newValues: string[]) => {
