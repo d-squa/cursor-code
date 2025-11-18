@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -7,6 +7,8 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { AdFormatSelector } from "./AdFormatSelector";
+import { TargetingBriefInput } from "./TargetingBriefInput";
+import { AudienceCard } from "./AudienceCard";
 import { useAudienceRecommendations } from "@/hooks/useAudienceRecommendations";
 import { Loader2, Sparkles, CheckCircle2, AlertCircle, ExternalLink } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -46,7 +48,8 @@ export function TargetingConfigComponent({
 }: TargetingConfigProps) {
   const [audienceDescription, setAudienceDescription] = useState("");
   const [showRecommendations, setShowRecommendations] = useState(false);
-  const { recommendations, loading, generateRecommendations, clearRecommendations } = useAudienceRecommendations();
+const { recommendations, loading, generateRecommendations, clearRecommendations } = useAudienceRecommendations();
+  const [parsedTargetingLocal, setParsedTargetingLocal] = useState<any[]>([]);
 
   const updateField = (field: keyof TargetingConfig, value: any) => {
     onUpdate({ ...targeting, [field]: value });
@@ -252,6 +255,109 @@ export function TargetingConfigComponent({
             )}
           </CardContent>
         </Card>
+
+        {/* Generate audiences from brief */}
+        <TargetingBriefInput
+          onTargetingGenerated={(targeting) => {
+            console.info("[Step 3] Parsed audiences generated:", targeting);
+            setParsedTargetingLocal(targeting);
+          }}
+        />
+
+        {/* Applied Audiences (from Brief) */}
+        {parsedTargetingLocal && parsedTargetingLocal.length > 0 && (
+          <div className="space-y-4">
+            <h4 className="text-sm font-semibold">Applied Audiences</h4>
+            {parsedTargetingLocal.map((t: any, idx: number) => (
+              <div key={idx} className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">{t.market || t.location}</span>
+                  <div className="text-xs text-muted-foreground">
+                    {t.age?.min && t.age?.max ? `Age: ${t.age.min}-${t.age.max}` : null}
+                  </div>
+                </div>
+
+                {(() => {
+                  console.groupCollapsed(`[Step 3] Market ${t.market || t.location}`);
+                  console.table({
+                    interests: t.interests?.length || 0,
+                    behaviors: t.behaviors?.length || 0,
+                    customAudiences: t.customAudiences?.length || 0,
+                    lookalikes: t.lookalikes?.length || 0,
+                    customerLists: t.customerLists?.length || 0,
+                  });
+                  console.log('Audience objects', t);
+                  console.groupEnd();
+                  return null;
+                })()}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {t.interests?.map((i: any, j: number) => (
+                    <AudienceCard key={`i-${j}`} type="interest" name={i.name || i} audienceSize={i.audienceSize} onRemove={() => {}} />
+                  ))}
+                  {t.behaviors?.map((b: any, j: number) => (
+                    <AudienceCard key={`b-${j}`} type="behavior" name={b.name || b} audienceSize={b.audienceSize} onRemove={() => {}} />
+                  ))}
+                  {t.customAudiences?.map((c: any, j: number) => (
+                    <AudienceCard key={`c-${j}`} type="customAudience" name={c.name || c} onRemove={() => {}} />
+                  ))}
+                  {t.lookalikes?.map((l: any, j: number) => (
+                    <AudienceCard key={`l-${j}`} type="lookalike" name={l.name || l} onRemove={() => {}} />
+                  ))}
+                  {t.customerLists?.map((cl: any, j: number) => (
+                    <AudienceCard key={`cl-${j}`} type="customerList" name={cl.name || cl} onRemove={() => {}} />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Applied Audiences (from Recommendations) */}
+        {(() => {
+          const split = (s?: string) => (s ? s.split(',').map(x => x.trim()).filter(Boolean) : []);
+          const interestsArr = split(targeting.interests);
+          const lookalikesArr = split(targeting.lookalikeAudience);
+          const retargetingArr = split(targeting.websiteAudience);
+          console.groupCollapsed('[Step 3] Applied from recommendations');
+          console.table({ interests: interestsArr.length, lookalikes: lookalikesArr.length, retargeting: retargetingArr.length });
+          console.log({ interestsArr, lookalikesArr, retargetingArr, targeting });
+          console.groupEnd();
+          return null;
+        })()}
+
+        {(targeting.interests || targeting.lookalikeAudience || targeting.websiteAudience || targeting.customerList) && (
+          <div className="space-y-3">
+            <h4 className="text-sm font-semibold">Applied Audiences (from Recommendations)</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {(targeting.interests || '').split(',').map(s => s.trim()).filter(Boolean).map((name, idx) => (
+                <AudienceCard key={`ri-${idx}`} type="interest" name={name} onRemove={() => {
+                  const kept = (targeting.interests || '').split(',').map(s => s.trim()).filter(Boolean).filter(n => n !== name);
+                  updateField('interests', kept.join(', '));
+                }} />
+              ))}
+              {(targeting.lookalikeAudience || '').split(',').map(s => s.trim()).filter(Boolean).map((name, idx) => (
+                <AudienceCard key={`rl-${idx}`} type="lookalike" name={name} onRemove={() => {
+                  const kept = (targeting.lookalikeAudience || '').split(',').map(s => s.trim()).filter(Boolean).filter(n => n !== name);
+                  updateField('lookalikeAudience', kept.join(', '));
+                }} />
+              ))}
+              {(targeting.websiteAudience || '').split(',').map(s => s.trim()).filter(Boolean).map((name, idx) => (
+                <AudienceCard key={`rr-${idx}`} type="customAudience" name={name} onRemove={() => {
+                  const kept = (targeting.websiteAudience || '').split(',').map(s => s.trim()).filter(Boolean).filter(n => n !== name);
+                  updateField('websiteAudience', kept.join(', '));
+                }} />
+              ))}
+              {(targeting.customerList || '').split(',').map(s => s.trim()).filter(Boolean).map((name, idx) => (
+                <AudienceCard key={`rc-${idx}`} type="customerList" name={name} onRemove={() => {
+                  const kept = (targeting.customerList || '').split(',').map(s => s.trim()).filter(Boolean).filter(n => n !== name);
+                  updateField('customerList', kept.join(', '));
+                }} />
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Ad Formats */}
         {showAdFormats && (
           <div className="space-y-2">
