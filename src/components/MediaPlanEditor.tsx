@@ -1333,8 +1333,76 @@ export function MediaPlanEditor() {
               {/* Generate audiences from brief */}
               <TargetingBriefInput
                 onTargetingGenerated={(targeting) => {
-                  console.info("[Step 3] Parsed audiences generated:", targeting);
-                  setGenericConfig(prev => ({ ...prev, parsedTargeting: targeting }));
+                  // Normalize fields from the parser (some markets return age{min,max} instead of ageMin/ageMax)
+                  const normalized = (targeting || []).map((t: any) => ({
+                    ...t,
+                    ageMin: t.ageMin ?? t.age?.min,
+                    ageMax: t.ageMax ?? t.age?.max,
+                    gender: Array.isArray(t.gender)
+                      ? t.gender
+                      : (t.gender ? [t.gender] : (t.genders || [])),
+                  }));
+
+                  console.info("[Step 3] Parsed audiences generated:", normalized);
+
+                  // Derive demographics from parsed targeting
+                  const ages = normalized
+                    .map((t: any) => ({ min: t.ageMin, max: t.ageMax }))
+                    .filter((a: any) => a.min != null || a.max != null);
+
+                  const ageMin = ages.length ? Math.min(...ages.map((a: any) => a.min ?? 13)) : undefined;
+                  const ageMax = ages.length ? Math.max(...ages.map((a: any) => a.max ?? 65)) : undefined;
+
+                  const gendersSet = new Set<string>();
+                  normalized.forEach((t: any) => (t.gender ?? []).forEach((g: string) => gendersSet.add(g)));
+                  const devicesSet = new Set<string>();
+                  normalized.forEach((t: any) => (t.devices ?? []).forEach((d: string) => devicesSet.add(d)));
+                  const languagesSet = new Set<string>();
+                  normalized.forEach((t: any) => (t.languages ?? []).forEach((l: string) => languagesSet.add(l)));
+
+                  // Detailed console logs
+                  console.groupCollapsed('[Step 3] Demographics applied');
+                  console.table({
+                    ageMin,
+                    ageMax,
+                    genders: Array.from(gendersSet).join(', '),
+                    devices: Array.from(devicesSet).join(', '),
+                    languages: Array.from(languagesSet).join(', '),
+                  });
+                  console.groupEnd();
+
+                  const interests = normalized.flatMap((t: any) => t.interests || []);
+                  const behaviors = normalized.flatMap((t: any) => t.behaviors || []);
+                  const customAudiences = normalized.flatMap((t: any) => t.customAudiences || []);
+                  const lookalikes = normalized.flatMap((t: any) => t.lookalikes || []);
+                  const customerLists = normalized.flatMap((t: any) => t.customerLists || []);
+
+                  console.groupCollapsed('[Step 3] Audiences breakdown');
+                  console.log('Interests');
+                  console.table(interests.map((i: any) => ({ name: i.name, size: i.audienceSize, id: i.id })));
+                  console.log('Behaviors');
+                  console.table(behaviors.map((b: any) => ({ name: b.name, size: b.audienceSize, id: b.id })));
+                  console.log('Custom Audiences');
+                  console.table(customAudiences.map((c: any) => ({ name: c.name, id: c.id, type: c.type })));
+                  console.log('Lookalikes');
+                  console.table(lookalikes.map((l: any) => ({ name: l.name, id: l.id, source: l.sourceAudienceId })));
+                  console.log('Customer Lists');
+                  console.table(customerLists.map((c: any) => ({ name: c.name, id: c.id })));
+                  console.groupEnd();
+
+                  // Apply to campaign generic targeting as a baseline
+                  setGenericConfig((prev) => ({
+                    ...prev,
+                    parsedTargeting: normalized,
+                    targeting: {
+                      ...(prev.targeting || {}),
+                      ageMin: ageMin ?? prev.targeting?.ageMin,
+                      ageMax: ageMax ?? prev.targeting?.ageMax,
+                      genders: Array.from(gendersSet).length ? Array.from(gendersSet) : prev.targeting?.genders,
+                      devices: Array.from(devicesSet).length ? Array.from(devicesSet) : prev.targeting?.devices,
+                      language: Array.from(languagesSet).length ? Array.from(languagesSet).join(', ') : prev.targeting?.language,
+                    },
+                  }));
                 }}
               />
 
