@@ -379,6 +379,175 @@ export function BasicTargeting({ targeting, onUpdate, adAccountId }: BasicTarget
             placeholder="Select operating systems"
           />
         </div>
+
+        {/* AI-Powered Audience Recommendations */}
+        <Card className="bg-muted/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              AI-Powered Audience Recommendations
+            </CardTitle>
+            <CardDescription>
+              Describe your product or service to get AI-powered interest and behavior recommendations
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="productBrief">Product/Service Description</Label>
+              <Textarea
+                id="productBrief"
+                placeholder="E.g., Premium organic skincare products for eco-conscious millennials..."
+                value={targeting.productBrief || ''}
+                onChange={(e) => updateField('productBrief', e.target.value)}
+                rows={3}
+              />
+            </div>
+            <Button 
+              onClick={handleGenerateRecommendations}
+              disabled={generatingAI || !targeting.productBrief?.trim() || !adAccountId}
+              className="w-full"
+            >
+              {generatingAI ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Generating Recommendations...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Generate AI Recommendations
+                </>
+              )}
+            </Button>
+
+            {/* Display Recommended Interests */}
+            {recommendedInterests.length > 0 && (
+              <div className="space-y-2">
+                <Label>Recommended Interests</Label>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {recommendedInterests.map((interest) => (
+                    <div key={interest.id} className="flex items-center justify-between p-2 bg-background rounded">
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          checked={interest.selected}
+                          onCheckedChange={() => handleToggleRecommendation('interests', interest.id)}
+                        />
+                        <span className="text-sm">{interest.name}</span>
+                      </div>
+                      {interest.audienceSize && (
+                        <Badge variant="secondary" className="text-xs">
+                          {interest.audienceSize.toLocaleString()} people
+                        </Badge>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Display Recommended Behaviors */}
+            {recommendedBehaviors.length > 0 && (
+              <div className="space-y-2">
+                <Label>Recommended Behaviors</Label>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {recommendedBehaviors.map((behavior) => (
+                    <div key={behavior.id} className="flex items-center justify-between p-2 bg-background rounded">
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          checked={behavior.selected}
+                          onCheckedChange={() => handleToggleRecommendation('behaviors', behavior.id)}
+                        />
+                        <span className="text-sm">{behavior.name}</span>
+                      </div>
+                      {behavior.audienceSize && (
+                        <Badge variant="secondary" className="text-xs">
+                          {behavior.audienceSize.toLocaleString()} people
+                        </Badge>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Search Additional Audiences */}
+        <Card className="bg-muted/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Search className="h-5 w-5 text-primary" />
+              Search Additional Audiences
+            </CardTitle>
+            <CardDescription>
+              Search for specific interests or behaviors to add to your targeting
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Search Type</Label>
+                <Select value={searchType} onValueChange={(value: any) => setSearchType(value)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background z-50">
+                    <SelectItem value="interests">Interests</SelectItem>
+                    <SelectItem value="behaviors">Behaviors</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Search Query</Label>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="e.g., fitness, travel..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                  />
+                  <Button 
+                    onClick={handleSearch}
+                    disabled={searching || !searchQuery.trim() || !adAccountId}
+                    size="icon"
+                  >
+                    {searching ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Search className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Display Search Results */}
+            {searchResults.length > 0 && (
+              <div className="space-y-2">
+                <Label>Search Results</Label>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {searchResults.map((result) => (
+                    <div key={result.id} className="flex items-center justify-between p-2 bg-background rounded">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">{result.name}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {result.audienceSize && (
+                          <Badge variant="secondary" className="text-xs">
+                            {result.audienceSize.toLocaleString()} people
+                          </Badge>
+                        )}
+                        <Button size="sm" onClick={() => handleAddSearchResult(result)}>
+                          Add
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </CardContent>
     </Card>
   );
