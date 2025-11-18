@@ -217,10 +217,16 @@ export function BasicTargeting({ targeting, onUpdate }: BasicTargetingProps) {
           <MultiSelect
             options={[
               { label: 'All', value: 'all' },
-              ...languageOptions.map(l => ({ label: l.name, value: l.id }))
+              ...languageOptions.map(l => {
+                console.log('🗣️ Language option:', l);
+                return { label: l.name, value: l.id };
+              })
             ]}
             value={targeting.languages || []}
-            onChange={(values) => handleMultiSelectWithAll('languages', values)}
+            onChange={(values) => {
+              console.log('🗣️ Language onChange called with:', values);
+              handleMultiSelectWithAll('languages', values);
+            }}
             placeholder="Select languages"
           />
         </div>
