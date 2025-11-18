@@ -92,6 +92,23 @@ export function BasicTargeting({ targeting, onUpdate }: BasicTargetingProps) {
     });
   };
 
+  const handleMultiSelectWithAll = (field: keyof BasicTargetingConfig, newValues: string[]) => {
+    const previousValues = (targeting[field] as string[]) || [];
+    
+    // If "all" was just added
+    if (newValues.includes('all') && !previousValues.includes('all')) {
+      updateField(field, ['all']);
+    }
+    // If "all" was previously selected and a specific option is now selected
+    else if (previousValues.includes('all') && newValues.length > 1) {
+      updateField(field, newValues.filter(v => v !== 'all'));
+    }
+    // Normal update
+    else {
+      updateField(field, newValues);
+    }
+  };
+
   if (loading) {
     return (
       <Card>
@@ -163,7 +180,7 @@ export function BasicTargeting({ targeting, onUpdate }: BasicTargetingProps) {
               ...genderOptions.map(g => ({ label: g.name, value: g.id }))
             ]}
             value={targeting.genders || []}
-            onChange={(values) => updateField('genders', values)}
+            onChange={(values) => handleMultiSelectWithAll('genders', values)}
             placeholder="Select genders"
           />
         </div>
@@ -177,7 +194,7 @@ export function BasicTargeting({ targeting, onUpdate }: BasicTargetingProps) {
               ...languageOptions.map(l => ({ label: l.name, value: l.id }))
             ]}
             value={targeting.languages || []}
-            onChange={(values) => updateField('languages', values)}
+            onChange={(values) => handleMultiSelectWithAll('languages', values)}
             placeholder="Select languages"
           />
         </div>
@@ -191,7 +208,7 @@ export function BasicTargeting({ targeting, onUpdate }: BasicTargetingProps) {
               ...deviceOptions.map(d => ({ label: d.name, value: d.id }))
             ]}
             value={targeting.devices || []}
-            onChange={(values) => updateField('devices', values)}
+            onChange={(values) => handleMultiSelectWithAll('devices', values)}
             placeholder="Select devices"
           />
         </div>
@@ -205,7 +222,7 @@ export function BasicTargeting({ targeting, onUpdate }: BasicTargetingProps) {
               ...osOptions.map(o => ({ label: o.name, value: o.id }))
             ]}
             value={targeting.os || []}
-            onChange={(values) => updateField('os', values)}
+            onChange={(values) => handleMultiSelectWithAll('os', values)}
             placeholder="Select operating systems"
           />
         </div>
