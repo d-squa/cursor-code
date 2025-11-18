@@ -61,7 +61,8 @@ export function BasicTargeting({ targeting, onUpdate }: BasicTargetingProps) {
         devices: devices.length,
         os: os.length,
         languages: languages.length,
-        ages: ages.length
+        ages: ages.length,
+        sampleLanguage: languages[0]
       });
 
     } catch (error) {
@@ -95,35 +96,39 @@ export function BasicTargeting({ targeting, onUpdate }: BasicTargetingProps) {
   const handleMultiSelectWithAll = (field: keyof BasicTargetingConfig, newValues: string[]) => {
     const previousValues = (targeting[field] as string[]) || [];
     
+    // Filter out any undefined/null values
+    const cleanNewValues = newValues.filter(v => v !== undefined && v !== null && v !== '');
+    
     console.log('🔍 Multi-select change:', {
       field,
       previousValues,
       newValues,
-      hasAllInNew: newValues.includes('all'),
+      cleanNewValues,
+      hasAllInNew: cleanNewValues.includes('all'),
       hasAllInPrevious: previousValues.includes('all')
     });
     
     let finalValues: string[];
     
+    // If no valid values after cleaning
+    if (cleanNewValues.length === 0) {
+      console.log('✅ All options deselected or invalid');
+      finalValues = [];
+    }
     // If "all" was just added (not in previous, but in new)
-    if (newValues.includes('all') && !previousValues.includes('all')) {
+    else if (cleanNewValues.includes('all') && !previousValues.includes('all')) {
       console.log('✅ "All" selected - clearing other options');
       finalValues = ['all'];
     }
     // If "all" was previously selected and other options are being added
-    else if (previousValues.includes('all') && newValues.length > 1 && newValues.includes('all')) {
+    else if (previousValues.includes('all') && cleanNewValues.length > 1 && cleanNewValues.includes('all')) {
       console.log('✅ Specific option selected - removing "All"');
-      finalValues = newValues.filter(v => v !== 'all');
-    }
-    // If trying to deselect the last option
-    else if (newValues.length === 0) {
-      console.log('✅ All options deselected');
-      finalValues = [];
+      finalValues = cleanNewValues.filter(v => v !== 'all');
     }
     // Normal update
     else {
       console.log('✅ Normal multi-select update');
-      finalValues = newValues;
+      finalValues = cleanNewValues;
     }
     
     console.log('📝 Final values:', finalValues);
