@@ -159,6 +159,7 @@ async function searchMetaTargeting(
   const apiVersion = 'v21.0';
   const cleanAccountId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
   const results: Array<{ name: string; id: string; audienceSize?: number }> = [];
+  const seenIds = new Set<string>();
 
   for (const keyword of keywords) {
     try {
@@ -170,6 +171,13 @@ async function searchMetaTargeting(
         
         if (searchData.data && searchData.data.length > 0) {
           const match = searchData.data[0];
+          
+          // Skip if we've already added this ID (deduplication)
+          if (seenIds.has(match.id)) {
+            console.log(`Skipping duplicate: ${match.name} (${match.id})`);
+            continue;
+          }
+          seenIds.add(match.id);
           
           // Try to get audience size estimate
           let audienceSize;
@@ -202,5 +210,6 @@ async function searchMetaTargeting(
     }
   }
 
+  console.log(`Found ${results.length} unique ${type} after deduplication`);
   return results;
 }

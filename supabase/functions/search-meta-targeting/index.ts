@@ -73,8 +73,12 @@ serve(async (req) => {
     const searchData = await searchResponse.json();
     const results = [];
 
-    // Get audience size estimates for each result with timeout
-    const fetchWithTimeout = async (url: string, timeoutMs: number = 3000) => {
+    // Limit to first 10 results to prevent timeout issues
+    const itemsToProcess = (searchData.data || []).slice(0, 10);
+    console.log(`Processing ${itemsToProcess.length} search results for "${query}"`);
+
+    // Get audience size estimates for each result with aggressive timeout
+    const fetchWithTimeout = async (url: string, timeoutMs: number = 2000) => {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), timeoutMs);
       try {
@@ -87,7 +91,7 @@ serve(async (req) => {
       }
     };
 
-    for (const item of searchData.data || []) {
+    for (const item of itemsToProcess) {
       let audienceSize;
       try {
         const reachUrl = `https://graph.facebook.com/${apiVersion}/${cleanAccountId}/reachestimate?targeting_spec=${encodeURIComponent(JSON.stringify({
@@ -95,7 +99,7 @@ serve(async (req) => {
           [type]: [{ id: item.id }]
         }))}&access_token=${accessToken}`;
         
-        const reachResponse = await fetchWithTimeout(reachUrl, 3000);
+        const reachResponse = await fetchWithTimeout(reachUrl, 2000);
         if (reachResponse.ok) {
           const reachData = await reachResponse.json();
           if (reachData.data && reachData.data[0]) {
@@ -103,7 +107,7 @@ serve(async (req) => {
           }
         }
       } catch (e) {
-        console.log('Could not fetch reach estimate for', item.name, '- timeout or error');
+        // Silently skip reach estimate if it times out
       }
 
       results.push({
@@ -113,6 +117,8 @@ serve(async (req) => {
         type: item.type || type
       });
     }
+
+    console.log(`Returning ${results.length} search results with audience sizes`);
 
     return new Response(
       JSON.stringify({ results }),
