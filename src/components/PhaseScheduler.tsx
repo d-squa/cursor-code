@@ -32,6 +32,8 @@ interface PhaseSchedulerProps {
     ageMax?: number;
     gender?: string;
     devices?: string[];
+    languages?: string[];
+    os?: string[];
   };
   adAccountDefaults?: {
     hasDefaults: boolean;
@@ -810,25 +812,43 @@ export function PhaseScheduler({
                         <div className="p-3 bg-muted/50 rounded-lg space-y-2">
                           <Label className="text-sm font-semibold">Inherited Targeting</Label>
                           <div className="text-xs text-muted-foreground space-y-1">
-                            <div className="flex justify-between">
-                              <span>Age Range:</span>
-                              <span className="font-medium text-foreground">
-                                {marketTargeting.ageMin || 18} - {marketTargeting.ageMax || 65}
-                              </span>
-                            </div>
-                            {marketTargeting.gender && (
+                            {(marketTargeting.ageMin || marketTargeting.ageMax) && (
                               <div className="flex justify-between">
-                                <span>Gender:</span>
-                                <span className="font-medium text-foreground capitalize">
-                                  {marketTargeting.gender}
+                                <span>Age Range:</span>
+                                <span className="font-medium text-foreground">
+                                  {marketTargeting.ageMin || 18} - {marketTargeting.ageMax || 65}
                                 </span>
                               </div>
                             )}
-                            {marketTargeting.devices && marketTargeting.devices.length > 0 && (
+                            {marketTargeting.gender && marketTargeting.gender !== 'all' && (
+                              <div className="flex justify-between">
+                                <span>Gender:</span>
+                                <span className="font-medium text-foreground">
+                                  {marketTargeting.gender === '1' ? 'Male' : marketTargeting.gender === '2' ? 'Female' : 'All'}
+                                </span>
+                              </div>
+                            )}
+                            {marketTargeting.languages && marketTargeting.languages.length > 0 && !marketTargeting.languages.includes('all') && (
+                              <div className="flex justify-between">
+                                <span>Languages:</span>
+                                <span className="font-medium text-foreground">
+                                  {marketTargeting.languages.length} selected
+                                </span>
+                              </div>
+                            )}
+                            {marketTargeting.devices && marketTargeting.devices.length > 0 && !marketTargeting.devices.includes('all') && (
                               <div className="flex justify-between">
                                 <span>Devices:</span>
                                 <span className="font-medium text-foreground">
-                                  {marketTargeting.devices.join(', ')}
+                                  {marketTargeting.devices.length} selected
+                                </span>
+                              </div>
+                            )}
+                            {marketTargeting.os && marketTargeting.os.length > 0 && !marketTargeting.os.includes('all') && (
+                              <div className="flex justify-between">
+                                <span>Operating Systems:</span>
+                                <span className="font-medium text-foreground">
+                                  {marketTargeting.os.length} selected
                                 </span>
                               </div>
                             )}

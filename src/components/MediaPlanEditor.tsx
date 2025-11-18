@@ -1796,7 +1796,9 @@ export function MediaPlanEditor() {
                                     ageMin: market.ageMin || genericConfig.targeting?.ageMin,
                                     ageMax: market.ageMax || genericConfig.targeting?.ageMax,
                                     gender: market.gender || genericConfig.targeting?.genders?.[0],
-                                    devices: genericConfig.targeting?.devices,
+                                    languages: (market as any).languages || (genericConfig.targeting as any)?.languages,
+                                    devices: (market as any).devices || (genericConfig.targeting as any)?.devices,
+                                    os: (market as any).os || (genericConfig.targeting as any)?.os,
                                   }}
                                   onApplyBudgetTypeToAll={(type) => {
                                     setPlatformsWithMarkets(prev => prev.map(p => p.id === platform.id ? {
