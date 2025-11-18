@@ -71,6 +71,14 @@ export interface Phase {
   ageMin?: number;
   ageMax?: number;
   detailedTargeting?: Array<{ id: string; type: string; name?: string }>;
+  audiences?: Array<{
+    id: string;
+    name: string;
+    type: string;
+    source: string;
+    subtype?: string;
+    approximate_count?: number;
+  }>;
 }
 
 export interface Campaign {
