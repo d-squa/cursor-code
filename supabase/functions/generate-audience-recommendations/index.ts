@@ -71,11 +71,11 @@ serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: "You are an expert at analyzing product descriptions and extracting relevant Meta advertising targeting keywords. Extract 5-8 interests, 3-5 behaviors, and key demographics that would be relevant for targeting."
+            content: "You are an expert at analyzing product descriptions and extracting relevant Meta advertising targeting keywords. You MUST respond with ONLY valid JSON, no explanations, no markdown, no extra text."
           },
           {
             role: "user",
-            content: `Analyze this product/audience brief and extract targeting keywords:\n\n${brief}\n\nReturn ONLY a JSON object with this exact structure:\n{\n  "interests": ["interest1", "interest2", ...],\n  "behaviors": ["behavior1", "behavior2", ...],\n  "demographics": {\n    "ageRange": "18-65",\n    "genders": ["all"],\n    "notes": "any specific demographic insights"\n  }\n}`
+            content: `Analyze this product/audience brief and extract targeting keywords:\n\n${brief}\n\nIMPORTANT: Return ONLY valid JSON with this EXACT structure. Do NOT include any text outside the JSON object. Do NOT use markdown code fences. Do NOT add comments inside arrays.\n\n{\n  "interests": ["interest1", "interest2"],\n  "behaviors": ["behavior1", "behavior2"],\n  "demographics": {\n    "ageRange": "18-65",\n    "genders": ["all"],\n    "notes": "demographic insights"\n  }\n}`
           }
         ]
       }),
@@ -90,14 +90,26 @@ serve(async (req) => {
     let content = aiData.choices[0].message.content;
     console.log('AI response:', content);
 
-    // Strip markdown code fences if present
-    content = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+    // Extract JSON from response - handle various formats
+    content = content.trim();
+    
+    // Remove markdown code fences
+    content = content.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+    
+    // Try to extract JSON object if there's extra text
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      content = jsonMatch[0];
+    }
+    
+    content = content.trim();
 
     let parsed;
     try {
       parsed = JSON.parse(content);
     } catch (e) {
       console.error('Failed to parse AI response:', content);
+      console.error('Parse error:', e instanceof Error ? e.message : String(e));
       throw new Error('Invalid AI response format');
     }
 
