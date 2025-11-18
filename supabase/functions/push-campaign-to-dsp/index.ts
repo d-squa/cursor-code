@@ -459,10 +459,7 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
         if (targetingConfig.websiteAudience) {
           const audienceNames = targetingConfig.websiteAudience.split(',').map((s: string) => s.trim()).filter(Boolean);
           if (audienceNames.length > 0) {
-            // Note: In production, you'd need to fetch actual custom audience IDs from Meta
-            // For now, we're including the names in exclusions as a placeholder
-            targeting.custom_audiences = audienceNames;
-            console.log(`Adding custom audiences (retargeting): ${audienceNames.join(', ')}`);
+            console.warn("Skipping websiteAudience fallback (names only). Audience IDs are required to target custom audiences.");
           }
         }
 
@@ -472,9 +469,7 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
         if (targetingConfig.lookalikeAudience) {
           const lookalikeNames = targetingConfig.lookalikeAudience.split(',').map((s: string) => s.trim()).filter(Boolean);
           if (lookalikeNames.length > 0) {
-            // Note: In production, you'd need to fetch actual lookalike audience IDs from Meta
-            targeting.lookalike_audiences = lookalikeNames;
-            console.log(`Adding lookalike audiences: ${lookalikeNames.join(', ')}`);
+            console.warn("Skipping lookalikeAudience fallback (names only). Audience IDs are required.");
           }
         }
 
@@ -482,15 +477,7 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
         if (targetingConfig.interests) {
           const interests = targetingConfig.interests.split(',').map((s: string) => s.trim()).filter(Boolean);
           if (interests.length > 0) {
-            // Add to flexible_spec if it exists, otherwise create it
-            if (!targeting.flexible_spec) {
-              targeting.flexible_spec = [];
-            }
-            // Note: In production, interests would need to be converted to Meta interest IDs
-            targeting.flexible_spec.push({
-              interests: interests.map((name: string) => ({ name }))
-            });
-            console.log(`Adding interests from targeting config: ${interests.join(', ')}`);
+            console.warn("Skipping interests fallback (names only). Use AI-parsed targeting to include valid interest IDs.");
           }
         }
 
@@ -498,11 +485,41 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
         if (targetingConfig.customerList) {
           const customerLists = targetingConfig.customerList.split(',').map((s: string) => s.trim()).filter(Boolean);
           if (customerLists.length > 0) {
-            if (!targeting.custom_audiences) {
-              targeting.custom_audiences = [];
-            }
-            targeting.custom_audiences.push(...customerLists);
-            console.log(`Adding customer list audiences: ${customerLists.join(', ')}`);
+            console.warn("Skipping customerList fallback (names only). Audience IDs are required.");
+          }
+        }
+
+        // Sanitize targeting: remove invalid detailed targeting entries without IDs
+        if (targeting.flexible_spec && Array.isArray(targeting.flexible_spec)) {
+          targeting.flexible_spec = targeting.flexible_spec
+            .map((spec: any) => {
+              const cleaned: any = {};
+              for (const key of Object.keys(spec)) {
+                const items = Array.isArray(spec[key]) ? spec[key].filter((i: any) => i && typeof i.id === 'string' && i.id.trim() !== '') : [];
+                if (items.length > 0) cleaned[key] = items;
+              }
+              return cleaned;
+            })
+            .filter((spec: any) => Object.keys(spec).length > 0);
+          if (targeting.flexible_spec.length === 0) {
+            delete targeting.flexible_spec;
+          }
+        }
+
+        // Normalize custom_audiences: keep only valid IDs
+        if (targeting.custom_audiences) {
+          const normalized = (Array.isArray(targeting.custom_audiences) ? targeting.custom_audiences : [])
+            .map((a: any) => {
+              if (!a) return null;
+              if (typeof a === 'string' && /^\d+$/.test(a)) return { id: a };
+              if (typeof a === 'object' && a.id) return { id: String(a.id) };
+              return null;
+            })
+            .filter(Boolean);
+          if (normalized.length > 0) {
+            targeting.custom_audiences = normalized;
+          } else {
+            delete targeting.custom_audiences;
           }
         }
 
