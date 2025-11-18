@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { AdFormatSelector } from "./AdFormatSelector";
-import { TargetingBriefInput } from "./TargetingBriefInput";
+
 import { AudienceCard } from "./AudienceCard";
 import { AudienceRecommendationPreview } from "./AudienceRecommendationPreview";
 import { useAudienceRecommendations } from "@/hooks/useAudienceRecommendations";
@@ -50,7 +50,6 @@ export function TargetingConfigComponent({
   const [audienceDescription, setAudienceDescription] = useState("");
   const [showRecommendations, setShowRecommendations] = useState(false);
 const { recommendations, loading, generateRecommendations, clearRecommendations } = useAudienceRecommendations();
-  const [parsedTargetingLocal, setParsedTargetingLocal] = useState<any[]>([]);
 
   const updateField = (field: keyof TargetingConfig, value: any) => {
     onUpdate({ ...targeting, [field]: value });
@@ -196,55 +195,6 @@ const { recommendations, loading, generateRecommendations, clearRecommendations 
 
 
 
-
-        {/* Applied Audiences (from Brief) */}
-        {parsedTargetingLocal && parsedTargetingLocal.length > 0 && (
-          <div className="space-y-4">
-            <h4 className="text-sm font-semibold">Applied Audiences</h4>
-            {parsedTargetingLocal.map((t: any, idx: number) => (
-              <div key={idx} className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">{t.market || t.location}</span>
-                  <div className="text-xs text-muted-foreground">
-                    {t.age?.min && t.age?.max ? `Age: ${t.age.min}-${t.age.max}` : null}
-                  </div>
-                </div>
-
-                {(() => {
-                  console.groupCollapsed(`[Step 3] Market ${t.market || t.location}`);
-                  console.table({
-                    interests: t.interests?.length || 0,
-                    behaviors: t.behaviors?.length || 0,
-                    customAudiences: t.customAudiences?.length || 0,
-                    lookalikes: t.lookalikes?.length || 0,
-                    customerLists: t.customerLists?.length || 0,
-                  });
-                  console.log('Audience objects', t);
-                  console.groupEnd();
-                  return null;
-                })()}
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {t.interests?.map((i: any, j: number) => (
-                    <AudienceCard key={`i-${j}`} type="interest" name={i.name || i} audienceSize={i.audienceSize} onRemove={() => {}} />
-                  ))}
-                  {t.behaviors?.map((b: any, j: number) => (
-                    <AudienceCard key={`b-${j}`} type="behavior" name={b.name || b} audienceSize={b.audienceSize} onRemove={() => {}} />
-                  ))}
-                  {t.customAudiences?.map((c: any, j: number) => (
-                    <AudienceCard key={`c-${j}`} type="customAudience" name={c.name || c} onRemove={() => {}} />
-                  ))}
-                  {t.lookalikes?.map((l: any, j: number) => (
-                    <AudienceCard key={`l-${j}`} type="lookalike" name={l.name || l} onRemove={() => {}} />
-                  ))}
-                  {t.customerLists?.map((cl: any, j: number) => (
-                    <AudienceCard key={`cl-${j}`} type="customerList" name={cl.name || cl} onRemove={() => {}} />
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
 
         {/* Applied Audiences (from Recommendations) */}
         {(() => {

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { PhaseScheduler } from "./PhaseScheduler";
 import { Phase, Campaign } from "./PlatformConfiguration";
 import { TargetingConfig, TargetingConfigComponent } from "./TargetingConfig";
-import { TargetingBriefInput } from "./TargetingBriefInput";
+
 import { AudienceCard } from "./AudienceCard";
 import { determineStrategyFocus } from "@/utils/strategyFocusMapping";
 import { getDefaultPhases, funnelTemplates } from "@/utils/funnelPhases";
@@ -79,7 +79,6 @@ export interface GenericConfig {
   phases?: Phase[];
   campaigns?: Campaign[];
   targeting?: TargetingConfig;
-  parsedTargeting?: any[];
   adAccountId?: string;
 }
 
@@ -222,20 +221,6 @@ export function GenericStrategyConfig({
     setConfig(updatedConfig);
   };
 
-  const [parsedTargeting, setParsedTargeting] = useState<any[]>(config.parsedTargeting || []);
-
-  const handleTargetingGenerated = (targeting: any[]) => {
-    setParsedTargeting(targeting);
-    const updated = { ...config, parsedTargeting: targeting };
-    setConfig(updated);
-  };
-
-  const handleRemoveTargeting = (index: number) => {
-    const updated = parsedTargeting.filter((_, i) => i !== index);
-    setParsedTargeting(updated);
-    const updatedConfig = { ...config, parsedTargeting: updated };
-    setConfig(updatedConfig);
-  };
 
   const updateTargeting = (field: string, value: any) => {
     const updated = {
@@ -258,125 +243,6 @@ export function GenericStrategyConfig({
             </div>
           </CardHeader>
           <CardContent className="space-y-6">
-      <TargetingBriefInput
-        onTargetingGenerated={handleTargetingGenerated}
-      />
-
-            {parsedTargeting.length > 0 && (
-              <div className="space-y-6">
-                <h3 className="text-lg font-semibold">Applied Targeting</h3>
-                {parsedTargeting.map((targeting: any, marketIdx: number) => (
-                  <div key={marketIdx} className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-base font-semibold">{targeting.market}</h4>
-                      <div className="flex gap-2 text-sm text-muted-foreground">
-                        {targeting.ageMin && targeting.ageMax && (
-                          <span>Age: {targeting.ageMin}-{targeting.ageMax}</span>
-                        )}
-                        {targeting.gender && targeting.gender.length > 0 && (
-                          <span>• {targeting.gender.join(", ")}</span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {/* Interests */}
-                      {targeting.interests?.map((interest: any, idx: number) => (
-                        <AudienceCard
-                          key={`interest-${idx}`}
-                          type="interest"
-                          name={interest.name}
-                          audienceSize={interest.audienceSize}
-                          metadata={{ id: interest.id }}
-                          onRemove={() => {
-                            const newTargeting = [...parsedTargeting];
-                            newTargeting[marketIdx] = {
-                              ...newTargeting[marketIdx],
-                              interests: newTargeting[marketIdx].interests?.filter((_: any, i: number) => i !== idx),
-                            };
-                            setParsedTargeting(newTargeting);
-                          }}
-                        />
-                      ))}
-
-                      {/* Behaviors */}
-                      {targeting.behaviors?.map((behavior: any, idx: number) => (
-                        <AudienceCard
-                          key={`behavior-${idx}`}
-                          type="behavior"
-                          name={behavior.name}
-                          audienceSize={behavior.audienceSize}
-                          metadata={{ id: behavior.id }}
-                          onRemove={() => {
-                            const newTargeting = [...parsedTargeting];
-                            newTargeting[marketIdx] = {
-                              ...newTargeting[marketIdx],
-                              behaviors: newTargeting[marketIdx].behaviors?.filter((_: any, i: number) => i !== idx),
-                            };
-                            setParsedTargeting(newTargeting);
-                          }}
-                        />
-                      ))}
-
-                      {/* Custom Audiences */}
-                      {targeting.customAudiences?.map((audience: any, idx: number) => (
-                        <AudienceCard
-                          key={`custom-${idx}`}
-                          type="customAudience"
-                          name={audience.name}
-                          metadata={{ id: audience.id, type: audience.type }}
-                          onRemove={() => {
-                            const newTargeting = [...parsedTargeting];
-                            newTargeting[marketIdx] = {
-                              ...newTargeting[marketIdx],
-                              customAudiences: newTargeting[marketIdx].customAudiences?.filter((_: any, i: number) => i !== idx),
-                            };
-                            setParsedTargeting(newTargeting);
-                          }}
-                        />
-                      ))}
-
-                      {/* Lookalikes */}
-                      {targeting.lookalikes?.map((audience: any, idx: number) => (
-                        <AudienceCard
-                          key={`lookalike-${idx}`}
-                          type="lookalike"
-                          name={audience.name}
-                          metadata={{ id: audience.id, sourceAudienceId: audience.sourceAudienceId }}
-                          onRemove={() => {
-                            const newTargeting = [...parsedTargeting];
-                            newTargeting[marketIdx] = {
-                              ...newTargeting[marketIdx],
-                              lookalikes: newTargeting[marketIdx].lookalikes?.filter((_: any, i: number) => i !== idx),
-                            };
-                            setParsedTargeting(newTargeting);
-                          }}
-                        />
-                      ))}
-
-                      {/* Customer Lists */}
-                      {targeting.customerLists?.map((list: any, idx: number) => (
-                        <AudienceCard
-                          key={`customerlist-${idx}`}
-                          type="customerList"
-                          name={list.name}
-                          metadata={{ id: list.id }}
-                          onRemove={() => {
-                            const newTargeting = [...parsedTargeting];
-                            newTargeting[marketIdx] = {
-                              ...newTargeting[marketIdx],
-                              customerLists: newTargeting[marketIdx].customerLists?.filter((_: any, i: number) => i !== idx),
-                            };
-                            setParsedTargeting(newTargeting);
-                          }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
             <div className="flex justify-between pt-4">
               <Button variant="outline" onClick={onBack}>
                 Back
@@ -414,114 +280,6 @@ export function GenericStrategyConfig({
               <p className="text-sm text-muted-foreground">
                 Phases are auto-generated based on your targeting configuration. You can customize each phase below.
               </p>
-            )}
-
-            {config.parsedTargeting && config.parsedTargeting.length > 0 && (
-              <div className="space-y-6">
-                <h3 className="text-lg font-semibold">Applied Audiences</h3>
-                {config.parsedTargeting.map((targeting: any, marketIdx: number) => (
-                  <div key={marketIdx} className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-base font-semibold">{targeting.market}</h4>
-                      <div className="flex gap-2 text-sm text-muted-foreground">
-                        {targeting.ageMin && targeting.ageMax && (
-                          <span>Age: {targeting.ageMin}-{targeting.ageMax}</span>
-                        )}
-                        {targeting.gender && targeting.gender.length > 0 && (
-                          <span>• {targeting.gender.join(", ")}</span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {targeting.interests?.map((interest: any, idx: number) => (
-                        <AudienceCard
-                          key={`interest-${idx}`}
-                          type="interest"
-                          name={interest.name}
-                          audienceSize={interest.audienceSize}
-                          onRemove={() => {
-                            const newTargeting = [...(config.parsedTargeting || [])];
-                            newTargeting[marketIdx] = {
-                              ...newTargeting[marketIdx],
-                              interests: (newTargeting[marketIdx].interests || []).filter((_: any, i: number) => i !== idx),
-                            };
-                            setConfig({ ...config, parsedTargeting: newTargeting });
-                          }}
-                        />
-                      ))}
-
-                      {targeting.behaviors?.map((behavior: any, idx: number) => (
-                        <AudienceCard
-                          key={`behavior-${idx}`}
-                          type="behavior"
-                          name={behavior.name}
-                          audienceSize={behavior.audienceSize}
-                          onRemove={() => {
-                            const newTargeting = [...(config.parsedTargeting || [])];
-                            newTargeting[marketIdx] = {
-                              ...newTargeting[marketIdx],
-                              behaviors: (newTargeting[marketIdx].behaviors || []).filter((_: any, i: number) => i !== idx),
-                            };
-                            setConfig({ ...config, parsedTargeting: newTargeting });
-                          }}
-                        />
-                      ))}
-
-                      {targeting.customAudiences?.map((aud: any, idx: number) => (
-                        <AudienceCard
-                          key={`custom-${idx}`}
-                          type="customAudience"
-                          name={aud.name}
-                          metadata={{ id: aud.id, type: aud.type }}
-                          onRemove={() => {
-                            const newTargeting = [...(config.parsedTargeting || [])];
-                            newTargeting[marketIdx] = {
-                              ...newTargeting[marketIdx],
-                              customAudiences: (newTargeting[marketIdx].customAudiences || []).filter((_: any, i: number) => i !== idx),
-                            };
-                            setConfig({ ...config, parsedTargeting: newTargeting });
-                          }}
-                        />
-                      ))}
-
-                      {targeting.lookalikes?.map((ll: any, idx: number) => (
-                        <AudienceCard
-                          key={`lookalike-${idx}`}
-                          type="lookalike"
-                          name={ll.name}
-                          metadata={{ id: ll.id, sourceAudienceId: ll.sourceAudienceId }}
-                          onRemove={() => {
-                            const newTargeting = [...(config.parsedTargeting || [])];
-                            newTargeting[marketIdx] = {
-                              ...newTargeting[marketIdx],
-                              lookalikes: (newTargeting[marketIdx].lookalikes || []).filter((_: any, i: number) => i !== idx),
-                            };
-                            setConfig({ ...config, parsedTargeting: newTargeting });
-                          }}
-                        />
-                      ))}
-
-                      {targeting.customerLists?.map((cl: any, idx: number) => (
-                        <AudienceCard
-                          key={`customer-${idx}`}
-                          type="customerList"
-                          name={cl.name}
-                          metadata={{ id: cl.id }}
-                          onRemove={() => {
-                            const newTargeting = [...(config.parsedTargeting || [])];
-                            newTargeting[marketIdx] = {
-                              ...newTargeting[marketIdx],
-                              customerLists: (newTargeting[marketIdx].customerLists || []).filter((_: any, i: number) => i !== idx),
-                            };
-                            setConfig({ ...config, parsedTargeting: newTargeting });
-                          }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
             )}
 
             {startDate && endDate ? (
