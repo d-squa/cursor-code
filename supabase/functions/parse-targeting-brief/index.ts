@@ -77,8 +77,11 @@ serve(async (req) => {
 
     const accessToken = connection.access_token;
 
+    // Normalize ad account ID (remove 'act_' prefix if present, we'll add it back in API calls)
+    const normalizedAccountId = adAccountId.replace(/^act_/, '');
+
     // Fetch available custom audiences from Meta
-    const customAudiences = await fetchMetaCustomAudiences(accessToken, adAccountId);
+    const customAudiences = await fetchMetaCustomAudiences(accessToken, normalizedAccountId);
 
     // Use AI to parse the brief
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -150,7 +153,12 @@ Return JSON only with this structure:
     }
 
     const aiData = await aiResponse.json();
-    const parsedData = JSON.parse(aiData.choices[0].message.content);
+    
+    // Clean AI response - remove markdown code blocks if present
+    let aiContent = aiData.choices[0].message.content;
+    aiContent = aiContent.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+    
+    const parsedData = JSON.parse(aiContent);
 
     console.log("AI parsed data:", parsedData);
 
@@ -162,7 +170,7 @@ Return JSON only with this structure:
         // Search interests
         const interests = await searchMetaTargeting(
           accessToken,
-          adAccountId,
+          normalizedAccountId,
           targeting.interestKeywords || [],
           "interests"
         );
@@ -170,7 +178,7 @@ Return JSON only with this structure:
         // Search behaviors
         const behaviors = await searchMetaTargeting(
           accessToken,
-          adAccountId,
+          normalizedAccountId,
           targeting.behaviorKeywords || [],
           "behaviors"
         );
