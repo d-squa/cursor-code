@@ -99,13 +99,45 @@ export function AudienceSelectionDialog({ open, onOpenChange, parsedTargeting, o
         <ScrollArea className="h-[500px] pr-4">
           <div className="space-y-6">
             {parsedTargeting.map((market) => (
-              <div key={market.market} className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold">{market.market}</h3>
-                  <Badge variant="outline">
-                    {market.ageMin && market.ageMax ? `${market.ageMin}-${market.ageMax}` : market.ageMin ? `${market.ageMin}+` : 'All Ages'}
-                    {market.gender && ` • ${market.gender.join(', ')}`}
-                  </Badge>
+              <div key={market.market} className="space-y-4 pb-4">
+                <div className="sticky top-0 bg-background z-10 py-2 space-y-3 border-b pb-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold">{market.market}</h3>
+                  </div>
+                  
+                  {/* Demographics Summary */}
+                  <div className="grid grid-cols-2 gap-2 text-sm bg-muted/30 p-3 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <Users className="h-3 w-3 text-muted-foreground" />
+                      <span className="text-xs">
+                        <strong>Age:</strong> {market.ageMin && market.ageMax ? `${market.ageMin}-${market.ageMax}` : market.ageMin ? `${market.ageMin}+` : 'All Ages'}
+                      </span>
+                    </div>
+                    {market.gender && market.gender.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        <Users className="h-3 w-3 text-muted-foreground" />
+                        <span className="text-xs">
+                          <strong>Gender:</strong> {market.gender.join(', ')}
+                        </span>
+                      </div>
+                    )}
+                    {market.languages && market.languages.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        <Users className="h-3 w-3 text-muted-foreground" />
+                        <span className="text-xs">
+                          <strong>Languages:</strong> {market.languages.join(', ')}
+                        </span>
+                      </div>
+                    )}
+                    {market.devices && market.devices.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        <Users className="h-3 w-3 text-muted-foreground" />
+                        <span className="text-xs">
+                          <strong>Devices:</strong> {market.devices.join(', ')}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {market.interests && market.interests.length > 0 && (

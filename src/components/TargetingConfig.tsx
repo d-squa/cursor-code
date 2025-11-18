@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { AdFormatSelector } from "./AdFormatSelector";
 import { TargetingBriefInput } from "./TargetingBriefInput";
 import { AudienceCard } from "./AudienceCard";
+import { AudienceRecommendationPreview } from "./AudienceRecommendationPreview";
 import { useAudienceRecommendations } from "@/hooks/useAudienceRecommendations";
 import { Loader2, Sparkles, CheckCircle2, AlertCircle, ExternalLink } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -169,7 +170,7 @@ const { recommendations, loading, generateRecommendations, clearRecommendations 
 
             {/* Display Recommendations */}
             {recommendations.length > 0 && showRecommendations && (
-              <div className="mt-4 space-y-3">
+              <div className="mt-4 space-y-4">
                 <div className="flex items-center justify-between">
                   <h4 className="text-sm font-semibold">Recommended Audiences</h4>
                   <Button onClick={handleApplySuggestions} size="sm" variant="default">
@@ -178,71 +179,8 @@ const { recommendations, loading, generateRecommendations, clearRecommendations 
                   </Button>
                 </div>
 
-                {recommendations.map((rec, idx) => (
-                  <Collapsible key={idx} defaultOpen={idx === 0}>
-                    <Card className="border-border/50">
-                      <CollapsibleTrigger asChild>
-                        <CardHeader className="pb-3 cursor-pointer hover:bg-accent/50 transition-colors">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline" className="text-xs">
-                                {rec.category}
-                              </Badge>
-                              <span className="text-sm font-medium">
-                                {rec.items.length} option{rec.items.length !== 1 ? 's' : ''}
-                              </span>
-                            </div>
-                          </div>
-                          <CardDescription className="text-xs mt-1">
-                            {rec.justification}
-                          </CardDescription>
-                        </CardHeader>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <CardContent className="pt-0 space-y-2">
-                          {rec.items.map((item, itemIdx) => (
-                            <Alert
-                              key={itemIdx}
-                              className={item.available ? "border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950" : "border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-950"}
-                            >
-                              <div className="flex items-start gap-2">
-                                {item.available ? (
-                                  <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5" />
-                                ) : (
-                                  <AlertCircle className="h-4 w-4 text-orange-600 mt-0.5" />
-                                )}
-                                <div className="flex-1 space-y-1">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-sm font-medium">{item.source}</span>
-                                    {item.audienceName && (
-                                      <Badge variant="secondary" className="text-xs">
-                                        {item.audienceName}
-                                      </Badge>
-                                    )}
-                                  </div>
-                                  <AlertDescription className="text-xs">
-                                    {item.description}
-                                  </AlertDescription>
-                                  {!item.available && item.setupInstructions && (
-                                    <details className="text-xs text-muted-foreground mt-2">
-                                      <summary className="cursor-pointer hover:text-foreground flex items-center gap-1">
-                                        <ExternalLink className="h-3 w-3" />
-                                        How to set this up
-                                      </summary>
-                                      <p className="mt-2 pl-4 border-l-2 border-border">
-                                        {item.setupInstructions}
-                                      </p>
-                                    </details>
-                                  )}
-                                </div>
-                              </div>
-                            </Alert>
-                          ))}
-                        </CardContent>
-                      </CollapsibleContent>
-                    </Card>
-                  </Collapsible>
-                ))}
+                {/* Show detailed preview of all audiences before applying */}
+                <AudienceRecommendationPreview recommendations={recommendations} />
 
                 <Alert>
                   <AlertCircle className="h-4 w-4" />
