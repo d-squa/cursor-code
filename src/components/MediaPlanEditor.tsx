@@ -12,6 +12,7 @@ import { PlatformMarketBudgetSelector } from "./PlatformMarketBudgetSelector";
 import { HierarchicalTimelineScheduler } from "./HierarchicalTimelineScheduler";
 import { GlobalFunnelPhasing } from "./GlobalFunnelPhasing";
 import { TargetingConfigComponent } from "./TargetingConfig";
+import { TargetingBriefInput } from "./TargetingBriefInput";
 import { AudienceCard } from "./AudienceCard";
 import { CampaignForecast } from "./CampaignForecast";
 import { PhaseScheduler } from "./PhaseScheduler";
@@ -1329,6 +1330,14 @@ export function MediaPlanEditor() {
           {currentStep === 3 ? (
             <CardContent className="space-y-6">
 
+              {/* Generate audiences from brief */}
+              <TargetingBriefInput
+                onTargetingGenerated={(targeting) => {
+                  console.info("[Step 3] Parsed audiences generated:", targeting);
+                  setGenericConfig(prev => ({ ...prev, parsedTargeting: targeting }));
+                }}
+              />
+
               {genericConfig.parsedTargeting && genericConfig.parsedTargeting.length > 0 && (
                 <div className="space-y-6">
                   <h3 className="text-lg font-semibold">Applied Audiences</h3>
@@ -1345,6 +1354,20 @@ export function MediaPlanEditor() {
                           )}
                         </div>
                       </div>
+
+                      {(() => {
+                        console.groupCollapsed(`[Step 3] Market ${targeting.market}`);
+                        console.table({
+                          interests: targeting.interests?.length || 0,
+                          behaviors: targeting.behaviors?.length || 0,
+                          customAudiences: targeting.customAudiences?.length || 0,
+                          lookalikes: targeting.lookalikes?.length || 0,
+                          customerLists: targeting.customerLists?.length || 0,
+                        });
+                        console.log('Audience objects', targeting);
+                        console.groupEnd();
+                        return null;
+                      })()}
 
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                         {/* Interests */}
