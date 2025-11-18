@@ -52,33 +52,30 @@ serve(async (req) => {
 
     console.log("Parsing targeting brief:", { brief, adAccountId, userId: user.id });
 
-    // Get Meta access token
-    const { data: connection } = await supabaseClient
-      .from("connected_platforms")
-      .select("*")
-      .eq("user_id", user.id)
-      .eq("platform_type", "meta")
-      .eq("is_active", true)
-      .single();
-
-    if (!connection) {
-      throw new Error("No active Meta connection found");
-    }
-
-    // Create service role client to access vault tokens
+    // Get Meta access token - use service role to access the token field
     const supabaseServiceClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
-    const { data: accessToken, error: tokenError } = await supabaseServiceClient.rpc('get_platform_token', {
-      platform_id: connection.id
-    });
+    const { data: connection, error: connectionError } = await supabaseServiceClient
+      .from("connected_platforms")
+      .select("access_token")
+      .eq("user_id", user.id)
+      .eq("platform_type", "meta")
+      .eq("is_active", true)
+      .maybeSingle();
 
-    if (tokenError || !accessToken) {
-      console.error("Token retrieval error:", tokenError);
-      throw new Error("Failed to retrieve access token");
+    if (connectionError) {
+      console.error("Connection lookup error:", connectionError);
+      throw new Error("Failed to retrieve Meta connection");
     }
+
+    if (!connection || !connection.access_token) {
+      throw new Error("No active Meta connection found with access token");
+    }
+
+    const accessToken = connection.access_token;
 
     // Fetch available custom audiences from Meta
     const customAudiences = await fetchMetaCustomAudiences(accessToken, adAccountId);
