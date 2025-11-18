@@ -63,8 +63,11 @@ serve(async (req) => {
     const accessToken = platformData.access_token;
     const apiVersion = 'v21.0';
     
+    // Remove 'act_' prefix if already present
+    const cleanAccountId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
+    
     // Fetch custom audiences from ad account
-    const url = `https://graph.facebook.com/${apiVersion}/act_${adAccountId}/customaudiences?fields=id,name,subtype,approximate_count_lower_bound,approximate_count_upper_bound&access_token=${accessToken}`;
+    const url = `https://graph.facebook.com/${apiVersion}/${cleanAccountId}/customaudiences?fields=id,name,subtype,approximate_count_lower_bound,approximate_count_upper_bound&access_token=${accessToken}`;
     
     const response = await fetch(url);
     
@@ -114,7 +117,7 @@ serve(async (req) => {
       );
     } else if (type === "Saved Audience") {
       // Fetch saved audiences separately
-      const savedUrl = `https://graph.facebook.com/${apiVersion}/act_${adAccountId}/saved_audiences?fields=id,name,approximate_count&access_token=${accessToken}`;
+      const savedUrl = `https://graph.facebook.com/${apiVersion}/${cleanAccountId}/saved_audiences?fields=id,name,approximate_count&access_token=${accessToken}`;
       const savedResponse = await fetch(savedUrl);
       
       if (savedResponse.ok) {
