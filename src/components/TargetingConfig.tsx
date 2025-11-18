@@ -194,13 +194,8 @@ const { recommendations, loading, generateRecommendations, clearRecommendations 
           </CardContent>
         </Card>
 
-        {/* Generate audiences from brief */}
-        <TargetingBriefInput
-          onTargetingGenerated={(targeting) => {
-            console.info("[Step 3] Parsed audiences generated:", targeting);
-            setParsedTargetingLocal(targeting);
-          }}
-        />
+
+
 
         {/* Applied Audiences (from Brief) */}
         {parsedTargetingLocal && parsedTargetingLocal.length > 0 && (
