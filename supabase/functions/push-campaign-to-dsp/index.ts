@@ -322,17 +322,36 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
               ? market.countries 
               : [market.name.substring(0, 2).toUpperCase()]
           },
-          age_min: market.ageMin || 18,
-          age_max: market.ageMax || 65,
+          age_min: market.ageMin || phase.ageMin || 18,
+          age_max: market.ageMax || phase.ageMax || 65,
         };
         
-        // Add gender targeting if specified
-        if (market.gender) {
-          if (market.gender === "male") {
+        // Add gender targeting if specified (handle both ID format '1', '2' and string format 'male', 'female')
+        const gender = market.gender || phase.gender;
+        if (gender && gender !== 'all') {
+          if (gender === "1" || gender === "male") {
             targeting.genders = [1];
-          } else if (market.gender === "female") {
+          } else if (gender === "2" || gender === "female") {
             targeting.genders = [2];
           }
+        }
+        
+        // Add language targeting if specified
+        const languages = market.languages || phase.languages;
+        if (languages && Array.isArray(languages) && languages.length > 0 && !languages.includes('all')) {
+          targeting.locales = languages.map((lang: string | number) => parseInt(String(lang)));
+        }
+        
+        // Add device targeting if specified
+        const devices = market.devices || phase.devices;
+        if (devices && Array.isArray(devices) && devices.length > 0 && !devices.includes('all')) {
+          targeting.device_platforms = devices;
+        }
+        
+        // Add OS targeting if specified
+        const os = market.os || phase.os;
+        if (os && Array.isArray(os) && os.length > 0 && !os.includes('all')) {
+          targeting.user_os = os;
         }
         
         // Add publisher platforms
