@@ -1,8 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { Resend } from "https://esm.sh/resend@4.0.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.76.1";
-
-const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -59,7 +56,7 @@ const handler = async (req: Request): Promise<Response> => {
         ? `Your ActiPlan "${campaignName}" has been approved and is ready to launch! You can now push it to the DSP.`
         : `Your ActiPlan "${campaignName}" has been rejected. Please review the feedback and create a new plan.`;
 
-    const { error: emailError } = await resend.emails.send({
+    const emailData = {
       from: "ActiPlan <do-not-reply@actiplan.app>",
       to: [creatorEmail],
       subject,
@@ -68,9 +65,21 @@ const handler = async (req: Request): Promise<Response> => {
         <p>${message}</p>
         <p>Best regards,<br>The ActiPlan Team</p>
       `,
+    };
+
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${Deno.env.get("RESEND_API_KEY")}`,
+      },
+      body: JSON.stringify(emailData),
     });
 
-    if (emailError) throw emailError;
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Resend API error: ${errorText}`);
+    }
 
     console.log(`Notification sent to ${creatorEmail} for campaign ${campaignId}`);
 
