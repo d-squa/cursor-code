@@ -65,11 +65,18 @@ serve(async (req) => {
       throw new Error("No active Meta connection found");
     }
 
-    const { data: accessToken, error: tokenError } = await supabaseClient.rpc('get_platform_token', {
+    // Create service role client to access vault tokens
+    const supabaseServiceClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+    );
+
+    const { data: accessToken, error: tokenError } = await supabaseServiceClient.rpc('get_platform_token', {
       platform_id: connection.id
     });
 
     if (tokenError || !accessToken) {
+      console.error("Token retrieval error:", tokenError);
       throw new Error("Failed to retrieve access token");
     }
 
