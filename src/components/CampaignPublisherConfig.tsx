@@ -1,7 +1,9 @@
 import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { Badge } from "@/components/ui/badge";
-import { X } from "lucide-react";
+import { X, Info } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface CampaignPublisherConfigProps {
   platformName: string;
@@ -57,17 +59,21 @@ export function CampaignPublisherConfig({
 
   const availablePublisherPlatforms = getAvailablePublisherPlatforms();
   const availablePlacements = placementOptions[platformName] || {};
+  const hasInitialized = useRef(false);
 
   // Set default Advantage+ audience (all publishers) on mount if nothing selected
-  if (availablePublisherPlatforms.length > 0 && publisherPlatforms.length === 0) {
-    onPublisherPlatformsChange(availablePublisherPlatforms);
-    // Set automatic placements for all publishers by default
-    const defaultPositions: any = {};
-    availablePublisherPlatforms.forEach(pub => {
-      defaultPositions[pub] = ["automatic"];
-    });
-    onPositionsChange(defaultPositions);
-  }
+  useEffect(() => {
+    if (!hasInitialized.current && availablePublisherPlatforms.length > 0 && publisherPlatforms.length === 0) {
+      hasInitialized.current = true;
+      onPublisherPlatformsChange(availablePublisherPlatforms);
+      // Set automatic placements for all publishers by default
+      const defaultPositions: any = {};
+      availablePublisherPlatforms.forEach(pub => {
+        defaultPositions[pub] = ["automatic"];
+      });
+      onPositionsChange(defaultPositions);
+    }
+  }, [availablePublisherPlatforms, publisherPlatforms.length, onPublisherPlatformsChange, onPositionsChange]);
 
   if (availablePublisherPlatforms.length === 0) {
     return null;
@@ -138,6 +144,25 @@ export function CampaignPublisherConfig({
           </div>
         )}
       </div>
+
+      {/* Placements Section with Visual Indicator */}
+      {publisherPlatforms.length === 0 && (
+        <Alert className="bg-muted/50">
+          <Info className="h-4 w-4" />
+          <AlertDescription>
+            Select publisher platforms above to configure placement options for each platform.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {publisherPlatforms.length > 0 && (
+        <div className="space-y-3 pt-2">
+          <div className="flex items-center gap-2 text-sm font-medium">
+            <Info className="h-4 w-4 text-muted-foreground" />
+            <span>Placement Options by Publisher</span>
+          </div>
+        </div>
+      )}
 
       {/* Positions for each selected publisher platform */}
       {publisherPlatforms.map((publisher) => {
