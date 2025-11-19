@@ -115,7 +115,13 @@ export function PhaseAudienceSelector({
   }, {} as Record<string, FetchedAudience[]>);
 
   // Add interests, behaviors, and demographics from basicTargeting as "Detailed Targeting"
-  if (basicTargeting) {
+  // Only show for Brand Awareness campaigns
+  const isBrandAwareness = phaseObjective?.toLowerCase().includes('awareness') || 
+                           phaseObjective?.toLowerCase().includes('reach') ||
+                           phaseOptimizationGoal?.toLowerCase().includes('awareness') ||
+                           phaseOptimizationGoal?.toLowerCase().includes('reach');
+  
+  if (basicTargeting && isBrandAwareness) {
     const detailedTargetingAudiences: FetchedAudience[] = [];
     
     if (basicTargeting.aiInterests && basicTargeting.aiInterests.length > 0) {

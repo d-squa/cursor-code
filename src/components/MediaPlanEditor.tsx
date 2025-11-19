@@ -1218,6 +1218,22 @@ export function MediaPlanEditor() {
                     <span className="font-medium text-foreground">{basicTargeting.os.join(", ")}</span>
                   </div>
                 )}
+                {(basicTargeting.aiInterests?.length || basicTargeting.aiBehaviors?.length || basicTargeting.aiDemographics?.length) && (
+                  <div className="flex justify-between pt-2 border-t">
+                    <span>Detailed Targeting:</span>
+                    <div className="flex gap-2">
+                      {basicTargeting.aiInterests && basicTargeting.aiInterests.length > 0 && (
+                        <Badge variant="outline">Interests ({basicTargeting.aiInterests.length})</Badge>
+                      )}
+                      {basicTargeting.aiBehaviors && basicTargeting.aiBehaviors.length > 0 && (
+                        <Badge variant="outline">Behaviors ({basicTargeting.aiBehaviors.length})</Badge>
+                      )}
+                      {basicTargeting.aiDemographics && basicTargeting.aiDemographics.length > 0 && (
+                        <Badge variant="outline">Demographics ({basicTargeting.aiDemographics.length})</Badge>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </CardContent>
           )}
