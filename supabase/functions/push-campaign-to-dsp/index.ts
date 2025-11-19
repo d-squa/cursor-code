@@ -401,7 +401,6 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
         const validInstagramPositions = ['stream', 'story', 'explore', 'explore_home', 'reels'];
         const validAudienceNetworkPositions = ['classic', 'instream_video', 'rewarded_video'];
         const validMessengerPositions = ['messenger_home', 'sponsored_messages', 'story'];
-        const validThreadsPositions = ['threads'];
         
         if (positions) {
           if (positions.facebook && Array.isArray(positions.facebook) && positions.facebook.length > 0 && !positions.facebook.includes('automatic')) {
@@ -433,13 +432,8 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
               console.log("Adding Messenger positions:", filteredPositions);
             }
           }
-          if (positions.threads && Array.isArray(positions.threads) && positions.threads.length > 0 && !positions.threads.includes('automatic')) {
-            const filteredPositions = positions.threads.filter((p: string) => validThreadsPositions.includes(p));
-            if (filteredPositions.length > 0) {
-              targeting.threads_positions = filteredPositions;
-              console.log("Adding Threads positions:", filteredPositions);
-            }
-          }
+          // Note: Threads positions are handled automatically by Meta when 'threads' is in publisher_platforms
+          // Do not add threads_positions field as it causes API errors
         }
         
         // Add detailed targeting (interests, behaviors)
