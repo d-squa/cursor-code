@@ -67,11 +67,16 @@ export function CampaignPublisherConfig({
   
   const availablePlacements = getPlacements();
 
-  // Initialize all publishers and placements by default
+  // Initialize all publishers and placements by default if not set
   useEffect(() => {
-    if (availablePublisherPlatforms.length > 0 && publisherPlatforms.length === 0) {
+    const isUninitialized = (!publisherPlatforms || publisherPlatforms.length === 0) && 
+                           (!positions || Object.keys(positions).length === 0);
+    
+    if (availablePublisherPlatforms.length > 0 && isUninitialized) {
+      // Set all publishers
       onPublisherPlatformsChange(availablePublisherPlatforms);
       
+      // Set all placements for each publisher
       const defaultPositions: any = {};
       availablePublisherPlatforms.forEach(publisher => {
         if (availablePlacements[publisher]) {
@@ -80,7 +85,7 @@ export function CampaignPublisherConfig({
       });
       onPositionsChange(defaultPositions);
     }
-  }, []);
+  }, [publisherPlatforms, positions, availablePublisherPlatforms.length]);
 
   if (availablePublisherPlatforms.length === 0) {
     return null;
