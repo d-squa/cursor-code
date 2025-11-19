@@ -60,8 +60,14 @@ serve(async (req) => {
     const apiVersion = 'v21.0';
     const cleanAccountId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
 
-    // Search Meta targeting API
-    const searchUrl = `https://graph.facebook.com/${apiVersion}/search?type=adTargetingCategory&class=${type}&q=${encodeURIComponent(query)}&limit=20&access_token=${accessToken}`;
+    // Search Meta targeting API with correct endpoint for each type
+    // For interests: use type=adinterest
+    // For behaviors: use type=adTargetingCategory with class=behaviors
+    const searchUrl = type === 'interests'
+      ? `https://graph.facebook.com/${apiVersion}/search?type=adinterest&q=${encodeURIComponent(query)}&limit=20&access_token=${accessToken}`
+      : `https://graph.facebook.com/${apiVersion}/search?type=adTargetingCategory&class=${type}&q=${encodeURIComponent(query)}&limit=20&access_token=${accessToken}`;
+    
+    console.log(`Searching Meta ${type} with URL: ${searchUrl.replace(accessToken, 'REDACTED')}`);
     const searchResponse = await fetch(searchUrl);
 
     if (!searchResponse.ok) {
