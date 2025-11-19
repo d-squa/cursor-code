@@ -11,6 +11,7 @@ import Settings from "./pages/Settings";
 import ActiPlans from "./pages/ActiPlans";
 import Performance from "./pages/Performance";
 import AcceptInvitation from "./pages/AcceptInvitation";
+import Clients from "./pages/Clients";
 import UserManagement from "./pages/settings/UserManagement";
 import AccountSettings from "./pages/settings/AccountSettings";
 import PlanManagement from "./pages/settings/PlanManagement";
@@ -32,6 +33,7 @@ const App = () => (
             <Route path="/actiplans" element={<ActiPlans />} />
             <Route path="/performance/:id" element={<Performance />} />
             <Route path="/performance" element={<Performance />} />
+            <Route path="/clients" element={<Clients />} />
             <Route path="/platforms" element={<PlatformConnections />} />
             <Route path="/teams" element={<Teams />} />
             <Route path="/settings" element={<Settings />}>

@@ -115,6 +115,7 @@ export type Database = {
           date_range_start: string
           id: string
           impressions: number
+          industry: string | null
           market: string
           optimization_goal: string
           total_results: number
@@ -130,6 +131,7 @@ export type Database = {
           date_range_start: string
           id?: string
           impressions?: number
+          industry?: string | null
           market: string
           optimization_goal: string
           total_results?: number
@@ -145,6 +147,7 @@ export type Database = {
           date_range_start?: string
           id?: string
           impressions?: number
+          industry?: string | null
           market?: string
           optimization_goal?: string
           total_results?: number
@@ -227,6 +230,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      clients: {
+        Row: {
+          app_name: string | null
+          business_objective: string
+          created_at: string
+          id: string
+          industry: string
+          name: string
+          updated_at: string
+          user_id: string
+          website: string | null
+        }
+        Insert: {
+          app_name?: string | null
+          business_objective: string
+          created_at?: string
+          id?: string
+          industry: string
+          name: string
+          updated_at?: string
+          user_id: string
+          website?: string | null
+        }
+        Update: {
+          app_name?: string | null
+          business_objective?: string
+          created_at?: string
+          id?: string
+          industry?: string
+          name?: string
+          updated_at?: string
+          user_id?: string
+          website?: string | null
+        }
+        Relationships: []
       }
       connected_platforms: {
         Row: {
@@ -331,6 +370,7 @@ export type Database = {
           account_id: string
           account_name: string
           account_status: string | null
+          client_id: string | null
           created_at: string
           currency: string | null
           default_catalog_id: string | null
@@ -349,6 +389,7 @@ export type Database = {
           account_id: string
           account_name: string
           account_status?: string | null
+          client_id?: string | null
           created_at?: string
           currency?: string | null
           default_catalog_id?: string | null
@@ -367,6 +408,7 @@ export type Database = {
           account_id?: string
           account_name?: string
           account_status?: string | null
+          client_id?: string | null
           created_at?: string
           currency?: string | null
           default_catalog_id?: string | null
@@ -381,7 +423,15 @@ export type Database = {
           synced_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "meta_ad_accounts_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       meta_catalogs: {
         Row: {
