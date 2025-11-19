@@ -18,6 +18,7 @@ import { TargetingConfigComponent } from "./TargetingConfig";
 import { getOptimizationGoalForFocus } from "@/utils/strategyFocusMapping";
 import { BudgetTypeApplyDialog } from "./BudgetTypeApplyDialog";
 import { PhaseAudienceSelector } from "./PhaseAudienceSelector";
+import { BasicTargetingConfig } from "./BasicTargeting";
 
 interface PhaseSchedulerProps {
   phases: Phase[];
@@ -45,11 +46,7 @@ interface PhaseSchedulerProps {
   onOpenCustomizeBudgetTypes?: () => void;
   marketBudget?: number;
   adAccountId?: string;
-  basicTargeting?: {
-    aiInterests?: Array<{ id: string; name: string; audienceSize?: number }>;
-    aiBehaviors?: Array<{ id: string; name: string; audienceSize?: number }>;
-    aiDemographics?: Array<{ id: string; name: string; audienceSize?: number }>;
-  };
+  basicTargeting?: BasicTargetingConfig;
 }
 
 interface DraggingState {
@@ -1029,29 +1026,81 @@ export function PhaseScheduler({
                         />
                       </div>
 
-                      {/* Override Targeting */}
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <Label htmlFor={`override-targeting-${phase.id}`}>Override Targeting</Label>
-                          <Switch
-                            id={`override-targeting-${phase.id}`}
-                            checked={phase.overrideTargeting || false}
-                            onCheckedChange={(checked) => 
-                              updatePhaseField(phase.id, "overrideTargeting", checked)
-                            }
-                          />
+                      {/* Override Targeting - Only show if basicTargeting has data */}
+                      {basicTargeting && (
+                        basicTargeting.aiInterests?.length || 
+                        basicTargeting.aiBehaviors?.length || 
+                        basicTargeting.aiDemographics?.length ||
+                        basicTargeting.ageMin ||
+                        basicTargeting.ageMax ||
+                        basicTargeting.genders?.length ||
+                        basicTargeting.devices?.length ||
+                        basicTargeting.os?.length ||
+                        basicTargeting.languages?.length
+                      ) ? (
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <Label htmlFor={`override-targeting-${phase.id}`}>Override Targeting</Label>
+                            <Switch
+                              id={`override-targeting-${phase.id}`}
+                              checked={phase.overrideTargeting || false}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  // Pre-fill with basicTargeting data when first enabling override
+                                  // Only pre-fill if targeting is empty/undefined or has no meaningful data
+                                  const hasExistingData = phase.targeting && (
+                                    phase.targeting.ageMin || 
+                                    phase.targeting.ageMax || 
+                                    phase.targeting.genders?.length ||
+                                    phase.targeting.devices?.length ||
+                                    phase.targeting.interests
+                                  );
+                                  
+                                  if (!hasExistingData) {
+                                    const initialTargeting: any = {
+                                      ageMin: basicTargeting.ageMin,
+                                      ageMax: basicTargeting.ageMax,
+                                      genders: basicTargeting.genders,
+                                      devices: basicTargeting.devices,
+                                      os: basicTargeting.os,
+                                      language: basicTargeting.languages?.[0], // TargetingConfig uses singular language
+                                    };
+                                    
+                                    // Convert AI interests, behaviors, demographics to interests string
+                                    const interestsList: string[] = [];
+                                    if (basicTargeting.aiInterests?.length) {
+                                      interestsList.push(...basicTargeting.aiInterests.map(i => i.name));
+                                    }
+                                    if (basicTargeting.aiBehaviors?.length) {
+                                      interestsList.push(...basicTargeting.aiBehaviors.map(b => b.name));
+                                    }
+                                    if (basicTargeting.aiDemographics?.length) {
+                                      interestsList.push(...basicTargeting.aiDemographics.map(d => d.name));
+                                    }
+                                    
+                                    if (interestsList.length > 0) {
+                                      initialTargeting.interests = interestsList.join(", ");
+                                    }
+                                    
+                                    updatePhaseField(phase.id, "targeting", initialTargeting);
+                                  }
+                                }
+                                updatePhaseField(phase.id, "overrideTargeting", checked);
+                              }}
+                            />
+                          </div>
+                          
+                          {phase.overrideTargeting && (
+                            <TargetingConfigComponent
+                              targeting={phase.targeting || {}}
+                              onUpdate={(targeting) => updatePhaseField(phase.id, "targeting", targeting)}
+                              platformName={platformName}
+                              showAdFormats={false}
+                              strategyFocus={strategyFocus}
+                            />
+                          )}
                         </div>
-                        
-                        {phase.overrideTargeting && (
-                          <TargetingConfigComponent
-                            targeting={phase.targeting || {}}
-                            onUpdate={(targeting) => updatePhaseField(phase.id, "targeting", targeting)}
-                            platformName={platformName}
-                            showAdFormats={false}
-                            strategyFocus={strategyFocus}
-                          />
-                        )}
-                      </div>
+                      ) : null}
 
                       {/* Audience Selection */}
                       {adAccountId && phase.objective && phase.optimizationGoal && (
