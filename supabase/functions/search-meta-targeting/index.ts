@@ -64,14 +64,23 @@ serve(async (req) => {
     const apiVersion = 'v21.0';
     const cleanAccountId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
 
-    // Search Meta targeting API with correct endpoint for each type
-    // For interests: use type=adinterest
-    // For behaviors: use type=adTargetingCategory with class=behaviors
-    // For demographics: use type=adTargetingCategory with class=demographics
+    // Use Meta's Detailed Targeting API for better results
+    // This API endpoint provides more relevant results for behaviors and demographics
+    // Documentation: https://developers.facebook.com/docs/marketing-api/audiences/reference/detailed-targeting/
     let searchUrl: string;
+    
     if (type === 'interests') {
+      // For interests, continue using the adinterest search
       searchUrl = `https://graph.facebook.com/${apiVersion}/search?type=adinterest&q=${encodeURIComponent(query)}&limit=20&access_token=${accessToken}`;
+    } else if (type === 'behaviors') {
+      // For behaviors, use the Detailed Targeting API's targetingsearch endpoint
+      searchUrl = `https://graph.facebook.com/${apiVersion}/${cleanAccountId}/targetingsearch?q=${encodeURIComponent(query)}&limit_type=behaviors&limit=20&access_token=${accessToken}`;
+    } else if (type === 'demographics') {
+      // For demographics, search without limit_type to get results from all demographic categories
+      // (family_statuses, education_statuses, relationship_statuses, life_events, industries, income)
+      searchUrl = `https://graph.facebook.com/${apiVersion}/${cleanAccountId}/targetingsearch?q=${encodeURIComponent(query)}&limit=20&access_token=${accessToken}`;
     } else {
+      // Fallback to old method for any other types
       searchUrl = `https://graph.facebook.com/${apiVersion}/search?type=adTargetingCategory&class=${type}&q=${encodeURIComponent(query)}&limit=20&access_token=${accessToken}`;
     }
     
@@ -106,22 +115,29 @@ serve(async (req) => {
     };
 
     for (const item of itemsToProcess) {
-      let audienceSize;
-      try {
-        const reachUrl = `https://graph.facebook.com/${apiVersion}/${cleanAccountId}/reachestimate?targeting_spec=${encodeURIComponent(JSON.stringify({
-          geo_locations: { countries: ['US'] },
-          [type]: [{ id: item.id }]
-        }))}&access_token=${accessToken}`;
-        
-        const reachResponse = await fetchWithTimeout(reachUrl, 2000);
-        if (reachResponse.ok) {
-          const reachData = await reachResponse.json();
-          if (reachData.data && reachData.data[0]) {
-            audienceSize = Math.round((reachData.data[0].estimate_mau_lower_bound + reachData.data[0].estimate_mau_upper_bound) / 2);
+      // The Detailed Targeting API returns audience_size_lower_bound and audience_size_upper_bound
+      let audienceSize = item.audience_size_lower_bound && item.audience_size_upper_bound
+        ? Math.round((item.audience_size_lower_bound + item.audience_size_upper_bound) / 2)
+        : undefined;
+
+      // If we don't have audience size from the search result, try to fetch it
+      if (!audienceSize) {
+        try {
+          const reachUrl = `https://graph.facebook.com/${apiVersion}/${cleanAccountId}/reachestimate?targeting_spec=${encodeURIComponent(JSON.stringify({
+            geo_locations: { countries: ['US'] },
+            [type]: [{ id: item.id }]
+          }))}&access_token=${accessToken}`;
+          
+          const reachResponse = await fetchWithTimeout(reachUrl, 2000);
+          if (reachResponse.ok) {
+            const reachData = await reachResponse.json();
+            if (reachData.data && reachData.data[0]) {
+              audienceSize = Math.round((reachData.data[0].estimate_mau_lower_bound + reachData.data[0].estimate_mau_upper_bound) / 2);
+            }
           }
+        } catch (e) {
+          // Silently skip reach estimate if it times out
         }
-      } catch (e) {
-        // Silently skip reach estimate if it times out
       }
 
       results.push({
