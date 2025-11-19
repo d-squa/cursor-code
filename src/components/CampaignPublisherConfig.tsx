@@ -48,6 +48,8 @@ export function CampaignPublisherConfig({
   onPublisherPlatformsChange,
   onPositionsChange,
 }: CampaignPublisherConfigProps) {
+  console.log("🎯 CampaignPublisherConfig render with publisherPlatforms:", publisherPlatforms);
+  
   // Get available publisher platforms based on platform name
   const getAvailablePublisherPlatforms = () => {
     if (platformName.includes("Meta")) {
@@ -105,6 +107,7 @@ export function CampaignPublisherConfig({
           }))}
           value={publisherPlatforms}
           onChange={(selected) => {
+            console.log("🔥 onChange fired with selected:", selected);
             onPublisherPlatformsChange(selected);
             // Ensure removed publishers don't have positions
             const updatedPositions = { ...positions };
