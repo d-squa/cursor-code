@@ -141,8 +141,14 @@ const handler = async (req: Request): Promise<Response> => {
 };
 
 // Helper function to map phase names to valid Meta objectives
-function getMetaObjectiveFromPhase(phaseName: string, strategyFocus?: string): { objective: string; optimizationGoal: string } {
+function getMetaObjectiveFromPhase(phaseName: string, strategyFocus?: string, optimizationGoal?: string): { objective: string; optimizationGoal: string } {
   const lowerPhaseName = phaseName.toLowerCase();
+  const lowerOptGoal = optimizationGoal?.toLowerCase() || '';
+  
+  // Handle Value optimization goal specifically for Conversions
+  if (lowerOptGoal === 'value') {
+    return { objective: 'OUTCOME_SALES', optimizationGoal: 'VALUE' };
+  }
   
   // Map phase names to Meta objectives
   if (lowerPhaseName.includes('awareness') || lowerPhaseName.includes('reach')) {
@@ -161,7 +167,7 @@ function getMetaObjectiveFromPhase(phaseName: string, strategyFocus?: string): {
     return { objective: 'OUTCOME_LEADS', optimizationGoal: 'LEAD_GENERATION' };
   }
   
-  if (lowerPhaseName.includes('conversion') || lowerPhaseName.includes('purchase') || lowerPhaseName.includes('sales')) {
+  if (lowerPhaseName.includes('conversion') || lowerPhaseName.includes('purchase') || lowerPhaseName.includes('sales') || lowerPhaseName.includes('loyalty')) {
     // Check strategy focus for more specific mapping
     if (strategyFocus === 'purchase' || strategyFocus === 'conversions') {
       return { objective: 'OUTCOME_SALES', optimizationGoal: 'OFFSITE_CONVERSIONS' };
@@ -235,10 +241,17 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
           'OUTCOME_ENGAGEMENT', 'OUTCOME_LEADS', 'OUTCOME_SALES', 'OUTCOME_TRAFFIC', 'OUTCOME_APP_PROMOTION', 'CONVERSIONS'];
         
         if (!validObjectives.includes(objective)) {
-          const mapped = getMetaObjectiveFromPhase(phase.name, market.strategyFocus || campaign.strategy_focus);
+          const mapped = getMetaObjectiveFromPhase(phase.name, market.strategyFocus || campaign.strategy_focus, optimizationGoal);
           objective = mapped.objective;
           optimizationGoal = mapped.optimizationGoal;
           console.log(`Mapped phase "${phase.name}" to objective: ${objective}, optimization goal: ${optimizationGoal}`);
+        } else {
+          // Still check if we need to map optimization goal for Value
+          if (optimizationGoal?.toLowerCase() === 'value') {
+            optimizationGoal = 'VALUE';
+            objective = 'OUTCOME_SALES';
+            console.log(`Mapped Value optimization to objective: ${objective}, optimization goal: ${optimizationGoal}`);
+          }
         }
         
         // Create campaign
@@ -386,6 +399,7 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
         }
 
         // Get targeting config from phase override or generic config
+        const phaseTargeting = phase.targeting || {};
         const targetingConfig = (phase.overrideTargeting && phase.targeting) 
           ? phase.targeting 
           : (campaign.generic_config?.targeting || {});
@@ -396,80 +410,107 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
           t.market.toLowerCase() === market.name.toLowerCase()
         );
 
-        if (marketTargeting) {
-          console.log(`Using AI-parsed targeting for market ${market.name}:`, marketTargeting);
+        // Use phase targeting if available (takes priority)
+        const effectiveTargeting = marketTargeting || phaseTargeting;
+
+        if (effectiveTargeting && (effectiveTargeting.interests || effectiveTargeting.behaviors || effectiveTargeting.aiInterests || effectiveTargeting.aiBehaviors)) {
+          console.log(`Using targeting for market ${market.name}:`, effectiveTargeting);
           
-          // Override basic demographics with AI-parsed data
-          if (marketTargeting.location && marketTargeting.location.length > 0) {
-            targeting.geo_locations = { countries: marketTargeting.location };
+          // Override basic demographics with data
+          if (effectiveTargeting.location && effectiveTargeting.location.length > 0) {
+            targeting.geo_locations = { countries: effectiveTargeting.location };
           }
-          if (marketTargeting.ageMin) {
-            targeting.age_min = marketTargeting.ageMin;
+          if (effectiveTargeting.ageMin) {
+            targeting.age_min = effectiveTargeting.ageMin;
           }
-          if (marketTargeting.ageMax) {
-            targeting.age_max = marketTargeting.ageMax;
+          if (effectiveTargeting.ageMax) {
+            targeting.age_max = effectiveTargeting.ageMax;
           }
-          if (marketTargeting.gender && marketTargeting.gender.length > 0) {
+          if (effectiveTargeting.gender && effectiveTargeting.gender.length > 0) {
             const genderMap: any = { male: [1], female: [2] };
-            const genders = marketTargeting.gender.flatMap((g: string) => genderMap[g.toLowerCase()] || []);
+            const genders = effectiveTargeting.gender.flatMap((g: string) => genderMap[g.toLowerCase()] || []);
             if (genders.length > 0) {
               targeting.genders = genders;
             }
           }
 
-          // Add interests from AI parsing
-          if (marketTargeting.interests && marketTargeting.interests.length > 0) {
-            const interests = marketTargeting.interests.map((i: any) => ({
-              id: i.id,
-              name: i.name
-            }));
-            targeting.flexible_spec = targeting.flexible_spec || [];
-            targeting.flexible_spec.push({ interests });
-            console.log(`Adding ${interests.length} interests from AI parsing:`, interests.map((i: any) => i.name).join(', '));
+          // Add interests from AI recommendations (aiInterests from BasicTargeting)
+          const interestsToAdd = effectiveTargeting.aiInterests || effectiveTargeting.interests || [];
+          if (interestsToAdd.length > 0) {
+            const interests = interestsToAdd.map((i: any) => ({
+              id: i.id || i,
+              name: i.name || i
+            })).filter((i: any) => i.id);
+            if (interests.length > 0) {
+              targeting.flexible_spec = targeting.flexible_spec || [];
+              targeting.flexible_spec.push({ interests });
+              console.log(`Adding ${interests.length} interests:`, interests.map((i: any) => i.name).join(', '));
+            }
           }
 
-          // Add behaviors from AI parsing
-          if (marketTargeting.behaviors && marketTargeting.behaviors.length > 0) {
-            const behaviors = marketTargeting.behaviors.map((b: any) => ({
-              id: b.id,
-              name: b.name
-            }));
-            targeting.flexible_spec = targeting.flexible_spec || [];
-            targeting.flexible_spec.push({ behaviors });
-            console.log(`Adding ${behaviors.length} behaviors from AI parsing:`, behaviors.map((b: any) => b.name).join(', '));
+          // Add behaviors from AI recommendations (aiBehaviors from BasicTargeting)
+          const behaviorsToAdd = effectiveTargeting.aiBehaviors || effectiveTargeting.behaviors || [];
+          if (behaviorsToAdd.length > 0) {
+            const behaviors = behaviorsToAdd.map((b: any) => ({
+              id: b.id || b,
+              name: b.name || b
+            })).filter((b: any) => b.id);
+            if (behaviors.length > 0) {
+              targeting.flexible_spec = targeting.flexible_spec || [];
+              targeting.flexible_spec.push({ behaviors });
+              console.log(`Adding ${behaviors.length} behaviors:`, behaviors.map((b: any) => b.name).join(', '));
+            }
           }
 
-          // Add custom audiences from AI parsing
-          if (marketTargeting.customAudiences && marketTargeting.customAudiences.length > 0) {
-            targeting.custom_audiences = marketTargeting.customAudiences.map((a: any) => ({
+          // Add demographics from AI recommendations (aiDemographics from BasicTargeting)
+          const demographicsToAdd = effectiveTargeting.aiDemographics || [];
+          if (demographicsToAdd.length > 0) {
+            const demographics = demographicsToAdd.map((d: any) => ({
+              id: d.id,
+              name: d.name
+            })).filter((d: any) => d.id);
+            if (demographics.length > 0) {
+              targeting.flexible_spec = targeting.flexible_spec || [];
+              targeting.flexible_spec.push({ 
+                // Demographics in Meta are usually under life_events, education, work, etc.
+                // We'll add them as interests for now since we don't know the exact type
+                interests: demographics
+              });
+              console.log(`Adding ${demographics.length} demographics:`, demographics.map((d: any) => d.name).join(', '));
+            }
+          }
+
+          // Add custom audiences
+          if (effectiveTargeting.customAudiences && effectiveTargeting.customAudiences.length > 0) {
+            targeting.custom_audiences = effectiveTargeting.customAudiences.map((a: any) => ({
               id: a.id,
               name: a.name
             }));
-            console.log(`Adding ${marketTargeting.customAudiences.length} custom audiences from AI parsing`);
+            console.log(`Adding ${effectiveTargeting.customAudiences.length} custom audiences`);
           }
 
-          // Add lookalike audiences from AI parsing
-          if (marketTargeting.lookalikes && marketTargeting.lookalikes.length > 0) {
+          // Add lookalike audiences
+          if (effectiveTargeting.lookalikes && effectiveTargeting.lookalikes.length > 0) {
             targeting.custom_audiences = targeting.custom_audiences || [];
-            marketTargeting.lookalikes.forEach((la: any) => {
+            effectiveTargeting.lookalikes.forEach((la: any) => {
               targeting.custom_audiences.push({
                 id: la.id,
                 name: la.name
               });
             });
-            console.log(`Adding ${marketTargeting.lookalikes.length} lookalike audiences from AI parsing`);
+            console.log(`Adding ${effectiveTargeting.lookalikes.length} lookalike audiences`);
           }
 
-          // Add customer lists from AI parsing
-          if (marketTargeting.customerLists && marketTargeting.customerLists.length > 0) {
+          // Add customer lists
+          if (effectiveTargeting.customerLists && effectiveTargeting.customerLists.length > 0) {
             targeting.custom_audiences = targeting.custom_audiences || [];
-            marketTargeting.customerLists.forEach((cl: any) => {
+            effectiveTargeting.customerLists.forEach((cl: any) => {
               targeting.custom_audiences.push({
                 id: cl.id,
                 name: cl.name
               });
             });
-            console.log(`Adding ${marketTargeting.customerLists.length} customer lists from AI parsing`);
+            console.log(`Adding ${effectiveTargeting.customerLists.length} customer lists`);
           }
         }
 
@@ -555,8 +596,8 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
           targeting: targeting,
         };
         
-        // Add conversion tracking ONLY for conversion-optimized ad sets
-        if (market.pixel && market.conversionEvent && adSetPayload.optimization_goal === 'OFFSITE_CONVERSIONS') {
+        // Add conversion tracking for conversion-optimized ad sets (including VALUE)
+        if (market.pixel && market.conversionEvent && (adSetPayload.optimization_goal === 'OFFSITE_CONVERSIONS' || adSetPayload.optimization_goal === 'VALUE')) {
           // Meta's valid custom_event_type values
           const validEventTypes = [
             'AD_IMPRESSION', 'RATE', 'TUTORIAL_COMPLETION', 'CONTACT', 'CUSTOMIZE_PRODUCT', 
