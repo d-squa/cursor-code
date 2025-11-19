@@ -1053,40 +1053,8 @@ export function PhaseScheduler({
                         )}
                       </div>
 
-                      {/* Override Detailed Targeting (Audiences) - only show if basicTargeting has data */}
-                      {basicTargeting && (basicTargeting.aiInterests?.length || basicTargeting.aiBehaviors?.length || basicTargeting.aiDemographics?.length) && (
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between">
-                            <Label htmlFor={`override-audiences-${phase.id}`}>Override Detailed Targeting</Label>
-                            <Switch
-                              id={`override-audiences-${phase.id}`}
-                              checked={phase.overrideAudiences || false}
-                              onCheckedChange={(checked) => {
-                                updatePhaseField(phase.id, "overrideAudiences", checked);
-                              }}
-                            />
-                          </div>
-                          
-                          {phase.overrideAudiences && adAccountId && phase.objective && phase.optimizationGoal && (
-                            <PhaseAudienceSelector
-                              phaseName={phase.name}
-                              phaseId={phase.id}
-                              phaseObjective={phase.objective}
-                              phaseOptimizationGoal={phase.optimizationGoal}
-                              adAccountId={adAccountId}
-                              onAudiencesSelected={(audiences) => 
-                                updatePhaseField(phase.id, "audiences", audiences)
-                              }
-                              initialSelection={phase.audiences || []}
-                              basicTargeting={basicTargeting}
-                            />
-                          )}
-                        </div>
-                      )}
-
-                      {/* Audience Selection - only shown when no basicTargeting OR when explicitly overriding */}
-                      {adAccountId && phase.objective && phase.optimizationGoal && 
-                       (!basicTargeting || !(basicTargeting.aiInterests?.length || basicTargeting.aiBehaviors?.length || basicTargeting.aiDemographics?.length)) && (
+                      {/* Audience Selection */}
+                      {adAccountId && phase.objective && phase.optimizationGoal && (
                         <div className="space-y-3 border-t pt-4 mt-4">
                           <div className="flex items-center gap-2">
                             <Label>Audience Selection</Label>
