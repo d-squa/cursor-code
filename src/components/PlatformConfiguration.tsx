@@ -32,6 +32,7 @@ export interface Phase {
     threads?: string[];
   };
   overrideTargeting?: boolean;
+  overrideAudiences?: boolean;
   targeting?: {
     adFormats?: string[];
     ageMin?: number;
