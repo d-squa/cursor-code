@@ -492,15 +492,7 @@ export function BasicTargeting({ targeting, onUpdate, adAccountId }: BasicTarget
             {recommendedInterests.length > 0 && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Label>Recommended Interests ({recommendedInterests.length})</Label>
-                    <Badge 
-                      variant="secondary" 
-                      className={recommendedInterests.filter(i => i.selected).length === 0 ? "bg-destructive/10 text-destructive border-destructive" : ""}
-                    >
-                      {recommendedInterests.filter(i => i.selected).length}/{recommendedInterests.length} selected
-                    </Badge>
-                  </div>
+                  <Label>Recommended Interests</Label>
                   <div className="flex gap-2">
                     <Button 
                       variant="outline" 
@@ -543,15 +535,7 @@ export function BasicTargeting({ targeting, onUpdate, adAccountId }: BasicTarget
             {recommendedBehaviors.length > 0 && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Label>Recommended Behaviors ({recommendedBehaviors.length})</Label>
-                    <Badge 
-                      variant="secondary" 
-                      className={recommendedBehaviors.filter(b => b.selected).length === 0 ? "bg-destructive/10 text-destructive border-destructive" : ""}
-                    >
-                      {recommendedBehaviors.filter(b => b.selected).length}/{recommendedBehaviors.length} selected
-                    </Badge>
-                  </div>
+                  <Label>Recommended Behaviors</Label>
                   <div className="flex gap-2">
                     <Button 
                       variant="outline" 
@@ -594,15 +578,7 @@ export function BasicTargeting({ targeting, onUpdate, adAccountId }: BasicTarget
             {recommendedDemographics.length > 0 && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Label>Recommended Demographics ({recommendedDemographics.length})</Label>
-                    <Badge 
-                      variant="secondary" 
-                      className={recommendedDemographics.filter(d => d.selected).length === 0 ? "bg-destructive/10 text-destructive border-destructive" : ""}
-                    >
-                      {recommendedDemographics.filter(d => d.selected).length}/{recommendedDemographics.length} selected
-                    </Badge>
-                  </div>
+                  <Label>Recommended Demographics</Label>
                   <div className="flex gap-2">
                     <Button 
                       variant="outline" 
