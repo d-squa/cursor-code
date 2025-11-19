@@ -387,20 +387,27 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
         }
         
         // Add publisher platforms from phase (facebook, instagram, audience_network, messenger, threads)
+        // Filter out 'messenger' since all messenger placements are now deprecated
         const publisherPlatforms = phase.publisherPlatforms;
         if (publisherPlatforms && Array.isArray(publisherPlatforms) && publisherPlatforms.length > 0) {
-          targeting.publisher_platforms = publisherPlatforms;
-          console.log("Adding publisher platforms:", publisherPlatforms);
+          const filteredPlatforms = publisherPlatforms.filter((p: string) => p !== 'messenger');
+          if (filteredPlatforms.length > 0) {
+            targeting.publisher_platforms = filteredPlatforms;
+            console.log("Adding publisher platforms (messenger filtered out):", filteredPlatforms);
+          }
         }
         
         // Add placements/positions from phase
         const positions = phase.positions;
         
         // Valid placements per Meta API (updated to remove deprecated ones)
+        // NOTE: As of Oct 2025, ALL Messenger placements are deprecated:
+        // - messenger_home: deprecated Oct 9, 2025
+        // - sponsored_messages: deprecated May 2024
         const validFacebookPositions = ['feed', 'instant_article', 'instream_video', 'marketplace', 'search', 'video_feeds', 'story'];
         const validInstagramPositions = ['stream', 'story', 'explore', 'explore_home', 'reels'];
         const validAudienceNetworkPositions = ['classic', 'instream_video', 'rewarded_video'];
-        const validMessengerPositions = ['messenger_home', 'sponsored_messages'];
+        const validMessengerPositions: string[] = []; // Empty - all messenger placements deprecated
         
         if (positions) {
           // Handle Facebook positions
@@ -447,19 +454,12 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
             }
           }
           
-          // Handle Messenger positions - CRITICAL: only use current valid positions
+          // Handle Messenger positions - DEPRECATED: All messenger placements removed as of 2024-2025
+          // messenger_home: deprecated Oct 9, 2025
+          // sponsored_messages: deprecated May 2024
+          // Do not add messenger_positions to targeting to avoid MESSENGER_THREAD errors
           if (positions.messenger && Array.isArray(positions.messenger) && positions.messenger.length > 0) {
-            if (positions.messenger.includes('automatic')) {
-              // When automatic, explicitly set only current valid positions to avoid Meta defaults
-              targeting.messenger_positions = validMessengerPositions;
-              console.log("Adding Messenger positions (automatic):", validMessengerPositions);
-            } else {
-              const filteredPositions = positions.messenger.filter((p: string) => validMessengerPositions.includes(p));
-              if (filteredPositions.length > 0) {
-                targeting.messenger_positions = filteredPositions;
-                console.log("Adding Messenger positions:", filteredPositions);
-              }
-            }
+            console.log("Messenger positions requested but skipped (all deprecated):", positions.messenger);
           }
           // Note: Threads positions are handled automatically by Meta when 'threads' is in publisher_platforms
           // Do not add threads_positions field as it causes API errors
