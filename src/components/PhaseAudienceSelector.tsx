@@ -39,6 +39,7 @@ interface PhaseAudienceSelectorProps {
   adAccountId: string;
   onAudiencesSelected: (audiences: SelectedAudience[]) => void;
   initialSelection?: SelectedAudience[];
+  overrideTargeting?: boolean;
   basicTargeting?: {
     aiInterests?: Array<{ id: string; name: string; audienceSize?: number }>;
     aiBehaviors?: Array<{ id: string; name: string; audienceSize?: number }>;
@@ -74,7 +75,8 @@ export function PhaseAudienceSelector({
   adAccountId,
   onAudiencesSelected,
   initialSelection = [],
-  basicTargeting
+  basicTargeting,
+  overrideTargeting = false
 }: PhaseAudienceSelectorProps) {
   // Determine if this is a brand awareness campaign first (needed for state initialization)
   const isBrandAwareness = phaseObjective?.toLowerCase().includes('awareness') || 
@@ -128,9 +130,9 @@ export function PhaseAudienceSelector({
   }, {} as Record<string, FetchedAudience[]>);
 
   // Add interests, behaviors, and demographics from basicTargeting as "Detailed Targeting"
-  // Only show for Brand Awareness campaigns
+  // Only show for Brand Awareness campaigns and when override targeting is NOT active
   
-  if (basicTargeting && isBrandAwareness) {
+  if (basicTargeting && isBrandAwareness && !overrideTargeting) {
     const detailedTargetingAudiences: FetchedAudience[] = [];
     
     if (basicTargeting.aiInterests && basicTargeting.aiInterests.length > 0) {
