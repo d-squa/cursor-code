@@ -63,6 +63,13 @@ export function BasicTargeting({ targeting, onUpdate, adAccountId }: BasicTarget
 
   // Initialize recommendations from saved targeting data - only when lists are empty
   useEffect(() => {
+    console.log('🔄 BasicTargeting useEffect triggered:', {
+      targeting,
+      currentInterests: recommendedInterests.length,
+      currentBehaviors: recommendedBehaviors.length,
+      currentDemographics: recommendedDemographics.length
+    });
+    
     // Only initialize if lists are currently empty and we have saved data to restore
     if (recommendedInterests.length === 0 && targeting.aiInterests && targeting.aiInterests.length > 0) {
       console.log('🔄 Initializing interests from saved data:', targeting.aiInterests);
@@ -78,7 +85,7 @@ export function BasicTargeting({ targeting, onUpdate, adAccountId }: BasicTarget
       console.log('🔄 Initializing demographics from saved data:', targeting.aiDemographics);
       setRecommendedDemographics(targeting.aiDemographics.map(item => ({ ...item, selected: true })));
     }
-  }, [targeting.aiInterests, targeting.aiBehaviors, targeting.aiDemographics]);
+  }, [targeting]);
 
   const loadTargetingOptions = async () => {
     setLoading(true);
