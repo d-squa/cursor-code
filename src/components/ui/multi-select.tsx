@@ -26,8 +26,10 @@ export function MultiSelect({ options, value, onChange, placeholder = "Select", 
   const [open, setOpen] = React.useState(false);
 
   const toggleValue = (v: string) => {
+    console.log("🔄 MultiSelect toggleValue called:", v);
     const exists = value.includes(v);
     const newValues = exists ? value.filter((x) => x !== v) : [...value, v];
+    console.log("📋 Current value:", value, "New values:", newValues);
     onChange(newValues);
   };
 
@@ -47,7 +49,7 @@ export function MultiSelect({ options, value, onChange, placeholder = "Select", 
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[320px] p-0 z-50 bg-popover text-popover-foreground" align="start">
+        <PopoverContent className="w-[320px] p-0 z-[100] bg-background border shadow-lg" align="start">
           <Command>
             <CommandInput placeholder="Search..." />
             <CommandList>
