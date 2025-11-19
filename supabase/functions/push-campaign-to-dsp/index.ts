@@ -328,66 +328,93 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
         const dailyBudget = budgetType === 'daily' ? Math.round(phaseBudget / durationDays * 100) : null;
         const lifetimeBudget = budgetType === 'lifetime' ? Math.round(phaseBudget * 100) : null;
         
-        // Build targeting
+        // Build targeting - get from phase.targeting or campaign.generic_config.basicTargeting
+        const basicTargeting = campaign.generic_config?.basicTargeting || {};
+        const phaseBasicTargeting = phase.targeting || {};
+        
+        // Use phase targeting if available, otherwise use basic targeting
+        const effectiveBasicTargeting = Object.keys(phaseBasicTargeting).length > 0 ? phaseBasicTargeting : basicTargeting;
+        
+        console.log("Effective basic targeting for phase:", phase.name, effectiveBasicTargeting);
+        
         const targeting: any = {
           geo_locations: {
             countries: Array.isArray(market.countries) && market.countries.length > 0 
               ? market.countries 
               : [market.name.substring(0, 2).toUpperCase()]
           },
-          age_min: market.ageMin || phase.ageMin || 18,
-          age_max: market.ageMax || phase.ageMax || 65,
+          age_min: effectiveBasicTargeting.ageMin || 18,
+          age_max: effectiveBasicTargeting.ageMax || 65,
         };
         
-        // Add gender targeting if specified (handle both ID format '1', '2' and string format 'male', 'female')
-        const gender = market.gender || phase.gender;
-        if (gender && gender !== 'all') {
-          if (gender === "1" || gender === "male") {
-            targeting.genders = [1];
-          } else if (gender === "2" || gender === "female") {
-            targeting.genders = [2];
+        // Add gender targeting if specified (handle array of IDs like ["1", "2"])
+        const genders = effectiveBasicTargeting.genders;
+        if (genders && Array.isArray(genders) && genders.length > 0 && !genders.includes('all')) {
+          // Convert string IDs to numbers and filter valid ones
+          const genderIds = genders
+            .map((g: string | number) => parseInt(String(g)))
+            .filter((g: number) => !isNaN(g) && (g === 1 || g === 2));
+          if (genderIds.length > 0) {
+            targeting.genders = genderIds;
+            console.log("Adding gender targeting:", genderIds);
           }
         }
         
         // Add language targeting if specified
-        const languages = market.languages || phase.languages;
+        const languages = effectiveBasicTargeting.languages;
         if (languages && Array.isArray(languages) && languages.length > 0 && !languages.includes('all')) {
-          targeting.locales = languages.map((lang: string | number) => parseInt(String(lang)));
+          const locales = languages
+            .map((lang: string | number) => parseInt(String(lang)))
+            .filter((l: number) => !isNaN(l));
+          if (locales.length > 0) {
+            targeting.locales = locales;
+            console.log("Adding language targeting:", locales);
+          }
         }
         
-        // Add device targeting if specified
-        const devices = market.devices || phase.devices;
+        // Add device targeting if specified (mobile, desktop, etc.)
+        const devices = effectiveBasicTargeting.devices;
         if (devices && Array.isArray(devices) && devices.length > 0 && !devices.includes('all')) {
           targeting.device_platforms = devices;
+          console.log("Adding device targeting:", devices);
         }
         
-        // Add OS targeting if specified
-        const os = market.os || phase.os;
+        // Add OS targeting if specified (iOS, Android, etc.)
+        const os = effectiveBasicTargeting.os;
         if (os && Array.isArray(os) && os.length > 0 && !os.includes('all')) {
           targeting.user_os = os;
+          console.log("Adding OS targeting:", os);
         }
         
-        // Add publisher platforms
-        if (market.publisherPlatforms && market.publisherPlatforms.length > 0) {
-          targeting.publisher_platforms = market.publisherPlatforms;
+        // Add publisher platforms from phase (facebook, instagram, audience_network, messenger, threads)
+        const publisherPlatforms = phase.publisherPlatforms;
+        if (publisherPlatforms && Array.isArray(publisherPlatforms) && publisherPlatforms.length > 0) {
+          targeting.publisher_platforms = publisherPlatforms;
+          console.log("Adding publisher platforms:", publisherPlatforms);
         }
         
-        // Add placements/positions
-        if (market.positions) {
-          if (market.positions.facebook && market.positions.facebook.length > 0) {
-            targeting.facebook_positions = market.positions.facebook;
+        // Add placements/positions from phase
+        const positions = phase.positions;
+        if (positions) {
+          if (positions.facebook && Array.isArray(positions.facebook) && positions.facebook.length > 0 && !positions.facebook.includes('automatic')) {
+            targeting.facebook_positions = positions.facebook;
+            console.log("Adding Facebook positions:", positions.facebook);
           }
-          if (market.positions.instagram && market.positions.instagram.length > 0) {
-            targeting.instagram_positions = market.positions.instagram;
+          if (positions.instagram && Array.isArray(positions.instagram) && positions.instagram.length > 0 && !positions.instagram.includes('automatic')) {
+            targeting.instagram_positions = positions.instagram;
+            console.log("Adding Instagram positions:", positions.instagram);
           }
-          if (market.positions.audience_network && market.positions.audience_network.length > 0) {
-            targeting.audience_network_positions = market.positions.audience_network;
+          if (positions.audience_network && Array.isArray(positions.audience_network) && positions.audience_network.length > 0 && !positions.audience_network.includes('automatic')) {
+            targeting.audience_network_positions = positions.audience_network;
+            console.log("Adding Audience Network positions:", positions.audience_network);
           }
-          if (market.positions.messenger && market.positions.messenger.length > 0) {
-            targeting.messenger_positions = market.positions.messenger;
+          if (positions.messenger && Array.isArray(positions.messenger) && positions.messenger.length > 0 && !positions.messenger.includes('automatic')) {
+            targeting.messenger_positions = positions.messenger;
+            console.log("Adding Messenger positions:", positions.messenger);
           }
-          if (market.positions.threads && market.positions.threads.length > 0) {
-            targeting.threads_positions = market.positions.threads;
+          if (positions.threads && Array.isArray(positions.threads) && positions.threads.length > 0 && !positions.threads.includes('automatic')) {
+            targeting.threads_positions = positions.threads;
+            console.log("Adding Threads positions:", positions.threads);
           }
         }
         
