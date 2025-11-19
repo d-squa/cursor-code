@@ -39,6 +39,11 @@ interface PhaseAudienceSelectorProps {
   adAccountId: string;
   onAudiencesSelected: (audiences: SelectedAudience[]) => void;
   initialSelection?: SelectedAudience[];
+  basicTargeting?: {
+    aiInterests?: Array<{ id: string; name: string; audienceSize?: number }>;
+    aiBehaviors?: Array<{ id: string; name: string; audienceSize?: number }>;
+    aiDemographics?: Array<{ id: string; name: string; audienceSize?: number }>;
+  };
 }
 
 export interface SelectedAudience {
@@ -68,7 +73,8 @@ export function PhaseAudienceSelector({
   phaseOptimizationGoal,
   adAccountId,
   onAudiencesSelected,
-  initialSelection = []
+  initialSelection = [],
+  basicTargeting
 }: PhaseAudienceSelectorProps) {
   const [loading, setLoading] = useState(false);
   const [audiencesByType, setAudiencesByType] = useState<Record<string, FetchedAudience[]>>({});
@@ -107,6 +113,45 @@ export function PhaseAudienceSelector({
     acc[entry.strategy].push(...audiences.map(aud => ({ ...aud, source: entry.source })));
     return acc;
   }, {} as Record<string, FetchedAudience[]>);
+
+  // Add interests, behaviors, and demographics from basicTargeting as "Detailed Targeting"
+  if (basicTargeting) {
+    const detailedTargetingAudiences: FetchedAudience[] = [];
+    
+    if (basicTargeting.aiInterests && basicTargeting.aiInterests.length > 0) {
+      detailedTargetingAudiences.push(...basicTargeting.aiInterests.map(interest => ({
+        id: interest.id,
+        name: interest.name,
+        subtype: 'interest',
+        source: 'Interest',
+        audienceSize: interest.audienceSize
+      })));
+    }
+    
+    if (basicTargeting.aiBehaviors && basicTargeting.aiBehaviors.length > 0) {
+      detailedTargetingAudiences.push(...basicTargeting.aiBehaviors.map(behavior => ({
+        id: behavior.id,
+        name: behavior.name,
+        subtype: 'behavior',
+        source: 'Behavior',
+        audienceSize: behavior.audienceSize
+      })));
+    }
+    
+    if (basicTargeting.aiDemographics && basicTargeting.aiDemographics.length > 0) {
+      detailedTargetingAudiences.push(...basicTargeting.aiDemographics.map(demo => ({
+        id: demo.id,
+        name: demo.name,
+        subtype: 'demographic',
+        source: 'Demographic',
+        audienceSize: demo.audienceSize
+      })));
+    }
+    
+    if (detailedTargetingAudiences.length > 0) {
+      audiencesByStrategy['Detailed Targeting'] = detailedTargetingAudiences;
+    }
+  }
 
   const loadAudiences = async (sources: string[]) => {
     setLoading(true);
