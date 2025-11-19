@@ -61,6 +61,19 @@ export function BasicTargeting({ targeting, onUpdate, adAccountId }: BasicTarget
     loadTargetingOptions();
   }, []);
 
+  // Initialize recommendations from saved targeting data
+  useEffect(() => {
+    if (targeting.aiInterests && targeting.aiInterests.length > 0) {
+      setRecommendedInterests(targeting.aiInterests.map(item => ({ ...item, selected: true })));
+    }
+    if (targeting.aiBehaviors && targeting.aiBehaviors.length > 0) {
+      setRecommendedBehaviors(targeting.aiBehaviors.map(item => ({ ...item, selected: true })));
+    }
+    if (targeting.aiDemographics && targeting.aiDemographics.length > 0) {
+      setRecommendedDemographics(targeting.aiDemographics.map(item => ({ ...item, selected: true })));
+    }
+  }, []);
+
   const loadTargetingOptions = async () => {
     setLoading(true);
     try {
