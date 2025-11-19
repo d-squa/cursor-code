@@ -1,7 +1,7 @@
 import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
-import { Badge } from "@/components/ui/badge";
-import { X, Info } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Info } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface CampaignPublisherConfigProps {
@@ -48,9 +48,6 @@ export function CampaignPublisherConfig({
   onPublisherPlatformsChange,
   onPositionsChange,
 }: CampaignPublisherConfigProps) {
-  console.log("🎯 CampaignPublisherConfig render with publisherPlatforms:", publisherPlatforms);
-  
-  // Get available publisher platforms based on platform name
   const getAvailablePublisherPlatforms = () => {
     if (platformName.includes("Meta")) {
       return ["facebook", "instagram", "audience_network", "messenger", "threads"];
@@ -60,10 +57,8 @@ export function CampaignPublisherConfig({
 
   const availablePublisherPlatforms = getAvailablePublisherPlatforms();
   
-  // Handle platform name variations - if it's just "Meta", use "Facebook (Meta)" as the default
   const getPlacements = () => {
     if (platformName === "Meta" || platformName.includes("Meta")) {
-      // Try exact match first, then fallback to "Facebook (Meta)" for generic "Meta"
       return placementOptions[platformName] || placementOptions["Facebook (Meta)"] || {};
     }
     return placementOptions[platformName] || {};
@@ -82,141 +77,107 @@ export function CampaignPublisherConfig({
     });
   };
 
-  const removePublisherPlatform = (platform: string) => {
-    const updated = publisherPlatforms.filter(p => p !== platform);
-    onPublisherPlatformsChange(updated);
+  const togglePublisher = (publisher: string) => {
+    const isSelected = publisherPlatforms.includes(publisher);
+    let updated: string[];
     
-    // Also remove positions for this platform
-    const updatedPositions = { ...positions };
-    delete updatedPositions[platform as keyof typeof positions];
-    onPositionsChange(updatedPositions);
+    if (isSelected) {
+      updated = publisherPlatforms.filter(p => p !== publisher);
+      const updatedPositions = { ...positions };
+      delete updatedPositions[publisher as keyof typeof positions];
+      onPositionsChange(updatedPositions);
+    } else {
+      updated = [...publisherPlatforms, publisher];
+      if (availablePlacements[publisher]) {
+        onPositionsChange({
+          ...positions,
+          [publisher]: availablePlacements[publisher]
+        });
+      }
+    }
+    
+    onPublisherPlatformsChange(updated);
   };
 
   return (
     <div className="space-y-4">
-      {/* Publisher Platforms Selection */}
-      <div className="space-y-2">
+      <div className="space-y-3">
         <Label>Publisher Platforms (Advantage+ Audience)</Label>
         <p className="text-xs text-muted-foreground">
-          All publishers selected by default for maximum reach (Advantage+ audience)
+          Select publisher platforms for maximum reach
         </p>
-        <MultiSelect
-          options={availablePublisherPlatforms.map(p => ({ 
-            value: p, 
-            label: p.charAt(0).toUpperCase() + p.slice(1).replace('_', ' ') 
-          }))}
-          value={publisherPlatforms}
-          onChange={(selected) => {
-            console.log("🔥 onChange fired with selected:", selected);
-            onPublisherPlatformsChange(selected);
-            // Ensure removed publishers don't have positions
-            const updatedPositions = { ...positions };
-            availablePublisherPlatforms.forEach(pub => {
-              if (!selected.includes(pub)) {
-                delete updatedPositions[pub as keyof typeof positions];
-              } else if (!updatedPositions[pub as keyof typeof positions]) {
-                // Add automatic placement for newly selected publishers
-                (updatedPositions as any)[pub] = ["automatic"];
-              }
-            });
-            onPositionsChange(updatedPositions);
-          }}
-          placeholder="Select publisher platforms"
-          emptyText="No publisher platforms"
-        />
-        
-        {publisherPlatforms.length > 0 && (
-          <div className="flex flex-wrap gap-2 mt-2">
-            {publisherPlatforms.map((platform) => (
-              <Badge key={platform} variant="secondary" className="gap-1">
-                {platform.charAt(0).toUpperCase() + platform.slice(1).replace('_', ' ')}
-                <button 
-                  onClick={() => removePublisherPlatform(platform)} 
-                  className="ml-1 hover:bg-muted rounded-full"
+        <div className="space-y-2 border rounded-md p-3 bg-background">
+          {availablePublisherPlatforms.map((publisher) => {
+            const isSelected = publisherPlatforms.includes(publisher);
+            return (
+              <div key={publisher} className="flex items-center space-x-2">
+                <Checkbox
+                  id={`publisher-${publisher}`}
+                  checked={isSelected}
+                  onCheckedChange={() => togglePublisher(publisher)}
+                />
+                <Label 
+                  htmlFor={`publisher-${publisher}`}
+                  className="text-sm font-normal cursor-pointer"
                 >
-                  <X className="h-3 w-3" />
-                </button>
-              </Badge>
-            ))}
-          </div>
-        )}
+                  {publisher.charAt(0).toUpperCase() + publisher.slice(1).replace('_', ' ')}
+                </Label>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Placements Section with Visual Indicator */}
-      {publisherPlatforms.length === 0 && (
-        <Alert className="bg-muted/50">
-          <Info className="h-4 w-4" />
-          <AlertDescription>
-            Select publisher platforms above to configure placement options for each platform.
-          </AlertDescription>
-        </Alert>
-      )}
-
       {publisherPlatforms.length > 0 && (
-        <div className="space-y-3 pt-2">
-          <div className="flex items-center gap-2 text-sm font-medium">
-            <Info className="h-4 w-4 text-muted-foreground" />
-            <span>Placement Options by Publisher</span>
-          </div>
+        <div className="space-y-4">
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription>
+              Configure placements for each selected publisher platform
+            </AlertDescription>
+          </Alert>
+          
+          {publisherPlatforms.map((publisher) => {
+            const publisherPlacements = availablePlacements[publisher] || [];
+            const selectedPlacements = positions[publisher as keyof typeof positions] || [];
+            
+            if (publisherPlacements.length === 0) {
+              return (
+                <div key={publisher} className="space-y-2">
+                  <Label className="capitalize">{publisher.replace('_', ' ')} Placements</Label>
+                  <p className="text-xs text-muted-foreground">
+                    All placements selected by default (automatic)
+                  </p>
+                </div>
+              );
+            }
+
+            const hasAutomaticOption = publisherPlacements.includes("automatic");
+
+            return (
+              <div key={publisher} className="space-y-2">
+                <Label className="capitalize">{publisher.replace('_', ' ')} Placements</Label>
+                {hasAutomaticOption ? (
+                  <p className="text-xs text-muted-foreground">
+                    All placements selected by default (automatic)
+                  </p>
+                ) : (
+                  <MultiSelect
+                    options={publisherPlacements.map(p => ({ 
+                      value: p, 
+                      label: p.charAt(0).toUpperCase() + p.split('_').join(' ') 
+                    }))}
+                    value={selectedPlacements}
+                    onChange={(selected) => updatePositions(publisher, selected)}
+                    placeholder={`Select ${publisher} placements`}
+                    emptyText="No placements available"
+                  />
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
-
-      {/* Positions for each selected publisher platform */}
-      {publisherPlatforms.length > 0 && Object.keys(availablePlacements).length === 0 && (
-        <Alert className="bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-800">
-          <Info className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-          <AlertDescription className="text-amber-800 dark:text-amber-200">
-            No placement options available for platform: {platformName}
-          </AlertDescription>
-        </Alert>
-      )}
-      
-      {publisherPlatforms.map((publisher) => {
-        const publisherPlacements = availablePlacements[publisher] || [];
-        console.log(`📍 Publisher: ${publisher}, Placements:`, publisherPlacements);
-        
-        if (publisherPlacements.length === 0) {
-          return (
-            <div key={publisher} className="space-y-2 pl-4 border-l-2 border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/50 p-3 rounded">
-              <Label className="text-sm text-amber-800 dark:text-amber-200">
-                {publisher.charAt(0).toUpperCase() + publisher.slice(1).replace('_', ' ')} Placements
-              </Label>
-              <p className="text-xs text-amber-600 dark:text-amber-400">
-                No placement options configured for this publisher
-              </p>
-            </div>
-          );
-        }
-
-        return (
-          <div key={publisher} className="space-y-2 pl-4 border-l-2 border-muted">
-            <Label className="text-sm">
-              {publisher.charAt(0).toUpperCase() + publisher.slice(1).replace('_', ' ')} Placements
-            </Label>
-            <MultiSelect
-              options={["automatic", ...publisherPlacements].map(p => ({ 
-                value: p, 
-                label: p.charAt(0).toUpperCase() + p.slice(1).replace('_', ' ') 
-              }))}
-              value={(positions[publisher as keyof typeof positions] || ["automatic"]) as string[]}
-              onChange={(vals) => {
-                let next = vals;
-                // If "automatic" is selected with others, remove automatic
-                if (next.length > 1 && next.includes("automatic")) {
-                  next = next.filter(v => v !== "automatic");
-                }
-                // If nothing selected, default to automatic
-                if (next.length === 0) {
-                  next = ["automatic"];
-                }
-                updatePositions(publisher, next);
-              }}
-              placeholder="Select placements"
-              emptyText="No placements available"
-            />
-          </div>
-        );
-      })}
     </div>
   );
 }
