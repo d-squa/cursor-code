@@ -107,12 +107,17 @@ serve(async (req) => {
     let parsed;
     try {
       parsed = JSON.parse(content);
+      console.log('✅ AI PARSED BRIEF SUCCESSFULLY:', JSON.stringify(parsed, null, 2));
+      console.log('📊 AI Extracted Interests:', parsed.interests || []);
+      console.log('📊 AI Extracted Behaviors:', parsed.behaviors || []);
+      console.log('📊 AI Extracted Demographics:', parsed.demographics || {});
     } catch (e) {
       console.error('Failed to parse AI response:', content);
       console.error('Parse error:', e instanceof Error ? e.message : String(e));
       throw new Error('Invalid AI response format');
     }
 
+    console.log('🔍 Starting Meta API search for interests...');
     // Search Meta for interests with audience sizes
     const interests = await searchMetaTargeting(
       parsed.interests || [],
@@ -120,7 +125,9 @@ serve(async (req) => {
       accessToken,
       adAccountId
     );
+    console.log('✅ Meta returned interests:', interests);
 
+    console.log('🔍 Starting Meta API search for behaviors...');
     // Search Meta for behaviors with audience sizes
     const behaviors = await searchMetaTargeting(
       parsed.behaviors || [],
@@ -128,6 +135,7 @@ serve(async (req) => {
       accessToken,
       adAccountId
     );
+    console.log('✅ Meta returned behaviors:', behaviors);
 
     return new Response(
       JSON.stringify({
@@ -163,6 +171,7 @@ async function searchMetaTargeting(
 
   for (const keyword of keywords) {
     try {
+      console.log(`🔎 Searching Meta for ${type}: "${keyword}"`);
       const searchUrl = `https://graph.facebook.com/${apiVersion}/search?type=adTargetingCategory&class=${type}&q=${encodeURIComponent(keyword)}&access_token=${accessToken}`;
       const searchResponse = await fetch(searchUrl);
 
@@ -171,10 +180,11 @@ async function searchMetaTargeting(
         
         if (searchData.data && searchData.data.length > 0) {
           const match = searchData.data[0];
+          console.log(`   ➡️ Meta matched "${keyword}" to: "${match.name}" (ID: ${match.id})`);
           
           // Skip if we've already added this ID (deduplication)
           if (seenIds.has(match.id)) {
-            console.log(`Skipping duplicate: ${match.name} (${match.id})`);
+            console.log(`   ⚠️ Skipping duplicate: ${match.name} (${match.id})`);
             continue;
           }
           seenIds.add(match.id);
