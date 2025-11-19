@@ -861,6 +861,27 @@ export function PhaseScheduler({
                                 </span>
                               </div>
                             )}
+                            {/* Show detailed targeting counts for brand awareness phases */}
+                            {(phase.objective?.toLowerCase().includes('awareness') || 
+                              phase.objective?.toLowerCase().includes('reach') ||
+                              phase.optimizationGoal?.toLowerCase().includes('awareness') ||
+                              phase.optimizationGoal?.toLowerCase().includes('reach')) &&
+                              (basicTargeting?.aiInterests?.length || basicTargeting?.aiBehaviors?.length || basicTargeting?.aiDemographics?.length) && (
+                              <div className="flex justify-between pt-2 border-t">
+                                <span>Detailed Targeting:</span>
+                                <div className="flex gap-2">
+                                  {basicTargeting.aiInterests && basicTargeting.aiInterests.length > 0 && (
+                                    <Badge variant="outline" className="text-xs">Interests ({basicTargeting.aiInterests.length})</Badge>
+                                  )}
+                                  {basicTargeting.aiBehaviors && basicTargeting.aiBehaviors.length > 0 && (
+                                    <Badge variant="outline" className="text-xs">Behaviors ({basicTargeting.aiBehaviors.length})</Badge>
+                                  )}
+                                  {basicTargeting.aiDemographics && basicTargeting.aiDemographics.length > 0 && (
+                                    <Badge variant="outline" className="text-xs">Demographics ({basicTargeting.aiDemographics.length})</Badge>
+                                  )}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                       )}

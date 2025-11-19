@@ -76,11 +76,24 @@ export function PhaseAudienceSelector({
   initialSelection = [],
   basicTargeting
 }: PhaseAudienceSelectorProps) {
+  // Determine if this is a brand awareness campaign first (needed for state initialization)
+  const isBrandAwareness = phaseObjective?.toLowerCase().includes('awareness') || 
+                           phaseObjective?.toLowerCase().includes('reach') ||
+                           phaseOptimizationGoal?.toLowerCase().includes('awareness') ||
+                           phaseOptimizationGoal?.toLowerCase().includes('reach');
+
   const [loading, setLoading] = useState(false);
   const [audiencesByType, setAudiencesByType] = useState<Record<string, FetchedAudience[]>>({});
-  const [selectedAudiences, setSelectedAudiences] = useState<Set<string>>(
-    new Set(initialSelection.map(a => a.id))
-  );
+  const [selectedAudiences, setSelectedAudiences] = useState<Set<string>>(() => {
+    const initial = new Set(initialSelection.map(a => a.id));
+    // Pre-select basicTargeting items for brand awareness
+    if (basicTargeting && isBrandAwareness) {
+      basicTargeting.aiInterests?.forEach(i => initial.add(i.id));
+      basicTargeting.aiBehaviors?.forEach(b => initial.add(b.id));
+      basicTargeting.aiDemographics?.forEach(d => initial.add(d.id));
+    }
+    return initial;
+  });
   const [matrixEntries, setMatrixEntries] = useState<AudienceTypeMatrixEntry[]>([]);
   
   // Collapsible sections state - all start collapsed
@@ -116,10 +129,6 @@ export function PhaseAudienceSelector({
 
   // Add interests, behaviors, and demographics from basicTargeting as "Detailed Targeting"
   // Only show for Brand Awareness campaigns
-  const isBrandAwareness = phaseObjective?.toLowerCase().includes('awareness') || 
-                           phaseObjective?.toLowerCase().includes('reach') ||
-                           phaseOptimizationGoal?.toLowerCase().includes('awareness') ||
-                           phaseOptimizationGoal?.toLowerCase().includes('reach');
   
   if (basicTargeting && isBrandAwareness) {
     const detailedTargetingAudiences: FetchedAudience[] = [];
@@ -263,7 +272,7 @@ export function PhaseAudienceSelector({
                 </CollapsibleTrigger>
                 <CollapsibleContent className="pt-3 space-y-2">
                   {uniqueAudiences.map((audience) => (
-                    <div key={audience.id} className="flex items-center gap-2 p-2 border rounded">
+                     <div key={audience.id} className="flex items-center gap-2 p-2 border rounded">
                       <Checkbox
                         checked={selectedAudiences.has(audience.id)}
                         onCheckedChange={() => handleAudienceToggle(audience)}
@@ -273,6 +282,12 @@ export function PhaseAudienceSelector({
                         {audience.source && (
                           <Badge variant="outline" className="ml-2 text-xs">
                             {audience.source}
+                          </Badge>
+                        )}
+                        {/* Show AI Selected badge for detailed targeting items */}
+                        {strategy === 'Detailed Targeting' && (
+                          <Badge variant="secondary" className="ml-2 text-xs">
+                            AI Selected
                           </Badge>
                         )}
                         {audience.audienceSize && (
