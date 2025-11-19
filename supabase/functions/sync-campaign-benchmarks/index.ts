@@ -20,6 +20,7 @@ interface BenchmarkData {
   total_results: number;
   impressions: number;
   campaign_count: number;
+  industry: string | null;
 }
 
 serve(async (req) => {
@@ -71,10 +72,14 @@ serve(async (req) => {
 
     console.log("✅ Access token retrieved");
 
-    // Get all ad accounts for the user
+    // Get all ad accounts for the user with client industry
     const { data: adAccounts } = await supabase
       .from("meta_ad_accounts")
-      .select("account_id")
+      .select(`
+        account_id,
+        client_id,
+        clients!inner(industry)
+      `)
       .eq("user_id", user.id);
 
     if (!adAccounts || adAccounts.length === 0) {
@@ -112,7 +117,8 @@ serve(async (req) => {
           accessToken,
           dateRangeStart,
           dateRangeEnd,
-          benchmarkMap
+          benchmarkMap,
+          (account.clients as any)?.industry || null
         );
         
         processedAccounts++;
@@ -150,6 +156,7 @@ serve(async (req) => {
             user_id: user.id,
             market: benchmark.market,
             optimization_goal: benchmark.optimization_goal,
+            industry: benchmark.industry,
             avg_cost_per_result: avgCostPerResult,
             total_spend: benchmark.total_spend,
             total_results: benchmark.total_results,
@@ -203,7 +210,8 @@ async function processCampaignsBatch(
   accessToken: string,
   startDate: string,
   endDate: string,
-  benchmarkMap: Map<string, BenchmarkData>
+  benchmarkMap: Map<string, BenchmarkData>,
+  industry: string | null
 ): Promise<void> {
   let nextUrl = `https://graph.facebook.com/v21.0/act_${accountId}/campaigns?fields=id,name,objective,status&limit=100&access_token=${accessToken}`;
   let totalCampaigns = 0;
@@ -240,7 +248,8 @@ async function processCampaignsBatch(
             accessToken,
             startDate,
             endDate,
-            benchmarkMap
+            benchmarkMap,
+            industry
           )
         )
       );
@@ -267,7 +276,8 @@ async function processCampaignInsights(
   accessToken: string,
   startDate: string,
   endDate: string,
-  benchmarkMap: Map<string, BenchmarkData>
+  benchmarkMap: Map<string, BenchmarkData>,
+  industry: string | null
 ): Promise<void> {
   try {
     const insightsUrl = `https://graph.facebook.com/v21.0/${campaign.id}/insights?` +
@@ -331,6 +341,7 @@ async function processCampaignInsights(
             total_results: 0,
             impressions: 0,
             campaign_count: 0,
+            industry: industry,
           });
         }
 
@@ -354,6 +365,7 @@ async function processCampaignInsights(
             total_results: 0,
             impressions: 0,
             campaign_count: 0,
+            industry: industry,
           });
         }
 

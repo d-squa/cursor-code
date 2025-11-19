@@ -5,6 +5,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { INDUSTRIES, BUSINESS_OBJECTIVES } from "@/utils/clientOptions";
+import { PLATFORM_OPTIONS } from "@/utils/platformOptions";
+import { MultiSelect } from "@/components/ui/multi-select";
 
 interface ClientFormData {
   name: string;
@@ -12,6 +14,7 @@ interface ClientFormData {
   app_name: string;
   industry: string;
   business_objective: string;
+  platforms: string[];
 }
 
 interface Props {
@@ -28,6 +31,7 @@ export default function ClientForm({ initialData, onSubmit, onCancel, submitLabe
     app_name: initialData?.app_name || "",
     industry: initialData?.industry || "",
     business_objective: initialData?.business_objective || "",
+    platforms: (initialData as any)?.platforms || [],
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -39,6 +43,7 @@ export default function ClientForm({ initialData, onSubmit, onCancel, submitLabe
         app_name: initialData.app_name || "",
         industry: initialData.industry || "",
         business_objective: initialData.business_objective || "",
+        platforms: (initialData as any)?.platforms || [],
       });
     }
   }, [initialData]);
@@ -133,13 +138,26 @@ export default function ClientForm({ initialData, onSubmit, onCancel, submitLabe
         </Select>
       </div>
 
+      <div className="space-y-2">
+        <Label htmlFor="platforms">
+          Platforms <span className="text-destructive">*</span>
+        </Label>
+        <MultiSelect
+          options={PLATFORM_OPTIONS.map(p => ({ value: p.value, label: p.label }))}
+          value={formData.platforms}
+          onChange={(values) => setFormData({ ...formData, platforms: values })}
+          placeholder="Select platforms"
+          emptyText="No platforms found"
+        />
+      </div>
+
       <div className="flex gap-3 justify-end pt-4">
         {onCancel && (
           <Button type="button" variant="outline" onClick={onCancel} disabled={submitting}>
             Cancel
           </Button>
         )}
-        <Button type="submit" disabled={submitting}>
+        <Button type="submit" disabled={submitting || !formData.name || !formData.industry || !formData.business_objective || formData.platforms.length === 0}>
           {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {submitLabel}
         </Button>
