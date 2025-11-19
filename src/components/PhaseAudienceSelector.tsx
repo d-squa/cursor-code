@@ -273,7 +273,7 @@ export function PhaseAudienceSelector({
                       <Badge 
                         variant="secondary" 
                         className={
-                          uniqueAudiences.filter(a => selectedAudiences.has(a.id)).length === 0 
+                          uniqueAudiences.length > 0 && uniqueAudiences.filter(a => selectedAudiences.has(a.id)).length === 0 
                             ? "bg-destructive/10 text-destructive border-destructive" 
                             : ""
                         }
