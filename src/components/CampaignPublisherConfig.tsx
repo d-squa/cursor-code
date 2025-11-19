@@ -73,7 +73,7 @@ export function CampaignPublisherConfig({
       });
       onPositionsChange(defaultPositions);
     }
-  }, [availablePublisherPlatforms, publisherPlatforms.length, onPublisherPlatformsChange, onPositionsChange]);
+  }, []);
 
   if (availablePublisherPlatforms.length === 0) {
     return null;
