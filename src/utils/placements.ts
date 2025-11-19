@@ -3,7 +3,7 @@ import { platformIdToAdFormatKey } from "./adFormats";
 // Platform + AdFormat -> Placements mapping
 export const placementsByPlatformAndFormat: Record<string, Record<string, string[]>> = {
   "Facebook (Meta)": {
-    "Image ads": ["Feed", "Right Column", "Marketplace", "Stories"],
+    "Image ads": ["Feed", "Marketplace", "Stories"],
     "Video ads": ["Feed", "In-Stream", "Stories", "Reels"],
     "Carousel ads": ["Feed", "Stories"],
     "Collection ads": ["Feed", "Shop"],
