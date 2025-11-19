@@ -215,6 +215,7 @@ export function MediaPlanEditor() {
         
         // Restore basic targeting if it exists
         if (c.generic_config.basicTargeting) {
+          console.log('🔄 Loading basicTargeting from draft:', c.generic_config.basicTargeting);
           setBasicTargeting(c.generic_config.basicTargeting);
         }
       } else {
@@ -359,6 +360,8 @@ export function MediaPlanEditor() {
   // Auto-save draft whenever key fields change
   useEffect(() => {
     if (!savedCampaignId || !user) return;
+    
+    console.log('⏰ Auto-save triggered. basicTargeting:', basicTargeting);
     
     const timer = setTimeout(async () => {
       try {
@@ -1163,8 +1166,9 @@ export function MediaPlanEditor() {
               <BasicTargeting
                 targeting={basicTargeting}
                 onUpdate={(targeting) => {
+                  console.log('📋 Received targeting update from BasicTargeting:', targeting);
                   setBasicTargeting(targeting);
-                  console.log('📋 Basic Targeting Mode: User-defined demographics', targeting);
+                  console.log('📋 Updated basicTargeting state');
                 }}
                 adAccountId={firstAdAccountId || undefined}
               />

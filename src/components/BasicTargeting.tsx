@@ -61,33 +61,24 @@ export function BasicTargeting({ targeting, onUpdate, adAccountId }: BasicTarget
     loadTargetingOptions();
   }, []);
 
-  // Initialize recommendations from saved targeting data
-  const prevTargetingRef = useRef<BasicTargetingConfig>({});
-  
+  // Initialize recommendations from saved targeting data - only when lists are empty
   useEffect(() => {
-    const prev = prevTargetingRef.current;
-    
-    // Only update if targeting data has changed and recommendations are empty or different
-    if (targeting.aiInterests && targeting.aiInterests.length > 0 && 
-        JSON.stringify(prev.aiInterests) !== JSON.stringify(targeting.aiInterests) &&
-        recommendedInterests.length === 0) {
+    // Only initialize if lists are currently empty and we have saved data to restore
+    if (recommendedInterests.length === 0 && targeting.aiInterests && targeting.aiInterests.length > 0) {
+      console.log('🔄 Initializing interests from saved data:', targeting.aiInterests);
       setRecommendedInterests(targeting.aiInterests.map(item => ({ ...item, selected: true })));
     }
     
-    if (targeting.aiBehaviors && targeting.aiBehaviors.length > 0 && 
-        JSON.stringify(prev.aiBehaviors) !== JSON.stringify(targeting.aiBehaviors) &&
-        recommendedBehaviors.length === 0) {
+    if (recommendedBehaviors.length === 0 && targeting.aiBehaviors && targeting.aiBehaviors.length > 0) {
+      console.log('🔄 Initializing behaviors from saved data:', targeting.aiBehaviors);
       setRecommendedBehaviors(targeting.aiBehaviors.map(item => ({ ...item, selected: true })));
     }
     
-    if (targeting.aiDemographics && targeting.aiDemographics.length > 0 && 
-        JSON.stringify(prev.aiDemographics) !== JSON.stringify(targeting.aiDemographics) &&
-        recommendedDemographics.length === 0) {
+    if (recommendedDemographics.length === 0 && targeting.aiDemographics && targeting.aiDemographics.length > 0) {
+      console.log('🔄 Initializing demographics from saved data:', targeting.aiDemographics);
       setRecommendedDemographics(targeting.aiDemographics.map(item => ({ ...item, selected: true })));
     }
-    
-    prevTargetingRef.current = targeting;
-  }, [targeting]);
+  }, [targeting.aiInterests, targeting.aiBehaviors, targeting.aiDemographics]);
 
   const loadTargetingOptions = async () => {
     setLoading(true);
@@ -280,9 +271,22 @@ export function BasicTargeting({ targeting, onUpdate, adAccountId }: BasicTarget
     const selectedBehaviors = recommendedBehaviors.filter(b => b.selected).map(b => ({ id: b.id, name: b.name, audienceSize: b.audienceSize }));
     const selectedDemographics = recommendedDemographics.filter(d => d.selected).map(d => ({ id: d.id, name: d.name, audienceSize: d.audienceSize }));
     
-    updateField('aiInterests', selectedInterests);
-    updateField('aiBehaviors', selectedBehaviors);
-    updateField('aiDemographics', selectedDemographics);
+    console.log('📤 Updating parent with selections:', {
+      interests: selectedInterests,
+      behaviors: selectedBehaviors,
+      demographics: selectedDemographics
+    });
+    
+    // Update all three fields at once to prevent overwriting
+    const updated = {
+      ...targeting,
+      aiInterests: selectedInterests,
+      aiBehaviors: selectedBehaviors,
+      aiDemographics: selectedDemographics
+    };
+    onUpdate(updated);
+    
+    console.log('📝 Basic Targeting Updated:', updated);
   }, [recommendedInterests, recommendedBehaviors, recommendedDemographics]);
 
   const handleMultiSelectWithAll = (field: keyof BasicTargetingConfig, newValues: string[]) => {
