@@ -1167,8 +1167,9 @@ export function MediaPlanEditor() {
                 targeting={basicTargeting}
                 onUpdate={(targeting) => {
                   console.log('📋 Received targeting update from BasicTargeting:', targeting);
+                  console.log('📋 Current basicTargeting before update:', basicTargeting);
                   setBasicTargeting(targeting);
-                  console.log('📋 Updated basicTargeting state');
+                  console.log('📋 Updated basicTargeting state to:', targeting);
                 }}
                 adAccountId={firstAdAccountId || undefined}
               />
@@ -1353,6 +1354,7 @@ export function MediaPlanEditor() {
                         endDate={endDate}
                         platformName={singlePlatform?.name || "Facebook (Meta)"}
                         adAccountId={singleMarket.adAccountId}
+                        basicTargeting={basicTargeting}
                         onApplyBudgetTypeToAll={(type) => {
                           setPlatformsWithMarkets(prev => prev.map(p => p.id === singlePlatform?.id ? {
                             ...p,
@@ -1600,6 +1602,7 @@ export function MediaPlanEditor() {
                                   platformName={platform.name}
                                   platformId={platform.id}
                                   adAccountId={market.adAccountId}
+                                  basicTargeting={basicTargeting}
                                   strategy={market.strategy || genericConfig.strategy}
                                   strategyFocus={market.strategyFocus || genericConfig.strategyFocus}
                                   marketTargeting={{

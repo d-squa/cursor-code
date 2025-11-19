@@ -45,6 +45,11 @@ interface PhaseSchedulerProps {
   onOpenCustomizeBudgetTypes?: () => void;
   marketBudget?: number;
   adAccountId?: string;
+  basicTargeting?: {
+    aiInterests?: Array<{ id: string; name: string; audienceSize?: number }>;
+    aiBehaviors?: Array<{ id: string; name: string; audienceSize?: number }>;
+    aiDemographics?: Array<{ id: string; name: string; audienceSize?: number }>;
+  };
 }
 
 interface DraggingState {
@@ -101,7 +106,8 @@ export function PhaseScheduler({
   onApplyBudgetTypeToAll,
   onOpenCustomizeBudgetTypes,
   marketBudget,
-  adAccountId
+  adAccountId,
+  basicTargeting
 }: PhaseSchedulerProps) {
   console.log("PhaseScheduler marketBudget:", marketBudget);
   const [dragging, setDragging] = useState<DraggingState | null>(null);
@@ -1041,6 +1047,7 @@ export function PhaseScheduler({
                             phaseObjective={phase.objective}
                             phaseOptimizationGoal={phase.optimizationGoal}
                             adAccountId={adAccountId}
+                            basicTargeting={basicTargeting}
                             onAudiencesSelected={(audiences) => {
                               updatePhaseField(phase.id, "audiences", audiences);
                             }}
