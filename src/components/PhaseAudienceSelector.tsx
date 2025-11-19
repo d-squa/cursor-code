@@ -268,9 +268,20 @@ export function PhaseAudienceSelector({
               >
                 <CollapsibleTrigger asChild>
                   <Button variant="outline" className="w-full justify-between">
-                    <span className="font-medium">{strategy}</span>
                     <div className="flex items-center gap-2">
-                      <Badge variant="secondary">{uniqueAudiences.length}</Badge>
+                      <span className="font-medium">{strategy} ({uniqueAudiences.length})</span>
+                      <Badge 
+                        variant="secondary" 
+                        className={
+                          uniqueAudiences.filter(a => selectedAudiences.has(a.id)).length === 0 
+                            ? "bg-destructive/10 text-destructive border-destructive" 
+                            : ""
+                        }
+                      >
+                        {uniqueAudiences.filter(a => selectedAudiences.has(a.id)).length}/{uniqueAudiences.length} selected
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-2">
                       {expandedSections[strategy] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                     </div>
                   </Button>
