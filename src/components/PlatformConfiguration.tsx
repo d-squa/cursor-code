@@ -193,10 +193,12 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
   };
 
   const updatePlatformConfig = (platformId: string, field: keyof PlatformConfig, value: any) => {
+    console.log("🔧 updatePlatformConfig called:", { platformId, field, value });
     setPlatforms(
       platforms.map((p) => {
         if (p.id === platformId) {
           const updatedConfig = { ...p.config, [field]: value };
+          console.log("✨ Updated config for platform:", platformId, "field:", field, "value:", value);
 
           // Auto-generate campaigns when strategy changes
           if (field === "strategy" || field === "strategyFocus") {
