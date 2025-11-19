@@ -18,7 +18,7 @@ import { TargetingConfigComponent } from "./TargetingConfig";
 import { getOptimizationGoalForFocus } from "@/utils/strategyFocusMapping";
 import { BudgetTypeApplyDialog } from "./BudgetTypeApplyDialog";
 import { PhaseAudienceSelector } from "./PhaseAudienceSelector";
-import { BasicTargetingConfig } from "./BasicTargeting";
+import { BasicTargeting, BasicTargetingConfig } from "./BasicTargeting";
 
 interface PhaseSchedulerProps {
   phases: Phase[];
@@ -1026,8 +1026,8 @@ export function PhaseScheduler({
                         />
                       </div>
 
-                      {/* Override Targeting - Only show if basicTargeting has data */}
-                      {basicTargeting && (
+                      {/* Override Targeting - Only show for Brand Awareness objectives with basicTargeting data */}
+                      {basicTargeting && phase.objective === "Brand Awareness" && (
                         basicTargeting.aiInterests?.length || 
                         basicTargeting.aiBehaviors?.length || 
                         basicTargeting.aiDemographics?.length ||
@@ -1045,42 +1045,31 @@ export function PhaseScheduler({
                               id={`override-targeting-${phase.id}`}
                               checked={phase.overrideTargeting || false}
                               onCheckedChange={(checked) => {
-                                if (checked) {
+                                if (checked && basicTargeting) {
                                   // Pre-fill with basicTargeting data when first enabling override
-                                  // Only pre-fill if targeting is empty/undefined or has no meaningful data
                                   const hasExistingData = phase.targeting && (
-                                    phase.targeting.ageMin || 
-                                    phase.targeting.ageMax || 
-                                    phase.targeting.genders?.length ||
-                                    phase.targeting.devices?.length ||
-                                    phase.targeting.interests
+                                    (phase.targeting as any).ageMin || 
+                                    (phase.targeting as any).ageMax || 
+                                    (phase.targeting as any).genders?.length ||
+                                    (phase.targeting as any).devices?.length ||
+                                    (phase.targeting as any).aiInterests?.length ||
+                                    (phase.targeting as any).aiBehaviors?.length ||
+                                    (phase.targeting as any).aiDemographics?.length
                                   );
                                   
                                   if (!hasExistingData) {
-                                    const initialTargeting: any = {
+                                    const initialTargeting: BasicTargetingConfig = {
                                       ageMin: basicTargeting.ageMin,
                                       ageMax: basicTargeting.ageMax,
                                       genders: basicTargeting.genders,
                                       devices: basicTargeting.devices,
                                       os: basicTargeting.os,
-                                      language: basicTargeting.languages?.[0], // TargetingConfig uses singular language
+                                      languages: basicTargeting.languages,
+                                      productBrief: basicTargeting.productBrief,
+                                      aiInterests: basicTargeting.aiInterests || [],
+                                      aiBehaviors: basicTargeting.aiBehaviors || [],
+                                      aiDemographics: basicTargeting.aiDemographics || [],
                                     };
-                                    
-                                    // Convert AI interests, behaviors, demographics to interests string
-                                    const interestsList: string[] = [];
-                                    if (basicTargeting.aiInterests?.length) {
-                                      interestsList.push(...basicTargeting.aiInterests.map(i => i.name));
-                                    }
-                                    if (basicTargeting.aiBehaviors?.length) {
-                                      interestsList.push(...basicTargeting.aiBehaviors.map(b => b.name));
-                                    }
-                                    if (basicTargeting.aiDemographics?.length) {
-                                      interestsList.push(...basicTargeting.aiDemographics.map(d => d.name));
-                                    }
-                                    
-                                    if (interestsList.length > 0) {
-                                      initialTargeting.interests = interestsList.join(", ");
-                                    }
                                     
                                     updatePhaseField(phase.id, "targeting", initialTargeting);
                                   }
@@ -1091,12 +1080,10 @@ export function PhaseScheduler({
                           </div>
                           
                           {phase.overrideTargeting && (
-                            <TargetingConfigComponent
-                              targeting={phase.targeting || {}}
+                            <BasicTargeting
+                              targeting={phase.targeting as BasicTargetingConfig || {}}
                               onUpdate={(targeting) => updatePhaseField(phase.id, "targeting", targeting)}
-                              platformName={platformName}
-                              showAdFormats={false}
-                              strategyFocus={strategyFocus}
+                              adAccountId={adAccountId}
                             />
                           )}
                         </div>
