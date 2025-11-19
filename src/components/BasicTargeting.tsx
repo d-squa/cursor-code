@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -61,41 +61,26 @@ export function BasicTargeting({ targeting, onUpdate, adAccountId }: BasicTarget
     loadTargetingOptions();
   }, []);
 
-  // Initialize recommendations from saved targeting data
+  // Initialize recommendations from saved targeting data only once on mount
+  const initializedRef = useRef(false);
+  
   useEffect(() => {
+    if (initializedRef.current) return;
+    
     if (targeting.aiInterests && targeting.aiInterests.length > 0) {
-      setRecommendedInterests(prev => {
-        if (prev.length === targeting.aiInterests!.length && prev.every(p => targeting.aiInterests!.some(t => t.id === p.id))) {
-          return prev;
-        }
-        return targeting.aiInterests!.map(item => ({ ...item, selected: true }));
-      });
-    } else {
-      setRecommendedInterests([]);
+      setRecommendedInterests(targeting.aiInterests.map(item => ({ ...item, selected: true })));
     }
     
     if (targeting.aiBehaviors && targeting.aiBehaviors.length > 0) {
-      setRecommendedBehaviors(prev => {
-        if (prev.length === targeting.aiBehaviors!.length && prev.every(p => targeting.aiBehaviors!.some(t => t.id === p.id))) {
-          return prev;
-        }
-        return targeting.aiBehaviors!.map(item => ({ ...item, selected: true }));
-      });
-    } else {
-      setRecommendedBehaviors([]);
+      setRecommendedBehaviors(targeting.aiBehaviors.map(item => ({ ...item, selected: true })));
     }
     
     if (targeting.aiDemographics && targeting.aiDemographics.length > 0) {
-      setRecommendedDemographics(prev => {
-        if (prev.length === targeting.aiDemographics!.length && prev.every(p => targeting.aiDemographics!.some(t => t.id === p.id))) {
-          return prev;
-        }
-        return targeting.aiDemographics!.map(item => ({ ...item, selected: true }));
-      });
-    } else {
-      setRecommendedDemographics([]);
+      setRecommendedDemographics(targeting.aiDemographics.map(item => ({ ...item, selected: true })));
     }
-  }, [targeting.aiInterests, targeting.aiBehaviors, targeting.aiDemographics]);
+    
+    initializedRef.current = true;
+  }, []);
 
   const loadTargetingOptions = async () => {
     setLoading(true);
