@@ -61,26 +61,33 @@ export function BasicTargeting({ targeting, onUpdate, adAccountId }: BasicTarget
     loadTargetingOptions();
   }, []);
 
-  // Initialize recommendations from saved targeting data only once on mount
-  const initializedRef = useRef(false);
+  // Initialize recommendations from saved targeting data
+  const prevTargetingRef = useRef<BasicTargetingConfig>({});
   
   useEffect(() => {
-    if (initializedRef.current) return;
+    const prev = prevTargetingRef.current;
     
-    if (targeting.aiInterests && targeting.aiInterests.length > 0) {
+    // Only update if targeting data has changed and recommendations are empty or different
+    if (targeting.aiInterests && targeting.aiInterests.length > 0 && 
+        JSON.stringify(prev.aiInterests) !== JSON.stringify(targeting.aiInterests) &&
+        recommendedInterests.length === 0) {
       setRecommendedInterests(targeting.aiInterests.map(item => ({ ...item, selected: true })));
     }
     
-    if (targeting.aiBehaviors && targeting.aiBehaviors.length > 0) {
+    if (targeting.aiBehaviors && targeting.aiBehaviors.length > 0 && 
+        JSON.stringify(prev.aiBehaviors) !== JSON.stringify(targeting.aiBehaviors) &&
+        recommendedBehaviors.length === 0) {
       setRecommendedBehaviors(targeting.aiBehaviors.map(item => ({ ...item, selected: true })));
     }
     
-    if (targeting.aiDemographics && targeting.aiDemographics.length > 0) {
+    if (targeting.aiDemographics && targeting.aiDemographics.length > 0 && 
+        JSON.stringify(prev.aiDemographics) !== JSON.stringify(targeting.aiDemographics) &&
+        recommendedDemographics.length === 0) {
       setRecommendedDemographics(targeting.aiDemographics.map(item => ({ ...item, selected: true })));
     }
     
-    initializedRef.current = true;
-  }, []);
+    prevTargetingRef.current = targeting;
+  }, [targeting]);
 
   const loadTargetingOptions = async () => {
     setLoading(true);
