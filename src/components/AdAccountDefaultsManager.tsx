@@ -98,13 +98,13 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId, c
       setLocalDefaults(defaults);
 
       const [clientsRes, pixelsRes, pagesRes, igRes, catalogsRes, productSetsRes, eventsRes] = await Promise.all([
-        supabase.from("clients").select("id, name").eq("user_id", userId),
-        supabase.from("meta_pixels").select("pixel_id, pixel_name").eq("user_id", userId),
+        supabase.from("clients").select("*").eq("user_id", userId),
+        supabase.from("meta_pixels").select("pixel_id, pixel_name, ad_account_id").eq("user_id", userId),
         supabase.from("meta_pages_safe").select("page_id, page_name").eq("user_id", userId),
         supabase.from("meta_instagram_accounts").select("instagram_account_id, username").eq("user_id", userId),
         supabase.from("meta_catalogs").select("catalog_id, catalog_name").eq("user_id", userId),
-        supabase.from("meta_product_sets").select("product_set_id, product_set_name").eq("user_id", userId),
-        supabase.from("meta_conversion_events").select("event_name").eq("user_id", userId),
+        supabase.from("meta_product_sets").select("product_set_id, product_set_name, catalog_id").eq("user_id", userId),
+        supabase.from("meta_conversion_events").select("event_name, pixel_id").eq("user_id", userId),
       ]);
 
       setClients((clientsRes.data || []).map((c) => ({ id: c.id, name: c.name })));
@@ -423,6 +423,38 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId, c
                                       {event.name}
                                     </SelectItem>
                                   ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor={`conversion-budget-${account.id}`}>Conversion Campaign Budget Type</Label>
+                              <Select
+                                value={localDefaults[account.id]?.default_conversion_budget_type || ""}
+                                onValueChange={(val) => updateDefault(account.id, "default_conversion_budget_type", val)}
+                              >
+                                <SelectTrigger id={`conversion-budget-${account.id}`}>
+                                  <SelectValue placeholder="Select budget type" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-popover z-50">
+                                  <SelectItem value="daily">Daily Budget</SelectItem>
+                                  <SelectItem value="lifetime">Lifetime Budget</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor={`non-conversion-budget-${account.id}`}>Non-Conversion Campaign Budget Type</Label>
+                              <Select
+                                value={localDefaults[account.id]?.default_non_conversion_budget_type || ""}
+                                onValueChange={(val) => updateDefault(account.id, "default_non_conversion_budget_type", val)}
+                              >
+                                <SelectTrigger id={`non-conversion-budget-${account.id}`}>
+                                  <SelectValue placeholder="Select budget type" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-popover z-50">
+                                  <SelectItem value="daily">Daily Budget</SelectItem>
+                                  <SelectItem value="lifetime">Lifetime Budget</SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
