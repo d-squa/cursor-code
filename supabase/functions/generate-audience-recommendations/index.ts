@@ -172,7 +172,15 @@ async function searchMetaTargeting(
   for (const keyword of keywords) {
     try {
       console.log(`🔎 Searching Meta for ${type}: "${keyword}"`);
-      const searchUrl = `https://graph.facebook.com/${apiVersion}/search?type=adTargetingCategory&class=${type}&q=${encodeURIComponent(keyword)}&access_token=${accessToken}`;
+      
+      // Use correct endpoint for each type
+      // For interests: use type=adinterest
+      // For behaviors: use type=adTargetingCategory with class=behaviors
+      const searchUrl = type === 'interests'
+        ? `https://graph.facebook.com/${apiVersion}/search?type=adinterest&q=${encodeURIComponent(keyword)}&limit=10&access_token=${accessToken}`
+        : `https://graph.facebook.com/${apiVersion}/search?type=adTargetingCategory&class=behaviors&q=${encodeURIComponent(keyword)}&limit=10&access_token=${accessToken}`;
+      
+      console.log(`   🌐 Meta API URL: ${searchUrl.replace(accessToken, 'REDACTED')}`);
       const searchResponse = await fetch(searchUrl);
 
       if (searchResponse.ok) {
