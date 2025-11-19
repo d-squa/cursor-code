@@ -1102,6 +1102,7 @@ export function PhaseScheduler({
                             phaseOptimizationGoal={phase.optimizationGoal}
                             adAccountId={adAccountId}
                             basicTargeting={basicTargeting}
+                            overrideTargeting={phase.overrideTargeting}
                             onAudiencesSelected={(audiences) => {
                               updatePhaseField(phase.id, "audiences", audiences);
                             }}
