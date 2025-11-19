@@ -115,12 +115,37 @@ export function PhaseScheduler({
   const [pendingBudgetType, setPendingBudgetType] = useState<"daily" | "lifetime" | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Helper to get default publishers and placements for Meta platforms
+  const getDefaultPublisherConfig = () => {
+    if (platformName.includes("Meta")) {
+      const publishers = ["facebook", "instagram", "audience_network", "messenger", "threads"];
+      const placementOptions: Record<string, Record<string, string[]>> = {
+        "Facebook (Meta)": {
+          facebook: ["feed", "instant_article", "instream_video", "marketplace", "right_column", "search", "video_feeds", "story"],
+          instagram: ["stream", "story", "explore", "explore_home", "reels"],
+          audience_network: ["native_banner_interstitial", "instream_video", "rewarded_video"],
+          messenger: ["messenger_home", "sponsored_messages", "story"],
+          threads: ["threads"]
+        }
+      };
+      const placements = placementOptions["Facebook (Meta)"];
+      const positions: any = {};
+      publishers.forEach(pub => {
+        if (placements[pub]) positions[pub] = placements[pub];
+      });
+      return { publisherPlatforms: publishers, positions };
+    }
+    return { publisherPlatforms: [], positions: {} };
+  };
+
   // Initialize default phases if empty
   useEffect(() => {
     if (phases.length === 0 && startDate && endDate) {
-      const campaignStart = parseISO(startDate);
-      const campaignEnd = parseISO(endDate);
-      const totalDays = differenceInDays(campaignEnd, campaignStart);
+  const campaignStart = parseISO(startDate);
+  const campaignEnd = parseISO(endDate);
+  const totalDays = differenceInDays(campaignEnd, campaignStart);
+
+  const defaultPublisherConfig = getDefaultPublisherConfig();
       
       if (totalDays > 0) {
         // For manual strategy, start with one empty phase
@@ -133,6 +158,7 @@ export function PhaseScheduler({
             budgetPercentage: 100,
             assetTypes: [],
             isLoyaltyPhase: false,
+            ...defaultPublisherConfig,
           };
           onPhasesChange([manualPhase]);
         } else {
@@ -148,6 +174,7 @@ export function PhaseScheduler({
               isLoyaltyPhase: false,
               objective: strategyFocus ? getDefaultObjectiveForFocus(strategyFocus, "Awareness") : undefined,
               optimizationGoal: strategyFocus ? getOptimizationGoalForFocus(strategyFocus as any, platformId || "meta") : undefined,
+              ...defaultPublisherConfig,
             },
             {
               id: "phase-consideration",
@@ -159,6 +186,7 @@ export function PhaseScheduler({
               isLoyaltyPhase: false,
               objective: strategyFocus ? getDefaultObjectiveForFocus(strategyFocus, "Consideration") : undefined,
               optimizationGoal: strategyFocus ? getOptimizationGoalForFocus(strategyFocus as any, platformId || "meta") : undefined,
+              ...defaultPublisherConfig,
             },
             {
               id: "phase-conversion",
@@ -170,6 +198,7 @@ export function PhaseScheduler({
               isLoyaltyPhase: false,
               objective: strategyFocus ? getDefaultObjectiveForFocus(strategyFocus, "Conversion") : undefined,
               optimizationGoal: strategyFocus ? getOptimizationGoalForFocus(strategyFocus as any, platformId || "meta") : undefined,
+              ...defaultPublisherConfig,
             },
             {
               id: "phase-loyalty",
@@ -181,6 +210,7 @@ export function PhaseScheduler({
               isLoyaltyPhase: true,
               objective: "Conversions",
               optimizationGoal: "Value",
+              ...defaultPublisherConfig,
             },
           ];
           onPhasesChange(defaultPhases);
@@ -308,12 +338,14 @@ export function PhaseScheduler({
   }, [dragging]);
 
   const addPhase = () => {
+    const defaultPublisherConfig = getDefaultPublisherConfig();
     const newPhase: Phase = {
       id: `phase-${Date.now()}`,
       name: `Phase ${phases.length + 1}`,
       startDate: format(campaignStart, "yyyy-MM-dd"),
       endDate: format(addDays(campaignStart, 7), "yyyy-MM-dd"),
       budgetPercentage: 0,
+      ...defaultPublisherConfig,
     };
     onPhasesChange([...phases, newPhase]);
   };
