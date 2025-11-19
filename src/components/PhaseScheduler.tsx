@@ -859,7 +859,8 @@ export function PhaseScheduler({
                               </div>
                             )}
                             {/* Show detailed targeting counts for brand awareness phases */}
-                            {(phase.objective?.toLowerCase().includes('awareness') || 
+                            {!phase.overrideTargeting &&
+                              (phase.objective?.toLowerCase().includes('awareness') || 
                               phase.objective?.toLowerCase().includes('reach') ||
                               phase.optimizationGoal?.toLowerCase().includes('awareness') ||
                               phase.optimizationGoal?.toLowerCase().includes('reach')) &&
