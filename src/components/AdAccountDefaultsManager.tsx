@@ -6,12 +6,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, Plus } from "lucide-react";
+import ClientSelectionDialog from "./ClientSelectionDialog";
 
 interface AdAccount {
   id: string;
   account_id: string;
   account_name: string;
+  client_id?: string;
   default_pixel_id?: string;
   default_page_id?: string;
   default_instagram_account_id?: string;
@@ -36,6 +38,7 @@ interface Props {
 
 export default function AdAccountDefaultsManager({ open, onOpenChange, userId, connectedPlatformId }: Props) {
   const [adAccounts, setAdAccounts] = useState<AdAccount[]>([]);
+  const [clients, setClients] = useState<MetaResource[]>([]);
   const [pixels, setPixels] = useState<MetaResource[]>([]);
   const [pages, setPages] = useState<MetaResource[]>([]);
   const [instagramAccounts, setInstagramAccounts] = useState<MetaResource[]>([]);
@@ -46,6 +49,8 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId, c
   const [saving, setSaving] = useState(false);
   const [unlinking, setUnlinking] = useState<string | null>(null);
   const [localDefaults, setLocalDefaults] = useState<Record<string, Partial<AdAccount>>>({});
+  const [clientDialogOpen, setClientDialogOpen] = useState(false);
+  const [currentAccountId, setCurrentAccountId] = useState<string | null>(null);
 
   useEffect(() => {
     if (open && userId && connectedPlatformId) {
@@ -58,7 +63,6 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId, c
     try {
       if (!connectedPlatformId) return;
 
-      // Get linked account IDs from platform_accounts
       const { data: linkedAccounts, error: linkedError } = await supabase
         .from("platform_accounts")
         .select("account_id")
@@ -68,7 +72,6 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId, c
       
       const linkedAccountIds = linkedAccounts?.map(a => a.account_id) || [];
 
-      // Load only linked ad accounts
       const { data: accountsData, error: accountsError } = await supabase
         .from("meta_ad_accounts")
         .select("*")
@@ -78,10 +81,10 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId, c
       if (accountsError) throw accountsError;
       setAdAccounts(accountsData || []);
 
-      // Initialize local defaults from database
       const defaults: Record<string, Partial<AdAccount>> = {};
       accountsData?.forEach((acc) => {
         defaults[acc.id] = {
+          client_id: acc.client_id,
           default_pixel_id: acc.default_pixel_id,
           default_page_id: acc.default_page_id,
           default_instagram_account_id: acc.default_instagram_account_id,
@@ -94,8 +97,8 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId, c
       });
       setLocalDefaults(defaults);
 
-      // Load all resources
-      const [pixelsRes, pagesRes, igRes, catalogsRes, productSetsRes, eventsRes] = await Promise.all([
+      const [clientsRes, pixelsRes, pagesRes, igRes, catalogsRes, productSetsRes, eventsRes] = await Promise.all([
+        supabase.from("clients").select("id, name").eq("user_id", userId),
         supabase.from("meta_pixels").select("pixel_id, pixel_name").eq("user_id", userId),
         supabase.from("meta_pages_safe").select("page_id, page_name").eq("user_id", userId),
         supabase.from("meta_instagram_accounts").select("instagram_account_id, username").eq("user_id", userId),
@@ -104,13 +107,13 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId, c
         supabase.from("meta_conversion_events").select("event_name").eq("user_id", userId),
       ]);
 
+      setClients((clientsRes.data || []).map((c) => ({ id: c.id, name: c.name })));
       setPixels((pixelsRes.data || []).map((p) => ({ id: p.pixel_id, name: p.pixel_name })));
       setPages((pagesRes.data || []).map((p) => ({ id: p.page_id, name: p.page_name })));
       setInstagramAccounts((igRes.data || []).map((ig) => ({ id: ig.instagram_account_id, name: ig.username })));
       setCatalogs((catalogsRes.data || []).map((c) => ({ id: c.catalog_id, name: c.catalog_name })));
       setProductSets((productSetsRes.data || []).map((ps) => ({ id: ps.product_set_id, name: ps.product_set_name })));
       
-      // Get unique event names
       const uniqueEvents = Array.from(new Set((eventsRes.data || []).map((e) => e.event_name)));
       setConversionEvents(uniqueEvents.map((name) => ({ id: name, name })));
     } catch (error: any) {
@@ -131,12 +134,18 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId, c
     }));
   };
 
+  const handleClientSelected = (clientId: string) => {
+    if (currentAccountId) {
+      updateDefault(currentAccountId, "client_id", clientId);
+      loadData(); // Reload to get updated client list
+    }
+  };
+
   const handleUnlink = async (accountId: string) => {
     setUnlinking(accountId);
     try {
       if (!connectedPlatformId) return;
 
-      // Delete from platform_accounts
       const { error: unlinkError } = await supabase
         .from("platform_accounts")
         .delete()
@@ -145,10 +154,10 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId, c
 
       if (unlinkError) throw unlinkError;
 
-      // Clear any defaults for this unlinked ad account
       const { error: clearError } = await supabase
         .from("meta_ad_accounts")
         .update({
+          client_id: null,
           default_pixel_id: null,
           default_page_id: null,
           default_instagram_account_id: null,
@@ -162,8 +171,6 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId, c
       if (clearError) console.error("Error clearing defaults:", clearError);
 
       toast.success("Ad account unlinked successfully");
-      
-      // Reload data
       await loadData();
     } catch (error: any) {
       console.error("Error unlinking account:", error);
@@ -176,16 +183,24 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId, c
   const handleSave = async () => {
     setSaving(true);
     try {
-      // Update each account with its defaults
-      const updates = adAccounts.map((acc) => ({
-        id: acc.id,
-        ...localDefaults[acc.id],
+      const updates = Object.entries(localDefaults).map(([accountId, defaults]) => ({
+        id: accountId,
+        ...defaults,
       }));
+
+      const missingClient = updates.find(u => !u.client_id);
+      if (missingClient) {
+        const account = adAccounts.find(a => a.id === missingClient.id);
+        toast.error(`Please select a client for ${account?.account_name || 'all ad accounts'}`);
+        setSaving(false);
+        return;
+      }
 
       for (const update of updates) {
         const { error } = await supabase
           .from("meta_ad_accounts")
           .update({
+            client_id: update.client_id,
             default_pixel_id: update.default_pixel_id ?? null,
             default_page_id: update.default_page_id ?? null,
             default_instagram_account_id: update.default_instagram_account_id ?? null,
@@ -211,226 +226,240 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId, c
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[80vh]">
-        <DialogHeader>
-          <DialogTitle>Set Default Resources per Ad Account</DialogTitle>
-          <DialogDescription>
-            Configure default resources for each ad account. These will be pre-selected when creating ActiPlans.
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-4xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>Set Default Resources per Ad Account</DialogTitle>
+            <DialogDescription>
+              Configure client and default resources for each ad account.
+            </DialogDescription>
+          </DialogHeader>
 
-        {loading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin" />
-          </div>
-        ) : adAccounts.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            No ad accounts found. Please sync your Meta resources first.
-          </div>
-        ) : (
-          <>
-            <ScrollArea className="max-h-[50vh] pr-4">
-              <div className="space-y-6">
-                {adAccounts.map((account) => (
-                  <div key={account.id} className="p-4 border rounded-lg space-y-4 bg-card">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="font-semibold text-lg">{account.account_name}</div>
-                        <div className="text-xs text-muted-foreground">{account.account_id}</div>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleUnlink(account.account_id)}
-                        disabled={unlinking === account.account_id}
-                        className="text-destructive hover:text-destructive"
-                      >
-                        {unlinking === account.account_id ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Unlinking...
-                          </>
-                        ) : (
-                          "Unlink"
-                        )}
-                      </Button>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Default Pixel</Label>
-                        <Select
-                          value={localDefaults[account.id]?.default_pixel_id || ""}
-                          onValueChange={(val) => updateDefault(account.id, "default_pixel_id", val)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select pixel" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-popover z-50">
-                            {pixels.map((p) => (
-                              <SelectItem key={p.id} value={p.id}>
-                                {p.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Default Page</Label>
-                        <Select
-                          value={localDefaults[account.id]?.default_page_id || ""}
-                          onValueChange={(val) => updateDefault(account.id, "default_page_id", val)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select page" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-popover z-50">
-                            {pages.map((p) => (
-                              <SelectItem key={p.id} value={p.id}>
-                                {p.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Default Instagram Account</Label>
-                        <Select
-                          value={localDefaults[account.id]?.default_instagram_account_id || ""}
-                          onValueChange={(val) => updateDefault(account.id, "default_instagram_account_id", val)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select Instagram account" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-popover z-50">
-                            {instagramAccounts.map((ig) => (
-                              <SelectItem key={ig.id} value={ig.id}>
-                                @{ig.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Default Catalog</Label>
-                        <Select
-                          value={localDefaults[account.id]?.default_catalog_id || ""}
-                          onValueChange={(val) => updateDefault(account.id, "default_catalog_id", val)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select catalog" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-popover z-50">
-                            {catalogs.map((c) => (
-                              <SelectItem key={c.id} value={c.id}>
-                                {c.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Default Product Set</Label>
-                        <Select
-                          value={localDefaults[account.id]?.default_product_set_id || ""}
-                          onValueChange={(val) => updateDefault(account.id, "default_product_set_id", val)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select product set" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-popover z-50">
-                            {productSets.map((ps) => (
-                              <SelectItem key={ps.id} value={ps.id}>
-                                {ps.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Default Conversion Event</Label>
-                        <Select
-                          value={localDefaults[account.id]?.default_conversion_event || ""}
-                          onValueChange={(val) => updateDefault(account.id, "default_conversion_event", val)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select conversion event" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-popover z-50">
-                            {conversionEvents.map((e) => (
-                              <SelectItem key={e.id} value={e.id}>
-                                {e.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4 pt-4 border-t">
-                      <div className="space-y-2">
-                        <Label>Default Budget Type (Conversion Campaigns)</Label>
-                        <Select
-                          value={localDefaults[account.id]?.default_conversion_budget_type || "none"}
-                          onValueChange={(val) => updateDefault(account.id, "default_conversion_budget_type", val === "none" ? null : val)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select budget type" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-popover z-50">
-                            <SelectItem value="none">None (not set)</SelectItem>
-                            <SelectItem value="daily">Daily Budget</SelectItem>
-                            <SelectItem value="lifetime">Lifetime Budget</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Default Budget Type (Non-Conversion Campaigns)</Label>
-                        <Select
-                          value={localDefaults[account.id]?.default_non_conversion_budget_type || "none"}
-                          onValueChange={(val) => updateDefault(account.id, "default_non_conversion_budget_type", val === "none" ? null : val)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select budget type" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-popover z-50">
-                            <SelectItem value="none">None (not set)</SelectItem>
-                            <SelectItem value="daily">Daily Budget</SelectItem>
-                            <SelectItem value="lifetime">Lifetime Budget</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </ScrollArea>
-
-            <div className="flex justify-end gap-2 pt-4 border-t">
-              <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
-                Cancel
-              </Button>
-              <Button onClick={handleSave} disabled={saving}>
-                {saving ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  "Save Defaults"
-                )}
-              </Button>
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin" />
             </div>
-          </>
-        )}
-      </DialogContent>
-    </Dialog>
+          ) : adAccounts.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No ad accounts found. Please sync your Meta resources first.
+            </div>
+          ) : (
+            <>
+              <ScrollArea className="max-h-[50vh] pr-4">
+                <div className="space-y-6">
+                  {adAccounts.map((account) => {
+                    const selectedClient = clients.find(c => c.id === localDefaults[account.id]?.client_id);
+                    
+                    return (
+                      <div key={account.id} className="p-4 border rounded-lg space-y-4 bg-card">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <div className="font-semibold text-lg">{account.account_name}</div>
+                            <div className="text-xs text-muted-foreground">{account.account_id}</div>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleUnlink(account.account_id)}
+                            disabled={unlinking === account.account_id}
+                            className="text-destructive hover:text-destructive"
+                          >
+                            {unlinking === account.account_id ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Unlinking...
+                              </>
+                            ) : (
+                              "Unlink"
+                            )}
+                          </Button>
+                        </div>
+
+                        <div className="space-y-4">
+                          <div className="flex gap-2">
+                            <div className="flex-1 space-y-2">
+                              <Label>
+                                Client <span className="text-destructive">*</span>
+                              </Label>
+                              <Select
+                                value={localDefaults[account.id]?.client_id || ""}
+                                onValueChange={(val) => updateDefault(account.id, "client_id", val)}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select client" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-popover z-50">
+                                  {clients.map((c) => (
+                                    <SelectItem key={c.id} value={c.id}>
+                                      {c.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div className="pt-8">
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                onClick={() => {
+                                  setCurrentAccountId(account.id);
+                                  setClientDialogOpen(true);
+                                }}
+                              >
+                                <Plus className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor={`pixel-${account.id}`}>Default Pixel</Label>
+                              <Select
+                                value={localDefaults[account.id]?.default_pixel_id || ""}
+                                onValueChange={(val) => updateDefault(account.id, "default_pixel_id", val)}
+                              >
+                                <SelectTrigger id={`pixel-${account.id}`}>
+                                  <SelectValue placeholder="Select pixel" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-popover z-50">
+                                  {pixels.map((pixel) => (
+                                    <SelectItem key={pixel.id} value={pixel.id}>
+                                      {pixel.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor={`page-${account.id}`}>Default Page</Label>
+                              <Select
+                                value={localDefaults[account.id]?.default_page_id || ""}
+                                onValueChange={(val) => updateDefault(account.id, "default_page_id", val)}
+                              >
+                                <SelectTrigger id={`page-${account.id}`}>
+                                  <SelectValue placeholder="Select page" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-popover z-50">
+                                  {pages.map((page) => (
+                                    <SelectItem key={page.id} value={page.id}>
+                                      {page.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor={`instagram-${account.id}`}>Default Instagram Account</Label>
+                              <Select
+                                value={localDefaults[account.id]?.default_instagram_account_id || ""}
+                                onValueChange={(val) => updateDefault(account.id, "default_instagram_account_id", val)}
+                              >
+                                <SelectTrigger id={`instagram-${account.id}`}>
+                                  <SelectValue placeholder="Select Instagram account" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-popover z-50">
+                                  {instagramAccounts.map((ig) => (
+                                    <SelectItem key={ig.id} value={ig.id}>
+                                      {ig.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor={`catalog-${account.id}`}>Default Catalog</Label>
+                              <Select
+                                value={localDefaults[account.id]?.default_catalog_id || ""}
+                                onValueChange={(val) => updateDefault(account.id, "default_catalog_id", val)}
+                              >
+                                <SelectTrigger id={`catalog-${account.id}`}>
+                                  <SelectValue placeholder="Select catalog" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-popover z-50">
+                                  {catalogs.map((catalog) => (
+                                    <SelectItem key={catalog.id} value={catalog.id}>
+                                      {catalog.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor={`product-set-${account.id}`}>Default Product Set</Label>
+                              <Select
+                                value={localDefaults[account.id]?.default_product_set_id || ""}
+                                onValueChange={(val) => updateDefault(account.id, "default_product_set_id", val)}
+                              >
+                                <SelectTrigger id={`product-set-${account.id}`}>
+                                  <SelectValue placeholder="Select product set" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-popover z-50">
+                                  {productSets.map((productSet) => (
+                                    <SelectItem key={productSet.id} value={productSet.id}>
+                                      {productSet.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor={`conversion-event-${account.id}`}>Default Conversion Event</Label>
+                              <Select
+                                value={localDefaults[account.id]?.default_conversion_event || ""}
+                                onValueChange={(val) => updateDefault(account.id, "default_conversion_event", val)}
+                              >
+                                <SelectTrigger id={`conversion-event-${account.id}`}>
+                                  <SelectValue placeholder="Select conversion event" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-popover z-50">
+                                  {conversionEvents.map((event) => (
+                                    <SelectItem key={event.id} value={event.id}>
+                                      {event.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSave} disabled={saving}>
+                  {saving ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Defaults"
+                  )}
+                </Button>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <ClientSelectionDialog
+        open={clientDialogOpen}
+        onOpenChange={setClientDialogOpen}
+        onClientSelected={handleClientSelected}
+        userId={userId}
+      />
+    </>
   );
 }
