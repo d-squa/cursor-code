@@ -2,7 +2,6 @@ import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { Badge } from "@/components/ui/badge";
 import { X, Info } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface CampaignPublisherConfigProps {
@@ -69,19 +68,6 @@ export function CampaignPublisherConfig({
   };
   
   const availablePlacements = getPlacements();
-
-  // Set default Advantage+ audience (all publishers) only when publisherPlatforms is empty
-  useEffect(() => {
-    if (availablePublisherPlatforms.length > 0 && publisherPlatforms.length === 0) {
-      onPublisherPlatformsChange(availablePublisherPlatforms);
-      // Set automatic placements for all publishers by default
-      const defaultPositions: any = {};
-      availablePublisherPlatforms.forEach(pub => {
-        defaultPositions[pub] = ["automatic"];
-      });
-      onPositionsChange(defaultPositions);
-    }
-  }, [availablePublisherPlatforms.length, publisherPlatforms.length]);
 
   if (availablePublisherPlatforms.length === 0) {
     return null;
