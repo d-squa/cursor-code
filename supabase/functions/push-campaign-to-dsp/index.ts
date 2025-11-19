@@ -395,26 +395,50 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
         
         // Add placements/positions from phase
         const positions = phase.positions;
+        
+        // Valid placements per Meta API (remove deprecated ones)
+        const validFacebookPositions = ['feed', 'instant_article', 'instream_video', 'marketplace', 'search', 'video_feeds', 'story'];
+        const validInstagramPositions = ['stream', 'story', 'explore', 'explore_home', 'reels'];
+        const validAudienceNetworkPositions = ['classic', 'instream_video', 'rewarded_video'];
+        const validMessengerPositions = ['messenger_home', 'sponsored_messages', 'story'];
+        const validThreadsPositions = ['threads'];
+        
         if (positions) {
           if (positions.facebook && Array.isArray(positions.facebook) && positions.facebook.length > 0 && !positions.facebook.includes('automatic')) {
-            targeting.facebook_positions = positions.facebook;
-            console.log("Adding Facebook positions:", positions.facebook);
+            // Filter out deprecated placements
+            const filteredPositions = positions.facebook.filter((p: string) => validFacebookPositions.includes(p));
+            if (filteredPositions.length > 0) {
+              targeting.facebook_positions = filteredPositions;
+              console.log("Adding Facebook positions:", filteredPositions);
+            }
           }
           if (positions.instagram && Array.isArray(positions.instagram) && positions.instagram.length > 0 && !positions.instagram.includes('automatic')) {
-            targeting.instagram_positions = positions.instagram;
-            console.log("Adding Instagram positions:", positions.instagram);
+            const filteredPositions = positions.instagram.filter((p: string) => validInstagramPositions.includes(p));
+            if (filteredPositions.length > 0) {
+              targeting.instagram_positions = filteredPositions;
+              console.log("Adding Instagram positions:", filteredPositions);
+            }
           }
           if (positions.audience_network && Array.isArray(positions.audience_network) && positions.audience_network.length > 0 && !positions.audience_network.includes('automatic')) {
-            targeting.audience_network_positions = positions.audience_network;
-            console.log("Adding Audience Network positions:", positions.audience_network);
+            const filteredPositions = positions.audience_network.filter((p: string) => validAudienceNetworkPositions.includes(p));
+            if (filteredPositions.length > 0) {
+              targeting.audience_network_positions = filteredPositions;
+              console.log("Adding Audience Network positions:", filteredPositions);
+            }
           }
           if (positions.messenger && Array.isArray(positions.messenger) && positions.messenger.length > 0 && !positions.messenger.includes('automatic')) {
-            targeting.messenger_positions = positions.messenger;
-            console.log("Adding Messenger positions:", positions.messenger);
+            const filteredPositions = positions.messenger.filter((p: string) => validMessengerPositions.includes(p));
+            if (filteredPositions.length > 0) {
+              targeting.messenger_positions = filteredPositions;
+              console.log("Adding Messenger positions:", filteredPositions);
+            }
           }
           if (positions.threads && Array.isArray(positions.threads) && positions.threads.length > 0 && !positions.threads.includes('automatic')) {
-            targeting.threads_positions = positions.threads;
-            console.log("Adding Threads positions:", positions.threads);
+            const filteredPositions = positions.threads.filter((p: string) => validThreadsPositions.includes(p));
+            if (filteredPositions.length > 0) {
+              targeting.threads_positions = filteredPositions;
+              console.log("Adding Threads positions:", filteredPositions);
+            }
           }
         }
         
