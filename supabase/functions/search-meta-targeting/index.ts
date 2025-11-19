@@ -41,6 +41,10 @@ serve(async (req) => {
       throw new Error('Query, type, and Ad Account ID are required');
     }
 
+    if (!['interests', 'behaviors', 'demographics'].includes(type)) {
+      throw new Error('Type must be interests, behaviors, or demographics');
+    }
+
     console.log('Searching Meta targeting:', { query, type, adAccountId });
 
     // Get user's Meta access token
@@ -63,9 +67,13 @@ serve(async (req) => {
     // Search Meta targeting API with correct endpoint for each type
     // For interests: use type=adinterest
     // For behaviors: use type=adTargetingCategory with class=behaviors
-    const searchUrl = type === 'interests'
-      ? `https://graph.facebook.com/${apiVersion}/search?type=adinterest&q=${encodeURIComponent(query)}&limit=20&access_token=${accessToken}`
-      : `https://graph.facebook.com/${apiVersion}/search?type=adTargetingCategory&class=${type}&q=${encodeURIComponent(query)}&limit=20&access_token=${accessToken}`;
+    // For demographics: use type=adTargetingCategory with class=demographics
+    let searchUrl: string;
+    if (type === 'interests') {
+      searchUrl = `https://graph.facebook.com/${apiVersion}/search?type=adinterest&q=${encodeURIComponent(query)}&limit=20&access_token=${accessToken}`;
+    } else {
+      searchUrl = `https://graph.facebook.com/${apiVersion}/search?type=adTargetingCategory&class=${type}&q=${encodeURIComponent(query)}&limit=20&access_token=${accessToken}`;
+    }
     
     console.log(`Searching Meta ${type} with URL: ${searchUrl.replace(accessToken, 'REDACTED')}`);
     const searchResponse = await fetch(searchUrl);
