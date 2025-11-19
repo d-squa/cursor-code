@@ -75,7 +75,7 @@ serve(async (req) => {
           },
           {
             role: "user",
-            content: `Analyze this product/audience brief and extract targeting keywords:\n\n${brief}\n\nIMPORTANT: Return ONLY valid JSON with this EXACT structure. Do NOT include any text outside the JSON object. Do NOT use markdown code fences. Do NOT add comments inside arrays.\n\n{\n  "interests": ["interest1", "interest2"],\n  "behaviors": ["behavior1", "behavior2"],\n  "demographics": {\n    "ageRange": "18-65",\n    "genders": ["all"],\n    "notes": "demographic insights"\n  }\n}`
+            content: `Analyze this product/audience brief and extract targeting keywords:\n\n${brief}\n\nIMPORTANT: Return ONLY valid JSON with this EXACT structure. Do NOT include any text outside the JSON object. Do NOT use markdown code fences. Do NOT add comments inside arrays.\n\n{\n  "interests": ["interest1", "interest2"],\n  "behaviors": ["behavior1", "behavior2"],\n  "demographics": ["demographic1", "demographic2"],\n  "demographicMetadata": {\n    "ageRange": "18-65",\n    "genders": ["all"],\n    "notes": "demographic insights"\n  }\n}\n\nFor demographics, include targeting options like: education level, job titles, income level, relationship status, life events, etc.`
           }
         ]
       }),
@@ -110,7 +110,8 @@ serve(async (req) => {
       console.log('✅ AI PARSED BRIEF SUCCESSFULLY:', JSON.stringify(parsed, null, 2));
       console.log('📊 AI Extracted Interests:', parsed.interests || []);
       console.log('📊 AI Extracted Behaviors:', parsed.behaviors || []);
-      console.log('📊 AI Extracted Demographics:', parsed.demographics || {});
+      console.log('📊 AI Extracted Demographics:', parsed.demographics || []);
+      console.log('📊 AI Extracted Demographic Metadata:', parsed.demographicMetadata || {});
     } catch (e) {
       console.error('Failed to parse AI response:', content);
       console.error('Parse error:', e instanceof Error ? e.message : String(e));
@@ -137,11 +138,22 @@ serve(async (req) => {
     );
     console.log('✅ Meta returned behaviors:', behaviors);
 
+    console.log('🔍 Starting Meta API search for demographics...');
+    // Search Meta for demographics with audience sizes
+    const demographics = await searchMetaTargeting(
+      parsed.demographics || [],
+      'demographics',
+      accessToken,
+      adAccountId
+    );
+    console.log('✅ Meta returned demographics:', demographics);
+
     return new Response(
       JSON.stringify({
         interests,
         behaviors,
-        demographics: parsed.demographics || {},
+        demographics,
+        demographicMetadata: parsed.demographicMetadata || {},
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
@@ -160,7 +172,7 @@ serve(async (req) => {
 
 async function searchMetaTargeting(
   keywords: string[],
-  type: 'interests' | 'behaviors',
+  type: 'interests' | 'behaviors' | 'demographics',
   accessToken: string,
   adAccountId: string
 ): Promise<Array<{ name: string; id: string; audienceSize?: number }>> {
@@ -176,9 +188,13 @@ async function searchMetaTargeting(
       // Use correct endpoint for each type
       // For interests: use type=adinterest
       // For behaviors: use type=adTargetingCategory with class=behaviors
-      const searchUrl = type === 'interests'
-        ? `https://graph.facebook.com/${apiVersion}/search?type=adinterest&q=${encodeURIComponent(keyword)}&limit=10&access_token=${accessToken}`
-        : `https://graph.facebook.com/${apiVersion}/search?type=adTargetingCategory&class=behaviors&q=${encodeURIComponent(keyword)}&limit=10&access_token=${accessToken}`;
+      // For demographics: use type=adTargetingCategory with class=demographics
+      let searchUrl: string;
+      if (type === 'interests') {
+        searchUrl = `https://graph.facebook.com/${apiVersion}/search?type=adinterest&q=${encodeURIComponent(keyword)}&limit=10&access_token=${accessToken}`;
+      } else {
+        searchUrl = `https://graph.facebook.com/${apiVersion}/search?type=adTargetingCategory&class=${type}&q=${encodeURIComponent(keyword)}&limit=10&access_token=${accessToken}`;
+      }
       
       console.log(`   🌐 Meta API URL: ${searchUrl.replace(accessToken, 'REDACTED')}`);
       const searchResponse = await fetch(searchUrl);
