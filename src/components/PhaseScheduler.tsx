@@ -1027,17 +1027,30 @@ export function PhaseScheduler({
                       </div>
 
                       {/* Override Targeting - Only show for Brand Awareness objectives with basicTargeting data */}
-                      {basicTargeting && phase.objective === "Brand Awareness" && (
-                        basicTargeting.aiInterests?.length || 
-                        basicTargeting.aiBehaviors?.length || 
-                        basicTargeting.aiDemographics?.length ||
-                        basicTargeting.ageMin ||
-                        basicTargeting.ageMax ||
-                        basicTargeting.genders?.length ||
-                        basicTargeting.devices?.length ||
-                        basicTargeting.os?.length ||
-                        basicTargeting.languages?.length
-                      ) ? (
+                      {(() => {
+                        const hasBasicTargetingData = basicTargeting && (
+                          (basicTargeting.aiInterests?.length ?? 0) > 0 || 
+                          (basicTargeting.aiBehaviors?.length ?? 0) > 0 || 
+                          (basicTargeting.aiDemographics?.length ?? 0) > 0 ||
+                          basicTargeting.ageMin !== undefined ||
+                          basicTargeting.ageMax !== undefined ||
+                          (basicTargeting.genders?.length ?? 0) > 0 ||
+                          (basicTargeting.devices?.length ?? 0) > 0 ||
+                          (basicTargeting.os?.length ?? 0) > 0 ||
+                          (basicTargeting.languages?.length ?? 0) > 0
+                        );
+                        
+                        const showOverride = phase.objective === "Brand Awareness" && hasBasicTargetingData;
+                        
+                        console.log(`Phase ${phase.name}:`, {
+                          objective: phase.objective,
+                          hasBasicTargetingData,
+                          showOverride,
+                          basicTargeting
+                        });
+                        
+                        return showOverride;
+                      })() ? (
                         <div className="space-y-3">
                           <div className="flex items-center justify-between">
                             <Label htmlFor={`override-targeting-${phase.id}`}>Override Targeting</Label>
@@ -1046,33 +1059,22 @@ export function PhaseScheduler({
                               checked={phase.overrideTargeting || false}
                               onCheckedChange={(checked) => {
                                 if (checked && basicTargeting) {
-                                  // Pre-fill with basicTargeting data when first enabling override
-                                  const hasExistingData = phase.targeting && (
-                                    (phase.targeting as any).ageMin || 
-                                    (phase.targeting as any).ageMax || 
-                                    (phase.targeting as any).genders?.length ||
-                                    (phase.targeting as any).devices?.length ||
-                                    (phase.targeting as any).aiInterests?.length ||
-                                    (phase.targeting as any).aiBehaviors?.length ||
-                                    (phase.targeting as any).aiDemographics?.length
-                                  );
+                                  // Always pre-fill with fresh basicTargeting data when enabling override
+                                  const initialTargeting: BasicTargetingConfig = {
+                                    ageMin: basicTargeting.ageMin,
+                                    ageMax: basicTargeting.ageMax,
+                                    genders: basicTargeting.genders ? [...basicTargeting.genders] : [],
+                                    devices: basicTargeting.devices ? [...basicTargeting.devices] : [],
+                                    os: basicTargeting.os ? [...basicTargeting.os] : [],
+                                    languages: basicTargeting.languages ? [...basicTargeting.languages] : [],
+                                    productBrief: basicTargeting.productBrief,
+                                    aiInterests: basicTargeting.aiInterests ? [...basicTargeting.aiInterests] : [],
+                                    aiBehaviors: basicTargeting.aiBehaviors ? [...basicTargeting.aiBehaviors] : [],
+                                    aiDemographics: basicTargeting.aiDemographics ? [...basicTargeting.aiDemographics] : [],
+                                  };
                                   
-                                  if (!hasExistingData) {
-                                    const initialTargeting: BasicTargetingConfig = {
-                                      ageMin: basicTargeting.ageMin,
-                                      ageMax: basicTargeting.ageMax,
-                                      genders: basicTargeting.genders,
-                                      devices: basicTargeting.devices,
-                                      os: basicTargeting.os,
-                                      languages: basicTargeting.languages,
-                                      productBrief: basicTargeting.productBrief,
-                                      aiInterests: basicTargeting.aiInterests || [],
-                                      aiBehaviors: basicTargeting.aiBehaviors || [],
-                                      aiDemographics: basicTargeting.aiDemographics || [],
-                                    };
-                                    
-                                    updatePhaseField(phase.id, "targeting", initialTargeting);
-                                  }
+                                  console.log('Pre-filling phase targeting with:', initialTargeting);
+                                  updatePhaseField(phase.id, "targeting", initialTargeting);
                                 }
                                 updatePhaseField(phase.id, "overrideTargeting", checked);
                               }}
