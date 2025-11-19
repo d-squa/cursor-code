@@ -177,8 +177,11 @@ export function PhaseAudienceSelector({
 
       if (error) throw error;
 
+      // data is now an array of audiences with source field
+      const audiences = Array.isArray(data) ? data : [];
+
       // Group by source
-      const grouped = data.reduce((acc: Record<string, FetchedAudience[]>, audience: any) => {
+      const grouped = audiences.reduce((acc: Record<string, FetchedAudience[]>, audience: any) => {
         const source = audience.source || 'Unknown';
         if (!acc[source]) acc[source] = [];
         acc[source].push(audience);
