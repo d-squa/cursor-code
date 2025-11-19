@@ -1026,70 +1026,64 @@ export function PhaseScheduler({
                         />
                       </div>
 
-                      {/* Override Targeting - Only show for Brand Awareness objectives with basicTargeting data */}
-                      {(() => {
-                        const hasBasicTargetingData = basicTargeting && (
-                          (basicTargeting.aiInterests?.length ?? 0) > 0 || 
-                          (basicTargeting.aiBehaviors?.length ?? 0) > 0 || 
-                          (basicTargeting.aiDemographics?.length ?? 0) > 0 ||
-                          basicTargeting.ageMin !== undefined ||
-                          basicTargeting.ageMax !== undefined ||
-                          (basicTargeting.genders?.length ?? 0) > 0 ||
-                          (basicTargeting.devices?.length ?? 0) > 0 ||
-                          (basicTargeting.os?.length ?? 0) > 0 ||
-                          (basicTargeting.languages?.length ?? 0) > 0
-                        );
-                        
-                        const showOverride = phase.objective === "Brand Awareness" && hasBasicTargetingData;
-                        
-                        console.log(`Phase ${phase.name}:`, {
-                          objective: phase.objective,
-                          hasBasicTargetingData,
-                          showOverride,
-                          basicTargeting
-                        });
-                        
-                        return showOverride;
-                      })() ? (
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between">
-                            <Label htmlFor={`override-targeting-${phase.id}`}>Override Targeting</Label>
-                            <Switch
-                              id={`override-targeting-${phase.id}`}
-                              checked={phase.overrideTargeting || false}
-                              onCheckedChange={(checked) => {
-                                if (checked && basicTargeting) {
-                                  // Always pre-fill with fresh basicTargeting data when enabling override
-                                  const initialTargeting: BasicTargetingConfig = {
-                                    ageMin: basicTargeting.ageMin,
-                                    ageMax: basicTargeting.ageMax,
-                                    genders: basicTargeting.genders ? [...basicTargeting.genders] : [],
-                                    devices: basicTargeting.devices ? [...basicTargeting.devices] : [],
-                                    os: basicTargeting.os ? [...basicTargeting.os] : [],
-                                    languages: basicTargeting.languages ? [...basicTargeting.languages] : [],
-                                    productBrief: basicTargeting.productBrief,
-                                    aiInterests: basicTargeting.aiInterests ? [...basicTargeting.aiInterests] : [],
-                                    aiBehaviors: basicTargeting.aiBehaviors ? [...basicTargeting.aiBehaviors] : [],
-                                    aiDemographics: basicTargeting.aiDemographics ? [...basicTargeting.aiDemographics] : [],
-                                  };
-                                  
-                                  console.log('Pre-filling phase targeting with:', initialTargeting);
-                                  updatePhaseField(phase.id, "targeting", initialTargeting);
-                                }
-                                updatePhaseField(phase.id, "overrideTargeting", checked);
-                              }}
-                            />
-                          </div>
-                          
-                          {phase.overrideTargeting && (
-                            <BasicTargeting
-                              targeting={phase.targeting as BasicTargetingConfig || {}}
-                              onUpdate={(targeting) => updatePhaseField(phase.id, "targeting", targeting)}
-                              adAccountId={adAccountId}
-                            />
-                          )}
-                        </div>
-                      ) : null}
+                      {/* Phase-Level Targeting Override - Only for Brand Awareness */}
+                      {phase.objective === "Brand Awareness" && basicTargeting && (
+                        (basicTargeting.aiInterests?.length ?? 0) > 0 || 
+                        (basicTargeting.aiBehaviors?.length ?? 0) > 0 || 
+                        (basicTargeting.aiDemographics?.length ?? 0) > 0 ||
+                        basicTargeting.ageMin !== undefined ||
+                        basicTargeting.genders?.length ||
+                        basicTargeting.devices?.length
+                      ) && (
+                        <Collapsible
+                          open={phase.overrideTargeting || false}
+                          onOpenChange={(open) => {
+                            updatePhaseField(phase.id, "overrideTargeting", open);
+                            if (open && !phase.targeting) {
+                              // Initialize with campaign-level targeting on first open
+                              const phaseTargeting: BasicTargetingConfig = {
+                                ageMin: basicTargeting.ageMin,
+                                ageMax: basicTargeting.ageMax,
+                                genders: basicTargeting.genders ? [...basicTargeting.genders] : undefined,
+                                devices: basicTargeting.devices ? [...basicTargeting.devices] : undefined,
+                                os: basicTargeting.os ? [...basicTargeting.os] : undefined,
+                                languages: basicTargeting.languages ? [...basicTargeting.languages] : undefined,
+                                productBrief: basicTargeting.productBrief,
+                                aiInterests: basicTargeting.aiInterests ? [...basicTargeting.aiInterests] : [],
+                                aiBehaviors: basicTargeting.aiBehaviors ? [...basicTargeting.aiBehaviors] : [],
+                                aiDemographics: basicTargeting.aiDemographics ? [...basicTargeting.aiDemographics] : [],
+                              };
+                              updatePhaseField(phase.id, "targeting", phaseTargeting);
+                            }
+                          }}
+                          className="border rounded-lg p-4 bg-muted/30"
+                        >
+                          <CollapsibleTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              className="w-full flex items-center justify-between p-2 hover:bg-accent"
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">Override Campaign Targeting</span>
+                                {phase.overrideTargeting && (
+                                  <Badge variant="secondary" className="text-xs">Active</Badge>
+                                )}
+                              </div>
+                              <ChevronDown className={`h-4 w-4 transition-transform ${phase.overrideTargeting ? 'rotate-180' : ''}`} />
+                            </Button>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent className="pt-4">
+                            {phase.targeting && (
+                              <BasicTargeting
+                                key={`phase-targeting-${phase.id}-${phase.overrideTargeting}`}
+                                targeting={phase.targeting as BasicTargetingConfig}
+                                onUpdate={(targeting) => updatePhaseField(phase.id, "targeting", targeting)}
+                                adAccountId={adAccountId}
+                              />
+                            )}
+                          </CollapsibleContent>
+                        </Collapsible>
+                      )}
 
                       {/* Audience Selection */}
                       {adAccountId && phase.objective && phase.optimizationGoal && (

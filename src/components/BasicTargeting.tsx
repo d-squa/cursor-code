@@ -61,31 +61,20 @@ export function BasicTargeting({ targeting, onUpdate, adAccountId }: BasicTarget
     loadTargetingOptions();
   }, []);
 
-  // Initialize recommendations from saved targeting data - only when lists are empty
+  // Initialize recommendations from saved targeting data
   useEffect(() => {
-    console.log('🔄 BasicTargeting useEffect triggered:', {
-      targeting,
-      currentInterests: recommendedInterests.length,
-      currentBehaviors: recommendedBehaviors.length,
-      currentDemographics: recommendedDemographics.length
-    });
-    
-    // Only initialize if lists are currently empty and we have saved data to restore
-    if (recommendedInterests.length === 0 && targeting.aiInterests && targeting.aiInterests.length > 0) {
-      console.log('🔄 Initializing interests from saved data:', targeting.aiInterests);
+    if (targeting.aiInterests && targeting.aiInterests.length > 0) {
       setRecommendedInterests(targeting.aiInterests.map(item => ({ ...item, selected: true })));
     }
     
-    if (recommendedBehaviors.length === 0 && targeting.aiBehaviors && targeting.aiBehaviors.length > 0) {
-      console.log('🔄 Initializing behaviors from saved data:', targeting.aiBehaviors);
+    if (targeting.aiBehaviors && targeting.aiBehaviors.length > 0) {
       setRecommendedBehaviors(targeting.aiBehaviors.map(item => ({ ...item, selected: true })));
     }
     
-    if (recommendedDemographics.length === 0 && targeting.aiDemographics && targeting.aiDemographics.length > 0) {
-      console.log('🔄 Initializing demographics from saved data:', targeting.aiDemographics);
+    if (targeting.aiDemographics && targeting.aiDemographics.length > 0) {
       setRecommendedDemographics(targeting.aiDemographics.map(item => ({ ...item, selected: true })));
     }
-  }, [targeting]);
+  }, []);
 
   const loadTargetingOptions = async () => {
     setLoading(true);
