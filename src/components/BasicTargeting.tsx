@@ -220,22 +220,40 @@ export function BasicTargeting({ targeting, onUpdate, adAccountId }: BasicTarget
 
   const handleAddSearchResult = (result: any) => {
     if (searchType === 'interests') {
-      setRecommendedInterests(prev => [...prev, { ...result, selected: true }]);
+      setRecommendedInterests(prev => {
+        if (prev.some(item => item.id === result.id)) return prev;
+        return [...prev, { ...result, selected: true }];
+      });
     } else if (searchType === 'behaviors') {
-      setRecommendedBehaviors(prev => [...prev, { ...result, selected: true }]);
+      setRecommendedBehaviors(prev => {
+        if (prev.some(item => item.id === result.id)) return prev;
+        return [...prev, { ...result, selected: true }];
+      });
     } else {
-      setRecommendedDemographics(prev => [...prev, { ...result, selected: true }]);
+      setRecommendedDemographics(prev => {
+        if (prev.some(item => item.id === result.id)) return prev;
+        return [...prev, { ...result, selected: true }];
+      });
     }
     setSearchResults(prev => prev.filter(r => r.id !== result.id));
   };
 
   const handleAddAllSearchResults = () => {
     if (searchType === 'interests') {
-      setRecommendedInterests(prev => [...prev, ...searchResults.map(r => ({ ...r, selected: true }))]);
+      setRecommendedInterests(prev => {
+        const newItems = searchResults.filter(r => !prev.some(item => item.id === r.id));
+        return [...prev, ...newItems.map(r => ({ ...r, selected: true }))];
+      });
     } else if (searchType === 'behaviors') {
-      setRecommendedBehaviors(prev => [...prev, ...searchResults.map(r => ({ ...r, selected: true }))]);
+      setRecommendedBehaviors(prev => {
+        const newItems = searchResults.filter(r => !prev.some(item => item.id === r.id));
+        return [...prev, ...newItems.map(r => ({ ...r, selected: true }))];
+      });
     } else {
-      setRecommendedDemographics(prev => [...prev, ...searchResults.map(r => ({ ...r, selected: true }))]);
+      setRecommendedDemographics(prev => {
+        const newItems = searchResults.filter(r => !prev.some(item => item.id === r.id));
+        return [...prev, ...newItems.map(r => ({ ...r, selected: true }))];
+      });
     }
     setSearchResults([]);
     toast.success('All results added');
