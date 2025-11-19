@@ -400,7 +400,7 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
         const validFacebookPositions = ['feed', 'instant_article', 'instream_video', 'marketplace', 'search', 'video_feeds', 'story'];
         const validInstagramPositions = ['stream', 'story', 'explore', 'explore_home', 'reels'];
         const validAudienceNetworkPositions = ['classic', 'instream_video', 'rewarded_video'];
-        const validMessengerPositions = ['messenger_home', 'sponsored_messages', 'story'];
+        const validMessengerPositions = ['messenger_home', 'sponsored_messages'];
         
         if (positions) {
           if (positions.facebook && Array.isArray(positions.facebook) && positions.facebook.length > 0 && !positions.facebook.includes('automatic')) {
