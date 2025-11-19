@@ -61,6 +61,14 @@ export function CampaignPublisherConfig({
   const availablePlacements = placementOptions[platformName] || {};
   const hasInitialized = useRef(false);
 
+  // Debug logging
+  console.log('🔍 CampaignPublisherConfig Debug:', {
+    platformName,
+    availablePlacementsKeys: Object.keys(availablePlacements),
+    publisherPlatforms,
+    placementOptionsKeys: Object.keys(placementOptions)
+  });
+
   // Set default Advantage+ audience (all publishers) on mount if nothing selected
   useEffect(() => {
     if (!hasInitialized.current && availablePublisherPlatforms.length > 0 && publisherPlatforms.length === 0) {
@@ -165,9 +173,31 @@ export function CampaignPublisherConfig({
       )}
 
       {/* Positions for each selected publisher platform */}
+      {publisherPlatforms.length > 0 && Object.keys(availablePlacements).length === 0 && (
+        <Alert className="bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-800">
+          <Info className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+          <AlertDescription className="text-amber-800 dark:text-amber-200">
+            No placement options available for platform: {platformName}
+          </AlertDescription>
+        </Alert>
+      )}
+      
       {publisherPlatforms.map((publisher) => {
         const publisherPlacements = availablePlacements[publisher] || [];
-        if (publisherPlacements.length === 0) return null;
+        console.log(`📍 Publisher: ${publisher}, Placements:`, publisherPlacements);
+        
+        if (publisherPlacements.length === 0) {
+          return (
+            <div key={publisher} className="space-y-2 pl-4 border-l-2 border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/50 p-3 rounded">
+              <Label className="text-sm text-amber-800 dark:text-amber-200">
+                {publisher.charAt(0).toUpperCase() + publisher.slice(1).replace('_', ' ')} Placements
+              </Label>
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                No placement options configured for this publisher
+              </p>
+            </div>
+          );
+        }
 
         return (
           <div key={publisher} className="space-y-2 pl-4 border-l-2 border-muted">
