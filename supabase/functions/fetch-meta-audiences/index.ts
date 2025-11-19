@@ -66,73 +66,78 @@ serve(async (req) => {
     // Remove 'act_' prefix if already present
     const cleanAccountId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
     
-    // Fetch custom audiences from ad account
-    const url = `https://graph.facebook.com/${apiVersion}/${cleanAccountId}/customaudiences?fields=id,name,subtype,approximate_count_lower_bound,approximate_count_upper_bound&access_token=${accessToken}`;
-    
-    const response = await fetch(url);
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Meta API error:', response.status, errorText);
-      throw new Error(`Meta API error: ${response.status}`);
-    }
-    
-    const result = await response.json();
-    
-    // Filter audiences based on sources and type
-    let filteredAudiences = result.data || [];
-    
-    if (type === "Custom Audience" && sources && sources.length > 0) {
-      // Map sources to Meta subtype values
-      const subtypeMapping: Record<string, string[]> = {
-        "Website": ["WEBSITE"],
-        "App Activity": ["APP"],
-        "Offline Activity": ["OFFLINE_CONVERSION"],
-        "Customer List": ["CUSTOMER_LIST", "USER_PROVIDED_ONLY"],
-        "Video": ["ENGAGEMENT"],
-        "Lead Form": ["LEAD_GEN"],
-        "Shopping": ["OFFLINE_CONVERSION", "ENGAGEMENT"],
-        "Events": ["ENGAGEMENT"],
-        "Facebook Page": ["ENGAGEMENT"],
-        "Instagram Account": ["ENGAGEMENT"],
-        "Instant Experience": ["ENGAGEMENT"],
-        "On-Facebook Listings": ["ENGAGEMENT"],
-        "Catalog": ["CATALOG_BASED"]
+    let allAudiences: any[] = [];
+
+    // Helper function to map Meta subtypes to source names
+    const getSourceFromSubtype = (subtype: string): string => {
+      const subtypeToSource: Record<string, string> = {
+        "WEBSITE": "Website",
+        "APP": "App Activity",
+        "OFFLINE_CONVERSION": "Offline Activity",
+        "CUSTOMER_LIST": "Customer List",
+        "USER_PROVIDED_ONLY": "Customer List",
+        "LEAD_GEN": "Lead Form",
+        "LOOKALIKE": "Lookalikes",
+        "CATALOG_BASED": "Catalog",
+        "ENGAGEMENT": "Events", // Default for engagement type
       };
+      return subtypeToSource[subtype] || "Unknown";
+    };
+
+    // Check if we need to fetch saved audiences
+    const fetchSavedAudiences = !sources || sources.length === 0 || sources.includes("Saved Audience");
+    
+    // Check if we need to fetch custom audiences (everything except Native Audience and Saved Audience)
+    const fetchCustomAudiences = !sources || sources.length === 0 || 
+      sources.some((s: string) => s !== "Native Audience" && s !== "Saved Audience");
+
+    // Fetch custom audiences if needed
+    if (fetchCustomAudiences) {
+      const url = `https://graph.facebook.com/${apiVersion}/${cleanAccountId}/customaudiences?fields=id,name,subtype,approximate_count_lower_bound,approximate_count_upper_bound&access_token=${accessToken}`;
       
-      const allowedSubtypes = new Set<string>();
-      sources.forEach((source: string) => {
-        const subtypes = subtypeMapping[source] || [];
-        subtypes.forEach(st => allowedSubtypes.add(st));
-      });
+      const response = await fetch(url);
       
-      if (allowedSubtypes.size > 0) {
-        filteredAudiences = filteredAudiences.filter((aud: any) => 
-          allowedSubtypes.has(aud.subtype)
-        );
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Meta API error:', response.status, errorText);
+        throw new Error(`Meta API error: ${response.status}`);
       }
-    } else if (type === "Lookalike Audience") {
-      filteredAudiences = filteredAudiences.filter((aud: any) => 
-        aud.subtype === "LOOKALIKE"
-      );
-    } else if (type === "Saved Audience") {
-      // Fetch saved audiences separately
+      
+      const result = await response.json();
+      const customAudiences = (result.data || []).map((aud: any) => ({
+        ...aud,
+        source: getSourceFromSubtype(aud.subtype)
+      }));
+
+      // Filter by sources if provided
+      if (sources && sources.length > 0) {
+        const filteredCustom = customAudiences.filter((aud: any) => sources.includes(aud.source));
+        allAudiences.push(...filteredCustom);
+      } else {
+        allAudiences.push(...customAudiences);
+      }
+    }
+
+    // Fetch saved audiences if needed
+    if (fetchSavedAudiences) {
       const savedUrl = `https://graph.facebook.com/${apiVersion}/${cleanAccountId}/saved_audiences?fields=id,name,approximate_count&access_token=${accessToken}`;
       const savedResponse = await fetch(savedUrl);
       
       if (savedResponse.ok) {
         const savedResult = await savedResponse.json();
-        filteredAudiences = savedResult.data || [];
+        const savedAudiences = (savedResult.data || []).map((aud: any) => ({
+          ...aud,
+          source: "Saved Audience",
+          subtype: "SAVED"
+        }));
+        allAudiences.push(...savedAudiences);
       }
     }
 
-    console.log(`Found ${filteredAudiences.length} audiences for type: ${type}`);
+    console.log(`Found ${allAudiences.length} audiences for sources: ${sources?.join(', ') || 'all'}`);
 
     return new Response(
-      JSON.stringify({ 
-        data: filteredAudiences,
-        count: filteredAudiences.length 
-      }),
+      JSON.stringify(allAudiences),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
