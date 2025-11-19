@@ -20,8 +20,9 @@ export interface BasicTargetingConfig {
   os?: string[];
   languages?: string[];
   productBrief?: string;
-  aiInterests?: string[];
-  aiBehaviors?: string[];
+  aiInterests?: Array<{id: string, name: string, audienceSize?: number}>;
+  aiBehaviors?: Array<{id: string, name: string, audienceSize?: number}>;
+  aiDemographics?: Array<{id: string, name: string, audienceSize?: number}>;
 }
 
 interface BasicTargetingProps {
@@ -48,9 +49,10 @@ export function BasicTargeting({ targeting, onUpdate, adAccountId }: BasicTarget
   const [generatingAI, setGeneratingAI] = useState(false);
   const [recommendedInterests, setRecommendedInterests] = useState<Array<{id: string, name: string, audienceSize?: number, selected: boolean}>>([]);
   const [recommendedBehaviors, setRecommendedBehaviors] = useState<Array<{id: string, name: string, audienceSize?: number, selected: boolean}>>([]);
+  const [recommendedDemographics, setRecommendedDemographics] = useState<Array<{id: string, name: string, audienceSize?: number, selected: boolean}>>([]);
   
   // Search state
-  const [searchType, setSearchType] = useState<'interests' | 'behaviors'>('interests');
+  const [searchType, setSearchType] = useState<'interests' | 'behaviors' | 'demographics'>('interests');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Array<{id: string, name: string, audienceSize?: number}>>([]);
   const [searching, setSearching] = useState(false);
@@ -185,13 +187,17 @@ export function BasicTargeting({ targeting, onUpdate, adAccountId }: BasicTarget
     }
   };
 
-  const handleToggleRecommendation = (type: 'interests' | 'behaviors', id: string) => {
+  const handleToggleRecommendation = (type: 'interests' | 'behaviors' | 'demographics', id: string) => {
     if (type === 'interests') {
       setRecommendedInterests(prev => prev.map(item => 
         item.id === id ? { ...item, selected: !item.selected } : item
       ));
-    } else {
+    } else if (type === 'behaviors') {
       setRecommendedBehaviors(prev => prev.map(item => 
+        item.id === id ? { ...item, selected: !item.selected } : item
+      ));
+    } else {
+      setRecommendedDemographics(prev => prev.map(item => 
         item.id === id ? { ...item, selected: !item.selected } : item
       ));
     }
@@ -200,24 +206,24 @@ export function BasicTargeting({ targeting, onUpdate, adAccountId }: BasicTarget
   const handleAddSearchResult = (result: any) => {
     if (searchType === 'interests') {
       setRecommendedInterests(prev => [...prev, { ...result, selected: true }]);
-    } else {
+    } else if (searchType === 'behaviors') {
       setRecommendedBehaviors(prev => [...prev, { ...result, selected: true }]);
+    } else {
+      setRecommendedDemographics(prev => [...prev, { ...result, selected: true }]);
     }
     setSearchResults(prev => prev.filter(r => r.id !== result.id));
   };
 
   // Update targeting config when recommendations change
   useEffect(() => {
-    const selectedInterests = recommendedInterests.filter(i => i.selected).map(i => i.name);
-    const selectedBehaviors = recommendedBehaviors.filter(b => b.selected).map(b => b.name);
+    const selectedInterests = recommendedInterests.filter(i => i.selected).map(i => ({ id: i.id, name: i.name, audienceSize: i.audienceSize }));
+    const selectedBehaviors = recommendedBehaviors.filter(b => b.selected).map(b => ({ id: b.id, name: b.name, audienceSize: b.audienceSize }));
+    const selectedDemographics = recommendedDemographics.filter(d => d.selected).map(d => ({ id: d.id, name: d.name, audienceSize: d.audienceSize }));
     
-    // Remove duplicates
-    const uniqueInterests = Array.from(new Set(selectedInterests));
-    const uniqueBehaviors = Array.from(new Set(selectedBehaviors));
-    
-    updateField('aiInterests', uniqueInterests);
-    updateField('aiBehaviors', uniqueBehaviors);
-  }, [recommendedInterests, recommendedBehaviors]);
+    updateField('aiInterests', selectedInterests);
+    updateField('aiBehaviors', selectedBehaviors);
+    updateField('aiDemographics', selectedDemographics);
+  }, [recommendedInterests, recommendedBehaviors, recommendedDemographics]);
 
   const handleMultiSelectWithAll = (field: keyof BasicTargetingConfig, newValues: string[]) => {
     const previousValues = (targeting[field] as string[]) || [];
@@ -471,6 +477,31 @@ export function BasicTargeting({ targeting, onUpdate, adAccountId }: BasicTarget
                 </div>
               </div>
             )}
+
+            {/* Display Recommended Demographics */}
+            {recommendedDemographics.length > 0 && (
+              <div className="space-y-2">
+                <Label>Recommended Demographics</Label>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {recommendedDemographics.map((demographic) => (
+                    <div key={demographic.id} className="flex items-center justify-between p-2 bg-background rounded">
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          checked={demographic.selected}
+                          onCheckedChange={() => handleToggleRecommendation('demographics', demographic.id)}
+                        />
+                        <span className="text-sm">{demographic.name}</span>
+                      </div>
+                      {demographic.audienceSize && (
+                        <Badge variant="secondary" className="text-xs">
+                          {demographic.audienceSize.toLocaleString()} people
+                        </Badge>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -496,6 +527,7 @@ export function BasicTargeting({ targeting, onUpdate, adAccountId }: BasicTarget
                   <SelectContent className="bg-background z-50">
                     <SelectItem value="interests">Interests</SelectItem>
                     <SelectItem value="behaviors">Behaviors</SelectItem>
+                    <SelectItem value="demographics">Demographics</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

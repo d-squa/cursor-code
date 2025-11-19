@@ -586,6 +586,7 @@ export function MediaPlanEditor() {
           phases: genericConfig.phases,
           campaigns: genericConfig.campaigns,
           targeting: genericConfig.targeting,
+          basicTargeting: basicTargeting,
         } as any,
         status: "draft",
       } as any).select().single();
@@ -858,6 +859,7 @@ export function MediaPlanEditor() {
           phases: genericConfig.phases,
           campaigns: genericConfig.campaigns,
           targeting: genericConfig.targeting,
+          basicTargeting: basicTargeting,
         } as any,
         status: "draft",
       } as any).select().single();
