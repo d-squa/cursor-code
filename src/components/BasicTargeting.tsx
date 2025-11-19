@@ -214,6 +214,38 @@ export function BasicTargeting({ targeting, onUpdate, adAccountId }: BasicTarget
     setSearchResults(prev => prev.filter(r => r.id !== result.id));
   };
 
+  const handleAddAllSearchResults = () => {
+    if (searchType === 'interests') {
+      setRecommendedInterests(prev => [...prev, ...searchResults.map(r => ({ ...r, selected: true }))]);
+    } else if (searchType === 'behaviors') {
+      setRecommendedBehaviors(prev => [...prev, ...searchResults.map(r => ({ ...r, selected: true }))]);
+    } else {
+      setRecommendedDemographics(prev => [...prev, ...searchResults.map(r => ({ ...r, selected: true }))]);
+    }
+    setSearchResults([]);
+    toast.success('All results added');
+  };
+
+  const handleSelectAllRecommendations = (type: 'interests' | 'behaviors' | 'demographics') => {
+    if (type === 'interests') {
+      setRecommendedInterests(prev => prev.map(item => ({ ...item, selected: true })));
+    } else if (type === 'behaviors') {
+      setRecommendedBehaviors(prev => prev.map(item => ({ ...item, selected: true })));
+    } else {
+      setRecommendedDemographics(prev => prev.map(item => ({ ...item, selected: true })));
+    }
+  };
+
+  const handleDeselectAllRecommendations = (type: 'interests' | 'behaviors' | 'demographics') => {
+    if (type === 'interests') {
+      setRecommendedInterests(prev => prev.map(item => ({ ...item, selected: false })));
+    } else if (type === 'behaviors') {
+      setRecommendedBehaviors(prev => prev.map(item => ({ ...item, selected: false })));
+    } else {
+      setRecommendedDemographics(prev => prev.map(item => ({ ...item, selected: false })));
+    }
+  };
+
   // Update targeting config when recommendations change
   useEffect(() => {
     const selectedInterests = recommendedInterests.filter(i => i.selected).map(i => ({ id: i.id, name: i.name, audienceSize: i.audienceSize }));
@@ -431,7 +463,25 @@ export function BasicTargeting({ targeting, onUpdate, adAccountId }: BasicTarget
             {/* Display Recommended Interests */}
             {recommendedInterests.length > 0 && (
               <div className="space-y-2">
-                <Label>Recommended Interests</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Recommended Interests</Label>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => handleSelectAllRecommendations('interests')}
+                    >
+                      Select All
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => handleDeselectAllRecommendations('interests')}
+                    >
+                      Deselect All
+                    </Button>
+                  </div>
+                </div>
                 <div className="space-y-2 max-h-48 overflow-y-auto">
                   {recommendedInterests.map((interest) => (
                     <div key={interest.id} className="flex items-center justify-between p-2 bg-background rounded">
@@ -456,7 +506,25 @@ export function BasicTargeting({ targeting, onUpdate, adAccountId }: BasicTarget
             {/* Display Recommended Behaviors */}
             {recommendedBehaviors.length > 0 && (
               <div className="space-y-2">
-                <Label>Recommended Behaviors</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Recommended Behaviors</Label>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => handleSelectAllRecommendations('behaviors')}
+                    >
+                      Select All
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => handleDeselectAllRecommendations('behaviors')}
+                    >
+                      Deselect All
+                    </Button>
+                  </div>
+                </div>
                 <div className="space-y-2 max-h-48 overflow-y-auto">
                   {recommendedBehaviors.map((behavior) => (
                     <div key={behavior.id} className="flex items-center justify-between p-2 bg-background rounded">
@@ -481,7 +549,25 @@ export function BasicTargeting({ targeting, onUpdate, adAccountId }: BasicTarget
             {/* Display Recommended Demographics */}
             {recommendedDemographics.length > 0 && (
               <div className="space-y-2">
-                <Label>Recommended Demographics</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Recommended Demographics</Label>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => handleSelectAllRecommendations('demographics')}
+                    >
+                      Select All
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => handleDeselectAllRecommendations('demographics')}
+                    >
+                      Deselect All
+                    </Button>
+                  </div>
+                </div>
                 <div className="space-y-2 max-h-48 overflow-y-auto">
                   {recommendedDemographics.map((demographic) => (
                     <div key={demographic.id} className="flex items-center justify-between p-2 bg-background rounded">
@@ -558,7 +644,16 @@ export function BasicTargeting({ targeting, onUpdate, adAccountId }: BasicTarget
             {/* Display Search Results */}
             {searchResults.length > 0 && (
               <div className="space-y-2">
-                <Label>Search Results</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Search Results</Label>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleAddAllSearchResults}
+                  >
+                    Add All
+                  </Button>
+                </div>
                 <div className="space-y-2 max-h-48 overflow-y-auto">
                   {searchResults.map((result) => (
                     <div key={result.id} className="flex items-center justify-between p-2 bg-background rounded">
