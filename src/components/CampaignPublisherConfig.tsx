@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -65,6 +66,21 @@ export function CampaignPublisherConfig({
   };
   
   const availablePlacements = getPlacements();
+
+  // Initialize all publishers and placements by default
+  useEffect(() => {
+    if (availablePublisherPlatforms.length > 0 && publisherPlatforms.length === 0) {
+      onPublisherPlatformsChange(availablePublisherPlatforms);
+      
+      const defaultPositions: any = {};
+      availablePublisherPlatforms.forEach(publisher => {
+        if (availablePlacements[publisher]) {
+          defaultPositions[publisher] = availablePlacements[publisher];
+        }
+      });
+      onPositionsChange(defaultPositions);
+    }
+  }, []);
 
   if (availablePublisherPlatforms.length === 0) {
     return null;
