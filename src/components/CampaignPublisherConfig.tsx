@@ -2,7 +2,7 @@ import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { Badge } from "@/components/ui/badge";
 import { X, Info } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface CampaignPublisherConfigProps {
@@ -69,10 +69,11 @@ export function CampaignPublisherConfig({
   };
   
   const availablePlacements = getPlacements();
+  const [hasInitialized, setHasInitialized] = useState(false);
 
-  // Set default Advantage+ audience (all publishers) when component mounts or platform changes
+  // Set default Advantage+ audience (all publishers) only on initial mount
   useEffect(() => {
-    if (availablePublisherPlatforms.length > 0 && publisherPlatforms.length === 0) {
+    if (availablePublisherPlatforms.length > 0 && !hasInitialized) {
       onPublisherPlatformsChange(availablePublisherPlatforms);
       // Set automatic placements for all publishers by default
       const defaultPositions: any = {};
@@ -80,8 +81,9 @@ export function CampaignPublisherConfig({
         defaultPositions[pub] = ["automatic"];
       });
       onPositionsChange(defaultPositions);
+      setHasInitialized(true);
     }
-  }, [platformName, availablePublisherPlatforms.join(',')]);
+  }, [availablePublisherPlatforms.length, hasInitialized]);
 
   if (availablePublisherPlatforms.length === 0) {
     return null;
