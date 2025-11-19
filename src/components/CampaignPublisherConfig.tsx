@@ -69,11 +69,10 @@ export function CampaignPublisherConfig({
   };
   
   const availablePlacements = getPlacements();
-  const [hasInitialized, setHasInitialized] = useState(false);
 
-  // Set default Advantage+ audience (all publishers) only on initial mount
+  // Set default Advantage+ audience (all publishers) only when publisherPlatforms is empty
   useEffect(() => {
-    if (availablePublisherPlatforms.length > 0 && !hasInitialized) {
+    if (availablePublisherPlatforms.length > 0 && publisherPlatforms.length === 0) {
       onPublisherPlatformsChange(availablePublisherPlatforms);
       // Set automatic placements for all publishers by default
       const defaultPositions: any = {};
@@ -81,9 +80,8 @@ export function CampaignPublisherConfig({
         defaultPositions[pub] = ["automatic"];
       });
       onPositionsChange(defaultPositions);
-      setHasInitialized(true);
     }
-  }, [availablePublisherPlatforms.length, hasInitialized]);
+  }, [availablePublisherPlatforms.length, publisherPlatforms.length]);
 
   if (availablePublisherPlatforms.length === 0) {
     return null;
