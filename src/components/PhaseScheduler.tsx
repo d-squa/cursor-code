@@ -375,7 +375,10 @@ export function PhaseScheduler({
   };
 
   const updatePhaseField = (phaseId: string, field: string, value: any) => {
-    onPhasesChange(phases.map(p => p.id === phaseId ? { ...p, [field]: value } : p));
+    console.log("📝 updatePhaseField called:", { phaseId, field, value });
+    const updatedPhases = phases.map(p => p.id === phaseId ? { ...p, [field]: value } : p);
+    console.log("📋 Updated phases:", updatedPhases.find(p => p.id === phaseId)?.[field]);
+    onPhasesChange(updatedPhases);
   };
 
   const getAvailableObjectives = () => {
