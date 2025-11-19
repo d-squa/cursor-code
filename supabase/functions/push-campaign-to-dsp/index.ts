@@ -396,40 +396,69 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
         // Add placements/positions from phase
         const positions = phase.positions;
         
-        // Valid placements per Meta API (remove deprecated ones)
+        // Valid placements per Meta API (updated to remove deprecated ones)
         const validFacebookPositions = ['feed', 'instant_article', 'instream_video', 'marketplace', 'search', 'video_feeds', 'story'];
         const validInstagramPositions = ['stream', 'story', 'explore', 'explore_home', 'reels'];
         const validAudienceNetworkPositions = ['classic', 'instream_video', 'rewarded_video'];
         const validMessengerPositions = ['messenger_home', 'sponsored_messages'];
         
         if (positions) {
-          if (positions.facebook && Array.isArray(positions.facebook) && positions.facebook.length > 0 && !positions.facebook.includes('automatic')) {
-            // Filter out deprecated placements
-            const filteredPositions = positions.facebook.filter((p: string) => validFacebookPositions.includes(p));
-            if (filteredPositions.length > 0) {
-              targeting.facebook_positions = filteredPositions;
-              console.log("Adding Facebook positions:", filteredPositions);
+          // Handle Facebook positions
+          if (positions.facebook && Array.isArray(positions.facebook) && positions.facebook.length > 0) {
+            if (positions.facebook.includes('automatic')) {
+              // When automatic, use all valid positions
+              targeting.facebook_positions = validFacebookPositions;
+              console.log("Adding Facebook positions (automatic):", validFacebookPositions);
+            } else {
+              // Filter out deprecated placements
+              const filteredPositions = positions.facebook.filter((p: string) => validFacebookPositions.includes(p));
+              if (filteredPositions.length > 0) {
+                targeting.facebook_positions = filteredPositions;
+                console.log("Adding Facebook positions:", filteredPositions);
+              }
             }
           }
-          if (positions.instagram && Array.isArray(positions.instagram) && positions.instagram.length > 0 && !positions.instagram.includes('automatic')) {
-            const filteredPositions = positions.instagram.filter((p: string) => validInstagramPositions.includes(p));
-            if (filteredPositions.length > 0) {
-              targeting.instagram_positions = filteredPositions;
-              console.log("Adding Instagram positions:", filteredPositions);
+          
+          // Handle Instagram positions
+          if (positions.instagram && Array.isArray(positions.instagram) && positions.instagram.length > 0) {
+            if (positions.instagram.includes('automatic')) {
+              targeting.instagram_positions = validInstagramPositions;
+              console.log("Adding Instagram positions (automatic):", validInstagramPositions);
+            } else {
+              const filteredPositions = positions.instagram.filter((p: string) => validInstagramPositions.includes(p));
+              if (filteredPositions.length > 0) {
+                targeting.instagram_positions = filteredPositions;
+                console.log("Adding Instagram positions:", filteredPositions);
+              }
             }
           }
-          if (positions.audience_network && Array.isArray(positions.audience_network) && positions.audience_network.length > 0 && !positions.audience_network.includes('automatic')) {
-            const filteredPositions = positions.audience_network.filter((p: string) => validAudienceNetworkPositions.includes(p));
-            if (filteredPositions.length > 0) {
-              targeting.audience_network_positions = filteredPositions;
-              console.log("Adding Audience Network positions:", filteredPositions);
+          
+          // Handle Audience Network positions
+          if (positions.audience_network && Array.isArray(positions.audience_network) && positions.audience_network.length > 0) {
+            if (positions.audience_network.includes('automatic')) {
+              targeting.audience_network_positions = validAudienceNetworkPositions;
+              console.log("Adding Audience Network positions (automatic):", validAudienceNetworkPositions);
+            } else {
+              const filteredPositions = positions.audience_network.filter((p: string) => validAudienceNetworkPositions.includes(p));
+              if (filteredPositions.length > 0) {
+                targeting.audience_network_positions = filteredPositions;
+                console.log("Adding Audience Network positions:", filteredPositions);
+              }
             }
           }
-          if (positions.messenger && Array.isArray(positions.messenger) && positions.messenger.length > 0 && !positions.messenger.includes('automatic')) {
-            const filteredPositions = positions.messenger.filter((p: string) => validMessengerPositions.includes(p));
-            if (filteredPositions.length > 0) {
-              targeting.messenger_positions = filteredPositions;
-              console.log("Adding Messenger positions:", filteredPositions);
+          
+          // Handle Messenger positions - CRITICAL: only use current valid positions
+          if (positions.messenger && Array.isArray(positions.messenger) && positions.messenger.length > 0) {
+            if (positions.messenger.includes('automatic')) {
+              // When automatic, explicitly set only current valid positions to avoid Meta defaults
+              targeting.messenger_positions = validMessengerPositions;
+              console.log("Adding Messenger positions (automatic):", validMessengerPositions);
+            } else {
+              const filteredPositions = positions.messenger.filter((p: string) => validMessengerPositions.includes(p));
+              if (filteredPositions.length > 0) {
+                targeting.messenger_positions = filteredPositions;
+                console.log("Adding Messenger positions:", filteredPositions);
+              }
             }
           }
           // Note: Threads positions are handled automatically by Meta when 'threads' is in publisher_platforms
