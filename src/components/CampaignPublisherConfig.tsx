@@ -58,7 +58,17 @@ export function CampaignPublisherConfig({
   };
 
   const availablePublisherPlatforms = getAvailablePublisherPlatforms();
-  const availablePlacements = placementOptions[platformName] || {};
+  
+  // Handle platform name variations - if it's just "Meta", use "Facebook (Meta)" as the default
+  const getPlacements = () => {
+    if (platformName === "Meta" || platformName.includes("Meta")) {
+      // Try exact match first, then fallback to "Facebook (Meta)" for generic "Meta"
+      return placementOptions[platformName] || placementOptions["Facebook (Meta)"] || {};
+    }
+    return placementOptions[platformName] || {};
+  };
+  
+  const availablePlacements = getPlacements();
   const hasInitialized = useRef(false);
 
   // Debug logging
