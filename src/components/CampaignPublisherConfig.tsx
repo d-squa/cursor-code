@@ -69,18 +69,10 @@ export function CampaignPublisherConfig({
   };
   
   const availablePlacements = getPlacements();
-  const initializedPlatformsRef = useRef<string>("");
 
-  // Set default Advantage+ audience (all publishers) only once per platform configuration
+  // Set default Advantage+ audience (all publishers) when component mounts or platform changes
   useEffect(() => {
-    const platformKey = `${platformName}-${availablePublisherPlatforms.join(',')}`;
-    
-    if (
-      availablePublisherPlatforms.length > 0 && 
-      publisherPlatforms.length === 0 &&
-      initializedPlatformsRef.current !== platformKey
-    ) {
-      initializedPlatformsRef.current = platformKey;
+    if (availablePublisherPlatforms.length > 0 && publisherPlatforms.length === 0) {
       onPublisherPlatformsChange(availablePublisherPlatforms);
       // Set automatic placements for all publishers by default
       const defaultPositions: any = {};
@@ -89,7 +81,7 @@ export function CampaignPublisherConfig({
       });
       onPositionsChange(defaultPositions);
     }
-  }, [platformName, availablePublisherPlatforms.length, publisherPlatforms.length]);
+  }, [platformName, availablePublisherPlatforms.join(',')]);
 
   if (availablePublisherPlatforms.length === 0) {
     return null;
