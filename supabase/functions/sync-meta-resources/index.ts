@@ -41,15 +41,36 @@ serve(async (req) => {
       .eq("user_id", user.id)
       .eq("platform_type", "meta")
       .eq("is_active", true)
-      .single();
+      .maybeSingle();
 
-    if (platformError || !metaPlatform) {
-      console.log("No active Meta platform found");
+    if (platformError) {
+      console.error("Platform query error:", platformError);
+      return new Response(
+        JSON.stringify({ error: "Failed to query platform connection" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+      );
+    }
+
+    if (!metaPlatform) {
+      console.log("No active Meta platform found for user:", user.id);
+      // Check if any platforms exist at all
+      const { data: allPlatforms } = await supabase
+        .from("connected_platforms")
+        .select("id, is_active, created_at")
+        .eq("user_id", user.id)
+        .eq("platform_type", "meta")
+        .order("created_at", { ascending: false })
+        .limit(5);
+      
+      console.log("All Meta platforms for user:", JSON.stringify(allPlatforms));
+      
       return new Response(
         JSON.stringify({ error: "No active Meta platform connection found" }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 }
       );
     }
+
+    console.log("Found active Meta platform:", metaPlatform.id);
 
     const accessToken = metaPlatform.access_token;
     const businessManagerId = metaPlatform.business_manager_id;
