@@ -28,10 +28,10 @@ const settingsMenuItems = [
     description: "Add and manage team members"
   },
   {
-    title: "Connect Platforms",
-    href: "/settings/platforms",
+    title: "Manage Client Accounts",
+    href: "/settings/accounts",
     icon: LinkIcon,
-    description: "Manage your advertising platform connections"
+    description: "Manage client accounts, sync ad accounts, and configure defaults"
   },
   {
     title: "Account Settings",
