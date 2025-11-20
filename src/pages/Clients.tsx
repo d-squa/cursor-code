@@ -256,6 +256,18 @@ export default function Clients() {
                     <span className="text-muted-foreground">{client.app_name}</span>
                   </div>
                 )}
+                {client.platforms && client.platforms.length > 0 && (
+                  <div>
+                    <span className="font-medium">Platforms:</span>{" "}
+                    <span className="text-muted-foreground">{client.platforms.join(", ")}</span>
+                  </div>
+                )}
+                {client.markets && client.markets.length > 0 && (
+                  <div>
+                    <span className="font-medium">Markets:</span>{" "}
+                    <span className="text-muted-foreground">{client.markets.join(", ")}</span>
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}
