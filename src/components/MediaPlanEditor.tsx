@@ -1059,9 +1059,9 @@ export function MediaPlanEditor() {
             <div className="space-y-2">
               <Label htmlFor="client">Client (Optional)</Label>
               <Select 
-                value={selectedClientId} 
+                value={selectedClientId || undefined} 
                 onValueChange={(value) => { 
-                  setSelectedClientId(value); 
+                  setSelectedClientId(value || ""); 
                   ensureDraft(); 
                 }}
               >
@@ -1069,7 +1069,6 @@ export function MediaPlanEditor() {
                   <SelectValue placeholder="Select a client to filter resources..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">No client selected</SelectItem>
                   {clients.map((client) => (
                     <SelectItem key={client.id} value={client.id}>
                       {client.name}
