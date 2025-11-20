@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
-import PlatformConnections from "./pages/PlatformConnections";
+import ManageClientAccounts from "./pages/ManageClientAccounts";
 import Teams from "./pages/Teams";
 import Settings from "./pages/Settings";
 import ActiPlans from "./pages/ActiPlans";
@@ -34,12 +34,12 @@ const App = () => (
             <Route path="/performance/:id" element={<Performance />} />
             <Route path="/performance" element={<Performance />} />
             <Route path="/clients" element={<Clients />} />
-            <Route path="/platforms" element={<PlatformConnections />} />
+            <Route path="/manage-accounts" element={<ManageClientAccounts />} />
             <Route path="/teams" element={<Teams />} />
             <Route path="/settings" element={<Settings />}>
               <Route index element={<Navigate to="/settings/users" replace />} />
               <Route path="users" element={<UserManagement />} />
-              <Route path="platforms" element={<PlatformConnections />} />
+              <Route path="accounts" element={<ManageClientAccounts />} />
               <Route path="teams" element={<Teams />} />
               <Route path="account" element={<AccountSettings />} />
               <Route path="plans" element={<PlanManagement />} />
