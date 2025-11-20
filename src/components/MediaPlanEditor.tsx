@@ -56,6 +56,8 @@ const mapFocusToTemplate = (focus?: string): string | undefined => {
 export function MediaPlanEditor() {
   const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
+  const [selectedClientId, setSelectedClientId] = useState<string>("");
+  const [clients, setClients] = useState<Array<{id: string; name: string}>>([]);
   const [campaignName, setCampaignName] = useState<string>("");
   const [boNumber, setBoNumber] = useState<string>("");
   const [totalBudget, setTotalBudget] = useState<string>("");
@@ -88,6 +90,20 @@ export function MediaPlanEditor() {
   const [expandedPlatforms, setExpandedPlatforms] = useState<Record<string, boolean>>({});
   const [bulkBudgetDialogOpen, setBulkBudgetDialogOpen] = useState(false);
   const [bulkPlatform, setBulkPlatform] = useState<PlatformWithMarkets | null>(null);
+  
+  // Load clients for selection
+  useEffect(() => {
+    if (user) {
+      const loadClients = async () => {
+        const { data } = await supabase
+          .from("clients")
+          .select("id, name")
+          .order("name");
+        setClients(data || []);
+      };
+      loadClients();
+    }
+  }, [user]);
   
   // Basic targeting (Step 2)
   const [basicTargeting, setBasicTargeting] = useState<BasicTargetingConfig>({});
@@ -1039,6 +1055,33 @@ export function MediaPlanEditor() {
         </CardHeader>
         {currentStep === 1 ? (
           <CardContent className="space-y-6">
+            {/* Client Selection - First field */}
+            <div className="space-y-2">
+              <Label htmlFor="client">Client (Optional)</Label>
+              <Select 
+                value={selectedClientId} 
+                onValueChange={(value) => { 
+                  setSelectedClientId(value); 
+                  ensureDraft(); 
+                }}
+              >
+                <SelectTrigger id="client">
+                  <SelectValue placeholder="Select a client to filter resources..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">No client selected</SelectItem>
+                  {clients.map((client) => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Select a client to automatically filter resources by client assignments
+              </p>
+            </div>
+
             <div className="grid gap-6 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="name">Activation Name</Label>
