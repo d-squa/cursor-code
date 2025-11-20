@@ -8,8 +8,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Loader2, Pencil } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import AccountDefaultsTab from "@/components/AccountDefaultsTab";
 import ClientForm from "@/components/ClientForm";
+import ClientPlatformAccounts from "@/components/ClientPlatformAccounts";
 
 interface Client {
   id: string;
@@ -22,14 +22,6 @@ interface Client {
   app_name?: string;
 }
 
-interface ConnectedPlatform {
-  id: string;
-  platform_type: string;
-  platform_name: string;
-  ad_account_id: string | null;
-  ad_account_name: string | null;
-  is_active: boolean;
-}
 
 interface MetaAdAccount {
   id: string;
@@ -44,7 +36,6 @@ export default function ManageClientAccounts() {
   const [loading, setLoading] = useState(true);
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClient, setSelectedClient] = useState<string | null>(null);
-  const [platforms, setPlatforms] = useState<ConnectedPlatform[]>([]);
   const [metaAdAccounts, setMetaAdAccounts] = useState<MetaAdAccount[]>([]);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
 
@@ -85,14 +76,6 @@ export default function ManageClientAccounts() {
       if (typedClients && typedClients.length > 0 && !selectedClient) {
         setSelectedClient(typedClients[0].id);
       }
-
-      // Load platforms
-      const { data: platformsData, error: platformsError } = await supabase
-        .from("connected_platforms_safe")
-        .select("*");
-
-      if (platformsError) throw platformsError;
-      setPlatforms(platformsData || []);
 
       // Load meta ad accounts
       const { data: metaData, error: metaError } = await supabase
@@ -141,7 +124,6 @@ export default function ManageClientAccounts() {
   const selectedClientData = clients.find(c => c.id === selectedClient);
   const clientPlatforms = selectedClientData?.platforms || [];
   const clientMarkets = selectedClientData?.markets || [];
-  const clientAdAccounts = metaAdAccounts.filter(acc => acc.client_id === selectedClient);
 
   return (
     <div className="container mx-auto py-8 space-y-6">
@@ -171,10 +153,9 @@ export default function ManageClientAccounts() {
 
       {selectedClient && selectedClientData && (
         <Tabs defaultValue="details" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="details">Client Details</TabsTrigger>
             <TabsTrigger value="accounts">Account Sync</TabsTrigger>
-            <TabsTrigger value="defaults">Account Defaults</TabsTrigger>
           </TabsList>
 
           <TabsContent value="details" className="space-y-4">
@@ -212,32 +193,13 @@ export default function ManageClientAccounts() {
           </TabsContent>
 
           <TabsContent value="accounts" className="space-y-4">
-            <Card className="p-6">
-              <h3 className="text-lg font-semibold mb-4">Synced Ad Accounts</h3>
-              {clientAdAccounts.length === 0 ? (
-                <p className="text-muted-foreground">No ad accounts synced yet.</p>
-              ) : (
-                <div className="space-y-2">
-                  {clientAdAccounts.map((account) => (
-                    <div key={account.id} className="p-3 border rounded-md">
-                      <p className="font-medium">{account.account_name}</p>
-                      <p className="text-sm text-muted-foreground">ID: {account.account_id}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="defaults" className="space-y-4">
-            {selectedClient && user ? (
-              <AccountDefaultsTab clientId={selectedClient} userId={user.id} />
-            ) : (
-              <Card className="p-6">
-                <p className="text-muted-foreground text-center">
-                  Select a client to configure account defaults
-                </p>
-              </Card>
+            {selectedClient && user && (
+              <ClientPlatformAccounts
+                clientId={selectedClient}
+                userId={user.id}
+                metaAdAccounts={metaAdAccounts}
+                onRefresh={loadData}
+              />
             )}
           </TabsContent>
         </Tabs>
