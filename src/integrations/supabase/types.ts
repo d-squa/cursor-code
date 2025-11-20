@@ -385,6 +385,7 @@ export type Database = {
           default_pixel_id: string | null
           default_product_set_id: string | null
           id: string
+          main_markets: Json | null
           synced_at: string
           user_id: string
         }
@@ -404,6 +405,7 @@ export type Database = {
           default_pixel_id?: string | null
           default_product_set_id?: string | null
           id?: string
+          main_markets?: Json | null
           synced_at?: string
           user_id: string
         }
@@ -423,6 +425,7 @@ export type Database = {
           default_pixel_id?: string | null
           default_product_set_id?: string | null
           id?: string
+          main_markets?: Json | null
           synced_at?: string
           user_id?: string
         }

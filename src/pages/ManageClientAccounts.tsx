@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import AccountDefaultsTab from "@/components/AccountDefaultsTab";
 
 interface Client {
   id: string;
@@ -184,12 +185,15 @@ export default function ManageClientAccounts() {
           </TabsContent>
 
           <TabsContent value="defaults" className="space-y-4">
-            <Card className="p-6">
-              <h3 className="text-lg font-semibold mb-4">Account Defaults</h3>
-              <p className="text-muted-foreground">
-                Configure default resources for each ad account in the Account Sync tab.
-              </p>
-            </Card>
+            {selectedClient && user ? (
+              <AccountDefaultsTab clientId={selectedClient} userId={user.id} />
+            ) : (
+              <Card className="p-6">
+                <p className="text-muted-foreground text-center">
+                  Select a client to configure account defaults
+                </p>
+              </Card>
+            )}
           </TabsContent>
         </Tabs>
       )}
