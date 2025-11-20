@@ -122,7 +122,16 @@ serve(async (req) => {
       // This is not critical - continue without BM
     }
 
+    // Deactivate any existing Meta platforms for this user first
+    console.log("Deactivating existing Meta platforms...");
+    await supabase
+      .from("connected_platforms")
+      .update({ is_active: false })
+      .eq("user_id", user.id)
+      .eq("platform_type", "meta");
+
     // Create a single Meta platform connection (not tied to specific ad accounts yet)
+    console.log("Creating new platform connection...");
     const { data: platformData, error: platformError } = await supabase
       .from("connected_platforms")
       .insert({
