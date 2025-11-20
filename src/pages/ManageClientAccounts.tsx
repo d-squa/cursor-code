@@ -3,17 +3,23 @@ import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
-import { Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Loader2, Pencil } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import AccountDefaultsTab from "@/components/AccountDefaultsTab";
+import ClientForm from "@/components/ClientForm";
 
 interface Client {
   id: string;
   name: string;
   industry: string;
   business_objective: string;
-  platforms: any; // Json type from Supabase
+  platforms: string[];
+  markets: string[];
+  website?: string;
+  app_name?: string;
 }
 
 interface ConnectedPlatform {
@@ -40,6 +46,7 @@ export default function ManageClientAccounts() {
   const [selectedClient, setSelectedClient] = useState<string | null>(null);
   const [platforms, setPlatforms] = useState<ConnectedPlatform[]>([]);
   const [metaAdAccounts, setMetaAdAccounts] = useState<MetaAdAccount[]>([]);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -64,11 +71,19 @@ export default function ManageClientAccounts() {
         .order("name");
 
       if (clientsError) throw clientsError;
-      setClients(clientsData || []);
+      
+      // Type cast platforms and markets from Json to string[]
+      const typedClients = (clientsData || []).map(client => ({
+        ...client,
+        platforms: Array.isArray(client.platforms) ? client.platforms as string[] : [],
+        markets: Array.isArray(client.markets) ? client.markets as string[] : [],
+      }));
+      
+      setClients(typedClients);
 
       // Set first client as selected if available
-      if (clientsData && clientsData.length > 0 && !selectedClient) {
-        setSelectedClient(clientsData[0].id);
+      if (typedClients && typedClients.length > 0 && !selectedClient) {
+        setSelectedClient(typedClients[0].id);
       }
 
       // Load platforms
@@ -94,6 +109,27 @@ export default function ManageClientAccounts() {
     }
   };
 
+  const handleUpdateClient = async (data: any) => {
+    if (!selectedClient) return;
+
+    try {
+      const { error } = await supabase
+        .from("clients")
+        .update(data)
+        .eq("id", selectedClient);
+
+      if (error) throw error;
+
+      toast.success("Client updated successfully");
+      setEditDialogOpen(false);
+      await loadData();
+    } catch (error: any) {
+      console.error("Error updating client:", error);
+      toast.error("Failed to update client");
+      throw error;
+    }
+  };
+
   if (authLoading || loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -103,9 +139,8 @@ export default function ManageClientAccounts() {
   }
 
   const selectedClientData = clients.find(c => c.id === selectedClient);
-  const clientPlatforms = Array.isArray(selectedClientData?.platforms) 
-    ? selectedClientData.platforms 
-    : [];
+  const clientPlatforms = selectedClientData?.platforms || [];
+  const clientMarkets = selectedClientData?.markets || [];
   const clientAdAccounts = metaAdAccounts.filter(acc => acc.client_id === selectedClient);
 
   return (
@@ -144,7 +179,13 @@ export default function ManageClientAccounts() {
 
           <TabsContent value="details" className="space-y-4">
             <Card className="p-6">
-              <h3 className="text-lg font-semibold mb-4">Client Information</h3>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold">Client Information</h3>
+                <Button variant="outline" size="sm" onClick={() => setEditDialogOpen(true)}>
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Edit Client
+                </Button>
+              </div>
               <div className="space-y-3">
                 <div>
                   <label className="text-sm font-medium text-muted-foreground">Name</label>
@@ -160,7 +201,11 @@ export default function ManageClientAccounts() {
                 </div>
                 <div>
                   <label className="text-sm font-medium text-muted-foreground">Platforms</label>
-                  <p className="text-base">{clientPlatforms.join(", ")}</p>
+                  <p className="text-base">{clientPlatforms.length > 0 ? clientPlatforms.join(", ") : "Not set"}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Markets</label>
+                  <p className="text-base">{clientMarkets.length > 0 ? clientMarkets.join(", ") : "Not set"}</p>
                 </div>
               </div>
             </Card>
@@ -203,6 +248,24 @@ export default function ManageClientAccounts() {
           <p className="text-muted-foreground">Select a client to manage their accounts</p>
         </Card>
       )}
+
+      {/* Edit Client Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Client</DialogTitle>
+            <DialogDescription>
+              Update client information
+            </DialogDescription>
+          </DialogHeader>
+          <ClientForm
+            initialData={selectedClientData}
+            onSubmit={handleUpdateClient}
+            onCancel={() => setEditDialogOpen(false)}
+            submitLabel="Update Client"
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
