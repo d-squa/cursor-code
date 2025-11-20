@@ -92,7 +92,7 @@ export default function ClientPlatformAccounts({
       processingOAuthRef.current = true;
       setSyncing(true);
 
-      const redirectUri = `${window.location.origin}/manage-client-accounts`;
+      const redirectUri = `${window.location.origin}/manage-accounts`;
       const clientId = PLATFORM_CONFIG.meta.appId;
 
       if (!clientId) {
