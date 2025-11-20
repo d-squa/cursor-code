@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -38,6 +38,7 @@ export default function ManageClientAccounts() {
   const [selectedClient, setSelectedClient] = useState<string | null>(null);
   const [metaAdAccounts, setMetaAdAccounts] = useState<MetaAdAccount[]>([]);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const processingOAuthRef = useRef(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -50,6 +51,72 @@ export default function ManageClientAccounts() {
       loadData();
     }
   }, [user]);
+
+  // Handle OAuth callback from Meta
+  useEffect(() => {
+    const handleOAuthCallback = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get("code");
+      const state = urlParams.get("state");
+
+      if (code && state && !processingOAuthRef.current && user) {
+        processingOAuthRef.current = true;
+        
+        // Clear URL immediately to prevent reuse
+        window.history.replaceState({}, document.title, window.location.pathname);
+
+        try {
+          const stateData = JSON.parse(state);
+          const redirectUri = stateData.returnUrl || `${window.location.origin}/manage-accounts`;
+
+          console.log("Processing OAuth callback with code:", code.substring(0, 10) + "...");
+
+          const { data, error } = await supabase.functions.invoke("meta-oauth-callback", {
+            body: {
+              code,
+              platformType: "meta",
+              redirectUri,
+            },
+          });
+
+          if (error) throw error;
+
+          if (data?.error) {
+            throw new Error(data.error);
+          }
+
+          toast.success("Successfully connected to Meta! Syncing ad accounts...");
+          
+          // Call the sync endpoint to sync ad accounts
+          const { error: syncError } = await supabase.functions.invoke("sync-meta-resources", {
+            body: {
+              platformId: data.platformId,
+              clientId: selectedClient,
+            },
+          });
+
+          if (syncError) {
+            console.error("Sync error:", syncError);
+            toast.error("Connected but failed to sync ad accounts. Please try syncing manually.");
+          } else {
+            toast.success("Ad accounts synced successfully!");
+          }
+
+          // Refresh data
+          await loadData();
+        } catch (error: any) {
+          console.error("OAuth callback error:", error);
+          toast.error(error.message || "Failed to complete authentication");
+        } finally {
+          processingOAuthRef.current = false;
+        }
+      }
+    };
+
+    if (user) {
+      handleOAuthCallback();
+    }
+  }, [user, selectedClient]);
 
   const loadData = async () => {
     try {
