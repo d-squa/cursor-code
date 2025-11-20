@@ -95,6 +95,10 @@ export default function ClientPlatformAccounts({
       const redirectUri = `${window.location.origin}/manage-accounts`;
       const clientId = PLATFORM_CONFIG.meta.appId;
 
+      console.log("=== Meta OAuth Flow Starting ===");
+      console.log("Redirect URI:", redirectUri);
+      console.log("Client ID:", clientId);
+
       if (!clientId) {
         toast.error("Meta App ID not configured. Please contact support.");
         return;
@@ -105,12 +109,15 @@ export default function ClientPlatformAccounts({
         returnUrl: redirectUri 
       });
 
+      console.log("State object:", state);
+
       const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?` +
         `client_id=${clientId}` +
         `&redirect_uri=${encodeURIComponent(redirectUri)}` +
         `&state=${encodeURIComponent(state)}` +
         `&scope=ads_management,ads_read,business_management,pages_read_engagement,instagram_basic`;
 
+      console.log("Redirecting to:", authUrl);
       window.location.href = authUrl;
     } catch (error: any) {
       console.error("Error connecting to Meta:", error);
