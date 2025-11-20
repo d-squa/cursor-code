@@ -19,6 +19,8 @@ interface Client {
   app_name: string | null;
   industry: string;
   business_objective: string;
+  platforms: string[];
+  markets: string[];
   created_at: string;
 }
 
@@ -54,7 +56,15 @@ export default function Clients() {
         .order("name");
 
       if (error) throw error;
-      setClients(data || []);
+      
+      // Type cast platforms and markets from Json to string[]
+      const typedClients = (data || []).map(client => ({
+        ...client,
+        platforms: Array.isArray(client.platforms) ? client.platforms as string[] : [],
+        markets: Array.isArray(client.markets) ? client.markets as string[] : [],
+      }));
+      
+      setClients(typedClients);
     } catch (error: any) {
       console.error("Error loading clients:", error);
       toast.error("Failed to load clients");

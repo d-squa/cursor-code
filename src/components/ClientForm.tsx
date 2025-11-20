@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { INDUSTRIES, BUSINESS_OBJECTIVES } from "@/utils/clientOptions";
 import { PLATFORM_OPTIONS } from "@/utils/platformOptions";
+import { MARKET_OPTIONS } from "@/utils/markets";
 import { MultiSelect } from "@/components/ui/multi-select";
 
 interface ClientFormData {
@@ -15,6 +16,7 @@ interface ClientFormData {
   industry: string;
   business_objective: string;
   platforms: string[];
+  markets: string[];
 }
 
 interface Props {
@@ -32,6 +34,7 @@ export default function ClientForm({ initialData, onSubmit, onCancel, submitLabe
     industry: initialData?.industry || "",
     business_objective: initialData?.business_objective || "",
     platforms: (initialData as any)?.platforms || [],
+    markets: (initialData as any)?.markets || [],
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -44,6 +47,7 @@ export default function ClientForm({ initialData, onSubmit, onCancel, submitLabe
         industry: initialData.industry || "",
         business_objective: initialData.business_objective || "",
         platforms: (initialData as any)?.platforms || [],
+        markets: (initialData as any)?.markets || [],
       });
     }
   }, [initialData]);
@@ -151,13 +155,29 @@ export default function ClientForm({ initialData, onSubmit, onCancel, submitLabe
         />
       </div>
 
+      <div className="space-y-2">
+        <Label htmlFor="markets">
+          Markets <span className="text-destructive">*</span>
+        </Label>
+        <MultiSelect
+          options={MARKET_OPTIONS.map(m => ({ value: m.value, label: m.label }))}
+          value={formData.markets}
+          onChange={(values) => setFormData({ ...formData, markets: values })}
+          placeholder="Select markets"
+          emptyText="No markets found"
+        />
+        <p className="text-xs text-muted-foreground">
+          Markets where this client operates
+        </p>
+      </div>
+
       <div className="flex gap-3 justify-end pt-4">
         {onCancel && (
           <Button type="button" variant="outline" onClick={onCancel} disabled={submitting}>
             Cancel
           </Button>
         )}
-        <Button type="submit" disabled={submitting || !formData.name || !formData.industry || !formData.business_objective || formData.platforms.length === 0}>
+        <Button type="submit" disabled={submitting || !formData.name || !formData.industry || !formData.business_objective || formData.platforms.length === 0 || formData.markets.length === 0}>
           {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           {submitLabel}
         </Button>

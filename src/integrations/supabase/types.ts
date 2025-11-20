@@ -238,6 +238,7 @@ export type Database = {
           created_at: string
           id: string
           industry: string
+          markets: Json | null
           name: string
           platforms: Json | null
           updated_at: string
@@ -250,6 +251,7 @@ export type Database = {
           created_at?: string
           id?: string
           industry: string
+          markets?: Json | null
           name: string
           platforms?: Json | null
           updated_at?: string
@@ -262,6 +264,7 @@ export type Database = {
           created_at?: string
           id?: string
           industry?: string
+          markets?: Json | null
           name?: string
           platforms?: Json | null
           updated_at?: string

@@ -214,16 +214,16 @@ export default function AccountDefaultsTab({ clientId, userId }: Props) {
                   <div className="px-6 pb-6 space-y-6">
                     {/* Main Markets */}
                     <div className="space-y-2">
-                      <Label>Main Markets</Label>
+                      <Label>Assigned Markets</Label>
                       <MultiSelect
                         options={marketOptions}
                         value={defaults.main_markets || []}
                         onChange={(markets) => updateDefault(account.id, "main_markets", markets)}
-                        placeholder="Select main markets"
-                        emptyText="No markets selected"
+                        placeholder="Select markets for this ad account"
+                        emptyText="No markets assigned"
                       />
                       <p className="text-xs text-muted-foreground">
-                        These markets will be auto-selected when creating campaigns for this account
+                        Which client markets this ad account should target
                       </p>
                     </div>
 
