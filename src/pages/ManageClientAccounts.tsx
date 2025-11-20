@@ -87,17 +87,25 @@ export default function ManageClientAccounts() {
 
           toast.success("Successfully connected to Meta! Syncing ad accounts...");
           
+          // Wait for database commit to complete
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
           // Call the sync endpoint to sync ad accounts
-          const { error: syncError } = await supabase.functions.invoke("sync-meta-resources", {
-            body: {
-              platformId: data.platformId,
-              clientId: selectedClient,
-            },
-          });
+          const { error: syncError } = await supabase.functions.invoke("sync-meta-resources");
 
           if (syncError) {
             console.error("Sync error:", syncError);
-            toast.error("Connected but failed to sync ad accounts. Please try syncing manually.");
+            // Retry once after a longer delay
+            console.log("Retrying sync after delay...");
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            const { error: retryError } = await supabase.functions.invoke("sync-meta-resources");
+            
+            if (retryError) {
+              console.error("Retry sync error:", retryError);
+              toast.error("Connected but failed to sync ad accounts. Please try syncing manually.");
+            } else {
+              toast.success("Ad accounts synced successfully!");
+            }
           } else {
             toast.success("Ad accounts synced successfully!");
           }
