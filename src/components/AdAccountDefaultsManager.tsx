@@ -61,16 +61,33 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId, c
   const loadData = async () => {
     setLoading(true);
     try {
-      if (!connectedPlatformId) return;
+      if (!connectedPlatformId) {
+        console.log("No connected platform ID provided");
+        return;
+      }
+
+      console.log("Loading data for platform:", connectedPlatformId);
 
       const { data: linkedAccounts, error: linkedError } = await supabase
         .from("platform_accounts")
         .select("account_id")
         .eq("connected_platform_id", connectedPlatformId);
 
-      if (linkedError) throw linkedError;
+      if (linkedError) {
+        console.error("Error fetching platform_accounts:", linkedError);
+        throw linkedError;
+      }
       
+      console.log("Linked accounts from platform_accounts:", linkedAccounts);
       const linkedAccountIds = linkedAccounts?.map(a => a.account_id) || [];
+      console.log("Extracted account IDs:", linkedAccountIds);
+
+      if (linkedAccountIds.length === 0) {
+        console.log("No linked account IDs found");
+        setAdAccounts([]);
+        setLoading(false);
+        return;
+      }
 
       const { data: accountsData, error: accountsError } = await supabase
         .from("meta_ad_accounts")
@@ -78,7 +95,12 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId, c
         .eq("user_id", userId)
         .in("account_id", linkedAccountIds);
 
-      if (accountsError) throw accountsError;
+      if (accountsError) {
+        console.error("Error fetching meta_ad_accounts:", accountsError);
+        throw accountsError;
+      }
+      
+      console.log("Fetched ad accounts:", accountsData);
       setAdAccounts(accountsData || []);
 
       const defaults: Record<string, Partial<AdAccount>> = {};
