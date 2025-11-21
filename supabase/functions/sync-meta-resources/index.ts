@@ -37,7 +37,7 @@ serve(async (req) => {
     // Get active Meta platform connection
     const { data: metaPlatform, error: platformError } = await supabase
       .from("connected_platforms")
-      .select("*")
+      .select("id, access_token, business_manager_id")
       .eq("user_id", user.id)
       .eq("platform_type", "meta")
       .eq("is_active", true)
@@ -134,6 +134,34 @@ serve(async (req) => {
         if (!insertError) {
           syncResults.adAccounts = accountsToInsert.length;
           console.log(`Synced ${syncResults.adAccounts} ad accounts total`);
+
+          // Link ad accounts to the connected platform
+          if (metaPlatform?.id) {
+            console.log(`Linking ${accountsToInsert.length} ad accounts to platform ${metaPlatform.id}`);
+            
+            const platformAccountsToInsert = accountsToInsert.map((acc: any) => ({
+              connected_platform_id: metaPlatform.id,
+              account_id: acc.account_id,
+              account_name: acc.account_name,
+              account_type: "ad_account",
+            }));
+
+            // Delete existing links for this platform first
+            await supabase
+              .from("platform_accounts")
+              .delete()
+              .eq("connected_platform_id", metaPlatform.id);
+
+            const { error: linkError } = await supabase
+              .from("platform_accounts")
+              .insert(platformAccountsToInsert);
+            
+            if (linkError) {
+              console.error("Error linking ad accounts to platform:", linkError);
+            } else {
+              console.log(`Successfully linked ${platformAccountsToInsert.length} ad accounts to platform`);
+            }
+          }
         }
       }
     } catch (error) {
