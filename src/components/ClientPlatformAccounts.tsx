@@ -52,6 +52,23 @@ export default function ClientPlatformAccounts({
     setExpandedPlatforms(newExpanded);
   };
 
+  const handleLinkAccount = async (accountId: string) => {
+    try {
+      const { error } = await supabase
+        .from("meta_ad_accounts")
+        .update({ client_id: clientId })
+        .eq("id", accountId);
+
+      if (error) throw error;
+
+      toast.success("Ad account linked to client successfully");
+      onRefresh();
+    } catch (error: any) {
+      console.error("Error linking account:", error);
+      toast.error("Failed to link account");
+    }
+  };
+
   const handleUnsyncAccount = async (accountId: string) => {
     try {
       const { error } = await supabase
@@ -61,11 +78,11 @@ export default function ClientPlatformAccounts({
 
       if (error) throw error;
 
-      toast.success("Ad account unsynced successfully");
+      toast.success("Ad account unlinked from client successfully");
       onRefresh();
     } catch (error: any) {
-      console.error("Error unsyncing account:", error);
-      toast.error("Failed to unsync account");
+      console.error("Error unlinking account:", error);
+      toast.error("Failed to unlink account");
     }
   };
 
@@ -140,8 +157,11 @@ export default function ClientPlatformAccounts({
 
       {/* Platform Groups */}
       {PLATFORM_TYPES.map((platform) => {
-        const platformAccounts = platform.id === "meta" 
+        const linkedAccounts = platform.id === "meta" 
           ? metaAdAccounts.filter(acc => acc.client_id === clientId)
+          : [];
+        const availableAccounts = platform.id === "meta"
+          ? metaAdAccounts.filter(acc => acc.client_id === null)
           : [];
         const isExpanded = expandedPlatforms.has(platform.id);
         const Icon = platform.icon;
@@ -168,53 +188,107 @@ export default function ClientPlatformAccounts({
                 <div>
                   <p className="font-medium">{platform.name}</p>
                   <p className="text-sm text-muted-foreground">
-                    {platformAccounts.length} account{platformAccounts.length !== 1 ? 's' : ''}
+                    {linkedAccounts.length} linked • {availableAccounts.length} available
                   </p>
                 </div>
               </div>
-              <Badge variant="secondary">{platformAccounts.length}</Badge>
+              <Badge variant="secondary">{linkedAccounts.length}</Badge>
             </div>
 
             {isExpanded && (
               <div className="border-t">
-                {platformAccounts.length === 0 ? (
-                  <div className="p-6 text-center text-muted-foreground">
-                    No ad accounts synced for this platform yet.
-                  </div>
-                ) : (
-                  <div className="divide-y">
-                    {platformAccounts.map((account) => (
-                      <div
-                        key={account.id}
-                        className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors"
-                      >
-                        <div className="flex-1">
-                          <p className="font-medium">{account.account_name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            ID: {account.account_id}
-                          </p>
-                          {account.currency && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              Currency: {account.currency}
+                {/* Linked Accounts Section */}
+                {linkedAccounts.length > 0 && (
+                  <div>
+                    <div className="p-3 bg-muted/30 border-b">
+                      <p className="text-sm font-medium">Linked to Client</p>
+                    </div>
+                    <div className="divide-y">
+                      {linkedAccounts.map((account) => (
+                        <div
+                          key={account.id}
+                          className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors"
+                        >
+                          <div className="flex-1">
+                            <p className="font-medium">{account.account_name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              ID: {account.account_id}
                             </p>
-                          )}
+                            {account.currency && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Currency: {account.currency}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {account.account_status && (
+                              <Badge variant={account.account_status === "ACTIVE" ? "default" : "secondary"}>
+                                {account.account_status}
+                              </Badge>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleUnsyncAccount(account.id)}
+                              title="Unlink from client"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          {account.account_status && (
-                            <Badge variant={account.account_status === "ACTIVE" ? "default" : "secondary"}>
-                              {account.account_status}
-                            </Badge>
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleUnsyncAccount(account.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Available Accounts Section */}
+                {availableAccounts.length > 0 && (
+                  <div>
+                    <div className="p-3 bg-muted/30 border-b">
+                      <p className="text-sm font-medium">Available to Link</p>
+                    </div>
+                    <div className="divide-y">
+                      {availableAccounts.map((account) => (
+                        <div
+                          key={account.id}
+                          className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors"
+                        >
+                          <div className="flex-1">
+                            <p className="font-medium">{account.account_name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              ID: {account.account_id}
+                            </p>
+                            {account.currency && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Currency: {account.currency}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {account.account_status && (
+                              <Badge variant={account.account_status === "ACTIVE" ? "default" : "secondary"}>
+                                {account.account_status}
+                              </Badge>
+                            )}
+                            <Button
+                              variant="default"
+                              size="sm"
+                              onClick={() => handleLinkAccount(account.id)}
+                            >
+                              <Plus className="h-4 w-4 mr-1" />
+                              Link
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* No Accounts Message */}
+                {linkedAccounts.length === 0 && availableAccounts.length === 0 && (
+                  <div className="p-6 text-center text-muted-foreground">
+                    No ad accounts synced yet. Click "Add Account" to authenticate.
                   </div>
                 )}
               </div>
