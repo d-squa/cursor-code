@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import ClientForm from "@/components/ClientForm";
 import ClientPlatformAccounts from "@/components/ClientPlatformAccounts";
+import AdAccountSelectionDialog from "@/components/AdAccountSelectionDialog";
 
 interface Client {
   id: string;
@@ -39,6 +40,8 @@ export default function ManageClientAccounts() {
   const [metaAdAccounts, setMetaAdAccounts] = useState<MetaAdAccount[]>([]);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("details");
+  const [accountSelectionOpen, setAccountSelectionOpen] = useState(false);
+  const [availableAccounts, setAvailableAccounts] = useState<any[]>([]);
   const processingOAuthRef = useRef(false);
 
   useEffect(() => {
@@ -95,37 +98,16 @@ export default function ManageClientAccounts() {
             throw new Error(data.error);
           }
 
-          toast.success("Successfully connected to Meta! Syncing ad accounts...");
-          
-          // Wait for database commit to complete
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          
-          // Call the sync endpoint to sync ad accounts
-          const { error: syncError } = await supabase.functions.invoke("sync-meta-resources");
-
-          if (syncError) {
-            console.error("Sync error:", syncError);
-            // Retry once after a longer delay
-            console.log("Retrying sync after delay...");
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            const { error: retryError } = await supabase.functions.invoke("sync-meta-resources");
-            
-            if (retryError) {
-              console.error("Retry sync error:", retryError);
-              toast.error("Connected but failed to sync ad accounts. Please try syncing manually.");
-            } else {
-              toast.success("Ad accounts synced successfully!");
-            }
+          // Show account selection dialog
+          if (data?.adAccounts && data.adAccounts.length > 0) {
+            toast.success("Successfully connected to Meta!");
+            setAvailableAccounts(data.adAccounts);
+            setAccountSelectionOpen(true);
+            setActiveTab("accounts");
+            window.history.replaceState({}, document.title, "/settings/accounts?tab=accounts");
           } else {
-            toast.success("Ad accounts synced successfully!");
+            throw new Error("No ad accounts found");
           }
-
-          // Refresh data and switch to accounts tab
-          await loadData();
-          setActiveTab("accounts");
-          
-          // Update URL to show accounts tab without reloading
-          window.history.replaceState({}, document.title, "/settings/accounts?tab=accounts");
         } catch (error: any) {
           console.error("OAuth callback error:", error);
           toast.error(error.message || "Failed to complete authentication");
@@ -139,6 +121,23 @@ export default function ManageClientAccounts() {
       handleOAuthCallback();
     }
   }, [user, selectedClient]);
+
+  const handleSyncSelectedAccounts = async (selectedIds: string[]) => {
+    try {
+      const { error } = await supabase.functions.invoke("sync-selected-accounts", {
+        body: { selectedAccountIds: selectedIds }
+      });
+
+      if (error) throw error;
+
+      toast.success("Selected ad accounts synced successfully!");
+      setAccountSelectionOpen(false);
+      await loadData();
+    } catch (error: any) {
+      console.error("Sync error:", error);
+      toast.error(error.message || "Failed to sync selected accounts");
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -317,6 +316,14 @@ export default function ManageClientAccounts() {
           />
         </DialogContent>
       </Dialog>
+
+      {/* Ad Account Selection Dialog */}
+      <AdAccountSelectionDialog
+        open={accountSelectionOpen}
+        onOpenChange={setAccountSelectionOpen}
+        accounts={availableAccounts}
+        onConfirm={handleSyncSelectedAccounts}
+      />
     </div>
   );
 }
