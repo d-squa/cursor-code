@@ -86,6 +86,27 @@ export default function ClientPlatformAccounts({
     }
   };
 
+  const handleDeleteAccount = async (accountId: string) => {
+    if (!confirm("Are you sure you want to permanently delete this ad account? This action cannot be undone.")) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("meta_ad_accounts")
+        .delete()
+        .eq("id", accountId);
+
+      if (error) throw error;
+
+      toast.success("Ad account deleted successfully");
+      onRefresh();
+    } catch (error: any) {
+      console.error("Error deleting account:", error);
+      toast.error("Failed to delete account");
+    }
+  };
+
   const handleAddAccount = async () => {
     if (!selectedPlatform) {
       toast.error("Please select a platform");
@@ -277,6 +298,14 @@ export default function ClientPlatformAccounts({
                             >
                               <Plus className="h-4 w-4 mr-1" />
                               Link
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteAccount(account.id)}
+                              title="Delete account permanently"
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
                           </div>
                         </div>
