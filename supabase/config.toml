@@ -33,6 +33,9 @@ verify_jwt = true
 [functions.sync-meta-resources]
 verify_jwt = true
 
+[functions.sync-selected-accounts]
+verify_jwt = true
+
 [functions.fetch-meta-targeting-options]
 verify_jwt = true
 
