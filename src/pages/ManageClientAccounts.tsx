@@ -38,6 +38,7 @@ export default function ManageClientAccounts() {
   const [selectedClient, setSelectedClient] = useState<string | null>(null);
   const [metaAdAccounts, setMetaAdAccounts] = useState<MetaAdAccount[]>([]);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("details");
   const processingOAuthRef = useRef(false);
 
   useEffect(() => {
@@ -51,6 +52,15 @@ export default function ManageClientAccounts() {
       loadData();
     }
   }, [user]);
+
+  // Check for tab query parameter
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const tab = urlParams.get("tab");
+    if (tab === "accounts") {
+      setActiveTab("accounts");
+    }
+  }, []);
 
   // Handle OAuth callback from Meta
   useEffect(() => {
@@ -67,7 +77,7 @@ export default function ManageClientAccounts() {
 
         try {
           const stateData = JSON.parse(state);
-          const redirectUri = stateData.returnUrl || `${window.location.origin}/manage-accounts`;
+          const redirectUri = stateData.returnUrl || `${window.location.origin}/settings/accounts`;
 
           console.log("Processing OAuth callback with code:", code.substring(0, 10) + "...");
 
@@ -110,8 +120,12 @@ export default function ManageClientAccounts() {
             toast.success("Ad accounts synced successfully!");
           }
 
-          // Refresh data
+          // Refresh data and switch to accounts tab
           await loadData();
+          setActiveTab("accounts");
+          
+          // Update URL to show accounts tab without reloading
+          window.history.replaceState({}, document.title, "/settings/accounts?tab=accounts");
         } catch (error: any) {
           console.error("OAuth callback error:", error);
           toast.error(error.message || "Failed to complete authentication");
@@ -227,7 +241,7 @@ export default function ManageClientAccounts() {
       </Card>
 
       {selectedClient && selectedClientData && (
-        <Tabs defaultValue="details" className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="details">Client Details</TabsTrigger>
             <TabsTrigger value="accounts">Account Sync</TabsTrigger>
