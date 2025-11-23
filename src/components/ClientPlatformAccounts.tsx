@@ -109,7 +109,7 @@ export default function ClientPlatformAccounts({
       processingOAuthRef.current = true;
       setSyncing(true);
 
-      const redirectUri = `${window.location.origin}/manage-accounts`;
+      const redirectUri = `${window.location.origin}/settings/accounts`;
       const clientId = PLATFORM_CONFIG.meta.appId;
 
       console.log("=== Meta OAuth Flow Starting ===");
