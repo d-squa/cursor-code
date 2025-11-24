@@ -33,6 +33,20 @@ serve(async (req) => {
 
     console.log("Purging data for platform:", connectedPlatformId);
 
+    // First, get the platform details to know which platform we're dealing with
+    const { data: platform, error: platformError } = await supabase
+      .from("connected_platforms")
+      .select("platform_type")
+      .eq("id", connectedPlatformId)
+      .eq("user_id", user.id)
+      .single();
+
+    if (platformError || !platform) {
+      throw new Error("Platform not found or unauthorized");
+    }
+
+    console.log("Platform type to purge:", platform.platform_type);
+
     // Delete platform_accounts
     const { error: platformAccountsError } = await supabase
       .from("platform_accounts")
@@ -43,68 +57,155 @@ serve(async (req) => {
       console.error("Error deleting platform_accounts:", platformAccountsError);
     }
 
-    // Delete all Meta-related data for this user
-    const { error: adAccountsError } = await supabase
-      .from("meta_ad_accounts")
-      .delete()
-      .eq("user_id", user.id);
-    
-    if (adAccountsError) {
-      console.error("Error deleting meta_ad_accounts:", adAccountsError);
-    }
+    // Delete platform-specific data based on platform type
+    if (platform.platform_type === "meta") {
+      // Delete all Meta-related data linked to this platform connection
+      const { data: metaAccounts } = await supabase
+        .from("meta_ad_accounts")
+        .select("id, account_id")
+        .eq("user_id", user.id);
 
-    const { error: pagesError } = await supabase
-      .from("meta_pages")
-      .delete()
-      .eq("user_id", user.id);
-    
-    if (pagesError) {
-      console.error("Error deleting meta_pages:", pagesError);
-    }
+      if (metaAccounts && metaAccounts.length > 0) {
+        const accountIds = metaAccounts.map(a => a.account_id);
 
-    const { error: pixelsError } = await supabase
-      .from("meta_pixels")
-      .delete()
-      .eq("user_id", user.id);
-    
-    if (pixelsError) {
-      console.error("Error deleting meta_pixels:", pixelsError);
-    }
+        // Delete Meta ad accounts
+        const { error: adAccountsError } = await supabase
+          .from("meta_ad_accounts")
+          .delete()
+          .eq("user_id", user.id)
+          .in("account_id", accountIds);
+        
+        if (adAccountsError) {
+          console.error("Error deleting meta_ad_accounts:", adAccountsError);
+        }
 
-    const { error: catalogsError } = await supabase
-      .from("meta_catalogs")
-      .delete()
-      .eq("user_id", user.id);
-    
-    if (catalogsError) {
-      console.error("Error deleting meta_catalogs:", catalogsError);
-    }
+        // Delete Meta resources tied to these accounts
+        const { error: pixelsError } = await supabase
+          .from("meta_pixels")
+          .delete()
+          .eq("user_id", user.id)
+          .in("ad_account_id", accountIds);
+        
+        if (pixelsError) {
+          console.error("Error deleting meta_pixels:", pixelsError);
+        }
+      }
 
-    const { error: productSetsError } = await supabase
-      .from("meta_product_sets")
-      .delete()
-      .eq("user_id", user.id);
-    
-    if (productSetsError) {
-      console.error("Error deleting meta_product_sets:", productSetsError);
-    }
+      // Delete other Meta resources
+      const { error: pagesError } = await supabase
+        .from("meta_pages")
+        .delete()
+        .eq("user_id", user.id);
+      
+      if (pagesError) {
+        console.error("Error deleting meta_pages:", pagesError);
+      }
 
-    const { error: conversionEventsError } = await supabase
-      .from("meta_conversion_events")
-      .delete()
-      .eq("user_id", user.id);
-    
-    if (conversionEventsError) {
-      console.error("Error deleting meta_conversion_events:", conversionEventsError);
-    }
+      const { error: catalogsError } = await supabase
+        .from("meta_catalogs")
+        .delete()
+        .eq("user_id", user.id);
+      
+      if (catalogsError) {
+        console.error("Error deleting meta_catalogs:", catalogsError);
+      }
 
-    const { error: instagramError } = await supabase
-      .from("meta_instagram_accounts")
-      .delete()
-      .eq("user_id", user.id);
-    
-    if (instagramError) {
-      console.error("Error deleting meta_instagram_accounts:", instagramError);
+      const { error: productSetsError } = await supabase
+        .from("meta_product_sets")
+        .delete()
+        .eq("user_id", user.id);
+      
+      if (productSetsError) {
+        console.error("Error deleting meta_product_sets:", productSetsError);
+      }
+
+      const { error: conversionEventsError } = await supabase
+        .from("meta_conversion_events")
+        .delete()
+        .eq("user_id", user.id);
+      
+      if (conversionEventsError) {
+        console.error("Error deleting meta_conversion_events:", conversionEventsError);
+      }
+
+      const { error: instagramError } = await supabase
+        .from("meta_instagram_accounts")
+        .delete()
+        .eq("user_id", user.id);
+      
+      if (instagramError) {
+        console.error("Error deleting meta_instagram_accounts:", instagramError);
+      }
+
+      console.log("Meta-specific data purged");
+    } else if (platform.platform_type === "tiktok") {
+      // Get advertiser IDs from the platform metadata
+      const { data: platformData } = await supabase
+        .from("connected_platforms")
+        .select("metadata")
+        .eq("id", connectedPlatformId)
+        .single();
+
+      const advertiserIds = platformData?.metadata?.advertiser_ids || [];
+
+      if (advertiserIds.length > 0) {
+        // Delete TikTok ad accounts
+        const { error: adAccountsError } = await supabase
+          .from("tiktok_ad_accounts")
+          .delete()
+          .eq("user_id", user.id)
+          .in("advertiser_id", advertiserIds);
+        
+        if (adAccountsError) {
+          console.error("Error deleting tiktok_ad_accounts:", adAccountsError);
+        }
+
+        // Delete TikTok campaigns
+        const { error: campaignsError } = await supabase
+          .from("tiktok_campaigns")
+          .delete()
+          .eq("user_id", user.id)
+          .in("advertiser_id", advertiserIds);
+        
+        if (campaignsError) {
+          console.error("Error deleting tiktok_campaigns:", campaignsError);
+        }
+
+        // Delete TikTok ad groups
+        const { error: adGroupsError } = await supabase
+          .from("tiktok_ad_groups")
+          .delete()
+          .eq("user_id", user.id)
+          .in("advertiser_id", advertiserIds);
+        
+        if (adGroupsError) {
+          console.error("Error deleting tiktok_ad_groups:", adGroupsError);
+        }
+
+        // Delete TikTok creatives
+        const { error: creativesError } = await supabase
+          .from("tiktok_creatives")
+          .delete()
+          .eq("user_id", user.id)
+          .in("advertiser_id", advertiserIds);
+        
+        if (creativesError) {
+          console.error("Error deleting tiktok_creatives:", creativesError);
+        }
+
+        // Delete TikTok metrics
+        const { error: metricsError } = await supabase
+          .from("tiktok_metrics")
+          .delete()
+          .eq("user_id", user.id)
+          .in("advertiser_id", advertiserIds);
+        
+        if (metricsError) {
+          console.error("Error deleting tiktok_metrics:", metricsError);
+        }
+      }
+
+      console.log("TikTok-specific data purged");
     }
 
     // Finally delete the connected platform using service role to bypass RLS

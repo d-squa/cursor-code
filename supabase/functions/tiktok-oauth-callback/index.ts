@@ -158,30 +158,9 @@ const handler = async (req: Request): Promise<Response> => {
 
     if (insertError) throw insertError;
 
-    // Insert TikTok ad accounts
-    const adAccountInserts = accounts.map(account => ({
-      user_id: user.id,
-      account_id: account.advertiser_id,
-      account_name: account.name,
-      advertiser_id: account.advertiser_id,
-      account_status: account.status,
-      currency: account.currency,
-      timezone: account.timezone,
-      synced_at: new Date().toISOString(),
-    }));
-
-    if (adAccountInserts.length > 0) {
-      const { error: accountError } = await supabase
-        .from("tiktok_ad_accounts")
-        .insert(adAccountInserts);
-
-      if (accountError) {
-        console.error("Error inserting TikTok ad accounts:", accountError);
-      }
-    }
-
     console.log("TikTok OAuth callback completed successfully");
 
+    // Return accounts for user selection (don't auto-insert)
     return new Response(
       JSON.stringify({
         success: true,
