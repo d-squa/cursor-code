@@ -16,6 +16,7 @@ import UserManagement from "./pages/settings/UserManagement";
 import AccountSettings from "./pages/settings/AccountSettings";
 import PlanManagement from "./pages/settings/PlanManagement";
 import BillingManagement from "./pages/settings/BillingManagement";
+import PlatformConnections from "./pages/PlatformConnections";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -40,6 +41,7 @@ const App = () => (
               <Route index element={<Navigate to="/settings/users" replace />} />
               <Route path="users" element={<UserManagement />} />
               <Route path="accounts" element={<ManageClientAccounts />} />
+              <Route path="platforms" element={<PlatformConnections />} />
               <Route path="teams" element={<Teams />} />
               <Route path="account" element={<AccountSettings />} />
               <Route path="plans" element={<PlanManagement />} />

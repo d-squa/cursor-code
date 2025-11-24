@@ -10,7 +10,8 @@ import {
   CreditCard, 
   Receipt,
   ArrowLeft,
-  Loader2
+  Loader2,
+  Plug
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -26,6 +27,12 @@ const settingsMenuItems = [
     href: "/settings/teams",
     icon: Users,
     description: "Add and manage team members"
+  },
+  {
+    title: "Platform Connections",
+    href: "/settings/platforms",
+    icon: Plug,
+    description: "Connect and authenticate advertising platforms"
   },
   {
     title: "Manage Client Accounts",
