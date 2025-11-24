@@ -10,7 +10,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import ClientForm from "@/components/ClientForm";
 import ClientPlatformAccounts from "@/components/ClientPlatformAccounts";
-import AdAccountSelectionDialog from "@/components/AdAccountSelectionDialog";
 
 interface Client {
   id: string;
@@ -40,9 +39,6 @@ export default function ManageClientAccounts() {
   const [metaAdAccounts, setMetaAdAccounts] = useState<MetaAdAccount[]>([]);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("details");
-  const [accountSelectionOpen, setAccountSelectionOpen] = useState(false);
-  const [availableAccounts, setAvailableAccounts] = useState<any[]>([]);
-  const processingOAuthRef = useRef(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -64,80 +60,6 @@ export default function ManageClientAccounts() {
       setActiveTab("accounts");
     }
   }, []);
-
-  // Handle OAuth callback from Meta
-  useEffect(() => {
-    const handleOAuthCallback = async () => {
-      const urlParams = new URLSearchParams(window.location.search);
-      const code = urlParams.get("code");
-      const state = urlParams.get("state");
-
-      if (code && state && !processingOAuthRef.current && user) {
-        processingOAuthRef.current = true;
-        
-        // Clear URL immediately to prevent reuse
-        window.history.replaceState({}, document.title, window.location.pathname);
-
-        try {
-          const stateData = JSON.parse(state);
-          const redirectUri = stateData.returnUrl || `${window.location.origin}/settings/accounts`;
-
-          console.log("Processing OAuth callback with code:", code.substring(0, 10) + "...");
-
-          const { data, error } = await supabase.functions.invoke("meta-oauth-callback", {
-            body: {
-              code,
-              platformType: "meta",
-              redirectUri,
-            },
-          });
-
-          if (error) throw error;
-
-          if (data?.error) {
-            throw new Error(data.error);
-          }
-
-          // Show account selection dialog
-          if (data?.adAccounts && data.adAccounts.length > 0) {
-            toast.success("Successfully connected to Meta!");
-            setAvailableAccounts(data.adAccounts);
-            setAccountSelectionOpen(true);
-            setActiveTab("accounts");
-            window.history.replaceState({}, document.title, "/settings/accounts?tab=accounts");
-          } else {
-            throw new Error("No ad accounts found");
-          }
-        } catch (error: any) {
-          console.error("OAuth callback error:", error);
-          toast.error(error.message || "Failed to complete authentication");
-        } finally {
-          processingOAuthRef.current = false;
-        }
-      }
-    };
-
-    if (user) {
-      handleOAuthCallback();
-    }
-  }, [user, selectedClient]);
-
-  const handleSyncSelectedAccounts = async (selectedIds: string[]) => {
-    try {
-      const { error } = await supabase.functions.invoke("sync-selected-accounts", {
-        body: { selectedAccountIds: selectedIds }
-      });
-
-      if (error) throw error;
-
-      toast.success("Selected ad accounts synced successfully!");
-      setAccountSelectionOpen(false);
-      await loadData();
-    } catch (error: any) {
-      console.error("Sync error:", error);
-      toast.error(error.message || "Failed to sync selected accounts");
-    }
-  };
 
   const loadData = async () => {
     try {
@@ -317,13 +239,6 @@ export default function ManageClientAccounts() {
         </DialogContent>
       </Dialog>
 
-      {/* Ad Account Selection Dialog */}
-      <AdAccountSelectionDialog
-        open={accountSelectionOpen}
-        onOpenChange={setAccountSelectionOpen}
-        accounts={availableAccounts}
-        onConfirm={handleSyncSelectedAccounts}
-      />
     </div>
   );
 }

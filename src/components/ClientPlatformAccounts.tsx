@@ -1,13 +1,11 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { ChevronDown, ChevronRight, Plus, Trash2, Facebook, Loader2 } from "lucide-react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PLATFORM_CONFIG } from "@/config/platforms";
+import { ChevronDown, ChevronRight, Plus, Trash2, Facebook } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import AccountDefaultsTab from "@/components/AccountDefaultsTab";
 
 interface MetaAdAccount {
@@ -36,11 +34,8 @@ export default function ClientPlatformAccounts({
   metaAdAccounts, 
   onRefresh 
 }: ClientPlatformAccountsProps) {
+  const navigate = useNavigate();
   const [expandedPlatforms, setExpandedPlatforms] = useState<Set<string>>(new Set(["meta"]));
-  const [addAccountDialogOpen, setAddAccountDialogOpen] = useState(false);
-  const [selectedPlatform, setSelectedPlatform] = useState<string>("");
-  const [syncing, setSyncing] = useState(false);
-  const processingOAuthRef = useRef(false);
 
   const togglePlatform = (platformId: string) => {
     const newExpanded = new Set(expandedPlatforms);
@@ -107,62 +102,8 @@ export default function ClientPlatformAccounts({
     }
   };
 
-  const handleAddAccount = async () => {
-    if (!selectedPlatform) {
-      toast.error("Please select a platform");
-      return;
-    }
-
-    if (selectedPlatform === "meta") {
-      handleConnectMeta();
-    } else {
-      toast.error("This platform is not yet supported");
-    }
-  };
-
-  const handleConnectMeta = async () => {
-    if (processingOAuthRef.current) {
-      console.log("OAuth already in progress, skipping...");
-      return;
-    }
-
-    try {
-      processingOAuthRef.current = true;
-      setSyncing(true);
-
-      const redirectUri = `${window.location.origin}/settings/accounts`;
-      const clientId = PLATFORM_CONFIG.meta.appId;
-
-      console.log("=== Meta OAuth Flow Starting ===");
-      console.log("Redirect URI:", redirectUri);
-      console.log("Client ID:", clientId);
-
-      if (!clientId) {
-        toast.error("Meta App ID not configured. Please contact support.");
-        return;
-      }
-
-      const state = JSON.stringify({ 
-        clientId,
-        returnUrl: redirectUri 
-      });
-
-      console.log("State object:", state);
-
-      const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?` +
-        `client_id=${clientId}` +
-        `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-        `&state=${encodeURIComponent(state)}` +
-        `&scope=ads_management,ads_read,business_management,pages_read_engagement,instagram_basic`;
-
-      console.log("Redirecting to:", authUrl);
-      window.location.href = authUrl;
-    } catch (error: any) {
-      console.error("Error connecting to Meta:", error);
-      toast.error("Failed to start Meta authentication");
-      processingOAuthRef.current = false;
-      setSyncing(false);
-    }
+  const handleGoToPlatformConnections = () => {
+    navigate("/settings/platforms");
   };
 
   return (
@@ -170,9 +111,9 @@ export default function ClientPlatformAccounts({
       {/* Add Account Button */}
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-semibold">Platform Accounts</h3>
-        <Button onClick={() => setAddAccountDialogOpen(true)} size="sm">
+        <Button onClick={handleGoToPlatformConnections} size="sm" variant="outline">
           <Plus className="h-4 w-4 mr-2" />
-          Add Account
+          Connect More Accounts
         </Button>
       </div>
 
@@ -317,7 +258,10 @@ export default function ClientPlatformAccounts({
                 {/* No Accounts Message */}
                 {linkedAccounts.length === 0 && availableAccounts.length === 0 && (
                   <div className="p-6 text-center text-muted-foreground">
-                    No ad accounts synced yet. Click "Add Account" to authenticate.
+                    <p className="mb-3">No ad accounts synced yet.</p>
+                    <Button onClick={handleGoToPlatformConnections} variant="outline" size="sm">
+                      Go to Platform Connections
+                    </Button>
                   </div>
                 )}
               </div>
@@ -331,52 +275,6 @@ export default function ClientPlatformAccounts({
         <h3 className="text-lg font-semibold mb-4">Account Defaults</h3>
         <AccountDefaultsTab clientId={clientId} userId={userId} />
       </div>
-
-      {/* Add Account Dialog */}
-      <Dialog open={addAccountDialogOpen} onOpenChange={setAddAccountDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add Platform Account</DialogTitle>
-            <DialogDescription>
-              Select a platform to authenticate and sync ad accounts
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium mb-2 block">Platform</label>
-              <Select value={selectedPlatform} onValueChange={setSelectedPlatform}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a platform..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {PLATFORM_TYPES.map((platform) => (
-                    <SelectItem key={platform.id} value={platform.id}>
-                      {platform.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <Button
-              onClick={handleAddAccount}
-              disabled={!selectedPlatform || syncing}
-              className="w-full"
-            >
-              {syncing ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Authenticating...
-                </>
-              ) : (
-                <>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Authenticate & Sync
-                </>
-              )}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

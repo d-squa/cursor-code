@@ -165,62 +165,20 @@ export default function PlatformConnections() {
     
     setSelectingAccount(true);
     try {
-      // Find the most recently connected Meta platform
-      const metaPlatform = platforms.find((p) => p.platform_type === "meta");
-      if (!metaPlatform) {
-        toast.error("No Meta platform connection found.");
-        return;
-      }
-
-      // Avoid duplicates by checking existing linked accounts
-      const { data: existing, error: existingErr } = await supabase
-        .from("platform_accounts")
-        .select("account_id")
-        .eq("connected_platform_id", metaPlatform.id);
-
-      if (existingErr) throw existingErr;
-
-      const existingIds = new Set((existing || []).map((e: any) => e.account_id));
-      const toInsert = accounts
-        .filter((a) => !existingIds.has(a.id))
-        .map((a) => ({
-          connected_platform_id: metaPlatform.id,
-          account_type: "ad_account",
-          account_id: a.id,
-          account_name: a.name,
-        }));
-
-      if (toInsert.length > 0) {
-        const { error: insertErr } = await supabase.from("platform_accounts").insert(toInsert);
-        if (insertErr) throw insertErr;
-      }
-
-      toast.success("Linking accounts and syncing Meta resources...");
-
-      // Include auth token so the backend can identify the user
-      const session = await supabase.auth.getSession();
-      const accessToken = session.data.session?.access_token;
-
-      const { error: syncError } = await supabase.functions.invoke("sync-meta-resources", {
-        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+      const selectedIds = accounts.map(a => a.id);
+      const { error } = await supabase.functions.invoke("sync-selected-accounts", {
+        body: { selectedAccountIds: selectedIds }
       });
-      
-      if (syncError) {
-        console.error("Sync error:", syncError);
-        toast.error("Some resources failed to sync. You can retry later.");
-      } else {
-        toast.success("Sync complete! You can now set default resources per account.");
-        // Open the defaults manager after successful sync
-        setSelectedPlatformForDefaults(metaPlatform.id);
-        setDefaultsManagerOpen(true);
-      }
-      
+
+      if (error) throw error;
+
+      toast.success("Selected ad accounts synced successfully!");
       setAccountSelectorOpen(false);
       setAdAccountOptions([]);
       await fetchConnectedPlatforms();
-    } catch (e: any) {
-      console.error("Failed to link/sync:", e);
-      toast.error(e?.message || "Failed to link accounts or sync resources");
+    } catch (error: any) {
+      console.error("Sync error:", error);
+      toast.error(error.message || "Failed to sync selected accounts");
     } finally {
       setSelectingAccount(false);
     }
@@ -246,11 +204,13 @@ export default function PlatformConnections() {
 
           if (error) throw error;
 
-          toast.success("Platform connected! Confirm to sync all Meta resources.");
+          toast.success("Platform connected! Select which ad accounts to sync.");
 
           if (Array.isArray(data?.adAccounts) && data.adAccounts.length > 0) {
             setAdAccountOptions(data.adAccounts);
             setAccountSelectorOpen(true);
+          } else {
+            toast.error("No ad accounts found");
           }
 
           await fetchConnectedPlatforms();
