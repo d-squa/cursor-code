@@ -822,25 +822,29 @@ export function PlatformMarketBudgetSelector({
                                        console.log('🔄 Ad account selected:', value);
                                        const account = adAccounts.find(a => a.id === value);
                                        const defaults = adAccountDefaults[value];
-                                       console.log('Ad account defaults:', defaults);
+                                       console.log('📋 Ad account defaults found:', defaults);
                                        
                                        // Batch all updates including defaults and auto-create markets
                                        setPlatforms(prev =>
                                          prev.map((p, i) => {
                                            if (i !== platformIndex) return p;
                                            
-                                           // Find existing market or create new one
-                                           const existingMarket = p.markets.find(m => m.id === market.id);
-                                           
                                            // If the ad account has assigned markets, create markets for each
                                            const assignedMarkets = defaults?.mainMarkets || [];
-                                           console.log('📍 Assigned markets from defaults:', assignedMarkets);
+                                           console.log('📍 Assigned markets from defaults:', assignedMarkets, 'Length:', assignedMarkets.length);
                                            
                                            if (assignedMarkets.length > 0) {
                                              // Create a market for each assigned market
                                              const marketBudgetSplit = 100 / assignedMarkets.length;
                                              const newMarkets = assignedMarkets.map((marketCode: string, idx: number) => {
-                                               const marketName = MARKET_OPTIONS.find(m => m.value === marketCode)?.label || marketCode;
+                                               const marketOption = MARKET_OPTIONS.find(m => m.value === marketCode);
+                                               
+                                               console.log(`✨ Creating market ${idx + 1}/${assignedMarkets.length}: ${marketCode}`, {
+                                                 pixelId: defaults?.pixelId,
+                                                 pageId: defaults?.pageId,
+                                                 catalog: defaults?.catalog,
+                                                 productSet: defaults?.productSet
+                                               });
                                                
                                                return {
                                                  id: `${marketCode}-${Date.now()}-${idx}`,
@@ -857,15 +861,25 @@ export function PlatformMarketBudgetSelector({
                                                  conversionEvent: defaults?.conversionEvent || "",
                                                  phases: [],
                                                  adFormats: [],
+                                                 countries: [marketCode],
+                                                 ageMin: 18,
+                                                 ageMax: 65,
+                                                 gender: "all",
+                                                 languages: [],
+                                                 publisherPlatforms: ["facebook"],
+                                                 positions: {},
+                                                 detailedTargeting: [],
+                                                 isCBOEnabled: false,
+                                                 isLifetimeBudget: false,
                                                };
                                              });
                                              
-                                             console.log('✨ Auto-created markets:', newMarkets);
+                                             console.log('✅ Created markets:', newMarkets.map(m => ({ name: m.name, pixel: m.pixel, page: m.page, catalog: m.catalog })));
                                              
                                              // Remove the temporary market and add the new ones
                                              const filteredMarkets = p.markets.filter(m => m.id !== market.id);
                                              
-                                             toast.success(`Auto-created ${newMarkets.length} market(s) from ad account: ${assignedMarkets.join(', ')}`);
+                                             toast.success(`Created ${newMarkets.length} market(s) with defaults: ${assignedMarkets.join(', ')}`);
                                              
                                              return {
                                                ...p,
@@ -873,7 +887,7 @@ export function PlatformMarketBudgetSelector({
                                              };
                                            } else {
                                              console.log('⚠️ No assigned markets found for this ad account');
-                                             toast.info(`Ad account selected. Configure markets in Account Defaults to enable auto-population.`);
+                                             toast.warning(`No markets assigned to this ad account. Configure in Account Defaults.`);
                                              
                                              // No assigned markets, just update the current market with defaults
                                              return {
@@ -888,7 +902,7 @@ export function PlatformMarketBudgetSelector({
                                                    
                                                    // Apply defaults if available
                                                    if (defaults) {
-                                                     console.log("Applying defaults for ad account:", value, defaults);
+                                                     console.log("Applying defaults to current market:", value, defaults);
                                                      
                                                      if (defaults.pixelId) updated.pixel = defaults.pixelId;
                                                      if (defaults.pageId) {
