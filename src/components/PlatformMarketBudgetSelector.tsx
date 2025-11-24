@@ -812,10 +812,16 @@ export function PlatformMarketBudgetSelector({
                             {/* Platform Configuration Fields - Only for Meta */}
                             {platform.name.toLowerCase().includes("meta") && (
                               <div className="grid grid-cols-2 gap-2">
-                                <div className="space-y-1">
-                                  <Label className="text-xs">
-                                    Ad Account {needsConversionEvent(market) && <span className="text-destructive">*</span>}
-                                  </Label>
+                                 <div className="space-y-1">
+                                   <Label className="text-xs">
+                                     Ad Account {needsConversionEvent(market) && <span className="text-destructive">*</span>}
+                                   </Label>
+                                   {/* Debug: Show defaults */}
+                                   {market.adAccountId && adAccountDefaults[market.adAccountId] && (
+                                     <div className="text-xs text-muted-foreground mb-1">
+                                       Defaults: {adAccountDefaults[market.adAccountId].mainMarkets?.join(', ') || 'None'}
+                                     </div>
+                                   )}
                                    <Select
                                     value={market.adAccountId || ""}
                                      onValueChange={(value) => {
