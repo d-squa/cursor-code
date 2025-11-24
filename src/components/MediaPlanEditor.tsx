@@ -105,12 +105,24 @@ export function MediaPlanEditor() {
     }
   }, [user]);
 
-  // Auto-populate when client is selected
+  // Auto-populate when client is selected (and required fields are filled)
   useEffect(() => {
-    if (selectedClientId && totalBudget && startDate && endDate) {
+    console.log('🔍 Client selection effect triggered', {
+      selectedClientId,
+      hasBudget: !!totalBudget,
+      hasStartDate: !!startDate,
+      hasEndDate: !!endDate,
+      isHydrated
+    });
+    
+    if (selectedClientId && totalBudget && startDate && endDate && isHydrated) {
+      console.log('✅ All conditions met, auto-populating from client...');
       autoPopulateFromClient();
+    } else if (selectedClientId && (!totalBudget || !startDate || !endDate)) {
+      console.log('⚠️ Client selected but missing required fields');
+      toast.error("Please fill in budget, start date, and end date first");
     }
-  }, [selectedClientId]);
+  }, [selectedClientId, totalBudget, startDate, endDate, isHydrated]);
 
   const autoPopulateFromClient = async () => {
     const selectedClient = clients.find(c => c.id === selectedClientId);
@@ -166,7 +178,7 @@ export function MediaPlanEditor() {
       return sum + (budgetAllocations[platformId] || 0);
     }, 0);
 
-    // Create platforms with proportional budgets
+    // Create platforms with proportional budgets and one temporary market
     const newPlatforms: PlatformWithMarkets[] = selectedPlatformIds.map((platformId: string) => {
       const platformName = platformId === 'meta' ? 'Meta' : 
                            platformId === 'google' ? 'Google Ads' :
@@ -181,14 +193,29 @@ export function MediaPlanEditor() {
         name: platformName,
         budgetPercentage: Math.round(normalizedPercentage * 10) / 10,
         enabled: true,
-        markets: [],
+        markets: [{
+          id: `temp-market-${platformId}-${Date.now()}`,
+          name: clientMarkets[0] || 'US',
+          budgetPercentage: 100,
+          phases: [],
+          countries: [clientMarkets[0] || 'US'],
+          ageMin: 18,
+          ageMax: 65,
+          gender: "all",
+          languages: [],
+          publisherPlatforms: ["facebook"],
+          positions: {},
+          detailedTargeting: [],
+          isCBOEnabled: false,
+          isLifetimeBudget: false,
+        }],
       };
     });
 
     console.log('Created platforms:', newPlatforms);
 
     setPlatformsWithMarkets(newPlatforms);
-    toast.success(`Auto-populated ${newPlatforms.length} platform(s) from ${selectedClient.name}`);
+    toast.success(`Auto-populated ${newPlatforms.length} platform(s) from ${selectedClient.name}. Now select an ad account for each platform to auto-create markets.`);
   };
   
   // Basic targeting (Step 2)

@@ -814,11 +814,13 @@ export function PlatformMarketBudgetSelector({
                                   <Label className="text-xs">
                                     Ad Account {needsConversionEvent(market) && <span className="text-destructive">*</span>}
                                   </Label>
-                                  <Select
+                                   <Select
                                     value={market.adAccountId || ""}
                                      onValueChange={(value) => {
+                                       console.log('🔄 Ad account selected:', value);
                                        const account = adAccounts.find(a => a.id === value);
                                        const defaults = adAccountDefaults[value];
+                                       console.log('Ad account defaults:', defaults);
                                        
                                        // Batch all updates including defaults and auto-create markets
                                        setPlatforms(prev =>
@@ -830,6 +832,7 @@ export function PlatformMarketBudgetSelector({
                                            
                                            // If the ad account has assigned markets, create markets for each
                                            const assignedMarkets = defaults?.mainMarkets || [];
+                                           console.log('📍 Assigned markets from defaults:', assignedMarkets);
                                            
                                            if (assignedMarkets.length > 0) {
                                              // Create a market for each assigned market
@@ -855,16 +858,21 @@ export function PlatformMarketBudgetSelector({
                                                };
                                              });
                                              
+                                             console.log('✨ Auto-created markets:', newMarkets);
+                                             
                                              // Remove the temporary market and add the new ones
                                              const filteredMarkets = p.markets.filter(m => m.id !== market.id);
                                              
-                                             toast.success(`Created ${newMarkets.length} market(s) for ${account?.name || 'ad account'}`);
+                                             toast.success(`Auto-created ${newMarkets.length} market(s) from ad account: ${assignedMarkets.join(', ')}`);
                                              
                                              return {
                                                ...p,
                                                markets: [...filteredMarkets, ...newMarkets],
                                              };
                                            } else {
+                                             console.log('⚠️ No assigned markets found for this ad account');
+                                             toast.info(`Ad account selected. Configure markets in Account Defaults to enable auto-population.`);
+                                             
                                              // No assigned markets, just update the current market with defaults
                                              return {
                                                ...p,
@@ -906,7 +914,7 @@ export function PlatformMarketBudgetSelector({
                                          })
                                        );
                                      }}
-                                  >
+                                   >
                                     <SelectTrigger className="h-7 text-xs">
                                       <SelectValue placeholder={loadingAdAccounts ? "Loading..." : "Select Ad Account"} />
                                     </SelectTrigger>
