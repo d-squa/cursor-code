@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2, CheckCircle2, AlertCircle, Facebook, Link2, Unlink } from "lucide-react";
+import { Loader2, Plus, Trash2, CheckCircle2, AlertCircle, Facebook, Link2, Unlink, Video } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { PLATFORM_CONFIG } from "@/config/platforms";
@@ -13,6 +13,18 @@ import PlatformAdAccountSelector from "@/components/PlatformAdAccountSelector";
 import ClientSelectionDialog from "@/components/ClientSelectionDialog";
 
 interface MetaAdAccount {
+  id: string;
+  account_id: string;
+  account_name: string;
+  account_status: string | null;
+  client_id: string | null;
+  clients?: {
+    id: string;
+    name: string;
+  } | null;
+}
+
+interface TikTokAdAccount {
   id: string;
   account_id: string;
   account_name: string;
@@ -36,7 +48,7 @@ interface ConnectedPlatform {
 
 const PLATFORM_TYPES = [
   { id: "meta", name: "Meta (Facebook & Instagram)", icon: Facebook, color: "bg-blue-600" },
-  { id: "tiktok", name: "TikTok Ads", icon: Plus, color: "bg-black" },
+  { id: "tiktok", name: "TikTok Ads", icon: Video, color: "bg-black" },
 ];
 
 export default function PlatformConnections() {
@@ -44,6 +56,7 @@ export default function PlatformConnections() {
   const navigate = useNavigate();
   const [platforms, setPlatforms] = useState<ConnectedPlatform[]>([]);
   const [metaAdAccounts, setMetaAdAccounts] = useState<MetaAdAccount[]>([]);
+  const [tiktokAdAccounts, setTikTokAdAccounts] = useState<TikTokAdAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [adAccountOptions, setAdAccountOptions] = useState<{ id: string; name: string }[]>([]);
@@ -68,7 +81,7 @@ export default function PlatformConnections() {
 
   const fetchConnectedPlatforms = async () => {
     try {
-      const [platformsRes, accountsRes] = await Promise.all([
+      const [platformsRes, metaAccountsRes, tiktokAccountsRes] = await Promise.all([
         supabase
           .from("connected_platforms_safe")
           .select("*")
@@ -77,14 +90,20 @@ export default function PlatformConnections() {
         supabase
           .from("meta_ad_accounts")
           .select("id, account_id, account_name, account_status, client_id, clients(id, name)")
+          .order("account_name"),
+        supabase
+          .from("tiktok_ad_accounts")
+          .select("id, account_id, account_name, account_status, client_id, clients(id, name)")
           .order("account_name")
       ]);
 
       if (platformsRes.error) throw platformsRes.error;
-      if (accountsRes.error) throw accountsRes.error;
+      if (metaAccountsRes.error) throw metaAccountsRes.error;
+      if (tiktokAccountsRes.error) throw tiktokAccountsRes.error;
 
       setPlatforms(platformsRes.data || []);
-      setMetaAdAccounts(accountsRes.data || []);
+      setMetaAdAccounts(metaAccountsRes.data || []);
+      setTikTokAdAccounts(tiktokAccountsRes.data || []);
     } catch (error: any) {
       console.error("Error fetching data:", error);
       toast.error("Failed to load data");
@@ -250,8 +269,9 @@ export default function PlatformConnections() {
     if (!selectedAdAccountForLinking) return;
 
     try {
+      const table = selectedAdAccountForLinking.startsWith('tiktok_') ? 'tiktok_ad_accounts' : 'meta_ad_accounts';
       const { error } = await supabase
-        .from("meta_ad_accounts")
+        .from(table)
         .update({ client_id: clientId })
         .eq("id", selectedAdAccountForLinking);
 
@@ -266,10 +286,11 @@ export default function PlatformConnections() {
     }
   };
 
-  const handleUnlinkAccount = async (accountId: string) => {
+  const handleUnlinkAccount = async (accountId: string, platform: 'meta' | 'tiktok' = 'meta') => {
     try {
+      const table = platform === 'tiktok' ? 'tiktok_ad_accounts' : 'meta_ad_accounts';
       const { error } = await supabase
-        .from("meta_ad_accounts")
+        .from(table)
         .update({ client_id: null })
         .eq("id", accountId);
 
@@ -283,12 +304,13 @@ export default function PlatformConnections() {
     }
   };
 
-  const handleDeleteAccount = async (accountId: string) => {
+  const handleDeleteAccount = async (accountId: string, platform: 'meta' | 'tiktok' = 'meta') => {
     if (!confirm("Are you sure you want to delete this ad account? This action cannot be undone.")) return;
 
     try {
+      const table = platform === 'tiktok' ? 'tiktok_ad_accounts' : 'meta_ad_accounts';
       const { error } = await supabase
-        .from("meta_ad_accounts")
+        .from(table)
         .delete()
         .eq("id", accountId);
 
@@ -335,8 +357,16 @@ export default function PlatformConnections() {
             toast.success(`${platformType === 'tiktok' ? 'TikTok' : 'Platform'} connected successfully!`);
           }
 
+          // Open account selector if accounts are returned
           if (Array.isArray(data?.accounts) && data.accounts.length > 0) {
-            toast.success(`Found ${data.accounts.length} advertiser account(s)`);
+            const accountOptions = data.accounts.map((acc: any) => ({
+              id: acc.advertiser_id || acc.id,
+              name: acc.name
+            }));
+            setAdAccountOptions(accountOptions);
+            setCurrentPlatformId(data.platformId);
+            setAccountSelectorOpen(true);
+            toast.success(`Found ${data.accounts.length} advertiser account(s) - please select which to sync`);
           }
 
           await fetchConnectedPlatforms();
@@ -400,8 +430,8 @@ export default function PlatformConnections() {
                     <Facebook className="h-4 w-4 mr-2" />
                     Connect Meta
                   </Button>
-                  <Button onClick={() => handleConnectPlatform("tiktok", false)} variant="outline">
-                    <Plus className="h-4 w-4 mr-2" />
+                  <Button onClick={() => handleConnectPlatform("tiktok", false)} variant="outline" className="border-black/20 dark:border-white/20">
+                    <Video className="h-4 w-4 mr-2" />
                     Connect TikTok
                   </Button>
                 </div>
@@ -410,14 +440,25 @@ export default function PlatformConnections() {
             <div className="space-y-3">
               {platforms.map((platform) => {
                 const businessName = platform.metadata?.businesses?.[0]?.name;
+                const advertiserIds = platform.metadata?.advertiser_ids;
+                const isTikTok = platform.platform_type === 'tiktok';
+                const Icon = isTikTok ? Video : Facebook;
+                const iconColor = isTikTok ? 'text-black dark:text-white' : 'text-blue-600';
+                const bgColor = isTikTok ? 'bg-black/5 dark:bg-white/5' : '';
+                
                 return (
-                  <div key={platform.id} className="flex items-center justify-between p-4 rounded-lg border">
+                  <div key={platform.id} className={`flex items-center justify-between p-4 rounded-lg border ${bgColor}`}>
                     <div className="flex items-center gap-3">
-                      <Facebook className="h-5 w-5 text-blue-600" />
+                      <Icon className={`h-5 w-5 ${iconColor}`} />
                       <div>
                         <p className="font-medium">{platform.platform_name}</p>
                         {businessName && (
                           <p className="text-sm text-muted-foreground">Business: {businessName}</p>
+                        )}
+                        {isTikTok && advertiserIds && advertiserIds.length > 0 && (
+                          <p className="text-sm text-muted-foreground">
+                            {advertiserIds.length} advertiser account{advertiserIds.length !== 1 ? 's' : ''}
+                          </p>
                         )}
                         <p className="text-xs text-muted-foreground">
                           Connected {new Date(platform.created_at).toLocaleDateString()}
@@ -428,7 +469,7 @@ export default function PlatformConnections() {
                       <Button 
                         variant="outline" 
                         size="sm" 
-                        onClick={() => handleConnectPlatform("meta", false, platform.id)}
+                        onClick={() => handleConnectPlatform(platform.platform_type, false, platform.id)}
                       >
                         <CheckCircle2 className="h-4 w-4 mr-2" />
                         Reconnect
@@ -447,11 +488,11 @@ export default function PlatformConnections() {
               })}
               <div className="pt-4 border-t flex gap-3">
                 <Button onClick={() => handleConnectPlatform("meta", false)}>
-                  <Plus className="h-4 w-4 mr-2" />
+                  <Facebook className="h-4 w-4 mr-2" />
                   Connect Another Meta Account
                 </Button>
-                <Button onClick={() => handleConnectPlatform("tiktok", false)} variant="outline">
-                  <Plus className="h-4 w-4 mr-2" />
+                <Button onClick={() => handleConnectPlatform("tiktok", false)} variant="outline" className="border-black/20 dark:border-white/20">
+                  <Video className="h-4 w-4 mr-2" />
                   Connect TikTok Account
                 </Button>
               </div>
@@ -460,17 +501,20 @@ export default function PlatformConnections() {
           </CardContent>
         </Card>
 
-        {/* Synced Ad Accounts */}
+        {/* Synced Meta Ad Accounts */}
         <Card>
           <CardHeader>
-            <CardTitle>Synced Ad Accounts</CardTitle>
-            <CardDescription>Manage ad accounts, link to clients, and configure settings</CardDescription>
+            <CardTitle className="flex items-center gap-2">
+              <Facebook className="h-5 w-5 text-blue-600" />
+              Meta Ad Accounts
+            </CardTitle>
+            <CardDescription>Manage Meta ad accounts, link to clients, and configure settings</CardDescription>
           </CardHeader>
           <CardContent>
             {metaAdAccounts.length === 0 ? (
               <div className="text-center py-8">
                 <p className="text-muted-foreground">
-                  No ad accounts synced yet. Connect a platform to get started.
+                  No Meta ad accounts synced yet. Connect a Meta platform to get started.
                 </p>
               </div>
             ) : (
@@ -497,7 +541,7 @@ export default function PlatformConnections() {
                         <Button 
                           variant="outline" 
                           size="sm"
-                          onClick={() => handleUnlinkAccount(account.id)}
+                          onClick={() => handleUnlinkAccount(account.id, 'meta')}
                         >
                           <Unlink className="h-4 w-4 mr-2" />
                           Unlink
@@ -518,7 +562,81 @@ export default function PlatformConnections() {
                       <Button 
                         variant="destructive" 
                         size="sm"
-                        onClick={() => handleDeleteAccount(account.id)}
+                        onClick={() => handleDeleteAccount(account.id, 'meta')}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Synced TikTok Ad Accounts */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Video className="h-5 w-5 text-black dark:text-white" />
+              TikTok Ad Accounts
+            </CardTitle>
+            <CardDescription>Manage TikTok advertiser accounts, link to clients, and configure settings</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {tiktokAdAccounts.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">
+                  No TikTok ad accounts synced yet. Connect a TikTok platform to get started.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {tiktokAdAccounts.map((account) => (
+                  <div key={account.id} className="flex items-center justify-between p-4 rounded-lg border bg-black/5 dark:bg-white/5">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium">{account.account_name}</p>
+                        <Badge variant="outline" className="border-black/20 dark:border-white/20">{account.account_id}</Badge>
+                        {account.client_id && account.clients && (
+                          <Badge variant="secondary">
+                            <Link2 className="h-3 w-3 mr-1" />
+                            {account.clients.name}
+                          </Badge>
+                        )}
+                      </div>
+                      {account.account_status && (
+                        <p className="text-sm text-muted-foreground">Status: {account.account_status}</p>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      {account.client_id ? (
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleUnlinkAccount(account.id, 'tiktok')}
+                          className="border-black/20 dark:border-white/20"
+                        >
+                          <Unlink className="h-4 w-4 mr-2" />
+                          Unlink
+                        </Button>
+                      ) : (
+                        <Button 
+                          variant="default" 
+                          size="sm"
+                          onClick={() => {
+                            setSelectedAdAccountForLinking('tiktok_' + account.id);
+                            setClientSelectorOpen(true);
+                          }}
+                        >
+                          <Link2 className="h-4 w-4 mr-2" />
+                          Link to Client
+                        </Button>
+                      )}
+                      <Button 
+                        variant="destructive" 
+                        size="sm"
+                        onClick={() => handleDeleteAccount(account.id, 'tiktok')}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -536,6 +654,7 @@ export default function PlatformConnections() {
           adAccounts={adAccountOptions}
           onSelect={handleSaveAdAccounts}
           loading={selectingAccount}
+          platformType={platforms.find(p => p.id === currentPlatformId)?.platform_type || 'meta'}
         />
 
         {user && (

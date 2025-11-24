@@ -15,10 +15,14 @@ interface Props {
   adAccounts: AdAccount[];
   onSelect: (accounts: AdAccount[]) => void;
   loading?: boolean;
+  platformType?: string;
 }
 
-export default function PlatformAdAccountSelector({ open, onOpenChange, adAccounts, onSelect, loading }: Props) {
+export default function PlatformAdAccountSelector({ open, onOpenChange, adAccounts, onSelect, loading, platformType = 'meta' }: Props) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const platformName = platformType === 'tiktok' ? 'TikTok' : 'Meta';
+  const accountLabel = platformType === 'tiktok' ? 'advertiser account' : 'ad account';
 
   // When dialog opens or accounts change, default to selecting all for convenience
   useEffect(() => {
@@ -57,9 +61,9 @@ export default function PlatformAdAccountSelector({ open, onOpenChange, adAccoun
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Select Meta Ad Accounts</DialogTitle>
+          <DialogTitle>Select {platformName} {accountLabel === 'ad account' ? 'Ad Accounts' : 'Advertiser Accounts'}</DialogTitle>
           <DialogDescription>
-            We found {adAccounts.length} ad account{adAccounts.length !== 1 ? "s" : ""}. Choose which ones to sync. Selected: {selectedAccounts.length}
+            We found {adAccounts.length} {accountLabel}{adAccounts.length !== 1 ? "s" : ""}. Choose which ones to sync. Selected: {selectedAccounts.length}
           </DialogDescription>
         </DialogHeader>
 
