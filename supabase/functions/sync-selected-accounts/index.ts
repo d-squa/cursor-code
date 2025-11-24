@@ -41,22 +41,87 @@ serve(async (req) => {
 
     console.log(`Syncing ${selectedAccountIds.length} selected accounts for user ${user.id} from platform ${platformId}`);
 
-    // Get the specific Meta platform connection
-    const { data: metaPlatform, error: platformError } = await supabase
+    // Get the platform connection
+    const { data: platform, error: platformError } = await supabase
       .from("connected_platforms")
-      .select("id, access_token")
+      .select("id, platform_type, access_token, metadata")
       .eq("id", platformId)
       .eq("user_id", user.id)
-      .eq("platform_type", "meta")
       .eq("is_active", true)
       .single();
 
-    if (platformError || !metaPlatform) {
+    if (platformError || !platform) {
       console.error("Platform lookup error:", platformError);
       throw new Error("Platform connection not found or inactive");
     }
 
-    const accessToken = metaPlatform.access_token;
+    console.log(`Platform type: ${platform.platform_type}`);
+
+    if (platform.platform_type === "tiktok") {
+      // Handle TikTok account syncing
+      const accountsToInsert: any[] = [];
+      const advertiserIds = platform.metadata?.advertiser_ids || [];
+      const accountsInfo = platform.metadata?.accounts || [];
+
+      // Filter selected accounts
+      const selectedAccounts = accountsInfo.filter((acc: any) => 
+        selectedAccountIds.includes(acc.advertiser_id)
+      );
+
+      if (selectedAccounts.length === 0) {
+        throw new Error("No matching TikTok accounts found");
+      }
+
+      // Prepare TikTok ad accounts for insertion
+      selectedAccounts.forEach((account: any) => {
+        accountsToInsert.push({
+          user_id: user.id,
+          account_id: account.advertiser_id,
+          account_name: account.name,
+          advertiser_id: account.advertiser_id,
+          account_status: account.status,
+          currency: account.currency,
+          timezone: account.timezone,
+          synced_at: new Date().toISOString(),
+        });
+      });
+
+      // Delete existing TikTok accounts that we're about to sync (to update them)
+      await supabase
+        .from("tiktok_ad_accounts")
+        .delete()
+        .eq("user_id", user.id)
+        .in("advertiser_id", selectedAccountIds);
+      
+      const { error: insertError } = await supabase
+        .from("tiktok_ad_accounts")
+        .insert(accountsToInsert);
+      
+      if (insertError) {
+        console.error("TikTok insert error:", insertError);
+        throw new Error("Failed to save selected TikTok accounts");
+      }
+
+      console.log(`Successfully synced ${accountsToInsert.length} TikTok advertiser accounts`);
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          syncedCount: accountsToInsert.length,
+          platform: "tiktok"
+        }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // Handle Meta account syncing
+    if (platform.platform_type !== "meta") {
+      throw new Error("Unsupported platform type");
+    }
+
+    const accessToken = platform.access_token;
     const accountsToInsert: any[] = [];
     const allPixels: any[] = [];
     const allPages: any[] = [];
