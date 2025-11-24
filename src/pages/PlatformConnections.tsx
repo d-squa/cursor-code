@@ -5,56 +5,49 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2, CheckCircle2, AlertCircle, Facebook, Instagram, Linkedin } from "lucide-react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Loader2, Plus, Trash2, CheckCircle2, AlertCircle, Facebook, Link2, Unlink } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { PLATFORM_CONFIG } from "@/config/platforms";
 import PlatformAdAccountSelector from "@/components/PlatformAdAccountSelector";
-import AdAccountDefaultsManager from "@/components/AdAccountDefaultsManager";
+import ClientSelectionDialog from "@/components/ClientSelectionDialog";
 
-interface PlatformAccount {
+interface MetaAdAccount {
   id: string;
-  connected_platform_id: string;
-  account_type: string;
-  account_name: string;
   account_id: string;
-  created_at: string;
-  metadata?: any;
+  account_name: string;
+  account_status: string | null;
+  client_id: string | null;
+  clients?: {
+    id: string;
+    name: string;
+  } | null;
 }
 
 interface ConnectedPlatform {
   id: string;
   platform_type: string;
   platform_name: string;
-  ad_account_id: string | null;
-  ad_account_name: string | null;
   is_active: boolean;
   created_at: string;
-  platform_accounts?: PlatformAccount[];
 }
 
 const PLATFORM_TYPES = [
   { id: "meta", name: "Meta (Facebook & Instagram)", icon: Facebook, color: "bg-blue-600" },
-  { id: "google_ads", name: "Google Ads", icon: null, color: "bg-green-600" },
-  { id: "linkedin", name: "LinkedIn", icon: Linkedin, color: "bg-blue-700" },
-  { id: "tiktok", name: "TikTok", icon: null, color: "bg-black" },
 ];
 
 export default function PlatformConnections() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [platforms, setPlatforms] = useState<ConnectedPlatform[]>([]);
+  const [metaAdAccounts, setMetaAdAccounts] = useState<MetaAdAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [adAccountOptions, setAdAccountOptions] = useState<{ id: string; name: string }[]>([]);
   const [selectingAccount, setSelectingAccount] = useState(false);
   const [accountSelectorOpen, setAccountSelectorOpen] = useState(false);
-  const [defaultsManagerOpen, setDefaultsManagerOpen] = useState(false);
-  const [selectedPlatformForDefaults, setSelectedPlatformForDefaults] = useState<string | null>(null);
+  const [clientSelectorOpen, setClientSelectorOpen] = useState(false);
+  const [selectedAdAccountForLinking, setSelectedAdAccountForLinking] = useState<string | null>(null);
   const processingOAuthRef = useRef(false);
   useEffect(() => {
     if (!authLoading && !user) {
@@ -70,16 +63,25 @@ export default function PlatformConnections() {
 
   const fetchConnectedPlatforms = async () => {
     try {
-      const { data, error } = await supabase
-        .from("connected_platforms_safe")
-        .select("*, platform_accounts(*)")
-        .order("created_at", { ascending: false });
+      const [platformsRes, accountsRes] = await Promise.all([
+        supabase
+          .from("connected_platforms_safe")
+          .select("*")
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("meta_ad_accounts")
+          .select("id, account_id, account_name, account_status, client_id, clients(id, name)")
+          .order("account_name")
+      ]);
 
-      if (error) throw error;
-      setPlatforms(data || []);
+      if (platformsRes.error) throw platformsRes.error;
+      if (accountsRes.error) throw accountsRes.error;
+
+      setPlatforms(platformsRes.data || []);
+      setMetaAdAccounts(accountsRes.data || []);
     } catch (error: any) {
-      console.error("Error fetching platforms:", error);
-      toast.error("Failed to load connected platforms");
+      console.error("Error fetching data:", error);
+      toast.error("Failed to load data");
     } finally {
       setLoading(false);
     }
@@ -183,6 +185,62 @@ export default function PlatformConnections() {
       setSelectingAccount(false);
     }
   };
+
+  const handleLinkAccountToClient = async (clientId: string) => {
+    if (!selectedAdAccountForLinking) return;
+
+    try {
+      const { error } = await supabase
+        .from("meta_ad_accounts")
+        .update({ client_id: clientId })
+        .eq("id", selectedAdAccountForLinking);
+
+      if (error) throw error;
+
+      toast.success("Ad account linked to client successfully");
+      await fetchConnectedPlatforms();
+    } catch (error: any) {
+      console.error("Error linking account:", error);
+      toast.error("Failed to link account to client");
+      throw error;
+    }
+  };
+
+  const handleUnlinkAccount = async (accountId: string) => {
+    try {
+      const { error } = await supabase
+        .from("meta_ad_accounts")
+        .update({ client_id: null })
+        .eq("id", accountId);
+
+      if (error) throw error;
+
+      toast.success("Ad account unlinked from client");
+      await fetchConnectedPlatforms();
+    } catch (error: any) {
+      console.error("Error unlinking account:", error);
+      toast.error("Failed to unlink account");
+    }
+  };
+
+  const handleDeleteAccount = async (accountId: string) => {
+    if (!confirm("Are you sure you want to delete this ad account? This action cannot be undone.")) return;
+
+    try {
+      const { error } = await supabase
+        .from("meta_ad_accounts")
+        .delete()
+        .eq("id", accountId);
+
+      if (error) throw error;
+
+      toast.success("Ad account deleted successfully");
+      await fetchConnectedPlatforms();
+    } catch (error: any) {
+      console.error("Error deleting account:", error);
+      toast.error("Failed to delete account");
+    }
+  };
   // Handle OAuth callback
   useEffect(() => {
     const handleOAuthCallback = async () => {
@@ -259,153 +317,110 @@ export default function PlatformConnections() {
           </AlertDescription>
         </Alert>
 
+        {/* Platform Authentication */}
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>Connected Platforms</CardTitle>
-                <CardDescription>Manage your advertising platform connections</CardDescription>
-              </div>
-              <div className="flex gap-2">
-                {PLATFORM_TYPES.map((platform) => {
-                  const Icon = platform.icon;
-                  return (
-                    <Button
-                      key={platform.id}
-                      onClick={() => handleConnectPlatform(platform.id)}
-                      disabled={saving}
-                    >
-                      {Icon && <Icon className="h-4 w-4 mr-2" />}
-                      Connect {platform.name}
-                    </Button>
-                  );
-                })}
-              </div>
-            </div>
+            <CardTitle>Platform Authentication</CardTitle>
+            <CardDescription>Connect to advertising platforms to sync ad accounts</CardDescription>
           </CardHeader>
           <CardContent>
             {platforms.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-muted mb-4">
-                  <Plus className="h-8 w-8 text-muted-foreground" />
-                </div>
-                <h3 className="text-lg font-semibold mb-2">No platforms connected</h3>
-                <p className="text-muted-foreground mb-4">
-                  Connect your first advertising platform to get started
-                </p>
-                <div className="flex gap-2 justify-center flex-wrap">
-                  {PLATFORM_TYPES.map((platform) => {
-                    const Icon = platform.icon;
-                    if (platform.id === "meta") {
-                      return (
-                        <div key={platform.id} className="flex gap-2">
-                          <Button
-                            onClick={() => handleConnectPlatform(platform.id, false)}
-                          >
-                            {Icon && <Icon className="h-4 w-4 mr-2" />}
-                            {platform.name}
-                          </Button>
-                          <Button
-                            onClick={() => handleConnectPlatform(platform.id, true)}
-                            variant="outline"
-                          >
-                            {Icon && <Icon className="h-4 w-4 mr-2" />}
-                            Managed (OpenID)
-                          </Button>
-                        </div>
-                      );
-                    }
-                    return (
-                      <Button
-                        key={platform.id}
-                        onClick={() => handleConnectPlatform(platform.id, false)}
-                      >
-                        {Icon && <Icon className="h-4 w-4 mr-2" />}
-                        {platform.name}
-                      </Button>
-                    );
-                  })}
-                </div>
+              <div className="text-center py-8">
+                <p className="text-muted-foreground mb-4">No platforms connected yet</p>
+                <Button onClick={() => handleConnectPlatform("meta", false)}>
+                  <Facebook className="h-4 w-4 mr-2" />
+                  Connect Meta (Facebook & Instagram)
+                </Button>
               </div>
             ) : (
-              <div className="space-y-4">
-                {platforms.map((platform) => {
-                  const platformType = PLATFORM_TYPES.find(p => p.id === platform.platform_type);
-                  const Icon = platformType?.icon;
-                  
-                  return (
-                    <div
-                      key={platform.id}
-                      className="flex items-center justify-between p-4 rounded-lg border bg-card"
-                    >
-                      <div className="flex items-center gap-4">
-                        {Icon && (
-                          <div className={`p-3 rounded-lg ${platformType.color}`}>
-                            <Icon className="h-6 w-6 text-white" />
-                          </div>
-                        )}
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-semibold">{platform.platform_name}</h3>
-                            {platform.is_active && (
-                              <Badge variant="outline" className="gap-1">
-                                <CheckCircle2 className="h-3 w-3" />
-                                Active
-                              </Badge>
-                            )}
-                          </div>
-                          {platform.platform_accounts && platform.platform_accounts.length > 0 ? (
-                            <>
-                              <p className="text-sm text-muted-foreground">
-                                Linked ad accounts: {platform.platform_accounts.length}
-                              </p>
-                              <div className="text-xs text-muted-foreground">
-                                {platform.platform_accounts.slice(0, 3).map((acc) => (
-                                  <div key={acc.id}>
-                                    {acc.account_name} • {acc.account_id}
-                                  </div>
-                                ))}
-                                {platform.platform_accounts.length > 3 && (
-                                  <div>+ {platform.platform_accounts.length - 3} more</div>
-                                )}
-                              </div>
-                            </>
-                          ) : platform.ad_account_name ? (
-                            <p className="text-sm text-muted-foreground">
-                              {platform.ad_account_name} • {platform.ad_account_id}
-                            </p>
-                          ) : (
-                            <p className="text-sm text-muted-foreground">No ad accounts linked yet</p>
-                          )}
-                           <p className="text-xs text-muted-foreground">
-                            Connected {new Date(platform.created_at).toLocaleDateString()}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        {platform.platform_type === "meta" && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedPlatformForDefaults(platform.id);
-                              setDefaultsManagerOpen(true);
-                            }}
-                          >
-                            Manage Defaults
-                          </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDisconnectPlatform(platform.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+              <div className="space-y-3">
+                {platforms.map((platform) => (
+                  <div key={platform.id} className="flex items-center justify-between p-4 rounded-lg border">
+                    <div className="flex items-center gap-3">
+                      <Facebook className="h-5 w-5 text-blue-600" />
+                      <div>
+                        <p className="font-medium">{platform.platform_name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          Connected {new Date(platform.created_at).toLocaleDateString()}
+                        </p>
                       </div>
                     </div>
-                  );
-                })}
+                    <Button variant="destructive" size="sm" onClick={() => handleDisconnectPlatform(platform.id)}>
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Disconnect
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Synced Ad Accounts */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Synced Ad Accounts</CardTitle>
+            <CardDescription>Manage ad accounts, link to clients, and configure settings</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {metaAdAccounts.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground">
+                  No ad accounts synced yet. Connect a platform to get started.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {metaAdAccounts.map((account) => (
+                  <div key={account.id} className="flex items-center justify-between p-4 rounded-lg border">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium">{account.account_name}</p>
+                        <Badge variant="outline">{account.account_id}</Badge>
+                        {account.client_id && account.clients && (
+                          <Badge variant="secondary">
+                            <Link2 className="h-3 w-3 mr-1" />
+                            {account.clients.name}
+                          </Badge>
+                        )}
+                      </div>
+                      {account.account_status && (
+                        <p className="text-sm text-muted-foreground">Status: {account.account_status}</p>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      {account.client_id ? (
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleUnlinkAccount(account.id)}
+                        >
+                          <Unlink className="h-4 w-4 mr-2" />
+                          Unlink
+                        </Button>
+                      ) : (
+                        <Button 
+                          variant="default" 
+                          size="sm"
+                          onClick={() => {
+                            setSelectedAdAccountForLinking(account.id);
+                            setClientSelectorOpen(true);
+                          }}
+                        >
+                          <Link2 className="h-4 w-4 mr-2" />
+                          Link to Client
+                        </Button>
+                      )}
+                      <Button 
+                        variant="destructive" 
+                        size="sm"
+                        onClick={() => handleDeleteAccount(account.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </CardContent>
@@ -420,11 +435,11 @@ export default function PlatformConnections() {
         />
 
         {user && (
-          <AdAccountDefaultsManager
-            open={defaultsManagerOpen}
-            onOpenChange={setDefaultsManagerOpen}
+          <ClientSelectionDialog
+            open={clientSelectorOpen}
+            onOpenChange={setClientSelectorOpen}
             userId={user.id}
-            connectedPlatformId={selectedPlatformForDefaults}
+            onClientSelected={handleLinkAccountToClient}
           />
         )}
       </div>

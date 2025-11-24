@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -9,7 +9,7 @@ import { Loader2, Pencil } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import ClientForm from "@/components/ClientForm";
-import ClientPlatformAccounts from "@/components/ClientPlatformAccounts";
+import AccountDefaultsTab from "@/components/AccountDefaultsTab";
 
 interface Client {
   id: string;
@@ -23,12 +23,6 @@ interface Client {
 }
 
 
-interface MetaAdAccount {
-  id: string;
-  account_id: string;
-  account_name: string;
-  client_id: string | null;
-}
 
 export default function ManageClientAccounts() {
   const { user, loading: authLoading } = useAuth();
@@ -36,9 +30,8 @@ export default function ManageClientAccounts() {
   const [loading, setLoading] = useState(true);
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClient, setSelectedClient] = useState<string | null>(null);
-  const [metaAdAccounts, setMetaAdAccounts] = useState<MetaAdAccount[]>([]);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState("details");
+  const [activeTab, setActiveTab] = useState("info");
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -52,14 +45,6 @@ export default function ManageClientAccounts() {
     }
   }, [user]);
 
-  // Check for tab query parameter
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const tab = urlParams.get("tab");
-    if (tab === "accounts") {
-      setActiveTab("accounts");
-    }
-  }, []);
 
   const loadData = async () => {
     try {
@@ -86,14 +71,6 @@ export default function ManageClientAccounts() {
       if (typedClients && typedClients.length > 0 && !selectedClient) {
         setSelectedClient(typedClients[0].id);
       }
-
-      // Load meta ad accounts
-      const { data: metaData, error: metaError } = await supabase
-        .from("meta_ad_accounts")
-        .select("id, account_id, account_name, client_id");
-
-      if (metaError) throw metaError;
-      setMetaAdAccounts(metaData || []);
     } catch (error: any) {
       console.error("Error loading data:", error);
       toast.error("Failed to load data");
@@ -138,9 +115,9 @@ export default function ManageClientAccounts() {
   return (
     <div className="container mx-auto py-8 space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Manage Client Accounts</h1>
+        <h1 className="text-3xl font-bold">Client Management</h1>
         <p className="text-muted-foreground mt-2">
-          Manage client details, sync ad accounts, and configure defaults
+          View and edit client information and configure default settings
         </p>
       </div>
 
@@ -164,11 +141,11 @@ export default function ManageClientAccounts() {
       {selectedClient && selectedClientData && (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="details">Client Details</TabsTrigger>
-            <TabsTrigger value="accounts">Account Sync</TabsTrigger>
+            <TabsTrigger value="info">Client Info</TabsTrigger>
+            <TabsTrigger value="defaults">Client Defaults</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="details" className="space-y-4">
+          <TabsContent value="info" className="space-y-4">
             <Card className="p-6">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-semibold">Client Information</h3>
@@ -182,6 +159,18 @@ export default function ManageClientAccounts() {
                   <label className="text-sm font-medium text-muted-foreground">Name</label>
                   <p className="text-base">{selectedClientData.name}</p>
                 </div>
+                {selectedClientData.website && (
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Website</label>
+                    <p className="text-base">{selectedClientData.website}</p>
+                  </div>
+                )}
+                {selectedClientData.app_name && (
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">App Name</label>
+                    <p className="text-base">{selectedClientData.app_name}</p>
+                  </div>
+                )}
                 <div>
                   <label className="text-sm font-medium text-muted-foreground">Industry</label>
                   <p className="text-base">{selectedClientData.industry}</p>
@@ -202,14 +191,9 @@ export default function ManageClientAccounts() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="accounts" className="space-y-4">
+          <TabsContent value="defaults" className="space-y-4">
             {selectedClient && user && (
-              <ClientPlatformAccounts
-                clientId={selectedClient}
-                userId={user.id}
-                metaAdAccounts={metaAdAccounts}
-                onRefresh={loadData}
-              />
+              <AccountDefaultsTab clientId={selectedClient} userId={user.id} />
             )}
           </TabsContent>
         </Tabs>
