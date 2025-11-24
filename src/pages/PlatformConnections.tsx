@@ -67,6 +67,7 @@ export default function PlatformConnections() {
         supabase
           .from("connected_platforms_safe")
           .select("*")
+          .eq("is_active", true)
           .order("created_at", { ascending: false }),
         supabase
           .from("meta_ad_accounts")
