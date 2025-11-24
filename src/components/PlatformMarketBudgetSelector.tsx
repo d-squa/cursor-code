@@ -103,6 +103,7 @@ export function PlatformMarketBudgetSelector({
       const { data: adAccountsData, error: adAccountsError } = await query;
 
       if (!adAccountsError && adAccountsData) {
+        console.log('📦 Loaded ad accounts:', adAccountsData);
         setAdAccounts(adAccountsData.map((acc: any) => ({
           id: acc.account_id,
           name: acc.account_name,
@@ -120,6 +121,7 @@ export function PlatformMarketBudgetSelector({
             conversionEvent: acc.default_conversion_event,
             mainMarkets: Array.isArray(acc.main_markets) ? acc.main_markets : [],
           };
+          console.log(`📋 Defaults for ${acc.account_name}:`, defaults[acc.account_id]);
         });
         setAdAccountDefaults(defaults);
       }
