@@ -29,25 +29,31 @@ serve(async (req) => {
       throw new Error("Unauthorized");
     }
 
-    const { selectedAccountIds } = await req.json();
+    const { selectedAccountIds, platformId } = await req.json();
 
     if (!Array.isArray(selectedAccountIds) || selectedAccountIds.length === 0) {
       throw new Error("No accounts selected");
     }
 
-    console.log(`Syncing ${selectedAccountIds.length} selected accounts for user ${user.id}`);
+    if (!platformId) {
+      throw new Error("Platform ID is required");
+    }
 
-    // Get active Meta platform connection
+    console.log(`Syncing ${selectedAccountIds.length} selected accounts for user ${user.id} from platform ${platformId}`);
+
+    // Get the specific Meta platform connection
     const { data: metaPlatform, error: platformError } = await supabase
       .from("connected_platforms")
       .select("id, access_token")
+      .eq("id", platformId)
       .eq("user_id", user.id)
       .eq("platform_type", "meta")
       .eq("is_active", true)
-      .maybeSingle();
+      .single();
 
     if (platformError || !metaPlatform) {
-      throw new Error("No active Meta platform connection found");
+      console.error("Platform lookup error:", platformError);
+      throw new Error("Platform connection not found or inactive");
     }
 
     const accessToken = metaPlatform.access_token;

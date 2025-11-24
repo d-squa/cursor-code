@@ -51,6 +51,7 @@ export default function PlatformConnections() {
   const [clientSelectorOpen, setClientSelectorOpen] = useState(false);
   const [selectedAdAccountForLinking, setSelectedAdAccountForLinking] = useState<string | null>(null);
   const [reconnectingPlatformId, setReconnectingPlatformId] = useState<string | null>(null);
+  const [currentPlatformId, setCurrentPlatformId] = useState<string | null>(null);
   const processingOAuthRef = useRef(false);
   useEffect(() => {
     if (!authLoading && !user) {
@@ -174,13 +175,16 @@ export default function PlatformConnections() {
   };
 
   const handleSaveAdAccounts = async (accounts: { id: string; name: string }[]) => {
-    if (accounts.length === 0) return;
+    if (accounts.length === 0 || !currentPlatformId) return;
     
     setSelectingAccount(true);
     try {
       const selectedIds = accounts.map(a => a.id);
       const { error } = await supabase.functions.invoke("sync-selected-accounts", {
-        body: { selectedAccountIds: selectedIds }
+        body: { 
+          selectedAccountIds: selectedIds,
+          platformId: currentPlatformId 
+        }
       });
 
       if (error) throw error;
@@ -188,6 +192,7 @@ export default function PlatformConnections() {
       toast.success("Selected ad accounts synced successfully!");
       setAccountSelectorOpen(false);
       setAdAccountOptions([]);
+      setCurrentPlatformId(null);
       await fetchConnectedPlatforms();
     } catch (error: any) {
       console.error("Sync error:", error);
@@ -283,6 +288,7 @@ export default function PlatformConnections() {
           }
 
           if (Array.isArray(data?.adAccounts) && data.adAccounts.length > 0) {
+            setCurrentPlatformId(data.platformId);
             setAdAccountOptions(data.adAccounts);
             setAccountSelectorOpen(true);
           } else if (!platformId) {
