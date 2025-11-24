@@ -44,6 +44,7 @@ interface MetaResource {
 interface Props {
   clientId: string;
   userId: string;
+  clientMarkets?: string[];
 }
 
 const BUDGET_TYPE_OPTIONS = [
@@ -51,7 +52,7 @@ const BUDGET_TYPE_OPTIONS = [
   { value: "lifetime", label: "Lifetime Budget" },
 ];
 
-export default function AccountDefaultsTab({ clientId, userId }: Props) {
+export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: Props) {
   const [adAccounts, setAdAccounts] = useState<AdAccount[]>([]);
   const [pixels, setPixels] = useState<MetaResource[]>([]);
   const [pages, setPages] = useState<MetaResource[]>([]);
@@ -62,6 +63,7 @@ export default function AccountDefaultsTab({ clientId, userId }: Props) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [localDefaults, setLocalDefaults] = useState<Record<string, Partial<AdAccount>>>({});
+  const [fetchedClientMarkets, setFetchedClientMarkets] = useState<string[]>([]);
 
   useEffect(() => {
     if (clientId && userId) {
@@ -72,6 +74,18 @@ export default function AccountDefaultsTab({ clientId, userId }: Props) {
   const loadData = async () => {
     setLoading(true);
     try {
+      // Fetch client markets if not provided as prop
+      if (!clientMarkets) {
+        const { data: clientData, error: clientError } = await supabase
+          .from("clients")
+          .select("markets")
+          .eq("id", clientId)
+          .single();
+
+        if (clientError) throw clientError;
+        setFetchedClientMarkets(Array.isArray(clientData.markets) ? clientData.markets as string[] : []);
+      }
+
       // Load ad accounts for this client
       const { data: accountsData, error: accountsError } = await supabase
         .from("meta_ad_accounts")
@@ -186,7 +200,11 @@ export default function AccountDefaultsTab({ clientId, userId }: Props) {
     );
   }
 
-  const marketOptions = MARKET_OPTIONS.map(m => ({ value: m.value, label: m.label }));
+  // Filter market options to only show markets defined for this client
+  const activeClientMarkets = clientMarkets || fetchedClientMarkets;
+  const marketOptions = MARKET_OPTIONS
+    .filter(m => activeClientMarkets.includes(m.value))
+    .map(m => ({ value: m.value, label: m.label }));
 
   return (
     <div className="space-y-4">
