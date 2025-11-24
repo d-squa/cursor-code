@@ -36,6 +36,7 @@ interface ConnectedPlatform {
 
 const PLATFORM_TYPES = [
   { id: "meta", name: "Meta (Facebook & Instagram)", icon: Facebook, color: "bg-blue-600" },
+  { id: "tiktok", name: "TikTok Ads", icon: Plus, color: "bg-black" },
 ];
 
 export default function PlatformConnections() {
@@ -148,6 +149,49 @@ export default function PlatformConnections() {
       } catch (error: any) {
         console.error("Error connecting to Meta:", error);
         toast.error(error.message || "Failed to connect to Facebook");
+      }
+    } else if (platformType === "tiktok") {
+      try {
+        const redirectUri = "https://actiplan.app/settings/platforms";
+        const appId = PLATFORM_CONFIG.tiktok.appId;
+        
+        console.log("TikTok OAuth - App ID:", appId ? "Configured" : "Missing");
+        console.log("TikTok OAuth - Redirect URI:", redirectUri);
+        
+        if (!appId) {
+          toast.error("TikTok App ID not configured. Please contact support.");
+          return;
+        }
+
+        // Store platformId in sessionStorage for reconnection
+        if (platformId) {
+          sessionStorage.setItem('reconnecting_platform_id', platformId);
+          sessionStorage.setItem('reconnecting_platform_type', 'tiktok');
+        } else {
+          sessionStorage.removeItem('reconnecting_platform_id');
+          sessionStorage.removeItem('reconnecting_platform_type');
+        }
+        
+        // Build TikTok OAuth URL
+        const oauthParams = new URLSearchParams({
+          app_id: appId,
+          redirect_uri: redirectUri,
+          state: platformType,
+        });
+        
+        const oauthUrl = `${PLATFORM_CONFIG.tiktok.authEndpoint}?${oauthParams.toString()}`;
+        
+        console.log("TikTok OAuth - Redirecting to:", oauthUrl.replace(appId, 'HIDDEN'));
+        
+        toast.loading("Redirecting to TikTok...");
+        
+        setTimeout(() => {
+          window.location.href = oauthUrl;
+        }, 100);
+        
+      } catch (error: any) {
+        console.error("Error connecting to TikTok:", error);
+        toast.error(error.message || "Failed to connect to TikTok");
       }
     } else {
       toast.error("This platform is not yet supported");
@@ -273,9 +317,13 @@ export default function PlatformConnections() {
         try {
           const redirectUri = "https://actiplan.app/settings/platforms";
           const platformId = sessionStorage.getItem('reconnecting_platform_id');
+          const platformType = sessionStorage.getItem('reconnecting_platform_type') || state;
           sessionStorage.removeItem('reconnecting_platform_id');
+          sessionStorage.removeItem('reconnecting_platform_type');
           
-          const { data, error } = await supabase.functions.invoke("meta-oauth-callback", {
+          const callbackFunction = platformType === "tiktok" ? "tiktok-oauth-callback" : "meta-oauth-callback";
+          
+          const { data, error } = await supabase.functions.invoke(callbackFunction, {
             body: { code, platformType: state, redirectUri, platformId }
           });
 
@@ -284,15 +332,11 @@ export default function PlatformConnections() {
           if (platformId) {
             toast.success("Platform reconnected successfully!");
           } else {
-            toast.success("Platform connected! Select which ad accounts to sync.");
+            toast.success(`${platformType === 'tiktok' ? 'TikTok' : 'Platform'} connected successfully!`);
           }
 
-          if (Array.isArray(data?.adAccounts) && data.adAccounts.length > 0) {
-            setCurrentPlatformId(data.platformId);
-            setAdAccountOptions(data.adAccounts);
-            setAccountSelectorOpen(true);
-          } else if (!platformId) {
-            toast.error("No ad accounts found");
+          if (Array.isArray(data?.accounts) && data.accounts.length > 0) {
+            toast.success(`Found ${data.accounts.length} advertiser account(s)`);
           }
 
           await fetchConnectedPlatforms();
@@ -351,10 +395,16 @@ export default function PlatformConnections() {
             {platforms.length === 0 ? (
               <div className="text-center py-8">
                 <p className="text-muted-foreground mb-4">No platforms connected yet</p>
-                <Button onClick={() => handleConnectPlatform("meta", false)}>
-                  <Facebook className="h-4 w-4 mr-2" />
-                  Connect Meta (Facebook & Instagram)
-                </Button>
+                <div className="flex gap-3 justify-center">
+                  <Button onClick={() => handleConnectPlatform("meta", false)}>
+                    <Facebook className="h-4 w-4 mr-2" />
+                    Connect Meta
+                  </Button>
+                  <Button onClick={() => handleConnectPlatform("tiktok", false)} variant="outline">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Connect TikTok
+                  </Button>
+                </div>
               </div>
             ) : (
             <div className="space-y-3">
@@ -395,10 +445,14 @@ export default function PlatformConnections() {
                   </div>
                 );
               })}
-              <div className="pt-4 border-t">
+              <div className="pt-4 border-t flex gap-3">
                 <Button onClick={() => handleConnectPlatform("meta", false)}>
                   <Plus className="h-4 w-4 mr-2" />
                   Connect Another Meta Account
+                </Button>
+                <Button onClick={() => handleConnectPlatform("tiktok", false)} variant="outline">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Connect TikTok Account
                 </Button>
               </div>
             </div>
