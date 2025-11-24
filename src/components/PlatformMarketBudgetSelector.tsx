@@ -28,6 +28,7 @@ interface PlatformMarketBudgetSelectorProps {
   setStartDate?: (date: string) => void;
   setEndDate?: (date: string) => void;
   setTotalBudget?: (budget: string) => void;
+  selectedClientId?: string;
 }
 
 const AVAILABLE_PLATFORMS = [
@@ -49,7 +50,8 @@ export function PlatformMarketBudgetSelector({
   setGenericConfig,
   setStartDate,
   setEndDate,
-  setTotalBudget
+  setTotalBudget,
+  selectedClientId
 }: PlatformMarketBudgetSelectorProps) {
   const [instagramAccounts, setInstagramAccounts] = useState<Array<{ id: string; username: string; name: string }>>([]);
   const [isLoadingAccounts, setIsLoadingAccounts] = useState(false);
@@ -73,6 +75,10 @@ export function PlatformMarketBudgetSelector({
   const usedPlatformIds = platforms.map(p => p.id).filter(id => id !== "");
 
   // Fetch all Meta resources from database
+  useEffect(() => {
+    fetchMetaResources();
+  }, [selectedClientId]); // Re-fetch when client changes
+
   const fetchMetaResources = async () => {
     setIsLoadingAccounts(true);
     setLoadingAdAccounts(true);
@@ -84,10 +90,17 @@ export function PlatformMarketBudgetSelector({
     
     try {
       // Fetch ad accounts from database with their defaults
-      const { data: adAccountsData, error: adAccountsError } = await supabase
+      // If a client is selected, filter by client_id
+      let query = supabase
         .from("meta_ad_accounts" as any)
         .select("*")
         .order("synced_at", { ascending: false });
+      
+      if (selectedClientId) {
+        query = query.eq("client_id", selectedClientId);
+      }
+
+      const { data: adAccountsData, error: adAccountsError } = await query;
 
       if (!adAccountsError && adAccountsData) {
         setAdAccounts(adAccountsData.map((acc: any) => ({
@@ -105,6 +118,7 @@ export function PlatformMarketBudgetSelector({
             catalog: acc.default_catalog_id,
             productSet: acc.default_product_set_id,
             conversionEvent: acc.default_conversion_event,
+            mainMarkets: Array.isArray(acc.main_markets) ? acc.main_markets : [],
           };
         });
         setAdAccountDefaults(defaults);
@@ -802,65 +816,96 @@ export function PlatformMarketBudgetSelector({
                                   </Label>
                                   <Select
                                     value={market.adAccountId || ""}
-                                    onValueChange={(value) => {
-                                      const account = adAccounts.find(a => a.id === value);
-                                      const defaults = adAccountDefaults[value];
-                                      
-                                      // Batch all updates including defaults into a single state update
-                                      setPlatforms(prev =>
-                                        prev.map((p, i) =>
-                                          i === platformIndex
-                                            ? {
-                                                ...p,
-                                                markets: p.markets.map(m => {
-                                                  if (m.id === market.id) {
-                                                    const updated: Market = {
-                                                      ...m,
-                                                      adAccountId: value,
-                                                      accountName: account?.name || "",
-                                                    };
-                                                    
-                                                    // Apply defaults if available
-                                                    if (defaults) {
-                                                      console.log("Applying defaults for ad account:", value, defaults);
-                                                      
-                                                      if (defaults.pixelId) {
-                                                        updated.pixel = defaults.pixelId;
-                                                      }
-                                                      if (defaults.pageId) {
-                                                        updated.pageId = defaults.pageId;
-                                                        updated.page = defaults.pageId;
-                                                      }
-                                                      if (defaults.instagramActorId) {
-                                                        updated.instagramActorId = defaults.instagramActorId;
-                                                      }
-                                                      if (defaults.catalog) {
-                                                        updated.catalog = defaults.catalog;
-                                                      }
-                                                      if (defaults.productSet) {
-                                                        updated.productSet = defaults.productSet;
-                                                      }
-                                                      if (defaults.conversionEvent) {
-                                                        updated.conversionEvent = defaults.conversionEvent;
-                                                      }
-                                                      
-                                                      toast.success("Applied default settings for this ad account");
-                                                    }
-                                                    
-                                                    // Initialize phases array if it doesn't exist
-                                                    if (!updated.phases || updated.phases.length === 0) {
-                                                      updated.phases = [];
-                                                    }
-                                                    
-                                                    return updated;
-                                                  }
-                                                  return m;
-                                                }),
-                                              }
-                                            : p
-                                        )
-                                      );
-                                    }}
+                                     onValueChange={(value) => {
+                                       const account = adAccounts.find(a => a.id === value);
+                                       const defaults = adAccountDefaults[value];
+                                       
+                                       // Batch all updates including defaults and auto-create markets
+                                       setPlatforms(prev =>
+                                         prev.map((p, i) => {
+                                           if (i !== platformIndex) return p;
+                                           
+                                           // Find existing market or create new one
+                                           const existingMarket = p.markets.find(m => m.id === market.id);
+                                           
+                                           // If the ad account has assigned markets, create markets for each
+                                           const assignedMarkets = defaults?.mainMarkets || [];
+                                           
+                                           if (assignedMarkets.length > 0) {
+                                             // Create a market for each assigned market
+                                             const marketBudgetSplit = 100 / assignedMarkets.length;
+                                             const newMarkets = assignedMarkets.map((marketCode: string, idx: number) => {
+                                               const marketName = MARKET_OPTIONS.find(m => m.value === marketCode)?.label || marketCode;
+                                               
+                                               return {
+                                                 id: `${marketCode}-${Date.now()}-${idx}`,
+                                                 name: marketCode,
+                                                 budgetPercentage: marketBudgetSplit,
+                                                 adAccountId: value,
+                                                 accountName: account?.name || "",
+                                                 pixel: defaults?.pixelId || "",
+                                                 pageId: defaults?.pageId || "",
+                                                 page: defaults?.pageId || "",
+                                                 instagramActorId: defaults?.instagramActorId || "",
+                                                 catalog: defaults?.catalog || "",
+                                                 productSet: defaults?.productSet || "",
+                                                 conversionEvent: defaults?.conversionEvent || "",
+                                                 phases: [],
+                                                 adFormats: [],
+                                               };
+                                             });
+                                             
+                                             // Remove the temporary market and add the new ones
+                                             const filteredMarkets = p.markets.filter(m => m.id !== market.id);
+                                             
+                                             toast.success(`Created ${newMarkets.length} market(s) for ${account?.name || 'ad account'}`);
+                                             
+                                             return {
+                                               ...p,
+                                               markets: [...filteredMarkets, ...newMarkets],
+                                             };
+                                           } else {
+                                             // No assigned markets, just update the current market with defaults
+                                             return {
+                                               ...p,
+                                               markets: p.markets.map(m => {
+                                                 if (m.id === market.id) {
+                                                   const updated: Market = {
+                                                     ...m,
+                                                     adAccountId: value,
+                                                     accountName: account?.name || "",
+                                                   };
+                                                   
+                                                   // Apply defaults if available
+                                                   if (defaults) {
+                                                     console.log("Applying defaults for ad account:", value, defaults);
+                                                     
+                                                     if (defaults.pixelId) updated.pixel = defaults.pixelId;
+                                                     if (defaults.pageId) {
+                                                       updated.pageId = defaults.pageId;
+                                                       updated.page = defaults.pageId;
+                                                     }
+                                                     if (defaults.instagramActorId) updated.instagramActorId = defaults.instagramActorId;
+                                                     if (defaults.catalog) updated.catalog = defaults.catalog;
+                                                     if (defaults.productSet) updated.productSet = defaults.productSet;
+                                                     if (defaults.conversionEvent) updated.conversionEvent = defaults.conversionEvent;
+                                                     
+                                                     toast.success("Applied default settings for this ad account");
+                                                   }
+                                                   
+                                                   if (!updated.phases || updated.phases.length === 0) {
+                                                     updated.phases = [];
+                                                   }
+                                                   
+                                                   return updated;
+                                                 }
+                                                 return m;
+                                               }),
+                                             };
+                                           }
+                                         })
+                                       );
+                                     }}
                                   >
                                     <SelectTrigger className="h-7 text-xs">
                                       <SelectValue placeholder={loadingAdAccounts ? "Loading..." : "Select Ad Account"} />

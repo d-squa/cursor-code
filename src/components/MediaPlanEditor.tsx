@@ -97,13 +97,90 @@ export function MediaPlanEditor() {
       const loadClients = async () => {
         const { data } = await supabase
           .from("clients")
-          .select("id, name")
+          .select("id, name, platforms, markets")
           .order("name");
         setClients(data || []);
       };
       loadClients();
     }
   }, [user]);
+
+  // Auto-populate when client is selected
+  useEffect(() => {
+    if (selectedClientId && !isHydrated) {
+      autoPopulateFromClient();
+    }
+  }, [selectedClientId]);
+
+  const autoPopulateFromClient = async () => {
+    const selectedClient = clients.find(c => c.id === selectedClientId);
+    if (!selectedClient) return;
+
+    const clientPlatforms = Array.isArray((selectedClient as any).platforms) ? (selectedClient as any).platforms : [];
+    const clientMarkets = Array.isArray((selectedClient as any).markets) ? (selectedClient as any).markets : [];
+
+    // Platform name normalization mapping
+    const platformMapping: Record<string, string> = {
+      'meta': 'meta',
+      'facebook': 'meta',
+      'google ads': 'google',
+      'google': 'google',
+      'linkedin': 'linkedin',
+      'tiktok': 'tiktok',
+      'x': 'x',
+      'twitter': 'x',
+      'snapchat': 'snapchat',
+      'pinterest': 'pinterest',
+    };
+
+    // Predefined budget allocation percentages
+    const budgetAllocations: Record<string, number> = {
+      meta: 30,
+      tiktok: 10,
+      google: 25,
+      linkedin: 10,
+      x: 10,
+      snapchat: 10,
+      pinterest: 5,
+    };
+
+    // Normalize and map platform names
+    const selectedPlatformIds = clientPlatforms
+      .map((p: string) => platformMapping[p.toLowerCase()] || p.toLowerCase())
+      .filter((id: string) => budgetAllocations[id] !== undefined);
+
+    if (selectedPlatformIds.length === 0) {
+      toast.error("No valid platforms found for this client");
+      return;
+    }
+
+    // Calculate total percentage for selected platforms
+    const totalSelectedPercentage = selectedPlatformIds.reduce((sum: number, platformId: string) => {
+      return sum + (budgetAllocations[platformId] || 0);
+    }, 0);
+
+    // Create platforms with proportional budgets
+    const newPlatforms: PlatformWithMarkets[] = selectedPlatformIds.map((platformId: string) => {
+      const platformName = platformId === 'meta' ? 'Meta' : 
+                           platformId === 'google' ? 'Google Ads' :
+                           platformId.charAt(0).toUpperCase() + platformId.slice(1);
+      const rawPercentage = budgetAllocations[platformId] || 0;
+      const normalizedPercentage = totalSelectedPercentage > 0 
+        ? (rawPercentage / totalSelectedPercentage) * 100 
+        : 0;
+
+      return {
+        id: platformId,
+        name: platformName,
+        budgetPercentage: Math.round(normalizedPercentage * 10) / 10,
+        enabled: true,
+        markets: [],
+      };
+    });
+
+    setPlatformsWithMarkets(newPlatforms);
+    toast.success(`Auto-populated ${newPlatforms.length} platform(s) from ${selectedClient.name}`);
+  };
   
   // Basic targeting (Step 2)
   const [basicTargeting, setBasicTargeting] = useState<BasicTargetingConfig>({});
@@ -1149,6 +1226,7 @@ export function MediaPlanEditor() {
                 setStartDate={setStartDate}
                 setEndDate={setEndDate}
                 setTotalBudget={setTotalBudget}
+                selectedClientId={selectedClientId}
               />
             </div>
 
