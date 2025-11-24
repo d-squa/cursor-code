@@ -66,37 +66,11 @@ serve(async (req) => {
     
     console.log("Successfully obtained access token");
 
-    // Get user's ad accounts with extended fields
-    console.log("Fetching ad accounts...");
-    const adAccountsResponse = await fetch(
-      `https://graph.facebook.com/v21.0/me/adaccounts?fields=id,name,account_status,currency,timezone_name&access_token=${access_token}`
-    );
-
-    if (!adAccountsResponse.ok) {
-      const errorData = await adAccountsResponse.json();
-      console.error("Failed to fetch ad accounts:", errorData);
-      
-      // Check for managed account permission issues
-      if (errorData.error?.code === 200 || errorData.error?.code === 190) {
-        throw new Error("Permission denied. Please ensure your account has access to ad accounts and try reconnecting.");
-      }
-      
-      throw new Error(`Failed to fetch ad accounts: ${errorData.error?.message || 'Unknown error'}`);
-    }
-
-    const adAccountsData = await adAccountsResponse.json();
-    const adAccounts = adAccountsData.data || [];
-    
-    console.log(`Found ${adAccounts.length} ad accounts`);
-
-    if (adAccounts.length === 0) {
-      throw new Error("No ad accounts found. Please ensure you have access to at least one ad account in your Business Manager.");
-    }
-
-    // Try to fetch accessible Business Managers - critical for managed accounts
+    // Try to fetch accessible Business Managers first
     console.log("Fetching Business Managers...");
     let selectedBmId: string | null = null;
     let businessesMeta: Array<{ id: string; name: string }> = [];
+    let adAccounts: any[] = [];
     
     try {
       const businessesResponse = await fetch(
@@ -112,6 +86,21 @@ serve(async (req) => {
         if (businesses.length > 0) {
           selectedBmId = businesses[0].id;
           console.log(`Selected Business Manager: ${businesses[0].name} (${selectedBmId})`);
+          
+          // Fetch ad accounts from the specific business manager
+          console.log("Fetching ad accounts from Business Manager...");
+          const bmAdAccountsResponse = await fetch(
+            `https://graph.facebook.com/v21.0/${selectedBmId}/owned_ad_accounts?fields=id,name,account_status,currency,timezone_name&access_token=${access_token}`
+          );
+          
+          if (bmAdAccountsResponse.ok) {
+            const bmAdAccountsData = await bmAdAccountsResponse.json();
+            adAccounts = bmAdAccountsData.data || [];
+            console.log(`Found ${adAccounts.length} ad accounts in Business Manager`);
+            console.log("Ad account IDs:", adAccounts.map((acc: any) => `${acc.id}: ${acc.name}`).join(", "));
+          } else {
+            console.log("Could not fetch BM ad accounts, falling back to user ad accounts");
+          }
         }
       } else {
         const errorData = await businessesResponse.json();
@@ -119,7 +108,35 @@ serve(async (req) => {
       }
     } catch (e: any) {
       console.log("Could not fetch Business Managers:", e.message);
-      // This is not critical - continue without BM
+    }
+    
+    // Fallback to user's ad accounts if BM fetch failed
+    if (adAccounts.length === 0) {
+      console.log("Fetching ad accounts from user...");
+      const adAccountsResponse = await fetch(
+        `https://graph.facebook.com/v21.0/me/adaccounts?fields=id,name,account_status,currency,timezone_name&access_token=${access_token}`
+      );
+
+      if (!adAccountsResponse.ok) {
+        const errorData = await adAccountsResponse.json();
+        console.error("Failed to fetch ad accounts:", errorData);
+        
+        if (errorData.error?.code === 200 || errorData.error?.code === 190) {
+          throw new Error("Permission denied. Please ensure your account has access to ad accounts and try reconnecting.");
+        }
+        
+        throw new Error(`Failed to fetch ad accounts: ${errorData.error?.message || 'Unknown error'}`);
+      }
+
+      const adAccountsData = await adAccountsResponse.json();
+      adAccounts = adAccountsData.data || [];
+      console.log(`Found ${adAccounts.length} ad accounts from user`);
+      console.log("Ad account IDs:", adAccounts.map((acc: any) => `${acc.id}: ${acc.name}`).join(", "));
+    }
+
+    
+    if (adAccounts.length === 0) {
+      throw new Error("No ad accounts found. Please ensure you have access to at least one ad account in your Business Manager.");
     }
 
     // Deactivate any existing Meta platforms and clean up old ad accounts
