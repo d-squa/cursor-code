@@ -30,6 +30,8 @@ interface ConnectedPlatform {
   platform_name: string;
   is_active: boolean;
   created_at: string;
+  business_manager_id: string | null;
+  metadata: any;
 }
 
 const PLATFORM_TYPES = [
@@ -48,6 +50,7 @@ export default function PlatformConnections() {
   const [accountSelectorOpen, setAccountSelectorOpen] = useState(false);
   const [clientSelectorOpen, setClientSelectorOpen] = useState(false);
   const [selectedAdAccountForLinking, setSelectedAdAccountForLinking] = useState<string | null>(null);
+  const [reconnectingPlatformId, setReconnectingPlatformId] = useState<string | null>(null);
   const processingOAuthRef = useRef(false);
   useEffect(() => {
     if (!authLoading && !user) {
@@ -88,7 +91,7 @@ export default function PlatformConnections() {
     }
   };
 
-  const handleConnectPlatform = async (platformType: string, useManagedLogin = false) => {
+  const handleConnectPlatform = async (platformType: string, useManagedLogin = false, platformId?: string) => {
     if (platformType === "meta") {
       try {
         // Redirect to Meta OAuth
@@ -105,6 +108,13 @@ export default function PlatformConnections() {
         }
 
         const scope = useManagedLogin ? PLATFORM_CONFIG.meta.managedLoginScopes : PLATFORM_CONFIG.meta.oauthScopes;
+        
+        // Store platformId in sessionStorage for reconnection
+        if (platformId) {
+          sessionStorage.setItem('reconnecting_platform_id', platformId);
+        } else {
+          sessionStorage.removeItem('reconnecting_platform_id');
+        }
         
         // Build OAuth URL matching working Supermetrics flow
         const oauthParams = new URLSearchParams({
@@ -257,18 +267,25 @@ export default function PlatformConnections() {
         setSaving(true);
         try {
           const redirectUri = "https://actiplan.app/settings/platforms";
+          const platformId = sessionStorage.getItem('reconnecting_platform_id');
+          sessionStorage.removeItem('reconnecting_platform_id');
+          
           const { data, error } = await supabase.functions.invoke("meta-oauth-callback", {
-            body: { code, platformType: state, redirectUri }
+            body: { code, platformType: state, redirectUri, platformId }
           });
 
           if (error) throw error;
 
-          toast.success("Platform connected! Select which ad accounts to sync.");
+          if (platformId) {
+            toast.success("Platform reconnected successfully!");
+          } else {
+            toast.success("Platform connected! Select which ad accounts to sync.");
+          }
 
           if (Array.isArray(data?.adAccounts) && data.adAccounts.length > 0) {
             setAdAccountOptions(data.adAccounts);
             setAccountSelectorOpen(true);
-          } else {
+          } else if (!platformId) {
             toast.error("No ad accounts found");
           }
 
@@ -334,25 +351,51 @@ export default function PlatformConnections() {
                 </Button>
               </div>
             ) : (
-              <div className="space-y-3">
-                {platforms.map((platform) => (
+            <div className="space-y-3">
+              {platforms.map((platform) => {
+                const businessName = platform.metadata?.businesses?.[0]?.name;
+                return (
                   <div key={platform.id} className="flex items-center justify-between p-4 rounded-lg border">
                     <div className="flex items-center gap-3">
                       <Facebook className="h-5 w-5 text-blue-600" />
                       <div>
                         <p className="font-medium">{platform.platform_name}</p>
-                        <p className="text-sm text-muted-foreground">
+                        {businessName && (
+                          <p className="text-sm text-muted-foreground">Business: {businessName}</p>
+                        )}
+                        <p className="text-xs text-muted-foreground">
                           Connected {new Date(platform.created_at).toLocaleDateString()}
                         </p>
                       </div>
                     </div>
-                    <Button variant="destructive" size="sm" onClick={() => handleDisconnectPlatform(platform.id)}>
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Disconnect
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => handleConnectPlatform("meta", false, platform.id)}
+                      >
+                        <CheckCircle2 className="h-4 w-4 mr-2" />
+                        Reconnect
+                      </Button>
+                      <Button 
+                        variant="destructive" 
+                        size="sm" 
+                        onClick={() => handleDisconnectPlatform(platform.id)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Disconnect
+                      </Button>
+                    </div>
                   </div>
-                ))}
+                );
+              })}
+              <div className="pt-4 border-t">
+                <Button onClick={() => handleConnectPlatform("meta", false)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Connect Another Meta Account
+                </Button>
               </div>
+            </div>
             )}
           </CardContent>
         </Card>

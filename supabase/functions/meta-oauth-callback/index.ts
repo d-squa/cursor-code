@@ -30,11 +30,13 @@ serve(async (req) => {
       throw new Error("Unauthorized");
     }
 
-    const { code, platformType, redirectUri } = await req.json();
+    const { code, platformType, redirectUri, platformId } = await req.json();
 
     if (!code || platformType !== "meta" || !redirectUri) {
       throw new Error("Invalid parameters");
     }
+
+    const isReconnection = !!platformId;
 
     // Exchange code for access token
     const clientId = Deno.env.get("META_APP_ID");
@@ -139,39 +141,58 @@ serve(async (req) => {
       throw new Error("No ad accounts found. Please ensure you have access to at least one ad account in your Business Manager.");
     }
 
-    // Deactivate any existing Meta platforms and clean up old ad accounts
-    console.log("Deactivating existing Meta platforms and cleaning old data...");
-    await supabase
-      .from("connected_platforms")
-      .update({ is_active: false })
-      .eq("user_id", user.id)
-      .eq("platform_type", "meta");
-    
-    // Delete old Meta ad accounts to prevent showing stale data
-    await supabase
-      .from("meta_ad_accounts")
-      .delete()
-      .eq("user_id", user.id);
+    let platformData;
 
-    // Create a single Meta platform connection (not tied to specific ad accounts yet)
-    console.log("Creating new platform connection...");
-    const { data: platformData, error: platformError } = await supabase
-      .from("connected_platforms")
-      .insert({
-        user_id: user.id,
-        platform_type: "meta",
-        platform_name: "Meta (Facebook & Instagram)",
-        access_token: access_token,
-        is_active: true,
-        business_manager_id: selectedBmId,
-        metadata: businessesMeta.length > 0 ? { businesses: businessesMeta } : null,
-      })
-      .select()
-      .single();
+    if (isReconnection) {
+      // Update existing platform connection
+      console.log(`Reconnecting existing platform: ${platformId}`);
+      const { data: updatedPlatform, error: updateError } = await supabase
+        .from("connected_platforms")
+        .update({
+          access_token: access_token,
+          is_active: true,
+          business_manager_id: selectedBmId,
+          metadata: businessesMeta.length > 0 ? { businesses: businessesMeta } : null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", platformId)
+        .eq("user_id", user.id)
+        .select()
+        .single();
 
-    if (platformError) {
-      console.error("Failed to insert platform:", platformError);
-      throw new Error("Failed to save platform connection");
+      if (updateError) {
+        console.error("Failed to update platform:", updateError);
+        throw new Error("Failed to reconnect platform");
+      }
+      platformData = updatedPlatform;
+      console.log("Platform reconnected, ID:", platformData.id);
+    } else {
+      // Create new platform connection (allow multiple connections)
+      console.log("Creating new platform connection...");
+      const platformName = selectedBmId && businessesMeta.length > 0
+        ? `Meta - ${businessesMeta[0].name}`
+        : "Meta (Facebook & Instagram)";
+
+      const { data: newPlatform, error: insertError } = await supabase
+        .from("connected_platforms")
+        .insert({
+          user_id: user.id,
+          platform_type: "meta",
+          platform_name: platformName,
+          access_token: access_token,
+          is_active: true,
+          business_manager_id: selectedBmId,
+          metadata: businessesMeta.length > 0 ? { businesses: businessesMeta } : null,
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error("Failed to insert platform:", insertError);
+        throw new Error("Failed to save platform connection");
+      }
+      platformData = newPlatform;
+      console.log("Platform connected, ID:", platformData.id);
     }
 
     console.log("Platform connected, ID:", platformData.id);
