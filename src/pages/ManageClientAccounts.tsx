@@ -193,7 +193,11 @@ export default function ManageClientAccounts() {
 
           <TabsContent value="defaults" className="space-y-4">
             {selectedClient && user && (
-              <AccountDefaultsTab clientId={selectedClient} userId={user.id} />
+              <AccountDefaultsTab 
+                clientId={selectedClient} 
+                userId={user.id}
+                clientMarkets={clientMarkets}
+              />
             )}
           </TabsContent>
         </Tabs>
