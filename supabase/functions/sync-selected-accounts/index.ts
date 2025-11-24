@@ -89,8 +89,14 @@ serve(async (req) => {
       throw new Error("Failed to fetch any selected accounts");
     }
 
-    // Delete existing accounts and insert new ones
-    await supabase.from("meta_ad_accounts").delete().eq("user_id", user.id);
+    // Delete only the accounts we're about to insert (to update them), keep others
+    const accountIdsToSync = accountsToInsert.map(acc => acc.account_id);
+    await supabase
+      .from("meta_ad_accounts")
+      .delete()
+      .eq("user_id", user.id)
+      .in("account_id", accountIdsToSync);
+    
     const { error: insertError } = await supabase.from("meta_ad_accounts").insert(accountsToInsert);
     
     if (insertError) {
