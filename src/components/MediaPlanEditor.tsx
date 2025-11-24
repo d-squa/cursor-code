@@ -107,7 +107,7 @@ export function MediaPlanEditor() {
 
   // Auto-populate when client is selected
   useEffect(() => {
-    if (selectedClientId && !isHydrated) {
+    if (selectedClientId && totalBudget && startDate && endDate) {
       autoPopulateFromClient();
     }
   }, [selectedClientId]);
@@ -116,8 +116,13 @@ export function MediaPlanEditor() {
     const selectedClient = clients.find(c => c.id === selectedClientId);
     if (!selectedClient) return;
 
+    console.log('🔄 Auto-populating from client:', selectedClient);
+
     const clientPlatforms = Array.isArray((selectedClient as any).platforms) ? (selectedClient as any).platforms : [];
     const clientMarkets = Array.isArray((selectedClient as any).markets) ? (selectedClient as any).markets : [];
+
+    console.log('Client platforms:', clientPlatforms);
+    console.log('Client markets:', clientMarkets);
 
     // Platform name normalization mapping
     const platformMapping: Record<string, string> = {
@@ -149,6 +154,8 @@ export function MediaPlanEditor() {
       .map((p: string) => platformMapping[p.toLowerCase()] || p.toLowerCase())
       .filter((id: string) => budgetAllocations[id] !== undefined);
 
+    console.log('Selected platform IDs:', selectedPlatformIds);
+
     if (selectedPlatformIds.length === 0) {
       toast.error("No valid platforms found for this client");
       return;
@@ -177,6 +184,8 @@ export function MediaPlanEditor() {
         markets: [],
       };
     });
+
+    console.log('Created platforms:', newPlatforms);
 
     setPlatformsWithMarkets(newPlatforms);
     toast.success(`Auto-populated ${newPlatforms.length} platform(s) from ${selectedClient.name}`);
@@ -1132,7 +1141,48 @@ export function MediaPlanEditor() {
         </CardHeader>
         {currentStep === 1 ? (
           <CardContent className="space-y-6">
-            {/* Client Selection - First field */}
+            <div className="space-y-2">
+              <Label htmlFor="budget">Total Activation Budget ($) *</Label>
+              <Input
+                id="budget"
+                type="number"
+                value={totalBudget}
+                onChange={(e) => { setTotalBudget(e.target.value); ensureDraft(); }}
+                placeholder="Enter total budget"
+                required
+              />
+            </div>
+
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="start-date" className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  Start Date *
+                </Label>
+                <Input
+                  id="start-date"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => { setStartDate(e.target.value); ensureDraft(); }}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="end-date" className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  End Date *
+                </Label>
+                <Input
+                  id="end-date"
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => { setEndDate(e.target.value); ensureDraft(); }}
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Client Selection - Now after required fields */}
             <div className="space-y-2">
               <Label htmlFor="client">Client (Optional)</Label>
               <Select 
@@ -1141,9 +1191,10 @@ export function MediaPlanEditor() {
                   setSelectedClientId(value || ""); 
                   ensureDraft(); 
                 }}
+                disabled={!totalBudget || !startDate || !endDate}
               >
                 <SelectTrigger id="client">
-                  <SelectValue placeholder="Select a client to filter resources..." />
+                  <SelectValue placeholder={!totalBudget || !startDate || !endDate ? "Fill budget and dates first..." : "Select a client to auto-populate platforms..."} />
                 </SelectTrigger>
                 <SelectContent>
                   {clients.map((client) => (
@@ -1154,7 +1205,7 @@ export function MediaPlanEditor() {
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                Select a client to automatically filter resources by client assignments
+                Selecting a client will auto-populate platforms, markets, and ad account defaults
               </p>
             </div>
 
@@ -1178,43 +1229,6 @@ export function MediaPlanEditor() {
                   required
                 />
                 <p className="text-xs text-muted-foreground">Unique financial reference for invoicing</p>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="budget">Total Activation Budget ($)</Label>
-              <Input
-                id="budget"
-                type="number"
-                value={totalBudget}
-                onChange={(e) => { setTotalBudget(e.target.value); ensureDraft(); }}
-                placeholder="Enter total budget"
-              />
-            </div>
-
-            <div className="grid gap-6 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="start-date" className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4" />
-                  Start Date
-                </Label>
-                <Input
-                  id="start-date"
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => { setStartDate(e.target.value); ensureDraft(); }}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="end-date" className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4" />
-                  End Date
-                </Label>
-                <Input
-                  id="end-date"
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => { setEndDate(e.target.value); ensureDraft(); }}
-                />
               </div>
             </div>
 
