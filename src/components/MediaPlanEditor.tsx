@@ -197,7 +197,17 @@ export function MediaPlanEditor() {
           id: `temp-market-${platformId}-${Date.now()}`,
           name: clientMarkets[0] || 'US',
           budgetPercentage: 100,
+          adAccountId: "",
+          accountName: "",
+          pixel: "",
+          pageId: "",
+          page: "",
+          instagramActorId: "",
+          catalog: "",
+          productSet: "",
+          conversionEvent: "",
           phases: [],
+          adFormats: [],
           countries: [clientMarkets[0] || 'US'],
           ageMin: 18,
           ageMax: 65,
@@ -215,7 +225,7 @@ export function MediaPlanEditor() {
     console.log('Created platforms:', newPlatforms);
 
     setPlatformsWithMarkets(newPlatforms);
-    toast.success(`Auto-populated ${newPlatforms.length} platform(s) from ${selectedClient.name}. Now select an ad account for each platform to auto-create markets.`);
+    toast.success(`Auto-populated ${newPlatforms.length} platform(s) from ${selectedClient.name}. Select an ad account for each platform to auto-create markets.`, { duration: 5000 });
   };
   
   // Basic targeting (Step 2)
