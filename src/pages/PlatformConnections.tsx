@@ -66,7 +66,7 @@ export default function PlatformConnections() {
   const [tiktokAdAccounts, setTikTokAdAccounts] = useState<TikTokAdAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [adAccountOptions, setAdAccountOptions] = useState<{ id: string; name: string }[]>([]);
+  const [adAccountOptions, setAdAccountOptions] = useState<{ id: string; name: string; business_center?: any }[]>([]);
   const [selectingAccount, setSelectingAccount] = useState(false);
   const [accountSelectorOpen, setAccountSelectorOpen] = useState(false);
   const [clientSelectorOpen, setClientSelectorOpen] = useState(false);
@@ -272,7 +272,7 @@ export default function PlatformConnections() {
     }
   };
 
-  const handleSaveAdAccounts = async (accounts: { id: string; name: string }[]) => {
+  const handleSaveAdAccounts = async (accounts: { id: string; name: string; business_center?: any }[]) => {
     if (accounts.length === 0 || !currentPlatformId) return;
     
     setSelectingAccount(true);
@@ -396,7 +396,8 @@ export default function PlatformConnections() {
           if (Array.isArray(data?.accounts) && data.accounts.length > 0) {
             const accountOptions = data.accounts.map((acc: any) => ({
               id: acc.advertiser_id || acc.id,
-              name: acc.name
+              name: acc.name,
+              business_center: acc.business_center
             }));
             setAdAccountOptions(accountOptions);
             setCurrentPlatformId(data.platformId);
