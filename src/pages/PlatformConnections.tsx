@@ -30,6 +30,13 @@ interface TikTokAdAccount {
   account_name: string;
   account_status: string | null;
   client_id: string | null;
+  bc_id?: string | null;
+  business_center?: {
+    bc_id: string;
+    name: string;
+    role?: string;
+    status?: string;
+  } | null;
   clients?: {
     id: string;
     name: string;
@@ -93,7 +100,7 @@ export default function PlatformConnections() {
           .order("account_name"),
         supabase
           .from("tiktok_ad_accounts")
-          .select("id, account_id, account_name, account_status, client_id, clients(id, name)")
+          .select("id, account_id, account_name, advertiser_id, account_status, client_id, clients(id, name)")
           .order("account_name")
       ]);
 
@@ -103,7 +110,35 @@ export default function PlatformConnections() {
 
       setPlatforms(platformsRes.data || []);
       setMetaAdAccounts(metaAccountsRes.data || []);
-      setTikTokAdAccounts(tiktokAccountsRes.data || []);
+      
+      // Enrich TikTok accounts with business center info from platform metadata
+      const tiktokPlatforms = platformsRes.data?.filter(p => p.platform_type === 'tiktok') || [];
+      const enrichedTiktokAccounts = (tiktokAccountsRes.data || []).map(account => {
+        // Find the platform that contains this advertiser
+        const platform = tiktokPlatforms.find(p => {
+          const metadata = p.metadata as any;
+          return metadata?.advertiser_ids?.includes(account.advertiser_id);
+        });
+        
+        if (platform?.metadata) {
+          const metadata = platform.metadata as any;
+          const accountInfo = metadata.accounts?.find(
+            (acc: any) => acc.advertiser_id === account.advertiser_id
+          );
+          
+          if (accountInfo) {
+            return {
+              ...account,
+              bc_id: accountInfo.bc_id,
+              business_center: accountInfo.business_center
+            };
+          }
+        }
+        
+        return account;
+      });
+      
+      setTikTokAdAccounts(enrichedTiktokAccounts);
     } catch (error: any) {
       console.error("Error fetching data:", error);
       toast.error("Failed to load data");
@@ -595,9 +630,14 @@ export default function PlatformConnections() {
                 {tiktokAdAccounts.map((account) => (
                   <div key={account.id} className="flex items-center justify-between p-4 rounded-lg border bg-black/5 dark:bg-white/5">
                     <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium">{account.account_name}</p>
-                        <Badge variant="outline" className="border-black/20 dark:border-white/20">{account.account_id}</Badge>
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium">{account.account_name}</p>
+                          {account.bc_id && account.business_center && (
+                            <Badge variant="outline" className="text-xs">
+                              BC: {account.business_center.name}
+                            </Badge>
+                          )}
+                          <Badge variant="outline" className="border-black/20 dark:border-white/20">{account.account_id}</Badge>
                         {account.client_id && account.clients && (
                           <Badge variant="secondary">
                             <Link2 className="h-3 w-3 mr-1" />

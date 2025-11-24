@@ -7,6 +7,12 @@ import { useEffect, useMemo, useState } from "react";
 interface AdAccount {
   id: string;
   name: string;
+  business_center?: {
+    bc_id: string;
+    name: string;
+    role?: string;
+    status?: string;
+  } | null;
 }
 
 interface Props {
@@ -85,10 +91,15 @@ export default function PlatformAdAccountSelector({ open, onOpenChange, adAccoun
                   onCheckedChange={(val) => handleToggle(acc.id, Boolean(val))}
                   disabled={loading}
                 />
-                <div className="flex-1 text-sm space-y-1">
-                  <div className="font-medium">{acc.name}</div>
-                  <div className="text-xs text-muted-foreground">{acc.id}</div>
-                </div>
+                      <div className="flex-1 text-sm space-y-1">
+                        <div className="font-medium">{acc.name}</div>
+                        {acc.business_center?.name && (
+                          <div className="text-xs text-muted-foreground">
+                            Business Center: {acc.business_center.name}
+                          </div>
+                        )}
+                        <div className="text-xs text-muted-foreground">{acc.id}</div>
+                      </div>
               </label>
             ))}
           </div>

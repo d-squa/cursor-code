@@ -86,27 +86,83 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log(`Received access token for ${advertiser_ids.length} advertiser account(s)`);
 
-    // Fetch advertiser account details
+    // Fetch advertiser account details and business center information
     const accounts = [];
+    const businessCenters = new Map(); // Cache business center info by bc_id
+    
     for (const advertiserId of advertiser_ids) {
-      const advertiserResponse = await fetch(
-        `https://business-api.tiktok.com/open_api/v1.3/advertiser/info/?advertiser_id=${advertiserId}`,
-        {
-          headers: {
-            "Access-Token": access_token,
-          },
-        }
-      );
+      try {
+        const advertiserResponse = await fetch(
+          `https://business-api.tiktok.com/open_api/v1.3/advertiser/info/?advertiser_id=${advertiserId}`,
+          {
+            headers: {
+              "Access-Token": access_token,
+            },
+          }
+        );
 
-      const advertiserData = await advertiserResponse.json();
-      
-      if (advertiserData.code === 0 && advertiserData.data) {
+        const advertiserData = await advertiserResponse.json();
+        
+        if (advertiserData.code === 0 && advertiserData.data) {
+          const advertiserInfo = advertiserData.data;
+          const bcId = advertiserInfo.bc_id;
+          
+          let businessCenterInfo = null;
+          
+          // Fetch business center details if bc_id is available and not cached
+          if (bcId && !businessCenters.has(bcId)) {
+            try {
+              const bcResponse = await fetch(
+                `https://business-api.tiktok.com/open_api/v1.3/bc/get/?bc_id=${bcId}`,
+                {
+                  headers: {
+                    "Access-Token": access_token,
+                  },
+                }
+              );
+              
+              const bcData = await bcResponse.json();
+              
+              if (bcData.code === 0 && bcData.data) {
+                businessCenterInfo = {
+                  bc_id: bcId,
+                  name: bcData.data.name || `Business Center ${bcId}`,
+                  role: bcData.data.role,
+                  status: bcData.data.status,
+                };
+                businessCenters.set(bcId, businessCenterInfo);
+                console.log(`Fetched business center: ${businessCenterInfo.name}`);
+              } else {
+                console.log(`Could not fetch business center ${bcId}: ${bcData.message || 'Unknown error'}`);
+              }
+            } catch (bcError) {
+              console.error(`Error fetching business center ${bcId}:`, bcError);
+            }
+          } else if (bcId) {
+            businessCenterInfo = businessCenters.get(bcId);
+          }
+          
+          accounts.push({
+            advertiser_id: advertiserId,
+            name: advertiserInfo.name || `Advertiser ${advertiserId}`,
+            currency: advertiserInfo.currency || "USD",
+            timezone: advertiserInfo.timezone || "UTC",
+            status: advertiserInfo.status || "ENABLE",
+            bc_id: bcId || null,
+            business_center: businessCenterInfo,
+          });
+        }
+      } catch (error) {
+        console.error(`Error fetching advertiser ${advertiserId}:`, error);
+        // Add advertiser with minimal info on error
         accounts.push({
           advertiser_id: advertiserId,
-          name: advertiserData.data.name || `Advertiser ${advertiserId}`,
-          currency: advertiserData.data.currency || "USD",
-          timezone: advertiserData.data.timezone || "UTC",
-          status: advertiserData.data.status || "ENABLE",
+          name: `Advertiser ${advertiserId}`,
+          currency: "USD",
+          timezone: "UTC",
+          status: "UNKNOWN",
+          bc_id: null,
+          business_center: null,
         });
       }
     }
@@ -119,7 +175,11 @@ const handler = async (req: Request): Promise<Response> => {
           access_token: access_token,
           updated_at: new Date().toISOString(),
           is_active: true,
-          metadata: { advertiser_ids, accounts }
+          metadata: { 
+            advertiser_ids, 
+            accounts,
+            business_centers: Array.from(businessCenters.values())
+          }
         })
         .eq("id", platformId)
         .eq("user_id", user.id);
@@ -151,7 +211,11 @@ const handler = async (req: Request): Promise<Response> => {
         platform_name: "TikTok Ads",
         access_token: access_token,
         is_active: true,
-        metadata: { advertiser_ids, accounts }
+        metadata: { 
+          advertiser_ids, 
+          accounts,
+          business_centers: Array.from(businessCenters.values())
+        }
       })
       .select()
       .single();
