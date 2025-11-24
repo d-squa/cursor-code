@@ -34,53 +34,90 @@ serve(async (req) => {
     console.log("Purging data for platform:", connectedPlatformId);
 
     // Delete platform_accounts
-    await supabase
+    const { error: platformAccountsError } = await supabase
       .from("platform_accounts")
       .delete()
       .eq("connected_platform_id", connectedPlatformId);
+    
+    if (platformAccountsError) {
+      console.error("Error deleting platform_accounts:", platformAccountsError);
+    }
 
     // Delete all Meta-related data for this user
-    await supabase
+    const { error: adAccountsError } = await supabase
       .from("meta_ad_accounts")
       .delete()
       .eq("user_id", user.id);
+    
+    if (adAccountsError) {
+      console.error("Error deleting meta_ad_accounts:", adAccountsError);
+    }
 
-    await supabase
+    const { error: pagesError } = await supabase
       .from("meta_pages")
       .delete()
       .eq("user_id", user.id);
+    
+    if (pagesError) {
+      console.error("Error deleting meta_pages:", pagesError);
+    }
 
-    await supabase
+    const { error: pixelsError } = await supabase
       .from("meta_pixels")
       .delete()
       .eq("user_id", user.id);
+    
+    if (pixelsError) {
+      console.error("Error deleting meta_pixels:", pixelsError);
+    }
 
-    await supabase
+    const { error: catalogsError } = await supabase
       .from("meta_catalogs")
       .delete()
       .eq("user_id", user.id);
+    
+    if (catalogsError) {
+      console.error("Error deleting meta_catalogs:", catalogsError);
+    }
 
-    await supabase
+    const { error: productSetsError } = await supabase
       .from("meta_product_sets")
       .delete()
       .eq("user_id", user.id);
+    
+    if (productSetsError) {
+      console.error("Error deleting meta_product_sets:", productSetsError);
+    }
 
-    await supabase
+    const { error: conversionEventsError } = await supabase
       .from("meta_conversion_events")
       .delete()
       .eq("user_id", user.id);
+    
+    if (conversionEventsError) {
+      console.error("Error deleting meta_conversion_events:", conversionEventsError);
+    }
 
-    await supabase
+    const { error: instagramError } = await supabase
       .from("meta_instagram_accounts")
       .delete()
       .eq("user_id", user.id);
+    
+    if (instagramError) {
+      console.error("Error deleting meta_instagram_accounts:", instagramError);
+    }
 
-    // Finally delete the connected platform
-    await supabase
+    // Finally delete the connected platform using service role to bypass RLS
+    const { error: deleteError } = await supabase
       .from("connected_platforms")
       .delete()
       .eq("id", connectedPlatformId)
       .eq("user_id", user.id);
+    
+    if (deleteError) {
+      console.error("Error deleting connected_platform:", deleteError);
+      throw deleteError;
+    }
 
     console.log("Purge completed successfully");
 
