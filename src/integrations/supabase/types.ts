@@ -721,6 +721,159 @@ export type Database = {
           },
         ]
       }
+      platform_capability_gaps: {
+        Row: {
+          created_at: string
+          fallback_behavior: string | null
+          feature_name: string
+          feature_type: string
+          id: string
+          impact_level: string | null
+          is_supported: boolean | null
+          meta_equivalent: string | null
+          notes: string | null
+          platform: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          fallback_behavior?: string | null
+          feature_name: string
+          feature_type: string
+          id?: string
+          impact_level?: string | null
+          is_supported?: boolean | null
+          meta_equivalent?: string | null
+          notes?: string | null
+          platform: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          fallback_behavior?: string | null
+          feature_name?: string
+          feature_type?: string
+          id?: string
+          impact_level?: string | null
+          is_supported?: boolean | null
+          meta_equivalent?: string | null
+          notes?: string | null
+          platform?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      platform_objective_mapping: {
+        Row: {
+          created_at: string
+          id: string
+          notes: string | null
+          source_objective: string
+          source_platform: string
+          target_objective: string
+          target_platform: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          source_objective: string
+          source_platform: string
+          target_objective: string
+          target_platform: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          source_objective?: string
+          source_platform?: string
+          target_objective?: string
+          target_platform?: string
+        }
+        Relationships: []
+      }
+      platform_placement_mapping: {
+        Row: {
+          created_at: string
+          fallback_placement: string | null
+          id: string
+          is_supported: boolean | null
+          notes: string | null
+          source_placement: string
+          source_platform: string
+          target_placement: string | null
+          target_platform: string
+        }
+        Insert: {
+          created_at?: string
+          fallback_placement?: string | null
+          id?: string
+          is_supported?: boolean | null
+          notes?: string | null
+          source_placement: string
+          source_platform: string
+          target_placement?: string | null
+          target_platform: string
+        }
+        Update: {
+          created_at?: string
+          fallback_placement?: string | null
+          id?: string
+          is_supported?: boolean | null
+          notes?: string | null
+          source_placement?: string
+          source_platform?: string
+          target_placement?: string | null
+          target_platform?: string
+        }
+        Relationships: []
+      }
+      platform_targeting_mapping: {
+        Row: {
+          created_at: string
+          fallback_strategy: string | null
+          id: string
+          is_supported: boolean | null
+          notes: string | null
+          source_platform: string
+          source_targeting_id: string
+          source_targeting_name: string | null
+          source_targeting_type: string
+          target_platform: string
+          target_targeting_id: string | null
+          target_targeting_name: string | null
+        }
+        Insert: {
+          created_at?: string
+          fallback_strategy?: string | null
+          id?: string
+          is_supported?: boolean | null
+          notes?: string | null
+          source_platform: string
+          source_targeting_id: string
+          source_targeting_name?: string | null
+          source_targeting_type: string
+          target_platform: string
+          target_targeting_id?: string | null
+          target_targeting_name?: string | null
+        }
+        Update: {
+          created_at?: string
+          fallback_strategy?: string | null
+          id?: string
+          is_supported?: boolean | null
+          notes?: string | null
+          source_platform?: string
+          source_targeting_id?: string
+          source_targeting_name?: string | null
+          source_targeting_type?: string
+          target_platform?: string
+          target_targeting_id?: string | null
+          target_targeting_name?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           company_name: string | null
@@ -805,6 +958,308 @@ export type Database = {
           name?: string
           owner_id?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      tiktok_ad_accounts: {
+        Row: {
+          account_id: string
+          account_name: string
+          account_status: string | null
+          advertiser_id: string
+          client_id: string | null
+          created_at: string
+          currency: string | null
+          default_catalog_id: string | null
+          default_identity_id: string | null
+          default_pixel_id: string | null
+          id: string
+          main_markets: Json | null
+          synced_at: string
+          timezone: string | null
+          user_id: string
+        }
+        Insert: {
+          account_id: string
+          account_name: string
+          account_status?: string | null
+          advertiser_id: string
+          client_id?: string | null
+          created_at?: string
+          currency?: string | null
+          default_catalog_id?: string | null
+          default_identity_id?: string | null
+          default_pixel_id?: string | null
+          id?: string
+          main_markets?: Json | null
+          synced_at?: string
+          timezone?: string | null
+          user_id: string
+        }
+        Update: {
+          account_id?: string
+          account_name?: string
+          account_status?: string | null
+          advertiser_id?: string
+          client_id?: string | null
+          created_at?: string
+          currency?: string | null
+          default_catalog_id?: string | null
+          default_identity_id?: string | null
+          default_pixel_id?: string | null
+          id?: string
+          main_markets?: Json | null
+          synced_at?: string
+          timezone?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tiktok_ad_accounts_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tiktok_ad_groups: {
+        Row: {
+          ad_group_name: string
+          advertiser_id: string
+          budget: number | null
+          budget_mode: string | null
+          created_at: string
+          id: string
+          optimization_goal: string | null
+          placement_type: string | null
+          placements: Json | null
+          status: string | null
+          targeting: Json | null
+          tiktok_ad_group_id: string
+          tiktok_campaign_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ad_group_name: string
+          advertiser_id: string
+          budget?: number | null
+          budget_mode?: string | null
+          created_at?: string
+          id?: string
+          optimization_goal?: string | null
+          placement_type?: string | null
+          placements?: Json | null
+          status?: string | null
+          targeting?: Json | null
+          tiktok_ad_group_id: string
+          tiktok_campaign_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ad_group_name?: string
+          advertiser_id?: string
+          budget?: number | null
+          budget_mode?: string | null
+          created_at?: string
+          id?: string
+          optimization_goal?: string | null
+          placement_type?: string | null
+          placements?: Json | null
+          status?: string | null
+          targeting?: Json | null
+          tiktok_ad_group_id?: string
+          tiktok_campaign_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tiktok_ad_groups_tiktok_campaign_id_fkey"
+            columns: ["tiktok_campaign_id"]
+            isOneToOne: false
+            referencedRelation: "tiktok_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tiktok_campaigns: {
+        Row: {
+          actiplan_campaign_id: string | null
+          advertiser_id: string
+          budget: number | null
+          budget_mode: string | null
+          campaign_name: string
+          created_at: string
+          id: string
+          objective_type: string
+          status: string | null
+          tiktok_campaign_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          actiplan_campaign_id?: string | null
+          advertiser_id: string
+          budget?: number | null
+          budget_mode?: string | null
+          campaign_name: string
+          created_at?: string
+          id?: string
+          objective_type: string
+          status?: string | null
+          tiktok_campaign_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          actiplan_campaign_id?: string | null
+          advertiser_id?: string
+          budget?: number | null
+          budget_mode?: string | null
+          campaign_name?: string
+          created_at?: string
+          id?: string
+          objective_type?: string
+          status?: string | null
+          tiktok_campaign_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tiktok_campaigns_actiplan_campaign_id_fkey"
+            columns: ["actiplan_campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tiktok_creatives: {
+        Row: {
+          ad_text: string | null
+          advertiser_id: string
+          call_to_action: string | null
+          created_at: string
+          creative_name: string
+          creative_type: string | null
+          id: string
+          image_ids: Json | null
+          landing_page_url: string | null
+          status: string | null
+          tiktok_ad_group_id: string | null
+          tiktok_creative_id: string
+          updated_at: string
+          user_id: string
+          video_id: string | null
+        }
+        Insert: {
+          ad_text?: string | null
+          advertiser_id: string
+          call_to_action?: string | null
+          created_at?: string
+          creative_name: string
+          creative_type?: string | null
+          id?: string
+          image_ids?: Json | null
+          landing_page_url?: string | null
+          status?: string | null
+          tiktok_ad_group_id?: string | null
+          tiktok_creative_id: string
+          updated_at?: string
+          user_id: string
+          video_id?: string | null
+        }
+        Update: {
+          ad_text?: string | null
+          advertiser_id?: string
+          call_to_action?: string | null
+          created_at?: string
+          creative_name?: string
+          creative_type?: string | null
+          id?: string
+          image_ids?: Json | null
+          landing_page_url?: string | null
+          status?: string | null
+          tiktok_ad_group_id?: string | null
+          tiktok_creative_id?: string
+          updated_at?: string
+          user_id?: string
+          video_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tiktok_creatives_tiktok_ad_group_id_fkey"
+            columns: ["tiktok_ad_group_id"]
+            isOneToOne: false
+            referencedRelation: "tiktok_ad_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tiktok_metrics: {
+        Row: {
+          advertiser_id: string
+          clicks: number | null
+          conversions: number | null
+          cpc: number | null
+          cpm: number | null
+          created_at: string
+          ctr: number | null
+          date: string
+          id: string
+          impressions: number | null
+          raw_metrics: Json | null
+          spend: number | null
+          tiktok_ad_group_id: string | null
+          tiktok_campaign_id: string | null
+          updated_at: string
+          user_id: string
+          video_play_actions: number | null
+          video_views: number | null
+        }
+        Insert: {
+          advertiser_id: string
+          clicks?: number | null
+          conversions?: number | null
+          cpc?: number | null
+          cpm?: number | null
+          created_at?: string
+          ctr?: number | null
+          date: string
+          id?: string
+          impressions?: number | null
+          raw_metrics?: Json | null
+          spend?: number | null
+          tiktok_ad_group_id?: string | null
+          tiktok_campaign_id?: string | null
+          updated_at?: string
+          user_id: string
+          video_play_actions?: number | null
+          video_views?: number | null
+        }
+        Update: {
+          advertiser_id?: string
+          clicks?: number | null
+          conversions?: number | null
+          cpc?: number | null
+          cpm?: number | null
+          created_at?: string
+          ctr?: number | null
+          date?: string
+          id?: string
+          impressions?: number | null
+          raw_metrics?: Json | null
+          spend?: number | null
+          tiktok_ad_group_id?: string | null
+          tiktok_campaign_id?: string | null
+          updated_at?: string
+          user_id?: string
+          video_play_actions?: number | null
+          video_views?: number | null
         }
         Relationships: []
       }

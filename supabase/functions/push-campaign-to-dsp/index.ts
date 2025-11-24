@@ -118,6 +118,9 @@ const handler = async (req: Request): Promise<Response> => {
       } else if (platformName.includes('Google')) {
         const result = await pushToGoogleAds(campaign, platformConfig, platform);
         results.push(result);
+      } else if (platformName.toLowerCase().includes('tiktok')) {
+        const result = await pushToTikTok(campaign, platformConfig, platform);
+        results.push(result);
       }
     }
 
@@ -769,6 +772,221 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
   return {
     platform: "Google Ads",
     status: "Not implemented yet",
+  };
+}
+
+// TikTok campaign publishing
+async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
+  console.log("Pushing to TikTok...");
+  
+  const results = [];
+  const errors = [];
+  
+  // Import adapters
+  const { ObjectiveMapper } = await import("../_shared/objective-mapper.ts");
+  const { getPlatformAdapter } = await import("../_shared/platform-adapter.ts");
+  
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabase = createClient(supabaseUrl, supabaseKey);
+  
+  const mapper = new ObjectiveMapper(supabaseUrl, supabaseKey);
+  const tiktokAdapter = getPlatformAdapter("tiktok");
+  
+  const markets = platformConfig.markets || [];
+  
+  for (const market of markets) {
+    // Get TikTok advertiser ID from market config
+    const advertiserId = market.adAccountId || platform.metadata?.advertiser_ids?.[0];
+    
+    if (!advertiserId) {
+      errors.push({
+        market: market.name,
+        error: "Missing TikTok advertiser ID",
+        type: 'validation_error'
+      });
+      continue;
+    }
+    
+    const phases = market.phases || [{
+      id: 'default-phase',
+      name: market.name,
+      startDate: campaign.start_date,
+      endDate: campaign.end_date,
+      budgetPercentage: 100,
+      objective: market.objective || campaign.objective || "TRAFFIC"
+    }];
+    
+    for (const phase of phases) {
+      try {
+        // Map Meta objective to TikTok objective
+        const objectiveMapping = await mapper.mapObjective(
+          phase.objective || market.objective || campaign.objective,
+          "meta",
+          "tiktok"
+        );
+        
+        console.log(`Mapped objective: ${objectiveMapping.sourceObjective} -> ${objectiveMapping.targetObjective}`);
+        
+        // Calculate budget
+        const totalCampaignBudget = campaign.total_budget || 0;
+        const platformBudgetPercentage = platformConfig.budgetPercentage || 100;
+        const marketBudgetPercentage = market.budgetPercentage || 100;
+        const phaseBudgetPercentage = phase.budgetPercentage || 100;
+        
+        const phaseBudget = (totalCampaignBudget * platformBudgetPercentage / 100) * 
+                           (marketBudgetPercentage / 100) * (phaseBudgetPercentage / 100);
+        
+        // Calculate duration
+        const startDate = new Date(phase.startDate || campaign.start_date);
+        const endDate = new Date(phase.endDate || campaign.end_date);
+        const durationDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        
+        const budgetType = phase.budgetType || 'lifetime';
+        const campaignBudget = budgetType === 'daily' ? phaseBudget / durationDays : phaseBudget;
+        
+        // Create TikTok campaign
+        const campaignResult = await tiktokAdapter.createCampaign({
+          accountId: advertiserId,
+          accessToken: platform.access_token,
+          campaignName: `${campaign.name} - ${market.name}${phases.length > 1 ? ` - ${phase.name}` : ''}`,
+          objective: objectiveMapping.targetObjective,
+          budget: campaignBudget,
+          budgetMode: budgetType,
+          startDate: startDate.toISOString().split('T')[0],
+          endDate: endDate.toISOString().split('T')[0],
+          status: "PAUSED",
+        });
+        
+        if (!campaignResult.success) {
+          errors.push({
+            market: market.name,
+            phase: phase.name,
+            error: campaignResult.error,
+            type: 'campaign_creation'
+          });
+          continue;
+        }
+        
+        console.log("TikTok campaign created:", campaignResult.campaignId);
+        
+        // Store campaign in database
+        await supabase.from("tiktok_campaigns").insert({
+          user_id: campaign.user_id,
+          actiplan_campaign_id: campaign.id,
+          tiktok_campaign_id: campaignResult.campaignId,
+          advertiser_id: advertiserId,
+          campaign_name: campaignResult.metadata?.campaign_name || "",
+          objective_type: objectiveMapping.targetObjective,
+          budget_mode: budgetType,
+          budget: campaignBudget,
+          status: "PAUSED",
+        });
+        
+        // Map placements
+        const tiktokPlacements = ["PLACEMENT_TIKTOK"];
+        const publisherPlatforms = phase.publisherPlatforms || [];
+        
+        if (publisherPlatforms.includes('audience_network')) {
+          tiktokPlacements.push("PLACEMENT_PANGLE");
+        }
+        
+        // Build targeting
+        const basicTargeting = campaign.generic_config?.basicTargeting || {};
+        const phaseBasicTargeting = phase.targeting || {};
+        const effectiveTargeting = Object.keys(phaseBasicTargeting).length > 0 ? phaseBasicTargeting : basicTargeting;
+        
+        const targeting: any = {
+          geo_locations: {
+            countries: Array.isArray(market.countries) && market.countries.length > 0 
+              ? market.countries 
+              : [market.name.substring(0, 2).toUpperCase()]
+          },
+          age_min: effectiveTargeting.ageMin || 18,
+          age_max: effectiveTargeting.ageMax || 65,
+          genders: effectiveTargeting.genders,
+        };
+        
+        // Map optimization goal
+        const optimizationGoalMap: Record<string, string> = {
+          "REACH": "REACH",
+          "LINK_CLICKS": "CLICK",
+          "LANDING_PAGE_VIEWS": "LANDING_PAGE",
+          "CONVERSIONS": "CONVERT",
+          "LEAD_GENERATION": "REACH",
+          "VIDEO_VIEWS": "VIDEO_VIEW",
+          "APP_INSTALLS": "INSTALL",
+        };
+        
+        const tiktokOptGoal = optimizationGoalMap[phase.optimizationGoal] || "CLICK";
+        
+        // Create ad group
+        const adGroupResult = await tiktokAdapter.createAdGroup({
+          accountId: advertiserId,
+          accessToken: platform.access_token,
+          campaignId: campaignResult.campaignId,
+          adGroupName: `${phase.name} - Ad Group`,
+          targeting: targeting,
+          placements: tiktokPlacements,
+          optimizationGoal: tiktokOptGoal,
+          budget: campaignBudget,
+          budgetMode: budgetType,
+          status: "PAUSED",
+        });
+        
+        if (!adGroupResult.success) {
+          errors.push({
+            market: market.name,
+            phase: phase.name,
+            error: adGroupResult.error,
+            type: 'adgroup_creation'
+          });
+          continue;
+        }
+        
+        console.log("TikTok ad group created:", adGroupResult.adGroupId);
+        
+        // Store ad group in database
+        await supabase.from("tiktok_ad_groups").insert({
+          user_id: campaign.user_id,
+          tiktok_campaign_id: campaignResult.campaignId,
+          tiktok_ad_group_id: adGroupResult.adGroupId,
+          advertiser_id: advertiserId,
+          ad_group_name: adGroupResult.metadata?.adgroup_name || "",
+          placement_type: "PLACEMENT_TYPE_AUTOMATIC",
+          placements: tiktokPlacements,
+          targeting: targeting,
+          budget: campaignBudget,
+          budget_mode: budgetType,
+          optimization_goal: tiktokOptGoal,
+          status: "PAUSED",
+        });
+        
+        results.push({
+          market: market.name,
+          phase: phase.name,
+          campaignId: campaignResult.campaignId,
+          adGroupId: adGroupResult.adGroupId,
+          success: true,
+        });
+        
+      } catch (error: any) {
+        console.error("Error creating TikTok campaign/ad group:", error);
+        errors.push({
+          market: market.name,
+          phase: phase.name,
+          error: error.message,
+          type: 'unexpected_error'
+        });
+      }
+    }
+  }
+  
+  return {
+    platform: 'TikTok',
+    results,
+    errors,
+    success: errors.length === 0,
   };
 }
 
