@@ -606,6 +606,24 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                             </Select>
                           </div>
 
+                          {/* Product Set - Only show when catalog is selected */}
+                          {defaults.default_catalog_id && (
+                            <div className="space-y-2">
+                              <Label>Default Product Set</Label>
+                              <Select
+                                value={defaults.default_product_set_id || undefined}
+                                onValueChange={(value) => updateDefault(account.id, "default_product_set_id", value)}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select product set (coming soon)" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {/* TikTok product sets will be loaded here */}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          )}
+
                           {/* TikTok Conversion Budget Type */}
                           <div className="space-y-2">
                             <Label className="flex items-center gap-2">
