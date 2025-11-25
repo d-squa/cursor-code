@@ -148,6 +148,10 @@ export default function PlatformConnections() {
   };
 
   const handleConnectPlatform = async (platformType: string, useManagedLogin = false, platformId?: string) => {
+    // Always clear reconnection state for fresh connections
+    sessionStorage.removeItem('reconnecting_platform_id');
+    sessionStorage.removeItem('reconnecting_platform_type');
+    
     if (platformType === "meta") {
       try {
         // Redirect to Meta OAuth
@@ -165,11 +169,9 @@ export default function PlatformConnections() {
 
         const scope = useManagedLogin ? PLATFORM_CONFIG.meta.managedLoginScopes : PLATFORM_CONFIG.meta.oauthScopes;
         
-        // Store platformId in sessionStorage for reconnection
+        // Store platformId in sessionStorage ONLY for explicit reconnection
         if (platformId) {
           sessionStorage.setItem('reconnecting_platform_id', platformId);
-        } else {
-          sessionStorage.removeItem('reconnecting_platform_id');
         }
         
         // Build OAuth URL matching working Supermetrics flow
@@ -217,13 +219,10 @@ export default function PlatformConnections() {
           return;
         }
 
-        // Store platformId in sessionStorage for reconnection
+        // Store platformId in sessionStorage ONLY for explicit reconnection
         if (platformId) {
           sessionStorage.setItem('reconnecting_platform_id', platformId);
           sessionStorage.setItem('reconnecting_platform_type', 'tiktok');
-        } else {
-          sessionStorage.removeItem('reconnecting_platform_id');
-          sessionStorage.removeItem('reconnecting_platform_type');
         }
         
         // Build TikTok OAuth URL
