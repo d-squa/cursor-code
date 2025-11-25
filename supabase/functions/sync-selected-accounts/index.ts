@@ -115,16 +115,24 @@ serve(async (req) => {
       
       // Extract bc_ids from platform metadata
       const platformMetadata = platform.metadata as any;
+      console.log('Platform metadata:', JSON.stringify(platformMetadata, null, 2));
+      
       if (platformMetadata?.accounts) {
+        console.log(`Checking ${platformMetadata.accounts.length} accounts for bc_ids`);
         for (const account of platformMetadata.accounts) {
+          console.log(`Account ${account.advertiser_id} has bc_id: ${account.bc_id}`);
           if (selectedAccountIds.includes(account.advertiser_id) && account.bc_id) {
             bcIds.add(account.bc_id);
             advertiserToBcMap.set(account.advertiser_id, account.bc_id);
           }
         }
+      } else {
+        console.log('No accounts found in platform metadata');
       }
       
       console.log(`Found ${bcIds.size} unique Business Centers for ${selectedAccountIds.length} advertisers`);
+      console.log('BC IDs:', Array.from(bcIds));
+      console.log('Advertiser to BC mapping:', Object.fromEntries(advertiserToBcMap));
       
       const baseUrl = 'https://business-api.tiktok.com/open_api/v1.3';
       
