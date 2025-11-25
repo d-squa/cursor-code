@@ -154,8 +154,8 @@ serve(async (req) => {
         await supabase.from('tiktok_catalogs').upsert({
           user_id: user.id,
           advertiser_id: advertiserId,
-          catalog_id: catalog.bc_id || catalog.catalog_id || catalog.id,
-          catalog_name: catalog.name || catalog.catalog_name || `Catalog ${catalog.bc_id || catalog.catalog_id || catalog.id}`,
+          catalog_id: catalog.asset_id || catalog.catalog_id || catalog.id,
+          catalog_name: catalog.asset_name || catalog.name || catalog.catalog_name || `Catalog ${catalog.asset_id || catalog.catalog_id || catalog.id}`,
           synced_at: new Date().toISOString(),
         }, {
           onConflict: 'catalog_id,advertiser_id',
