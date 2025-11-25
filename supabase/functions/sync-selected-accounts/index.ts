@@ -320,15 +320,17 @@ serve(async (req) => {
         }
       }
 
-      // Fetch TikTok Product Sets (BC-level asset)
+      // Fetch TikTok Product Sets (catalog-level DPA assets)
       const allTiktokProductSets: any[] = [];
       for (const account of selectedAccounts) {
         try {
+          const advertiserId = account.advertiser_id;
           const bcId = account.bc_id;
-          console.log(`Fetching product sets for BC: ${bcId}`);
+          console.log(`Fetching product sets for advertiser ${advertiserId}...`);
           
-          const productSetsResponse = await fetch(
-            `${baseUrl}/bc/asset/get/?bc_id=${bcId}&asset_type=PRODUCT_SET`,
+          // First get catalogs for this advertiser from BC
+          const catalogsResponse = await fetch(
+            `${baseUrl}/bc/asset/get/?bc_id=${bcId}&asset_type=CATALOG`,
             {
               headers: {
                 'Access-Token': platform.access_token,
@@ -336,31 +338,40 @@ serve(async (req) => {
               },
             }
           );
-
-          const productSetsData = await productSetsResponse.json();
-          console.log(`Product sets response for BC ${bcId}:`, productSetsData);
-
-          if (productSetsData.code === 0 && productSetsData.data?.list) {
-            const advertisersInBc = advertiserIds.filter((advId: string) => {
-              const acc = selectedAccounts.find((a: any) => a.advertiser_id === advId);
-              return acc && acc.bc_id === bcId;
-            });
+          
+          const catalogsData = await catalogsResponse.json();
+          if (catalogsData.code === 0 && catalogsData.data?.list) {
+            const catalogIds = catalogsData.data.list.map((cat: any) => cat.asset_id || cat.catalog_id);
+            console.log(`Found ${catalogIds.length} catalogs for advertiser ${advertiserId}`);
             
-            productSetsData.data.list.forEach((productSet: any) => {
-              // Try to match product set to its catalog
-              const catalogId = productSet.catalog_id || productSet.asset_catalog_id || '';
-              
-              advertisersInBc.forEach((advertiserId: string) => {
-                allTiktokProductSets.push({
-                  user_id: user.id,
-                  advertiser_id: advertiserId,
-                  catalog_id: catalogId,
-                  product_set_id: productSet.asset_id || productSet.product_set_id,
-                  product_set_name: productSet.asset_name || productSet.name || `Product Set ${productSet.asset_id}`,
-                  synced_at: new Date().toISOString(),
+            // Fetch product sets for each catalog using DPA endpoint
+            for (const catalogId of catalogIds) {
+              const productSetsResponse = await fetch(
+                `${baseUrl}/dpa/assets/get/?advertiser_id=${advertiserId}&catalog_id=${catalogId}&asset_type=PRODUCT_SET`,
+                {
+                  headers: {
+                    'Access-Token': platform.access_token,
+                    'Content-Type': 'application/json',
+                  },
+                }
+              );
+
+              const productSetsData = await productSetsResponse.json();
+              console.log(`Product sets response for advertiser ${advertiserId}, catalog ${catalogId}:`, productSetsData);
+
+              if (productSetsData.code === 0 && productSetsData.data?.list) {
+                productSetsData.data.list.forEach((productSet: any) => {
+                  allTiktokProductSets.push({
+                    user_id: user.id,
+                    advertiser_id: advertiserId,
+                    catalog_id: catalogId,
+                    product_set_id: productSet.asset_id || productSet.product_set_id,
+                    product_set_name: productSet.asset_name || productSet.name || `Product Set ${productSet.asset_id}`,
+                    synced_at: new Date().toISOString(),
+                  });
                 });
-              });
-            });
+              }
+            }
           }
         } catch (error) {
           console.error(`Error fetching product sets for account ${account.advertiser_id}:`, error);

@@ -172,47 +172,51 @@ serve(async (req) => {
       }
     }
 
-    // Fetch TikTok Product Sets (BC-level asset, linked to catalogs)
-    console.log('Fetching TikTok product sets from Business Center...');
-    const productSetsResponse = await fetch(
-      `${baseUrl}/bc/asset/get/?bc_id=${bcId}&asset_type=PRODUCT_SET`,
-      {
-        headers: {
-          'Access-Token': accessToken,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
-    const productSetsData = await productSetsResponse.json();
-    console.log('Product sets response:', productSetsData);
-
+    // Fetch TikTok Product Sets (catalog-level DPA assets)
+    console.log('Fetching TikTok product sets from catalogs...');
     let totalProductSets = 0;
-    if (productSetsData.code === 0 && productSetsData.data?.list) {
-      const productSets = productSetsData.data.list;
-      console.log(`Syncing ${productSets.length} TikTok product sets`);
+    
+    // Fetch product sets for each catalog
+    for (const catalogId of catalogIds) {
+      console.log(`Fetching product sets for catalog: ${catalogId}`);
+      const productSetsResponse = await fetch(
+        `${baseUrl}/dpa/assets/get/?advertiser_id=${advertiserId}&catalog_id=${catalogId}&asset_type=PRODUCT_SET`,
+        {
+          headers: {
+            'Access-Token': accessToken,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
 
-      for (const productSet of productSets) {
-        // Extract catalog_id from product set metadata if available
-        const catalogId = productSet.catalog_id || productSet.asset_catalog_id || catalogIds[0] || '';
-        const productSetId = productSet.asset_id || productSet.product_set_id || productSet.id;
-        
-        await supabase.from('tiktok_product_sets').upsert({
-          user_id: user.id,
-          advertiser_id: advertiserId,
-          catalog_id: catalogId,
-          product_set_id: productSetId,
-          product_set_name: productSet.asset_name || productSet.name || `Product Set ${productSetId}`,
-          synced_at: new Date().toISOString(),
-        }, {
-          onConflict: 'product_set_id,advertiser_id',
-        });
-        totalProductSets++;
+      const productSetsData = await productSetsResponse.json();
+      console.log(`Product sets response for catalog ${catalogId}:`, productSetsData);
+
+      if (productSetsData.code === 0 && productSetsData.data?.list) {
+        const productSets = productSetsData.data.list;
+        console.log(`Syncing ${productSets.length} TikTok product sets from catalog ${catalogId}`);
+
+        for (const productSet of productSets) {
+          const productSetId = productSet.asset_id || productSet.product_set_id || productSet.id;
+          
+          await supabase.from('tiktok_product_sets').upsert({
+            user_id: user.id,
+            advertiser_id: advertiserId,
+            catalog_id: catalogId,
+            product_set_id: productSetId,
+            product_set_name: productSet.asset_name || productSet.name || `Product Set ${productSetId}`,
+            synced_at: new Date().toISOString(),
+          }, {
+            onConflict: 'product_set_id,advertiser_id',
+          });
+          totalProductSets++;
+        }
+      } else {
+        console.log(`No product sets found for catalog ${catalogId} or API returned error:`, productSetsData);
       }
-      console.log(`Successfully synced ${totalProductSets} product sets`);
-    } else {
-      console.log('No product sets found or API returned error:', productSetsData);
     }
+    
+    console.log(`Successfully synced ${totalProductSets} total product sets`)
 
     console.log('TikTok resources synced successfully');
 
