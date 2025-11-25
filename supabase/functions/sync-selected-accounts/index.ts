@@ -170,9 +170,9 @@ serve(async (req) => {
                       allTiktokIdentities.push({
                         user_id: user.id,
                         advertiser_id: advertiserId,
-                        identity_id: identity.tt_account_id || identity.identity_id || identity.id,
-                        identity_name: identity.tt_account_name || identity.display_name || identity.name || `TikTok Account ${identity.tt_account_id || identity.id}`,
-                        identity_type: identity.account_type || identity.identity_type || 'TT_ACCOUNT',
+                        identity_id: identity.asset_id,
+                        identity_name: identity.asset_name || `TikTok Account ${identity.asset_id}`,
+                        identity_type: identity.asset_type || 'TT_ACCOUNT',
                       });
                     });
                   });

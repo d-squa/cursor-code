@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Save, RefreshCw } from "lucide-react";
+import { Loader2, Save } from "lucide-react";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { MARKET_OPTIONS } from "@/utils/markets";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -69,7 +69,6 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
   const [tiktokCatalogs, setTiktokCatalogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
-  const [syncing, setSyncing] = useState<string | null>(null);
   const [localDefaults, setLocalDefaults] = useState<Record<string, Partial<AdAccount>>>({});
   const [fetchedClientMarkets, setFetchedClientMarkets] = useState<string[]>([]);
 
@@ -253,24 +252,6 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
     }
   };
 
-  const syncTikTokResources = async (advertiserId: string, accountId: string) => {
-    setSyncing(accountId);
-    try {
-      const { error } = await supabase.functions.invoke('sync-tiktok-resources', {
-        body: { advertiserId }
-      });
-
-      if (error) throw error;
-      
-      toast.success("TikTok resources synced successfully");
-      await loadData();
-    } catch (error: any) {
-      console.error("Error syncing TikTok resources:", error);
-      toast.error("Failed to sync TikTok resources");
-    } finally {
-      setSyncing(null);
-    }
-  };
 
   const updateDefault = (accountId: string, field: keyof AdAccount, value: any) => {
     setLocalDefaults((prev) => ({
@@ -670,25 +651,6 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                     </div>
 
                     <div className="flex justify-end gap-2 pt-4">
-                      {account.platform === 'tiktok' && (
-                        <Button
-                          variant="outline"
-                          onClick={() => syncTikTokResources(account.advertiser_id, account.id)}
-                          disabled={syncing === account.id}
-                        >
-                          {syncing === account.id ? (
-                            <>
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                              Syncing...
-                            </>
-                          ) : (
-                            <>
-                              <RefreshCw className="h-4 w-4 mr-2" />
-                              Sync Resources
-                            </>
-                          )}
-                        </Button>
-                      )}
                       <Button
                         onClick={() => handleSave(account.id)}
                         disabled={saving === account.id}
