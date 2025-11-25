@@ -95,14 +95,12 @@ const handler = async (req: Request): Promise<Response> => {
     for (const advertiserId of advertiser_ids) {
       try {
         console.log(`Fetching advertiser info for: ${advertiserId}`);
-        const advertiserResponse = await fetch(
-          `https://business-api.tiktok.com/open_api/v1.3/advertiser/info/?advertiser_ids=[${advertiserId}]`,
-          {
-            headers: {
-              "Access-Token": access_token,
-            },
-          }
-        );
+        const urlWithParams = `https://business-api.tiktok.com/open_api/v1.3/advertiser/info/?advertiser_ids=["${advertiserId}"]`;
+        const advertiserResponse = await fetch(urlWithParams, {
+          headers: {
+            "Access-Token": access_token,
+          },
+        });
 
         const advertiserData = await advertiserResponse.json();
         console.log(`Advertiser data response for ${advertiserId}:`, advertiserData);
