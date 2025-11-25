@@ -270,11 +270,16 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
       <Accordion type="single" collapsible className="space-y-4">
         {adAccounts.map((account) => {
           const defaults = localDefaults[account.id] || {};
-          const accountPixels = pixels.filter(p => p.ad_account_id === account.account_id);
           const selectedCatalog = defaults.default_catalog_id;
           const catalogProductSets = productSets.filter(ps => ps.catalog_id === selectedCatalog);
           const selectedPixel = defaults.default_pixel_id;
           const pixelEvents = conversionEvents.filter(e => e.pixel_id === selectedPixel);
+
+          // Remove ad_account_id filter to show all available resources
+          const accountPixels = pixels;
+          const accountPages = pages;
+          const accountCatalogs = catalogs;
+          const accountInstagramAccounts = instagramAccounts;
 
           return (
             <AccordionItem key={account.id} value={account.id}>
@@ -324,11 +329,15 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                 <SelectValue placeholder="Select pixel" />
                               </SelectTrigger>
                               <SelectContent>
-                                {accountPixels.map((pixel) => (
-                                  <SelectItem key={pixel.id} value={pixel.pixel_id || ""}>
-                                    {pixel.pixel_name}
-                                  </SelectItem>
-                                ))}
+                                {pixels.length === 0 ? (
+                                  <SelectItem value="none" disabled>No pixels available</SelectItem>
+                                ) : (
+                                  pixels.map((pixel) => (
+                                    <SelectItem key={pixel.id} value={pixel.pixel_id || ""}>
+                                      {pixel.pixel_name}
+                                    </SelectItem>
+                                  ))
+                                )}
                               </SelectContent>
                             </Select>
                           </div>
@@ -344,11 +353,15 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                 <SelectValue placeholder="Select page" />
                               </SelectTrigger>
                               <SelectContent>
-                                {pages.map((page) => (
-                                  <SelectItem key={page.id} value={page.page_id || ""}>
-                                    {page.page_name}
-                                  </SelectItem>
-                                ))}
+                                {pages.length === 0 ? (
+                                  <SelectItem value="none" disabled>No pages available</SelectItem>
+                                ) : (
+                                  pages.map((page) => (
+                                    <SelectItem key={page.id} value={page.page_id || ""}>
+                                      {page.page_name}
+                                    </SelectItem>
+                                  ))
+                                )}
                               </SelectContent>
                             </Select>
                           </div>
@@ -364,11 +377,15 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                 <SelectValue placeholder="Select Instagram account" />
                               </SelectTrigger>
                               <SelectContent>
-                                {instagramAccounts.map((ig) => (
-                                  <SelectItem key={ig.id} value={ig.instagram_account_id || ""}>
-                                    @{ig.username}
-                                  </SelectItem>
-                                ))}
+                                {instagramAccounts.length === 0 ? (
+                                  <SelectItem value="none" disabled>No Instagram accounts available</SelectItem>
+                                ) : (
+                                  instagramAccounts.map((ig) => (
+                                    <SelectItem key={ig.id} value={ig.instagram_account_id || ""}>
+                                      @{ig.username}
+                                    </SelectItem>
+                                  ))
+                                )}
                               </SelectContent>
                             </Select>
                           </div>
@@ -387,11 +404,15 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                 <SelectValue placeholder="Select catalog" />
                               </SelectTrigger>
                               <SelectContent>
-                                {catalogs.map((catalog) => (
-                                  <SelectItem key={catalog.id} value={catalog.catalog_id || ""}>
-                                    {catalog.catalog_name}
-                                  </SelectItem>
-                                ))}
+                                {catalogs.length === 0 ? (
+                                  <SelectItem value="none" disabled>No catalogs available</SelectItem>
+                                ) : (
+                                  catalogs.map((catalog) => (
+                                    <SelectItem key={catalog.id} value={catalog.catalog_id || ""}>
+                                      {catalog.catalog_name}
+                                    </SelectItem>
+                                  ))
+                                )}
                               </SelectContent>
                             </Select>
                           </div>
