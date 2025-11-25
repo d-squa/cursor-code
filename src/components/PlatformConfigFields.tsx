@@ -33,6 +33,8 @@ interface Resource {
   event_name?: string;
   instagram_account_id?: string;
   username?: string;
+  identity_id?: string;
+  identity_name?: string;
 }
 
 export function PlatformConfigFields({
@@ -56,10 +58,15 @@ export function PlatformConfigFields({
   const [productSets, setProductSets] = useState<Resource[]>([]);
   const [conversionEvents, setConversionEvents] = useState<Resource[]>([]);
   const [instagramAccounts, setInstagramAccounts] = useState<Resource[]>([]);
+  const [tiktokPixels, setTiktokPixels] = useState<Resource[]>([]);
+  const [tiktokIdentities, setTiktokIdentities] = useState<Resource[]>([]);
+  const [tiktokCatalogs, setTiktokCatalogs] = useState<Resource[]>([]);
 
   useEffect(() => {
     if (userId && platformName.toLowerCase() === 'meta') {
       loadMetaResources();
+    } else if (userId && platformName.toLowerCase() === 'tiktok' && selectedAdAccountId) {
+      loadTiktokResources();
     }
   }, [userId, platformName, selectedAdAccountId]);
 
@@ -83,6 +90,39 @@ export function PlatformConfigFields({
       setInstagramAccounts(igRes.data || []);
     } catch (error) {
       console.error("Error loading Meta resources:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadTiktokResources = async () => {
+    setLoading(true);
+    try {
+      const [pixelsRes, identitiesRes, catalogsRes] = await Promise.all([
+        supabase.from("tiktok_pixels").select("*").eq("user_id", userId!).eq("advertiser_id", selectedAdAccountId!),
+        supabase.from("tiktok_identities").select("*").eq("user_id", userId!).eq("advertiser_id", selectedAdAccountId!),
+        supabase.from("tiktok_catalogs").select("*").eq("user_id", userId!).eq("advertiser_id", selectedAdAccountId!),
+      ]);
+
+      setTiktokPixels((pixelsRes.data || []).map(p => ({
+        id: p.pixel_id,
+        pixel_id: p.pixel_id,
+        pixel_name: p.pixel_name,
+      })));
+
+      setTiktokIdentities((identitiesRes.data || []).map(i => ({
+        id: i.identity_id,
+        identity_id: i.identity_id,
+        identity_name: i.identity_name,
+      })));
+
+      setTiktokCatalogs((catalogsRes.data || []).map(c => ({
+        id: c.catalog_id,
+        catalog_id: c.catalog_id,
+        catalog_name: c.catalog_name,
+      })));
+    } catch (error) {
+      console.error("Error loading TikTok resources:", error);
     } finally {
       setLoading(false);
     }
@@ -223,9 +263,67 @@ export function PlatformConfigFields({
         )}
 
         {platformName.toLowerCase() === 'tiktok' && (
-          <div className="text-sm text-muted-foreground">
-            TikTok resource configuration coming soon
-          </div>
+          <>
+            <div className="space-y-2">
+              <Label>Default TikTok Pixel</Label>
+              <Select value={pixel || undefined} onValueChange={(value) => onUpdate("pixel", value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select TikTok pixel" />
+                </SelectTrigger>
+                <SelectContent>
+                  {tiktokPixels.length === 0 ? (
+                    <SelectItem value="none" disabled>No pixels available</SelectItem>
+                  ) : (
+                    tiktokPixels.map((p) => (
+                      <SelectItem key={p.id} value={p.pixel_id || ""}>
+                        {p.pixel_name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Default TikTok Identity</Label>
+              <Select value={instagramAccount || undefined} onValueChange={(value) => onUpdate("instagramAccount", value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select TikTok identity" />
+                </SelectTrigger>
+                <SelectContent>
+                  {tiktokIdentities.length === 0 ? (
+                    <SelectItem value="none" disabled>No identities available</SelectItem>
+                  ) : (
+                    tiktokIdentities.map((i) => (
+                      <SelectItem key={i.id} value={i.identity_id || ""}>
+                        {i.identity_name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Default TikTok Catalog</Label>
+              <Select value={catalog || undefined} onValueChange={(value) => onUpdate("catalog", value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select TikTok catalog" />
+                </SelectTrigger>
+                <SelectContent>
+                  {tiktokCatalogs.length === 0 ? (
+                    <SelectItem value="none" disabled>No catalogs available</SelectItem>
+                  ) : (
+                    tiktokCatalogs.map((c) => (
+                      <SelectItem key={c.id} value={c.catalog_id || ""}>
+                        {c.catalog_name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          </>
         )}
       </CardContent>
     </Card>

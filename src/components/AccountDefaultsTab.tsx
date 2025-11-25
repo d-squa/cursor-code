@@ -63,6 +63,9 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
   const [catalogs, setCatalogs] = useState<MetaResource[]>([]);
   const [productSets, setProductSets] = useState<MetaResource[]>([]);
   const [conversionEvents, setConversionEvents] = useState<MetaResource[]>([]);
+  const [tiktokPixels, setTiktokPixels] = useState<any[]>([]);
+  const [tiktokIdentities, setTiktokIdentities] = useState<any[]>([]);
+  const [tiktokCatalogs, setTiktokCatalogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [localDefaults, setLocalDefaults] = useState<Record<string, Partial<AdAccount>>>({});
@@ -146,13 +149,16 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
       setLocalDefaults(defaults);
 
       // Load all available resources
-      const [pixelsRes, pagesRes, igRes, catalogsRes, productSetsRes, eventsRes] = await Promise.all([
+      const [pixelsRes, pagesRes, igRes, catalogsRes, productSetsRes, eventsRes, tiktokPixelsRes, tiktokIdentitiesRes, tiktokCatalogsRes] = await Promise.all([
         supabase.from("meta_pixels").select("id, ad_account_id, pixel_id, pixel_name").eq("user_id", userId),
         supabase.from("meta_pages").select("id, page_id, page_name").eq("user_id", userId),
         supabase.from("meta_instagram_accounts").select("id, instagram_account_id, username").eq("user_id", userId),
         supabase.from("meta_catalogs").select("id, catalog_id, catalog_name").eq("user_id", userId),
         supabase.from("meta_product_sets").select("id, catalog_id, product_set_id, product_set_name").eq("user_id", userId),
         supabase.from("meta_conversion_events").select("id, pixel_id, event_name").eq("user_id", userId),
+        supabase.from("tiktok_pixels").select("*").eq("user_id", userId),
+        supabase.from("tiktok_identities").select("*").eq("user_id", userId),
+        supabase.from("tiktok_catalogs").select("*").eq("user_id", userId),
       ]);
 
       if (pixelsRes.error) throw pixelsRes.error;
@@ -168,6 +174,9 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
       setCatalogs(catalogsRes.data || []);
       setProductSets(productSetsRes.data || []);
       setConversionEvents(eventsRes.data || []);
+      setTiktokPixels(tiktokPixelsRes.data || []);
+      setTiktokIdentities(tiktokIdentitiesRes.data || []);
+      setTiktokCatalogs(tiktokCatalogsRes.data || []);
     } catch (error: any) {
       console.error("Error loading data:", error);
       toast.error("Failed to load account defaults");
@@ -475,7 +484,15 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                 <SelectValue placeholder="Select TikTok pixel" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="placeholder">TikTok Pixel (Coming Soon)</SelectItem>
+                                {tiktokPixels.length === 0 ? (
+                                  <SelectItem value="none" disabled>No pixels available</SelectItem>
+                                ) : (
+                                  tiktokPixels.map((pixel) => (
+                                    <SelectItem key={pixel.id} value={pixel.pixel_id}>
+                                      {pixel.pixel_name}
+                                    </SelectItem>
+                                  ))
+                                )}
                               </SelectContent>
                             </Select>
                           </div>
@@ -491,7 +508,15 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                 <SelectValue placeholder="Select TikTok identity" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="placeholder">TikTok Identity (Coming Soon)</SelectItem>
+                                {tiktokIdentities.length === 0 ? (
+                                  <SelectItem value="none" disabled>No identities available</SelectItem>
+                                ) : (
+                                  tiktokIdentities.map((identity) => (
+                                    <SelectItem key={identity.id} value={identity.identity_id}>
+                                      {identity.identity_name}
+                                    </SelectItem>
+                                  ))
+                                )}
                               </SelectContent>
                             </Select>
                           </div>
@@ -507,7 +532,15 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                 <SelectValue placeholder="Select TikTok catalog" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="placeholder">TikTok Catalog (Coming Soon)</SelectItem>
+                                {tiktokCatalogs.length === 0 ? (
+                                  <SelectItem value="none" disabled>No catalogs available</SelectItem>
+                                ) : (
+                                  tiktokCatalogs.map((catalog) => (
+                                    <SelectItem key={catalog.id} value={catalog.catalog_id}>
+                                      {catalog.catalog_name}
+                                    </SelectItem>
+                                  ))
+                                )}
                               </SelectContent>
                             </Select>
                           </div>

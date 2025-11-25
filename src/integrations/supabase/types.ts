@@ -1138,6 +1138,36 @@ export type Database = {
           },
         ]
       }
+      tiktok_catalogs: {
+        Row: {
+          advertiser_id: string
+          catalog_id: string
+          catalog_name: string
+          created_at: string
+          id: string
+          synced_at: string
+          user_id: string
+        }
+        Insert: {
+          advertiser_id: string
+          catalog_id: string
+          catalog_name: string
+          created_at?: string
+          id?: string
+          synced_at?: string
+          user_id: string
+        }
+        Update: {
+          advertiser_id?: string
+          catalog_id?: string
+          catalog_name?: string
+          created_at?: string
+          id?: string
+          synced_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       tiktok_creatives: {
         Row: {
           ad_text: string | null
@@ -1200,6 +1230,39 @@ export type Database = {
           },
         ]
       }
+      tiktok_identities: {
+        Row: {
+          advertiser_id: string
+          created_at: string
+          id: string
+          identity_id: string
+          identity_name: string
+          identity_type: string | null
+          synced_at: string
+          user_id: string
+        }
+        Insert: {
+          advertiser_id: string
+          created_at?: string
+          id?: string
+          identity_id: string
+          identity_name: string
+          identity_type?: string | null
+          synced_at?: string
+          user_id: string
+        }
+        Update: {
+          advertiser_id?: string
+          created_at?: string
+          id?: string
+          identity_id?: string
+          identity_name?: string
+          identity_type?: string | null
+          synced_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       tiktok_metrics: {
         Row: {
           advertiser_id: string
@@ -1260,6 +1323,36 @@ export type Database = {
           user_id?: string
           video_play_actions?: number | null
           video_views?: number | null
+        }
+        Relationships: []
+      }
+      tiktok_pixels: {
+        Row: {
+          advertiser_id: string
+          created_at: string
+          id: string
+          pixel_id: string
+          pixel_name: string
+          synced_at: string
+          user_id: string
+        }
+        Insert: {
+          advertiser_id: string
+          created_at?: string
+          id?: string
+          pixel_id: string
+          pixel_name: string
+          synced_at?: string
+          user_id: string
+        }
+        Update: {
+          advertiser_id?: string
+          created_at?: string
+          id?: string
+          pixel_id?: string
+          pixel_name?: string
+          synced_at?: string
+          user_id?: string
         }
         Relationships: []
       }
