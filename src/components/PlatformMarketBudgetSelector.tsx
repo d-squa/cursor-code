@@ -80,6 +80,8 @@ export function PlatformMarketBudgetSelector({
   const [loadingTiktokIdentities, setLoadingTiktokIdentities] = useState(false);
   const [tiktokCatalogs, setTiktokCatalogs] = useState<Array<{ id: string; name: string; advertiserId: string }>>([]);
   const [loadingTiktokCatalogs, setLoadingTiktokCatalogs] = useState(false);
+  const [tiktokProductSets, setTiktokProductSets] = useState<Array<{ id: string; name: string; catalogId: string; advertiserId: string }>>([]);
+  const [loadingTiktokProductSets, setLoadingTiktokProductSets] = useState(false);
   const [tiktokAdAccountDefaults, setTiktokAdAccountDefaults] = useState<Record<string, any>>({});
   
   const totalAllocated = platforms.reduce((sum, p) => sum + p.budgetPercentage, 0);
@@ -358,6 +360,7 @@ export function PlatformMarketBudgetSelector({
     setLoadingTiktokPixels(true);
     setLoadingTiktokIdentities(true);
     setLoadingTiktokCatalogs(true);
+    setLoadingTiktokProductSets(true);
     
     try {
       let query = supabase
@@ -387,6 +390,7 @@ export function PlatformMarketBudgetSelector({
           pixelId: acc.default_pixel_id,
           identityId: acc.default_identity_id,
           catalogId: acc.default_catalog_id,
+          productSetId: acc.default_product_set_id,
           mainMarkets: Array.isArray(acc.main_markets) ? acc.main_markets : [],
         };
       });
@@ -431,11 +435,26 @@ export function PlatformMarketBudgetSelector({
         advertiserId: c.advertiser_id
       })));
       
+      // Fetch TikTok product sets
+      const { data: productSetsData, error: productSetsError } = await supabase
+        .from("tiktok_product_sets" as any)
+        .select("*");
+      
+      if (productSetsError) throw productSetsError;
+      
+      setTiktokProductSets((productSetsData || []).map((ps: any) => ({
+        id: ps.product_set_id,
+        name: ps.product_set_name,
+        catalogId: ps.catalog_id,
+        advertiserId: ps.advertiser_id
+      })));
+      
       console.log("TikTok resources loaded:", {
         adAccounts: formattedAccounts.length,
         pixels: pixelsData?.length || 0,
         identities: identitiesData?.length || 0,
-        catalogs: catalogsData?.length || 0
+        catalogs: catalogsData?.length || 0,
+        productSets: productSetsData?.length || 0
       });
     } catch (error) {
       console.error("Error fetching TikTok resources:", error);
@@ -444,6 +463,7 @@ export function PlatformMarketBudgetSelector({
       setLoadingTiktokPixels(false);
       setLoadingTiktokIdentities(false);
       setLoadingTiktokCatalogs(false);
+      setLoadingTiktokProductSets(false);
     }
   };
 
@@ -1266,6 +1286,263 @@ export function PlatformMarketBudgetSelector({
                                           <div className="p-4 text-xs text-muted-foreground text-center">
                                             No events found. Click Refresh Meta Data.
                                           </div>
+                                        )}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Platform Configuration Fields - Only for TikTok */}
+                            {platform.name.toLowerCase().includes("tiktok") && (
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-1">
+                                  <Label className="text-xs">
+                                    Advertiser Account <span className="text-destructive">*</span>
+                                  </Label>
+                                  <Select
+                                    value={market.adAccountId || ""}
+                                    onValueChange={(value) => {
+                                      console.log('🔄 TikTok advertiser account selected:', value);
+                                      const account = tiktokAdAccounts.find(a => a.id === value);
+                                      const defaults = tiktokAdAccountDefaults[value];
+                                      console.log('📋 TikTok account defaults found:', defaults);
+                                      
+                                      // Batch all updates including defaults
+                                      setPlatforms(prev =>
+                                        prev.map((p, i) => {
+                                          if (i !== platformIndex) return p;
+                                          
+                                          // If the ad account has assigned markets, create markets for each
+                                          const assignedMarkets = defaults?.mainMarkets || [];
+                                          console.log('📍 Assigned markets from TikTok defaults:', assignedMarkets);
+                                          
+                                          if (assignedMarkets.length > 0) {
+                                            // Create a market for each assigned market
+                                            const marketBudgetSplit = 100 / assignedMarkets.length;
+                                            const newMarkets = assignedMarkets.map((marketCode: string, idx: number) => {
+                                              const marketOption = MARKET_OPTIONS.find(m => m.value === marketCode);
+                                              
+                                              return {
+                                                id: `${marketCode}-${Date.now()}-${idx}`,
+                                                name: marketCode,
+                                                budgetPercentage: marketBudgetSplit,
+                                                adAccountId: value,
+                                                accountName: account?.name || "",
+                                                tiktokPixel: defaults?.pixelId || "",
+                                                tiktokIdentity: defaults?.identityId || "",
+                                                tiktokCatalog: defaults?.catalogId || "",
+                                                tiktokProductSet: defaults?.productSetId || "",
+                                                phases: [],
+                                                adFormats: [],
+                                                countries: [marketCode],
+                                                ageMin: 18,
+                                                ageMax: 65,
+                                                gender: "all",
+                                                languages: [],
+                                                publisherPlatforms: ["tiktok"],
+                                                positions: {},
+                                                detailedTargeting: [],
+                                                isCBOEnabled: false,
+                                                isLifetimeBudget: false,
+                                              };
+                                            });
+                                            
+                                            // Remove the temporary market and add the new ones
+                                            const filteredMarkets = p.markets.filter(m => m.id !== market.id);
+                                            
+                                            toast.success(`Created ${newMarkets.length} TikTok market(s): ${assignedMarkets.join(', ')}`);
+                                            
+                                            return {
+                                              ...p,
+                                              markets: [...filteredMarkets, ...newMarkets],
+                                            };
+                                          } else {
+                                            console.log('⚠️ No assigned markets found for this TikTok account');
+                                            toast.warning(`No markets assigned to this TikTok account. Configure in Account Defaults.`);
+                                            
+                                            // No assigned markets, just update the current market with defaults
+                                            return {
+                                              ...p,
+                                              markets: p.markets.map(m => {
+                                                if (m.id === market.id) {
+                                                  const updated: Market = {
+                                                    ...m,
+                                                    adAccountId: value,
+                                                    accountName: account?.name || "",
+                                                  };
+                                                  
+                                                  // Apply defaults if available
+                                                  if (defaults) {
+                                                    console.log("Applying TikTok defaults to current market:", value, defaults);
+                                                    
+                                                    if (defaults.pixelId) updated.tiktokPixel = defaults.pixelId;
+                                                    if (defaults.identityId) updated.tiktokIdentity = defaults.identityId;
+                                                    if (defaults.catalogId) updated.tiktokCatalog = defaults.catalogId;
+                                                    if (defaults.productSetId) updated.tiktokProductSet = defaults.productSetId;
+                                                    
+                                                    toast.success("Applied default TikTok settings");
+                                                  }
+                                                  
+                                                  if (!updated.phases || updated.phases.length === 0) {
+                                                    updated.phases = [];
+                                                  }
+                                                  
+                                                  return updated;
+                                                }
+                                                return m;
+                                              }),
+                                            };
+                                          }
+                                        })
+                                      );
+                                    }}
+                                  >
+                                    <SelectTrigger className="h-7 text-xs">
+                                      <SelectValue placeholder={loadingTiktokAdAccounts ? "Loading..." : "Select Advertiser Account"} />
+                                    </SelectTrigger>
+                                    <SelectContent className="z-50 bg-background">
+                                      {loadingTiktokAdAccounts ? (
+                                        <div className="flex items-center justify-center p-4">
+                                          <Loader2 className="h-4 w-4 animate-spin" />
+                                        </div>
+                                      ) : tiktokAdAccounts.length === 0 ? (
+                                        <div className="p-4 text-xs text-muted-foreground text-center">
+                                          No TikTok advertiser accounts found. Connect TikTok first.
+                                        </div>
+                                      ) : (
+                                        tiktokAdAccounts.map((account) => (
+                                          <SelectItem key={account.id} value={account.id}>
+                                            {account.name}
+                                          </SelectItem>
+                                        ))
+                                      )}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+
+                                <div className="space-y-1">
+                                  <Label className="text-xs">TikTok Pixel</Label>
+                                  <Select
+                                    value={market.tiktokPixel || ""}
+                                    onValueChange={(value) => updateMarketField(platformIndex, market.id, 'tiktokPixel', value)}
+                                  >
+                                    <SelectTrigger className="h-7 text-xs">
+                                      <SelectValue placeholder={loadingTiktokPixels ? "Loading..." : "Select Pixel"} />
+                                    </SelectTrigger>
+                                    <SelectContent className="z-50 bg-background">
+                                      {loadingTiktokPixels ? (
+                                        <div className="flex items-center justify-center p-4">
+                                          <Loader2 className="h-4 w-4 animate-spin" />
+                                        </div>
+                                      ) : tiktokPixels.filter(p => !market.adAccountId || p.advertiserId === market.adAccountId).length === 0 ? (
+                                        <div className="p-4 text-xs text-muted-foreground text-center">
+                                          {market.adAccountId ? "No pixels found for this advertiser" : "Select an advertiser account first"}
+                                        </div>
+                                      ) : (
+                                        tiktokPixels
+                                          .filter(p => !market.adAccountId || p.advertiserId === market.adAccountId)
+                                          .map((pixel) => (
+                                            <SelectItem key={pixel.id} value={pixel.id}>
+                                              {pixel.name}
+                                            </SelectItem>
+                                          ))
+                                      )}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+
+                                <div className="space-y-1">
+                                  <Label className="text-xs">TikTok Account (Identity)</Label>
+                                  <Select
+                                    value={market.tiktokIdentity || ""}
+                                    onValueChange={(value) => updateMarketField(platformIndex, market.id, 'tiktokIdentity', value)}
+                                  >
+                                    <SelectTrigger className="h-7 text-xs">
+                                      <SelectValue placeholder={loadingTiktokIdentities ? "Loading..." : "Select TikTok Account"} />
+                                    </SelectTrigger>
+                                    <SelectContent className="z-50 bg-background">
+                                      {loadingTiktokIdentities ? (
+                                        <div className="flex items-center justify-center p-4">
+                                          <Loader2 className="h-4 w-4 animate-spin" />
+                                        </div>
+                                      ) : tiktokIdentities.filter(i => !market.adAccountId || i.advertiserId === market.adAccountId).length === 0 ? (
+                                        <div className="p-4 text-xs text-muted-foreground text-center">
+                                          {market.adAccountId ? "No TikTok accounts found for this advertiser" : "Select an advertiser account first"}
+                                        </div>
+                                      ) : (
+                                        tiktokIdentities
+                                          .filter(i => !market.adAccountId || i.advertiserId === market.adAccountId)
+                                          .map((identity) => (
+                                            <SelectItem key={identity.id} value={identity.id}>
+                                              {identity.name}
+                                            </SelectItem>
+                                          ))
+                                      )}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Catalog</Label>
+                                  <Select
+                                    value={market.tiktokCatalog || ""}
+                                    onValueChange={(value) => updateMarketField(platformIndex, market.id, 'tiktokCatalog', value)}
+                                  >
+                                    <SelectTrigger className="h-7 text-xs">
+                                      <SelectValue placeholder={loadingTiktokCatalogs ? "Loading..." : "Select Catalog"} />
+                                    </SelectTrigger>
+                                    <SelectContent className="z-50 bg-background">
+                                      {loadingTiktokCatalogs ? (
+                                        <div className="flex items-center justify-center p-4">
+                                          <Loader2 className="h-4 w-4 animate-spin" />
+                                        </div>
+                                      ) : tiktokCatalogs.filter(c => !market.adAccountId || c.advertiserId === market.adAccountId).length === 0 ? (
+                                        <div className="p-4 text-xs text-muted-foreground text-center">
+                                          {market.adAccountId ? "No catalogs found for this advertiser" : "Select an advertiser account first"}
+                                        </div>
+                                      ) : (
+                                        tiktokCatalogs
+                                          .filter(c => !market.adAccountId || c.advertiserId === market.adAccountId)
+                                          .map((catalog) => (
+                                            <SelectItem key={catalog.id} value={catalog.id}>
+                                              {catalog.name}
+                                            </SelectItem>
+                                          ))
+                                      )}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+
+                                {/* TikTok Product Set - Only show when catalog is selected */}
+                                {market.tiktokCatalog && (
+                                  <div className="space-y-1">
+                                    <Label className="text-xs">Product Set</Label>
+                                    <Select
+                                      value={market.tiktokProductSet || ""}
+                                      onValueChange={(value) => updateMarketField(platformIndex, market.id, 'tiktokProductSet', value)}
+                                    >
+                                      <SelectTrigger className="h-7 text-xs">
+                                        <SelectValue placeholder={loadingTiktokProductSets ? "Loading..." : "Select Product Set"} />
+                                      </SelectTrigger>
+                                      <SelectContent className="z-50 bg-background">
+                                        {loadingTiktokProductSets ? (
+                                          <div className="flex items-center justify-center p-4">
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                          </div>
+                                        ) : tiktokProductSets.filter(ps => ps.catalogId === market.tiktokCatalog && (!market.adAccountId || ps.advertiserId === market.adAccountId)).length === 0 ? (
+                                          <div className="p-4 text-xs text-muted-foreground text-center">
+                                            No product sets found for this catalog
+                                          </div>
+                                        ) : (
+                                          tiktokProductSets
+                                            .filter(ps => ps.catalogId === market.tiktokCatalog && (!market.adAccountId || ps.advertiserId === market.adAccountId))
+                                            .map((productSet) => (
+                                              <SelectItem key={productSet.id} value={productSet.id}>
+                                                {productSet.name}
+                                              </SelectItem>
+                                            ))
                                         )}
                                       </SelectContent>
                                     </Select>
