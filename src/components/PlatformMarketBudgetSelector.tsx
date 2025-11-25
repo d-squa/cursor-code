@@ -71,12 +71,24 @@ export function PlatformMarketBudgetSelector({
   const [isSyncing, setIsSyncing] = useState(false);
   const [adAccountDefaults, setAdAccountDefaults] = useState<Record<string, any>>({});
   
+  // TikTok resources
+  const [tiktokAdAccounts, setTiktokAdAccounts] = useState<Array<{ id: string; name: string; advertiserId: string }>>([]);
+  const [loadingTiktokAdAccounts, setLoadingTiktokAdAccounts] = useState(false);
+  const [tiktokPixels, setTiktokPixels] = useState<Array<{ id: string; name: string; advertiserId: string }>>([]);
+  const [loadingTiktokPixels, setLoadingTiktokPixels] = useState(false);
+  const [tiktokIdentities, setTiktokIdentities] = useState<Array<{ id: string; name: string; advertiserId: string }>>([]);
+  const [loadingTiktokIdentities, setLoadingTiktokIdentities] = useState(false);
+  const [tiktokCatalogs, setTiktokCatalogs] = useState<Array<{ id: string; name: string; advertiserId: string }>>([]);
+  const [loadingTiktokCatalogs, setLoadingTiktokCatalogs] = useState(false);
+  const [tiktokAdAccountDefaults, setTiktokAdAccountDefaults] = useState<Record<string, any>>({});
+  
   const totalAllocated = platforms.reduce((sum, p) => sum + p.budgetPercentage, 0);
   const usedPlatformIds = platforms.map(p => p.id).filter(id => id !== "");
 
-  // Fetch all Meta resources from database
+  // Fetch all Meta and TikTok resources from database
   useEffect(() => {
     fetchMetaResources();
+    fetchTiktokResources();
   }, [selectedClientId]); // Re-fetch when client changes
 
   const fetchMetaResources = async () => {
@@ -332,11 +344,106 @@ export function PlatformMarketBudgetSelector({
       toast.success("Meta resources synced successfully");
       // Refresh data from database
       await fetchMetaResources();
+      await fetchTiktokResources();
     } catch (error: any) {
       console.error("Failed to sync Meta resources:", error);
       toast.error("Failed to sync Meta resources");
     } finally {
       setIsSyncing(false);
+    }
+  };
+  
+  const fetchTiktokResources = async () => {
+    setLoadingTiktokAdAccounts(true);
+    setLoadingTiktokPixels(true);
+    setLoadingTiktokIdentities(true);
+    setLoadingTiktokCatalogs(true);
+    
+    try {
+      let query = supabase
+        .from("tiktok_ad_accounts" as any)
+        .select("*")
+        .order("synced_at", { ascending: false});
+      
+      if (selectedClientId) {
+        query = query.eq("client_id", selectedClientId);
+      }
+      
+      const { data: adAccountsData, error: adAccountsError } = await query;
+      
+      if (adAccountsError) throw adAccountsError;
+      
+      const formattedAccounts = (adAccountsData || []).map((acc: any) => ({
+        id: acc.advertiser_id,
+        name: acc.account_name,
+        advertiserId: acc.advertiser_id
+      }));
+      setTiktokAdAccounts(formattedAccounts);
+      
+      // Store defaults for each TikTok ad account
+      const defaults: Record<string, any> = {};
+      (adAccountsData || []).forEach((acc: any) => {
+        defaults[acc.advertiser_id] = {
+          pixelId: acc.default_pixel_id,
+          identityId: acc.default_identity_id,
+          catalogId: acc.default_catalog_id,
+          mainMarkets: Array.isArray(acc.main_markets) ? acc.main_markets : [],
+        };
+      });
+      setTiktokAdAccountDefaults(defaults);
+      
+      // Fetch TikTok pixels
+      const { data: pixelsData, error: pixelsError } = await supabase
+        .from("tiktok_pixels" as any)
+        .select("*");
+      
+      if (pixelsError) throw pixelsError;
+      
+      setTiktokPixels((pixelsData || []).map((p: any) => ({
+        id: p.pixel_id,
+        name: p.pixel_name,
+        advertiserId: p.advertiser_id
+      })));
+      
+      // Fetch TikTok identities
+      const { data: identitiesData, error: identitiesError } = await supabase
+        .from("tiktok_identities" as any)
+        .select("*");
+      
+      if (identitiesError) throw identitiesError;
+      
+      setTiktokIdentities((identitiesData || []).map((i: any) => ({
+        id: i.identity_id,
+        name: i.identity_name,
+        advertiserId: i.advertiser_id
+      })));
+      
+      // Fetch TikTok catalogs
+      const { data: catalogsData, error: catalogsError } = await supabase
+        .from("tiktok_catalogs" as any)
+        .select("*");
+      
+      if (catalogsError) throw catalogsError;
+      
+      setTiktokCatalogs((catalogsData || []).map((c: any) => ({
+        id: c.catalog_id,
+        name: c.catalog_name,
+        advertiserId: c.advertiser_id
+      })));
+      
+      console.log("TikTok resources loaded:", {
+        adAccounts: formattedAccounts.length,
+        pixels: pixelsData?.length || 0,
+        identities: identitiesData?.length || 0,
+        catalogs: catalogsData?.length || 0
+      });
+    } catch (error) {
+      console.error("Error fetching TikTok resources:", error);
+    } finally {
+      setLoadingTiktokAdAccounts(false);
+      setLoadingTiktokPixels(false);
+      setLoadingTiktokIdentities(false);
+      setLoadingTiktokCatalogs(false);
     }
   };
 
@@ -960,10 +1067,10 @@ export function PlatformMarketBudgetSelector({
                                   </Select>
                                 </div>
 
-                                <div className="space-y-1">
-                                  <Label className="text-xs">
-                                    Pixel
-                                  </Label>
+                                    <div className="space-y-1">
+                                      <Label className="text-xs">
+                                        Pixel
+                                      </Label>
                                   <Select
                                     value={market.pixel || ""}
                                     onValueChange={(value) => updateMarketField(platformIndex, market.id, 'pixel', value)}
