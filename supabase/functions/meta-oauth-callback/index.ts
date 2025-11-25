@@ -86,23 +86,22 @@ serve(async (req) => {
         console.log(`Found ${businesses.length} Business Managers`);
         
         if (businesses.length > 0) {
-          selectedBmId = businesses[0].id;
-          console.log(`Selected Business Manager: ${businesses[0].name} (${selectedBmId})`);
-          
-          // Fetch ad accounts from the specific business manager
-          console.log("Fetching ad accounts from Business Manager...");
-          const bmAdAccountsResponse = await fetch(
-            `https://graph.facebook.com/v21.0/${selectedBmId}/owned_ad_accounts?fields=id,name,account_status,currency,timezone_name&access_token=${access_token}`
+          // Fetch ad accounts from ALL Business Managers
+          console.log("Fetching ad accounts from all Business Managers...");
+          const allAccountPromises = businesses.map((bm: any) =>
+            fetch(
+              `https://graph.facebook.com/v21.0/${bm.id}/owned_ad_accounts?fields=id,name,account_status,currency,timezone_name&access_token=${access_token}`
+            ).then(res => res.ok ? res.json() : { data: [] })
           );
           
-          if (bmAdAccountsResponse.ok) {
-            const bmAdAccountsData = await bmAdAccountsResponse.json();
-            adAccounts = bmAdAccountsData.data || [];
-            console.log(`Found ${adAccounts.length} ad accounts in Business Manager`);
-            console.log("Ad account IDs:", adAccounts.map((acc: any) => `${acc.id}: ${acc.name}`).join(", "));
-          } else {
-            console.log("Could not fetch BM ad accounts, falling back to user ad accounts");
-          }
+          const allAccountsResults = await Promise.all(allAccountPromises);
+          adAccounts = allAccountsResults.flatMap(result => result.data || []);
+          
+          // Use first BM as selectedBmId for backwards compatibility
+          selectedBmId = businesses[0].id;
+          
+          console.log(`Found ${adAccounts.length} total ad accounts across all Business Managers`);
+          console.log("Ad account IDs:", adAccounts.map((acc: any) => `${acc.id}: ${acc.name}`).join(", "));
         }
       } else {
         const errorData = await businessesResponse.json();
