@@ -36,10 +36,10 @@ serve(async (req) => {
 
     console.log('Syncing TikTok resources for advertiser:', advertiserId);
 
-    // Get TikTok access token from connected_platforms
+    // Get TikTok access token and bc_id from connected_platforms
     const { data: connection, error: connectionError } = await supabase
       .from('connected_platforms')
-      .select('access_token, id')
+      .select('access_token, id, metadata')
       .eq('user_id', user.id)
       .eq('platform_type', 'tiktok')
       .eq('is_active', true)
@@ -51,8 +51,22 @@ serve(async (req) => {
 
     const accessToken = connection.access_token;
     const baseUrl = 'https://business-api.tiktok.com/open_api/v1.3';
+    
+    // Get bc_id from metadata for this advertiser
+    let bcId = null;
+    const platformMetadata = connection.metadata as any;
+    if (platformMetadata?.accounts) {
+      const account = platformMetadata.accounts.find((acc: any) => acc.advertiser_id === advertiserId);
+      bcId = account?.bc_id;
+    }
+    
+    if (!bcId) {
+      throw new Error(`Business Center ID not found for advertiser ${advertiserId}`);
+    }
+    
+    console.log(`Using Business Center ID: ${bcId}`);
 
-    // Fetch TikTok Pixels
+    // Fetch TikTok Pixels (advertiser-level)
     console.log('Fetching TikTok pixels...');
     const pixelsResponse = await fetch(
       `${baseUrl}/pixel/list/?advertiser_id=${advertiserId}`,
@@ -84,10 +98,10 @@ serve(async (req) => {
       }
     }
 
-    // Fetch TikTok Identities (equivalent to pages/profiles)
-    console.log('Fetching TikTok identities...');
+    // Fetch TikTok Identities (BC-level asset)
+    console.log('Fetching TikTok identities from Business Center...');
     const identitiesResponse = await fetch(
-      `${baseUrl}/identity/video/get/?advertiser_id=${advertiserId}`,
+      `${baseUrl}/bc/asset/get/?bc_id=${bcId}&asset_type=IDENTITY`,
       {
         headers: {
           'Access-Token': accessToken,
@@ -107,9 +121,9 @@ serve(async (req) => {
         await supabase.from('tiktok_identities').upsert({
           user_id: user.id,
           advertiser_id: advertiserId,
-          identity_id: identity.identity_id,
-          identity_name: identity.display_name || identity.identity_id,
-          identity_type: identity.identity_type,
+          identity_id: identity.identity_id || identity.id,
+          identity_name: identity.display_name || identity.name || identity.identity_id || identity.id,
+          identity_type: identity.identity_type || identity.type,
           synced_at: new Date().toISOString(),
         }, {
           onConflict: 'identity_id,advertiser_id',
@@ -117,10 +131,10 @@ serve(async (req) => {
       }
     }
 
-    // Fetch TikTok Catalogs
-    console.log('Fetching TikTok catalogs...');
+    // Fetch TikTok Catalogs (BC-level asset)
+    console.log('Fetching TikTok catalogs from Business Center...');
     const catalogsResponse = await fetch(
-      `${baseUrl}/catalog/list/?advertiser_id=${advertiserId}`,
+      `${baseUrl}/bc/asset/get/?bc_id=${bcId}&asset_type=CATALOG`,
       {
         headers: {
           'Access-Token': accessToken,
@@ -132,16 +146,16 @@ serve(async (req) => {
     const catalogsData = await catalogsResponse.json();
     console.log('Catalogs response:', catalogsData);
 
-    if (catalogsData.code === 0 && catalogsData.data?.catalogs) {
-      const catalogs = catalogsData.data.catalogs;
+    if (catalogsData.code === 0 && catalogsData.data?.list) {
+      const catalogs = catalogsData.data.list;
       console.log(`Syncing ${catalogs.length} TikTok catalogs`);
 
       for (const catalog of catalogs) {
         await supabase.from('tiktok_catalogs').upsert({
           user_id: user.id,
           advertiser_id: advertiserId,
-          catalog_id: catalog.catalog_id,
-          catalog_name: catalog.catalog_name || catalog.catalog_id,
+          catalog_id: catalog.catalog_id || catalog.id,
+          catalog_name: catalog.catalog_name || catalog.name || catalog.catalog_id || catalog.id,
           synced_at: new Date().toISOString(),
         }, {
           onConflict: 'catalog_id,advertiser_id',
