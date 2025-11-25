@@ -96,7 +96,7 @@ const handler = async (req: Request): Promise<Response> => {
       try {
         console.log(`Fetching advertiser info for: ${advertiserId}`);
         const advertiserResponse = await fetch(
-          `https://business-api.tiktok.com/open_api/v1.3/advertiser/info/?advertiser_id=${advertiserId}`,
+          `https://business-api.tiktok.com/open_api/v1.3/advertiser/info/?advertiser_ids=[${advertiserId}]`,
           {
             headers: {
               "Access-Token": access_token,
@@ -107,8 +107,8 @@ const handler = async (req: Request): Promise<Response> => {
         const advertiserData = await advertiserResponse.json();
         console.log(`Advertiser data response for ${advertiserId}:`, advertiserData);
         
-        if (advertiserData.code === 0 && advertiserData.data) {
-          const advertiserInfo = advertiserData.data;
+        if (advertiserData.code === 0 && advertiserData.data && advertiserData.data.list && advertiserData.data.list.length > 0) {
+          const advertiserInfo = advertiserData.data.list[0];
           const bcId = advertiserInfo.bc_id;
           
           let businessCenterInfo = null;
