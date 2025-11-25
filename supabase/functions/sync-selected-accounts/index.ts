@@ -141,10 +141,10 @@ serve(async (req) => {
         try {
           console.log(`Fetching Business Center assets for BC: ${bcId}`);
           
-          // Fetch TikTok Identities (BC-level asset)
+          // Fetch TikTok Identities (BC-level asset - use TT_ACCOUNT not IDENTITY)
           try {
             const identitiesResponse = await fetch(
-              `${baseUrl}/bc/asset/get/?bc_id=${bcId}&asset_type=IDENTITY`,
+              `${baseUrl}/bc/asset/get/?bc_id=${bcId}&asset_type=TT_ACCOUNT`,
               {
                 headers: {
                   'Access-Token': platform.access_token!,
@@ -157,7 +157,7 @@ serve(async (req) => {
               const contentType = identitiesResponse.headers.get('content-type');
               if (contentType?.includes('application/json')) {
                 const identitiesData = await identitiesResponse.json();
-                console.log(`BC ${bcId} identities response:`, identitiesData);
+                console.log(`BC ${bcId} TT_ACCOUNT response:`, identitiesData);
                 
                 if (identitiesData.code === 0 && identitiesData.data?.list) {
                   // Associate identities with all advertisers in this BC
@@ -170,20 +170,20 @@ serve(async (req) => {
                       allTiktokIdentities.push({
                         user_id: user.id,
                         advertiser_id: advertiserId,
-                        identity_id: identity.identity_id || identity.id,
-                        identity_name: identity.display_name || identity.name || identity.identity_id || identity.id,
-                        identity_type: identity.identity_type || identity.type,
+                        identity_id: identity.tt_account_id || identity.identity_id || identity.id,
+                        identity_name: identity.tt_account_name || identity.display_name || identity.name || `TikTok Account ${identity.tt_account_id || identity.id}`,
+                        identity_type: identity.account_type || identity.identity_type || 'TT_ACCOUNT',
                       });
                     });
                   });
-                  console.log(`Found ${identitiesData.data.list.length} identities for BC ${bcId}`);
+                  console.log(`Found ${identitiesData.data.list.length} TT_ACCOUNT identities for BC ${bcId}`);
                 }
               }
             } else {
-              console.log(`BC identities fetch returned ${identitiesResponse.status} for BC ${bcId}`);
+              console.log(`BC TT_ACCOUNT fetch returned ${identitiesResponse.status} for BC ${bcId}`);
             }
           } catch (error) {
-            console.error(`Error fetching BC identities for ${bcId}:`, error);
+            console.error(`Error fetching BC TT_ACCOUNT identities for ${bcId}:`, error);
           }
 
           // Fetch TikTok Catalogs (BC-level asset)
@@ -215,8 +215,8 @@ serve(async (req) => {
                       allTiktokCatalogs.push({
                         user_id: user.id,
                         advertiser_id: advertiserId,
-                        catalog_id: catalog.catalog_id || catalog.id,
-                        catalog_name: catalog.catalog_name || catalog.name || catalog.catalog_id || catalog.id,
+                        catalog_id: catalog.bc_id || catalog.catalog_id || catalog.id,
+                        catalog_name: catalog.name || catalog.catalog_name || `Catalog ${catalog.bc_id || catalog.catalog_id || catalog.id}`,
                       });
                     });
                   });
