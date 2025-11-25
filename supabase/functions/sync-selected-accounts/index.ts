@@ -104,11 +104,160 @@ serve(async (req) => {
 
       console.log(`Successfully synced ${accountsToInsert.length} TikTok advertiser accounts`);
 
+      // Now sync TikTok resources (pixels, identities, catalogs) for each selected account
+      const allTiktokPixels: any[] = [];
+      const allTiktokIdentities: any[] = [];
+      const allTiktokCatalogs: any[] = [];
+      
+      for (const advertiserId of selectedAccountIds) {
+        try {
+          console.log(`Fetching TikTok resources for advertiser: ${advertiserId}`);
+          
+          const baseUrl = 'https://business-api.tiktok.com/open_api/v1.3';
+          
+          // Fetch pixels
+          try {
+            const pixelsResponse = await fetch(
+              `${baseUrl}/pixel/list/?advertiser_id=${advertiserId}`,
+              {
+                headers: {
+                  'Access-Token': platform.access_token!,
+                  'Content-Type': 'application/json',
+                },
+              }
+            );
+            const pixelsData = await pixelsResponse.json();
+            
+            if (pixelsData.code === 0 && pixelsData.data?.pixels) {
+              pixelsData.data.pixels.forEach((pixel: any) => {
+                allTiktokPixels.push({
+                  user_id: user.id,
+                  advertiser_id: advertiserId,
+                  pixel_id: pixel.pixel_id,
+                  pixel_name: pixel.pixel_name || pixel.pixel_id,
+                });
+              });
+            }
+          } catch (error) {
+            console.error(`Error fetching TikTok pixels for ${advertiserId}:`, error);
+          }
+
+          // Fetch identities
+          try {
+            const identitiesResponse = await fetch(
+              `${baseUrl}/identity/video/get/?advertiser_id=${advertiserId}`,
+              {
+                headers: {
+                  'Access-Token': platform.access_token!,
+                  'Content-Type': 'application/json',
+                },
+              }
+            );
+            const identitiesData = await identitiesResponse.json();
+            
+            if (identitiesData.code === 0 && identitiesData.data?.list) {
+              identitiesData.data.list.forEach((identity: any) => {
+                allTiktokIdentities.push({
+                  user_id: user.id,
+                  advertiser_id: advertiserId,
+                  identity_id: identity.identity_id,
+                  identity_name: identity.display_name || identity.identity_id,
+                  identity_type: identity.identity_type,
+                });
+              });
+            }
+          } catch (error) {
+            console.error(`Error fetching TikTok identities for ${advertiserId}:`, error);
+          }
+
+          // Fetch catalogs
+          try {
+            const catalogsResponse = await fetch(
+              `${baseUrl}/catalog/list/?advertiser_id=${advertiserId}`,
+              {
+                headers: {
+                  'Access-Token': platform.access_token!,
+                  'Content-Type': 'application/json',
+                },
+              }
+            );
+            const catalogsData = await catalogsResponse.json();
+            
+            if (catalogsData.code === 0 && catalogsData.data?.catalogs) {
+              catalogsData.data.catalogs.forEach((catalog: any) => {
+                allTiktokCatalogs.push({
+                  user_id: user.id,
+                  advertiser_id: advertiserId,
+                  catalog_id: catalog.catalog_id,
+                  catalog_name: catalog.catalog_name || catalog.catalog_id,
+                });
+              });
+            }
+          } catch (error) {
+            console.error(`Error fetching TikTok catalogs for ${advertiserId}:`, error);
+          }
+        } catch (error) {
+          console.error(`Error syncing TikTok resources for ${advertiserId}:`, error);
+        }
+      }
+
+      // Sync TikTok pixels
+      if (allTiktokPixels.length > 0) {
+        const pixelIdsToSync = allTiktokPixels.map(p => p.pixel_id);
+        await supabase
+          .from("tiktok_pixels")
+          .delete()
+          .eq("user_id", user.id)
+          .in("pixel_id", pixelIdsToSync);
+        
+        const { error: pixelsError } = await supabase.from("tiktok_pixels").insert(allTiktokPixels);
+        if (pixelsError) {
+          console.error("Error inserting TikTok pixels:", pixelsError);
+        }
+      }
+
+      // Sync TikTok identities
+      if (allTiktokIdentities.length > 0) {
+        const identityIdsToSync = allTiktokIdentities.map(i => i.identity_id);
+        await supabase
+          .from("tiktok_identities")
+          .delete()
+          .eq("user_id", user.id)
+          .in("identity_id", identityIdsToSync);
+        
+        const { error: identitiesError } = await supabase.from("tiktok_identities").insert(allTiktokIdentities);
+        if (identitiesError) {
+          console.error("Error inserting TikTok identities:", identitiesError);
+        }
+      }
+
+      // Sync TikTok catalogs
+      if (allTiktokCatalogs.length > 0) {
+        const catalogIdsToSync = allTiktokCatalogs.map(c => c.catalog_id);
+        await supabase
+          .from("tiktok_catalogs")
+          .delete()
+          .eq("user_id", user.id)
+          .in("catalog_id", catalogIdsToSync);
+        
+        const { error: catalogsError } = await supabase.from("tiktok_catalogs").insert(allTiktokCatalogs);
+        if (catalogsError) {
+          console.error("Error inserting TikTok catalogs:", catalogsError);
+        }
+      }
+
+      console.log(`TikTok resources synced: ${allTiktokPixels.length} pixels, ${allTiktokIdentities.length} identities, ${allTiktokCatalogs.length} catalogs`);
+
       return new Response(
         JSON.stringify({
           success: true,
           syncedCount: accountsToInsert.length,
-          platform: "tiktok"
+          platform: "tiktok",
+          resources: {
+            pixels: allTiktokPixels.length,
+            identities: allTiktokIdentities.length,
+            catalogs: allTiktokCatalogs.length,
+          }
         }),
         {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
