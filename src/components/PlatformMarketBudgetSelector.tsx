@@ -610,6 +610,14 @@ export function PlatformMarketBudgetSelector({
           // If no available market, use the first one (user can change it)
           const marketValue = availableMarket?.value || MARKET_OPTIONS[0].value;
           
+          // Determine publisher platforms based on platform name
+          let publisherPlatforms = ["facebook"]; // Default to facebook for Meta
+          if (p.name.toLowerCase().includes("tiktok")) {
+            publisherPlatforms = ["tiktok"];
+          } else if (p.name.toLowerCase().includes("google")) {
+            publisherPlatforms = ["google"];
+          }
+          
           // Apply default targeting values for R&F compatibility
           const newMarket: Market = {
             id: `market-${Date.now()}`,
@@ -619,13 +627,13 @@ export function PlatformMarketBudgetSelector({
             // Inherit strategy from genericConfig if available
             strategy: genericConfig?.strategy,
             strategyFocus: genericConfig?.strategyFocus,
-            // Default targeting for Meta R&F
+            // Default targeting
             countries: [marketValue],
             ageMin: 18,
             ageMax: 65,
             gender: "all",
             languages: [],
-            publisherPlatforms: ["facebook"],
+            publisherPlatforms: publisherPlatforms,
             positions: {},
             detailedTargeting: [],
             // Campaign defaults
@@ -1295,7 +1303,18 @@ export function PlatformMarketBudgetSelector({
                             )}
 
                             {/* Platform Configuration Fields - Only for TikTok */}
-                            {platform.name.toLowerCase().includes("tiktok") && (
+                            {(() => {
+                              const isTikTok = platform.name.toLowerCase().includes("tiktok");
+                              console.log(`🔍 TikTok check for market ${market.id}:`, {
+                                platformName: platform.name,
+                                isTikTok,
+                                hasAdAccounts: tiktokAdAccounts.length,
+                                hasPixels: tiktokPixels.length,
+                                hasIdentities: tiktokIdentities.length,
+                                hasCatalogs: tiktokCatalogs.length
+                              });
+                              return isTikTok;
+                            })() && (
                               <div className="grid grid-cols-2 gap-2">
                                 <div className="space-y-1">
                                   <Label className="text-xs">
