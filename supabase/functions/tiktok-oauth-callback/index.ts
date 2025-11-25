@@ -107,7 +107,7 @@ const handler = async (req: Request): Promise<Response> => {
         
         if (advertiserData.code === 0 && advertiserData.data && advertiserData.data.list && advertiserData.data.list.length > 0) {
           const advertiserInfo = advertiserData.data.list[0];
-          const bcId = advertiserInfo.bc_id;
+          const bcId = advertiserInfo.owner_bc_id || advertiserInfo.bc_id;
           
           let businessCenterInfo = null;
           
