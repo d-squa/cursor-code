@@ -1326,7 +1326,14 @@ export function PlatformMarketBudgetSelector({
                                       console.log('🔄 TikTok advertiser account selected:', value);
                                       const account = tiktokAdAccounts.find(a => a.id === value);
                                       const defaults = tiktokAdAccountDefaults[value];
-                                      console.log('📋 TikTok account defaults found:', defaults);
+                                      console.log('📋 TikTok account defaults lookup for:', value);
+                                      console.log('📋 All TikTok defaults:', tiktokAdAccountDefaults);
+                                      console.log('📋 Found defaults:', defaults);
+                                      
+                                      if (!defaults || (!defaults.pixelId && !defaults.identityId && !defaults.catalogId)) {
+                                        console.warn('⚠️ No defaults configured for this TikTok account');
+                                        toast.warning(`No defaults configured for ${account?.name || 'this account'}. Configure in Client Defaults first.`);
+                                      }
                                       
                                       // Batch all updates including defaults
                                       setPlatforms(prev =>
@@ -1394,14 +1401,28 @@ export function PlatformMarketBudgetSelector({
                                                   
                                                   // Apply defaults if available
                                                   if (defaults) {
-                                                    console.log("Applying TikTok defaults to current market:", value, defaults);
+                                                    console.log("✅ Applying TikTok defaults to current market:", defaults);
                                                     
-                                                    if (defaults.pixelId) updated.tiktokPixel = defaults.pixelId;
-                                                    if (defaults.identityId) updated.tiktokIdentity = defaults.identityId;
-                                                    if (defaults.catalogId) updated.tiktokCatalog = defaults.catalogId;
-                                                    if (defaults.productSetId) updated.tiktokProductSet = defaults.productSetId;
+                                                    if (defaults.pixelId) {
+                                                      updated.tiktokPixel = defaults.pixelId;
+                                                      console.log("  ✓ Set tiktokPixel:", defaults.pixelId);
+                                                    }
+                                                    if (defaults.identityId) {
+                                                      updated.tiktokIdentity = defaults.identityId;
+                                                      console.log("  ✓ Set tiktokIdentity:", defaults.identityId);
+                                                    }
+                                                    if (defaults.catalogId) {
+                                                      updated.tiktokCatalog = defaults.catalogId;
+                                                      console.log("  ✓ Set tiktokCatalog:", defaults.catalogId);
+                                                    }
+                                                    if (defaults.productSetId) {
+                                                      updated.tiktokProductSet = defaults.productSetId;
+                                                      console.log("  ✓ Set tiktokProductSet:", defaults.productSetId);
+                                                    }
                                                     
                                                     toast.success("Applied default TikTok settings");
+                                                  } else {
+                                                    console.log("❌ No defaults to apply - configure in Client Defaults");
                                                   }
                                                   
                                                   if (!updated.phases || updated.phases.length === 0) {
