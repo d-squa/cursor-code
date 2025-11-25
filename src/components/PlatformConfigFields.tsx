@@ -121,6 +121,13 @@ export function PlatformConfigFields({
         catalog_id: c.catalog_id,
         catalog_name: c.catalog_name,
       })));
+      
+      console.log("PlatformConfigFields - TikTok resources loaded:", {
+        pixels: pixelsRes.data?.length || 0,
+        identities: identitiesRes.data?.length || 0,
+        catalogs: catalogsRes.data?.length || 0,
+        selectedAdAccountId
+      });
     } catch (error) {
       console.error("Error loading TikTok resources:", error);
     } finally {

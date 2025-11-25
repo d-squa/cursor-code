@@ -174,6 +174,9 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
       setCatalogs(catalogsRes.data || []);
       setProductSets(productSetsRes.data || []);
       setConversionEvents(eventsRes.data || []);
+      console.log("TikTok Pixels loaded:", tiktokPixelsRes.data?.length || 0, tiktokPixelsRes.data);
+      console.log("TikTok Identities loaded:", tiktokIdentitiesRes.data?.length || 0, tiktokIdentitiesRes.data);
+      console.log("TikTok Catalogs loaded:", tiktokCatalogsRes.data?.length || 0, tiktokCatalogsRes.data);
       setTiktokPixels(tiktokPixelsRes.data || []);
       setTiktokIdentities(tiktokIdentitiesRes.data || []);
       setTiktokCatalogs(tiktokCatalogsRes.data || []);
