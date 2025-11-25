@@ -971,7 +971,9 @@ export type Database = {
           created_at: string
           currency: string | null
           default_catalog_id: string | null
+          default_conversion_budget_type: string | null
           default_identity_id: string | null
+          default_non_conversion_budget_type: string | null
           default_pixel_id: string | null
           id: string
           main_markets: Json | null
@@ -988,7 +990,9 @@ export type Database = {
           created_at?: string
           currency?: string | null
           default_catalog_id?: string | null
+          default_conversion_budget_type?: string | null
           default_identity_id?: string | null
+          default_non_conversion_budget_type?: string | null
           default_pixel_id?: string | null
           id?: string
           main_markets?: Json | null
@@ -1005,7 +1009,9 @@ export type Database = {
           created_at?: string
           currency?: string | null
           default_catalog_id?: string | null
+          default_conversion_budget_type?: string | null
           default_identity_id?: string | null
+          default_non_conversion_budget_type?: string | null
           default_pixel_id?: string | null
           id?: string
           main_markets?: Json | null

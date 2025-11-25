@@ -563,7 +563,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                               </SelectContent>
                             </Select>
                             <p className="text-xs text-muted-foreground">
-                              TikTok identities must be shared with your Business Center to appear here
+                              TikTok accounts must be shared as "assets" in your Business Center (not just linked). Go to Business Center → Assets → Add Asset → TikTok Account.
                             </p>
                           </div>
 
@@ -587,6 +587,46 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                     </SelectItem>
                                   ))
                                 )}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {/* Conversion Budget Type */}
+                          <div className="space-y-2">
+                            <Label>Conversion Budget Type</Label>
+                            <Select
+                              value={defaults.default_conversion_budget_type || undefined}
+                              onValueChange={(value) => updateDefault(account.id, "default_conversion_budget_type", value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select budget type" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {BUDGET_TYPE_OPTIONS.map((option) => (
+                                  <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {/* Non-Conversion Budget Type */}
+                          <div className="space-y-2">
+                            <Label>Non-Conversion Budget Type</Label>
+                            <Select
+                              value={defaults.default_non_conversion_budget_type || undefined}
+                              onValueChange={(value) => updateDefault(account.id, "default_non_conversion_budget_type", value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select budget type" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {BUDGET_TYPE_OPTIONS.map((option) => (
+                                  <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
                               </SelectContent>
                             </Select>
                           </div>
