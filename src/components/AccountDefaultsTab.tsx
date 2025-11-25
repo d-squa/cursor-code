@@ -140,8 +140,8 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
           default_catalog_id: acc.default_catalog_id || null,
           default_product_set_id: acc.platform === 'meta' ? (acc as any).default_product_set_id : null,
           default_conversion_event: acc.platform === 'meta' ? (acc as any).default_conversion_event : null,
-          default_conversion_budget_type: acc.platform === 'meta' ? (acc as any).default_conversion_budget_type : null,
-          default_non_conversion_budget_type: acc.platform === 'meta' ? (acc as any).default_non_conversion_budget_type : null,
+          default_conversion_budget_type: (acc as any).default_conversion_budget_type || null,
+          default_non_conversion_budget_type: (acc as any).default_non_conversion_budget_type || null,
           default_identity_id: acc.platform === 'tiktok' ? (acc as any).default_identity_id : null,
           main_markets: acc.main_markets,
         };
@@ -212,6 +212,8 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         'default_pixel_id',
         'default_identity_id',
         'default_catalog_id',
+        'default_conversion_budget_type',
+        'default_non_conversion_budget_type',
         'main_markets'
       ];
       
