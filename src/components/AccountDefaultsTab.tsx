@@ -183,8 +183,35 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
       const platform = updates.platform;
       const tableName = platform === 'tiktok' ? 'tiktok_ad_accounts' : 'meta_ad_accounts';
       
-      // Remove platform from updates as it's not a column to update
-      const { platform: _, ...updateData } = updates;
+      // Platform-specific field mapping
+      const metaFields = [
+        'default_pixel_id',
+        'default_page_id',
+        'default_instagram_account_id',
+        'default_catalog_id',
+        'default_product_set_id',
+        'default_conversion_event',
+        'default_conversion_budget_type',
+        'default_non_conversion_budget_type',
+        'main_markets'
+      ];
+      
+      const tiktokFields = [
+        'default_pixel_id',
+        'default_identity_id',
+        'default_catalog_id',
+        'main_markets'
+      ];
+      
+      const validFields = platform === 'tiktok' ? tiktokFields : metaFields;
+      
+      // Filter to only valid fields for this platform
+      const updateData: Record<string, any> = {};
+      validFields.forEach(field => {
+        if (field in updates) {
+          updateData[field] = updates[field as keyof typeof updates];
+        }
+      });
       
       const { error } = await supabase
         .from(tableName)
