@@ -377,11 +377,19 @@ export default function PlatformConnections() {
           sessionStorage.removeItem('reconnecting_platform_id');
           sessionStorage.removeItem('reconnecting_platform_type');
           
+          console.log('OAuth callback - platformType:', platformType);
+          console.log('OAuth callback - platformId:', platformId);
+          
           const callbackFunction = platformType === "tiktok" ? "tiktok-oauth-callback" : "meta-oauth-callback";
+          
+          console.log('OAuth callback - calling function:', callbackFunction);
           
           const { data, error } = await supabase.functions.invoke(callbackFunction, {
             body: { code, platformType: state, redirectUri, platformId }
           });
+
+          console.log('OAuth callback - response data:', data);
+          console.log('OAuth callback - response error:', error);
 
           if (error) throw error;
 
@@ -392,16 +400,27 @@ export default function PlatformConnections() {
           }
 
           // Open account selector if accounts are returned
+          console.log('OAuth callback - checking accounts:', {
+            hasAccounts: Array.isArray(data?.accounts),
+            accountCount: data?.accounts?.length,
+            accounts: data?.accounts
+          });
+          
           if (Array.isArray(data?.accounts) && data.accounts.length > 0) {
             const accountOptions = data.accounts.map((acc: any) => ({
               id: acc.advertiser_id || acc.id,
               name: acc.name,
               business_center: acc.business_center
             }));
+            
+            console.log('OAuth callback - mapped account options:', accountOptions);
+            
             setAdAccountOptions(accountOptions);
             setCurrentPlatformId(data.platformId);
             setAccountSelectorOpen(true);
             toast.success(`Found ${data.accounts.length} advertiser account(s) - please select which to sync`);
+          } else {
+            console.log('OAuth callback - no accounts to display selector');
           }
 
           await fetchConnectedPlatforms();
