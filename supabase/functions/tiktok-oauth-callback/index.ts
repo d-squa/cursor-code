@@ -90,8 +90,11 @@ const handler = async (req: Request): Promise<Response> => {
     const accounts = [];
     const businessCenters = new Map(); // Cache business center info by bc_id
     
+    console.log('Starting to fetch advertiser details for:', advertiser_ids);
+    
     for (const advertiserId of advertiser_ids) {
       try {
+        console.log(`Fetching advertiser info for: ${advertiserId}`);
         const advertiserResponse = await fetch(
           `https://business-api.tiktok.com/open_api/v1.3/advertiser/info/?advertiser_id=${advertiserId}`,
           {
@@ -102,6 +105,7 @@ const handler = async (req: Request): Promise<Response> => {
         );
 
         const advertiserData = await advertiserResponse.json();
+        console.log(`Advertiser data response for ${advertiserId}:`, advertiserData);
         
         if (advertiserData.code === 0 && advertiserData.data) {
           const advertiserInfo = advertiserData.data;
@@ -167,8 +171,11 @@ const handler = async (req: Request): Promise<Response> => {
       }
     }
 
+    console.log(`Finished fetching advertiser details. Total accounts: ${accounts.length}`, accounts);
+
     // If reconnecting existing platform
     if (platformId) {
+      console.log(`Reconnecting platform ${platformId} with ${accounts.length} accounts`);
       const { error: updateError } = await supabase
         .from("connected_platforms")
         .update({
@@ -187,6 +194,7 @@ const handler = async (req: Request): Promise<Response> => {
       if (updateError) throw updateError;
 
       console.log("Updated existing TikTok platform connection");
+      console.log("Returning accounts for selection:", accounts);
       
       // Return accounts for selection even on reconnection
       return new Response(
