@@ -188,12 +188,13 @@ const handler = async (req: Request): Promise<Response> => {
 
       console.log("Updated existing TikTok platform connection");
       
+      // Return accounts for selection even on reconnection
       return new Response(
         JSON.stringify({
           success: true,
           platformId,
           accounts,
-          message: "TikTok connection renewed successfully"
+          message: "TikTok connection renewed - please select accounts to sync"
         }),
         {
           status: 200,
