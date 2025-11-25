@@ -126,17 +126,25 @@ serve(async (req) => {
                 },
               }
             );
-            const pixelsData = await pixelsResponse.json();
             
-            if (pixelsData.code === 0 && pixelsData.data?.pixels) {
-              pixelsData.data.pixels.forEach((pixel: any) => {
-                allTiktokPixels.push({
-                  user_id: user.id,
-                  advertiser_id: advertiserId,
-                  pixel_id: pixel.pixel_id,
-                  pixel_name: pixel.pixel_name || pixel.pixel_id,
-                });
-              });
+            if (pixelsResponse.ok) {
+              const contentType = pixelsResponse.headers.get('content-type');
+              if (contentType?.includes('application/json')) {
+                const pixelsData = await pixelsResponse.json();
+                
+                if (pixelsData.code === 0 && pixelsData.data?.pixels) {
+                  pixelsData.data.pixels.forEach((pixel: any) => {
+                    allTiktokPixels.push({
+                      user_id: user.id,
+                      advertiser_id: advertiserId,
+                      pixel_id: pixel.pixel_id,
+                      pixel_name: pixel.pixel_name || pixel.pixel_id,
+                    });
+                  });
+                }
+              }
+            } else if (pixelsResponse.status === 404) {
+              console.log(`No pixels found for advertiser ${advertiserId} (404 - this is normal if no pixels exist)`);
             }
           } catch (error) {
             console.error(`Error fetching TikTok pixels for ${advertiserId}:`, error);
@@ -153,18 +161,26 @@ serve(async (req) => {
                 },
               }
             );
-            const identitiesData = await identitiesResponse.json();
             
-            if (identitiesData.code === 0 && identitiesData.data?.list) {
-              identitiesData.data.list.forEach((identity: any) => {
-                allTiktokIdentities.push({
-                  user_id: user.id,
-                  advertiser_id: advertiserId,
-                  identity_id: identity.identity_id,
-                  identity_name: identity.display_name || identity.identity_id,
-                  identity_type: identity.identity_type,
-                });
-              });
+            if (identitiesResponse.ok) {
+              const contentType = identitiesResponse.headers.get('content-type');
+              if (contentType?.includes('application/json')) {
+                const identitiesData = await identitiesResponse.json();
+                
+                if (identitiesData.code === 0 && identitiesData.data?.list) {
+                  identitiesData.data.list.forEach((identity: any) => {
+                    allTiktokIdentities.push({
+                      user_id: user.id,
+                      advertiser_id: advertiserId,
+                      identity_id: identity.identity_id,
+                      identity_name: identity.display_name || identity.identity_id,
+                      identity_type: identity.identity_type,
+                    });
+                  });
+                }
+              }
+            } else if (identitiesResponse.status === 404) {
+              console.log(`No identities found for advertiser ${advertiserId} (404 - this is normal if no identities exist)`);
             }
           } catch (error) {
             console.error(`Error fetching TikTok identities for ${advertiserId}:`, error);
@@ -181,17 +197,30 @@ serve(async (req) => {
                 },
               }
             );
-            const catalogsData = await catalogsResponse.json();
             
-            if (catalogsData.code === 0 && catalogsData.data?.catalogs) {
-              catalogsData.data.catalogs.forEach((catalog: any) => {
-                allTiktokCatalogs.push({
-                  user_id: user.id,
-                  advertiser_id: advertiserId,
-                  catalog_id: catalog.catalog_id,
-                  catalog_name: catalog.catalog_name || catalog.catalog_id,
-                });
-              });
+            // Only parse JSON if response is OK and content-type is JSON
+            if (catalogsResponse.ok) {
+              const contentType = catalogsResponse.headers.get('content-type');
+              if (contentType?.includes('application/json')) {
+                const catalogsData = await catalogsResponse.json();
+                
+                if (catalogsData.code === 0 && catalogsData.data?.catalogs) {
+                  catalogsData.data.catalogs.forEach((catalog: any) => {
+                    allTiktokCatalogs.push({
+                      user_id: user.id,
+                      advertiser_id: advertiserId,
+                      catalog_id: catalog.catalog_id,
+                      catalog_name: catalog.catalog_name || catalog.catalog_id,
+                    });
+                  });
+                }
+              } else {
+                console.log(`TikTok catalogs endpoint returned non-JSON response for ${advertiserId}`);
+              }
+            } else if (catalogsResponse.status === 404) {
+              console.log(`No catalogs found for advertiser ${advertiserId} (404 - this is normal if no catalogs exist)`);
+            } else {
+              console.log(`TikTok catalogs fetch returned status ${catalogsResponse.status} for ${advertiserId}`);
             }
           } catch (error) {
             console.error(`Error fetching TikTok catalogs for ${advertiserId}:`, error);
