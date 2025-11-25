@@ -303,11 +303,14 @@ export default function PlatformConnections() {
     if (!selectedAdAccountForLinking) return;
 
     try {
-      const table = selectedAdAccountForLinking.startsWith('tiktok_') ? 'tiktok_ad_accounts' : 'meta_ad_accounts';
+      const isTikTok = selectedAdAccountForLinking.startsWith('tiktok_');
+      const table = isTikTok ? 'tiktok_ad_accounts' : 'meta_ad_accounts';
+      const cleanId = isTikTok ? selectedAdAccountForLinking.replace('tiktok_', '') : selectedAdAccountForLinking;
+      
       const { error } = await supabase
         .from(table)
         .update({ client_id: clientId })
-        .eq("id", selectedAdAccountForLinking);
+        .eq("id", cleanId);
 
       if (error) throw error;
 
