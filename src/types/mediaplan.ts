@@ -6,13 +6,18 @@ export interface Market {
   useGlobalFunnel?: boolean;
   adFormats?: string[];
   accountName?: string;
-  adAccountId?: string; // Meta Ad Account ID
+  adAccountId?: string; // Meta Ad Account ID or TikTok Advertiser ID
   page?: string;
   pageId?: string; // Meta Page ID
-  pixel?: string;
-  catalog?: string;
+  pixel?: string; // Meta Pixel ID
+  catalog?: string; // Meta Catalog ID
   productSet?: string; // Meta Product Set ID
   conversionEvent?: string; // Conversion event for conversion campaigns
+  // TikTok-specific fields
+  tiktokPixel?: string; // TikTok Pixel ID
+  tiktokIdentity?: string; // TikTok Account/Identity ID
+  tiktokCatalog?: string; // TikTok Catalog ID
+  tiktokProductSet?: string; // TikTok Product Set ID
   strategy?: string; // Strategy type per market
   strategyFocus?: string;
   instagramActorId?: string;
