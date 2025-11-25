@@ -203,7 +203,7 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         platformId: platformData.id,
-        adAccounts: adAccounts.map((acc: any) => ({
+        accounts: adAccounts.map((acc: any) => ({
           id: acc.id,
           name: acc.name
         }))
