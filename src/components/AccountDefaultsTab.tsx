@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Save } from "lucide-react";
+import { Loader2, Save, RefreshCw } from "lucide-react";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { MARKET_OPTIONS } from "@/utils/markets";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -15,6 +15,7 @@ interface AdAccount {
   id: string;
   account_id: string;
   account_name: string;
+  advertiser_id?: string;
   platform: 'meta' | 'tiktok';
   default_pixel_id?: string | null;
   default_page_id?: string | null;
@@ -68,6 +69,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
   const [tiktokCatalogs, setTiktokCatalogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState<string | null>(null);
   const [localDefaults, setLocalDefaults] = useState<Record<string, Partial<AdAccount>>>({});
   const [fetchedClientMarkets, setFetchedClientMarkets] = useState<string[]>([]);
 
@@ -123,6 +125,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
       const tiktokAccounts = (tiktokAccountsData || []).map(acc => ({
         ...acc,
         platform: 'tiktok' as const,
+        advertiser_id: acc.advertiser_id,
         main_markets: Array.isArray(acc.main_markets) ? acc.main_markets as string[] : []
       }));
 
@@ -242,6 +245,25 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
       toast.error("Failed to save defaults");
     } finally {
       setSaving(null);
+    }
+  };
+
+  const syncTikTokResources = async (advertiserId: string, accountId: string) => {
+    setSyncing(accountId);
+    try {
+      const { error } = await supabase.functions.invoke('sync-tiktok-resources', {
+        body: { advertiserId }
+      });
+
+      if (error) throw error;
+      
+      toast.success("TikTok resources synced successfully");
+      await loadData();
+    } catch (error: any) {
+      console.error("Error syncing TikTok resources:", error);
+      toast.error("Failed to sync TikTok resources");
+    } finally {
+      setSyncing(null);
     }
   };
 
@@ -642,7 +664,26 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                       )}
                     </div>
 
-                    <div className="flex justify-end pt-4">
+                    <div className="flex justify-end gap-2 pt-4">
+                      {account.platform === 'tiktok' && (
+                        <Button
+                          variant="outline"
+                          onClick={() => syncTikTokResources(account.advertiser_id, account.id)}
+                          disabled={syncing === account.id}
+                        >
+                          {syncing === account.id ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Syncing...
+                            </>
+                          ) : (
+                            <>
+                              <RefreshCw className="h-4 w-4 mr-2" />
+                              Sync Resources
+                            </>
+                          )}
+                        </Button>
+                      )}
                       <Button
                         onClick={() => handleSave(account.id)}
                         disabled={saving === account.id}

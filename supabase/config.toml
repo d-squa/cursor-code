@@ -53,3 +53,6 @@ verify_jwt = true
 
 [functions.sync-tiktok-metrics]
 verify_jwt = true
+
+[functions.sync-tiktok-resources]
+verify_jwt = true
