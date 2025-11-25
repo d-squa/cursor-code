@@ -98,10 +98,10 @@ serve(async (req) => {
       }
     }
 
-    // Fetch TikTok Identities (BC-level asset)
+    // Fetch TikTok Identities (BC-level asset - use TT_ACCOUNT not IDENTITY)
     console.log('Fetching TikTok identities from Business Center...');
     const identitiesResponse = await fetch(
-      `${baseUrl}/bc/asset/get/?bc_id=${bcId}&asset_type=IDENTITY`,
+      `${baseUrl}/bc/asset/get/?bc_id=${bcId}&asset_type=TT_ACCOUNT`,
       {
         headers: {
           'Access-Token': accessToken,
@@ -111,7 +111,7 @@ serve(async (req) => {
     );
 
     const identitiesData = await identitiesResponse.json();
-    console.log('Identities response:', identitiesData);
+    console.log('TT_ACCOUNT identities response:', identitiesData);
 
     if (identitiesData.code === 0 && identitiesData.data?.list) {
       const identities = identitiesData.data.list;
@@ -121,9 +121,9 @@ serve(async (req) => {
         await supabase.from('tiktok_identities').upsert({
           user_id: user.id,
           advertiser_id: advertiserId,
-          identity_id: identity.identity_id || identity.id,
-          identity_name: identity.display_name || identity.name || identity.identity_id || identity.id,
-          identity_type: identity.identity_type || identity.type,
+          identity_id: identity.tt_account_id || identity.identity_id || identity.id,
+          identity_name: identity.tt_account_name || identity.display_name || identity.name || `TikTok Account ${identity.tt_account_id || identity.id}`,
+          identity_type: identity.account_type || identity.identity_type || 'TT_ACCOUNT',
           synced_at: new Date().toISOString(),
         }, {
           onConflict: 'identity_id,advertiser_id',
@@ -154,8 +154,8 @@ serve(async (req) => {
         await supabase.from('tiktok_catalogs').upsert({
           user_id: user.id,
           advertiser_id: advertiserId,
-          catalog_id: catalog.catalog_id || catalog.id,
-          catalog_name: catalog.catalog_name || catalog.name || catalog.catalog_id || catalog.id,
+          catalog_id: catalog.bc_id || catalog.catalog_id || catalog.id,
+          catalog_name: catalog.name || catalog.catalog_name || `Catalog ${catalog.bc_id || catalog.catalog_id || catalog.id}`,
           synced_at: new Date().toISOString(),
         }, {
           onConflict: 'catalog_id,advertiser_id',
