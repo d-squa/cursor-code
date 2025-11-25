@@ -195,7 +195,12 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
     setSaving(accountId);
     try {
       const updates = localDefaults[accountId];
-      const platform = updates.platform;
+      const account = adAccounts.find(acc => acc.id === accountId);
+      if (!account) {
+        toast.error("Account not found");
+        return;
+      }
+      const platform = account.platform;
       const tableName = platform === 'tiktok' ? 'tiktok_ad_accounts' : 'meta_ad_accounts';
       
       // Platform-specific field mapping
