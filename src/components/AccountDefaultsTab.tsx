@@ -593,14 +593,17 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                             </Select>
                           </div>
 
-                          {/* Conversion Budget Type */}
+                          {/* TikTok Conversion Budget Type */}
                           <div className="space-y-2">
-                            <Label>Conversion Budget Type</Label>
+                            <Label className="flex items-center gap-2">
+                              <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
+                              Conversion Budget Type
+                            </Label>
                             <Select
                               value={defaults.default_conversion_budget_type || undefined}
                               onValueChange={(value) => updateDefault(account.id, "default_conversion_budget_type", value)}
                             >
-                              <SelectTrigger>
+                              <SelectTrigger className="border-black/20 dark:border-white/20">
                                 <SelectValue placeholder="Select budget type" />
                               </SelectTrigger>
                               <SelectContent>
@@ -613,14 +616,17 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                             </Select>
                           </div>
 
-                          {/* Non-Conversion Budget Type */}
+                          {/* TikTok Non-Conversion Budget Type */}
                           <div className="space-y-2">
-                            <Label>Non-Conversion Budget Type</Label>
+                            <Label className="flex items-center gap-2">
+                              <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
+                              Non-Conversion Budget Type
+                            </Label>
                             <Select
                               value={defaults.default_non_conversion_budget_type || undefined}
                               onValueChange={(value) => updateDefault(account.id, "default_non_conversion_budget_type", value)}
                             >
-                              <SelectTrigger>
+                              <SelectTrigger className="border-black/20 dark:border-white/20">
                                 <SelectValue placeholder="Select budget type" />
                               </SelectTrigger>
                               <SelectContent>
