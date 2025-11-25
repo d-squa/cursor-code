@@ -1167,6 +1167,16 @@ export function PlatformMarketBudgetSelector({
                               </div>
                             )}
 
+                            {/* TikTok Platform Configuration - Coming Soon */}
+                            {platform.name.toLowerCase().includes("tiktok") && (
+                              <div className="col-span-2 p-4 bg-muted/50 rounded-lg border border-dashed">
+                                <p className="text-sm text-muted-foreground text-center">
+                                  TikTok resource management (ad accounts, pixels, catalogs) coming soon. 
+                                  Currently, TikTok campaigns can be created without resource pre-selection.
+                                </p>
+                              </div>
+                            )}
+
                             {/* Ad Formats */}
                             <div className="space-y-1">
                               <Label className="text-xs">Ad Formats</Label>
