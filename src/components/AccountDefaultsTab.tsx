@@ -463,11 +463,55 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
 
                       {/* TikTok-specific fields */}
                       {account.platform === 'tiktok' && (
-                        <div className="col-span-2 p-4 bg-muted/50 rounded-lg">
-                          <p className="text-sm text-muted-foreground">
-                            TikTok resource management (pixels, identities, catalogs) coming soon
-                          </p>
-                        </div>
+                        <>
+                          {/* TikTok Pixel */}
+                          <div className="space-y-2">
+                            <Label>Default TikTok Pixel</Label>
+                            <Select
+                              value={defaults.default_pixel_id || undefined}
+                              onValueChange={(value) => updateDefault(account.id, "default_pixel_id", value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select TikTok pixel" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="placeholder">TikTok Pixel (Coming Soon)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {/* TikTok Identity */}
+                          <div className="space-y-2">
+                            <Label>Default TikTok Identity</Label>
+                            <Select
+                              value={defaults.default_identity_id || undefined}
+                              onValueChange={(value) => updateDefault(account.id, "default_identity_id", value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select TikTok identity" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="placeholder">TikTok Identity (Coming Soon)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {/* TikTok Catalog */}
+                          <div className="space-y-2">
+                            <Label>Default TikTok Catalog</Label>
+                            <Select
+                              value={defaults.default_catalog_id || undefined}
+                              onValueChange={(value) => updateDefault(account.id, "default_catalog_id", value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select TikTok catalog" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="placeholder">TikTok Catalog (Coming Soon)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </>
                       )}
 
                       {/* Conversion Budget Type */}
