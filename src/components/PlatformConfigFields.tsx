@@ -1,6 +1,9 @@
-import { Input } from "@/components/ui/input";
+import { useEffect, useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { supabase } from "@/integrations/supabase/client";
+import { Loader2 } from "lucide-react";
 
 interface PlatformConfigFieldsProps {
   platformName: string;
@@ -9,7 +12,27 @@ interface PlatformConfigFieldsProps {
   page?: string;
   pixel?: string;
   catalog?: string;
+  productSet?: string;
+  conversionEvent?: string;
+  instagramAccount?: string;
   onUpdate: (field: string, value: string) => void;
+  userId?: string;
+  selectedAdAccountId?: string;
+}
+
+interface Resource {
+  id: string;
+  pixel_id?: string;
+  pixel_name?: string;
+  page_id?: string;
+  page_name?: string;
+  catalog_id?: string;
+  catalog_name?: string;
+  product_set_id?: string;
+  product_set_name?: string;
+  event_name?: string;
+  instagram_account_id?: string;
+  username?: string;
 }
 
 export function PlatformConfigFields({
@@ -19,66 +42,191 @@ export function PlatformConfigFields({
   page,
   pixel,
   catalog,
+  productSet,
+  conversionEvent,
+  instagramAccount,
   onUpdate,
+  userId,
+  selectedAdAccountId,
 }: PlatformConfigFieldsProps) {
+  const [loading, setLoading] = useState(false);
+  const [pixels, setPixels] = useState<Resource[]>([]);
+  const [pages, setPages] = useState<Resource[]>([]);
+  const [catalogs, setCatalogs] = useState<Resource[]>([]);
+  const [productSets, setProductSets] = useState<Resource[]>([]);
+  const [conversionEvents, setConversionEvents] = useState<Resource[]>([]);
+  const [instagramAccounts, setInstagramAccounts] = useState<Resource[]>([]);
+
+  useEffect(() => {
+    if (userId && platformName.toLowerCase() === 'meta') {
+      loadMetaResources();
+    }
+  }, [userId, platformName, selectedAdAccountId]);
+
+  const loadMetaResources = async () => {
+    setLoading(true);
+    try {
+      const [pixelsRes, pagesRes, catalogsRes, productSetsRes, eventsRes, igRes] = await Promise.all([
+        supabase.from("meta_pixels").select("*").eq("user_id", userId!),
+        supabase.from("meta_pages").select("*").eq("user_id", userId!),
+        supabase.from("meta_catalogs").select("*").eq("user_id", userId!),
+        supabase.from("meta_product_sets").select("*").eq("user_id", userId!),
+        supabase.from("meta_conversion_events").select("*").eq("user_id", userId!),
+        supabase.from("meta_instagram_accounts").select("*").eq("user_id", userId!),
+      ]);
+
+      setPixels(pixelsRes.data || []);
+      setPages(pagesRes.data || []);
+      setCatalogs(catalogsRes.data || []);
+      setProductSets(productSetsRes.data || []);
+      setConversionEvents(eventsRes.data || []);
+      setInstagramAccounts(igRes.data || []);
+    } catch (error) {
+      console.error("Error loading Meta resources:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Filter product sets by selected catalog
+  const filteredProductSets = productSets.filter(ps => ps.catalog_id === catalog);
+  
+  // Filter conversion events by selected pixel
+  const filteredConversionEvents = conversionEvents.filter(e => e.pixel_id === pixel);
+
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center p-8">
+          <Loader2 className="h-6 w-6 animate-spin" />
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Platform Configuration</CardTitle>
-        <CardDescription className="text-sm">Configure {platformName} account details</CardDescription>
+        <CardTitle className="text-base">Platform Resources</CardTitle>
+        <CardDescription className="text-sm">Select default resources for {platformName}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="account-name">Account Name</Label>
-            <Input
-              id="account-name"
-              value={accountName || ""}
-              onChange={(e) => onUpdate("accountName", e.target.value)}
-              placeholder="Enter account name"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="account-id">Account ID</Label>
-            <Input
-              id="account-id"
-              value={accountId || ""}
-              onChange={(e) => onUpdate("accountId", e.target.value)}
-              placeholder="Enter account ID"
-            />
-          </div>
-        </div>
-        
-        <div className="space-y-2">
-          <Label htmlFor="page">Page</Label>
-          <Input
-            id="page"
-            value={page || ""}
-            onChange={(e) => onUpdate("page", e.target.value)}
-            placeholder="Enter page name or ID"
-          />
-        </div>
+        {platformName.toLowerCase() === 'meta' && (
+          <>
+            <div className="space-y-2">
+              <Label>Default Pixel</Label>
+              <Select value={pixel || undefined} onValueChange={(value) => onUpdate("pixel", value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select pixel" />
+                </SelectTrigger>
+                <SelectContent>
+                  {pixels.map((p) => (
+                    <SelectItem key={p.id} value={p.pixel_id || ""}>
+                      {p.pixel_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="pixel">Pixel</Label>
-            <Input
-              id="pixel"
-              value={pixel || ""}
-              onChange={(e) => onUpdate("pixel", e.target.value)}
-              placeholder="Enter pixel ID"
-            />
+            <div className="space-y-2">
+              <Label>Default Page</Label>
+              <Select value={page || undefined} onValueChange={(value) => onUpdate("page", value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select page" />
+                </SelectTrigger>
+                <SelectContent>
+                  {pages.map((p) => (
+                    <SelectItem key={p.id} value={p.page_id || ""}>
+                      {p.page_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Default Instagram Account</Label>
+              <Select value={instagramAccount || undefined} onValueChange={(value) => onUpdate("instagramAccount", value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select Instagram account" />
+                </SelectTrigger>
+                <SelectContent>
+                  {instagramAccounts.map((ig) => (
+                    <SelectItem key={ig.id} value={ig.instagram_account_id || ""}>
+                      @{ig.username}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Default Catalog</Label>
+              <Select value={catalog || undefined} onValueChange={(value) => {
+                onUpdate("catalog", value);
+                onUpdate("productSet", ""); // Reset product set when catalog changes
+              }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select catalog" />
+                </SelectTrigger>
+                <SelectContent>
+                  {catalogs.map((c) => (
+                    <SelectItem key={c.id} value={c.catalog_id || ""}>
+                      {c.catalog_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Default Product Set</Label>
+              <Select 
+                value={productSet || undefined} 
+                onValueChange={(value) => onUpdate("productSet", value)}
+                disabled={!catalog}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select product set" />
+                </SelectTrigger>
+                <SelectContent>
+                  {filteredProductSets.map((ps) => (
+                    <SelectItem key={ps.id} value={ps.product_set_id || ""}>
+                      {ps.product_set_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Default Conversion Event</Label>
+              <Select 
+                value={conversionEvent || undefined} 
+                onValueChange={(value) => onUpdate("conversionEvent", value)}
+                disabled={!pixel}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select conversion event" />
+                </SelectTrigger>
+                <SelectContent>
+                  {filteredConversionEvents.map((e) => (
+                    <SelectItem key={e.id} value={e.event_name || ""}>
+                      {e.event_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </>
+        )}
+
+        {platformName.toLowerCase() === 'tiktok' && (
+          <div className="text-sm text-muted-foreground">
+            TikTok resource configuration coming soon
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="catalog">Catalog</Label>
-            <Input
-              id="catalog"
-              value={catalog || ""}
-              onChange={(e) => onUpdate("catalog", e.target.value)}
-              placeholder="Enter catalog ID"
-            />
-          </div>
-        </div>
+        )}
       </CardContent>
     </Card>
   );
