@@ -975,6 +975,7 @@ export type Database = {
           default_identity_id: string | null
           default_non_conversion_budget_type: string | null
           default_pixel_id: string | null
+          default_product_set_id: string | null
           id: string
           main_markets: Json | null
           synced_at: string
@@ -994,6 +995,7 @@ export type Database = {
           default_identity_id?: string | null
           default_non_conversion_budget_type?: string | null
           default_pixel_id?: string | null
+          default_product_set_id?: string | null
           id?: string
           main_markets?: Json | null
           synced_at?: string
@@ -1013,6 +1015,7 @@ export type Database = {
           default_identity_id?: string | null
           default_non_conversion_budget_type?: string | null
           default_pixel_id?: string | null
+          default_product_set_id?: string | null
           id?: string
           main_markets?: Json | null
           synced_at?: string
@@ -1358,6 +1361,39 @@ export type Database = {
           pixel_id?: string
           pixel_name?: string
           synced_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      tiktok_product_sets: {
+        Row: {
+          advertiser_id: string
+          catalog_id: string
+          created_at: string | null
+          id: string
+          product_set_id: string
+          product_set_name: string
+          synced_at: string | null
+          user_id: string
+        }
+        Insert: {
+          advertiser_id: string
+          catalog_id: string
+          created_at?: string | null
+          id?: string
+          product_set_id: string
+          product_set_name: string
+          synced_at?: string | null
+          user_id: string
+        }
+        Update: {
+          advertiser_id?: string
+          catalog_id?: string
+          created_at?: string | null
+          id?: string
+          product_set_id?: string
+          product_set_name?: string
+          synced_at?: string | null
           user_id?: string
         }
         Relationships: []

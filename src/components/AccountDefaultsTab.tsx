@@ -67,6 +67,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
   const [tiktokPixels, setTiktokPixels] = useState<any[]>([]);
   const [tiktokIdentities, setTiktokIdentities] = useState<any[]>([]);
   const [tiktokCatalogs, setTiktokCatalogs] = useState<any[]>([]);
+  const [tiktokProductSets, setTiktokProductSets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [localDefaults, setLocalDefaults] = useState<Record<string, Partial<AdAccount>>>({});
@@ -140,7 +141,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
           default_page_id: acc.platform === 'meta' ? (acc as any).default_page_id : null,
           default_instagram_account_id: acc.platform === 'meta' ? (acc as any).default_instagram_account_id : null,
           default_catalog_id: acc.default_catalog_id || null,
-          default_product_set_id: acc.platform === 'meta' ? (acc as any).default_product_set_id : null,
+          default_product_set_id: (acc as any).default_product_set_id || null,
           default_conversion_event: acc.platform === 'meta' ? (acc as any).default_conversion_event : null,
           default_conversion_budget_type: (acc as any).default_conversion_budget_type || null,
           default_non_conversion_budget_type: (acc as any).default_non_conversion_budget_type || null,
@@ -151,7 +152,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
       setLocalDefaults(defaults);
 
       // Load all available resources
-      const [pixelsRes, pagesRes, igRes, catalogsRes, productSetsRes, eventsRes, tiktokPixelsRes, tiktokIdentitiesRes, tiktokCatalogsRes] = await Promise.all([
+      const [pixelsRes, pagesRes, igRes, catalogsRes, productSetsRes, eventsRes, tiktokPixelsRes, tiktokIdentitiesRes, tiktokCatalogsRes, tiktokProductSetsRes] = await Promise.all([
         supabase.from("meta_pixels").select("id, ad_account_id, pixel_id, pixel_name").eq("user_id", userId),
         supabase.from("meta_pages").select("id, page_id, page_name").eq("user_id", userId),
         supabase.from("meta_instagram_accounts").select("id, instagram_account_id, username").eq("user_id", userId),
@@ -161,6 +162,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         supabase.from("tiktok_pixels").select("*").eq("user_id", userId),
         supabase.from("tiktok_identities").select("*").eq("user_id", userId),
         supabase.from("tiktok_catalogs").select("*").eq("user_id", userId),
+        supabase.from("tiktok_product_sets").select("*").eq("user_id", userId),
       ]);
 
       if (pixelsRes.error) throw pixelsRes.error;
@@ -219,6 +221,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         'default_pixel_id',
         'default_identity_id',
         'default_catalog_id',
+        'default_product_set_id',
         'default_conversion_budget_type',
         'default_non_conversion_budget_type',
         'main_markets'
@@ -615,10 +618,19 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                 onValueChange={(value) => updateDefault(account.id, "default_product_set_id", value)}
                               >
                                 <SelectTrigger>
-                                  <SelectValue placeholder="Select product set (coming soon)" />
+                                  <SelectValue placeholder="Select product set" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {/* TikTok product sets will be loaded here */}
+                                  {tiktokProductSets
+                                    .filter(ps => ps.catalog_id === defaults.default_catalog_id && ps.advertiser_id === account.advertiser_id)
+                                    .map((ps) => (
+                                      <SelectItem key={ps.product_set_id} value={ps.product_set_id}>
+                                        {ps.product_set_name}
+                                      </SelectItem>
+                                    ))}
+                                  {tiktokProductSets.filter(ps => ps.catalog_id === defaults.default_catalog_id && ps.advertiser_id === account.advertiser_id).length === 0 && (
+                                    <SelectItem value="none" disabled>No product sets available</SelectItem>
+                                  )}
                                 </SelectContent>
                               </Select>
                             </div>

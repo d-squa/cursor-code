@@ -152,20 +152,64 @@ serve(async (req) => {
     const catalogsData = await catalogsResponse.json();
     console.log('Catalogs response:', catalogsData);
 
+    let catalogIds: string[] = [];
     if (catalogsData.code === 0 && catalogsData.data?.list) {
       const catalogs = catalogsData.data.list;
       console.log(`Syncing ${catalogs.length} TikTok catalogs`);
 
       for (const catalog of catalogs) {
+        const catalogId = catalog.asset_id || catalog.catalog_id || catalog.id;
+        catalogIds.push(catalogId);
         await supabase.from('tiktok_catalogs').upsert({
           user_id: user.id,
           advertiser_id: advertiserId,
-          catalog_id: catalog.asset_id || catalog.catalog_id || catalog.id,
-          catalog_name: catalog.asset_name || catalog.name || catalog.catalog_name || `Catalog ${catalog.asset_id || catalog.catalog_id || catalog.id}`,
+          catalog_id: catalogId,
+          catalog_name: catalog.asset_name || catalog.name || catalog.catalog_name || `Catalog ${catalogId}`,
           synced_at: new Date().toISOString(),
         }, {
           onConflict: 'catalog_id,advertiser_id',
         });
+      }
+    }
+
+    // Fetch TikTok Product Sets for each catalog
+    console.log('Fetching TikTok product sets...');
+    let totalProductSets = 0;
+    for (const catalogId of catalogIds) {
+      try {
+        const productSetsResponse = await fetch(
+          `${baseUrl}/catalog/product/get/?bc_id=${bcId}&catalog_id=${catalogId}`,
+          {
+            headers: {
+              'Access-Token': accessToken,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        const productSetsData = await productSetsResponse.json();
+        console.log(`Product sets response for catalog ${catalogId}:`, productSetsData);
+
+        if (productSetsData.code === 0 && productSetsData.data?.products) {
+          const productSets = productSetsData.data.products;
+          console.log(`Syncing ${productSets.length} product sets for catalog ${catalogId}`);
+
+          for (const productSet of productSets) {
+            await supabase.from('tiktok_product_sets').upsert({
+              user_id: user.id,
+              advertiser_id: advertiserId,
+              catalog_id: catalogId,
+              product_set_id: productSet.product_id || productSet.id,
+              product_set_name: productSet.product_name || productSet.name || `Product Set ${productSet.product_id || productSet.id}`,
+              synced_at: new Date().toISOString(),
+            }, {
+              onConflict: 'product_set_id,advertiser_id',
+            });
+            totalProductSets++;
+          }
+        }
+      } catch (error) {
+        console.error(`Error fetching product sets for catalog ${catalogId}:`, error);
       }
     }
 
@@ -178,7 +222,8 @@ serve(async (req) => {
         stats: {
           pixels: pixelsData.data?.pixels?.length || 0,
           identities: identitiesData.data?.list?.length || 0,
-          catalogs: catalogsData.data?.catalogs?.length || 0,
+          catalogs: catalogsData.data?.list?.length || 0,
+          productSets: totalProductSets,
         }
       }),
       { 
