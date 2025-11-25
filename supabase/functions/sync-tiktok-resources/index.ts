@@ -100,6 +100,9 @@ serve(async (req) => {
 
     // Fetch TikTok Identities (BC-level asset - use TT_ACCOUNT not IDENTITY)
     console.log('Fetching TikTok identities from Business Center...');
+    console.log('BC ID:', bcId);
+    console.log('Request URL:', `${baseUrl}/bc/asset/get/?bc_id=${bcId}&asset_type=TT_ACCOUNT`);
+    
     const identitiesResponse = await fetch(
       `${baseUrl}/bc/asset/get/?bc_id=${bcId}&asset_type=TT_ACCOUNT`,
       {
@@ -111,7 +114,10 @@ serve(async (req) => {
     );
 
     const identitiesData = await identitiesResponse.json();
-    console.log('TT_ACCOUNT identities response:', identitiesData);
+    console.log('TT_ACCOUNT identities full response:', JSON.stringify(identitiesData, null, 2));
+    console.log('TT_ACCOUNT identities status code:', identitiesData.code);
+    console.log('TT_ACCOUNT identities message:', identitiesData.message);
+    console.log('TT_ACCOUNT identities data:', identitiesData.data);
 
     if (identitiesData.code === 0 && identitiesData.data?.list) {
       const identities = identitiesData.data.list;
