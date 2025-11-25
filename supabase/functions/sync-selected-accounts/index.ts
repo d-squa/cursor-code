@@ -320,7 +320,69 @@ serve(async (req) => {
         }
       }
 
-      console.log(`TikTok resources synced: ${allTiktokPixels.length} pixels, ${allTiktokIdentities.length} identities, ${allTiktokCatalogs.length} catalogs`);
+      // Fetch TikTok Product Sets (BC-level asset)
+      const allTiktokProductSets: any[] = [];
+      for (const account of selectedAccounts) {
+        try {
+          const bcId = account.bc_id;
+          console.log(`Fetching product sets for BC: ${bcId}`);
+          
+          const productSetsResponse = await fetch(
+            `${baseUrl}/bc/asset/get/?bc_id=${bcId}&asset_type=PRODUCT_SET`,
+            {
+              headers: {
+                'Access-Token': platform.access_token,
+                'Content-Type': 'application/json',
+              },
+            }
+          );
+
+          const productSetsData = await productSetsResponse.json();
+          console.log(`Product sets response for BC ${bcId}:`, productSetsData);
+
+          if (productSetsData.code === 0 && productSetsData.data?.list) {
+            const advertisersInBc = advertiserIds.filter((advId: string) => {
+              const acc = selectedAccounts.find((a: any) => a.advertiser_id === advId);
+              return acc && acc.bc_id === bcId;
+            });
+            
+            productSetsData.data.list.forEach((productSet: any) => {
+              // Try to match product set to its catalog
+              const catalogId = productSet.catalog_id || productSet.asset_catalog_id || '';
+              
+              advertisersInBc.forEach((advertiserId: string) => {
+                allTiktokProductSets.push({
+                  user_id: user.id,
+                  advertiser_id: advertiserId,
+                  catalog_id: catalogId,
+                  product_set_id: productSet.asset_id || productSet.product_set_id,
+                  product_set_name: productSet.asset_name || productSet.name || `Product Set ${productSet.asset_id}`,
+                  synced_at: new Date().toISOString(),
+                });
+              });
+            });
+          }
+        } catch (error) {
+          console.error(`Error fetching product sets for account ${account.advertiser_id}:`, error);
+        }
+      }
+
+      // Sync TikTok product sets
+      if (allTiktokProductSets.length > 0) {
+        const productSetIdsToSync = allTiktokProductSets.map(ps => ps.product_set_id);
+        await supabase
+          .from("tiktok_product_sets")
+          .delete()
+          .eq("user_id", user.id)
+          .in("product_set_id", productSetIdsToSync);
+        
+        const { error: productSetsError } = await supabase.from("tiktok_product_sets").insert(allTiktokProductSets);
+        if (productSetsError) {
+          console.error("Error inserting TikTok product sets:", productSetsError);
+        }
+      }
+
+      console.log(`TikTok resources synced: ${allTiktokPixels.length} pixels, ${allTiktokIdentities.length} identities, ${allTiktokCatalogs.length} catalogs, ${allTiktokProductSets.length} product sets`);
 
       return new Response(
         JSON.stringify({
@@ -331,6 +393,7 @@ serve(async (req) => {
             pixels: allTiktokPixels.length,
             identities: allTiktokIdentities.length,
             catalogs: allTiktokCatalogs.length,
+            productSets: allTiktokProductSets.length,
           }
         }),
         {
