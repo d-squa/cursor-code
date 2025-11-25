@@ -439,26 +439,31 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                             </Select>
                           </div>
 
-                          {/* Product Set */}
-                          <div className="space-y-2">
-                            <Label>Default Product Set</Label>
-                            <Select
-                              value={defaults.default_product_set_id || undefined}
-                              onValueChange={(value) => updateDefault(account.id, "default_product_set_id", value)}
-                              disabled={!defaults.default_catalog_id}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select product set" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {catalogProductSets.map((ps) => (
-                                  <SelectItem key={ps.id} value={ps.product_set_id || ""}>
-                                    {ps.product_set_name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
+                          {/* Product Set - Only show when catalog is selected */}
+                          {defaults.default_catalog_id && (
+                            <div className="space-y-2">
+                              <Label>Default Product Set</Label>
+                              <Select
+                                value={defaults.default_product_set_id || undefined}
+                                onValueChange={(value) => updateDefault(account.id, "default_product_set_id", value)}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select product set" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {catalogProductSets.length === 0 ? (
+                                    <SelectItem value="none" disabled>No product sets available</SelectItem>
+                                  ) : (
+                                    catalogProductSets.map((ps) => (
+                                      <SelectItem key={ps.id} value={ps.product_set_id || ""}>
+                                        {ps.product_set_name}
+                                      </SelectItem>
+                                    ))
+                                  )}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          )}
 
                           {/* Conversion Event */}
                           <div className="space-y-2">
