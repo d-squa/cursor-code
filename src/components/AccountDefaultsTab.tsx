@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2, Save } from "lucide-react";
@@ -14,6 +15,7 @@ interface AdAccount {
   id: string;
   account_id: string;
   account_name: string;
+  platform: 'meta' | 'tiktok';
   default_pixel_id?: string | null;
   default_page_id?: string | null;
   default_instagram_account_id?: string | null;
@@ -22,6 +24,7 @@ interface AdAccount {
   default_conversion_event?: string | null;
   default_conversion_budget_type?: string | null;
   default_non_conversion_budget_type?: string | null;
+  default_identity_id?: string | null;
   main_markets?: string[] | null;
 }
 
@@ -86,34 +89,57 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         setFetchedClientMarkets(Array.isArray(clientData.markets) ? clientData.markets as string[] : []);
       }
 
-      // Load ad accounts for this client
-      const { data: accountsData, error: accountsError } = await supabase
+      // Load Meta ad accounts for this client
+      const { data: metaAccountsData, error: metaAccountsError } = await supabase
         .from("meta_ad_accounts")
         .select("*")
         .eq("user_id", userId)
         .eq("client_id", clientId);
 
-      if (accountsError) throw accountsError;
+      if (metaAccountsError) throw metaAccountsError;
       
-      // Type cast and set accounts
-      const typedAccounts = (accountsData || []).map(acc => ({
+      // Load TikTok ad accounts for this client
+      const { data: tiktokAccountsData, error: tiktokAccountsError } = await supabase
+        .from("tiktok_ad_accounts")
+        .select("*")
+        .eq("user_id", userId)
+        .eq("client_id", clientId);
+
+      if (tiktokAccountsError) throw tiktokAccountsError;
+
+      console.log("Meta accounts loaded:", metaAccountsData?.length || 0);
+      console.log("TikTok accounts loaded:", tiktokAccountsData?.length || 0);
+      
+      // Combine and type cast accounts
+      const metaAccounts = (metaAccountsData || []).map(acc => ({
         ...acc,
+        platform: 'meta' as const,
         main_markets: Array.isArray(acc.main_markets) ? acc.main_markets as string[] : []
       }));
-      setAdAccounts(typedAccounts);
+
+      const tiktokAccounts = (tiktokAccountsData || []).map(acc => ({
+        ...acc,
+        platform: 'tiktok' as const,
+        main_markets: Array.isArray(acc.main_markets) ? acc.main_markets as string[] : []
+      }));
+
+      const allAccounts = [...metaAccounts, ...tiktokAccounts];
+      setAdAccounts(allAccounts);
 
       // Initialize local defaults
       const defaults: Record<string, Partial<AdAccount>> = {};
-      typedAccounts.forEach((acc) => {
+      allAccounts.forEach((acc) => {
         defaults[acc.id] = {
-          default_pixel_id: acc.default_pixel_id,
-          default_page_id: acc.default_page_id,
-          default_instagram_account_id: acc.default_instagram_account_id,
-          default_catalog_id: acc.default_catalog_id,
-          default_product_set_id: acc.default_product_set_id,
-          default_conversion_event: acc.default_conversion_event,
-          default_conversion_budget_type: acc.default_conversion_budget_type,
-          default_non_conversion_budget_type: acc.default_non_conversion_budget_type,
+          platform: acc.platform,
+          default_pixel_id: acc.default_pixel_id || null,
+          default_page_id: acc.platform === 'meta' ? (acc as any).default_page_id : null,
+          default_instagram_account_id: acc.platform === 'meta' ? (acc as any).default_instagram_account_id : null,
+          default_catalog_id: acc.default_catalog_id || null,
+          default_product_set_id: acc.platform === 'meta' ? (acc as any).default_product_set_id : null,
+          default_conversion_event: acc.platform === 'meta' ? (acc as any).default_conversion_event : null,
+          default_conversion_budget_type: acc.platform === 'meta' ? (acc as any).default_conversion_budget_type : null,
+          default_non_conversion_budget_type: acc.platform === 'meta' ? (acc as any).default_non_conversion_budget_type : null,
+          default_identity_id: acc.platform === 'tiktok' ? (acc as any).default_identity_id : null,
           main_markets: acc.main_markets,
         };
       });
@@ -154,9 +180,15 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
     setSaving(accountId);
     try {
       const updates = localDefaults[accountId];
+      const platform = updates.platform;
+      const tableName = platform === 'tiktok' ? 'tiktok_ad_accounts' : 'meta_ad_accounts';
+      
+      // Remove platform from updates as it's not a column to update
+      const { platform: _, ...updateData } = updates;
+      
       const { error } = await supabase
-        .from("meta_ad_accounts")
-        .update(updates)
+        .from(tableName)
+        .update(updateData)
         .eq("id", accountId);
 
       if (error) throw error;
@@ -223,7 +255,12 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                 <AccordionTrigger className="px-6 py-4 hover:no-underline">
                   <div className="flex items-center justify-between w-full pr-4">
                     <div className="text-left">
-                      <p className="font-semibold">{account.account_name}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold">{account.account_name}</p>
+                        <Badge variant="outline" className="text-xs">
+                          {account.platform === 'tiktok' ? 'TikTok' : 'Meta'}
+                        </Badge>
+                      </div>
                       <p className="text-sm text-muted-foreground">ID: {account.account_id}</p>
                     </div>
                   </div>
@@ -246,131 +283,188 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Pixel */}
-                      <div className="space-y-2">
-                        <Label>Default Pixel</Label>
-                        <Select
-                          value={defaults.default_pixel_id || undefined}
-                          onValueChange={(value) => updateDefault(account.id, "default_pixel_id", value)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select pixel" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {accountPixels.map((pixel) => (
-                              <SelectItem key={pixel.id} value={pixel.pixel_id || ""}>
-                                {pixel.pixel_name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                      {/* Meta-specific fields */}
+                      {account.platform === 'meta' && (
+                        <>
+                          {/* Pixel */}
+                          <div className="space-y-2">
+                            <Label>Default Pixel</Label>
+                            <Select
+                              value={defaults.default_pixel_id || undefined}
+                              onValueChange={(value) => updateDefault(account.id, "default_pixel_id", value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select pixel" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {accountPixels.map((pixel) => (
+                                  <SelectItem key={pixel.id} value={pixel.pixel_id || ""}>
+                                    {pixel.pixel_name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
 
-                      {/* Page */}
-                      <div className="space-y-2">
-                        <Label>Default Page</Label>
-                        <Select
-                          value={defaults.default_page_id || undefined}
-                          onValueChange={(value) => updateDefault(account.id, "default_page_id", value)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select page" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {pages.map((page) => (
-                              <SelectItem key={page.id} value={page.page_id || ""}>
-                                {page.page_name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                          {/* Page */}
+                          <div className="space-y-2">
+                            <Label>Default Page</Label>
+                            <Select
+                              value={defaults.default_page_id || undefined}
+                              onValueChange={(value) => updateDefault(account.id, "default_page_id", value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select page" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {pages.map((page) => (
+                                  <SelectItem key={page.id} value={page.page_id || ""}>
+                                    {page.page_name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
 
-                      {/* Instagram Account */}
-                      <div className="space-y-2">
-                        <Label>Default Instagram Account</Label>
-                        <Select
-                          value={defaults.default_instagram_account_id || undefined}
-                          onValueChange={(value) => updateDefault(account.id, "default_instagram_account_id", value)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select Instagram account" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {instagramAccounts.map((ig) => (
-                              <SelectItem key={ig.id} value={ig.instagram_account_id || ""}>
-                                @{ig.username}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                          {/* Instagram Account */}
+                          <div className="space-y-2">
+                            <Label>Default Instagram Account</Label>
+                            <Select
+                              value={defaults.default_instagram_account_id || undefined}
+                              onValueChange={(value) => updateDefault(account.id, "default_instagram_account_id", value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select Instagram account" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {instagramAccounts.map((ig) => (
+                                  <SelectItem key={ig.id} value={ig.instagram_account_id || ""}>
+                                    @{ig.username}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
 
-                      {/* Catalog */}
-                      <div className="space-y-2">
-                        <Label>Default Catalog</Label>
-                        <Select
-                          value={defaults.default_catalog_id || undefined}
-                          onValueChange={(value) => {
-                            updateDefault(account.id, "default_catalog_id", value);
-                            // Reset product set when catalog changes
-                            updateDefault(account.id, "default_product_set_id", null);
-                          }}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select catalog" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {catalogs.map((catalog) => (
-                              <SelectItem key={catalog.id} value={catalog.catalog_id || ""}>
-                                {catalog.catalog_name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                          {/* Catalog */}
+                          <div className="space-y-2">
+                            <Label>Default Catalog</Label>
+                            <Select
+                              value={defaults.default_catalog_id || undefined}
+                              onValueChange={(value) => {
+                                updateDefault(account.id, "default_catalog_id", value);
+                                updateDefault(account.id, "default_product_set_id", null);
+                              }}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select catalog" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {catalogs.map((catalog) => (
+                                  <SelectItem key={catalog.id} value={catalog.catalog_id || ""}>
+                                    {catalog.catalog_name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
 
-                      {/* Product Set */}
-                      <div className="space-y-2">
-                        <Label>Default Product Set</Label>
-                        <Select
-                          value={defaults.default_product_set_id || undefined}
-                          onValueChange={(value) => updateDefault(account.id, "default_product_set_id", value)}
-                          disabled={!defaults.default_catalog_id}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select product set" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {catalogProductSets.map((ps) => (
-                              <SelectItem key={ps.id} value={ps.product_set_id || ""}>
-                                {ps.product_set_name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                          {/* Product Set */}
+                          <div className="space-y-2">
+                            <Label>Default Product Set</Label>
+                            <Select
+                              value={defaults.default_product_set_id || undefined}
+                              onValueChange={(value) => updateDefault(account.id, "default_product_set_id", value)}
+                              disabled={!defaults.default_catalog_id}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select product set" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {catalogProductSets.map((ps) => (
+                                  <SelectItem key={ps.id} value={ps.product_set_id || ""}>
+                                    {ps.product_set_name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
 
-                      {/* Conversion Event */}
-                      <div className="space-y-2">
-                        <Label>Default Conversion Event</Label>
-                        <Select
-                          value={defaults.default_conversion_event || undefined}
-                          onValueChange={(value) => updateDefault(account.id, "default_conversion_event", value)}
-                          disabled={!defaults.default_pixel_id}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select conversion event" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {pixelEvents.map((event) => (
-                              <SelectItem key={event.id} value={event.event_name || ""}>
-                                {event.event_name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                          {/* Conversion Event */}
+                          <div className="space-y-2">
+                            <Label>Default Conversion Event</Label>
+                            <Select
+                              value={defaults.default_conversion_event || undefined}
+                              onValueChange={(value) => updateDefault(account.id, "default_conversion_event", value)}
+                              disabled={!defaults.default_pixel_id}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select conversion event" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {pixelEvents.map((event) => (
+                                  <SelectItem key={event.id} value={event.event_name || ""}>
+                                    {event.event_name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </>
+                      )}
+
+                      {/* TikTok-specific fields */}
+                      {account.platform === 'tiktok' && (
+                        <>
+                          {/* TikTok Pixel */}
+                          <div className="space-y-2">
+                            <Label>Default TikTok Pixel</Label>
+                            <Select
+                              value={defaults.default_pixel_id || undefined}
+                              onValueChange={(value) => updateDefault(account.id, "default_pixel_id", value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select TikTok pixel" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="placeholder">TikTok Pixel (Coming Soon)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {/* TikTok Identity */}
+                          <div className="space-y-2">
+                            <Label>Default TikTok Identity</Label>
+                            <Select
+                              value={defaults.default_identity_id || undefined}
+                              onValueChange={(value) => updateDefault(account.id, "default_identity_id", value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select TikTok identity" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="placeholder">TikTok Identity (Coming Soon)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {/* TikTok Catalog */}
+                          <div className="space-y-2">
+                            <Label>Default TikTok Catalog</Label>
+                            <Select
+                              value={defaults.default_catalog_id || undefined}
+                              onValueChange={(value) => updateDefault(account.id, "default_catalog_id", value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select TikTok catalog" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="placeholder">TikTok Catalog (Coming Soon)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </>
+                      )}
 
                       {/* Conversion Budget Type */}
                       <div className="space-y-2">
