@@ -139,13 +139,29 @@ serve(async (req) => {
       throw new Error(`TikTok API error: ${searchData.message}`);
     }
     
-    // Helper function to check if item matches query
+    // Helper function to check if item matches query with flexible matching
     const matchesQuery = (item: any, searchQuery: string): boolean => {
-      const lowerQuery = searchQuery.toLowerCase();
       const name = (item.name || '').toLowerCase();
       const description = (item.description || '').toLowerCase();
+      const combinedText = `${name} ${description}`;
       
-      return name.includes(lowerQuery) || description.includes(lowerQuery);
+      // Remove platform-specific terms and clean query
+      const cleanQuery = searchQuery
+        .toLowerCase()
+        .replace(/\b(instagram|facebook|meta|retargeting|website|custom|saved)\b/gi, '')
+        .replace(/\(.*?\)/g, '') // Remove parentheses and content
+        .replace(/[^\w\s]/g, '') // Remove special chars
+        .trim();
+      
+      // If query is empty after cleaning, return true (show all)
+      if (!cleanQuery) return true;
+      
+      // Split into words and check if ANY word matches (partial match)
+      const queryWords = cleanQuery.split(/\s+/).filter(w => w.length > 2);
+      
+      return queryWords.some(word => 
+        combinedText.includes(word)
+      );
     };
     
     const results = [];
