@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Sparkles, Search } from "lucide-react";
+import { Loader2, Sparkles, Search, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,6 +11,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { validateCrossPlatform, type TargetingParameter } from "@/utils/platformTargetingMapper";
 
 export interface BasicTargetingConfig {
   ageMin?: number;
@@ -20,15 +24,22 @@ export interface BasicTargetingConfig {
   os?: string[];
   languages?: string[];
   productBrief?: string;
-  aiInterests?: Array<{id: string, name: string, audienceSize?: number}>;
-  aiBehaviors?: Array<{id: string, name: string, audienceSize?: number}>;
-  aiDemographics?: Array<{id: string, name: string, audienceSize?: number}>;
+  
+  // Separated by platform
+  metaInterests?: TargetingParameter[];
+  metaBehaviors?: TargetingParameter[];
+  metaDemographics?: TargetingParameter[];
+  
+  tiktokInterests?: TargetingParameter[];
+  tiktokBehaviors?: TargetingParameter[];
+  tiktokDemographics?: TargetingParameter[];
 }
 
 interface BasicTargetingProps {
   targeting: BasicTargetingConfig;
   onUpdate: (targeting: BasicTargetingConfig) => void;
-  adAccountId?: string;
+  metaAdAccountId?: string;
+  tiktokAdvertiserId?: string;
 }
 
 interface TargetingOption {
@@ -37,7 +48,7 @@ interface TargetingOption {
   name: string;
 }
 
-export function BasicTargeting({ targeting, onUpdate, adAccountId }: BasicTargetingProps) {
+export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdvertiserId }: BasicTargetingProps) {
   const [loading, setLoading] = useState(false);
   const [genderOptions, setGenderOptions] = useState<TargetingOption[]>([]);
   const [deviceOptions, setDeviceOptions] = useState<TargetingOption[]>([]);
@@ -45,17 +56,38 @@ export function BasicTargeting({ targeting, onUpdate, adAccountId }: BasicTarget
   const [languageOptions, setLanguageOptions] = useState<TargetingOption[]>([]);
   const [ageOptions, setAgeOptions] = useState<TargetingOption[]>([]);
   
-  // AI recommendations state
+  // Cross-platform AI recommendations
   const [generatingAI, setGeneratingAI] = useState(false);
-  const [recommendedInterests, setRecommendedInterests] = useState<Array<{id: string, name: string, audienceSize?: number, selected: boolean}>>([]);
-  const [recommendedBehaviors, setRecommendedBehaviors] = useState<Array<{id: string, name: string, audienceSize?: number, selected: boolean}>>([]);
-  const [recommendedDemographics, setRecommendedDemographics] = useState<Array<{id: string, name: string, audienceSize?: number, selected: boolean}>>([]);
+  const [aiRecommendations, setAiRecommendations] = useState<{
+    meta: {
+      interests: (TargetingParameter & { selected: boolean })[];
+      behaviors: (TargetingParameter & { selected: boolean })[];
+      demographics: (TargetingParameter & { selected: boolean })[];
+    };
+    tiktok: {
+      interests: (TargetingParameter & { selected: boolean })[];
+      behaviors: (TargetingParameter & { selected: boolean })[];
+      demographics: (TargetingParameter & { selected: boolean })[];
+    };
+    matches: Array<{ meta: TargetingParameter; tiktok: TargetingParameter; score: number }>;
+  }>({
+    meta: { interests: [], behaviors: [], demographics: [] },
+    tiktok: { interests: [], behaviors: [], demographics: [] },
+    matches: []
+  });
   
-  // Search state
+  // Cross-platform search
   const [searchType, setSearchType] = useState<'interests' | 'behaviors' | 'demographics'>('interests');
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<Array<{id: string, name: string, audienceSize?: number}>>([]);
+  const [searchResults, setSearchResults] = useState<{
+    meta: TargetingParameter[];
+    tiktok: TargetingParameter[];
+    matches: Array<{ meta: TargetingParameter; tiktok: TargetingParameter; score: number }>;
+  }>({ meta: [], tiktok: [], matches: [] });
   const [searching, setSearching] = useState(false);
+  
+  // Validation warnings
+  const [validationWarnings, setValidationWarnings] = useState<string[]>([]);
 
   useEffect(() => {
     loadTargetingOptions();
@@ -63,23 +95,52 @@ export function BasicTargeting({ targeting, onUpdate, adAccountId }: BasicTarget
 
   // Initialize recommendations from saved targeting data
   useEffect(() => {
-    if (targeting.aiInterests && targeting.aiInterests.length > 0) {
-      setRecommendedInterests(targeting.aiInterests.map(item => ({ ...item, selected: true })));
+    if (targeting.metaInterests || targeting.tiktokInterests) {
+      setAiRecommendations(prev => ({
+        ...prev,
+        meta: {
+          ...prev.meta,
+          interests: (targeting.metaInterests || []).map(i => ({ ...i, selected: true }))
+        },
+        tiktok: {
+          ...prev.tiktok,
+          interests: (targeting.tiktokInterests || []).map(i => ({ ...i, selected: true }))
+        }
+      }));
     }
     
-    if (targeting.aiBehaviors && targeting.aiBehaviors.length > 0) {
-      setRecommendedBehaviors(targeting.aiBehaviors.map(item => ({ ...item, selected: true })));
+    if (targeting.metaBehaviors || targeting.tiktokBehaviors) {
+      setAiRecommendations(prev => ({
+        ...prev,
+        meta: {
+          ...prev.meta,
+          behaviors: (targeting.metaBehaviors || []).map(b => ({ ...b, selected: true }))
+        },
+        tiktok: {
+          ...prev.tiktok,
+          behaviors: (targeting.tiktokBehaviors || []).map(b => ({ ...b, selected: true }))
+        }
+      }));
     }
     
-    if (targeting.aiDemographics && targeting.aiDemographics.length > 0) {
-      setRecommendedDemographics(targeting.aiDemographics.map(item => ({ ...item, selected: true })));
+    if (targeting.metaDemographics || targeting.tiktokDemographics) {
+      setAiRecommendations(prev => ({
+        ...prev,
+        meta: {
+          ...prev.meta,
+          demographics: (targeting.metaDemographics || []).map(d => ({ ...d, selected: true }))
+        },
+        tiktok: {
+          ...prev.tiktok,
+          demographics: (targeting.tiktokDemographics || []).map(d => ({ ...d, selected: true }))
+        }
+      }));
     }
   }, []);
 
   const loadTargetingOptions = async () => {
     setLoading(true);
     try {
-      // Load all targeting options in parallel
       const [genders, devices, os, languages, ages] = await Promise.all([
         fetchTargetingOptions('genders'),
         fetchTargetingOptions('devices'),
@@ -93,16 +154,6 @@ export function BasicTargeting({ targeting, onUpdate, adAccountId }: BasicTarget
       setOsOptions(os);
       setLanguageOptions(languages);
       setAgeOptions(ages);
-
-      console.log('✅ Basic Targeting Options Loaded:', {
-        genders: genders.length,
-        devices: devices.length,
-        os: os.length,
-        languages: languages.length,
-        ages: ages.length,
-        sampleLanguage: languages[0]
-      });
-
     } catch (error) {
       console.error('Error loading targeting options:', error);
       toast.error('Failed to load targeting options');
@@ -122,13 +173,27 @@ export function BasicTargeting({ targeting, onUpdate, adAccountId }: BasicTarget
 
   const updateField = (field: keyof BasicTargetingConfig, value: any) => {
     const updated = { ...targeting, [field]: value };
-    onUpdate(updated);
     
-    console.log('📝 Basic Targeting Updated:', {
-      field,
-      value,
-      fullTargeting: updated
-    });
+    // Perform cross-platform validation for basic demographics
+    if (['ageMin', 'ageMax', 'genders', 'devices', 'os'].includes(field)) {
+      const validation = validateCrossPlatform({
+        minAge: updated.ageMin,
+        maxAge: updated.ageMax,
+        genders: updated.genders,
+        devices: updated.devices,
+        os: updated.os
+      });
+      
+      setValidationWarnings(validation.warnings);
+      
+      if (validation.warnings.length > 0) {
+        toast.warning(`Some values adjusted for platform compatibility`, {
+          description: validation.warnings.join(', ')
+        });
+      }
+    }
+    
+    onUpdate(updated);
   };
 
   const handleGenerateRecommendations = async () => {
@@ -136,37 +201,40 @@ export function BasicTargeting({ targeting, onUpdate, adAccountId }: BasicTarget
       toast.error('Please enter a product brief');
       return;
     }
-    if (!adAccountId) {
-      toast.error('Ad account not selected');
+    
+    if (!metaAdAccountId && !tiktokAdvertiserId) {
+      toast.error('At least one ad account must be selected (Meta or TikTok)');
       return;
     }
 
     setGeneratingAI(true);
     try {
-      const { data, error } = await supabase.functions.invoke('generate-audience-recommendations', {
-        body: { brief: targeting.productBrief, adAccountId }
+      const { data, error } = await supabase.functions.invoke('cross-platform-ai-recommendations', {
+        body: { 
+          brief: targeting.productBrief,
+          metaAdAccountId,
+          tiktokAdvertiserId
+        }
       });
 
       if (error) throw error;
 
-      const interests = data.interests?.map((item: any) => ({
-        id: item.id,
-        name: item.name,
-        audienceSize: item.audienceSize,
-        selected: true
-      })) || [];
-
-      const behaviors = data.behaviors?.map((item: any) => ({
-        id: item.id,
-        name: item.name,
-        audienceSize: item.audienceSize,
-        selected: true
-      })) || [];
-
-      setRecommendedInterests(interests);
-      setRecommendedBehaviors(behaviors);
+      const recommendations = {
+        meta: {
+          interests: (data.meta?.interests || []).map((i: TargetingParameter) => ({ ...i, selected: true })),
+          behaviors: (data.meta?.behaviors || []).map((b: TargetingParameter) => ({ ...b, selected: true })),
+          demographics: (data.meta?.demographics || []).map((d: TargetingParameter) => ({ ...d, selected: true }))
+        },
+        tiktok: {
+          interests: (data.tiktok?.interests || []).map((i: TargetingParameter) => ({ ...i, selected: true })),
+          behaviors: (data.tiktok?.behaviors || []).map((b: TargetingParameter) => ({ ...b, selected: true })),
+          demographics: (data.tiktok?.demographics || []).map((d: TargetingParameter) => ({ ...d, selected: true }))
+        },
+        matches: data.matches || []
+      };
       
-      toast.success('AI recommendations generated!');
+      setAiRecommendations(recommendations);
+      toast.success(`Generated ${recommendations.meta.interests.length + recommendations.meta.behaviors.length + recommendations.tiktok.interests.length + recommendations.tiktok.behaviors.length} cross-platform recommendations`);
     } catch (error: any) {
       console.error('Error generating recommendations:', error);
       toast.error(error.message || 'Failed to generate recommendations');
@@ -180,20 +248,32 @@ export function BasicTargeting({ targeting, onUpdate, adAccountId }: BasicTarget
       toast.error('Please enter a search term');
       return;
     }
-    if (!adAccountId) {
-      toast.error('Ad account not selected');
+    
+    if (!metaAdAccountId && !tiktokAdvertiserId) {
+      toast.error('At least one ad account must be selected');
       return;
     }
 
     setSearching(true);
     try {
-      const { data, error } = await supabase.functions.invoke('search-meta-targeting', {
-        body: { query: searchQuery, type: searchType, adAccountId }
+      const { data, error } = await supabase.functions.invoke('cross-platform-search', {
+        body: { 
+          query: searchQuery,
+          type: searchType,
+          metaAdAccountId,
+          tiktokAdvertiserId
+        }
       });
 
       if (error) throw error;
 
-      setSearchResults(data.results || []);
+      setSearchResults({
+        meta: data.meta || [],
+        tiktok: data.tiktok || [],
+        matches: data.matches || []
+      });
+      
+      toast.success(`Found ${data.meta?.length || 0} Meta and ${data.tiktok?.length || 0} TikTok results`);
     } catch (error: any) {
       console.error('Error searching:', error);
       toast.error(error.message || 'Failed to search');
@@ -202,146 +282,99 @@ export function BasicTargeting({ targeting, onUpdate, adAccountId }: BasicTarget
     }
   };
 
-  const handleToggleRecommendation = (type: 'interests' | 'behaviors' | 'demographics', id: string) => {
-    if (type === 'interests') {
-      setRecommendedInterests(prev => prev.map(item => 
-        item.id === id ? { ...item, selected: !item.selected } : item
-      ));
-    } else if (type === 'behaviors') {
-      setRecommendedBehaviors(prev => prev.map(item => 
-        item.id === id ? { ...item, selected: !item.selected } : item
-      ));
-    } else {
-      setRecommendedDemographics(prev => prev.map(item => 
-        item.id === id ? { ...item, selected: !item.selected } : item
-      ));
-    }
+  const handleToggleRecommendation = (platform: 'meta' | 'tiktok', type: 'interests' | 'behaviors' | 'demographics', id: string) => {
+    setAiRecommendations(prev => ({
+      ...prev,
+      [platform]: {
+        ...prev[platform],
+        [type]: prev[platform][type].map((item: any) => 
+          item.id === id ? { ...item, selected: !item.selected } : item
+        )
+      }
+    }));
   };
 
-  const handleAddSearchResult = (result: any) => {
-    if (searchType === 'interests') {
-      setRecommendedInterests(prev => {
-        if (prev.some(item => item.id === result.id)) return prev;
-        return [...prev, { ...result, selected: true }];
-      });
-    } else if (searchType === 'behaviors') {
-      setRecommendedBehaviors(prev => {
-        if (prev.some(item => item.id === result.id)) return prev;
-        return [...prev, { ...result, selected: true }];
-      });
-    } else {
-      setRecommendedDemographics(prev => {
-        if (prev.some(item => item.id === result.id)) return prev;
-        return [...prev, { ...result, selected: true }];
-      });
-    }
-    setSearchResults(prev => prev.filter(r => r.id !== result.id));
+  const handleAddSearchResult = (platform: 'meta' | 'tiktok', result: TargetingParameter) => {
+    setAiRecommendations(prev => {
+      const currentList = prev[platform][searchType];
+      if (currentList.some((item: any) => item.id === result.id)) {
+        return prev;
+      }
+      
+      return {
+        ...prev,
+        [platform]: {
+          ...prev[platform],
+          [searchType]: [...currentList, { ...result, selected: true }]
+        }
+      };
+    });
+    
+    setSearchResults(prev => ({
+      ...prev,
+      [platform]: prev[platform].filter(r => r.id !== result.id)
+    }));
+    
+    toast.success(`Added to ${platform} ${searchType}`);
   };
 
-  const handleAddAllSearchResults = () => {
-    if (searchType === 'interests') {
-      setRecommendedInterests(prev => {
-        const newItems = searchResults.filter(r => !prev.some(item => item.id === r.id));
-        return [...prev, ...newItems.map(r => ({ ...r, selected: true }))];
-      });
-    } else if (searchType === 'behaviors') {
-      setRecommendedBehaviors(prev => {
-        const newItems = searchResults.filter(r => !prev.some(item => item.id === r.id));
-        return [...prev, ...newItems.map(r => ({ ...r, selected: true }))];
-      });
-    } else {
-      setRecommendedDemographics(prev => {
-        const newItems = searchResults.filter(r => !prev.some(item => item.id === r.id));
-        return [...prev, ...newItems.map(r => ({ ...r, selected: true }))];
-      });
-    }
-    setSearchResults([]);
-    toast.success('All results added');
+  const handleSelectAll = (platform: 'meta' | 'tiktok', type: 'interests' | 'behaviors' | 'demographics') => {
+    setAiRecommendations(prev => ({
+      ...prev,
+      [platform]: {
+        ...prev[platform],
+        [type]: prev[platform][type].map((item: any) => ({ ...item, selected: true }))
+      }
+    }));
   };
 
-  const handleSelectAllRecommendations = (type: 'interests' | 'behaviors' | 'demographics') => {
-    if (type === 'interests') {
-      setRecommendedInterests(prev => prev.map(item => ({ ...item, selected: true })));
-    } else if (type === 'behaviors') {
-      setRecommendedBehaviors(prev => prev.map(item => ({ ...item, selected: true })));
-    } else {
-      setRecommendedDemographics(prev => prev.map(item => ({ ...item, selected: true })));
-    }
-  };
-
-  const handleDeselectAllRecommendations = (type: 'interests' | 'behaviors' | 'demographics') => {
-    if (type === 'interests') {
-      setRecommendedInterests(prev => prev.map(item => ({ ...item, selected: false })));
-    } else if (type === 'behaviors') {
-      setRecommendedBehaviors(prev => prev.map(item => ({ ...item, selected: false })));
-    } else {
-      setRecommendedDemographics(prev => prev.map(item => ({ ...item, selected: false })));
-    }
+  const handleDeselectAll = (platform: 'meta' | 'tiktok', type: 'interests' | 'behaviors' | 'demographics') => {
+    setAiRecommendations(prev => ({
+      ...prev,
+      [platform]: {
+        ...prev[platform],
+        [type]: prev[platform][type].map((item: any) => ({ ...item, selected: false }))
+      }
+    }));
   };
 
   // Update targeting config when recommendations change
   useEffect(() => {
-    const selectedInterests = recommendedInterests.filter(i => i.selected).map(i => ({ id: i.id, name: i.name, audienceSize: i.audienceSize }));
-    const selectedBehaviors = recommendedBehaviors.filter(b => b.selected).map(b => ({ id: b.id, name: b.name, audienceSize: b.audienceSize }));
-    const selectedDemographics = recommendedDemographics.filter(d => d.selected).map(d => ({ id: d.id, name: d.name, audienceSize: d.audienceSize }));
+    const metaInterests = aiRecommendations.meta.interests.filter(i => i.selected).map(({ selected, ...rest }) => rest);
+    const metaBehaviors = aiRecommendations.meta.behaviors.filter(b => b.selected).map(({ selected, ...rest }) => rest);
+    const metaDemographics = aiRecommendations.meta.demographics.filter(d => d.selected).map(({ selected, ...rest }) => rest);
     
-    console.log('📤 Updating parent with selections:', {
-      interests: selectedInterests,
-      behaviors: selectedBehaviors,
-      demographics: selectedDemographics
-    });
+    const tiktokInterests = aiRecommendations.tiktok.interests.filter(i => i.selected).map(({ selected, ...rest }) => rest);
+    const tiktokBehaviors = aiRecommendations.tiktok.behaviors.filter(b => b.selected).map(({ selected, ...rest }) => rest);
+    const tiktokDemographics = aiRecommendations.tiktok.demographics.filter(d => d.selected).map(({ selected, ...rest }) => rest);
     
-    // Update all three fields at once to prevent overwriting
-    const updated = {
+    onUpdate({
       ...targeting,
-      aiInterests: selectedInterests,
-      aiBehaviors: selectedBehaviors,
-      aiDemographics: selectedDemographics
-    };
-    onUpdate(updated);
-    
-    console.log('📝 Basic Targeting Updated:', updated);
-  }, [recommendedInterests, recommendedBehaviors, recommendedDemographics]);
+      metaInterests,
+      metaBehaviors,
+      metaDemographics,
+      tiktokInterests,
+      tiktokBehaviors,
+      tiktokDemographics
+    });
+  }, [aiRecommendations]);
 
   const handleMultiSelectWithAll = (field: keyof BasicTargetingConfig, newValues: string[]) => {
     const previousValues = (targeting[field] as string[]) || [];
-    
-    // Filter out any undefined/null values
     const cleanNewValues = newValues.filter(v => v !== undefined && v !== null && v !== '');
-    
-    console.log('🔍 Multi-select change:', {
-      field,
-      previousValues,
-      newValues,
-      cleanNewValues,
-      hasAllInNew: cleanNewValues.includes('all'),
-      hasAllInPrevious: previousValues.includes('all')
-    });
     
     let finalValues: string[];
     
-    // If no valid values after cleaning
     if (cleanNewValues.length === 0) {
-      console.log('✅ All options deselected or invalid');
       finalValues = [];
-    }
-    // If "all" was just added (not in previous, but in new)
-    else if (cleanNewValues.includes('all') && !previousValues.includes('all')) {
-      console.log('✅ "All" selected - clearing other options');
+    } else if (cleanNewValues.includes('all') && !previousValues.includes('all')) {
       finalValues = ['all'];
-    }
-    // If "all" was previously selected and other options are being added
-    else if (previousValues.includes('all') && cleanNewValues.length > 1 && cleanNewValues.includes('all')) {
-      console.log('✅ Specific option selected - removing "All"');
+    } else if (previousValues.includes('all') && cleanNewValues.length > 1 && cleanNewValues.includes('all')) {
       finalValues = cleanNewValues.filter(v => v !== 'all');
-    }
-    // Normal update
-    else {
-      console.log('✅ Normal multi-select update');
+    } else {
       finalValues = cleanNewValues;
     }
     
-    console.log('📝 Final values:', finalValues);
     updateField(field, finalValues);
   };
 
@@ -359,13 +392,27 @@ export function BasicTargeting({ targeting, onUpdate, adAccountId }: BasicTarget
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Basic Targeting</CardTitle>
+        <CardTitle>Cross-Platform Audience Targeting</CardTitle>
         <CardDescription>
-          Define core demographics that will apply to all campaigns as a starting point. 
-          You can override these selections per campaign phase later in the strategy configuration.
+          Define demographics that will be validated and applied across Meta and TikTok platforms
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Validation Warnings */}
+        {validationWarnings.length > 0 && (
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              <div className="font-semibold mb-1">Platform Compatibility Adjustments:</div>
+              <ul className="list-disc list-inside text-sm space-y-1">
+                {validationWarnings.map((warning, idx) => (
+                  <li key={idx}>{warning}</li>
+                ))}
+              </ul>
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Age Range */}
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
@@ -466,15 +513,17 @@ export function BasicTargeting({ targeting, onUpdate, adAccountId }: BasicTarget
           />
         </div>
 
-        {/* AI-Powered Audience Recommendations */}
+        <Separator />
+
+        {/* AI-Powered Cross-Platform Recommendations */}
         <Card className="bg-muted/50">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-primary" />
-              AI-Powered Audience Recommendations
+              Cross-Platform AI Recommendations
             </CardTitle>
             <CardDescription>
-              Describe your product or service to get AI-powered interest and behavior recommendations
+              Generate audience recommendations for both Meta and TikTok based on your product brief
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -490,13 +539,13 @@ export function BasicTargeting({ targeting, onUpdate, adAccountId }: BasicTarget
             </div>
             <Button 
               onClick={handleGenerateRecommendations}
-              disabled={generatingAI || !targeting.productBrief?.trim() || !adAccountId}
+              disabled={generatingAI || !targeting.productBrief?.trim() || (!metaAdAccountId && !tiktokAdvertiserId)}
               className="w-full"
             >
               {generatingAI ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Generating Recommendations...
+                  Generating Cross-Platform Recommendations...
                 </>
               ) : (
                 <>
@@ -506,146 +555,120 @@ export function BasicTargeting({ targeting, onUpdate, adAccountId }: BasicTarget
               )}
             </Button>
 
-            {/* Display Recommended Interests */}
-            {recommendedInterests.length > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>Recommended Interests</Label>
-                  <div className="flex gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => handleSelectAllRecommendations('interests')}
-                    >
-                      Select All
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => handleDeselectAllRecommendations('interests')}
-                    >
-                      Deselect All
-                    </Button>
-                  </div>
-                </div>
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {recommendedInterests.map((interest) => (
-                    <div key={interest.id} className="flex items-center justify-between p-2 bg-background rounded">
-                      <div className="flex items-center gap-2">
-                        <Checkbox
-                          checked={interest.selected}
-                          onCheckedChange={() => handleToggleRecommendation('interests', interest.id)}
-                        />
-                        <span className="text-sm">{interest.name}</span>
-                      </div>
-                      {interest.audienceSize && (
-                        <Badge variant="secondary" className="text-xs">
-                          {interest.audienceSize.toLocaleString()} people
-                        </Badge>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            {/* Platform-Segmented Recommendations */}
+            {(aiRecommendations.meta.interests.length > 0 || aiRecommendations.tiktok.interests.length > 0) && (
+              <Tabs defaultValue="meta" className="w-full">
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="meta">
+                    Meta ({aiRecommendations.meta.interests.length + aiRecommendations.meta.behaviors.length + aiRecommendations.meta.demographics.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="tiktok">
+                    TikTok ({aiRecommendations.tiktok.interests.length + aiRecommendations.tiktok.behaviors.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="matches">
+                    Matches ({aiRecommendations.matches.length})
+                  </TabsTrigger>
+                </TabsList>
+                
+                {/* Meta Recommendations */}
+                <TabsContent value="meta" className="space-y-4 mt-4">
+                  {aiRecommendations.meta.interests.length > 0 && (
+                    <RecommendationSection
+                      title="Interests"
+                      items={aiRecommendations.meta.interests}
+                      platform="meta"
+                      type="interests"
+                      onToggle={handleToggleRecommendation}
+                      onSelectAll={handleSelectAll}
+                      onDeselectAll={handleDeselectAll}
+                    />
+                  )}
+                  {aiRecommendations.meta.behaviors.length > 0 && (
+                    <RecommendationSection
+                      title="Behaviors"
+                      items={aiRecommendations.meta.behaviors}
+                      platform="meta"
+                      type="behaviors"
+                      onToggle={handleToggleRecommendation}
+                      onSelectAll={handleSelectAll}
+                      onDeselectAll={handleDeselectAll}
+                    />
+                  )}
+                  {aiRecommendations.meta.demographics.length > 0 && (
+                    <RecommendationSection
+                      title="Demographics"
+                      items={aiRecommendations.meta.demographics}
+                      platform="meta"
+                      type="demographics"
+                      onToggle={handleToggleRecommendation}
+                      onSelectAll={handleSelectAll}
+                      onDeselectAll={handleDeselectAll}
+                    />
+                  )}
+                </TabsContent>
 
-            {/* Display Recommended Behaviors */}
-            {recommendedBehaviors.length > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>Recommended Behaviors</Label>
-                  <div className="flex gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => handleSelectAllRecommendations('behaviors')}
-                    >
-                      Select All
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => handleDeselectAllRecommendations('behaviors')}
-                    >
-                      Deselect All
-                    </Button>
-                  </div>
-                </div>
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {recommendedBehaviors.map((behavior) => (
-                    <div key={behavior.id} className="flex items-center justify-between p-2 bg-background rounded">
-                      <div className="flex items-center gap-2">
-                        <Checkbox
-                          checked={behavior.selected}
-                          onCheckedChange={() => handleToggleRecommendation('behaviors', behavior.id)}
-                        />
-                        <span className="text-sm">{behavior.name}</span>
-                      </div>
-                      {behavior.audienceSize && (
-                        <Badge variant="secondary" className="text-xs">
-                          {behavior.audienceSize.toLocaleString()} people
-                        </Badge>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+                {/* TikTok Recommendations */}
+                <TabsContent value="tiktok" className="space-y-4 mt-4">
+                  {aiRecommendations.tiktok.interests.length > 0 && (
+                    <RecommendationSection
+                      title="Interests"
+                      items={aiRecommendations.tiktok.interests}
+                      platform="tiktok"
+                      type="interests"
+                      onToggle={handleToggleRecommendation}
+                      onSelectAll={handleSelectAll}
+                      onDeselectAll={handleDeselectAll}
+                    />
+                  )}
+                  {aiRecommendations.tiktok.behaviors.length > 0 && (
+                    <RecommendationSection
+                      title="Actions"
+                      items={aiRecommendations.tiktok.behaviors}
+                      platform="tiktok"
+                      type="behaviors"
+                      onToggle={handleToggleRecommendation}
+                      onSelectAll={handleSelectAll}
+                      onDeselectAll={handleDeselectAll}
+                    />
+                  )}
+                </TabsContent>
 
-            {/* Display Recommended Demographics */}
-            {recommendedDemographics.length > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>Recommended Demographics</Label>
-                  <div className="flex gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => handleSelectAllRecommendations('demographics')}
-                    >
-                      Select All
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => handleDeselectAllRecommendations('demographics')}
-                    >
-                      Deselect All
-                    </Button>
-                  </div>
-                </div>
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {recommendedDemographics.map((demographic) => (
-                    <div key={demographic.id} className="flex items-center justify-between p-2 bg-background rounded">
-                      <div className="flex items-center gap-2">
-                        <Checkbox
-                          checked={demographic.selected}
-                          onCheckedChange={() => handleToggleRecommendation('demographics', demographic.id)}
-                        />
-                        <span className="text-sm">{demographic.name}</span>
-                      </div>
-                      {demographic.audienceSize && (
-                        <Badge variant="secondary" className="text-xs">
-                          {demographic.audienceSize.toLocaleString()} people
-                        </Badge>
-                      )}
+                {/* Cross-Platform Matches */}
+                <TabsContent value="matches" className="space-y-2 mt-4">
+                  {aiRecommendations.matches.length > 0 ? (
+                    aiRecommendations.matches.map((match, idx) => (
+                      <Card key={idx} className="p-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="text-sm font-medium">Meta: {match.meta.name}</div>
+                            <div className="text-sm text-muted-foreground">TikTok: {match.tiktok.name}</div>
+                          </div>
+                          <Badge variant={match.score >= 80 ? "default" : "secondary"}>
+                            {match.score}% match
+                          </Badge>
+                        </div>
+                      </Card>
+                    ))
+                  ) : (
+                    <div className="text-center text-muted-foreground py-4">
+                      No cross-platform matches found
                     </div>
-                  ))}
-                </div>
-              </div>
+                  )}
+                </TabsContent>
+              </Tabs>
             )}
           </CardContent>
         </Card>
 
-        {/* Search Additional Audiences */}
+        {/* Cross-Platform Search */}
         <Card className="bg-muted/50">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Search className="h-5 w-5 text-primary" />
-              Search Additional Audiences
+              Cross-Platform Audience Search
             </CardTitle>
             <CardDescription>
-              Search for specific interests or behaviors to add to your targeting
+              Search for interests, behaviors, and demographics across Meta and TikTok
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -658,7 +681,7 @@ export function BasicTargeting({ targeting, onUpdate, adAccountId }: BasicTarget
                   </SelectTrigger>
                   <SelectContent className="bg-background z-50">
                     <SelectItem value="interests">Interests</SelectItem>
-                    <SelectItem value="behaviors">Behaviors</SelectItem>
+                    <SelectItem value="behaviors">Behaviors/Actions</SelectItem>
                     <SelectItem value="demographics">Demographics</SelectItem>
                   </SelectContent>
                 </Select>
@@ -674,7 +697,7 @@ export function BasicTargeting({ targeting, onUpdate, adAccountId }: BasicTarget
                   />
                   <Button 
                     onClick={handleSearch}
-                    disabled={searching || !searchQuery.trim() || !adAccountId}
+                    disabled={searching || !searchQuery.trim()}
                     size="icon"
                   >
                     {searching ? (
@@ -687,43 +710,119 @@ export function BasicTargeting({ targeting, onUpdate, adAccountId }: BasicTarget
               </div>
             </div>
 
-            {/* Display Search Results */}
-            {searchResults.length > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>Search Results</Label>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={handleAddAllSearchResults}
-                  >
-                    Add All
-                  </Button>
-                </div>
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {searchResults.map((result) => (
-                    <div key={result.id} className="flex items-center justify-between p-2 bg-background rounded">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm">{result.name}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {result.audienceSize && (
-                          <Badge variant="secondary" className="text-xs">
-                            {result.audienceSize.toLocaleString()} people
-                          </Badge>
-                        )}
-                        <Button size="sm" onClick={() => handleAddSearchResult(result)}>
-                          Add
-                        </Button>
-                      </div>
-                    </div>
+            {/* Search Results */}
+            {(searchResults.meta.length > 0 || searchResults.tiktok.length > 0) && (
+              <Tabs defaultValue="meta" className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="meta">Meta ({searchResults.meta.length})</TabsTrigger>
+                  <TabsTrigger value="tiktok">TikTok ({searchResults.tiktok.length})</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="meta" className="space-y-2 mt-4">
+                  {searchResults.meta.map((result) => (
+                    <SearchResultItem
+                      key={result.id}
+                      result={result}
+                      platform="meta"
+                      onAdd={handleAddSearchResult}
+                    />
                   ))}
-                </div>
-              </div>
+                </TabsContent>
+
+                <TabsContent value="tiktok" className="space-y-2 mt-4">
+                  {searchResults.tiktok.map((result) => (
+                    <SearchResultItem
+                      key={result.id}
+                      result={result}
+                      platform="tiktok"
+                      onAdd={handleAddSearchResult}
+                    />
+                  ))}
+                </TabsContent>
+              </Tabs>
             )}
           </CardContent>
         </Card>
       </CardContent>
     </Card>
+  );
+}
+
+// Helper Components
+function RecommendationSection({
+  title,
+  items,
+  platform,
+  type,
+  onToggle,
+  onSelectAll,
+  onDeselectAll
+}: {
+  title: string;
+  items: (TargetingParameter & { selected: boolean })[];
+  platform: 'meta' | 'tiktok';
+  type: 'interests' | 'behaviors' | 'demographics';
+  onToggle: (platform: 'meta' | 'tiktok', type: 'interests' | 'behaviors' | 'demographics', id: string) => void;
+  onSelectAll: (platform: 'meta' | 'tiktok', type: 'interests' | 'behaviors' | 'demographics') => void;
+  onDeselectAll: (platform: 'meta' | 'tiktok', type: 'interests' | 'behaviors' | 'demographics') => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <Label>{title}</Label>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => onSelectAll(platform, type)}>
+            Select All
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => onDeselectAll(platform, type)}>
+            Deselect All
+          </Button>
+        </div>
+      </div>
+      <div className="space-y-2 max-h-48 overflow-y-auto">
+        {items.map((item) => (
+          <div key={item.id} className="flex items-center justify-between p-2 bg-background rounded">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                checked={item.selected}
+                onCheckedChange={() => onToggle(platform, type, item.id)}
+              />
+              <span className="text-sm">{item.name}</span>
+            </div>
+            {item.audienceSize && (
+              <Badge variant="secondary" className="text-xs">
+                {item.audienceSize.toLocaleString()} people
+              </Badge>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SearchResultItem({
+  result,
+  platform,
+  onAdd
+}: {
+  result: TargetingParameter;
+  platform: 'meta' | 'tiktok';
+  onAdd: (platform: 'meta' | 'tiktok', result: TargetingParameter) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between p-2 bg-background rounded">
+      <span className="text-sm">{result.name}</span>
+      <div className="flex items-center gap-2">
+        {result.audienceSize && (
+          <Badge variant="secondary" className="text-xs">
+            {result.audienceSize.toLocaleString()} people
+          </Badge>
+        )}
+        <Button size="sm" onClick={() => onAdd(platform, result)}>
+          Add
+        </Button>
+      </div>
+    </div>
   );
 }
