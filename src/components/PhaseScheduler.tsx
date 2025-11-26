@@ -1064,9 +1064,9 @@ export function PhaseScheduler({
 
                       {/* Phase-Level Targeting Override - Only for Brand Awareness */}
                       {phase.objective === "Brand Awareness" && basicTargeting && (
-                        (basicTargeting.aiInterests?.length ?? 0) > 0 || 
-                        (basicTargeting.aiBehaviors?.length ?? 0) > 0 || 
-                        (basicTargeting.aiDemographics?.length ?? 0) > 0 ||
+                        (basicTargeting.metaInterests?.length ?? 0) > 0 || 
+                        (basicTargeting.metaBehaviors?.length ?? 0) > 0 || 
+                        (basicTargeting.metaDemographics?.length ?? 0) > 0 ||
                         basicTargeting.ageMin !== undefined ||
                         basicTargeting.genders?.length ||
                         basicTargeting.devices?.length
@@ -1085,9 +1085,12 @@ export function PhaseScheduler({
                                 os: basicTargeting.os ? [...basicTargeting.os] : undefined,
                                 languages: basicTargeting.languages ? [...basicTargeting.languages] : undefined,
                                 productBrief: basicTargeting.productBrief,
-                                aiInterests: basicTargeting.aiInterests ? [...basicTargeting.aiInterests] : [],
-                                aiBehaviors: basicTargeting.aiBehaviors ? [...basicTargeting.aiBehaviors] : [],
-                                aiDemographics: basicTargeting.aiDemographics ? [...basicTargeting.aiDemographics] : [],
+                                metaInterests: basicTargeting.metaInterests ? [...basicTargeting.metaInterests] : [],
+                                metaBehaviors: basicTargeting.metaBehaviors ? [...basicTargeting.metaBehaviors] : [],
+                                metaDemographics: basicTargeting.metaDemographics ? [...basicTargeting.metaDemographics] : [],
+                                tiktokInterests: basicTargeting.tiktokInterests ? [...basicTargeting.tiktokInterests] : [],
+                                tiktokBehaviors: basicTargeting.tiktokBehaviors ? [...basicTargeting.tiktokBehaviors] : [],
+                                tiktokDemographics: basicTargeting.tiktokDemographics ? [...basicTargeting.tiktokDemographics] : [],
                               };
                               updatePhaseField(phase.id, "targeting", phaseTargeting);
                             }

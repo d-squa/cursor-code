@@ -43,7 +43,10 @@ interface PhaseAudienceSelectorProps {
   basicTargeting?: {
     metaInterests?: Array<{ id: string; name: string; audienceSize?: number }>;
     metaBehaviors?: Array<{ id: string; name: string; audienceSize?: number }>;
+    metaDemographics?: Array<{ id: string; name: string; audienceSize?: number }>;
     tiktokInterests?: Array<{ id: string; name: string; audienceSize?: number }>;
+    tiktokBehaviors?: Array<{ id: string; name: string; audienceSize?: number }>;
+    tiktokDemographics?: Array<{ id: string; name: string; audienceSize?: number }>;
   };
 }
 
@@ -90,9 +93,9 @@ export function PhaseAudienceSelector({
     const initial = new Set(initialSelection.map(a => a.id));
     // Pre-select basicTargeting items for brand awareness
     if (basicTargeting && isBrandAwareness) {
-      basicTargeting.aiInterests?.forEach(i => initial.add(i.id));
-      basicTargeting.aiBehaviors?.forEach(b => initial.add(b.id));
-      basicTargeting.aiDemographics?.forEach(d => initial.add(d.id));
+      basicTargeting.metaInterests?.forEach(i => initial.add(i.id));
+      basicTargeting.metaBehaviors?.forEach(b => initial.add(b.id));
+      basicTargeting.metaDemographics?.forEach(d => initial.add(d.id));
     }
     return initial;
   });
@@ -135,8 +138,8 @@ export function PhaseAudienceSelector({
   if (basicTargeting && isBrandAwareness && !overrideTargeting) {
     const detailedTargetingAudiences: FetchedAudience[] = [];
     
-    if (basicTargeting.aiInterests && basicTargeting.aiInterests.length > 0) {
-      detailedTargetingAudiences.push(...basicTargeting.aiInterests.map(interest => ({
+    if (basicTargeting.metaInterests && basicTargeting.metaInterests.length > 0) {
+      detailedTargetingAudiences.push(...basicTargeting.metaInterests.map(interest => ({
         id: interest.id,
         name: interest.name,
         subtype: 'interest',
@@ -145,8 +148,8 @@ export function PhaseAudienceSelector({
       })));
     }
     
-    if (basicTargeting.aiBehaviors && basicTargeting.aiBehaviors.length > 0) {
-      detailedTargetingAudiences.push(...basicTargeting.aiBehaviors.map(behavior => ({
+    if (basicTargeting.metaBehaviors && basicTargeting.metaBehaviors.length > 0) {
+      detailedTargetingAudiences.push(...basicTargeting.metaBehaviors.map(behavior => ({
         id: behavior.id,
         name: behavior.name,
         subtype: 'behavior',
@@ -155,8 +158,8 @@ export function PhaseAudienceSelector({
       })));
     }
     
-    if (basicTargeting.aiDemographics && basicTargeting.aiDemographics.length > 0) {
-      detailedTargetingAudiences.push(...basicTargeting.aiDemographics.map(demo => ({
+    if (basicTargeting.metaDemographics && basicTargeting.metaDemographics.length > 0) {
+      detailedTargetingAudiences.push(...basicTargeting.metaDemographics.map(demo => ({
         id: demo.id,
         name: demo.name,
         subtype: 'demographic',
