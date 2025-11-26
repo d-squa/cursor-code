@@ -57,11 +57,22 @@ serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: "You are an expert at analyzing product descriptions and extracting relevant advertising targeting keywords for both Meta and TikTok platforms. You MUST respond with ONLY valid JSON, no explanations, no markdown, no extra text."
+            content: "You are an expert at analyzing product descriptions and extracting highly specific, relevant advertising targeting keywords. Focus on the ACTUAL product/service being offered and avoid generic or unrelated suggestions. You MUST respond with ONLY valid JSON, no explanations, no markdown, no extra text."
           },
           {
             role: "user",
-            content: `Analyze this product/audience brief and extract targeting keywords:\n\n${brief}\n\nIMPORTANT: Return ONLY valid JSON with this EXACT structure. Do NOT include any text outside the JSON object. Do NOT use markdown code fences. Do NOT add comments inside arrays.\n\n{\n  "interests": ["interest1", "interest2"],\n  "behaviors": ["behavior1", "behavior2"],\n  "demographics": ["demographic1", "demographic2"],\n  "demographicMetadata": {\n    "ageRange": "18-65",\n    "genders": ["all"],\n    "notes": "demographic insights"\n  }\n}\n\nFor demographics, include targeting options like: education level, job titles, income level, relationship status, life events, etc.`
+            content: `Analyze this product/audience brief and extract highly relevant targeting keywords:\n\n${brief}\n\nRULES:
+1. Extract interests that are DIRECTLY related to the product/service described
+2. Avoid generic suggestions like "Frequent travelers" unless explicitly mentioned
+3. For behaviors, focus on purchase patterns and activities specific to this product category
+4. For demographics, only include if clearly implied by the brief
+5. Be specific - prefer "Digital Marketing Education" over "Business & Finance"
+
+Return ONLY valid JSON with this EXACT structure. Do NOT include any text outside the JSON object:\n\n{\n  "interests": ["specific interest 1", "specific interest 2", "specific interest 3"],\n  "behaviors": ["specific behavior 1", "specific behavior 2"],\n  "demographics": ["specific demographic 1"],\n  "purchaseIntention": ["purchase intent 1", "purchase intent 2"],\n  "videoInteractions": ["video topic 1", "video topic 2"],\n  "demographicMetadata": {\n    "ageRange": "18-65",\n    "genders": ["all"],\n    "notes": "demographic insights"\n  }\n}\n\nExamples:
+- For "digital marketing ebook": interests could be "Online Marketing", "SEO", "Social Media Marketing", "Content Marketing"
+- For "fitness app": interests could be "Weight Training", "Yoga", "Running", "Healthy Eating"
+- purchaseIntention: specific to product category like "Online Courses", "E-books", "Digital Products"
+- videoInteractions: content themes users engage with like "Marketing Tutorials", "Business Tips"`
           }
         ]
       }),
@@ -128,10 +139,10 @@ serve(async (req) => {
       }
     }
 
-    // Search TikTok if advertiser ID provided
+    // Search TikTok across all targeting categories if advertiser ID provided
     if (tiktokAdvertiserId) {
       try {
-        // Search interests
+        // 1. Search interests
         const tiktokInterests = await searchTikTokTargeting(
           parsed.interests || [],
           'interests',
@@ -141,9 +152,19 @@ serve(async (req) => {
           authHeader
         );
         
-        // TikTok uses "actions" instead of "behaviors"
-        const tiktokActions = await searchTikTokTargeting(
+        // 2. Search behaviors (TikTok calls these "actions")
+        const tiktokBehaviors = await searchTikTokTargeting(
           parsed.behaviors || [],
+          'behaviors',
+          tiktokAdvertiserId,
+          supabaseClient,
+          user.id,
+          authHeader
+        );
+        
+        // 3. Search purchase intention
+        const tiktokPurchaseIntent = await searchTikTokTargeting(
+          parsed.purchaseIntention || [],
           'actions',
           tiktokAdvertiserId,
           supabaseClient,
@@ -151,15 +172,39 @@ serve(async (req) => {
           authHeader
         );
         
-        console.log('TikTok recommendations received:', {
+        // 4. Search video interactions
+        const tiktokVideoInteractions = await searchTikTokTargeting(
+          parsed.videoInteractions || [],
+          'interests',
+          tiktokAdvertiserId,
+          supabaseClient,
+          user.id,
+          authHeader
+        );
+        
+        console.log('TikTok recommendations received across all categories:', {
           interests: tiktokInterests.length,
-          behaviors: tiktokActions.length
+          behaviors: tiktokBehaviors.length,
+          purchaseIntent: tiktokPurchaseIntent.length,
+          videoInteractions: tiktokVideoInteractions.length
         });
         
+        // Combine and deduplicate all TikTok results
+        const allTikTokInterests = [...tiktokInterests, ...tiktokVideoInteractions];
+        const allTikTokBehaviors = [...tiktokBehaviors, ...tiktokPurchaseIntent];
+        
+        // Deduplicate by ID
+        const uniqueInterests = Array.from(
+          new Map(allTikTokInterests.map(item => [item.id, item])).values()
+        );
+        const uniqueBehaviors = Array.from(
+          new Map(allTikTokBehaviors.map(item => [item.id, item])).values()
+        );
+        
         results.tiktok = {
-          interests: tiktokInterests.map(r => ({ ...r, platform: 'tiktok' })),
-          behaviors: tiktokActions.map(r => ({ ...r, platform: 'tiktok' })),
-          demographics: [] // TikTok has limited demographic targeting via API
+          interests: uniqueInterests.map(r => ({ ...r, platform: 'tiktok' })),
+          behaviors: uniqueBehaviors.map(r => ({ ...r, platform: 'tiktok' })),
+          demographics: []
         };
       } catch (error) {
         console.error('Error searching TikTok targeting:', error);

@@ -70,18 +70,18 @@ serve(async (req) => {
     let searchUrl: string;
     
     if (type === 'interests') {
-      // For interests, continue using the adinterest search
-      searchUrl = `https://graph.facebook.com/${apiVersion}/search?type=adinterest&q=${encodeURIComponent(query)}&limit=20&access_token=${accessToken}`;
+      // For interests, use adinterest search for most relevant results
+      searchUrl = `https://graph.facebook.com/${apiVersion}/search?type=adinterest&q=${encodeURIComponent(query)}&limit=25&access_token=${accessToken}`;
     } else if (type === 'behaviors') {
-      // For behaviors, use the Detailed Targeting API's targetingsearch endpoint
-      searchUrl = `https://graph.facebook.com/${apiVersion}/${cleanAccountId}/targetingsearch?q=${encodeURIComponent(query)}&limit_type=behaviors&limit=20&access_token=${accessToken}`;
+      // For behaviors, use targetingsearch with behaviors filter for better relevance
+      searchUrl = `https://graph.facebook.com/${apiVersion}/${cleanAccountId}/targetingsearch?q=${encodeURIComponent(query)}&limit_type=behaviors&limit=25&access_token=${accessToken}`;
     } else if (type === 'demographics') {
-      // For demographics, search without limit_type to get results from all demographic categories
-      // (family_statuses, education_statuses, relationship_statuses, life_events, industries, income)
-      searchUrl = `https://graph.facebook.com/${apiVersion}/${cleanAccountId}/targetingsearch?q=${encodeURIComponent(query)}&limit=20&access_token=${accessToken}`;
+      // For demographics, use targetingsearch to get specific demographic categories
+      // Focus on education, income, job titles, life events - not generic travel behaviors
+      searchUrl = `https://graph.facebook.com/${apiVersion}/${cleanAccountId}/targetingsearch?q=${encodeURIComponent(query)}&limit=25&access_token=${accessToken}`;
     } else {
       // Fallback to old method for any other types
-      searchUrl = `https://graph.facebook.com/${apiVersion}/search?type=adTargetingCategory&class=${type}&q=${encodeURIComponent(query)}&limit=20&access_token=${accessToken}`;
+      searchUrl = `https://graph.facebook.com/${apiVersion}/search?type=adTargetingCategory&class=${type}&q=${encodeURIComponent(query)}&limit=25&access_token=${accessToken}`;
     }
     
     console.log(`Searching Meta ${type} with URL: ${searchUrl.replace(accessToken, 'REDACTED')}`);
@@ -96,9 +96,30 @@ serve(async (req) => {
     const searchData = await searchResponse.json();
     const results = [];
 
-    // Limit to first 10 results to prevent timeout issues
-    const itemsToProcess = (searchData.data || []).slice(0, 10);
-    console.log(`Processing ${itemsToProcess.length} search results for "${query}"`);
+    // Calculate relevance score for each item
+    const calculateRelevance = (item: any, searchQuery: string): number => {
+      const name = (item.name || '').toLowerCase();
+      const cleanQuery = searchQuery.toLowerCase().trim();
+      const queryWords = cleanQuery.split(/\s+/).filter(w => w.length > 2);
+      
+      let score = 0;
+      if (name === cleanQuery) score += 100;
+      if (name.includes(cleanQuery)) score += 50;
+      queryWords.forEach(word => {
+        if (name.includes(word)) score += 10;
+      });
+      
+      return score;
+    };
+    
+    // Score and sort items by relevance
+    const scoredItems = (searchData.data || [])
+      .map((item: any) => ({ item, score: calculateRelevance(item, query) }))
+      .filter(({ score }: { score: number }) => score > 0)
+      .sort((a: any, b: any) => b.score - a.score)
+      .slice(0, 10);
+    
+    console.log(`Processing ${scoredItems.length} relevant search results for "${query}"`);
 
     // Get audience size estimates for each result with aggressive timeout
     const fetchWithTimeout = async (url: string, timeoutMs: number = 2000) => {
@@ -114,7 +135,7 @@ serve(async (req) => {
       }
     };
 
-    for (const item of itemsToProcess) {
+    for (const { item } of scoredItems) {
       // The Detailed Targeting API returns audience_size_lower_bound and audience_size_upper_bound
       let audienceSize = item.audience_size_lower_bound && item.audience_size_upper_bound
         ? Math.round((item.audience_size_lower_bound + item.audience_size_upper_bound) / 2)
