@@ -181,9 +181,11 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
       console.log("TikTok Pixels loaded:", tiktokPixelsRes.data?.length || 0, tiktokPixelsRes.data);
       console.log("TikTok Identities loaded:", tiktokIdentitiesRes.data?.length || 0, tiktokIdentitiesRes.data);
       console.log("TikTok Catalogs loaded:", tiktokCatalogsRes.data?.length || 0, tiktokCatalogsRes.data);
+      console.log("TikTok Product Sets loaded:", tiktokProductSetsRes.data?.length || 0, tiktokProductSetsRes.data);
       setTiktokPixels(tiktokPixelsRes.data || []);
       setTiktokIdentities(tiktokIdentitiesRes.data || []);
       setTiktokCatalogs(tiktokCatalogsRes.data || []);
+      setTiktokProductSets(tiktokProductSetsRes.data || []);
     } catch (error: any) {
       console.error("Error loading data:", error);
       toast.error("Failed to load account defaults");

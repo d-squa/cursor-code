@@ -61,10 +61,10 @@ serve(async (req) => {
     }
     
     if (!bcId) {
-      throw new Error(`Business Center ID not found for advertiser ${advertiserId}`);
+      console.log(`No Business Center ID found for advertiser ${advertiserId} - likely STATUS_SELF_SERVICE_UNAUDITED account. Will skip BC-level assets (identities, catalogs).`);
+    } else {
+      console.log(`Using Business Center ID: ${bcId}`);
     }
-    
-    console.log(`Using Business Center ID: ${bcId}`);
 
     // Fetch TikTok Pixels (advertiser-level)
     console.log('Fetching TikTok pixels...');
@@ -98,78 +98,86 @@ serve(async (req) => {
       }
     }
 
-    // Fetch TikTok Identities (BC-level asset - use TT_ACCOUNT not IDENTITY)
-    console.log('Fetching TikTok identities from Business Center...');
-    console.log('BC ID:', bcId);
-    console.log('Request URL:', `${baseUrl}/bc/asset/get/?bc_id=${bcId}&asset_type=TT_ACCOUNT`);
-    
-    const identitiesResponse = await fetch(
-      `${baseUrl}/bc/asset/get/?bc_id=${bcId}&asset_type=TT_ACCOUNT`,
-      {
-        headers: {
-          'Access-Token': accessToken,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
-    const identitiesData = await identitiesResponse.json();
-    console.log('TT_ACCOUNT identities full response:', JSON.stringify(identitiesData, null, 2));
-    console.log('TT_ACCOUNT identities status code:', identitiesData.code);
-    console.log('TT_ACCOUNT identities message:', identitiesData.message);
-    console.log('TT_ACCOUNT identities data:', identitiesData.data);
-
-    if (identitiesData.code === 0 && identitiesData.data?.list) {
-      const identities = identitiesData.data.list;
-      console.log(`Syncing ${identities.length} TikTok identities`);
-
-      for (const identity of identities) {
-        await supabase.from('tiktok_identities').upsert({
-          user_id: user.id,
-          advertiser_id: advertiserId,
-          identity_id: identity.asset_id,
-          identity_name: identity.asset_name || `TikTok Account ${identity.asset_id}`,
-          identity_type: identity.asset_type || 'TT_ACCOUNT',
-          synced_at: new Date().toISOString(),
-        }, {
-          onConflict: 'identity_id,advertiser_id',
-        });
-      }
-    }
-
-    // Fetch TikTok Catalogs (BC-level asset)
-    console.log('Fetching TikTok catalogs from Business Center...');
-    const catalogsResponse = await fetch(
-      `${baseUrl}/bc/asset/get/?bc_id=${bcId}&asset_type=CATALOG`,
-      {
-        headers: {
-          'Access-Token': accessToken,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
-    const catalogsData = await catalogsResponse.json();
-    console.log('Catalogs response:', catalogsData);
-
+    // Fetch TikTok Identities and Catalogs (BC-level assets - only available for Business Center accounts)
     let catalogIds: string[] = [];
-    if (catalogsData.code === 0 && catalogsData.data?.list) {
-      const catalogs = catalogsData.data.list;
-      console.log(`Syncing ${catalogs.length} TikTok catalogs`);
+    let identitiesCount = 0;
+    
+    if (bcId) {
+      // Fetch TikTok Identities (BC-level asset - use TT_ACCOUNT not IDENTITY)
+      console.log('Fetching TikTok identities from Business Center...');
+      console.log('BC ID:', bcId);
+      console.log('Request URL:', `${baseUrl}/bc/asset/get/?bc_id=${bcId}&asset_type=TT_ACCOUNT`);
+      
+      const identitiesResponse = await fetch(
+        `${baseUrl}/bc/asset/get/?bc_id=${bcId}&asset_type=TT_ACCOUNT`,
+        {
+          headers: {
+            'Access-Token': accessToken,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
 
-      for (const catalog of catalogs) {
-        const catalogId = catalog.asset_id || catalog.catalog_id || catalog.id;
-        catalogIds.push(catalogId);
-        await supabase.from('tiktok_catalogs').upsert({
-          user_id: user.id,
-          advertiser_id: advertiserId,
-          catalog_id: catalogId,
-          catalog_name: catalog.asset_name || catalog.name || catalog.catalog_name || `Catalog ${catalogId}`,
-          synced_at: new Date().toISOString(),
-        }, {
-          onConflict: 'catalog_id,advertiser_id',
-        });
+      const identitiesData = await identitiesResponse.json();
+      console.log('TT_ACCOUNT identities full response:', JSON.stringify(identitiesData, null, 2));
+      console.log('TT_ACCOUNT identities status code:', identitiesData.code);
+      console.log('TT_ACCOUNT identities message:', identitiesData.message);
+      console.log('TT_ACCOUNT identities data:', identitiesData.data);
+
+      if (identitiesData.code === 0 && identitiesData.data?.list) {
+        const identities = identitiesData.data.list;
+        identitiesCount = identities.length;
+        console.log(`Syncing ${identities.length} TikTok identities`);
+
+        for (const identity of identities) {
+          await supabase.from('tiktok_identities').upsert({
+            user_id: user.id,
+            advertiser_id: advertiserId,
+            identity_id: identity.asset_id,
+            identity_name: identity.asset_name || `TikTok Account ${identity.asset_id}`,
+            identity_type: identity.asset_type || 'TT_ACCOUNT',
+            synced_at: new Date().toISOString(),
+          }, {
+            onConflict: 'identity_id,advertiser_id',
+          });
+        }
       }
+
+      // Fetch TikTok Catalogs (BC-level asset)
+      console.log('Fetching TikTok catalogs from Business Center...');
+      const catalogsResponse = await fetch(
+        `${baseUrl}/bc/asset/get/?bc_id=${bcId}&asset_type=CATALOG`,
+        {
+          headers: {
+            'Access-Token': accessToken,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      const catalogsData = await catalogsResponse.json();
+      console.log('Catalogs response:', catalogsData);
+
+      if (catalogsData.code === 0 && catalogsData.data?.list) {
+        const catalogs = catalogsData.data.list;
+        console.log(`Syncing ${catalogs.length} TikTok catalogs`);
+
+        for (const catalog of catalogs) {
+          const catalogId = catalog.asset_id || catalog.catalog_id || catalog.id;
+          catalogIds.push(catalogId);
+          await supabase.from('tiktok_catalogs').upsert({
+            user_id: user.id,
+            advertiser_id: advertiserId,
+            catalog_id: catalogId,
+            catalog_name: catalog.asset_name || catalog.name || catalog.catalog_name || `Catalog ${catalogId}`,
+            synced_at: new Date().toISOString(),
+          }, {
+            onConflict: 'catalog_id,advertiser_id',
+          });
+        }
+      }
+    } else {
+      console.log('Skipping identities and catalogs fetch - no Business Center ID available');
     }
 
     // Fetch TikTok Product Sets (catalog-level DPA assets)
@@ -223,13 +231,16 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true,
-        message: 'TikTok resources synced successfully',
+        message: bcId 
+          ? 'TikTok resources synced successfully' 
+          : 'TikTok resources synced (pixels only - account not linked to Business Center)',
         stats: {
           pixels: pixelsData.data?.pixels?.length || 0,
-          identities: identitiesData.data?.list?.length || 0,
-          catalogs: catalogsData.data?.list?.length || 0,
+          identities: identitiesCount,
+          catalogs: catalogIds.length,
           productSets: totalProductSets,
-        }
+        },
+        hasBcAccess: !!bcId
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
