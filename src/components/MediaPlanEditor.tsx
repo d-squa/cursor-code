@@ -1342,7 +1342,8 @@ export function MediaPlanEditor() {
                   setBasicTargeting(targeting);
                   console.log('📋 Updated basicTargeting state to:', targeting);
                 }}
-                adAccountId={firstAdAccountId || undefined}
+                metaAdAccountId={firstAdAccountId || undefined}
+                tiktokAdvertiserId={undefined}
               />
               <div className="mt-6 flex justify-between">
                 <Button variant="outline" onClick={() => setCurrentStep(1)}>
@@ -1389,18 +1390,18 @@ export function MediaPlanEditor() {
                     <span className="font-medium text-foreground">{basicTargeting.os.join(", ")}</span>
                   </div>
                 )}
-                {(basicTargeting.aiInterests?.length || basicTargeting.aiBehaviors?.length || basicTargeting.aiDemographics?.length) && (
+                {(basicTargeting.metaInterests?.length || basicTargeting.metaBehaviors?.length || basicTargeting.tiktokInterests?.length) && (
                   <div className="flex justify-between pt-2 border-t">
                     <span>Detailed Targeting:</span>
                     <div className="flex gap-2">
-                      {basicTargeting.aiInterests && basicTargeting.aiInterests.length > 0 && (
-                        <Badge variant="outline">Interests ({basicTargeting.aiInterests.length})</Badge>
+                      {basicTargeting.metaInterests && basicTargeting.metaInterests.length > 0 && (
+                        <Badge variant="outline">Meta Interests ({basicTargeting.metaInterests.length})</Badge>
                       )}
-                      {basicTargeting.aiBehaviors && basicTargeting.aiBehaviors.length > 0 && (
-                        <Badge variant="outline">Behaviors ({basicTargeting.aiBehaviors.length})</Badge>
+                      {basicTargeting.metaBehaviors && basicTargeting.metaBehaviors.length > 0 && (
+                        <Badge variant="outline">Meta Behaviors ({basicTargeting.metaBehaviors.length})</Badge>
                       )}
-                      {basicTargeting.aiDemographics && basicTargeting.aiDemographics.length > 0 && (
-                        <Badge variant="outline">Demographics ({basicTargeting.aiDemographics.length})</Badge>
+                      {basicTargeting.tiktokInterests && basicTargeting.tiktokInterests.length > 0 && (
+                        <Badge variant="outline">TikTok Interests ({basicTargeting.tiktokInterests.length})</Badge>
                       )}
                     </div>
                   </div>

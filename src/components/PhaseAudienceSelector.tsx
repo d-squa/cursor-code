@@ -41,9 +41,9 @@ interface PhaseAudienceSelectorProps {
   initialSelection?: SelectedAudience[];
   overrideTargeting?: boolean;
   basicTargeting?: {
-    aiInterests?: Array<{ id: string; name: string; audienceSize?: number }>;
-    aiBehaviors?: Array<{ id: string; name: string; audienceSize?: number }>;
-    aiDemographics?: Array<{ id: string; name: string; audienceSize?: number }>;
+    metaInterests?: Array<{ id: string; name: string; audienceSize?: number }>;
+    metaBehaviors?: Array<{ id: string; name: string; audienceSize?: number }>;
+    tiktokInterests?: Array<{ id: string; name: string; audienceSize?: number }>;
   };
 }
 
