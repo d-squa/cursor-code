@@ -71,11 +71,28 @@ serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: "You are an expert at analyzing product descriptions and extracting relevant Meta advertising targeting keywords. You MUST respond with ONLY valid JSON, no explanations, no markdown, no extra text."
+            content: "You are an expert at analyzing product descriptions and extracting highly specific, relevant Meta advertising targeting keywords. Focus on the ACTUAL product/service being offered and avoid generic or unrelated suggestions. You MUST respond with ONLY valid JSON, no explanations, no markdown, no extra text."
           },
           {
             role: "user",
-            content: `Analyze this product/audience brief and extract targeting keywords:\n\n${brief}\n\nIMPORTANT: Return ONLY valid JSON with this EXACT structure. Do NOT include any text outside the JSON object. Do NOT use markdown code fences. Do NOT add comments inside arrays.\n\n{\n  "interests": ["interest1", "interest2"],\n  "behaviors": ["behavior1", "behavior2"],\n  "demographics": ["demographic1", "demographic2"],\n  "demographicMetadata": {\n    "ageRange": "18-65",\n    "genders": ["all"],\n    "notes": "demographic insights"\n  }\n}\n\nFor demographics, include targeting options like: education level, job titles, income level, relationship status, life events, etc.`
+            content: `Analyze this product/audience brief and extract highly relevant targeting keywords:\n\n${brief}\n\nRULES:
+1. Extract interests that are DIRECTLY related to the product/service described
+2. NEVER suggest generic options like "Frequent travelers", "Travel", or broad demographics unless explicitly mentioned in the brief
+3. For behaviors, focus on purchase patterns and activities SPECIFIC to this product category
+4. For demographics, only include if CLEARLY implied by the brief (e.g., job titles, education levels relevant to the product)
+5. Be specific and narrow - prefer "Digital Marketing Education" over "Business & Finance"
+6. Avoid suggesting behaviors/demographics just because they seem like "good marketing" - stick to what's relevant to THIS product
+
+Return ONLY valid JSON with this EXACT structure. Do NOT include any text outside the JSON object:\n\n{\n  "interests": ["highly specific interest 1", "highly specific interest 2", "highly specific interest 3"],\n  "behaviors": ["specific purchase behavior 1", "specific activity behavior 2"],\n  "demographics": ["specific demographic 1 (only if clearly relevant)"],\n  "demographicMetadata": {\n    "ageRange": "18-65",\n    "genders": ["all"],\n    "notes": "demographic insights"\n  }\n}\n\nExamples:
+- For "digital marketing ebook": 
+  interests: ["Online Marketing", "SEO", "Social Media Marketing", "Content Marketing", "Email Marketing"]
+  behaviors: ["Online shoppers", "Small business owners"]
+  demographics: [] (unless specific role mentioned)
+  
+- For "fitness app":
+  interests: ["Weight Training", "Yoga", "Running", "Healthy Eating"]
+  behaviors: ["Fitness app users"]
+  demographics: [] (unless age group explicitly mentioned)`
           }
         ]
       }),
