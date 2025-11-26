@@ -103,44 +103,67 @@ serve(async (req) => {
 
     // Search Meta if ad account provided
     if (metaAdAccountId) {
-      const metaRecommendations = await supabaseClient.functions.invoke('generate-audience-recommendations', {
-        body: { brief, adAccountId: metaAdAccountId }
-      });
-      
-      if (metaRecommendations.data) {
-        results.meta = {
-          interests: (metaRecommendations.data.interests || []).map((r: any) => ({ ...r, platform: 'meta' })),
-          behaviors: (metaRecommendations.data.behaviors || []).map((r: any) => ({ ...r, platform: 'meta' })),
-          demographics: (metaRecommendations.data.demographics || []).map((r: any) => ({ ...r, platform: 'meta' }))
-        };
+      try {
+        const metaRecommendations = await supabaseClient.functions.invoke('generate-audience-recommendations', {
+          body: { brief, adAccountId: metaAdAccountId },
+          headers: { Authorization: authHeader }
+        });
+        
+        if (metaRecommendations.error) {
+          console.error('Meta recommendations error:', metaRecommendations.error);
+        } else if (metaRecommendations.data) {
+          console.log('Meta recommendations received:', {
+            interests: metaRecommendations.data.interests?.length || 0,
+            behaviors: metaRecommendations.data.behaviors?.length || 0,
+            demographics: metaRecommendations.data.demographics?.length || 0
+          });
+          results.meta = {
+            interests: (metaRecommendations.data.interests || []).map((r: any) => ({ ...r, platform: 'meta' })),
+            behaviors: (metaRecommendations.data.behaviors || []).map((r: any) => ({ ...r, platform: 'meta' })),
+            demographics: (metaRecommendations.data.demographics || []).map((r: any) => ({ ...r, platform: 'meta' }))
+          };
+        }
+      } catch (error) {
+        console.error('Error calling generate-audience-recommendations:', error);
       }
     }
 
     // Search TikTok if advertiser ID provided
     if (tiktokAdvertiserId) {
-      // Search interests
-      const tiktokInterests = await searchTikTokTargeting(
-        parsed.interests || [],
-        'interests',
-        tiktokAdvertiserId,
-        supabaseClient,
-        user.id
-      );
-      
-      // TikTok uses "actions" instead of "behaviors"
-      const tiktokActions = await searchTikTokTargeting(
-        parsed.behaviors || [],
-        'actions',
-        tiktokAdvertiserId,
-        supabaseClient,
-        user.id
-      );
-      
-      results.tiktok = {
-        interests: tiktokInterests.map(r => ({ ...r, platform: 'tiktok' })),
-        behaviors: tiktokActions.map(r => ({ ...r, platform: 'tiktok' })),
-        demographics: [] // TikTok has limited demographic targeting via API
-      };
+      try {
+        // Search interests
+        const tiktokInterests = await searchTikTokTargeting(
+          parsed.interests || [],
+          'interests',
+          tiktokAdvertiserId,
+          supabaseClient,
+          user.id,
+          authHeader
+        );
+        
+        // TikTok uses "actions" instead of "behaviors"
+        const tiktokActions = await searchTikTokTargeting(
+          parsed.behaviors || [],
+          'actions',
+          tiktokAdvertiserId,
+          supabaseClient,
+          user.id,
+          authHeader
+        );
+        
+        console.log('TikTok recommendations received:', {
+          interests: tiktokInterests.length,
+          behaviors: tiktokActions.length
+        });
+        
+        results.tiktok = {
+          interests: tiktokInterests.map(r => ({ ...r, platform: 'tiktok' })),
+          behaviors: tiktokActions.map(r => ({ ...r, platform: 'tiktok' })),
+          demographics: [] // TikTok has limited demographic targeting via API
+        };
+      } catch (error) {
+        console.error('Error searching TikTok targeting:', error);
+      }
     }
 
     // Find cross-platform matches
@@ -177,7 +200,8 @@ async function searchTikTokTargeting(
   type: string,
   advertiserId: string,
   supabaseClient: any,
-  userId: string
+  userId: string,
+  authHeader: string
 ): Promise<Array<{ name: string; id: string; audienceSize?: number }>> {
   const { data: platformData } = await supabaseClient
     .from('connected_platforms')
@@ -195,10 +219,13 @@ async function searchTikTokTargeting(
   for (const keyword of keywords) {
     try {
       const response = await supabaseClient.functions.invoke('search-tiktok-targeting', {
-        body: { query: keyword, type, advertiserId }
+        body: { query: keyword, type, advertiserId },
+        headers: { Authorization: authHeader }
       });
       
-      if (response.data?.results) {
+      if (response.error) {
+        console.error(`TikTok search error for ${keyword}:`, response.error);
+      } else if (response.data?.results) {
         for (const result of response.data.results) {
           if (!seenIds.has(result.id)) {
             seenIds.add(result.id);
