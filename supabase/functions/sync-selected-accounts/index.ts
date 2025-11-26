@@ -326,6 +326,12 @@ serve(async (req) => {
         try {
           const advertiserId = account.advertiser_id;
           const bcId = account.bc_id;
+          
+          if (!bcId) {
+            console.log(`Skipping product sets for advertiser ${advertiserId} - no Business Center ID (STATUS_SELF_SERVICE_UNAUDITED account)`);
+            continue;
+          }
+          
           console.log(`Fetching product sets for advertiser ${advertiserId}...`);
           
           // First get catalogs for this advertiser from BC
