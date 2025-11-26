@@ -63,32 +63,37 @@ serve(async (req) => {
     const accessToken = platformData.access_token;
     const apiVersion = 'v1.3';
     
-    // TikTok Interest and Action Category Search API
-    // Documentation: https://business-api.tiktok.com/portal/docs?id=1739940570793985
+    // TikTok Interest and Action Category API
+    // Documentation: https://business-api.tiktok.com/portal/docs?id=1736275204260866
     let searchUrl: string;
     let searchBody: any;
     
-    if (type === 'interests') {
-      searchUrl = `https://business-api.tiktok.com/open_api/${apiVersion}/tools/interest_keyword/recommend/`;
+    if (type === 'interests' || type === 'behaviors') {
+      // TikTok uses /tool/targeting_category/recommend/ (singular 'tool')
+      // This endpoint returns both interests and action categories
+      searchUrl = `https://business-api.tiktok.com/open_api/${apiVersion}/tool/targeting_category/recommend/`;
       searchBody = {
         advertiser_id: advertiserId,
-        keyword: query,
-        language: "en"
+        objective_type: "CONVERSIONS", // Can be adjusted based on campaign objective
+        placements: ["PLACEMENT_TIKTOK"], // TikTok placement
+        budget: 100, // Minimum budget for recommendation
+        ...(query && { targeting_word_ids: [query] }) // Optional keyword filtering
       };
     } else if (type === 'actions') {
-      // TikTok uses "action categories" instead of "behaviors"
-      searchUrl = `https://business-api.tiktok.com/open_api/${apiVersion}/tools/action_category/get/`;
+      // TikTok uses /tool/action_category/ (singular 'tool')
+      searchUrl = `https://business-api.tiktok.com/open_api/${apiVersion}/tool/action_category/`;
       searchBody = {
         advertiser_id: advertiserId,
         special_industries: [] // Can be customized based on ad account
       };
     } else {
-      // For "behaviors" fall back to interests (TikTok doesn't have separate behavior targeting)
-      searchUrl = `https://business-api.tiktok.com/open_api/${apiVersion}/tools/interest_keyword/recommend/`;
+      // Fallback to targeting category recommend
+      searchUrl = `https://business-api.tiktok.com/open_api/${apiVersion}/tool/targeting_category/recommend/`;
       searchBody = {
         advertiser_id: advertiserId,
-        keyword: query,
-        language: "en"
+        objective_type: "CONVERSIONS",
+        placements: ["PLACEMENT_TIKTOK"],
+        budget: 100
       };
     }
     
@@ -116,35 +121,33 @@ serve(async (req) => {
     }
     
     const results = [];
-    const dataList = type === 'actions' 
-      ? (searchData.data?.action_categories || [])
-      : (searchData.data?.interest_keywords || []);
-
-    console.log(`Processing ${dataList.length} TikTok ${type} results for "${query}"`);
-
-    // Limit to first 10 results
-    const itemsToProcess = dataList.slice(0, 10);
     
-    for (const item of itemsToProcess) {
-      // For interests, estimate audience size using interest_keyword endpoint
-      let audienceSize;
+    // Handle different response structures
+    if (type === 'actions') {
+      const dataList = searchData.data?.list || [];
+      console.log(`Processing ${dataList.length} TikTok action categories for "${query}"`);
       
-      if (type === 'interests' && item.interest_id) {
-        try {
-          // TikTok doesn't provide direct reach estimates for interests
-          // We can infer relative size from the interest's popularity if available
-          audienceSize = item.audience_size || undefined;
-        } catch (e) {
-          // Silently skip if audience size unavailable
-        }
+      for (const item of dataList.slice(0, 10)) {
+        results.push({
+          id: item.category_id || item.id,
+          name: item.category_name || item.name || query,
+          audienceSize: undefined,
+          type: type
+        });
       }
-
-      results.push({
-        id: item.interest_id || item.action_category_id || item.id,
-        name: item.interest_name || item.action_category_name || item.name || query,
-        audienceSize,
-        type: type
-      });
+    } else {
+      // For interests and behaviors using targeting_category/recommend
+      const categories = searchData.data?.interest_categories || searchData.data?.categories || [];
+      console.log(`Processing ${categories.length} TikTok ${type} results for "${query}"`);
+      
+      for (const item of categories.slice(0, 10)) {
+        results.push({
+          id: item.interest_category_id || item.category_id || item.id,
+          name: item.interest_category || item.category || item.name || query,
+          audienceSize: item.coverage || undefined,
+          type: type
+        });
+      }
     }
 
     console.log(`Returning ${results.length} TikTok ${type} results`);
