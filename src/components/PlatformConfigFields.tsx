@@ -61,6 +61,7 @@ export function PlatformConfigFields({
   const [tiktokPixels, setTiktokPixels] = useState<Resource[]>([]);
   const [tiktokIdentities, setTiktokIdentities] = useState<Resource[]>([]);
   const [tiktokCatalogs, setTiktokCatalogs] = useState<Resource[]>([]);
+  const [tiktokProductSets, setTiktokProductSets] = useState<Resource[]>([]);
 
   useEffect(() => {
     if (userId && platformName.toLowerCase() === 'meta') {
@@ -98,10 +99,11 @@ export function PlatformConfigFields({
   const loadTiktokResources = async () => {
     setLoading(true);
     try {
-      const [pixelsRes, identitiesRes, catalogsRes] = await Promise.all([
+      const [pixelsRes, identitiesRes, catalogsRes, productSetsRes] = await Promise.all([
         supabase.from("tiktok_pixels").select("*").eq("user_id", userId!).eq("advertiser_id", selectedAdAccountId!),
         supabase.from("tiktok_identities").select("*").eq("user_id", userId!).eq("advertiser_id", selectedAdAccountId!),
         supabase.from("tiktok_catalogs").select("*").eq("user_id", userId!).eq("advertiser_id", selectedAdAccountId!),
+        supabase.from("tiktok_product_sets").select("*").eq("user_id", userId!).eq("advertiser_id", selectedAdAccountId!),
       ]);
 
       setTiktokPixels((pixelsRes.data || []).map(p => ({
@@ -121,11 +123,19 @@ export function PlatformConfigFields({
         catalog_id: c.catalog_id,
         catalog_name: c.catalog_name,
       })));
+
+      setTiktokProductSets((productSetsRes.data || []).map(ps => ({
+        id: ps.product_set_id,
+        product_set_id: ps.product_set_id,
+        product_set_name: ps.product_set_name,
+        catalog_id: ps.catalog_id,
+      })));
       
       console.log("PlatformConfigFields - TikTok resources loaded:", {
         pixels: pixelsRes.data?.length || 0,
         identities: identitiesRes.data?.length || 0,
         catalogs: catalogsRes.data?.length || 0,
+        productSets: productSetsRes.data?.length || 0,
         selectedAdAccountId
       });
     } catch (error) {
@@ -137,6 +147,7 @@ export function PlatformConfigFields({
 
   // Filter product sets by selected catalog
   const filteredProductSets = productSets.filter(ps => ps.catalog_id === catalog);
+  const filteredTiktokProductSets = tiktokProductSets.filter(ps => ps.catalog_id === catalog);
   
   // Filter conversion events by selected pixel
   const filteredConversionEvents = conversionEvents.filter(e => e.pixel_id === pixel);
@@ -313,7 +324,10 @@ export function PlatformConfigFields({
 
             <div className="space-y-2">
               <Label>Default TikTok Catalog</Label>
-              <Select value={catalog || undefined} onValueChange={(value) => onUpdate("catalog", value)}>
+              <Select value={catalog || undefined} onValueChange={(value) => {
+                onUpdate("catalog", value);
+                onUpdate("productSet", ""); // Reset product set when catalog changes
+              }}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select TikTok catalog" />
                 </SelectTrigger>
@@ -324,6 +338,32 @@ export function PlatformConfigFields({
                     tiktokCatalogs.map((c) => (
                       <SelectItem key={c.id} value={c.catalog_id || ""}>
                         {c.catalog_name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Default TikTok Product Set</Label>
+              <Select 
+                value={productSet || undefined} 
+                onValueChange={(value) => onUpdate("productSet", value)}
+                disabled={!catalog}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select product set" />
+                </SelectTrigger>
+                <SelectContent>
+                  {filteredTiktokProductSets.length === 0 ? (
+                    <SelectItem value="none" disabled>
+                      {catalog ? "No product sets available" : "Select a catalog first"}
+                    </SelectItem>
+                  ) : (
+                    filteredTiktokProductSets.map((ps) => (
+                      <SelectItem key={ps.id} value={ps.product_set_id || ""}>
+                        {ps.product_set_name}
                       </SelectItem>
                     ))
                   )}
