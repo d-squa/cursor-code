@@ -234,6 +234,7 @@ export function MediaPlanEditor() {
   // Phase audiences (Step 3.5 - after strategy config)
   const [phaseAudiences, setPhaseAudiences] = useState<Record<string, SelectedAudience[]>>({});
   const [firstAdAccountId, setFirstAdAccountId] = useState<string | null>(null);
+  const [firstTiktokAdvertiserId, setFirstTiktokAdvertiserId] = useState<string | null>(null);
   
   // Dialog states
   const [platformDialogOpen, setPlatformDialogOpen] = useState(false);
@@ -447,21 +448,36 @@ export function MediaPlanEditor() {
   
   // Fetch first ad account ID for audience fetching
   useEffect(() => {
-    const fetchAdAccountId = async () => {
+    const fetchAdAccountIds = async () => {
       if (!user) return;
-      const { data, error } = await supabase
+      
+      // Fetch Meta ad account
+      const { data: metaData, error: metaError } = await supabase
         .from('meta_ad_accounts')
         .select('account_id')
         .eq('user_id', user.id)
         .limit(1)
         .single();
       
-      if (!error && data) {
-        setFirstAdAccountId(data.account_id);
-        console.log('✅ Loaded Ad Account ID:', data.account_id);
+      if (!metaError && metaData) {
+        setFirstAdAccountId(metaData.account_id);
+        console.log('✅ Loaded Meta Ad Account ID:', metaData.account_id);
+      }
+      
+      // Fetch TikTok advertiser account
+      const { data: tiktokData, error: tiktokError } = await supabase
+        .from('tiktok_ad_accounts')
+        .select('advertiser_id')
+        .eq('user_id', user.id)
+        .limit(1)
+        .single();
+      
+      if (!tiktokError && tiktokData) {
+        setFirstTiktokAdvertiserId(tiktokData.advertiser_id);
+        console.log('✅ Loaded TikTok Advertiser ID:', tiktokData.advertiser_id);
       }
     };
-    fetchAdAccountId();
+    fetchAdAccountIds();
   }, [user]);
   
   // Legacy platforms for step 5 (Platform Configuration)
@@ -1343,7 +1359,7 @@ export function MediaPlanEditor() {
                   console.log('📋 Updated basicTargeting state to:', targeting);
                 }}
                 metaAdAccountId={firstAdAccountId || undefined}
-                tiktokAdvertiserId={undefined}
+                tiktokAdvertiserId={firstTiktokAdvertiserId || undefined}
               />
               <div className="mt-6 flex justify-between">
                 <Button variant="outline" onClick={() => setCurrentStep(1)}>

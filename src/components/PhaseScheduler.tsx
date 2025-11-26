@@ -1117,8 +1117,8 @@ export function PhaseScheduler({
                                 key={`phase-targeting-${phase.id}-${phase.overrideTargeting}`}
                                 targeting={phase.targeting as BasicTargetingConfig}
                                 onUpdate={(targeting) => updatePhaseField(phase.id, "targeting", targeting)}
-                                metaAdAccountId={adAccountId}
-                                tiktokAdvertiserId={undefined}
+                                metaAdAccountId={platformId === 'meta' ? adAccountId : undefined}
+                                tiktokAdvertiserId={platformId === 'tiktok' ? adAccountId : undefined}
                               />
                             )}
                           </CollapsibleContent>
