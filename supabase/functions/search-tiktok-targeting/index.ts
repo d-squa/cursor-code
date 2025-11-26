@@ -132,6 +132,8 @@ serve(async (req) => {
 
     const searchData = await searchResponse.json();
     
+    console.log('TikTok API full response:', JSON.stringify(searchData, null, 2));
+    
     if (searchData.code !== 0) {
       console.error('TikTok API error code:', searchData);
       throw new Error(`TikTok API error: ${searchData.message}`);
@@ -143,11 +145,14 @@ serve(async (req) => {
     if (type === 'actions') {
       const dataList = searchData.data?.list || [];
       console.log(`Processing ${dataList.length} TikTok action categories for "${query}"`);
+      console.log('First action item structure:', JSON.stringify(dataList[0], null, 2));
       
-      for (const item of dataList.slice(0, 10)) {
+      for (let i = 0; i < Math.min(dataList.length, 10); i++) {
+        const item = dataList[i];
+        const itemId = item.category_id || item.action_category_id || item.id || `action-${query}-${i}`;
         results.push({
-          id: item.category_id || item.id,
-          name: item.category_name || item.name || query,
+          id: String(itemId),
+          name: item.category_name || item.action_category_name || item.name || query,
           audienceSize: undefined,
           type: type
         });
@@ -156,10 +161,13 @@ serve(async (req) => {
       // For interests and behaviors using targeting_category/recommend
       const categories = searchData.data?.interest_categories || searchData.data?.categories || [];
       console.log(`Processing ${categories.length} TikTok ${type} results for "${query}"`);
+      console.log('First interest item structure:', JSON.stringify(categories[0], null, 2));
       
-      for (const item of categories.slice(0, 10)) {
+      for (let i = 0; i < Math.min(categories.length, 10); i++) {
+        const item = categories[i];
+        const itemId = item.interest_category_id || item.category_id || item.id || `interest-${query}-${i}`;
         results.push({
-          id: item.interest_category_id || item.category_id || item.id,
+          id: String(itemId),
           name: item.interest_category || item.category || item.name || query,
           audienceSize: item.coverage || undefined,
           type: type
@@ -167,7 +175,7 @@ serve(async (req) => {
       }
     }
 
-    console.log(`Returning ${results.length} TikTok ${type} results`);
+    console.log(`Returning ${results.length} TikTok ${type} results:`, results.map(r => ({ id: r.id, name: r.name })));
 
     return new Response(
       JSON.stringify({ results }),
