@@ -77,6 +77,7 @@ serve(async (req) => {
         objective_type: "CONVERSIONS", // Can be adjusted based on campaign objective
         placements: ["PLACEMENT_TIKTOK"], // TikTok placement
         budget: 100, // Minimum budget for recommendation
+        region_codes: ["US", "GB", "CA", "AU", "DE", "FR", "IT", "ES"], // Required field - major markets
         ...(query && { targeting_word_ids: [query] }) // Optional keyword filtering
       };
     } else if (type === 'actions') {
