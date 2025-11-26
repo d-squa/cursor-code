@@ -139,20 +139,33 @@ serve(async (req) => {
       throw new Error(`TikTok API error: ${searchData.message}`);
     }
     
+    // Helper function to check if item matches query
+    const matchesQuery = (item: any, searchQuery: string): boolean => {
+      const lowerQuery = searchQuery.toLowerCase();
+      const name = (item.name || '').toLowerCase();
+      const description = (item.description || '').toLowerCase();
+      
+      return name.includes(lowerQuery) || description.includes(lowerQuery);
+    };
+    
     const results = [];
     
     // Handle different response structures
     if (type === 'actions') {
       const dataList = searchData.data?.action_categories || [];
       console.log(`Processing ${dataList.length} TikTok action categories for "${query}"`);
-      console.log('First action item structure:', JSON.stringify(dataList[0], null, 2));
       
-      for (let i = 0; i < Math.min(dataList.length, 10); i++) {
-        const item = dataList[i];
+      // Filter by query match
+      const filtered = dataList.filter((item: any) => matchesQuery(item, query));
+      console.log(`Found ${filtered.length} matching action categories after filtering`);
+      
+      for (let i = 0; i < Math.min(filtered.length, 10); i++) {
+        const item = filtered[i];
         const itemId = item.action_category_id || item.id || `action-${query}-${i}`;
         results.push({
           id: String(itemId),
           name: item.name || query,
+          description: item.description,
           audienceSize: undefined,
           type: type
         });
@@ -161,14 +174,18 @@ serve(async (req) => {
       // For interests and behaviors using targeting_category/recommend
       const categories = searchData.data?.interest_categories || searchData.data?.categories || [];
       console.log(`Processing ${categories.length} TikTok ${type} results for "${query}"`);
-      console.log('First interest item structure:', JSON.stringify(categories[0], null, 2));
       
-      for (let i = 0; i < Math.min(categories.length, 10); i++) {
-        const item = categories[i];
+      // Filter by query match
+      const filtered = categories.filter((item: any) => matchesQuery(item, query));
+      console.log(`Found ${filtered.length} matching ${type} after filtering`);
+      
+      for (let i = 0; i < Math.min(filtered.length, 10); i++) {
+        const item = filtered[i];
         const itemId = item.interest_category_id || item.category_id || item.id || `interest-${query}-${i}`;
         results.push({
           id: String(itemId),
           name: item.interest_category || item.category || item.name || query,
+          description: item.description,
           audienceSize: item.coverage || undefined,
           type: type
         });
