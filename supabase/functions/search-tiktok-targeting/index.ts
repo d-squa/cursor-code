@@ -98,14 +98,30 @@ serve(async (req) => {
     }
     
     console.log(`Searching TikTok ${type} with URL: ${searchUrl}`);
-    const searchResponse = await fetch(searchUrl, {
-      method: 'POST',
-      headers: {
-        'Access-Token': accessToken,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(searchBody)
-    });
+    
+    let searchResponse;
+    if (type === 'actions') {
+      // action_category uses GET with query parameters
+      const url = new URL(searchUrl);
+      url.searchParams.append('advertiser_id', advertiserId);
+      
+      searchResponse = await fetch(url.toString(), {
+        method: 'GET',
+        headers: {
+          'Access-Token': accessToken
+        }
+      });
+    } else {
+      // targeting_category/recommend uses POST with body
+      searchResponse = await fetch(searchUrl, {
+        method: 'POST',
+        headers: {
+          'Access-Token': accessToken,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(searchBody)
+      });
+    }
 
     if (!searchResponse.ok) {
       const errorText = await searchResponse.text();
