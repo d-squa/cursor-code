@@ -139,29 +139,50 @@ serve(async (req) => {
       throw new Error(`TikTok API error: ${searchData.message}`);
     }
     
-    // Helper function to check if item matches query with flexible matching
-    const matchesQuery = (item: any, searchQuery: string): boolean => {
+    // Helper function to calculate relevance score
+    const calculateRelevance = (item: any, searchQuery: string): number => {
       const name = (item.name || '').toLowerCase();
       const description = (item.description || '').toLowerCase();
-      const combinedText = `${name} ${description}`;
       
       // Remove platform-specific terms and clean query
       const cleanQuery = searchQuery
         .toLowerCase()
-        .replace(/\b(instagram|facebook|meta|retargeting|website|custom|saved)\b/gi, '')
-        .replace(/\(.*?\)/g, '') // Remove parentheses and content
-        .replace(/[^\w\s]/g, '') // Remove special chars
+        .replace(/\b(instagram|facebook|meta|retargeting|website|custom|saved|audience)\b/gi, '')
+        .replace(/\(.*?\)/g, '')
+        .replace(/[^\w\s]/g, '')
         .trim();
       
-      // If query is empty after cleaning, return true (show all)
-      if (!cleanQuery) return true;
+      if (!cleanQuery) return 0;
       
-      // Split into words and check if ANY word matches (partial match)
       const queryWords = cleanQuery.split(/\s+/).filter(w => w.length > 2);
+      if (queryWords.length === 0) return 0;
       
-      return queryWords.some(word => 
-        combinedText.includes(word)
-      );
+      let score = 0;
+      
+      // Exact name match gets highest score
+      if (name === cleanQuery) score += 100;
+      
+      // Name contains full query
+      if (name.includes(cleanQuery)) score += 50;
+      
+      // Count matching words
+      queryWords.forEach(word => {
+        if (name.includes(word)) score += 10;
+        if (description.includes(word)) score += 5;
+      });
+      
+      return score;
+    };
+    
+    // Deduplication helper
+    const deduplicateResults = (items: any[]): any[] => {
+      const seen = new Set<string>();
+      return items.filter(item => {
+        const normalizedName = (item.name || '').toLowerCase().trim();
+        if (seen.has(normalizedName)) return false;
+        seen.add(normalizedName);
+        return true;
+      });
     };
     
     const results = [];
@@ -171,12 +192,22 @@ serve(async (req) => {
       const dataList = searchData.data?.action_categories || [];
       console.log(`Processing ${dataList.length} TikTok action categories for "${query}"`);
       
-      // Filter by query match
-      const filtered = dataList.filter((item: any) => matchesQuery(item, query));
-      console.log(`Found ${filtered.length} matching action categories after filtering`);
+      // Score and filter items
+      const scoredItems = dataList
+        .map((item: any) => ({
+          item,
+          score: calculateRelevance(item, query)
+        }))
+        .filter(({ score }: { score: number }) => score > 10)
+        .sort((a: any, b: any) => b.score - a.score);
       
-      for (let i = 0; i < Math.min(filtered.length, 10); i++) {
-        const item = filtered[i];
+      console.log(`Found ${scoredItems.length} relevant action categories after filtering (scores > 10)`);
+      
+      // Deduplicate and take top 10
+      const deduplicated = deduplicateResults(scoredItems.map((s: any) => s.item));
+      
+      for (let i = 0; i < Math.min(deduplicated.length, 10); i++) {
+        const item = deduplicated[i];
         const itemId = item.action_category_id || item.id || `action-${query}-${i}`;
         results.push({
           id: String(itemId),
@@ -191,12 +222,22 @@ serve(async (req) => {
       const categories = searchData.data?.interest_categories || searchData.data?.categories || [];
       console.log(`Processing ${categories.length} TikTok ${type} results for "${query}"`);
       
-      // Filter by query match
-      const filtered = categories.filter((item: any) => matchesQuery(item, query));
-      console.log(`Found ${filtered.length} matching ${type} after filtering`);
+      // Score and filter items
+      const scoredItems = categories
+        .map((item: any) => ({
+          item,
+          score: calculateRelevance(item, query)
+        }))
+        .filter(({ score }: { score: number }) => score > 10)
+        .sort((a: any, b: any) => b.score - a.score);
       
-      for (let i = 0; i < Math.min(filtered.length, 10); i++) {
-        const item = filtered[i];
+      console.log(`Found ${scoredItems.length} relevant ${type} after filtering (scores > 10)`);
+      
+      // Deduplicate and take top 10
+      const deduplicated = deduplicateResults(scoredItems.map((s: any) => s.item));
+      
+      for (let i = 0; i < Math.min(deduplicated.length, 10); i++) {
+        const item = deduplicated[i];
         const itemId = item.interest_category_id || item.category_id || item.id || `interest-${query}-${i}`;
         results.push({
           id: String(itemId),
