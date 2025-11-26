@@ -143,16 +143,16 @@ serve(async (req) => {
     
     // Handle different response structures
     if (type === 'actions') {
-      const dataList = searchData.data?.list || [];
+      const dataList = searchData.data?.action_categories || [];
       console.log(`Processing ${dataList.length} TikTok action categories for "${query}"`);
       console.log('First action item structure:', JSON.stringify(dataList[0], null, 2));
       
       for (let i = 0; i < Math.min(dataList.length, 10); i++) {
         const item = dataList[i];
-        const itemId = item.category_id || item.action_category_id || item.id || `action-${query}-${i}`;
+        const itemId = item.action_category_id || item.id || `action-${query}-${i}`;
         results.push({
           id: String(itemId),
-          name: item.category_name || item.action_category_name || item.name || query,
+          name: item.name || query,
           audienceSize: undefined,
           type: type
         });
