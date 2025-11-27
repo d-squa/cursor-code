@@ -780,9 +780,8 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
                           </div>
 
                           <div className="space-y-2">
-                            <Label>Ad Formats</Label>
                             <AdFormatSelector
-                              platformName={platform.name}
+                              platformName={platform.id}
                               selectedFormats={campaign.targeting?.adFormats || []}
                               onFormatsChange={(formats) =>
                                 updateCampaignTargeting(platform.id, campaign.id, "adFormats", formats)
