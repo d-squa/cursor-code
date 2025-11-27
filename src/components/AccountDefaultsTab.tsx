@@ -119,15 +119,25 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
       const metaAccounts = (metaAccountsData || []).map(acc => ({
         ...acc,
         platform: 'meta' as const,
-        main_markets: Array.isArray(acc.main_markets) ? acc.main_markets as string[] : []
+        main_markets: Array.isArray(acc.main_markets) ? acc.main_markets as string[] : [],
+        default_conversion_budget_type: acc.default_conversion_budget_type || null,
+        default_non_conversion_budget_type: acc.default_non_conversion_budget_type || null,
       }));
 
       const tiktokAccounts = (tiktokAccountsData || []).map(acc => ({
         ...acc,
         platform: 'tiktok' as const,
         advertiser_id: acc.advertiser_id,
-        main_markets: Array.isArray(acc.main_markets) ? acc.main_markets as string[] : []
+        main_markets: Array.isArray(acc.main_markets) ? acc.main_markets as string[] : [],
+        default_conversion_budget_type: acc.default_conversion_budget_type || null,
+        default_non_conversion_budget_type: acc.default_non_conversion_budget_type || null,
       }));
+
+      console.log("TikTok accounts with budget types:", tiktokAccounts.map(acc => ({
+        name: acc.account_name,
+        conversion_budget: acc.default_conversion_budget_type,
+        non_conversion_budget: acc.default_non_conversion_budget_type
+      })));
 
       const allAccounts = [...metaAccounts, ...tiktokAccounts];
       setAdAccounts(allAccounts);
@@ -138,17 +148,25 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         defaults[acc.id] = {
           platform: acc.platform,
           default_pixel_id: acc.default_pixel_id || null,
-          default_page_id: acc.platform === 'meta' ? (acc as any).default_page_id : null,
-          default_instagram_account_id: acc.platform === 'meta' ? (acc as any).default_instagram_account_id : null,
+          default_page_id: acc.platform === 'meta' ? acc.default_page_id || null : null,
+          default_instagram_account_id: acc.platform === 'meta' ? acc.default_instagram_account_id || null : null,
           default_catalog_id: acc.default_catalog_id || null,
-          default_product_set_id: (acc as any).default_product_set_id || null,
-          default_conversion_event: acc.platform === 'meta' ? (acc as any).default_conversion_event : null,
-          default_conversion_budget_type: (acc as any).default_conversion_budget_type || null,
-          default_non_conversion_budget_type: (acc as any).default_non_conversion_budget_type || null,
-          default_identity_id: acc.platform === 'tiktok' ? (acc as any).default_identity_id : null,
+          default_product_set_id: acc.default_product_set_id || null,
+          default_conversion_event: acc.platform === 'meta' ? acc.default_conversion_event || null : null,
+          default_conversion_budget_type: acc.default_conversion_budget_type || null,
+          default_non_conversion_budget_type: acc.default_non_conversion_budget_type || null,
+          default_identity_id: acc.platform === 'tiktok' ? acc.default_identity_id || null : null,
           main_markets: acc.main_markets,
         };
       });
+      
+      console.log("Local defaults initialized:", Object.entries(defaults).map(([id, def]) => ({
+        id,
+        platform: def.platform,
+        conversion_budget: def.default_conversion_budget_type,
+        non_conversion_budget: def.default_non_conversion_budget_type
+      })));
+      
       setLocalDefaults(defaults);
 
       // Load all available resources
