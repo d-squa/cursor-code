@@ -438,14 +438,14 @@ export function PhaseScheduler({
   };
 
   const getOptimizationGoals = () => {
-    // Return ALL optimization goals for the platform
+    // Return ALL optimization goals for the platform - must match TikTok API values
     const platformGoals: Record<string, string[]> = {
       "Facebook (Meta)": ["Impressions", "Reach", "Brand Awareness", "Link Clicks", "Landing Page Views", "Post Engagement", "Page Likes", "Event Responses", "ThruPlay", "2-Second Video Views", "Video Views", "Leads", "Conversions", "Value", "App Installs", "App Events"],
       "Instagram (Meta)": ["Impressions", "Reach", "Link Clicks", "Landing Page Views", "Post Engagement", "Profile Visits", "Video Views", "Conversions", "Value"],
       "Google Ads": ["Clicks", "Impressions", "Conversions", "Conversion Value", "Views", "Engagement"],
       "YouTube (Google)": ["Views", "Impressions", "Conversions", "View Rate", "CPV"],
       "LinkedIn": ["Impressions", "Clicks", "Landing Page Actions", "Conversions", "Video Views", "Engagement"],
-      "TikTok": ["Reach", "Click", "Video Views", "Engagement", "Conversion", "Value", "App Installs"],
+      "TikTok": ["Reach", "Engagement", "Click", "Landing Page View", "Lead Generation", "Web Conversion", "Value Optimization", "App Install"],
     };
     
     let goals = platformGoals[platformName];
@@ -454,6 +454,34 @@ export function PhaseScheduler({
     }
     
     return goals || ["Impressions", "Clicks", "Conversions", "Link Clicks", "Reach", "Video Views", "Engagement"];
+  };
+
+  // Auto-select optimization goal based on objective and platform
+  const getAutoOptimizationGoal = (objective: string): string => {
+    const isTikTok = platformName.toLowerCase().includes('tiktok');
+    
+    if (isTikTok) {
+      // TikTok objective -> optimization goal mapping
+      if (objective === "Reach") return "Reach";
+      if (objective === "Community Interaction") return "Engagement";
+      if (objective === "Traffic") return "Landing Page View";
+      if (objective === "Lead Generation") return "Lead Generation";
+      if (objective === "Sales") return "Web Conversion";
+      if (objective === "App Promotion") return "App Install";
+      return "Click";
+    }
+    
+    // Meta objective -> optimization goal mapping
+    if (objective === "Brand Awareness" || objective === "Reach") return "Reach";
+    if (objective === "Engagement") return "Post Engagement";
+    if (objective === "Traffic") return "Landing Page Views";
+    if (objective === "Lead Generation") return "Leads";
+    if (objective === "Conversions") return "Conversions";
+    if (objective === "Catalog Sales") return "Conversions";
+    if (objective === "App Installs") return "App Installs";
+    if (objective === "Video Views") return "ThruPlay";
+    
+    return "Conversions";
   };
 
   const togglePhaseExpansion = (phaseId: string) => {
@@ -932,7 +960,15 @@ export function PhaseScheduler({
                         <Select
                           value={phase.objective || ""}
                           onValueChange={(value) => {
-                            updatePhaseField(phase.id, "objective", value);
+                            const updatedPhases = phases.map(p => {
+                              if (p.id === phase.id) {
+                                // Auto-set optimization goal based on objective and platform
+                                const autoGoal = getAutoOptimizationGoal(value);
+                                return { ...p, objective: value, optimizationGoal: autoGoal };
+                              }
+                              return p;
+                            });
+                            onPhasesChange(updatedPhases);
                           }}
                         >
                           <SelectTrigger id={`objective-${phase.id}`}>
@@ -1140,6 +1176,7 @@ export function PhaseScheduler({
                             phaseObjective={phase.objective}
                             phaseOptimizationGoal={phase.optimizationGoal}
                             adAccountId={adAccountId}
+                            platform={platformName}
                             basicTargeting={basicTargeting}
                             overrideTargeting={phase.overrideTargeting}
                             onAudiencesSelected={(audiences) => {

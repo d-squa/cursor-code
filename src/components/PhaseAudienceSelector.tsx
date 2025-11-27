@@ -37,6 +37,7 @@ interface PhaseAudienceSelectorProps {
   phaseObjective?: string;
   phaseOptimizationGoal?: string;
   adAccountId: string;
+  platform?: string;
   onAudiencesSelected: (audiences: SelectedAudience[]) => void;
   initialSelection?: SelectedAudience[];
   overrideTargeting?: boolean;
@@ -76,6 +77,7 @@ export function PhaseAudienceSelector({
   phaseObjective,
   phaseOptimizationGoal,
   adAccountId,
+  platform = "meta",
   onAudiencesSelected,
   initialSelection = [],
   basicTargeting,
@@ -176,6 +178,19 @@ export function PhaseAudienceSelector({
   const loadAudiences = async (sources: string[]) => {
     setLoading(true);
     try {
+      // Determine which audience endpoint to call based on platform
+      const platformLower = platform.toLowerCase();
+      const isTikTok = platformLower.includes('tiktok');
+      
+      // For TikTok, we would call a TikTok-specific audience endpoint
+      // For now, skip audience loading for TikTok as it's not implemented yet
+      if (isTikTok) {
+        console.log('TikTok audience loading not yet implemented');
+        setAudiencesByType({});
+        return;
+      }
+      
+      // Meta audience loading
       const { data, error } = await supabase.functions.invoke('fetch-meta-audiences', {
         body: { adAccountId, sources }
       });
