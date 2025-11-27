@@ -76,14 +76,26 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
     matches: []
   });
   
-  // Cross-platform search
-  const [searchType, setSearchType] = useState<'interests' | 'behaviors' | 'demographics'>('interests');
+  // Cross-platform search (all categories)
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<{
-    meta: TargetingParameter[];
-    tiktok: TargetingParameter[];
+    meta: {
+      interests: TargetingParameter[];
+      behaviors: TargetingParameter[];
+      demographics: TargetingParameter[];
+    };
+    tiktok: {
+      interests: TargetingParameter[];
+      behaviors: TargetingParameter[];
+      purchaseIntention: TargetingParameter[];
+      videoInteractions: TargetingParameter[];
+    };
     matches: Array<{ meta: TargetingParameter; tiktok: TargetingParameter; score: number }>;
-  }>({ meta: [], tiktok: [], matches: [] });
+  }>({ 
+    meta: { interests: [], behaviors: [], demographics: [] },
+    tiktok: { interests: [], behaviors: [], purchaseIntention: [], videoInteractions: [] },
+    matches: [] 
+  });
   const [searching, setSearching] = useState(false);
   
   // Validation warnings
@@ -259,7 +271,6 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
       const { data, error } = await supabase.functions.invoke('cross-platform-search', {
         body: { 
           query: searchQuery,
-          type: searchType,
           metaAdAccountId,
           tiktokAdvertiserId
         }
@@ -268,12 +279,15 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
       if (error) throw error;
 
       setSearchResults({
-        meta: data.meta || [],
-        tiktok: data.tiktok || [],
+        meta: data.meta || { interests: [], behaviors: [], demographics: [] },
+        tiktok: data.tiktok || { interests: [], behaviors: [], purchaseIntention: [], videoInteractions: [] },
         matches: data.matches || []
       });
       
-      toast.success(`Found ${data.meta?.length || 0} Meta and ${data.tiktok?.length || 0} TikTok results`);
+      const totalMeta = (data.meta?.interests?.length || 0) + (data.meta?.behaviors?.length || 0) + (data.meta?.demographics?.length || 0);
+      const totalTiktok = (data.tiktok?.interests?.length || 0) + (data.tiktok?.behaviors?.length || 0) + (data.tiktok?.purchaseIntention?.length || 0) + (data.tiktok?.videoInteractions?.length || 0);
+      
+      toast.success(`Found ${totalMeta} Meta and ${totalTiktok} TikTok results across all categories`);
     } catch (error: any) {
       console.error('Error searching:', error);
       toast.error(error.message || 'Failed to search');
@@ -294,10 +308,22 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
     }));
   };
 
-  const handleAddSearchResult = (platform: 'meta' | 'tiktok', result: TargetingParameter) => {
+  const handleAddSearchResult = (platform: 'meta' | 'tiktok', category: string, result: TargetingParameter) => {
+    // Map search categories to targeting types
+    const categoryMap: Record<string, 'interests' | 'behaviors' | 'demographics'> = {
+      'interests': 'interests',
+      'behaviors': 'behaviors',
+      'demographics': 'demographics',
+      'purchase_intention': 'behaviors',
+      'video_interactions': 'interests'
+    };
+    
+    const targetType = categoryMap[category] || 'interests';
+    
     setAiRecommendations(prev => {
-      const currentList = prev[platform][searchType];
+      const currentList = prev[platform][targetType];
       if (currentList.some((item: any) => item.id === result.id)) {
+        toast.info(`Already added to ${platform} ${targetType}`);
         return prev;
       }
       
@@ -305,17 +331,12 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
         ...prev,
         [platform]: {
           ...prev[platform],
-          [searchType]: [...currentList, { ...result, selected: true }]
+          [targetType]: [...currentList, { ...result, selected: true }]
         }
       };
     });
     
-    setSearchResults(prev => ({
-      ...prev,
-      [platform]: prev[platform].filter(r => r.id !== result.id)
-    }));
-    
-    toast.success(`Added to ${platform} ${searchType}`);
+    toast.success(`Added to ${platform} ${targetType}`);
   };
 
   const handleSelectAll = (platform: 'meta' | 'tiktok', type: 'interests' | 'behaviors' | 'demographics') => {
@@ -668,76 +689,162 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
               Cross-Platform Audience Search
             </CardTitle>
             <CardDescription>
-              Search for interests, behaviors, and demographics across Meta and TikTok
+              Search across all categories (interests, behaviors, demographics, purchase intention, video interactions) on Meta and TikTok
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Search Type</Label>
-                <Select value={searchType} onValueChange={(value: any) => setSearchType(value)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-background z-50">
-                    <SelectItem value="interests">Interests</SelectItem>
-                    <SelectItem value="behaviors">Behaviors/Actions</SelectItem>
-                    <SelectItem value="demographics">Demographics</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Search Query</Label>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="e.g., fitness, travel..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                  />
-                  <Button 
-                    onClick={handleSearch}
-                    disabled={searching || !searchQuery.trim()}
-                    size="icon"
-                  >
-                    {searching ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Search className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
+            <div className="space-y-2">
+              <Label>Search Query</Label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="e.g., fitness, digital marketing, pets..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                  className="flex-1"
+                />
+                <Button 
+                  onClick={handleSearch}
+                  disabled={searching || !searchQuery.trim()}
+                  size="icon"
+                >
+                  {searching ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Search className="h-4 w-4" />
+                  )}
+                </Button>
               </div>
             </div>
 
-            {/* Search Results */}
-            {(searchResults.meta.length > 0 || searchResults.tiktok.length > 0) && (
+            {/* Search Results - Grouped by Category */}
+            {(Object.values(searchResults.meta).some(arr => arr.length > 0) || Object.values(searchResults.tiktok).some(arr => arr.length > 0)) && (
               <Tabs defaultValue="meta" className="w-full">
                 <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="meta">Meta ({searchResults.meta.length})</TabsTrigger>
-                  <TabsTrigger value="tiktok">TikTok ({searchResults.tiktok.length})</TabsTrigger>
+                  <TabsTrigger value="meta">
+                    Meta ({(searchResults.meta.interests.length + searchResults.meta.behaviors.length + searchResults.meta.demographics.length)})
+                  </TabsTrigger>
+                  <TabsTrigger value="tiktok">
+                    TikTok ({(searchResults.tiktok.interests.length + searchResults.tiktok.behaviors.length + searchResults.tiktok.purchaseIntention.length + searchResults.tiktok.videoInteractions.length)})
+                  </TabsTrigger>
                 </TabsList>
                 
-                <TabsContent value="meta" className="space-y-2 mt-4">
-                  {searchResults.meta.map((result) => (
-                    <SearchResultItem
-                      key={result.id}
-                      result={result}
-                      platform="meta"
-                      onAdd={handleAddSearchResult}
-                    />
-                  ))}
+                <TabsContent value="meta" className="space-y-4 mt-4">
+                  {searchResults.meta.interests.length > 0 && (
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Interests</Label>
+                      <div className="space-y-2">
+                        {searchResults.meta.interests.map((result) => (
+                          <SearchResultItem
+                            key={result.id}
+                            result={result}
+                            platform="meta"
+                            category="interests"
+                            onAdd={handleAddSearchResult}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {searchResults.meta.behaviors.length > 0 && (
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Behaviors</Label>
+                      <div className="space-y-2">
+                        {searchResults.meta.behaviors.map((result) => (
+                          <SearchResultItem
+                            key={result.id}
+                            result={result}
+                            platform="meta"
+                            category="behaviors"
+                            onAdd={handleAddSearchResult}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {searchResults.meta.demographics.length > 0 && (
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Demographics</Label>
+                      <div className="space-y-2">
+                        {searchResults.meta.demographics.map((result) => (
+                          <SearchResultItem
+                            key={result.id}
+                            result={result}
+                            platform="meta"
+                            category="demographics"
+                            onAdd={handleAddSearchResult}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </TabsContent>
 
-                <TabsContent value="tiktok" className="space-y-2 mt-4">
-                  {searchResults.tiktok.map((result) => (
-                    <SearchResultItem
-                      key={result.id}
-                      result={result}
-                      platform="tiktok"
-                      onAdd={handleAddSearchResult}
-                    />
-                  ))}
+                <TabsContent value="tiktok" className="space-y-4 mt-4">
+                  {searchResults.tiktok.interests.length > 0 && (
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Interests</Label>
+                      <div className="space-y-2">
+                        {searchResults.tiktok.interests.map((result) => (
+                          <SearchResultItem
+                            key={result.id}
+                            result={result}
+                            platform="tiktok"
+                            category="interests"
+                            onAdd={handleAddSearchResult}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {searchResults.tiktok.behaviors.length > 0 && (
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Behaviors</Label>
+                      <div className="space-y-2">
+                        {searchResults.tiktok.behaviors.map((result) => (
+                          <SearchResultItem
+                            key={result.id}
+                            result={result}
+                            platform="tiktok"
+                            category="behaviors"
+                            onAdd={handleAddSearchResult}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {searchResults.tiktok.purchaseIntention.length > 0 && (
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Purchase Intention</Label>
+                      <div className="space-y-2">
+                        {searchResults.tiktok.purchaseIntention.map((result) => (
+                          <SearchResultItem
+                            key={result.id}
+                            result={result}
+                            platform="tiktok"
+                            category="purchase_intention"
+                            onAdd={handleAddSearchResult}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {searchResults.tiktok.videoInteractions.length > 0 && (
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Video Interactions</Label>
+                      <div className="space-y-2">
+                        {searchResults.tiktok.videoInteractions.map((result) => (
+                          <SearchResultItem
+                            key={result.id}
+                            result={result}
+                            platform="tiktok"
+                            category="video_interactions"
+                            onAdd={handleAddSearchResult}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </TabsContent>
               </Tabs>
             )}
@@ -804,11 +911,13 @@ function RecommendationSection({
 function SearchResultItem({
   result,
   platform,
+  category,
   onAdd
 }: {
   result: TargetingParameter;
   platform: 'meta' | 'tiktok';
-  onAdd: (platform: 'meta' | 'tiktok', result: TargetingParameter) => void;
+  category: string;
+  onAdd: (platform: 'meta' | 'tiktok', category: string, result: TargetingParameter) => void;
 }) {
   return (
     <div className="flex items-center justify-between p-2 bg-background rounded">
@@ -819,7 +928,7 @@ function SearchResultItem({
             {result.audienceSize.toLocaleString()} people
           </Badge>
         )}
-        <Button size="sm" onClick={() => onAdd(platform, result)}>
+        <Button size="sm" onClick={() => onAdd(platform, category, result)}>
           Add
         </Button>
       </div>
