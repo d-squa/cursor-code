@@ -556,10 +556,30 @@ export function CampaignForecast({
         // Note: TikTok doesn't have a public R&F prediction API like Meta
         // We'll use TikTok-specific CPM rates and engagement benchmarks
         
+        console.log("=== 🎵 TIKTOK FORECAST START ===");
+        console.log("TikTok Forecast Parameters:", {
+          marketName: market.name,
+          budget,
+          startDate,
+          endDate,
+          phaseName: market.phaseName,
+          phaseObjective: market.phaseObjective,
+          phaseOptimizationGoal: market.phaseOptimizationGoal,
+          strategyFocus: market.strategyFocus,
+          genericStrategyFocus: genericConfig.strategyFocus
+        });
+        
         // Get TikTok advertiser ID from market config
         const advertiserId = (market as any).tiktokAdvertiserId || (market as any).adAccountId;
         
+        console.log("TikTok Advertiser ID extracted:", {
+          advertiserId,
+          tiktokAdvertiserId: (market as any).tiktokAdvertiserId,
+          adAccountId: (market as any).adAccountId
+        });
+        
         if (!advertiserId) {
+          console.error("❌ No TikTok advertiser account configured for market:", market.name);
           throw new Error('TikTok advertiser account not configured for this market');
         }
         
@@ -569,13 +589,14 @@ export function CampaignForecast({
         const avgFrequency = 3.2; // TikTok typical frequency
         const reach = Math.floor(impressions / avgFrequency);
         
-        console.log("TikTok R&F Estimation Calculations:", {
-          budget,
-          baseCPM,
-          impressions,
+        console.log("📊 TikTok R&F Estimation Calculations:", {
+          budget: `$${budget.toLocaleString()}`,
+          baseCPM: `$${baseCPM}`,
+          calculatedImpressions: impressions.toLocaleString(),
           avgFrequency,
-          reach,
-          advertiserId
+          calculatedReach: reach.toLocaleString(),
+          advertiserId,
+          audienceSizeEstimate: (reach * 12).toLocaleString()
         });
         
         // Determine objective/goal - prefer phase settings, fallback to auto-detect or strategy focus
@@ -583,47 +604,97 @@ export function CampaignForecast({
         let objective: string;
         let destination: string;
         
+        console.log("🎯 Determining TikTok Objective & Optimization Goal:");
+        
         if (market.phaseObjective && market.phaseOptimizationGoal && 
             market.phaseObjective.trim() !== '' && market.phaseOptimizationGoal.trim() !== '') {
           objective = market.phaseObjective;
           optimizationGoal = market.phaseOptimizationGoal;
           destination = "Website";
+          console.log("  ✓ Using phase-defined objective:", {
+            objective,
+            optimizationGoal,
+            destination,
+            source: "phase config"
+          });
         } else if (market.phaseName) {
           const strategyFocusValue = getEffectiveStrategyFocus(market.strategyFocus, genericConfig.strategyFocus);
           const autoDetected = getObjectiveFromPhaseName(market.phaseName, strategyFocusValue, 'tiktok');
           objective = autoDetected.objective;
           optimizationGoal = autoDetected.optimizationGoal;
           destination = autoDetected.destination;
+          console.log("  ✓ Auto-detected from phase name:", {
+            phaseName: market.phaseName,
+            strategyFocus: strategyFocusValue,
+            objective,
+            optimizationGoal,
+            destination,
+            source: "auto-detection"
+          });
         } else {
           const strategyFocusValue = getEffectiveStrategyFocus(market.strategyFocus, genericConfig.strategyFocus);
           const autoDetected = getObjectiveFromPhaseName('default', strategyFocusValue, 'tiktok');
           objective = autoDetected.objective;
           optimizationGoal = autoDetected.optimizationGoal;
           destination = autoDetected.destination;
+          console.log("  ✓ Using default objective:", {
+            strategyFocus: strategyFocusValue,
+            objective,
+            optimizationGoal,
+            destination,
+            source: "default fallback"
+          });
         }
         
         const goalMetrics = getOptimizationGoalMetrics(objective, optimizationGoal, destination);
         
+        console.log("📈 Goal Metrics Retrieved:", {
+          kpi: goalMetrics?.kpi,
+          rateName: goalMetrics?.rateName,
+          resultLabel: getResultLabel(optimizationGoal)
+        });
+        
         let result = calculateResultFromImpressions(impressions, budget, optimizationGoal);
+        
+        console.log("🧮 Initial Result Calculation:", {
+          result,
+          impressions,
+          budget,
+          optimizationGoal
+        });
         
         // Apply benchmark if available
         const benchmarkKey = `${market.name}_${optimizationGoal}`;
         const benchmark = benchmarks.get(benchmarkKey);
         
+        console.log("🎯 Benchmark Lookup:", {
+          benchmarkKey,
+          benchmarkFound: !!benchmark,
+          benchmarkCPR: benchmark?.avg_cost_per_result || "N/A"
+        });
+        
         let costPerResult: number;
         if (benchmark?.avg_cost_per_result && benchmark.avg_cost_per_result > 0) {
           costPerResult = benchmark.avg_cost_per_result;
           result = budget / costPerResult;
-          console.log(`✓ Using benchmark CPR for TikTok ${market.name}/${optimizationGoal}: $${costPerResult.toFixed(2)}`);
+          console.log(`✅ Using benchmark CPR for TikTok ${market.name}/${optimizationGoal}: $${costPerResult.toFixed(2)}, recalculated result: ${result.toFixed(0)}`);
         } else {
           costPerResult = result > 0 ? budget / result : 0;
-          console.log(`✓ Using calculated CPR for TikTok ${market.name}/${optimizationGoal}: $${costPerResult.toFixed(2)}`);
+          console.log(`✅ Using calculated CPR for TikTok ${market.name}/${optimizationGoal}: $${costPerResult.toFixed(2)}`);
         }
         
         // Calculate result rate
         const resultRate = impressions > 0 ? (result / impressions) * 100 : 0;
         
-        console.log(`TikTok forecast for ${market.name}: ${impressions.toLocaleString()} impressions, ${reach.toLocaleString()} reach, CPM: $${baseCPM}`);
+        console.log(`📊 TikTok forecast summary for ${market.name}:`, {
+          impressions: impressions.toLocaleString(),
+          reach: reach.toLocaleString(),
+          frequency: avgFrequency,
+          cpm: `$${baseCPM}`,
+          result: result.toFixed(0),
+          costPerResult: `$${costPerResult.toFixed(2)}`,
+          resultRate: `${resultRate.toFixed(2)}%`
+        });
         
         const tiktokForecastResult = {
           audienceSize: reach * 12, // TikTok has larger audience multiplier
@@ -642,7 +713,8 @@ export function CampaignForecast({
           destination,
         };
         
-        console.log("TikTok Campaign Forecast Final Result:", tiktokForecastResult);
+        console.log("✅ TikTok Campaign Forecast FINAL Result:", tiktokForecastResult);
+        console.log("=== 🎵 TIKTOK FORECAST END ===\n");
         
         return tiktokForecastResult;
       }
