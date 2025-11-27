@@ -84,9 +84,14 @@ export const funnelTemplates: Record<string, FunnelTemplate> = {
 };
 
 /**
- * Generates default phases based on strategy focus
+ * Generates default phases based on strategy focus and platform
  */
-export const getDefaultPhases = (strategyFocus: string, startDate: string, endDate: string) => {
+export const getDefaultPhases = (
+  strategyFocus: string, 
+  startDate: string, 
+  endDate: string,
+  platform: string = "meta"
+) => {
   const template = funnelTemplates[strategyFocus];
   if (!template) return [];
 
@@ -105,8 +110,8 @@ export const getDefaultPhases = (strategyFocus: string, startDate: string, endDa
       ? new Date(end) 
       : new Date(phaseStart.getTime() + (daysPerPhase * 1000 * 60 * 60 * 24));
     
-    // Auto-determine objective and optimization goal based on phase name
-    const { objective, optimizationGoal } = getObjectiveFromPhaseName(phase.name, strategyFocus);
+    // Auto-determine objective and optimization goal based on phase name and platform
+    const { objective, optimizationGoal } = getObjectiveFromPhaseName(phase.name, strategyFocus, platform);
     
     return {
       id: `phase-${index}-${Date.now()}`,
@@ -128,7 +133,8 @@ export const generateAutoDetectPhases = (
   hasPixel: boolean,
   hasCatalog: boolean,
   startDate: string,
-  endDate: string
+  endDate: string,
+  platform: string = "meta"
 ) => {
   const start = new Date(startDate);
   const end = new Date(endDate);
@@ -151,5 +157,5 @@ export const generateAutoDetectPhases = (
     strategyFocus = "Conversions";
   }
   
-  return getDefaultPhases(strategyFocus, startDate, endDate);
+  return getDefaultPhases(strategyFocus, startDate, endDate, platform);
 };

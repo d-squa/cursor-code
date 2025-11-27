@@ -115,10 +115,10 @@ export function getOptimizationGoalForFocus(
       "brand-awareness": "Impressions",
     },
     tiktok: {
-      purchase: "Conversion",
-      leads: "Conversion",
-      "app-installs": "App Installs",
-      conversions: "Conversion",
+      purchase: hasPixel ? "Web Conversion" : "Landing Page View",
+      leads: "Lead Generation",
+      "app-installs": "App Install",
+      conversions: hasPixel ? "Web Conversion" : "Landing Page View",
       "brand-awareness": "Reach",
     },
     snapchat: {
