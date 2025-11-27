@@ -106,7 +106,8 @@ export function PlatformCustomization({
           hasPixel,
           hasCatalog,
           startDate,
-          endDate
+          endDate,
+          platform.id
         );
 
         if (!phases || phases.length === 0) return market;
@@ -367,7 +368,8 @@ useEffect(() => {
         hasPixel,
         hasCatalog,
         startDate,
-        endDate
+        endDate,
+        platform.id
       );
 
       if (!newPhases || newPhases.length === 0) return market;
