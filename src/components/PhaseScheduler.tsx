@@ -416,8 +416,10 @@ export function PhaseScheduler({
   const getAvailableObjectives = () => {
     // Return ALL objectives for the platform, not filtered by phase
     const allObjectives: string[] = [];
+    const platformLowerCase = platformName.toLowerCase();
     const platformMapping = platformObjectiveMapping[platformName] || 
-                           (platformName.toLowerCase().includes("meta") ? platformObjectiveMapping["Facebook (Meta)"] : null);
+                           (platformLowerCase.includes("meta") ? platformObjectiveMapping["Facebook (Meta)"] : 
+                            platformLowerCase.includes("tiktok") ? platformObjectiveMapping["TikTok"] : null);
     
     if (platformMapping) {
       // Combine all objectives from all funnel stages
@@ -448,10 +450,10 @@ export function PhaseScheduler({
       "TikTok": ["Reach", "Engagement", "Click", "Landing Page View", "Lead Generation", "Web Conversion", "Value Optimization", "App Install"],
     };
     
-    let goals = platformGoals[platformName];
-    if (!goals && platformName.toLowerCase().includes("meta")) {
-      goals = platformGoals["Facebook (Meta)"];
-    }
+    const platformLowerCase = platformName.toLowerCase();
+    const goals = platformGoals[platformName] || 
+                 (platformLowerCase.includes("meta") ? platformGoals["Facebook (Meta)"] : 
+                  platformLowerCase.includes("tiktok") ? platformGoals["TikTok"] : null);
     
     return goals || ["Impressions", "Clicks", "Conversions", "Link Clicks", "Reach", "Video Views", "Engagement"];
   };
@@ -1119,11 +1121,19 @@ export function PhaseScheduler({
                         />
                       </div>
 
-                      {/* Phase-Level Targeting Override - Only for Brand Awareness */}
-                      {phase.objective === "Brand Awareness" && basicTargeting && (
+                      {/* Phase-Level Targeting Override - For awareness/reach phases */}
+                      {(
+                        phase.objective === "Brand Awareness" || 
+                        phase.objective === "Reach" ||
+                        phase.optimizationGoal === "Reach" ||
+                        phase.optimizationGoal === "Brand Awareness"
+                      ) && basicTargeting && (
                         (basicTargeting.metaInterests?.length ?? 0) > 0 || 
                         (basicTargeting.metaBehaviors?.length ?? 0) > 0 || 
                         (basicTargeting.metaDemographics?.length ?? 0) > 0 ||
+                        (basicTargeting.tiktokInterests?.length ?? 0) > 0 ||
+                        (basicTargeting.tiktokBehaviors?.length ?? 0) > 0 ||
+                        (basicTargeting.tiktokDemographics?.length ?? 0) > 0 ||
                         basicTargeting.ageMin !== undefined ||
                         basicTargeting.genders?.length ||
                         basicTargeting.devices?.length
