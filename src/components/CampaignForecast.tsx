@@ -350,13 +350,17 @@ export function CampaignForecast({
     campaignStartDate?: string,
     campaignEndDate?: string
   ) => {
-    // Call actual platform APIs for Meta, use mock for others
-    if (platformId.includes("facebook") || platformId.includes("instagram") || platformId.includes("meta")) {
+    // Call actual platform APIs for Meta and TikTok
+    const platformName = platformId.toLowerCase();
+    const isMeta = platformName.includes("facebook") || platformName.includes("instagram") || platformName.includes("meta");
+    const isTikTok = platformName.includes("tiktok");
+    
+    if (isMeta || isTikTok) {
         const strategyFocus = market.strategyFocus || genericConfig.strategyFocus || 'conversions';
         
         // Validate and normalize market code
         const marketCode = market.name.substring(0, 2).trim().toUpperCase();
-        console.log('**Selected market', marketCode);
+        console.log(`**Selected market ${marketCode} for platform: ${isMeta ? 'Meta' : 'TikTok'}`);
         if (!/^[A-Z]{2}$/.test(marketCode)) {
           toast.error(`Invalid country code: "${marketCode}". Use 2-letter ISO codes (e.g., US, CA, GB).`, {
             duration: 5000,
@@ -367,6 +371,7 @@ export function CampaignForecast({
         try {
           const { supabase } = await import("@/integrations/supabase/client");
         
+        if (isMeta) {
         // Resolve the correct Meta connection to use its credentials
         // 1) Prefer the connection that owns the selected Instagram account
         // 2) Fallback to the most recent Meta connection
@@ -546,20 +551,108 @@ export function CampaignForecast({
           optimizationGoal,
           destination,
         };
+      } else if (isTikTok) {
+        // TikTok forecast using TikTok-specific estimation
+        // Note: TikTok doesn't have a public R&F prediction API like Meta
+        // We'll use TikTok-specific CPM rates and engagement benchmarks
+        
+        // Get TikTok advertiser ID from market config
+        const advertiserId = (market as any).tiktokAdvertiserId || (market as any).adAccountId;
+        
+        if (!advertiserId) {
+          throw new Error('TikTok advertiser account not configured for this market');
+        }
+        
+        // TikTok-specific CPM ranges (higher than Meta typically)
+        const baseCPM = 10; // TikTok average CPM
+        const impressions = Math.floor((budget / baseCPM) * 1000);
+        const avgFrequency = 3.2; // TikTok typical frequency
+        const reach = Math.floor(impressions / avgFrequency);
+        
+        // Determine objective/goal - prefer phase settings, fallback to auto-detect or strategy focus
+        let optimizationGoal: string;
+        let objective: string;
+        let destination: string;
+        
+        if (market.phaseObjective && market.phaseOptimizationGoal && 
+            market.phaseObjective.trim() !== '' && market.phaseOptimizationGoal.trim() !== '') {
+          objective = market.phaseObjective;
+          optimizationGoal = market.phaseOptimizationGoal;
+          destination = "Website";
+        } else if (market.phaseName) {
+          const strategyFocusValue = getEffectiveStrategyFocus(market.strategyFocus, genericConfig.strategyFocus);
+          const autoDetected = getObjectiveFromPhaseName(market.phaseName, strategyFocusValue, 'tiktok');
+          objective = autoDetected.objective;
+          optimizationGoal = autoDetected.optimizationGoal;
+          destination = autoDetected.destination;
+        } else {
+          const strategyFocusValue = getEffectiveStrategyFocus(market.strategyFocus, genericConfig.strategyFocus);
+          const autoDetected = getObjectiveFromPhaseName('default', strategyFocusValue, 'tiktok');
+          objective = autoDetected.objective;
+          optimizationGoal = autoDetected.optimizationGoal;
+          destination = autoDetected.destination;
+        }
+        
+        const goalMetrics = getOptimizationGoalMetrics(objective, optimizationGoal, destination);
+        
+        let result = calculateResultFromImpressions(impressions, budget, optimizationGoal);
+        
+        // Apply benchmark if available
+        const benchmarkKey = `${market.name}_${optimizationGoal}`;
+        const benchmark = benchmarks.get(benchmarkKey);
+        
+        let costPerResult: number;
+        if (benchmark?.avg_cost_per_result && benchmark.avg_cost_per_result > 0) {
+          costPerResult = benchmark.avg_cost_per_result;
+          result = budget / costPerResult;
+          console.log(`✓ Using benchmark CPR for TikTok ${market.name}/${optimizationGoal}: $${costPerResult.toFixed(2)}`);
+        } else {
+          costPerResult = result > 0 ? budget / result : 0;
+          console.log(`✓ Using calculated CPR for TikTok ${market.name}/${optimizationGoal}: $${costPerResult.toFixed(2)}`);
+        }
+        
+        // Calculate result rate
+        const resultRate = impressions > 0 ? (result / impressions) * 100 : 0;
+        
+        console.log(`TikTok forecast for ${market.name}: ${impressions.toLocaleString()} impressions, ${reach.toLocaleString()} reach, CPM: $${baseCPM}`);
+        
+        return {
+          audienceSize: reach * 12, // TikTok has larger audience multiplier
+          reach,
+          impressions,
+          cpm: baseCPM,
+          frequency: avgFrequency,
+          result,
+          resultLabel: getResultLabel(optimizationGoal),
+          resultKPI: goalMetrics?.kpi || optimizationGoal,
+          costPerResult: parseFloat(costPerResult.toFixed(2)),
+          resultRate: parseFloat(resultRate.toFixed(2)),
+          resultRateName: goalMetrics?.rateName || "Rate",
+          objective,
+          optimizationGoal,
+          destination,
+        };
+      }
       } catch (error: any) {
-        console.error('Meta forecast error:', error);
+        console.error(`${isMeta ? 'Meta' : 'TikTok'} forecast error:`, error);
         
         // Check for specific error types
-        if (error?.message?.includes('INVALID_TOKEN')) {
-          toast.error('Meta access token is invalid or expired. Please update it in settings.', {
-            duration: 6000,
-          });
-        } else if (error?.message?.includes('PERMISSION_ERROR')) {
-          toast.error('Meta API permission error. Please check your access token has ads_read permission.', {
+        if (isMeta) {
+          if (error?.message?.includes('INVALID_TOKEN')) {
+            toast.error('Meta access token is invalid or expired. Please update it in settings.', {
+              duration: 6000,
+            });
+          } else if (error?.message?.includes('PERMISSION_ERROR')) {
+            toast.error('Meta API permission error. Please check your access token has ads_read permission.', {
+              duration: 5000,
+            });
+          } else {
+            toast.error('Meta R&F failed, trying standard reach estimates...');
+          }
+        } else if (isTikTok) {
+          toast.error(`TikTok forecast error: ${error?.message || 'Unknown error'}. Using fallback estimates...`, {
             duration: 5000,
           });
-        } else {
-          toast.error('Meta R&F failed, trying standard reach estimates...');
         }
         
         // Attempt fallback to standard reach estimates (meta-forecast)
