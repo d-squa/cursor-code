@@ -927,18 +927,39 @@ export function PhaseScheduler({
                               phase.objective?.toLowerCase().includes('reach') ||
                               phase.optimizationGoal?.toLowerCase().includes('awareness') ||
                               phase.optimizationGoal?.toLowerCase().includes('reach')) &&
-                              (basicTargeting?.metaInterests?.length || basicTargeting?.metaBehaviors?.length || basicTargeting?.tiktokInterests?.length) && (
+                              (basicTargeting?.metaInterests?.length || basicTargeting?.metaBehaviors?.length || basicTargeting?.metaDemographics?.length || basicTargeting?.tiktokInterests?.length || basicTargeting?.tiktokBehaviors?.length || basicTargeting?.tiktokDemographics?.length) && (
                               <div className="flex justify-between pt-2 border-t">
                                 <span>Detailed Targeting:</span>
-                                <div className="flex gap-2">
-                                  {basicTargeting.metaInterests && basicTargeting.metaInterests.length > 0 && (
-                                    <Badge variant="outline" className="text-xs">Meta Interests ({basicTargeting.metaInterests.length})</Badge>
+                                <div className="flex flex-col gap-2">
+                                  {/* Meta Categories */}
+                                  {(basicTargeting.metaInterests?.length || basicTargeting.metaBehaviors?.length || basicTargeting.metaDemographics?.length) && (
+                                    <div className="flex gap-2 items-center">
+                                      <span className="text-xs text-muted-foreground">Meta:</span>
+                                      {basicTargeting.metaInterests && basicTargeting.metaInterests.length > 0 && (
+                                        <Badge variant="outline" className="text-xs">Interests ({basicTargeting.metaInterests.length})</Badge>
+                                      )}
+                                      {basicTargeting.metaBehaviors && basicTargeting.metaBehaviors.length > 0 && (
+                                        <Badge variant="outline" className="text-xs">Behaviors ({basicTargeting.metaBehaviors.length})</Badge>
+                                      )}
+                                      {basicTargeting.metaDemographics && basicTargeting.metaDemographics.length > 0 && (
+                                        <Badge variant="outline" className="text-xs">Demographics ({basicTargeting.metaDemographics.length})</Badge>
+                                      )}
+                                    </div>
                                   )}
-                                  {basicTargeting.metaBehaviors && basicTargeting.metaBehaviors.length > 0 && (
-                                    <Badge variant="outline" className="text-xs">Meta Behaviors ({basicTargeting.metaBehaviors.length})</Badge>
-                                  )}
-                                  {basicTargeting.tiktokInterests && basicTargeting.tiktokInterests.length > 0 && (
-                                    <Badge variant="outline" className="text-xs">TikTok Interests ({basicTargeting.tiktokInterests.length})</Badge>
+                                  {/* TikTok Categories */}
+                                  {(basicTargeting.tiktokInterests?.length || basicTargeting.tiktokBehaviors?.length || basicTargeting.tiktokDemographics?.length) && (
+                                    <div className="flex gap-2 items-center">
+                                      <span className="text-xs text-muted-foreground">TikTok:</span>
+                                      {basicTargeting.tiktokInterests && basicTargeting.tiktokInterests.length > 0 && (
+                                        <Badge variant="outline" className="text-xs">Interests ({basicTargeting.tiktokInterests.length})</Badge>
+                                      )}
+                                      {basicTargeting.tiktokBehaviors && basicTargeting.tiktokBehaviors.length > 0 && (
+                                        <Badge variant="outline" className="text-xs">Behaviors ({basicTargeting.tiktokBehaviors.length})</Badge>
+                                      )}
+                                      {basicTargeting.tiktokDemographics && basicTargeting.tiktokDemographics.length > 0 && (
+                                        <Badge variant="outline" className="text-xs">Demographics ({basicTargeting.tiktokDemographics.length})</Badge>
+                                      )}
+                                    </div>
                                   )}
                                 </div>
                               </div>

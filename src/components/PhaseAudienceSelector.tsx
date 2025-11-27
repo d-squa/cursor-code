@@ -136,38 +136,77 @@ export function PhaseAudienceSelector({
 
   // Add interests, behaviors, and demographics from basicTargeting as "Detailed Targeting"
   // Only show for Brand Awareness campaigns and when override targeting is NOT active
+  // FILTER BY PLATFORM: Only show platform-specific targeting
   
   if (basicTargeting && isBrandAwareness && !overrideTargeting) {
     const detailedTargetingAudiences: FetchedAudience[] = [];
+    const isTikTok = platform?.toLowerCase().includes('tiktok');
+    const isMeta = platform?.toLowerCase().includes('meta') || platform?.toLowerCase().includes('facebook') || platform?.toLowerCase().includes('instagram');
     
-    if (basicTargeting.metaInterests && basicTargeting.metaInterests.length > 0) {
-      detailedTargetingAudiences.push(...basicTargeting.metaInterests.map(interest => ({
-        id: interest.id,
-        name: interest.name,
-        subtype: 'interest',
-        source: 'Interest',
-        audienceSize: interest.audienceSize
-      })));
+    // Only show Meta targeting for Meta platforms
+    if (isMeta) {
+      if (basicTargeting.metaInterests) {
+        detailedTargetingAudiences.push(...basicTargeting.metaInterests.map(interest => ({
+          id: interest.id,
+          name: interest.name,
+          subtype: 'interest',
+          source: 'Interest',
+          audienceSize: interest.audienceSize
+        })));
+      }
+      
+      if (basicTargeting.metaBehaviors) {
+        detailedTargetingAudiences.push(...basicTargeting.metaBehaviors.map(behavior => ({
+          id: behavior.id,
+          name: behavior.name,
+          subtype: 'behavior',
+          source: 'Behavior',
+          audienceSize: behavior.audienceSize
+        })));
+      }
+      
+      if (basicTargeting.metaDemographics) {
+        detailedTargetingAudiences.push(...basicTargeting.metaDemographics.map(demo => ({
+          id: demo.id,
+          name: demo.name,
+          subtype: 'demographic',
+          source: 'Demographic',
+          audienceSize: demo.audienceSize
+        })));
+      }
     }
     
-    if (basicTargeting.metaBehaviors && basicTargeting.metaBehaviors.length > 0) {
-      detailedTargetingAudiences.push(...basicTargeting.metaBehaviors.map(behavior => ({
-        id: behavior.id,
-        name: behavior.name,
-        subtype: 'behavior',
-        source: 'Behavior',
-        audienceSize: behavior.audienceSize
-      })));
-    }
-    
-    if (basicTargeting.metaDemographics && basicTargeting.metaDemographics.length > 0) {
-      detailedTargetingAudiences.push(...basicTargeting.metaDemographics.map(demo => ({
-        id: demo.id,
-        name: demo.name,
-        subtype: 'demographic',
-        source: 'Demographic',
-        audienceSize: demo.audienceSize
-      })));
+    // Only show TikTok targeting for TikTok platform
+    if (isTikTok) {
+      if (basicTargeting.tiktokInterests) {
+        detailedTargetingAudiences.push(...basicTargeting.tiktokInterests.map(interest => ({
+          id: interest.id,
+          name: interest.name,
+          subtype: 'interest',
+          source: 'Interest',
+          audienceSize: interest.audienceSize
+        })));
+      }
+      
+      if (basicTargeting.tiktokBehaviors) {
+        detailedTargetingAudiences.push(...basicTargeting.tiktokBehaviors.map(behavior => ({
+          id: behavior.id,
+          name: behavior.name,
+          subtype: 'behavior',
+          source: 'Behavior',
+          audienceSize: behavior.audienceSize
+        })));
+      }
+      
+      if (basicTargeting.tiktokDemographics) {
+        detailedTargetingAudiences.push(...basicTargeting.tiktokDemographics.map(demo => ({
+          id: demo.id,
+          name: demo.name,
+          subtype: 'demographic',
+          source: 'Demographic',
+          audienceSize: demo.audienceSize
+        })));
+      }
     }
     
     if (detailedTargetingAudiences.length > 0) {
