@@ -386,6 +386,13 @@ export function PlatformMarketBudgetSelector({
       // Store defaults for each TikTok ad account
       const defaults: Record<string, any> = {};
       (adAccountsData || []).forEach((acc: any) => {
+        console.log('📦 Loading TikTok defaults for advertiser:', acc.advertiser_id, {
+          pixelId: acc.default_pixel_id,
+          identityId: acc.default_identity_id,
+          catalogId: acc.default_catalog_id,
+          productSetId: acc.default_product_set_id,
+          mainMarkets: acc.main_markets,
+        });
         defaults[acc.advertiser_id] = {
           pixelId: acc.default_pixel_id,
           identityId: acc.default_identity_id,
@@ -394,6 +401,7 @@ export function PlatformMarketBudgetSelector({
           mainMarkets: Array.isArray(acc.main_markets) ? acc.main_markets : [],
         };
       });
+      console.log('✅ TikTok Ad Account Defaults loaded:', defaults);
       setTiktokAdAccountDefaults(defaults);
       
       // Fetch TikTok pixels

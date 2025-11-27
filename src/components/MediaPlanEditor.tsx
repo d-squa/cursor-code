@@ -367,14 +367,32 @@ export function MediaPlanEditor() {
       const splits = c.market_splits || {};
       const declaredPlatforms: any[] = Array.isArray(c.platforms) ? c.platforms : [];
       
+      console.log('🔄 Restoring campaign from DB:', {
+        platforms: declaredPlatforms,
+        market_splits: splits
+      });
+      
       if (declaredPlatforms.length > 0) {
-        const restoredPlatforms = declaredPlatforms.map((dp: any) => ({
-          id: dp.id,
-          name: dp.name,
-          enabled: true,
-          budgetPercentage: alloc[dp.id] ?? 0,
-          markets: splits[dp.id] || [],
-        }));
+        const restoredPlatforms = declaredPlatforms.map((dp: any) => {
+          const markets = splits[dp.id] || [];
+          console.log(`  Platform ${dp.id} markets:`, markets.map((m: any) => ({
+            id: m.id,
+            name: m.name,
+            adAccountId: m.adAccountId,
+            tiktokPixel: m.tiktokPixel,
+            tiktokIdentity: m.tiktokIdentity,
+            tiktokCatalog: m.tiktokCatalog,
+            tiktokProductSet: m.tiktokProductSet,
+          })));
+          
+          return {
+            id: dp.id,
+            name: dp.name,
+            enabled: true,
+            budgetPercentage: alloc[dp.id] ?? 0,
+            markets,
+          };
+        });
         setPlatformsWithMarkets(restoredPlatforms);
       }
       
@@ -979,41 +997,52 @@ export function MediaPlanEditor() {
         end_date: endDate || null,
         platforms: selectedPlatforms.map(p => ({ id: p.id, name: p.name })),
         budget_allocation: budgetAllocation,
-        market_splits: platformsWithMarkets.reduce((acc, platform) => ({
-          ...acc,
-          [platform.id]: platform.markets.map(m => ({
+        market_splits: platformsWithMarkets.reduce((acc, platform) => {
+          console.log(`💾 Saving platform ${platform.id}:`, platform.markets.map(m => ({
             id: m.id,
             name: m.name,
-            budgetPercentage: m.budgetPercentage,
-            accountName: m.accountName,
             adAccountId: m.adAccountId,
-            page: m.page,
-            pageId: m.pageId,
-            pixel: m.pixel,
-            catalog: m.catalog,
-            productSet: m.productSet,
-            conversionEvent: m.conversionEvent,
             tiktokPixel: m.tiktokPixel,
             tiktokIdentity: m.tiktokIdentity,
             tiktokCatalog: m.tiktokCatalog,
             tiktokProductSet: m.tiktokProductSet,
-            adFormats: m.adFormats,
-            phases: m.phases,
-            instagramActorId: m.instagramActorId,
-            strategy: m.strategy,
-            strategyFocus: m.strategyFocus,
-            isCBOEnabled: m.isCBOEnabled,
-            isLifetimeBudget: m.isLifetimeBudget,
-            countries: m.countries,
-            gender: m.gender,
-            languages: m.languages,
-            ageMin: m.ageMin,
-            ageMax: m.ageMax,
-            publisherPlatforms: m.publisherPlatforms,
-            positions: m.positions,
-            detailedTargeting: m.detailedTargeting,
-          })),
-        }), {}),
+          })));
+          return {
+            ...acc,
+            [platform.id]: platform.markets.map(m => ({
+              id: m.id,
+              name: m.name,
+              budgetPercentage: m.budgetPercentage,
+              accountName: m.accountName,
+              adAccountId: m.adAccountId,
+              page: m.page,
+              pageId: m.pageId,
+              pixel: m.pixel,
+              catalog: m.catalog,
+              productSet: m.productSet,
+              conversionEvent: m.conversionEvent,
+              tiktokPixel: m.tiktokPixel,
+              tiktokIdentity: m.tiktokIdentity,
+              tiktokCatalog: m.tiktokCatalog,
+              tiktokProductSet: m.tiktokProductSet,
+              adFormats: m.adFormats,
+              phases: m.phases,
+              instagramActorId: m.instagramActorId,
+              strategy: m.strategy,
+              strategyFocus: m.strategyFocus,
+              isCBOEnabled: m.isCBOEnabled,
+              isLifetimeBudget: m.isLifetimeBudget,
+              countries: m.countries,
+              gender: m.gender,
+              languages: m.languages,
+              ageMin: m.ageMin,
+              ageMax: m.ageMax,
+              publisherPlatforms: m.publisherPlatforms,
+              positions: m.positions,
+              detailedTargeting: m.detailedTargeting,
+            })),
+          };
+        }, {}),
         generic_config: {
           strategy: genericConfig.strategy,
           strategyFocus: genericConfig.strategyFocus,
