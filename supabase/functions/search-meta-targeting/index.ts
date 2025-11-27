@@ -96,11 +96,28 @@ serve(async (req) => {
     const searchData = await searchResponse.json();
     const results = [];
 
+    // Blacklist of overly generic Meta categories that should be filtered out unless highly relevant
+    const genericBlacklist = [
+      'frequent travelers',
+      'frequent international travelers',
+      'business travelers',
+      'commuters',
+      'technology early adopters',
+      'small business owners',
+      'soccer moms',
+      'mobile device users',
+      'console gamers',
+      'do it yourselfers'
+    ];
+
     // Calculate relevance score for each item
     const calculateRelevance = (item: any, searchQuery: string): number => {
       const name = (item.name || '').toLowerCase();
       const cleanQuery = searchQuery.toLowerCase().trim();
       const queryWords = cleanQuery.split(/\s+/).filter(w => w.length > 2);
+      
+      // Check if this is a blacklisted generic term
+      const isGeneric = genericBlacklist.some(term => name.includes(term));
       
       let score = 0;
       if (name === cleanQuery) score += 100;
@@ -109,13 +126,18 @@ serve(async (req) => {
         if (name.includes(word)) score += 10;
       });
       
+      // Apply severe penalty to generic terms unless they're very relevant
+      if (isGeneric && score < 50) {
+        score = 0; // Completely filter out generic terms with low relevance
+      }
+      
       return score;
     };
     
     // Score and sort items by relevance
     const scoredItems = (searchData.data || [])
       .map((item: any) => ({ item, score: calculateRelevance(item, query) }))
-      .filter(({ score }: { score: number }) => score > 0)
+      .filter(({ score }: { score: number }) => score > 0) // Only include items with positive relevance
       .sort((a: any, b: any) => b.score - a.score)
       .slice(0, 10);
     
