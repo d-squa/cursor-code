@@ -15,6 +15,13 @@ export function AdFormatSelector({ platformName, selectedFormats, onFormatsChang
   const adFormatKey = platformIdToAdFormatKey[platformName] || platformName;
   const availableFormats = platformAdFormats[adFormatKey] || [];
 
+  console.log('🎨 AdFormatSelector:', { 
+    platformName, 
+    adFormatKey, 
+    availableFormatsCount: availableFormats.length,
+    availableFormats 
+  });
+
   const options = availableFormats.map((f) => ({ value: f, label: f }));
 
   const removeFormat = (format: string) => {
@@ -22,7 +29,13 @@ export function AdFormatSelector({ platformName, selectedFormats, onFormatsChang
   };
 
   if (availableFormats.length === 0) {
-    return null;
+    console.warn('⚠️ No ad formats available for platform:', platformName);
+    return (
+      <div className="space-y-2">
+        <Label>Ad Formats</Label>
+        <p className="text-sm text-muted-foreground">No ad formats available for this platform</p>
+      </div>
+    );
   }
 
   return (
