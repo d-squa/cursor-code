@@ -569,6 +569,15 @@ export function CampaignForecast({
         const avgFrequency = 3.2; // TikTok typical frequency
         const reach = Math.floor(impressions / avgFrequency);
         
+        console.log("TikTok R&F Estimation Calculations:", {
+          budget,
+          baseCPM,
+          impressions,
+          avgFrequency,
+          reach,
+          advertiserId
+        });
+        
         // Determine objective/goal - prefer phase settings, fallback to auto-detect or strategy focus
         let optimizationGoal: string;
         let objective: string;
@@ -616,7 +625,7 @@ export function CampaignForecast({
         
         console.log(`TikTok forecast for ${market.name}: ${impressions.toLocaleString()} impressions, ${reach.toLocaleString()} reach, CPM: $${baseCPM}`);
         
-        return {
+        const tiktokForecastResult = {
           audienceSize: reach * 12, // TikTok has larger audience multiplier
           reach,
           impressions,
@@ -632,6 +641,10 @@ export function CampaignForecast({
           optimizationGoal,
           destination,
         };
+        
+        console.log("TikTok Campaign Forecast Final Result:", tiktokForecastResult);
+        
+        return tiktokForecastResult;
       }
       } catch (error: any) {
         console.error(`${isMeta ? 'Meta' : 'TikTok'} forecast error:`, error);
