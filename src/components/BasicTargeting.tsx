@@ -339,6 +339,101 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
     toast.success(`Added to ${platform} ${targetType}`);
   };
 
+  const handleRemoveSearchResult = (platform: 'meta' | 'tiktok', category: string, result: TargetingParameter) => {
+    const categoryMap: Record<string, 'interests' | 'behaviors' | 'demographics'> = {
+      'interests': 'interests',
+      'behaviors': 'behaviors',
+      'demographics': 'demographics',
+      'purchase_intention': 'behaviors',
+      'video_interactions': 'interests'
+    };
+    
+    const targetType = categoryMap[category] || 'interests';
+    
+    setAiRecommendations(prev => ({
+      ...prev,
+      [platform]: {
+        ...prev[platform],
+        [targetType]: prev[platform][targetType].filter((item: any) => item.id !== result.id)
+      }
+    }));
+    
+    toast.success(`Removed from ${platform} ${targetType}`);
+  };
+
+  const handleSelectAllSearch = (platform: 'meta' | 'tiktok') => {
+    if (platform === 'meta') {
+      const allResults = [
+        ...searchResults.meta.interests,
+        ...searchResults.meta.behaviors,
+        ...searchResults.meta.demographics
+      ];
+      
+      allResults.forEach(result => {
+        const category = searchResults.meta.interests.includes(result) ? 'interests' :
+                        searchResults.meta.behaviors.includes(result) ? 'behaviors' : 'demographics';
+        handleAddSearchResult(platform, category, result);
+      });
+    } else {
+      const allResults = [
+        ...searchResults.tiktok.interests,
+        ...searchResults.tiktok.behaviors,
+        ...searchResults.tiktok.purchaseIntention,
+        ...searchResults.tiktok.videoInteractions
+      ];
+      
+      allResults.forEach(result => {
+        const category = searchResults.tiktok.interests.includes(result) ? 'interests' :
+                        searchResults.tiktok.behaviors.includes(result) ? 'behaviors' :
+                        searchResults.tiktok.purchaseIntention.includes(result) ? 'purchase_intention' : 'video_interactions';
+        handleAddSearchResult(platform, category, result);
+      });
+    }
+  };
+
+  const handleDeselectAllSearch = (platform: 'meta' | 'tiktok') => {
+    if (platform === 'meta') {
+      const allResults = [
+        ...searchResults.meta.interests,
+        ...searchResults.meta.behaviors,
+        ...searchResults.meta.demographics
+      ];
+      
+      allResults.forEach(result => {
+        const category = searchResults.meta.interests.includes(result) ? 'interests' :
+                        searchResults.meta.behaviors.includes(result) ? 'behaviors' : 'demographics';
+        handleRemoveSearchResult(platform, category, result);
+      });
+    } else {
+      const allResults = [
+        ...searchResults.tiktok.interests,
+        ...searchResults.tiktok.behaviors,
+        ...searchResults.tiktok.purchaseIntention,
+        ...searchResults.tiktok.videoInteractions
+      ];
+      
+      allResults.forEach(result => {
+        const category = searchResults.tiktok.interests.includes(result) ? 'interests' :
+                        searchResults.tiktok.behaviors.includes(result) ? 'behaviors' :
+                        searchResults.tiktok.purchaseIntention.includes(result) ? 'purchase_intention' : 'video_interactions';
+        handleRemoveSearchResult(platform, category, result);
+      });
+    }
+  };
+
+  const isResultAdded = (platform: 'meta' | 'tiktok', category: string, resultId: string): boolean => {
+    const categoryMap: Record<string, 'interests' | 'behaviors' | 'demographics'> = {
+      'interests': 'interests',
+      'behaviors': 'behaviors',
+      'demographics': 'demographics',
+      'purchase_intention': 'behaviors',
+      'video_interactions': 'interests'
+    };
+    
+    const targetType = categoryMap[category] || 'interests';
+    return aiRecommendations[platform][targetType].some((item: any) => item.id === resultId);
+  };
+
   const handleSelectAll = (platform: 'meta' | 'tiktok', type: 'interests' | 'behaviors' | 'demographics') => {
     setAiRecommendations(prev => ({
       ...prev,
@@ -730,6 +825,14 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
                 </TabsList>
                 
                 <TabsContent value="meta" className="space-y-4 mt-4">
+                  <div className="flex justify-end gap-2 mb-4">
+                    <Button variant="outline" size="sm" onClick={() => handleSelectAllSearch('meta')}>
+                      Select All
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => handleDeselectAllSearch('meta')}>
+                      Deselect All
+                    </Button>
+                  </div>
                   {searchResults.meta.interests.length > 0 && (
                     <div className="space-y-2">
                       <Label className="text-sm font-semibold">Interests</Label>
@@ -740,7 +843,9 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
                             result={result}
                             platform="meta"
                             category="interests"
+                            isAdded={isResultAdded('meta', 'interests', result.id)}
                             onAdd={handleAddSearchResult}
+                            onRemove={handleRemoveSearchResult}
                           />
                         ))}
                       </div>
@@ -756,7 +861,9 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
                             result={result}
                             platform="meta"
                             category="behaviors"
+                            isAdded={isResultAdded('meta', 'behaviors', result.id)}
                             onAdd={handleAddSearchResult}
+                            onRemove={handleRemoveSearchResult}
                           />
                         ))}
                       </div>
@@ -772,7 +879,9 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
                             result={result}
                             platform="meta"
                             category="demographics"
+                            isAdded={isResultAdded('meta', 'demographics', result.id)}
                             onAdd={handleAddSearchResult}
+                            onRemove={handleRemoveSearchResult}
                           />
                         ))}
                       </div>
@@ -781,6 +890,14 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
                 </TabsContent>
 
                 <TabsContent value="tiktok" className="space-y-4 mt-4">
+                  <div className="flex justify-end gap-2 mb-4">
+                    <Button variant="outline" size="sm" onClick={() => handleSelectAllSearch('tiktok')}>
+                      Select All
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => handleDeselectAllSearch('tiktok')}>
+                      Deselect All
+                    </Button>
+                  </div>
                   {searchResults.tiktok.interests.length > 0 && (
                     <div className="space-y-2">
                       <Label className="text-sm font-semibold">Interests</Label>
@@ -791,7 +908,9 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
                             result={result}
                             platform="tiktok"
                             category="interests"
+                            isAdded={isResultAdded('tiktok', 'interests', result.id)}
                             onAdd={handleAddSearchResult}
+                            onRemove={handleRemoveSearchResult}
                           />
                         ))}
                       </div>
@@ -807,7 +926,9 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
                             result={result}
                             platform="tiktok"
                             category="behaviors"
+                            isAdded={isResultAdded('tiktok', 'behaviors', result.id)}
                             onAdd={handleAddSearchResult}
+                            onRemove={handleRemoveSearchResult}
                           />
                         ))}
                       </div>
@@ -823,7 +944,9 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
                             result={result}
                             platform="tiktok"
                             category="purchase_intention"
+                            isAdded={isResultAdded('tiktok', 'purchase_intention', result.id)}
                             onAdd={handleAddSearchResult}
+                            onRemove={handleRemoveSearchResult}
                           />
                         ))}
                       </div>
@@ -839,7 +962,9 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
                             result={result}
                             platform="tiktok"
                             category="video_interactions"
+                            isAdded={isResultAdded('tiktok', 'video_interactions', result.id)}
                             onAdd={handleAddSearchResult}
+                            onRemove={handleRemoveSearchResult}
                           />
                         ))}
                       </div>
@@ -912,12 +1037,16 @@ function SearchResultItem({
   result,
   platform,
   category,
-  onAdd
+  isAdded,
+  onAdd,
+  onRemove
 }: {
   result: TargetingParameter;
   platform: 'meta' | 'tiktok';
   category: string;
+  isAdded: boolean;
   onAdd: (platform: 'meta' | 'tiktok', category: string, result: TargetingParameter) => void;
+  onRemove: (platform: 'meta' | 'tiktok', category: string, result: TargetingParameter) => void;
 }) {
   return (
     <div className="flex items-center justify-between p-2 bg-background rounded">
@@ -936,9 +1065,19 @@ function SearchResultItem({
             {result.audienceSize.toLocaleString()} people
           </Badge>
         )}
-        <Button size="sm" onClick={() => onAdd(platform, category, result)}>
-          Add
-        </Button>
+        {isAdded ? (
+          <Button 
+            size="sm" 
+            variant="destructive"
+            onClick={() => onRemove(platform, category, result)}
+          >
+            Remove
+          </Button>
+        ) : (
+          <Button size="sm" onClick={() => onAdd(platform, category, result)}>
+            Add
+          </Button>
+        )}
       </div>
     </div>
   );
