@@ -673,18 +673,32 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
 
             {/* Platform-Segmented Recommendations */}
             {(aiRecommendations.meta.interests.length > 0 || aiRecommendations.tiktok.interests.length > 0) && (
-              <Tabs defaultValue="meta" className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="meta">
-                    Meta ({aiRecommendations.meta.interests.length + aiRecommendations.meta.behaviors.length + aiRecommendations.meta.demographics.length})
-                  </TabsTrigger>
-                  <TabsTrigger value="tiktok">
-                    TikTok ({aiRecommendations.tiktok.interests.length + aiRecommendations.tiktok.behaviors.length})
-                  </TabsTrigger>
-                  <TabsTrigger value="matches">
-                    Matches ({aiRecommendations.matches.length})
-                  </TabsTrigger>
-                </TabsList>
+              <Tabs defaultValue={metaAdAccountId ? "meta" : "tiktok"} className="w-full">
+                {metaAdAccountId && tiktokAdvertiserId ? (
+                  <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="meta">
+                      Meta ({aiRecommendations.meta.interests.length + aiRecommendations.meta.behaviors.length + aiRecommendations.meta.demographics.length})
+                    </TabsTrigger>
+                    <TabsTrigger value="tiktok">
+                      TikTok ({aiRecommendations.tiktok.interests.length + aiRecommendations.tiktok.behaviors.length})
+                    </TabsTrigger>
+                    <TabsTrigger value="matches">
+                      Matches ({aiRecommendations.matches.length})
+                    </TabsTrigger>
+                  </TabsList>
+                ) : metaAdAccountId ? (
+                  <TabsList className="w-full">
+                    <TabsTrigger value="meta" className="flex-1">
+                      Meta Recommendations ({aiRecommendations.meta.interests.length + aiRecommendations.meta.behaviors.length + aiRecommendations.meta.demographics.length})
+                    </TabsTrigger>
+                  </TabsList>
+                ) : (
+                  <TabsList className="w-full">
+                    <TabsTrigger value="tiktok" className="flex-1">
+                      TikTok Recommendations ({aiRecommendations.tiktok.interests.length + aiRecommendations.tiktok.behaviors.length})
+                    </TabsTrigger>
+                  </TabsList>
+                )}
                 
                 {/* Meta Recommendations */}
                 <TabsContent value="meta" className="space-y-4 mt-4">
@@ -749,8 +763,9 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
                   )}
                 </TabsContent>
 
-                {/* Cross-Platform Matches */}
-                <TabsContent value="matches" className="space-y-2 mt-4">
+                {/* Cross-Platform Matches - only show when both platforms are available */}
+                {metaAdAccountId && tiktokAdvertiserId && (
+                  <TabsContent value="matches" className="space-y-2 mt-4">
                   {aiRecommendations.matches.length > 0 ? (
                     aiRecommendations.matches.map((match, idx) => (
                       <Card key={idx} className="p-3">
@@ -770,7 +785,8 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
                       No cross-platform matches found
                     </div>
                   )}
-                </TabsContent>
+                  </TabsContent>
+                )}
               </Tabs>
             )}
           </CardContent>
@@ -814,15 +830,29 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
 
             {/* Search Results - Grouped by Category */}
             {(Object.values(searchResults.meta).some(arr => arr.length > 0) || Object.values(searchResults.tiktok).some(arr => arr.length > 0)) && (
-              <Tabs defaultValue="meta" className="w-full">
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="meta">
-                    Meta ({(searchResults.meta.interests.length + searchResults.meta.behaviors.length + searchResults.meta.demographics.length)})
-                  </TabsTrigger>
-                  <TabsTrigger value="tiktok">
-                    TikTok ({(searchResults.tiktok.interests.length + searchResults.tiktok.behaviors.length + searchResults.tiktok.purchaseIntention.length + searchResults.tiktok.videoInteractions.length)})
-                  </TabsTrigger>
-                </TabsList>
+              <Tabs defaultValue={metaAdAccountId ? "meta" : "tiktok"} className="w-full">
+                {metaAdAccountId && tiktokAdvertiserId ? (
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="meta">
+                      Meta ({(searchResults.meta.interests.length + searchResults.meta.behaviors.length + searchResults.meta.demographics.length)})
+                    </TabsTrigger>
+                    <TabsTrigger value="tiktok">
+                      TikTok ({(searchResults.tiktok.interests.length + searchResults.tiktok.behaviors.length + searchResults.tiktok.purchaseIntention.length + searchResults.tiktok.videoInteractions.length)})
+                    </TabsTrigger>
+                  </TabsList>
+                ) : metaAdAccountId ? (
+                  <TabsList className="w-full">
+                    <TabsTrigger value="meta" className="flex-1">
+                      Meta Results ({(searchResults.meta.interests.length + searchResults.meta.behaviors.length + searchResults.meta.demographics.length)})
+                    </TabsTrigger>
+                  </TabsList>
+                ) : (
+                  <TabsList className="w-full">
+                    <TabsTrigger value="tiktok" className="flex-1">
+                      TikTok Results ({(searchResults.tiktok.interests.length + searchResults.tiktok.behaviors.length + searchResults.tiktok.purchaseIntention.length + searchResults.tiktok.videoInteractions.length)})
+                    </TabsTrigger>
+                  </TabsList>
+                )}
                 
                 <TabsContent value="meta" className="space-y-4 mt-4">
                   <div className="flex justify-end gap-2 mb-4">
