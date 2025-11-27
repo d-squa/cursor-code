@@ -73,6 +73,7 @@ export interface Campaign {
     ageMax?: number;
     genders?: string[];
     placements?: string[];
+    adFormats?: string[];
   };
 }
 
@@ -775,6 +776,17 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
                                 )
                               }
                               placeholder="e.g., Feed, Stories, Reels"
+                            />
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>Ad Formats</Label>
+                            <AdFormatSelector
+                              platformName={platform.name}
+                              selectedFormats={campaign.targeting?.adFormats || []}
+                              onFormatsChange={(formats) =>
+                                updateCampaignTargeting(platform.id, campaign.id, "adFormats", formats)
+                              }
                             />
                           </div>
 
