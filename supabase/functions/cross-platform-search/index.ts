@@ -35,62 +35,125 @@ serve(async (req) => {
       );
     }
 
-    const { query, type, metaAdAccountId, tiktokAdvertiserId } = await req.json();
+    const { query, metaAdAccountId, tiktokAdvertiserId } = await req.json();
 
-    if (!query || !type) {
-      throw new Error('Query and type are required');
+    if (!query) {
+      throw new Error('Query is required');
     }
 
-    console.log('Cross-platform search:', { query, type, metaAdAccountId, tiktokAdvertiserId });
+    console.log('Cross-platform search all categories:', { query, metaAdAccountId, tiktokAdvertiserId });
 
     const results: {
-      meta: Array<{ id: string; name: string; audienceSize?: number; platform: string }>;
-      tiktok: Array<{ id: string; name: string; audienceSize?: number; platform: string }>;
+      meta: {
+        interests: any[];
+        behaviors: any[];
+        demographics: any[];
+      };
+      tiktok: {
+        interests: any[];
+        behaviors: any[];
+        purchaseIntention: any[];
+        videoInteractions: any[];
+      };
     } = {
-      meta: [],
-      tiktok: []
+      meta: {
+        interests: [],
+        behaviors: [],
+        demographics: []
+      },
+      tiktok: {
+        interests: [],
+        behaviors: [],
+        purchaseIntention: [],
+        videoInteractions: []
+      }
     };
 
-    // Search Meta if ad account provided
+    // Search Meta across all categories if ad account provided
     if (metaAdAccountId) {
       try {
-        const metaResponse = await supabaseClient.functions.invoke('search-meta-targeting', {
-          body: { query, type, adAccountId: metaAdAccountId }
-        });
+        const [interestsRes, behaviorsRes, demographicsRes] = await Promise.all([
+          supabaseClient.functions.invoke('search-meta-targeting', {
+            body: { query, type: 'interests', adAccountId: metaAdAccountId }
+          }),
+          supabaseClient.functions.invoke('search-meta-targeting', {
+            body: { query, type: 'behaviors', adAccountId: metaAdAccountId }
+          }),
+          supabaseClient.functions.invoke('search-meta-targeting', {
+            body: { query, type: 'demographics', adAccountId: metaAdAccountId }
+          })
+        ]);
         
-        if (metaResponse.data?.results) {
-          results.meta = metaResponse.data.results.map((r: any) => ({
-            ...r,
-            platform: 'meta'
-          }));
+        if (interestsRes.data?.results) {
+          results.meta.interests = interestsRes.data.results.map((r: any) => ({ ...r, platform: 'meta', category: 'interests' }));
         }
+        if (behaviorsRes.data?.results) {
+          results.meta.behaviors = behaviorsRes.data.results.map((r: any) => ({ ...r, platform: 'meta', category: 'behaviors' }));
+        }
+        if (demographicsRes.data?.results) {
+          results.meta.demographics = demographicsRes.data.results.map((r: any) => ({ ...r, platform: 'meta', category: 'demographics' }));
+        }
+        
+        console.log('Meta search results:', {
+          interests: results.meta.interests.length,
+          behaviors: results.meta.behaviors.length,
+          demographics: results.meta.demographics.length
+        });
       } catch (error) {
         console.error('Meta search error:', error);
       }
     }
 
-    // Search TikTok if advertiser ID provided
+    // Search TikTok across all categories if advertiser ID provided
     if (tiktokAdvertiserId) {
       try {
-        const tiktokResponse = await supabaseClient.functions.invoke('search-tiktok-targeting', {
-          body: { query, type, advertiserId: tiktokAdvertiserId }
-        });
+        const [interestsRes, behaviorsRes, purchaseIntentRes, videoInteractionsRes] = await Promise.all([
+          supabaseClient.functions.invoke('search-tiktok-targeting', {
+            body: { query, type: 'interests', advertiserId: tiktokAdvertiserId }
+          }),
+          supabaseClient.functions.invoke('search-tiktok-targeting', {
+            body: { query, type: 'behaviors', advertiserId: tiktokAdvertiserId }
+          }),
+          supabaseClient.functions.invoke('search-tiktok-targeting', {
+            body: { query, type: 'actions', advertiserId: tiktokAdvertiserId }
+          }),
+          supabaseClient.functions.invoke('search-tiktok-targeting', {
+            body: { query, type: 'interests', advertiserId: tiktokAdvertiserId }
+          })
+        ]);
         
-        if (tiktokResponse.data?.results) {
-          results.tiktok = tiktokResponse.data.results.map((r: any) => ({
-            ...r,
-            platform: 'tiktok'
-          }));
+        if (interestsRes.data?.results) {
+          results.tiktok.interests = interestsRes.data.results.map((r: any) => ({ ...r, platform: 'tiktok', category: 'interests' }));
         }
+        if (behaviorsRes.data?.results) {
+          results.tiktok.behaviors = behaviorsRes.data.results.map((r: any) => ({ ...r, platform: 'tiktok', category: 'behaviors' }));
+        }
+        if (purchaseIntentRes.data?.results) {
+          results.tiktok.purchaseIntention = purchaseIntentRes.data.results.map((r: any) => ({ ...r, platform: 'tiktok', category: 'purchase_intention' }));
+        }
+        if (videoInteractionsRes.data?.results) {
+          results.tiktok.videoInteractions = videoInteractionsRes.data.results.map((r: any) => ({ ...r, platform: 'tiktok', category: 'video_interactions' }));
+        }
+        
+        console.log('TikTok search results:', {
+          interests: results.tiktok.interests.length,
+          behaviors: results.tiktok.behaviors.length,
+          purchaseIntention: results.tiktok.purchaseIntention.length,
+          videoInteractions: results.tiktok.videoInteractions.length
+        });
       } catch (error) {
         console.error('TikTok search error:', error);
       }
     }
 
     // Find cross-platform matches
-    const matches = findMatches(results.meta, results.tiktok);
+    const allMetaResults = [...results.meta.interests, ...results.meta.behaviors, ...results.meta.demographics];
+    const allTiktokResults = [...results.tiktok.interests, ...results.tiktok.behaviors, ...results.tiktok.purchaseIntention, ...results.tiktok.videoInteractions];
+    const matches = findMatches(allMetaResults, allTiktokResults);
 
-    console.log(`Cross-platform search completed: ${results.meta.length} Meta, ${results.tiktok.length} TikTok, ${matches.length} matches`);
+    const totalMeta = allMetaResults.length;
+    const totalTiktok = allTiktokResults.length;
+    console.log(`Cross-platform search completed: ${totalMeta} Meta, ${totalTiktok} TikTok, ${matches.length} matches`);
 
     return new Response(
       JSON.stringify({

@@ -71,28 +71,33 @@ serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: "You are an expert at analyzing product descriptions and extracting highly specific, relevant Meta advertising targeting keywords. Focus on the ACTUAL product/service being offered and avoid generic or unrelated suggestions. You MUST respond with ONLY valid JSON, no explanations, no markdown, no extra text."
+            content: "You are an expert at analyzing product descriptions and extracting highly specific, contextually relevant Meta advertising targeting keywords. You MUST understand the PRIMARY PRODUCT CATEGORY first, then generate keywords exclusively relevant to that category. You MUST respond with ONLY valid JSON, no explanations, no markdown, no extra text."
           },
           {
             role: "user",
-            content: `Analyze this product/audience brief and extract highly relevant targeting keywords:\n\n${brief}\n\nRULES:
-1. Extract interests that are DIRECTLY related to the product/service described
-2. NEVER suggest generic options like "Frequent travelers", "Travel", or broad demographics unless explicitly mentioned in the brief
-3. For behaviors, focus on purchase patterns and activities SPECIFIC to this product category
-4. For demographics, only include if CLEARLY implied by the brief (e.g., job titles, education levels relevant to the product)
-5. Be specific and narrow - prefer "Digital Marketing Education" over "Business & Finance"
-6. Avoid suggesting behaviors/demographics just because they seem like "good marketing" - stick to what's relevant to THIS product
+            content: `Analyze this product/audience brief and extract highly relevant targeting keywords:\n\n${brief}\n\nCRITICAL RULES:
+1. FIRST: Identify the PRIMARY PRODUCT CATEGORY (e.g., "Pet Products", "Digital Services", "Human Food", "Fitness", etc.)
+2. Extract interests that are DIRECTLY related to THIS SPECIFIC product category - NOT adjacent or unrelated categories
+3. SEMANTIC FILTERING: If the product is for pets, DO NOT suggest human-focused categories (e.g., "Food & Drink" for pet food). If the product is digital services, DO NOT suggest physical retail categories.
+4. NEVER suggest generic options like "Frequent travelers", "Travel", "Small business owners" unless EXPLICITLY mentioned in the brief
+5. For behaviors, focus on purchase patterns and activities SPECIFIC to THIS product category only
+6. For demographics, only include if CLEARLY implied by the brief (e.g., job titles, education levels directly relevant)
+7. Be specific and narrow - prefer exact product-related interests over broad categories
 
-Return ONLY valid JSON with this EXACT structure. Do NOT include any text outside the JSON object:\n\n{\n  "interests": ["highly specific interest 1", "highly specific interest 2", "highly specific interest 3"],\n  "behaviors": ["specific purchase behavior 1", "specific activity behavior 2"],\n  "demographics": ["specific demographic 1 (only if clearly relevant)"],\n  "demographicMetadata": {\n    "ageRange": "18-65",\n    "genders": ["all"],\n    "notes": "demographic insights"\n  }\n}\n\nExamples:
-- For "digital marketing ebook": 
-  interests: ["Online Marketing", "SEO", "Social Media Marketing", "Content Marketing", "Email Marketing"]
-  behaviors: ["Online shoppers", "Small business owners"]
-  demographics: [] (unless specific role mentioned)
+Return ONLY valid JSON with this EXACT structure. Do NOT include any text outside the JSON object:\n\n{\n  "productCategory": "identify the main product category here",\n  "interests": ["highly specific interest 1 related to product category", "highly specific interest 2"],\n  "behaviors": ["specific purchase behavior 1 for this category", "specific activity behavior 2"],\n  "demographics": ["specific demographic 1 (only if clearly relevant)"],\n  "demographicMetadata": {\n    "ageRange": "18-65",\n    "genders": ["all"],\n    "notes": "demographic insights"\n  }\n}\n\nExamples:
+- For "wet & dry food for dogs & cats, supplements and toys": 
+  productCategory: "Pet Products"
+  interests: ["Pets", "Pet", "Dogs", "Cats", "Pet Care", "Pet Supplies", "Dog Food", "Cat Food"]
+  behaviors: ["Pet owners", "Online pet supply shoppers"]
+  demographics: [] (not specific enough)
+  ❌ DO NOT include: "Food & Drink", "Food Display", "Human food categories"
   
-- For "fitness app":
-  interests: ["Weight Training", "Yoga", "Running", "Healthy Eating"]
-  behaviors: ["Fitness app users"]
-  demographics: [] (unless age group explicitly mentioned)`
+- For "digital marketing ebook": 
+  productCategory: "Digital Education/Services"
+  interests: ["Online Marketing", "SEO", "Social Media Marketing", "Content Marketing", "Email Marketing", "Digital Marketing"]
+  behaviors: ["Online shoppers", "Digital content consumers"]
+  demographics: [] (unless specific role mentioned)
+  ❌ DO NOT include: "Outdoor Activities", "Travel", generic business categories`
           }
         ]
       }),
