@@ -921,7 +921,15 @@ function SearchResultItem({
 }) {
   return (
     <div className="flex items-center justify-between p-2 bg-background rounded">
-      <span className="text-sm">{result.name}</span>
+      <div className="flex items-center gap-2 flex-1">
+        <Badge 
+          variant="outline" 
+          className={platform === 'meta' ? 'bg-blue-500/10 text-blue-600 border-blue-500/20' : 'bg-black text-white border-black'}
+        >
+          {platform === 'meta' ? 'Meta' : 'TikTok'}
+        </Badge>
+        <span className="text-sm">{result.name}</span>
+      </div>
       <div className="flex items-center gap-2">
         {result.audienceSize && (
           <Badge variant="secondary" className="text-xs">
