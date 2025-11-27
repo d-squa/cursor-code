@@ -11,6 +11,7 @@ export const platformIdToAdFormatKey: Record<string, string> = {
   "linkedin": "LinkedIn",
   "LinkedIn": "LinkedIn",
   "tiktok": "TikTok",
+  "Tiktok": "TikTok",
   "TikTok": "TikTok",
   "snapchat": "Snapchat",
   "Snapchat": "Snapchat",
