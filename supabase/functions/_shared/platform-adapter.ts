@@ -297,9 +297,9 @@ class TikTokAdapter implements PlatformAdapter {
       // Add schedule information if dates are provided
       if (params.startDate && params.endDate) {
         body.schedule_type = "SCHEDULE_START_END";
-        // Convert ISO date strings to Unix timestamps (seconds) as strings
-        body.schedule_start_time = String(Math.floor(new Date(params.startDate).getTime() / 1000));
-        body.schedule_end_time = String(Math.floor(new Date(params.endDate).getTime() / 1000));
+        // Convert ISO date strings to Unix timestamps (seconds) as numbers
+        body.schedule_start_time = Math.floor(new Date(params.startDate).getTime() / 1000);
+        body.schedule_end_time = Math.floor(new Date(params.endDate).getTime() / 1000);
       }
 
       if (params.budget) {
