@@ -136,6 +136,11 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         platform: 'tiktok' as const,
         advertiser_id: acc.advertiser_id,
         main_markets: Array.isArray(acc.main_markets) ? acc.main_markets as string[] : [],
+        // Ensure all TikTok-specific defaults are properly mapped
+        default_pixel_id: acc.default_pixel_id || null,
+        default_identity_id: acc.default_identity_id || null,
+        default_catalog_id: acc.default_catalog_id || null,
+        default_product_set_id: acc.default_product_set_id || null,
         default_conversion_budget_type: acc.default_conversion_budget_type || null,
         default_non_conversion_budget_type: acc.default_non_conversion_budget_type || null,
         default_billing_event: acc.default_billing_event || 'OCPM',
@@ -179,8 +184,13 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
       console.log("Local defaults initialized:", Object.entries(defaults).map(([id, def]) => ({
         id,
         platform: def.platform,
+        pixel_id: def.default_pixel_id,
+        identity_id: def.default_identity_id,
+        catalog_id: def.default_catalog_id,
+        product_set_id: def.default_product_set_id,
         conversion_budget: def.default_conversion_budget_type,
-        non_conversion_budget: def.default_non_conversion_budget_type
+        non_conversion_budget: def.default_non_conversion_budget_type,
+        billing_event: def.default_billing_event
       })));
       
       setLocalDefaults(defaults);
