@@ -972,10 +972,15 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
         
         // Determine billing event based on objective and optimization goal
         const mappedObjective = objectiveMapping.targetObjective;
+        console.log(`DEBUG: Looking up billing event for objective: ${mappedObjective}, optimization goal: ${tiktokOptGoal}`);
+        console.log(`DEBUG: Available objectives in billingEventMap:`, Object.keys(billingEventMap));
+        
         let billingEvent = billingEventMap[mappedObjective]?.[tiktokOptGoal];
+        console.log(`DEBUG: Billing event from map: ${billingEvent}`);
         
         // If no specific mapping, fetch from account defaults
         if (!billingEvent) {
+          console.log(`DEBUG: No billing event mapping found, fetching from account defaults`);
           const { data: tiktokAccount } = await supabase
             .from("tiktok_ad_accounts")
             .select("default_billing_event")
@@ -984,6 +989,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
             .single();
           
           billingEvent = tiktokAccount?.default_billing_event || "OCPM";
+          console.log(`DEBUG: Billing event from account defaults: ${billingEvent}`);
         }
         
         console.log(`Using billing event: ${billingEvent} for objective ${mappedObjective}, optimization goal ${tiktokOptGoal}`);
