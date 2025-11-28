@@ -614,6 +614,15 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                           {/* TikTok Pixel */}
                           <div className="space-y-2">
                             <Label>Default TikTok Pixel</Label>
+                            {(() => {
+                              const pixelValue = defaults.default_pixel_id || undefined;
+                              console.log(`[TikTok Pixel Select] Account ${account.account_name}:`, {
+                                selectedValue: pixelValue,
+                                availablePixels: tiktokPixels.map(p => ({ id: p.pixel_id, name: p.pixel_name })),
+                                hasMatch: tiktokPixels.some(p => p.pixel_id === pixelValue)
+                              });
+                              return null;
+                            })()}
                             <Select
                               value={defaults.default_pixel_id || undefined}
                               onValueChange={(value) => updateDefault(account.id, "default_pixel_id", value)}
@@ -638,6 +647,15 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                           {/* TikTok Identity */}
                           <div className="space-y-2">
                             <Label>Default TikTok Identity</Label>
+                            {(() => {
+                              const identityValue = defaults.default_identity_id || undefined;
+                              console.log(`[TikTok Identity Select] Account ${account.account_name}:`, {
+                                selectedValue: identityValue,
+                                availableIdentities: tiktokIdentities.map(i => ({ id: i.identity_id, name: i.identity_name })),
+                                hasMatch: tiktokIdentities.some(i => i.identity_id === identityValue)
+                              });
+                              return null;
+                            })()}
                             <Select
                               value={defaults.default_identity_id || undefined}
                               onValueChange={(value) => updateDefault(account.id, "default_identity_id", value)}
@@ -665,6 +683,15 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                           {/* TikTok Catalog */}
                           <div className="space-y-2">
                             <Label>Default TikTok Catalog</Label>
+                            {(() => {
+                              const catalogValue = defaults.default_catalog_id || undefined;
+                              console.log(`[TikTok Catalog Select] Account ${account.account_name}:`, {
+                                selectedValue: catalogValue,
+                                availableCatalogs: tiktokCatalogs.map(c => ({ id: c.catalog_id, name: c.catalog_name })),
+                                hasMatch: tiktokCatalogs.some(c => c.catalog_id === catalogValue)
+                              });
+                              return null;
+                            })()}
                             <Select
                               value={defaults.default_catalog_id || undefined}
                               onValueChange={(value) => updateDefault(account.id, "default_catalog_id", value)}
