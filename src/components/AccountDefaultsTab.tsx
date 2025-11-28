@@ -193,6 +193,8 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         billing_event: def.default_billing_event
       })));
       
+      console.log("[AccountDefaultsTab] RAW localDefaults state:", defaults);
+      
       setLocalDefaults(defaults);
 
       // Load all available resources
@@ -364,6 +366,12 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
       <Accordion type="single" collapsible className="space-y-4">
         {adAccounts.map((account) => {
           const defaults = localDefaults[account.id] || {};
+          console.log(`[AccountDefaultsTab] Rendering account ${account.account_name}:`, {
+            accountId: account.id,
+            platform: account.platform,
+            hasDefaults: Object.keys(defaults).length > 0,
+            defaults: defaults
+          });
           const selectedCatalog = defaults.default_catalog_id;
           const catalogProductSets = productSets.filter(ps => ps.catalog_id === selectedCatalog);
           const selectedPixel = defaults.default_pixel_id;
