@@ -297,9 +297,19 @@ class TikTokAdapter implements PlatformAdapter {
       // Add schedule information if dates are provided
       if (params.startDate && params.endDate) {
         body.schedule_type = "SCHEDULE_START_END";
-        // Convert ISO date strings to Unix timestamps (seconds) as numbers
-        body.schedule_start_time = Math.floor(new Date(params.startDate).getTime() / 1000);
-        body.schedule_end_time = Math.floor(new Date(params.endDate).getTime() / 1000);
+        // Convert ISO date strings to YYYY-MM-DD HH:MM:SS format (TikTok expects this format)
+        const formatDateForTikTok = (dateStr: string) => {
+          const date = new Date(dateStr);
+          const year = date.getUTCFullYear();
+          const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+          const day = String(date.getUTCDate()).padStart(2, '0');
+          const hours = String(date.getUTCHours()).padStart(2, '0');
+          const minutes = String(date.getUTCMinutes()).padStart(2, '0');
+          const seconds = String(date.getUTCSeconds()).padStart(2, '0');
+          return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+        };
+        body.schedule_start_time = formatDateForTikTok(params.startDate);
+        body.schedule_end_time = formatDateForTikTok(params.endDate);
       }
 
       if (params.budget) {
