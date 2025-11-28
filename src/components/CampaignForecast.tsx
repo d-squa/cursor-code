@@ -16,6 +16,7 @@ import { ApprovalDialog } from "./ApprovalDialog";
 import { ActiplanDeliverablesView } from "./ActiplanDeliverablesView";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { getAllBenchmarks, BenchmarkData } from "@/utils/benchmarkData";
+import { DataSourceBadge } from "@/components/ui/data-source-badge";
 
 // Helper to normalize strategyFocus, filtering out "auto" placeholder
 const getEffectiveStrategyFocus = (marketFocus?: string, genericFocus?: string): string => {
@@ -50,6 +51,7 @@ interface ForecastMetrics {
   objective?: string;
   optimizationGoal?: string;
   destination?: string;
+  dataSource?: 'live_api' | 'estimated'; // Track whether data is from live API or estimated
 }
 
 interface PhaseForecast {
@@ -93,6 +95,7 @@ interface PlatformForecast {
   avgCPM: number;
   frequency: number;
   sov: number;
+  dataSource?: 'live_api' | 'estimated'; // Track data source at platform level
   markets: MarketForecast[];
 }
 
@@ -361,6 +364,10 @@ export function CampaignForecast({
         // Validate and normalize market code
         const marketCode = market.name.substring(0, 2).trim().toUpperCase();
         console.log(`**Selected market ${marketCode} for platform: ${isMeta ? 'Meta' : 'TikTok'}`);
+        
+        // Add data source indicator to logs
+        console.log(`📊 Data Source: ${isMeta ? 'Meta - Live API' : 'TikTok - Estimated from benchmarks'}`);
+        
         if (!/^[A-Z]{2}$/.test(marketCode)) {
           toast.error(`Invalid country code: "${marketCode}". Use 2-letter ISO codes (e.g., US, CA, GB).`, {
             duration: 5000,
@@ -711,6 +718,7 @@ export function CampaignForecast({
           objective,
           optimizationGoal,
           destination,
+          dataSource: 'estimated' as const, // TikTok uses estimated data
         };
         
         console.log("✅ TikTok Campaign Forecast FINAL Result:", tiktokForecastResult);
@@ -816,6 +824,7 @@ export function CampaignForecast({
             objective,
             optimizationGoal,
             destination,
+            dataSource: 'estimated' as const, // Fallback uses estimated data
           } as ForecastMetrics;
         } catch (fbErr) {
           console.error('Meta reachestimate fallback failed:', fbErr);
@@ -896,6 +905,7 @@ export function CampaignForecast({
       objective,
       optimizationGoal,
       destination,
+      dataSource: 'estimated' as const, // Mock data uses estimated
     };
   };
 
@@ -1199,6 +1209,11 @@ export function CampaignForecast({
         const platformAvgCPM = platformTotalImp > 0 ? (platformBudget / (platformTotalImp / 1000)) : 0;
         const platformFrequency = platformTotalReach > 0 ? platformTotalImp / platformTotalReach : 0;
         const platformSOV = platformTotalAudienceSize > 0 ? (platformTotalReach / platformTotalAudienceSize) * 100 : 0;
+        
+        // Determine data source based on platform type
+        const platformName = platform.name.toLowerCase();
+        const isMeta = platformName.includes("facebook") || platformName.includes("instagram") || platformName.includes("meta");
+        const dataSource = isMeta ? 'live_api' : 'estimated';
 
         platformForecasts.push({
           platformId: platform.id,
@@ -1210,6 +1225,7 @@ export function CampaignForecast({
           avgCPM: platformAvgCPM,
           frequency: platformFrequency,
           sov: platformSOV,
+          dataSource, // Include data source indicator
           markets: marketForecastsArray,
         });
 
