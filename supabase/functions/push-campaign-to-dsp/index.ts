@@ -723,7 +723,36 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
           }
         );
 
-        const adSetData = await adSetResponse.json();
+        let adSetData = await adSetResponse.json();
+        
+        // Check for pixel eligibility error for VALUE optimization (error_subcode: 2446368)
+        if (adSetData.error && adSetData.error.error_subcode === 2446368 && adSetPayload.optimization_goal === 'VALUE') {
+          console.warn(`Pixel ${market.pixel} not eligible for VALUE optimization. Retrying with OFFSITE_CONVERSIONS...`);
+          
+          // Retry with OFFSITE_CONVERSIONS fallback
+          adSetPayload.optimization_goal = 'OFFSITE_CONVERSIONS';
+          console.log("Retrying Meta ad set creation with fallback optimization_goal:", adSetPayload);
+          
+          const retryResponse = await fetch(
+            `https://graph.facebook.com/v22.0/${adAccountPath}/adsets`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                ...adSetPayload,
+                access_token: platform.access_token,
+              }),
+            }
+          );
+          
+          adSetData = await retryResponse.json();
+          
+          if (!adSetData.error) {
+            console.log(`✓ Ad set created successfully with OFFSITE_CONVERSIONS fallback for ${phase.name}`);
+          }
+        }
         
         if (adSetData.error) {
           console.error("Meta Ad Set Creation Error:", adSetData.error);
