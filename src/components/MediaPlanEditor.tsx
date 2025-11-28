@@ -819,24 +819,59 @@ export function MediaPlanEditor() {
   const applyBudgetTypeDefaultsIfAvailable = async (skipIfSet = false) => {
     console.log('applyBudgetTypeDefaultsIfAvailable called, skipIfSet:', skipIfSet);
     try {
-      const accountIds = Array.from(new Set(
-        platformsWithMarkets.flatMap(p => p.enabled ? p.markets.map(m => m.adAccountId).filter(Boolean) as string[] : [])
+      // Collect account IDs separately for Meta and TikTok platforms
+      const metaAccountIds = Array.from(new Set(
+        platformsWithMarkets
+          .filter(p => p.enabled && (p.id === 'meta' || p.name.toLowerCase() === 'meta'))
+          .flatMap(p => p.markets.map(m => m.adAccountId).filter(Boolean) as string[])
       ));
-      console.log('Account IDs found:', accountIds);
-      if (accountIds.length === 0) return;
-      const { data: accounts } = await supabase
-        .from('meta_ad_accounts')
-        .select('account_id, default_conversion_budget_type, default_non_conversion_budget_type')
-        .in('account_id', accountIds);
       
-      console.log('Fetched accounts with defaults:', accounts?.map(a => ({
+      const tiktokAccountIds = Array.from(new Set(
+        platformsWithMarkets
+          .filter(p => p.enabled && (p.id === 'tiktok' || p.name.toLowerCase() === 'tiktok'))
+          .flatMap(p => p.markets.map(m => m.adAccountId).filter(Boolean) as string[])
+      ));
+      
+      console.log('Meta Account IDs found:', metaAccountIds);
+      console.log('TikTok Account IDs found:', tiktokAccountIds);
+      
+      if (metaAccountIds.length === 0 && tiktokAccountIds.length === 0) return;
+      
+      // Query both Meta and TikTok ad accounts
+      const [metaResult, tiktokResult] = await Promise.all([
+        metaAccountIds.length > 0 
+          ? supabase
+              .from('meta_ad_accounts')
+              .select('account_id, default_conversion_budget_type, default_non_conversion_budget_type')
+              .in('account_id', metaAccountIds)
+          : Promise.resolve({ data: [] }),
+        tiktokAccountIds.length > 0
+          ? supabase
+              .from('tiktok_ad_accounts')
+              .select('account_id, default_conversion_budget_type, default_non_conversion_budget_type')
+              .in('account_id', tiktokAccountIds)
+          : Promise.resolve({ data: [] })
+      ]);
+      
+      const metaAccounts = metaResult.data || [];
+      const tiktokAccounts = tiktokResult.data || [];
+      
+      console.log('Fetched Meta accounts with defaults:', metaAccounts.map(a => ({
         id: a.account_id,
         convDefault: a.default_conversion_budget_type,
         nonConvDefault: a.default_non_conversion_budget_type
       })));
       
+      console.log('Fetched TikTok accounts with defaults:', tiktokAccounts.map(a => ({
+        id: a.account_id,
+        convDefault: a.default_conversion_budget_type,
+        nonConvDefault: a.default_non_conversion_budget_type
+      })));
+      
+      // Merge both into defaultsMap
       const defaultsMap: Record<string, { conv?: string; nonconv?: string }> = {};
-      (accounts || []).forEach((a: any) => {
+      
+      [...metaAccounts, ...tiktokAccounts].forEach((a: any) => {
         defaultsMap[a.account_id] = {
           conv: a.default_conversion_budget_type || undefined,
           nonconv: a.default_non_conversion_budget_type || undefined,
