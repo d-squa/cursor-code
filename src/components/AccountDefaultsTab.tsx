@@ -141,10 +141,17 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         default_billing_event: acc.default_billing_event || 'OCPM',
       }));
 
-      console.log("TikTok accounts with budget types:", tiktokAccounts.map(acc => ({
+      console.log("[AccountDefaultsTab] TikTok accounts loaded from database:", tiktokAccounts.map(acc => ({
+        id: acc.id,
         name: acc.account_name,
+        pixel_id: acc.default_pixel_id,
+        identity_id: acc.default_identity_id,
+        catalog_id: acc.default_catalog_id,
+        product_set_id: acc.default_product_set_id,
         conversion_budget: acc.default_conversion_budget_type,
-        non_conversion_budget: acc.default_non_conversion_budget_type
+        non_conversion_budget: acc.default_non_conversion_budget_type,
+        billing_event: acc.default_billing_event,
+        main_markets: acc.main_markets
       })));
 
       const allAccounts = [...metaAccounts, ...tiktokAccounts];
@@ -267,12 +274,34 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         }
       });
       
-      const { error } = await supabase
+      console.log(`[AccountDefaultsTab] Saving ${platform} account ${accountId} defaults:`, updateData);
+      
+      const { error, data } = await supabase
         .from(tableName)
         .update(updateData)
-        .eq("id", accountId);
+        .eq("id", accountId)
+        .select();
 
-      if (error) throw error;
+      if (error) {
+        console.error(`[AccountDefaultsTab] Save error for ${platform}:`, error);
+        throw error;
+      }
+      
+      console.log(`[AccountDefaultsTab] Successfully saved ${platform} defaults:`, data);
+      
+      // Verify the data was actually written by fetching it back
+      const { data: verifyData, error: verifyError } = await supabase
+        .from(tableName)
+        .select('*')
+        .eq("id", accountId)
+        .single();
+      
+      if (verifyError) {
+        console.error(`[AccountDefaultsTab] Verification error:`, verifyError);
+      } else {
+        console.log(`[AccountDefaultsTab] Verification - data in database after save:`, verifyData);
+      }
+      
       toast.success("Defaults saved successfully");
       
       // Reload to get fresh data
