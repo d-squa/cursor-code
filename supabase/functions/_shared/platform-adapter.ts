@@ -211,6 +211,7 @@ class TikTokAdapter implements PlatformAdapter {
 
       if (data.code !== 0) {
         console.error("TikTok campaign creation error:", JSON.stringify(data, null, 2));
+        console.error("Failed request body was:", JSON.stringify(body, null, 2));
         return {
           success: false,
           campaignId: "",
@@ -334,6 +335,7 @@ class TikTokAdapter implements PlatformAdapter {
 
       if (data.code !== 0) {
         console.error("TikTok ad group creation error:", JSON.stringify(data, null, 2));
+        console.error("Failed request body was:", JSON.stringify(body, null, 2));
         return {
           success: false,
           adGroupId: "",
