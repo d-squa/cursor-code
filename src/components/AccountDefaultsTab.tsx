@@ -26,6 +26,7 @@ interface AdAccount {
   default_conversion_budget_type?: string | null;
   default_non_conversion_budget_type?: string | null;
   default_identity_id?: string | null;
+  default_billing_event?: string | null;
   main_markets?: string[] | null;
 }
 
@@ -54,6 +55,12 @@ interface Props {
 const BUDGET_TYPE_OPTIONS = [
   { value: "daily", label: "Daily Budget" },
   { value: "lifetime", label: "Lifetime Budget" },
+];
+
+const BILLING_EVENT_OPTIONS = [
+  { value: "OCPM", label: "OCPM (Optimized Cost Per Mille)" },
+  { value: "CPC", label: "CPC (Cost Per Click)" },
+  { value: "CPV", label: "CPV (Cost Per View)" },
 ];
 
 export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: Props) {
@@ -131,6 +138,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         main_markets: Array.isArray(acc.main_markets) ? acc.main_markets as string[] : [],
         default_conversion_budget_type: acc.default_conversion_budget_type || null,
         default_non_conversion_budget_type: acc.default_non_conversion_budget_type || null,
+        default_billing_event: acc.default_billing_event || 'OCPM',
       }));
 
       console.log("TikTok accounts with budget types:", tiktokAccounts.map(acc => ({
@@ -156,6 +164,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
           default_conversion_budget_type: acc.default_conversion_budget_type || null,
           default_non_conversion_budget_type: acc.default_non_conversion_budget_type || null,
           default_identity_id: acc.platform === 'tiktok' ? acc.default_identity_id || null : null,
+          default_billing_event: acc.platform === 'tiktok' ? acc.default_billing_event || 'OCPM' : null,
           main_markets: acc.main_markets,
         };
       });
@@ -244,6 +253,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         'default_product_set_id',
         'default_conversion_budget_type',
         'default_non_conversion_budget_type',
+        'default_billing_event',
         'main_markets'
       ];
       
@@ -700,6 +710,32 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                 ))}
                               </SelectContent>
                             </Select>
+                          </div>
+
+                          {/* TikTok Billing Event */}
+                          <div className="space-y-2">
+                            <Label className="flex items-center gap-2">
+                              <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
+                              Billing Event
+                            </Label>
+                            <Select
+                              value={defaults.default_billing_event || undefined}
+                              onValueChange={(value) => updateDefault(account.id, "default_billing_event", value)}
+                            >
+                              <SelectTrigger className="border-black/20 dark:border-white/20">
+                                <SelectValue placeholder="Select billing event" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {BILLING_EVENT_OPTIONS.map((option) => (
+                                  <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">
+                              Choose OCPM for most objectives. Some objectives like TRAFFIC only support CPC.
+                            </p>
                           </div>
                         </>
                       )}
