@@ -936,18 +936,34 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           genders: effectiveTargeting.genders,
         };
         
-        // Map optimization goal
-        const optimizationGoalMap: Record<string, string> = {
-          "REACH": "REACH",
-          "LINK_CLICKS": "CLICK",
-          "LANDING_PAGE_VIEWS": "LANDING_PAGE",
-          "CONVERSIONS": "CONVERT",
-          "LEAD_GENERATION": "REACH",
-          "VIDEO_VIEWS": "VIDEO_VIEW",
-          "APP_INSTALLS": "INSTALL",
-        };
+        // Map optimization goal based on TikTok objective
+        // TikTok has strict optimization goal requirements per objective
+        let tiktokOptGoal: string;
+        const mappedObjective = objectiveMapping.targetObjective;
         
-        const tiktokOptGoal = optimizationGoalMap[phase.optimizationGoal] || "CLICK";
+        if (mappedObjective === "CONVERSIONS") {
+          // CONVERSIONS objective always uses CONVERT optimization goal
+          tiktokOptGoal = "CONVERT";
+        } else if (mappedObjective === "TRAFFIC") {
+          // TRAFFIC objective uses CLICK or LANDING_PAGE
+          const phaseOptGoal = phase.optimizationGoal;
+          if (phaseOptGoal === "LANDING_PAGE_VIEWS") {
+            tiktokOptGoal = "LANDING_PAGE";
+          } else {
+            tiktokOptGoal = "CLICK";
+          }
+        } else if (mappedObjective === "REACH") {
+          tiktokOptGoal = "REACH";
+        } else if (mappedObjective === "VIDEO_VIEW") {
+          tiktokOptGoal = "VIDEO_VIEW";
+        } else if (mappedObjective === "APP_INSTALL") {
+          tiktokOptGoal = "INSTALL";
+        } else {
+          // Default fallback
+          tiktokOptGoal = "CLICK";
+        }
+        
+        console.log(`Mapped optimization goal for objective ${mappedObjective}: ${tiktokOptGoal} (phase optimization goal: ${phase.optimizationGoal})`);
         
         // Map billing event based on objective + optimization goal combination
         // TikTok has strict billing event requirements per objective
@@ -971,7 +987,6 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
         };
         
         // Determine billing event based on objective and optimization goal
-        const mappedObjective = objectiveMapping.targetObjective;
         console.log(`DEBUG: Looking up billing event for objective: ${mappedObjective}, optimization goal: ${tiktokOptGoal}`);
         console.log(`DEBUG: Available objectives in billingEventMap:`, Object.keys(billingEventMap));
         
