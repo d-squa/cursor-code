@@ -189,9 +189,11 @@ class TikTokAdapter implements PlatformAdapter {
         campaign_name: params.campaignName,
         objective_type: params.objective,
         budget_mode: params.budgetMode === 'daily' ? 'BUDGET_MODE_DAY' : 'BUDGET_MODE_TOTAL',
-        budget: params.budget * 100, // TikTok uses cents
+        budget: params.budget, // TikTok expects budget in dollars (not cents)
         operation_status: params.status === 'PAUSED' ? 'DISABLE' : 'ENABLE',
       };
+      
+      console.log("TikTok campaign creation request:", JSON.stringify(body, null, 2));
 
       const response = await fetch(`${this.API_BASE}/campaign/create/`, {
         method: "POST",
@@ -205,14 +207,16 @@ class TikTokAdapter implements PlatformAdapter {
       const data = await response.json();
 
       if (data.code !== 0) {
-        console.error("TikTok campaign creation error:", data);
+        console.error("TikTok campaign creation error:", JSON.stringify(data, null, 2));
         return {
           success: false,
           campaignId: "",
           platform: "tiktok",
-          error: data.message || "Failed to create campaign",
+          error: `${data.message || "Failed to create campaign"} (Code: ${data.code})`,
         };
       }
+      
+      console.log("TikTok campaign created successfully:", data.data?.campaign_id);
 
       return {
         success: true,
@@ -241,7 +245,7 @@ class TikTokAdapter implements PlatformAdapter {
       if (params.updates.status) {
         body.operation_status = params.updates.status === 'PAUSED' ? 'DISABLE' : 'ENABLE';
       }
-      if (params.updates.budget) body.budget = params.updates.budget * 100;
+      if (params.updates.budget) body.budget = params.updates.budget;
 
       const response = await fetch(`${this.API_BASE}/campaign/update/`, {
         method: "POST",
@@ -287,8 +291,10 @@ class TikTokAdapter implements PlatformAdapter {
 
       if (params.budget) {
         body.budget_mode = params.budgetMode === 'daily' ? 'BUDGET_MODE_DAY' : 'BUDGET_MODE_TOTAL';
-        body.budget = params.budget * 100;
+        body.budget = params.budget; // TikTok expects budget in dollars (not cents)
       }
+      
+      console.log("TikTok ad group creation request:", JSON.stringify(body, null, 2));
 
       const response = await fetch(`${this.API_BASE}/adgroup/create/`, {
         method: "POST",
@@ -302,13 +308,16 @@ class TikTokAdapter implements PlatformAdapter {
       const data = await response.json();
 
       if (data.code !== 0) {
+        console.error("TikTok ad group creation error:", JSON.stringify(data, null, 2));
         return {
           success: false,
           adGroupId: "",
           platform: "tiktok",
-          error: data.message || "Failed to create ad group",
+          error: `${data.message || "Failed to create ad group"} (Code: ${data.code})`,
         };
       }
+      
+      console.log("TikTok ad group created successfully:", data.data?.adgroup_id);
 
       return {
         success: true,
