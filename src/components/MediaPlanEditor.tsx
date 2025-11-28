@@ -571,6 +571,11 @@ export function MediaPlanEditor() {
               instagramActorId: m.instagramActorId,
               strategy: m.strategy,
               strategyFocus: m.strategyFocus,
+              // TikTok-specific fields
+              tiktokPixel: m.tiktokPixel,
+              tiktokIdentity: m.tiktokIdentity,
+              tiktokCatalog: m.tiktokCatalog,
+              tiktokProductSet: m.tiktokProductSet,
             })),
           }), {}),
           generic_config: {
