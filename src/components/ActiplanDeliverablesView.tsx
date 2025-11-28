@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { format } from "date-fns";
 import { useState } from "react";
+import { DataSourceBadge } from "@/components/ui/data-source-badge";
 
 interface ActiplanDeliverablesViewProps {
   actiplanForecast: {
@@ -26,6 +27,7 @@ interface ActiplanDeliverablesViewProps {
       avgCPM: number;
       frequency: number;
       sov: number;
+      dataSource?: 'live_api' | 'estimated'; // Data source indicator
       markets: Array<{
         marketName: string;
         budget: number;
@@ -140,7 +142,12 @@ export function ActiplanDeliverablesView({ actiplanForecast }: ActiplanDeliverab
               variant="ghost"
               className="w-full justify-between p-4 hover:bg-accent"
             >
-              <span className="font-semibold text-lg">{platform.platformName} Deliverables</span>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-lg">{platform.platformName} Deliverables</span>
+                {platform.dataSource && (
+                  <DataSourceBadge dataSource={platform.dataSource} platformName={platform.platformName} />
+                )}
+              </div>
               {expandedPlatforms[platform.platformId] ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
             </Button>
           </CollapsibleTrigger>
