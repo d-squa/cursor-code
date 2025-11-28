@@ -1009,6 +1009,13 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
         
         console.log(`Using billing event: ${billingEvent} for objective ${mappedObjective}, optimization goal ${tiktokOptGoal}`);
         
+        // Get pixel ID for conversion campaigns
+        let pixelId: string | undefined;
+        if (tiktokOptGoal === 'CONVERT' || mappedObjective === 'CONVERSIONS') {
+          pixelId = market.pixelId || market.tiktokPixelId;
+          console.log(`Conversion campaign detected - using pixel_id: ${pixelId}`);
+        }
+        
         // Create ad group
         const adGroupResult = await tiktokAdapter.createAdGroup({
           accountId: advertiserId,
@@ -1024,6 +1031,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           startDate: startDate.toISOString(),
           endDate: endDate.toISOString(),
           status: "PAUSED",
+          pixelId: pixelId,
         });
         
         if (!adGroupResult.success) {
