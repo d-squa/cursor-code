@@ -191,7 +191,7 @@ class TikTokAdapter implements PlatformAdapter {
         campaign_name: params.campaignName,
         objective_type: params.objective,
         budget_mode: params.budgetMode === 'daily' ? 'BUDGET_MODE_DAY' : 'BUDGET_MODE_TOTAL',
-        budget: params.budget, // TikTok expects budget in dollars (not cents)
+        budget: Math.round(params.budget * 100) / 100, // Round to 2 decimal places for currency precision
         operation_status: params.status === 'PAUSED' ? 'DISABLE' : 'ENABLE',
       };
       
@@ -291,6 +291,7 @@ class TikTokAdapter implements PlatformAdapter {
         gender: this.mapGender(params.targeting.genders),
         age_groups: this.mapAgeGroups(params.targeting.age_min, params.targeting.age_max),
         optimization_goal: params.optimizationGoal,
+        billing_event: "OCPM", // TikTok requires billing_event, OCPM is most common
         operation_status: params.status === 'PAUSED' ? 'DISABLE' : 'ENABLE',
       };
 
@@ -314,7 +315,7 @@ class TikTokAdapter implements PlatformAdapter {
 
       if (params.budget) {
         body.budget_mode = params.budgetMode === 'daily' ? 'BUDGET_MODE_DAY' : 'BUDGET_MODE_TOTAL';
-        body.budget = params.budget; // TikTok expects budget in dollars (not cents)
+        body.budget = Math.round(params.budget * 100) / 100; // Round to 2 decimal places for currency precision
       }
       
       console.log("TikTok ad group creation request:", JSON.stringify(body, null, 2));
