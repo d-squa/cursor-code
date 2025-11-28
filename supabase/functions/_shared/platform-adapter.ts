@@ -62,6 +62,7 @@ export interface CreateAdGroupParams {
   targeting: Record<string, any>;
   placements: string[];
   optimizationGoal: string;
+  billingEvent?: string;
   budget?: number;
   budgetMode?: 'daily' | 'lifetime';
   startDate?: string;
@@ -291,7 +292,7 @@ class TikTokAdapter implements PlatformAdapter {
         gender: this.mapGender(params.targeting.genders),
         age_groups: this.mapAgeGroups(params.targeting.age_min, params.targeting.age_max),
         optimization_goal: params.optimizationGoal,
-        billing_event: "OCPM", // TikTok requires billing_event, OCPM is most common
+        billing_event: params.billingEvent || "OCPM",
         operation_status: params.status === 'PAUSED' ? 'DISABLE' : 'ENABLE',
       };
 

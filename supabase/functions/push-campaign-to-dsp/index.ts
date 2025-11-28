@@ -949,6 +949,17 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
         
         const tiktokOptGoal = optimizationGoalMap[phase.optimizationGoal] || "CLICK";
         
+        // Fetch billing_event from TikTok ad account defaults
+        const { data: tiktokAccount, error: tiktokAccountError } = await supabase
+          .from("tiktok_ad_accounts")
+          .select("default_billing_event")
+          .eq("advertiser_id", advertiserId)
+          .eq("user_id", campaign.user_id)
+          .single();
+        
+        const billingEvent = tiktokAccount?.default_billing_event || "OCPM";
+        console.log(`Using billing event: ${billingEvent} for advertiser ${advertiserId}`);
+        
         // Create ad group
         const adGroupResult = await tiktokAdapter.createAdGroup({
           accountId: advertiserId,
@@ -958,6 +969,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           targeting: targeting,
           placements: tiktokPlacements,
           optimizationGoal: tiktokOptGoal,
+          billingEvent: billingEvent,
           budget: campaignBudget,
           budgetMode: budgetType,
           startDate: startDate.toISOString(),
