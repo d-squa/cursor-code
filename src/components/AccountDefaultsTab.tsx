@@ -624,6 +624,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                               return null;
                             })()}
                             <Select
+                              key={`pixel-${account.id}-${defaults.default_pixel_id || 'empty'}`}
                               value={defaults.default_pixel_id || undefined}
                               onValueChange={(value) => updateDefault(account.id, "default_pixel_id", value)}
                             >
@@ -657,6 +658,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                               return null;
                             })()}
                             <Select
+                              key={`identity-${account.id}-${defaults.default_identity_id || 'empty'}`}
                               value={defaults.default_identity_id || undefined}
                               onValueChange={(value) => updateDefault(account.id, "default_identity_id", value)}
                             >
@@ -693,6 +695,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                               return null;
                             })()}
                             <Select
+                              key={`catalog-${account.id}-${defaults.default_catalog_id || 'empty'}`}
                               value={defaults.default_catalog_id || undefined}
                               onValueChange={(value) => updateDefault(account.id, "default_catalog_id", value)}
                             >
@@ -718,6 +721,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                             <div className="space-y-2">
                               <Label>Default Product Set</Label>
                               <Select
+                                key={`product-set-${account.id}-${defaults.default_product_set_id || 'empty'}`}
                                 value={defaults.default_product_set_id || undefined}
                                 onValueChange={(value) => updateDefault(account.id, "default_product_set_id", value)}
                               >
@@ -747,6 +751,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                               Conversion Budget Type
                             </Label>
                             <Select
+                              key={`conv-budget-${account.id}-${defaults.default_conversion_budget_type || 'empty'}`}
                               value={defaults.default_conversion_budget_type || undefined}
                               onValueChange={(value) => updateDefault(account.id, "default_conversion_budget_type", value)}
                             >
@@ -770,6 +775,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                               Non-Conversion Budget Type
                             </Label>
                             <Select
+                              key={`non-conv-budget-${account.id}-${defaults.default_non_conversion_budget_type || 'empty'}`}
                               value={defaults.default_non_conversion_budget_type || undefined}
                               onValueChange={(value) => updateDefault(account.id, "default_non_conversion_budget_type", value)}
                             >
@@ -793,6 +799,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                               Billing Event
                             </Label>
                             <Select
+                              key={`billing-event-${account.id}-${defaults.default_billing_event || 'empty'}`}
                               value={defaults.default_billing_event || undefined}
                               onValueChange={(value) => updateDefault(account.id, "default_billing_event", value)}
                             >
