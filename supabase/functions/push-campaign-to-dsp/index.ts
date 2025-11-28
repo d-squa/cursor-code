@@ -1012,7 +1012,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
         // Get pixel ID for conversion campaigns
         let pixelId: string | undefined;
         if (tiktokOptGoal === 'CONVERT' || mappedObjective === 'CONVERSIONS') {
-          pixelId = market.pixelId || market.tiktokPixelId;
+          pixelId = market.tiktokPixel || market.pixelId || market.tiktokPixelId;
           console.log(`Conversion campaign detected - using pixel_id: ${pixelId}`);
         }
         
