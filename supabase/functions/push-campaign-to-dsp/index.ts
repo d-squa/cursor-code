@@ -949,16 +949,44 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
         
         const tiktokOptGoal = optimizationGoalMap[phase.optimizationGoal] || "CLICK";
         
-        // Fetch billing_event from TikTok ad account defaults
-        const { data: tiktokAccount, error: tiktokAccountError } = await supabase
-          .from("tiktok_ad_accounts")
-          .select("default_billing_event")
-          .eq("advertiser_id", advertiserId)
-          .eq("user_id", campaign.user_id)
-          .single();
+        // Map billing event based on objective + optimization goal combination
+        // TikTok has strict billing event requirements per objective
+        const billingEventMap: Record<string, Record<string, string>> = {
+          "TRAFFIC": {
+            "CLICK": "CPC",  // TRAFFIC with CLICK only supports CPC
+            "LANDING_PAGE": "CPC",
+          },
+          "CONVERSIONS": {
+            "CONVERT": "OCPM",  // CONVERSIONS supports OCPM
+          },
+          "REACH": {
+            "REACH": "CPM",  // REACH typically uses CPM
+          },
+          "VIDEO_VIEW": {
+            "VIDEO_VIEW": "CPV",  // VIDEO_VIEW uses CPV
+          },
+          "APP_INSTALL": {
+            "INSTALL": "OCPM",
+          },
+        };
         
-        const billingEvent = tiktokAccount?.default_billing_event || "OCPM";
-        console.log(`Using billing event: ${billingEvent} for advertiser ${advertiserId}`);
+        // Determine billing event based on objective and optimization goal
+        const mappedObjective = objectiveMapping.targetObjective;
+        let billingEvent = billingEventMap[mappedObjective]?.[tiktokOptGoal];
+        
+        // If no specific mapping, fetch from account defaults
+        if (!billingEvent) {
+          const { data: tiktokAccount } = await supabase
+            .from("tiktok_ad_accounts")
+            .select("default_billing_event")
+            .eq("advertiser_id", advertiserId)
+            .eq("user_id", campaign.user_id)
+            .single();
+          
+          billingEvent = tiktokAccount?.default_billing_event || "OCPM";
+        }
+        
+        console.log(`Using billing event: ${billingEvent} for objective ${mappedObjective}, optimization goal ${tiktokOptGoal}`);
         
         // Create ad group
         const adGroupResult = await tiktokAdapter.createAdGroup({
