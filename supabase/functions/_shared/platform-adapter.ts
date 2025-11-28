@@ -297,9 +297,9 @@ class TikTokAdapter implements PlatformAdapter {
       // Add schedule information if dates are provided
       if (params.startDate && params.endDate) {
         body.schedule_type = "SCHEDULE_START_END";
-        // Convert ISO date strings to Unix timestamps (seconds)
-        body.schedule_start_time = new Date(params.startDate).getTime() / 1000;
-        body.schedule_end_time = new Date(params.endDate).getTime() / 1000;
+        // Convert ISO date strings to Unix timestamps (seconds) as strings
+        body.schedule_start_time = String(Math.floor(new Date(params.startDate).getTime() / 1000));
+        body.schedule_end_time = String(Math.floor(new Date(params.endDate).getTime() / 1000));
       }
 
       if (params.budget) {
@@ -461,7 +461,7 @@ class TikTokAdapter implements PlatformAdapter {
   }
 
   // Helper methods for TikTok-specific mapping
-  private mapLocationIds(countryCodes: string[]): number[] {
+  private mapLocationIds(countryCodes: string[]): string[] {
     // Map country codes to TikTok location IDs (ISO 3166-1 numeric codes)
     const countryCodeToLocationId: Record<string, number> = {
       "US": 6252001, "GB": 2635167, "CA": 6251999, "AU": 2077456, "DE": 2921044,
@@ -478,7 +478,8 @@ class TikTokAdapter implements PlatformAdapter {
 
     return countryCodes
       .map(code => countryCodeToLocationId[code.toUpperCase()])
-      .filter(id => id !== undefined);
+      .filter(id => id !== undefined)
+      .map(id => String(id));
   }
 
   private mapGender(genders?: number[]): string {
