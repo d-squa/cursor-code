@@ -960,6 +960,8 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           optimizationGoal: tiktokOptGoal,
           budget: campaignBudget,
           budgetMode: budgetType,
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString(),
           status: "PAUSED",
         });
         

@@ -64,6 +64,8 @@ export interface CreateAdGroupParams {
   optimizationGoal: string;
   budget?: number;
   budgetMode?: 'daily' | 'lifetime';
+  startDate?: string;
+  endDate?: string;
   status: string;
 }
 
@@ -276,18 +278,29 @@ class TikTokAdapter implements PlatformAdapter {
 
   async createAdGroup(params: CreateAdGroupParams): Promise<CreateAdGroupResult> {
     try {
+      // Convert country codes to TikTok location IDs
+      const locationIds = this.mapLocationIds(params.targeting.geo_locations?.countries || []);
+      
       const body: any = {
         advertiser_id: params.accountId,
         campaign_id: params.campaignId,
         adgroup_name: params.adGroupName,
         promotion_type: "WEBSITE",
         placements: params.placements,
-        location_ids: params.targeting.geo_locations?.countries || [],
+        location_ids: locationIds,
         gender: this.mapGender(params.targeting.genders),
         age_groups: this.mapAgeGroups(params.targeting.age_min, params.targeting.age_max),
         optimization_goal: params.optimizationGoal,
         operation_status: params.status === 'PAUSED' ? 'DISABLE' : 'ENABLE',
       };
+
+      // Add schedule information if dates are provided
+      if (params.startDate && params.endDate) {
+        body.schedule_type = "SCHEDULE_START_END";
+        // Convert ISO date strings to Unix timestamps (seconds)
+        body.schedule_start_time = new Date(params.startDate).getTime() / 1000;
+        body.schedule_end_time = new Date(params.endDate).getTime() / 1000;
+      }
 
       if (params.budget) {
         body.budget_mode = params.budgetMode === 'daily' ? 'BUDGET_MODE_DAY' : 'BUDGET_MODE_TOTAL';
@@ -448,6 +461,26 @@ class TikTokAdapter implements PlatformAdapter {
   }
 
   // Helper methods for TikTok-specific mapping
+  private mapLocationIds(countryCodes: string[]): number[] {
+    // Map country codes to TikTok location IDs (ISO 3166-1 numeric codes)
+    const countryCodeToLocationId: Record<string, number> = {
+      "US": 6252001, "GB": 2635167, "CA": 6251999, "AU": 2077456, "DE": 2921044,
+      "FR": 3017382, "IT": 3175395, "ES": 2510769, "MX": 3996063, "BR": 3469034,
+      "AR": 3865483, "CL": 3895114, "CO": 3686110, "PE": 3932488, "VE": 3625428,
+      "NL": 2750405, "BE": 2802361, "SE": 2661886, "NO": 3144096, "DK": 2623032,
+      "FI": 660013, "PL": 798544, "CZ": 3077311, "AT": 2782113, "CH": 2658434,
+      "PT": 2264397, "GR": 390903, "IE": 2963597, "RO": 798549, "HU": 719819,
+      "JP": 1861060, "KR": 1835841, "CN": 1814991, "IN": 1269750, "ID": 1643084,
+      "TH": 1605651, "VN": 1562822, "PH": 1694008, "MY": 1733045, "SG": 1880251,
+      "NZ": 2186224, "ZA": 953987, "NG": 2328926, "EG": 357994, "SA": 102358,
+      "AE": 290557, "IL": 294640, "TR": 298795, "RU": 2017370, "UA": 690791,
+    };
+
+    return countryCodes
+      .map(code => countryCodeToLocationId[code.toUpperCase()])
+      .filter(id => id !== undefined);
+  }
+
   private mapGender(genders?: number[]): string {
     if (!genders || genders.length === 0 || genders.includes(0)) return "GENDER_UNLIMITED";
     if (genders.includes(1) && genders.includes(2)) return "GENDER_UNLIMITED";
