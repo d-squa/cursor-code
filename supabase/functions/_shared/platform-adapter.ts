@@ -68,6 +68,8 @@ export interface CreateAdGroupParams {
   startDate?: string;
   endDate?: string;
   status: string;
+  pixelId?: string;
+  conversionId?: string;
 }
 
 export interface CreateAdGroupResult {
@@ -318,6 +320,12 @@ class TikTokAdapter implements PlatformAdapter {
       if (params.budget) {
         body.budget_mode = params.budgetMode === 'daily' ? 'BUDGET_MODE_DAY' : 'BUDGET_MODE_TOTAL';
         body.budget = Math.round(params.budget * 100) / 100; // Round to 2 decimal places for currency precision
+      }
+      
+      // Add pixel tracking for conversion campaigns
+      if (params.pixelId && params.optimizationGoal === 'CONVERT') {
+        body.pixel_id = params.pixelId;
+        console.log(`Adding pixel_id ${params.pixelId} for CONVERT optimization goal`);
       }
       
       console.log("TikTok ad group creation request:", JSON.stringify(body, null, 2));
