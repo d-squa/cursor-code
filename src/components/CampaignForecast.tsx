@@ -1230,7 +1230,8 @@ export function CampaignForecast({
         // Determine data source based on platform type
         const platformName = platform.name.toLowerCase();
         const isMeta = platformName.includes("facebook") || platformName.includes("instagram") || platformName.includes("meta");
-        const dataSource = isMeta ? 'live_api' : 'estimated';
+        const isTikTok = platformName.includes("tiktok");
+        const dataSource = (isMeta || isTikTok) ? 'live_api' : 'estimated';
 
         platformForecasts.push({
           platformId: platform.id,
