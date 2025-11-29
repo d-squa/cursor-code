@@ -174,6 +174,27 @@ serve(async (req) => {
       body: JSON.stringify(requestBody),
     });
 
+    console.log("TikTok API Response Status:", response.status, response.statusText);
+    console.log("TikTok API Response Headers:", Object.fromEntries(response.headers.entries()));
+
+    // Check if response is JSON
+    const contentType = response.headers.get("content-type");
+    if (!contentType || !contentType.includes("application/json")) {
+      const responseText = await response.text();
+      console.error("TikTok API returned non-JSON response:", responseText);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "TikTok API returned invalid response format (not JSON)",
+          details: responseText.substring(0, 500),
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
     const data = await response.json();
 
     if (data.code !== 0) {
