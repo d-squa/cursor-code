@@ -199,8 +199,13 @@ class TikTokAdapter implements PlatformAdapter {
       };
       
       const endpoint = `${this.API_BASE}/campaign/create/`;
-      console.log("TikTok API Endpoint:", endpoint);
-      console.log("TikTok campaign creation request:", JSON.stringify(body, null, 2));
+      console.log("TikTok API Full Request:", {
+        endpoint,
+        method: "POST",
+        headers: { "Access-Token": "[REDACTED]", "Content-Type": "application/json" },
+        body
+      });
+      console.log("TikTok campaign creation request body:", JSON.stringify(body, null, 2));
 
       const response = await fetch(endpoint, {
         method: "POST",
@@ -256,7 +261,12 @@ class TikTokAdapter implements PlatformAdapter {
       if (params.updates.budget) body.budget = params.updates.budget;
 
       const endpoint = `${this.API_BASE}/campaign/update/`;
-      console.log("TikTok API Endpoint:", endpoint);
+      console.log("TikTok API Full Request:", {
+        endpoint,
+        method: "POST",
+        headers: { "Access-Token": "[REDACTED]", "Content-Type": "application/json" },
+        body
+      });
 
       const response = await fetch(endpoint, {
         method: "POST",
@@ -336,8 +346,13 @@ class TikTokAdapter implements PlatformAdapter {
       }
       
       const endpoint = `${this.API_BASE}/adgroup/create/`;
-      console.log("TikTok API Endpoint:", endpoint);
-      console.log("TikTok ad group creation request:", JSON.stringify(body, null, 2));
+      console.log("TikTok API Full Request:", {
+        endpoint,
+        method: "POST",
+        headers: { "Access-Token": "[REDACTED]", "Content-Type": "application/json" },
+        body
+      });
+      console.log("TikTok ad group creation request body:", JSON.stringify(body, null, 2));
 
       const response = await fetch(endpoint, {
         method: "POST",
@@ -398,7 +413,12 @@ class TikTokAdapter implements PlatformAdapter {
       };
 
       const endpoint = `${this.API_BASE}/ad/create/`;
-      console.log("TikTok API Endpoint:", endpoint);
+      console.log("TikTok API Full Request:", {
+        endpoint,
+        method: "POST",
+        headers: { "Access-Token": "[REDACTED]", "Content-Type": "application/json" },
+        body
+      });
 
       const response = await fetch(endpoint, {
         method: "POST",
@@ -448,7 +468,12 @@ class TikTokAdapter implements PlatformAdapter {
       };
 
       const endpoint = `${this.API_BASE}/reports/integrated/get/`;
-      console.log("TikTok API Endpoint:", endpoint);
+      console.log("TikTok API Full Request:", {
+        endpoint,
+        method: "POST",
+        headers: { "Access-Token": "[REDACTED]", "Content-Type": "application/json" },
+        body
+      });
 
       const response = await fetch(endpoint, {
         method: "POST",
