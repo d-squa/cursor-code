@@ -198,9 +198,11 @@ class TikTokAdapter implements PlatformAdapter {
         operation_status: params.status === 'PAUSED' ? 'DISABLE' : 'ENABLE',
       };
       
+      const endpoint = `${this.API_BASE}/campaign/create/`;
+      console.log("TikTok API Endpoint:", endpoint);
       console.log("TikTok campaign creation request:", JSON.stringify(body, null, 2));
 
-      const response = await fetch(`${this.API_BASE}/campaign/create/`, {
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Access-Token": params.accessToken,
@@ -253,7 +255,10 @@ class TikTokAdapter implements PlatformAdapter {
       }
       if (params.updates.budget) body.budget = params.updates.budget;
 
-      const response = await fetch(`${this.API_BASE}/campaign/update/`, {
+      const endpoint = `${this.API_BASE}/campaign/update/`;
+      console.log("TikTok API Endpoint:", endpoint);
+
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Access-Token": params.accessToken,
@@ -330,9 +335,11 @@ class TikTokAdapter implements PlatformAdapter {
         console.log(`Adding pixel_code ${params.pixelId}, optimization_event ON_WEB_ORDER, and deep_external_action ON_WEB_ORDER for CONVERT optimization goal`);
       }
       
+      const endpoint = `${this.API_BASE}/adgroup/create/`;
+      console.log("TikTok API Endpoint:", endpoint);
       console.log("TikTok ad group creation request:", JSON.stringify(body, null, 2));
 
-      const response = await fetch(`${this.API_BASE}/adgroup/create/`, {
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Access-Token": params.accessToken,
@@ -390,7 +397,10 @@ class TikTokAdapter implements PlatformAdapter {
         ],
       };
 
-      const response = await fetch(`${this.API_BASE}/ad/create/`, {
+      const endpoint = `${this.API_BASE}/ad/create/`;
+      console.log("TikTok API Endpoint:", endpoint);
+
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Access-Token": params.accessToken,
@@ -437,7 +447,10 @@ class TikTokAdapter implements PlatformAdapter {
         page_size: 1000,
       };
 
-      const response = await fetch(`${this.API_BASE}/reports/integrated/get/`, {
+      const endpoint = `${this.API_BASE}/reports/integrated/get/`;
+      console.log("TikTok API Endpoint:", endpoint);
+
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: {
           "Access-Token": params.accessToken,
