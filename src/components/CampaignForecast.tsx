@@ -559,8 +559,8 @@ export function CampaignForecast({
           destination,
         };
       } else if (isTikTok) {
-        // TikTok forecast using live R&F inventory estimate API
-        console.log("=== 🎵 TIKTOK FORECAST START (Live API) ===");
+        // TikTok forecast using hybrid approach (benchmarks + estimates)
+        console.log("=== 🎵 TIKTOK FORECAST START (Hybrid Benchmarks) ===");
         console.log("TikTok Forecast Parameters:", {
           marketName: market.name,
           budget,
@@ -572,69 +572,6 @@ export function CampaignForecast({
           strategyFocus: market.strategyFocus,
           genericStrategyFocus: genericConfig.strategyFocus
         });
-        
-        // Get TikTok advertiser ID from market config
-        const advertiserId = (market as any).tiktokAdvertiserId || (market as any).adAccountId;
-        
-        console.log("🔍 TikTok Advertiser lookup:", {
-          tiktokAdvertiserId: (market as any).tiktokAdvertiserId,
-          adAccountId: (market as any).adAccountId,
-          finalAdvertiserId: advertiserId
-        });
-        
-        if (!advertiserId) {
-          console.error("❌ No TikTok advertiser account configured for market:", market.name);
-          throw new Error('TikTok advertiser account not configured for this market');
-        }
-        
-        // Get connected platform ID for TikTok
-        let connectedPlatformId = (market as any).connectedPlatformId;
-        
-        if (!connectedPlatformId) {
-          console.log("🔍 Querying connected_platforms_safe for TikTok with advertiserId:", advertiserId);
-          
-          const { data: connectedPlatforms, error: cpError } = await supabase
-            .from('connected_platforms_safe')
-            .select('id, ad_account_id, ad_account_name')
-            .eq('platform_type', 'tiktok')
-            .eq('ad_account_id', advertiserId)
-            .order('created_at', { ascending: false })
-            .limit(1);
-
-          console.log("📊 Connected platforms query result:", { 
-            data: connectedPlatforms, 
-            error: cpError,
-            advertiserId 
-          });
-
-          connectedPlatformId = connectedPlatforms?.[0]?.id ?? null;
-          
-          // If no match found, try to get ANY active TikTok connection as fallback
-          if (!connectedPlatformId) {
-            console.log("⚠️ No exact match found, trying fallback to any TikTok connection...");
-            const { data: fallbackPlatforms } = await supabase
-              .from('connected_platforms_safe')
-              .select('id, ad_account_id, ad_account_name')
-              .eq('platform_type', 'tiktok')
-              .eq('is_active', true)
-              .order('created_at', { ascending: false })
-              .limit(1);
-            
-            console.log("📊 Fallback query result:", fallbackPlatforms);
-            
-            if (fallbackPlatforms && fallbackPlatforms.length > 0) {
-              connectedPlatformId = fallbackPlatforms[0].id;
-              console.log(`✅ Using fallback TikTok connection: ${connectedPlatformId} (${fallbackPlatforms[0].ad_account_name})`);
-            }
-          }
-        }
-
-        if (!connectedPlatformId) {
-          console.error("❌ No TikTok platform connection found after all attempts");
-          throw new Error('No TikTok platform connected for this advertiser account. Please connect TikTok in Platform Connections.');
-        }
-        
-        console.log("✅ Using TikTok connected platform ID:", connectedPlatformId);
 
         // Determine objective/goal - prefer phase settings, fallback to auto-detect or strategy focus
         let optimizationGoal: string;
@@ -683,86 +620,53 @@ export function CampaignForecast({
           });
         }
 
-        // Call TikTok R&F forecast edge function
-        console.log("🔄 Calling TikTok R&F forecast API with:", {
-          connectedPlatformId,
-          countries: [marketCode],
-          budget,
-          ageMin: genericConfig.targeting?.ageMin ?? market.ageMin ?? 18,
-          ageMax: genericConfig.targeting?.ageMax ?? market.ageMax ?? 65,
-          objectiveType: objective,
-          optimizationGoal: optimizationGoal,
-        });
-
-        const { data, error } = await supabase.functions.invoke('tiktok-rf-forecast', {
-          body: {
-            connectedPlatformId,
-            countries: [marketCode],
-            budget,
-            ageMin: genericConfig.targeting?.ageMin ?? market.ageMin ?? 18,
-            ageMax: genericConfig.targeting?.ageMax ?? market.ageMax ?? 65,
-            genders: Array.isArray(market.genders) ? market.genders : (genericConfig.targeting?.genders || []),
-            objectiveType: objective,
-            optimizationGoal: optimizationGoal,
-            placements: market.placements || ["PLACEMENT_TIKTOK"],
-          }
-        });
-
-        if (error) {
-          console.error("❌ TikTok R&F forecast error:", error);
-          throw error;
-        }
-
-        console.log("✅ TikTok R&F forecast response:", data);
-
         const goalMetrics = getOptimizationGoalMetrics(objective, optimizationGoal, destination);
         
-        // Use live API data
-        const reach = data.reach || 0;
-        const impressions = data.impressions || 0;
-        const frequency = parseFloat(data.frequency || "0");
-        const cpm = parseFloat(data.cpm || "0");
+        // Use benchmark data for TikTok forecasts
+        const benchmarkKey = `${market.name}_${optimizationGoal}`;
+        const benchmark = benchmarks.get(benchmarkKey);
         
-        // For results, prefer API data if available, otherwise calculate
-        let result = data.conversions || 0;
-        let costPerResult = parseFloat(data.costPerConversion || "0");
+        // Estimate reach and impressions based on budget and platform benchmarks
+        const estimatedCPM = 8.5; // TikTok average CPM
+        const estimatedFrequency = 1.8; // TikTok average frequency
+        const impressions = (budget / estimatedCPM) * 1000;
+        const reach = impressions / estimatedFrequency;
+        const audienceSize = reach * 15; // TikTok multiplier
         
-        // If API didn't provide conversions, calculate from benchmarks or fallback
-        if (result === 0) {
-          const benchmarkKey = `${market.name}_${optimizationGoal}`;
-          const benchmark = benchmarks.get(benchmarkKey);
-          
-          if (benchmark?.avg_cost_per_result && benchmark.avg_cost_per_result > 0) {
-            costPerResult = benchmark.avg_cost_per_result;
-            result = budget / costPerResult;
-            console.log(`✅ Using benchmark CPR for TikTok ${market.name}/${optimizationGoal}: $${costPerResult.toFixed(2)}`);
-          } else {
-            result = calculateResultFromImpressions(impressions, budget, optimizationGoal);
-            costPerResult = result > 0 ? budget / result : 0;
-            console.log(`✅ Using calculated result for TikTok ${market.name}/${optimizationGoal}`);
-          }
+        // Calculate results based on benchmarks or standard conversion rates
+        let costPerResult: number;
+        let result: number;
+        
+        if (benchmark?.avg_cost_per_result && benchmark.avg_cost_per_result > 0) {
+          costPerResult = benchmark.avg_cost_per_result;
+          result = budget / costPerResult;
+          console.log(`✅ Using benchmark CPR for TikTok ${market.name}/${optimizationGoal}: $${costPerResult.toFixed(2)}`);
+        } else {
+          result = calculateResultFromImpressions(impressions, budget, optimizationGoal);
+          costPerResult = result > 0 ? budget / result : 0;
+          console.log(`✅ Using calculated result for TikTok ${market.name}/${optimizationGoal}`);
         }
         
         const resultRate = impressions > 0 ? (result / impressions) * 100 : 0;
         
         console.log(`📊 TikTok forecast summary for ${market.name}:`, {
-          impressions: impressions.toLocaleString(),
-          reach: reach.toLocaleString(),
-          frequency,
-          cpm: `$${cpm}`,
+          impressions: impressions.toFixed(0),
+          reach: reach.toFixed(0),
+          frequency: estimatedFrequency,
+          cpm: `$${estimatedCPM}`,
           result: result.toFixed(0),
           costPerResult: `$${costPerResult.toFixed(2)}`,
           resultRate: `${resultRate.toFixed(2)}%`,
-          dataSource: data.dataSource || 'live_api'
+          dataSource: 'estimated'
         });
         
         const tiktokForecastResult = {
-          audienceSize: reach * 12, // TikTok has larger audience multiplier
-          reach,
-          impressions,
-          cpm,
-          frequency,
-          result,
+          audienceSize: Math.round(audienceSize),
+          reach: Math.round(reach),
+          impressions: Math.round(impressions),
+          cpm: estimatedCPM,
+          frequency: estimatedFrequency,
+          result: Math.round(result),
           resultLabel: getResultLabel(optimizationGoal),
           resultKPI: goalMetrics?.kpi || optimizationGoal,
           costPerResult: parseFloat(costPerResult.toFixed(2)),
@@ -771,7 +675,7 @@ export function CampaignForecast({
           objective,
           optimizationGoal,
           destination,
-          dataSource: 'live_api' as const, // TikTok now uses live API data
+          dataSource: 'estimated' as const,
         };
         
         console.log("✅ TikTok Campaign Forecast FINAL Result:", tiktokForecastResult);
@@ -1266,8 +1170,7 @@ export function CampaignForecast({
         // Determine data source based on platform type
         const platformName = platform.name.toLowerCase();
         const isMeta = platformName.includes("facebook") || platformName.includes("instagram") || platformName.includes("meta");
-        const isTikTok = platformName.includes("tiktok");
-        const dataSource = (isMeta || isTikTok) ? 'live_api' : 'estimated';
+        const dataSource = isMeta ? 'live_api' : 'estimated';
 
         platformForecasts.push({
           platformId: platform.id,
