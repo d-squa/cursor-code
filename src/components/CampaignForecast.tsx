@@ -648,6 +648,16 @@ export function CampaignForecast({
         }
 
         // Call TikTok R&F forecast edge function
+        console.log("🔄 Calling TikTok R&F forecast API with:", {
+          connectedPlatformId,
+          countries: [marketCode],
+          budget,
+          ageMin: genericConfig.targeting?.ageMin ?? market.ageMin ?? 18,
+          ageMax: genericConfig.targeting?.ageMax ?? market.ageMax ?? 65,
+          objectiveType: objective,
+          optimizationGoal: optimizationGoal,
+        });
+
         const { data, error } = await supabase.functions.invoke('tiktok-rf-forecast', {
           body: {
             connectedPlatformId,
@@ -662,7 +672,10 @@ export function CampaignForecast({
           }
         });
 
-        if (error) throw error;
+        if (error) {
+          console.error("❌ TikTok R&F forecast error:", error);
+          throw error;
+        }
 
         console.log("✅ TikTok R&F forecast response:", data);
 
