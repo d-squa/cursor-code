@@ -576,6 +576,12 @@ export function CampaignForecast({
         // Get TikTok advertiser ID from market config
         const advertiserId = (market as any).tiktokAdvertiserId || (market as any).adAccountId;
         
+        console.log("🔍 TikTok Advertiser lookup:", {
+          tiktokAdvertiserId: (market as any).tiktokAdvertiserId,
+          adAccountId: (market as any).adAccountId,
+          finalAdvertiserId: advertiserId
+        });
+        
         if (!advertiserId) {
           console.error("❌ No TikTok advertiser account configured for market:", market.name);
           throw new Error('TikTok advertiser account not configured for this market');
@@ -585,20 +591,50 @@ export function CampaignForecast({
         let connectedPlatformId = (market as any).connectedPlatformId;
         
         if (!connectedPlatformId) {
-          const { data: connectedPlatforms } = await supabase
+          console.log("🔍 Querying connected_platforms_safe for TikTok with advertiserId:", advertiserId);
+          
+          const { data: connectedPlatforms, error: cpError } = await supabase
             .from('connected_platforms_safe')
-            .select('id')
+            .select('id, ad_account_id, ad_account_name')
             .eq('platform_type', 'tiktok')
             .eq('ad_account_id', advertiserId)
             .order('created_at', { ascending: false })
             .limit(1);
 
+          console.log("📊 Connected platforms query result:", { 
+            data: connectedPlatforms, 
+            error: cpError,
+            advertiserId 
+          });
+
           connectedPlatformId = connectedPlatforms?.[0]?.id ?? null;
+          
+          // If no match found, try to get ANY active TikTok connection as fallback
+          if (!connectedPlatformId) {
+            console.log("⚠️ No exact match found, trying fallback to any TikTok connection...");
+            const { data: fallbackPlatforms } = await supabase
+              .from('connected_platforms_safe')
+              .select('id, ad_account_id, ad_account_name')
+              .eq('platform_type', 'tiktok')
+              .eq('is_active', true)
+              .order('created_at', { ascending: false })
+              .limit(1);
+            
+            console.log("📊 Fallback query result:", fallbackPlatforms);
+            
+            if (fallbackPlatforms && fallbackPlatforms.length > 0) {
+              connectedPlatformId = fallbackPlatforms[0].id;
+              console.log(`✅ Using fallback TikTok connection: ${connectedPlatformId} (${fallbackPlatforms[0].ad_account_name})`);
+            }
+          }
         }
 
         if (!connectedPlatformId) {
+          console.error("❌ No TikTok platform connection found after all attempts");
           throw new Error('No TikTok platform connected for this advertiser account. Please connect TikTok in Platform Connections.');
         }
+        
+        console.log("✅ Using TikTok connected platform ID:", connectedPlatformId);
 
         // Determine objective/goal - prefer phase settings, fallback to auto-detect or strategy focus
         let optimizationGoal: string;
