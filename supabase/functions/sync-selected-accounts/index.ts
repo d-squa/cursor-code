@@ -104,6 +104,27 @@ serve(async (req) => {
 
       console.log(`Successfully synced ${accountsToInsert.length} TikTok advertiser accounts`);
 
+      // Update connected_platforms with the first selected advertiser ID as default ad_account_id
+      if (selectedAccountIds.length > 0) {
+        const defaultAdAccountId = selectedAccountIds[0];
+        const defaultAccount = selectedAccounts.find((acc: any) => acc.advertiser_id === defaultAdAccountId);
+        
+        const { error: updateError } = await supabase
+          .from("connected_platforms")
+          .update({
+            ad_account_id: defaultAdAccountId,
+            ad_account_name: defaultAccount?.name || `Advertiser ${defaultAdAccountId}`,
+          })
+          .eq("id", platformId)
+          .eq("user_id", user.id);
+        
+        if (updateError) {
+          console.error("Error updating connected_platforms with ad_account_id:", updateError);
+        } else {
+          console.log(`Updated connected_platforms with default ad_account_id: ${defaultAdAccountId}`);
+        }
+      }
+
       // Now sync TikTok resources (pixels, identities, catalogs) for each selected account
       const allTiktokPixels: any[] = [];
       const allTiktokIdentities: any[] = [];
