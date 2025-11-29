@@ -326,7 +326,8 @@ class TikTokAdapter implements PlatformAdapter {
       if (params.pixelId && params.optimizationGoal === 'CONVERT') {
         body.pixel_code = params.pixelId;
         body.optimization_event = "ON_WEB_ORDER"; // Default web conversion event (valid TikTok event)
-        console.log(`Adding pixel_code ${params.pixelId} and optimization_event ON_WEB_ORDER for CONVERT optimization goal`);
+        body.deep_external_action = "ON_WEB_ORDER"; // Required for conversion optimization
+        console.log(`Adding pixel_code ${params.pixelId}, optimization_event ON_WEB_ORDER, and deep_external_action ON_WEB_ORDER for CONVERT optimization goal`);
       }
       
       console.log("TikTok ad group creation request:", JSON.stringify(body, null, 2));
