@@ -1016,6 +1016,10 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           console.log(`Conversion campaign detected - using pixel_id: ${pixelId}`);
         }
         
+        // Get landing page URL from campaign/market/phase data or use placeholder
+        const landingPageUrl = market.websiteUrl || campaign.website_url || "https://example.com";
+        console.log(`Using landing page URL: ${landingPageUrl}`);
+        
         // Create ad group
         const adGroupResult = await tiktokAdapter.createAdGroup({
           accountId: advertiserId,
@@ -1032,6 +1036,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           endDate: endDate.toISOString(),
           status: "PAUSED",
           pixelId: pixelId,
+          landingPageUrl: landingPageUrl,
         });
         
         if (!adGroupResult.success) {
