@@ -1312,6 +1312,38 @@ export function PlatformMarketBudgetSelector({
                                     </Select>
                                   </div>
                                 )}
+
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Bid Strategy</Label>
+                                  <Select
+                                    value={market.metaBidStrategy || "LOWEST_COST_WITHOUT_CAP"}
+                                    onValueChange={(value) => updateMarketField(platformIndex, market.id, 'metaBidStrategy', value)}
+                                  >
+                                    <SelectTrigger className="h-7 text-xs">
+                                      <SelectValue placeholder="Select bid strategy" />
+                                    </SelectTrigger>
+                                    <SelectContent className="z-50 bg-background">
+                                      <SelectItem value="LOWEST_COST_WITHOUT_CAP">Lowest Cost (Automatic)</SelectItem>
+                                      <SelectItem value="LOWEST_COST_WITH_BID_CAP">Lowest Cost with Bid Cap</SelectItem>
+                                      <SelectItem value="COST_CAP">Cost Cap</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+
+                                {(market.metaBidStrategy === "LOWEST_COST_WITH_BID_CAP" || market.metaBidStrategy === "COST_CAP") && (
+                                  <div className="space-y-1">
+                                    <Label className="text-xs">Bid Amount (€)</Label>
+                                    <Input
+                                      className="h-7 text-xs"
+                                      type="number"
+                                      step="0.01"
+                                      min="0"
+                                      placeholder="Enter bid amount"
+                                      value={market.metaBidAmount || ""}
+                                      onChange={(e) => updateMarketField(platformIndex, market.id, 'metaBidAmount', parseFloat(e.target.value) || undefined)}
+                                    />
+                                  </div>
+                                )}
                               </div>
                             )}
 
@@ -1754,9 +1786,6 @@ export function PlatformMarketBudgetSelector({
                           Total market allocation: {platform.markets.reduce((sum, m) => sum + m.budgetPercentage, 0).toFixed(1)}%
                         </div>
                       )}
-                    </div>
-                  </div>
-                )}
               </div>
             );
           })}

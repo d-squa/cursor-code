@@ -379,6 +379,7 @@ export type Database = {
           client_id: string | null
           created_at: string
           currency: string | null
+          default_bid_strategy: string | null
           default_catalog_id: string | null
           default_conversion_budget_type: string | null
           default_conversion_event: string | null
@@ -399,6 +400,7 @@ export type Database = {
           client_id?: string | null
           created_at?: string
           currency?: string | null
+          default_bid_strategy?: string | null
           default_catalog_id?: string | null
           default_conversion_budget_type?: string | null
           default_conversion_event?: string | null
@@ -419,6 +421,7 @@ export type Database = {
           client_id?: string | null
           created_at?: string
           currency?: string | null
+          default_bid_strategy?: string | null
           default_catalog_id?: string | null
           default_conversion_budget_type?: string | null
           default_conversion_event?: string | null
