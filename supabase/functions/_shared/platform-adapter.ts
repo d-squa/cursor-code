@@ -332,12 +332,29 @@ class TikTokAdapter implements PlatformAdapter {
       body.bid_type = mapBidStrategy(params.bidStrategy, Boolean(params.bidAmount && params.bidAmount > 0));
       console.log(`✅ Bid strategy mapped: ${params.bidStrategy} → ${body.bid_type}`);
       
-      // Add bid amount only if using BID_TYPE_CUSTOM AND bid amount is provided
-      if (body.bid_type === "BID_TYPE_CUSTOM" && params.bidAmount && params.bidAmount > 0) {
+      // Log billing event and bid amount for debugging
+      console.log(`DEBUG: Billing event: ${params.billingEvent || 'not set'}`);
+      console.log(`DEBUG: Bid amount provided: ${params.bidAmount}`);
+      console.log(`DEBUG: Bid strategy: ${params.bidStrategy}`);
+      
+      // CRITICAL: TikTok requires bid amount for CPC/CPM billing events REGARDLESS of bid_type
+      // Even with BID_TYPE_NO_BID (automatic bidding), CPC billing events need a bid amount
+      const requiresBidForBilling = params.billingEvent && ['CPC', 'CPM'].includes(params.billingEvent);
+      const hasBidAmount = params.bidAmount && params.bidAmount > 0;
+      
+      if (requiresBidForBilling && !hasBidAmount) {
+        console.error(`❌ CRITICAL: ${params.billingEvent} billing event requires a bid amount but none provided!`);
+        console.error(`This will cause TikTok API to reject the ad group creation.`);
+      }
+      
+      // Add bid amount if:
+      // 1. Using BID_TYPE_CUSTOM (manual bidding), OR
+      // 2. Using CPC/CPM billing event (TikTok requirement)
+      if ((body.bid_type === "BID_TYPE_CUSTOM" || requiresBidForBilling) && hasBidAmount) {
         body.bid = params.bidAmount;
-        console.log(`✅ Bid amount set: €${params.bidAmount}`);
-      } else if (params.bidStrategy === "COST_CAP" && (!params.bidAmount || params.bidAmount <= 0)) {
-        console.error("❌ Cost Cap strategy selected but no valid bid amount provided!");
+        console.log(`✅ Bid amount set: €${params.bidAmount} (billing: ${params.billingEvent}, bid_type: ${body.bid_type})`);
+      } else if (requiresBidForBilling && !hasBidAmount) {
+        console.error("❌ Missing required bid amount for CPC/CPM billing event!");
       }
 
       // Location targeting - filter out restricted markets (US)
