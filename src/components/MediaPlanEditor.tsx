@@ -208,7 +208,8 @@ export function MediaPlanEditor() {
           conversionEvent: "",
           phases: [],
           adFormats: [],
-          countries: [clientMarkets[0] || 'US'],
+          // Filter out US for TikTok platforms
+          countries: platformId === 'tiktok' ? clientMarkets.filter(m => m !== 'US') : clientMarkets,
           ageMin: 18,
           ageMax: 65,
           gender: "all",
@@ -383,14 +384,27 @@ export function MediaPlanEditor() {
             tiktokIdentity: m.tiktokIdentity,
             tiktokCatalog: m.tiktokCatalog,
             tiktokProductSet: m.tiktokProductSet,
+            tiktokOptimizationEvent: m.tiktokOptimizationEvent,
+            tiktokLandingPageUrl: m.tiktokLandingPageUrl,
           })));
+          
+          // Filter out US from TikTok market countries
+          const filteredMarkets = markets.map((m: any) => {
+            if (dp.id === 'tiktok' && Array.isArray(m.countries)) {
+              return {
+                ...m,
+                countries: m.countries.filter((c: string) => c !== 'US')
+              };
+            }
+            return m;
+          });
           
           return {
             id: dp.id,
             name: dp.name,
             enabled: true,
             budgetPercentage: alloc[dp.id] ?? 0,
-            markets,
+            markets: filteredMarkets,
           };
         });
         setPlatformsWithMarkets(restoredPlatforms);

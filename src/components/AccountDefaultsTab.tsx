@@ -9,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2, Save } from "lucide-react";
 import { MultiSelect } from "@/components/ui/multi-select";
-import { MARKET_OPTIONS } from "@/utils/markets";
+import { MARKET_OPTIONS, TIKTOK_MARKET_OPTIONS } from "@/utils/markets";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 interface AdAccount {
@@ -379,9 +379,14 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
 
   // Filter market options to only show markets defined for this client
   const activeClientMarkets = clientMarkets || fetchedClientMarkets;
-  const marketOptions = MARKET_OPTIONS
-    .filter(m => activeClientMarkets.includes(m.value))
-    .map(m => ({ value: m.value, label: m.label }));
+  
+  // For TikTok accounts, filter out US from available markets
+  const getMarketOptions = (platform: 'meta' | 'tiktok') => {
+    const baseOptions = platform === 'tiktok' ? TIKTOK_MARKET_OPTIONS : MARKET_OPTIONS;
+    return baseOptions
+      .filter(m => activeClientMarkets.includes(m.value))
+      .map(m => ({ value: m.value, label: m.label }));
+  };
 
   return (
     <div className="space-y-4">
@@ -427,7 +432,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                     <div className="space-y-2">
                       <Label>Assigned Markets</Label>
                       <MultiSelect
-                        options={marketOptions}
+                        options={getMarketOptions(account.platform)}
                         value={defaults.main_markets || []}
                         onChange={(markets) => updateDefault(account.id, "main_markets", markets)}
                         placeholder="Select markets for this ad account"
