@@ -1786,6 +1786,9 @@ export function PlatformMarketBudgetSelector({
                           Total market allocation: {platform.markets.reduce((sum, m) => sum + m.budgetPercentage, 0).toFixed(1)}%
                         </div>
                       )}
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}
