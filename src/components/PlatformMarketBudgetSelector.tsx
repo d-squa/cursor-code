@@ -400,6 +400,7 @@ export function PlatformMarketBudgetSelector({
           catalogId: acc.default_catalog_id,
           productSetId: acc.default_product_set_id,
           optimizationEvent: acc.default_optimization_event,
+          landingPageUrl: acc.default_landing_page_url,
           mainMarkets: Array.isArray(acc.main_markets) ? acc.main_markets : [],
         };
       });
@@ -1430,12 +1431,16 @@ export function PlatformMarketBudgetSelector({
                                                       updated.tiktokProductSet = defaults.productSetId;
                                                       console.log("  ✓ Set tiktokProductSet:", defaults.productSetId);
                                                     }
-                                                    if (defaults.optimizationEvent) {
-                                                      updated.tiktokOptimizationEvent = defaults.optimizationEvent;
-                                                      console.log("  ✓ Set tiktokOptimizationEvent:", defaults.optimizationEvent);
-                                                    }
-                                                    
-                                                    toast.success("Applied default TikTok settings");
+                    if (defaults.optimizationEvent) {
+                      updated.tiktokOptimizationEvent = defaults.optimizationEvent;
+                      console.log("  ✓ Set tiktokOptimizationEvent:", defaults.optimizationEvent);
+                    }
+                    if (defaults.landingPageUrl) {
+                      updated.tiktokLandingPageUrl = defaults.landingPageUrl;
+                      console.log("  ✓ Set tiktokLandingPageUrl:", defaults.landingPageUrl);
+                    }
+                    
+                    toast.success("Applied default TikTok settings");
                                                   } else {
                                                     console.log("❌ No defaults to apply - configure in Client Defaults");
                                                   }
@@ -1604,7 +1609,7 @@ export function PlatformMarketBudgetSelector({
                                   </div>
                                 )}
 
-                                <div className="space-y-1">
+                                 <div className="space-y-1">
                                   <Label className="text-xs">Optimization Event</Label>
                                   <Select
                                     value={market.tiktokOptimizationEvent || "ON_WEB_ORDER"}
@@ -1626,6 +1631,17 @@ export function PlatformMarketBudgetSelector({
                                       <SelectItem value="SUBSCRIBE">Subscribe</SelectItem>
                                     </SelectContent>
                                   </Select>
+                                </div>
+
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Landing Page URL</Label>
+                                  <Input
+                                    type="url"
+                                    placeholder="https://example.com"
+                                    value={market.tiktokLandingPageUrl || ""}
+                                    onChange={(e) => updateMarketField(platformIndex, market.id, 'tiktokLandingPageUrl', e.target.value)}
+                                    className="h-7 text-xs"
+                                  />
                                 </div>
                               </div>
                             )}

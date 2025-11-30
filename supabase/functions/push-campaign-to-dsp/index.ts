@@ -1032,8 +1032,8 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           console.log(`Conversion campaign detected - using pixel_id: ${pixelId}`);
         }
         
-        // Get landing page URL from campaign/market/phase data or use placeholder
-        const landingPageUrl = market.websiteUrl || campaign.website_url || "https://example.com";
+        // Get landing page URL from market defaults or use placeholder
+        const landingPageUrl = market.tiktokLandingPageUrl || market.websiteUrl || campaign.website_url || "https://example.com";
         console.log(`Using landing page URL: ${landingPageUrl}`);
         
         // Create ad group

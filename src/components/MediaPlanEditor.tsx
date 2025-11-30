@@ -577,6 +577,7 @@ export function MediaPlanEditor() {
               tiktokCatalog: m.tiktokCatalog,
               tiktokProductSet: m.tiktokProductSet,
               tiktokOptimizationEvent: m.tiktokOptimizationEvent,
+              tiktokLandingPageUrl: m.tiktokLandingPageUrl,
             })),
           }), {}),
           generic_config: {
@@ -765,6 +766,7 @@ export function MediaPlanEditor() {
             tiktokCatalog: m.tiktokCatalog,
             tiktokProductSet: m.tiktokProductSet,
             tiktokOptimizationEvent: m.tiktokOptimizationEvent,
+            tiktokLandingPageUrl: m.tiktokLandingPageUrl,
           })),
         }), {}),
         generic_config: {
@@ -1074,6 +1076,7 @@ export function MediaPlanEditor() {
               tiktokCatalog: m.tiktokCatalog,
               tiktokProductSet: m.tiktokProductSet,
               tiktokOptimizationEvent: m.tiktokOptimizationEvent,
+              tiktokLandingPageUrl: m.tiktokLandingPageUrl,
               adFormats: m.adFormats,
               phases: m.phases,
               instagramActorId: m.instagramActorId,

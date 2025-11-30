@@ -974,6 +974,7 @@ export type Database = {
           default_catalog_id: string | null
           default_conversion_budget_type: string | null
           default_identity_id: string | null
+          default_landing_page_url: string | null
           default_non_conversion_budget_type: string | null
           default_optimization_event: string | null
           default_pixel_id: string | null
@@ -996,6 +997,7 @@ export type Database = {
           default_catalog_id?: string | null
           default_conversion_budget_type?: string | null
           default_identity_id?: string | null
+          default_landing_page_url?: string | null
           default_non_conversion_budget_type?: string | null
           default_optimization_event?: string | null
           default_pixel_id?: string | null
@@ -1018,6 +1020,7 @@ export type Database = {
           default_catalog_id?: string | null
           default_conversion_budget_type?: string | null
           default_identity_id?: string | null
+          default_landing_page_url?: string | null
           default_non_conversion_budget_type?: string | null
           default_optimization_event?: string | null
           default_pixel_id?: string | null
