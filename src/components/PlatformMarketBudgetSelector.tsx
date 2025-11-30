@@ -1653,20 +1653,39 @@ export function PlatformMarketBudgetSelector({
                                       onChange={(e) => updateMarketField(platformIndex, market.id, 'tiktokLandingPageUrl', e.target.value)}
                                       className="h-7 text-xs"
                                     />
-                                  </div>
-                                )}
-                              </div>
-                            )}
+                                   </div>
+                                 )}
+                               </div>
+                             )}
 
-                            {/* Ad Formats */}
-                            <div className="space-y-1">
-                              <Label className="text-xs">Ad Formats</Label>
-                              <AdFormatSelector
-                                platformName={platform.name}
-                                selectedFormats={market.adFormats || []}
-                                onFormatsChange={(formats) => updateMarketField(platformIndex, market.id, 'adFormats', formats)}
-                              />
-                            </div>
+                             {/* TikTok Bid Amount */}
+                             {platform.name.toLowerCase().includes('tiktok') && (
+                               <div className="space-y-1">
+                                 <Label className="text-xs">Bid Amount</Label>
+                                 <Input
+                                   type="number"
+                                   step="0.01"
+                                   min="0.01"
+                                   placeholder="e.g., 0.50"
+                                   value={market.tiktokBidAmount || ""}
+                                   onChange={(e) => updateMarketField(platformIndex, market.id, 'tiktokBidAmount', e.target.value ? parseFloat(e.target.value) : undefined)}
+                                   className="h-7 text-xs"
+                                 />
+                                 <p className="text-xs text-muted-foreground">
+                                   Required for CPC/CPM bidding. Must be greater than €0.00.
+                                 </p>
+                               </div>
+                             )}
+
+                             {/* Ad Formats */}
+                             <div className="space-y-1">
+                               <Label className="text-xs">Ad Formats</Label>
+                               <AdFormatSelector
+                                 platformName={platform.name}
+                                 selectedFormats={market.adFormats || []}
+                                 onFormatsChange={(formats) => updateMarketField(platformIndex, market.id, 'adFormats', formats)}
+                               />
+                             </div>
 
                             {/* Market Budget */}
                             <div className="space-y-1">
