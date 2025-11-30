@@ -594,6 +594,8 @@ export function MediaPlanEditor() {
               tiktokLandingPageUrl: m.tiktokLandingPageUrl,
               tiktokBidStrategy: m.tiktokBidStrategy,
               tiktokBidAmount: m.tiktokBidAmount,
+              metaBidStrategy: m.metaBidStrategy,
+              metaBidAmount: m.metaBidAmount,
             })),
           }), {}),
           generic_config: {

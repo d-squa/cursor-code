@@ -666,12 +666,19 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
           campaign_id: campaignData.id,
           billing_event: "IMPRESSIONS",
           optimization_goal: optimizationGoal,
-          bid_strategy: "LOWEST_COST_WITHOUT_CAP",
+          bid_strategy: market.metaBidStrategy || "LOWEST_COST_WITHOUT_CAP",
           status: "PAUSED",
           start_time: startDate.toISOString(),
           end_time: endDate.toISOString(),
           targeting: targeting,
         };
+
+        // Add bid amount if bid strategy requires it
+        if ((market.metaBidStrategy === 'LOWEST_COST_WITH_BID_CAP' || market.metaBidStrategy === 'COST_CAP') && 
+            market.metaBidAmount && market.metaBidAmount > 0) {
+          adSetPayload.bid_amount = Math.round(market.metaBidAmount * 100); // Convert to cents
+          console.log(`Adding Meta bid amount: €${market.metaBidAmount} (${adSetPayload.bid_amount} cents) for strategy ${market.metaBidStrategy}`);
+        }
         
         // Add conversion tracking for conversion-optimized ad sets (including VALUE)
         if (market.pixel && market.conversionEvent && (adSetPayload.optimization_goal === 'OFFSITE_CONVERSIONS' || adSetPayload.optimization_goal === 'VALUE')) {

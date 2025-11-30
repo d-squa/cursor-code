@@ -287,6 +287,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         'default_conversion_event',
         'default_conversion_budget_type',
         'default_non_conversion_budget_type',
+        'default_bid_strategy',
         'main_markets'
       ];
       
@@ -634,6 +635,24 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                     {option.label}
                                   </SelectItem>
                                 ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {/* Bid Strategy */}
+                          <div className="space-y-2">
+                            <Label>Default Bid Strategy</Label>
+                            <Select
+                              value={defaults.default_bid_strategy || "LOWEST_COST_WITHOUT_CAP"}
+                              onValueChange={(value) => updateDefault(account.id, "default_bid_strategy", value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select bid strategy" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="LOWEST_COST_WITHOUT_CAP">Lowest Cost (Automatic)</SelectItem>
+                                <SelectItem value="LOWEST_COST_WITH_BID_CAP">Lowest Cost with Bid Cap</SelectItem>
+                                <SelectItem value="COST_CAP">Cost Cap</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>

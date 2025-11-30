@@ -72,7 +72,9 @@ export interface CreateAdGroupParams {
   conversionId?: string;
   landingPageUrl?: string; // Required for TikTok WEBSITE promotion type
   bidStrategy?: string; // TikTok bid strategy: LOWEST_COST or COST_CAP
-  bidAmount?: number; // Required when bidStrategy is COST_CAP
+  bidAmount?: number; // Required when TikTok bidStrategy is COST_CAP
+  metaBidStrategy?: string; // Meta bid strategy: LOWEST_COST_WITHOUT_CAP, LOWEST_COST_WITH_BID_CAP, COST_CAP
+  metaBidAmount?: number; // Required when Meta bidStrategy is LOWEST_COST_WITH_BID_CAP or COST_CAP
 }
 
 export interface CreateAdGroupResult {

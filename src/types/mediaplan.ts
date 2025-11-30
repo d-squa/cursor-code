@@ -22,6 +22,8 @@ export interface Market {
   tiktokLandingPageUrl?: string; // TikTok Landing Page URL
   tiktokBidStrategy?: string; // TikTok Bid Strategy (LOWEST_COST or COST_CAP)
   tiktokBidAmount?: number; // TikTok Bid Amount (required when bidStrategy is COST_CAP)
+  metaBidStrategy?: string; // Meta Bid Strategy (LOWEST_COST_WITHOUT_CAP, LOWEST_COST_WITH_BID_CAP, COST_CAP, etc.)
+  metaBidAmount?: number; // Meta Bid Amount (required for LOWEST_COST_WITH_BID_CAP and COST_CAP)
   strategy?: string; // Strategy type per market
   strategyFocus?: string;
   instagramActorId?: string;
