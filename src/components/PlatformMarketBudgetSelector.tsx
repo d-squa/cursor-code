@@ -401,12 +401,13 @@ export function PlatformMarketBudgetSelector({
           productSetId: acc.default_product_set_id,
           optimizationEvent: acc.default_optimization_event,
           landingPageUrl: acc.default_landing_page_url,
+          bidAmount: acc.default_bid_amount,
           mainMarkets: Array.isArray(acc.main_markets) ? acc.main_markets : [],
         };
       });
       console.log('✅ TikTok Ad Account Defaults loaded:', defaults);
       setTiktokAdAccountDefaults(defaults);
-      
+
       // Fetch TikTok pixels
       const { data: pixelsData, error: pixelsError } = await supabase
         .from("tiktok_pixels" as any)
@@ -1373,6 +1374,7 @@ export function PlatformMarketBudgetSelector({
                                                 tiktokProductSet: defaults?.productSetId || "",
                                                 tiktokOptimizationEvent: defaults?.optimizationEvent || "ON_WEB_ORDER",
                                                 tiktokLandingPageUrl: defaults?.landingPageUrl || "",
+                                                tiktokBidAmount: defaults?.bidAmount || undefined,
                                                 phases: [],
                                                 adFormats: [],
                                                 // Filter out US from TikTok countries

@@ -71,6 +71,7 @@ export interface CreateAdGroupParams {
   pixelId?: string;
   conversionId?: string;
   landingPageUrl?: string; // Required for TikTok WEBSITE promotion type
+  bidAmount?: number; // Required for CPC/CPM bidding strategies
 }
 
 export interface CreateAdGroupResult {
@@ -311,6 +312,12 @@ class TikTokAdapter implements PlatformAdapter {
         operation_status: params.status === 'PAUSED' ? 'DISABLE' : 'ENABLE',
       };
       
+      // Add bid amount if provided (required for CPC/CPM bidding)
+      if (params.bidAmount && params.bidAmount > 0) {
+        body.bid = params.bidAmount;
+        console.log(`✅ Bid amount set: €${params.bidAmount}`);
+      }
+
       // Location targeting - filter out restricted markets (US)
       const locationIds = this.mapLocationIds(params.targeting.geo_locations?.countries || [])
         .filter(id => id !== "6252001"); // Remove US (restricted due to sanctions/political restrictions)
