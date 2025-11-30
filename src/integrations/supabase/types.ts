@@ -971,6 +971,7 @@ export type Database = {
           created_at: string
           currency: string | null
           default_bid_amount: number | null
+          default_bid_strategy: string | null
           default_billing_event: string | null
           default_catalog_id: string | null
           default_conversion_budget_type: string | null
@@ -995,6 +996,7 @@ export type Database = {
           created_at?: string
           currency?: string | null
           default_bid_amount?: number | null
+          default_bid_strategy?: string | null
           default_billing_event?: string | null
           default_catalog_id?: string | null
           default_conversion_budget_type?: string | null
@@ -1019,6 +1021,7 @@ export type Database = {
           created_at?: string
           currency?: string | null
           default_bid_amount?: number | null
+          default_bid_strategy?: string | null
           default_billing_event?: string | null
           default_catalog_id?: string | null
           default_conversion_budget_type?: string | null

@@ -71,7 +71,8 @@ export interface CreateAdGroupParams {
   pixelId?: string;
   conversionId?: string;
   landingPageUrl?: string; // Required for TikTok WEBSITE promotion type
-  bidAmount?: number; // Required for CPC/CPM bidding strategies
+  bidStrategy?: string; // TikTok bid strategy: LOWEST_COST or COST_CAP
+  bidAmount?: number; // Required when bidStrategy is COST_CAP
 }
 
 export interface CreateAdGroupResult {
@@ -312,10 +313,16 @@ class TikTokAdapter implements PlatformAdapter {
         operation_status: params.status === 'PAUSED' ? 'DISABLE' : 'ENABLE',
       };
       
-      // Add bid amount if provided (required for CPC/CPM bidding)
-      if (params.bidAmount && params.bidAmount > 0) {
+      // Add bid strategy - defaults to LOWEST_COST (Maximum Delivery)
+      body.bid_type = params.bidStrategy || "LOWEST_COST";
+      console.log(`✅ Bid strategy set: ${body.bid_type}`);
+      
+      // Add bid amount only if Cost Cap strategy is selected AND bid amount is provided
+      if (params.bidStrategy === "COST_CAP" && params.bidAmount && params.bidAmount > 0) {
         body.bid = params.bidAmount;
-        console.log(`✅ Bid amount set: €${params.bidAmount}`);
+        console.log(`✅ Bid amount set for Cost Cap: €${params.bidAmount}`);
+      } else if (params.bidStrategy === "COST_CAP") {
+        console.error("❌ Cost Cap strategy selected but no bid amount provided!");
       }
 
       // Location targeting - filter out restricted markets (US)

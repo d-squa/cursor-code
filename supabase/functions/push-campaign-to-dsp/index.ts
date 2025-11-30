@@ -1054,6 +1054,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           placements: tiktokPlacements,
           optimizationGoal: tiktokOptGoal,
           billingEvent: billingEvent,
+          bidStrategy: market.tiktokBidStrategy || "LOWEST_COST",
           bidAmount: bidAmount,
           budget: campaignBudget,
           budgetMode: budgetType,

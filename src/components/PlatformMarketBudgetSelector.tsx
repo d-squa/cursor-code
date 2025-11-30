@@ -401,6 +401,7 @@ export function PlatformMarketBudgetSelector({
           productSetId: acc.default_product_set_id,
           optimizationEvent: acc.default_optimization_event,
           landingPageUrl: acc.default_landing_page_url,
+          bidStrategy: acc.default_bid_strategy,
           bidAmount: acc.default_bid_amount,
           mainMarkets: Array.isArray(acc.main_markets) ? acc.main_markets : [],
         };
@@ -1374,6 +1375,7 @@ export function PlatformMarketBudgetSelector({
                                                 tiktokProductSet: defaults?.productSetId || "",
                                                 tiktokOptimizationEvent: defaults?.optimizationEvent || "ON_WEB_ORDER",
                                                 tiktokLandingPageUrl: defaults?.landingPageUrl || "",
+                                                tiktokBidStrategy: defaults?.bidStrategy || "LOWEST_COST",
                                                 tiktokBidAmount: defaults?.bidAmount || undefined,
                                                 phases: [],
                                                 adFormats: [],
@@ -1658,24 +1660,46 @@ export function PlatformMarketBudgetSelector({
                                </div>
                              )}
 
-                             {/* TikTok Bid Amount */}
-                             {platform.name.toLowerCase().includes('tiktok') && (
-                               <div className="space-y-1">
-                                 <Label className="text-xs">Bid Amount</Label>
-                                 <Input
-                                   type="number"
-                                   step="0.01"
-                                   min="0.01"
-                                   placeholder="e.g., 0.50"
-                                   value={market.tiktokBidAmount || ""}
-                                   onChange={(e) => updateMarketField(platformIndex, market.id, 'tiktokBidAmount', e.target.value ? parseFloat(e.target.value) : undefined)}
-                                   className="h-7 text-xs"
-                                 />
-                                 <p className="text-xs text-muted-foreground">
-                                   Required for CPC/CPM bidding. Must be greater than €0.00.
-                                 </p>
-                               </div>
-                             )}
+                              {/* TikTok Bid Strategy */}
+                              {platform.name.toLowerCase().includes('tiktok') && (
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Bid Strategy</Label>
+                                  <Select
+                                    value={market.tiktokBidStrategy || "LOWEST_COST"}
+                                    onValueChange={(value) => updateMarketField(platformIndex, market.id, 'tiktokBidStrategy', value)}
+                                  >
+                                    <SelectTrigger className="h-7 text-xs">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="LOWEST_COST">Maximum Delivery</SelectItem>
+                                      <SelectItem value="COST_CAP">Cost Cap</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                  <p className="text-xs text-muted-foreground">
+                                    Maximum Delivery = no bid needed. Cost Cap = requires bid amount.
+                                  </p>
+                                </div>
+                              )}
+
+                              {/* TikTok Bid Amount - Only show when Cost Cap is selected */}
+                              {platform.name.toLowerCase().includes('tiktok') && market.tiktokBidStrategy === "COST_CAP" && (
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Bid Amount (€) *</Label>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    min="0.01"
+                                    placeholder="e.g., 0.50"
+                                    value={market.tiktokBidAmount || ""}
+                                    onChange={(e) => updateMarketField(platformIndex, market.id, 'tiktokBidAmount', e.target.value ? parseFloat(e.target.value) : undefined)}
+                                    className="h-7 text-xs"
+                                  />
+                                  <p className="text-xs text-muted-foreground">
+                                    Required for Cost Cap. Set your target cost per result.
+                                  </p>
+                                </div>
+                              )}
 
                              {/* Ad Formats */}
                              <div className="space-y-1">
