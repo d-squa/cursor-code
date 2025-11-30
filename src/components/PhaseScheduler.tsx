@@ -463,12 +463,18 @@ export function PhaseScheduler({
     const isTikTok = platformName.toLowerCase().includes('tiktok');
     
     if (isTikTok) {
+      // TikTok conversion campaigns require 90+ days of pixel data
+      // Automatically fallback to Traffic/Click for conversion objectives
+      if (objective === "Conversions" || objective === "Sales") {
+        console.warn("⚠️ TikTok conversion objective detected - auto-switching to Traffic/Click");
+        return "Click";
+      }
+      
       // TikTok objective -> optimization goal mapping
       if (objective === "Reach") return "Reach";
       if (objective === "Community Interaction") return "Engagement";
       if (objective === "Traffic") return "Landing Page View";
       if (objective === "Lead Generation") return "Lead Generation";
-      if (objective === "Sales") return "Web Conversion";
       if (objective === "App Promotion") return "App Install";
       return "Click";
     }
@@ -983,11 +989,21 @@ export function PhaseScheduler({
                         <Select
                           value={phase.objective || ""}
                           onValueChange={(value) => {
+                            const isTikTok = platformName.toLowerCase().includes('tiktok');
+                            let adjustedObjective = value;
+                            
+                            // TikTok conversion campaigns require 90+ days of pixel data
+                            // Automatically switch to Traffic objective for better success rate
+                            if (isTikTok && (value === "Conversions" || value === "Sales")) {
+                              console.warn("⚠️ TikTok conversion objective auto-adjusted to Traffic");
+                              adjustedObjective = "Traffic";
+                            }
+                            
                             const updatedPhases = phases.map(p => {
                               if (p.id === phase.id) {
                                 // Auto-set optimization goal based on objective and platform
-                                const autoGoal = getAutoOptimizationGoal(value);
-                                return { ...p, objective: value, optimizationGoal: autoGoal };
+                                const autoGoal = getAutoOptimizationGoal(adjustedObjective);
+                                return { ...p, objective: adjustedObjective, optimizationGoal: autoGoal };
                               }
                               return p;
                             });
