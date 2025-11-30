@@ -1036,6 +1036,14 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
         const landingPageUrl = market.tiktokLandingPageUrl || market.websiteUrl || campaign.website_url || "https://example.com";
         console.log(`Using landing page URL: ${landingPageUrl}`);
         
+        // Get bid amount from market defaults
+        const bidAmount = market.tiktokBidAmount || undefined;
+        if (bidAmount) {
+          console.log(`Using bid amount: €${bidAmount}`);
+        } else {
+          console.warn(`⚠️ No bid amount configured - TikTok may require bid amount for CPC/CPM billing events`);
+        }
+        
         // Create ad group
         const adGroupResult = await tiktokAdapter.createAdGroup({
           accountId: advertiserId,
@@ -1046,6 +1054,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           placements: tiktokPlacements,
           optimizationGoal: tiktokOptGoal,
           billingEvent: billingEvent,
+          bidAmount: bidAmount,
           budget: campaignBudget,
           budgetMode: budgetType,
           startDate: startDate.toISOString(),
@@ -1054,7 +1063,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           pixelId: pixelId,
           landingPageUrl: landingPageUrl,
         });
-        
+
         if (!adGroupResult.success) {
           errors.push({
             market: market.name,

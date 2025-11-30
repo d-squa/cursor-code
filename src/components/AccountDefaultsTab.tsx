@@ -30,6 +30,7 @@ interface AdAccount {
   default_billing_event?: string | null;
   default_optimization_event?: string | null;
   default_landing_page_url?: string | null;
+  default_bid_amount?: number | null;
   main_markets?: string[] | null;
 }
 
@@ -843,6 +844,26 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                             </Select>
                             <p className="text-xs text-muted-foreground">
                               Choose OCPM for most objectives. Some objectives like TRAFFIC only support CPC.
+                            </p>
+                          </div>
+
+                          {/* TikTok Bid Amount */}
+                          <div className="space-y-2">
+                            <Label className="flex items-center gap-2">
+                              <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
+                              Default Bid Amount
+                            </Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              placeholder="e.g., 0.50"
+                              value={defaults.default_bid_amount || ""}
+                              onChange={(e) => updateDefault(account.id, "default_bid_amount", e.target.value ? parseFloat(e.target.value) : null)}
+                              className="border-black/20 dark:border-white/20"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              Set the default bid amount for CPC or CPM bidding strategies. Must be greater than €0.00.
                             </p>
                           </div>
 
