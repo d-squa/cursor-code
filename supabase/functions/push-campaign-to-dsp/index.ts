@@ -673,11 +673,25 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
           targeting: targeting,
         };
 
+        // Debug bid strategy and amount
+        console.log(`=== BID STRATEGY DEBUG for market ${market.name} ===`);
+        console.log(`Bid Strategy: ${market.metaBidStrategy}`);
+        console.log(`Bid Amount (raw): ${market.metaBidAmount}`);
+        console.log(`Bid Amount type: ${typeof market.metaBidAmount}`);
+        console.log(`Bid Amount > 0: ${market.metaBidAmount > 0}`);
+        console.log(`Market object keys:`, Object.keys(market));
+        
         // Add bid amount if bid strategy requires it
         if ((market.metaBidStrategy === 'LOWEST_COST_WITH_BID_CAP' || market.metaBidStrategy === 'COST_CAP') && 
             market.metaBidAmount && market.metaBidAmount > 0) {
           adSetPayload.bid_amount = Math.round(market.metaBidAmount * 100); // Convert to cents
-          console.log(`Adding Meta bid amount: €${market.metaBidAmount} (${adSetPayload.bid_amount} cents) for strategy ${market.metaBidStrategy}`);
+          console.log(`✅ Adding Meta bid amount: €${market.metaBidAmount} (${adSetPayload.bid_amount} cents) for strategy ${market.metaBidStrategy}`);
+        } else {
+          console.log(`❌ NOT adding bid amount. Conditions:`, {
+            requiresBid: market.metaBidStrategy === 'LOWEST_COST_WITH_BID_CAP' || market.metaBidStrategy === 'COST_CAP',
+            hasBidAmount: !!market.metaBidAmount,
+            isPositive: market.metaBidAmount > 0
+          });
         }
         
         // Add conversion tracking for conversion-optimized ad sets (including VALUE)
