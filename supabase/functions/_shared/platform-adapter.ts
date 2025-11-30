@@ -70,6 +70,7 @@ export interface CreateAdGroupParams {
   status: string;
   pixelId?: string;
   conversionId?: string;
+  landingPageUrl?: string; // Required for TikTok WEBSITE promotion type
 }
 
 export interface CreateAdGroupResult {
@@ -343,6 +344,16 @@ class TikTokAdapter implements PlatformAdapter {
         body.optimization_event = "ON_WEB_ORDER"; // Default web conversion event (valid TikTok event)
         body.deep_external_action = "ON_WEB_ORDER"; // Required for conversion optimization
         console.log(`Adding pixel_code ${params.pixelId}, optimization_event ON_WEB_ORDER, and deep_external_action ON_WEB_ORDER for CONVERT optimization goal`);
+      }
+      
+      // Add landing page URL (required for WEBSITE promotion type)
+      if (params.landingPageUrl) {
+        body.landing_page_url = params.landingPageUrl;
+        console.log(`Adding landing_page_url: ${params.landingPageUrl}`);
+      } else {
+        // Use a default placeholder if not provided (TikTok requires this field)
+        body.landing_page_url = "https://example.com"; // This should be replaced with actual client website
+        console.warn("No landing page URL provided - using placeholder. This should be updated with actual client website.");
       }
       
       const endpoint = `${this.API_BASE}/adgroup/create/`;
