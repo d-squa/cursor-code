@@ -20,7 +20,8 @@ export interface Market {
   tiktokProductSet?: string; // TikTok Product Set ID
   tiktokOptimizationEvent?: string; // TikTok Optimization Event
   tiktokLandingPageUrl?: string; // TikTok Landing Page URL
-  tiktokBidAmount?: number; // TikTok Bid Amount (e.g., CPC/CPM bid)
+  tiktokBidStrategy?: string; // TikTok Bid Strategy (LOWEST_COST or COST_CAP)
+  tiktokBidAmount?: number; // TikTok Bid Amount (required when bidStrategy is COST_CAP)
   strategy?: string; // Strategy type per market
   strategyFocus?: string;
   instagramActorId?: string;
