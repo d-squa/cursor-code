@@ -975,6 +975,7 @@ export type Database = {
           default_conversion_budget_type: string | null
           default_identity_id: string | null
           default_non_conversion_budget_type: string | null
+          default_optimization_event: string | null
           default_pixel_id: string | null
           default_product_set_id: string | null
           id: string
@@ -996,6 +997,7 @@ export type Database = {
           default_conversion_budget_type?: string | null
           default_identity_id?: string | null
           default_non_conversion_budget_type?: string | null
+          default_optimization_event?: string | null
           default_pixel_id?: string | null
           default_product_set_id?: string | null
           id?: string
@@ -1017,6 +1019,7 @@ export type Database = {
           default_conversion_budget_type?: string | null
           default_identity_id?: string | null
           default_non_conversion_budget_type?: string | null
+          default_optimization_event?: string | null
           default_pixel_id?: string | null
           default_product_set_id?: string | null
           id?: string

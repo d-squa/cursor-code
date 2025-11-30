@@ -27,6 +27,7 @@ interface AdAccount {
   default_non_conversion_budget_type?: string | null;
   default_identity_id?: string | null;
   default_billing_event?: string | null;
+  default_optimization_event?: string | null;
   main_markets?: string[] | null;
 }
 
@@ -61,6 +62,19 @@ const BILLING_EVENT_OPTIONS = [
   { value: "OCPM", label: "OCPM (Optimized Cost Per Mille)" },
   { value: "CPC", label: "CPC (Cost Per Click)" },
   { value: "CPV", label: "CPV (Cost Per View)" },
+];
+
+const TIKTOK_OPTIMIZATION_EVENT_OPTIONS = [
+  { value: "ON_WEB_ORDER", label: "Web Order (Purchase)" },
+  { value: "ON_WEB_ADD_TO_CART", label: "Add to Cart" },
+  { value: "PAGE_VIEW", label: "Page View" },
+  { value: "ON_WEB_CART_PAGE_BROWSE", label: "Cart Page Browse" },
+  { value: "ON_WEB_DETAIL_PAGE_BROWSE", label: "Detail Page Browse" },
+  { value: "COMPLETE_PAYMENT", label: "Complete Payment" },
+  { value: "FORM_SUBMIT", label: "Form Submit" },
+  { value: "DOWNLOAD", label: "Download" },
+  { value: "REGISTRATION", label: "Registration" },
+  { value: "SUBSCRIBE", label: "Subscribe" },
 ];
 
 export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: Props) {
@@ -144,6 +158,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         default_conversion_budget_type: acc.default_conversion_budget_type || null,
         default_non_conversion_budget_type: acc.default_non_conversion_budget_type || null,
         default_billing_event: acc.default_billing_event || 'OCPM',
+        default_optimization_event: acc.default_optimization_event || 'ON_WEB_ORDER',
       }));
 
       console.log("[AccountDefaultsTab] TikTok accounts loaded from database:", tiktokAccounts.map(acc => ({
@@ -177,6 +192,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
           default_non_conversion_budget_type: acc.default_non_conversion_budget_type || null,
           default_identity_id: acc.platform === 'tiktok' ? acc.default_identity_id || null : null,
           default_billing_event: acc.platform === 'tiktok' ? acc.default_billing_event || 'OCPM' : null,
+          default_optimization_event: acc.platform === 'tiktok' ? acc.default_optimization_event || 'ON_WEB_ORDER' : null,
           main_markets: acc.main_markets,
         };
       });
@@ -273,6 +289,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         'default_conversion_budget_type',
         'default_non_conversion_budget_type',
         'default_billing_event',
+        'default_optimization_event',
         'main_markets'
       ];
       
@@ -816,6 +833,33 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                             </Select>
                             <p className="text-xs text-muted-foreground">
                               Choose OCPM for most objectives. Some objectives like TRAFFIC only support CPC.
+                            </p>
+                          </div>
+
+                          {/* TikTok Optimization Event */}
+                          <div className="space-y-2">
+                            <Label className="flex items-center gap-2">
+                              <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
+                              Optimization Event
+                            </Label>
+                            <Select
+                              key={`optimization-event-${account.id}-${defaults.default_optimization_event || 'empty'}`}
+                              value={defaults.default_optimization_event || undefined}
+                              onValueChange={(value) => updateDefault(account.id, "default_optimization_event", value)}
+                            >
+                              <SelectTrigger className="border-black/20 dark:border-white/20">
+                                <SelectValue placeholder="Select optimization event" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {TIKTOK_OPTIMIZATION_EVENT_OPTIONS.map((option) => (
+                                  <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">
+                              Conversion event to optimize for. Requires at least 90 days of historical data on the selected pixel.
                             </p>
                           </div>
                         </>
