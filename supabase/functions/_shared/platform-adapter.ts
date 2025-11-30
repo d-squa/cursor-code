@@ -315,16 +315,29 @@ class TikTokAdapter implements PlatformAdapter {
         operation_status: params.status === 'PAUSED' ? 'DISABLE' : 'ENABLE',
       };
       
-      // Add bid strategy - defaults to LOWEST_COST (Maximum Delivery)
-      body.bid_type = params.bidStrategy || "LOWEST_COST";
-      console.log(`✅ Bid strategy set: ${body.bid_type}`);
+      // Map bid strategy to TikTok's bid_type values
+      // TikTok accepts: BID_TYPE_CUSTOM, BID_TYPE_MAX_CONVERSION, BID_TYPE_NO_BID
+      const mapBidStrategy = (strategy?: string, hasBidAmount?: boolean): string => {
+        if (strategy === "COST_CAP" && hasBidAmount) {
+          return "BID_TYPE_CUSTOM"; // Manual bidding with specific bid amount
+        } else if (strategy === "LOWEST_COST_WITH_BID_CAP" && hasBidAmount) {
+          return "BID_TYPE_CUSTOM"; // Manual bidding with bid cap
+        } else if (strategy === "LOWEST_COST" || strategy === "LOWEST_COST_WITHOUT_CAP") {
+          return "BID_TYPE_NO_BID"; // Automatic bidding without bid cap (Maximum Delivery)
+        } else {
+          return "BID_TYPE_NO_BID"; // Default to automatic bidding
+        }
+      };
       
-      // Add bid amount only if Cost Cap strategy is selected AND bid amount is provided
-      if (params.bidStrategy === "COST_CAP" && params.bidAmount && params.bidAmount > 0) {
+      body.bid_type = mapBidStrategy(params.bidStrategy, Boolean(params.bidAmount && params.bidAmount > 0));
+      console.log(`✅ Bid strategy mapped: ${params.bidStrategy} → ${body.bid_type}`);
+      
+      // Add bid amount only if using BID_TYPE_CUSTOM AND bid amount is provided
+      if (body.bid_type === "BID_TYPE_CUSTOM" && params.bidAmount && params.bidAmount > 0) {
         body.bid = params.bidAmount;
-        console.log(`✅ Bid amount set for Cost Cap: €${params.bidAmount}`);
-      } else if (params.bidStrategy === "COST_CAP") {
-        console.error("❌ Cost Cap strategy selected but no bid amount provided!");
+        console.log(`✅ Bid amount set: €${params.bidAmount}`);
+      } else if (params.bidStrategy === "COST_CAP" && (!params.bidAmount || params.bidAmount <= 0)) {
+        console.error("❌ Cost Cap strategy selected but no valid bid amount provided!");
       }
 
       // Location targeting - filter out restricted markets (US)
