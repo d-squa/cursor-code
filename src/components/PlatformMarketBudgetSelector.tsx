@@ -1408,7 +1408,6 @@ export function PlatformMarketBudgetSelector({
                                                 tiktokOptimizationEvent: defaults?.optimizationEvent || "ON_WEB_ORDER",
                                                 tiktokLandingPageUrl: defaults?.landingPageUrl || "",
                                                 tiktokBidStrategy: defaults?.bidStrategy || "LOWEST_COST",
-                                                tiktokBidAmount: defaults?.bidAmount || undefined,
                                                 phases: [],
                                                 adFormats: [],
                                                 // Filter out US from TikTok countries

@@ -31,7 +31,6 @@ interface AdAccount {
   default_optimization_event?: string | null;
   default_landing_page_url?: string | null;
   default_bid_strategy?: string | null;
-  default_bid_amount?: number | null;
   main_markets?: string[] | null;
 }
 
@@ -51,7 +50,6 @@ interface MetaResource {
   ad_account_id?: string;
   default_landing_page_url?: string;
   default_bid_strategy?: string;
-  default_bid_amount?: number;
 }
 
 interface Props {
@@ -301,6 +299,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         'default_billing_event',
         'default_optimization_event',
         'default_landing_page_url',
+        'default_bid_strategy',
         'main_markets'
       ];
       
@@ -885,35 +884,13 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="LOWEST_COST">Maximum Delivery (No bid required)</SelectItem>
-                                <SelectItem value="COST_CAP">Cost Cap (Requires bid amount)</SelectItem>
+                                <SelectItem value="COST_CAP">Cost Cap (Requires bid amount on phase level)</SelectItem>
                               </SelectContent>
                             </Select>
                             <p className="text-xs text-muted-foreground">
-                              Maximum Delivery maximizes conversions within budget. Cost Cap targets a specific cost per result.
+                              Maximum Delivery maximizes conversions within budget. Cost Cap targets a specific cost per result (bid amount set on phase level).
                             </p>
                           </div>
-
-                          {/* TikTok Bid Amount - Only show when Cost Cap is selected */}
-                          {defaults.default_bid_strategy === "COST_CAP" && (
-                            <div className="space-y-2">
-                              <Label className="flex items-center gap-2">
-                                <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
-                                Default Bid Amount (Required)
-                              </Label>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min="0.01"
-                                placeholder="e.g., 0.50"
-                                value={defaults.default_bid_amount || ""}
-                                onChange={(e) => updateDefault(account.id, "default_bid_amount", e.target.value ? parseFloat(e.target.value) : null)}
-                                className="border-black/20 dark:border-white/20"
-                              />
-                              <p className="text-xs text-muted-foreground">
-                                Set your target cost per result. Must be greater than €0.00.
-                              </p>
-                            </div>
-                          )}
 
                           {/* TikTok Optimization Event */}
                           <div className="space-y-2">
