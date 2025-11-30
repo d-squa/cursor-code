@@ -148,6 +148,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         main_markets: Array.isArray(acc.main_markets) ? acc.main_markets as string[] : [],
         default_conversion_budget_type: acc.default_conversion_budget_type || null,
         default_non_conversion_budget_type: acc.default_non_conversion_budget_type || null,
+        default_bid_strategy: acc.default_bid_strategy || 'LOWEST_COST_WITHOUT_CAP',
       }));
 
       const tiktokAccounts = (tiktokAccountsData || []).map(acc => ({
@@ -165,6 +166,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         default_billing_event: acc.default_billing_event || 'OCPM',
         default_optimization_event: acc.default_optimization_event || 'ON_WEB_ORDER',
         default_landing_page_url: acc.default_landing_page_url || null,
+        default_bid_strategy: acc.default_bid_strategy || 'LOWEST_COST',
       }));
 
       console.log("[AccountDefaultsTab] TikTok accounts loaded from database:", tiktokAccounts.map(acc => ({
@@ -196,6 +198,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
           default_conversion_event: acc.platform === 'meta' ? acc.default_conversion_event || null : null,
           default_conversion_budget_type: acc.default_conversion_budget_type || null,
           default_non_conversion_budget_type: acc.default_non_conversion_budget_type || null,
+          default_bid_strategy: acc.default_bid_strategy || (acc.platform === 'meta' ? 'LOWEST_COST_WITHOUT_CAP' : 'LOWEST_COST'),
           default_identity_id: acc.platform === 'tiktok' ? acc.default_identity_id || null : null,
           default_billing_event: acc.platform === 'tiktok' ? acc.default_billing_event || 'OCPM' : null,
           default_optimization_event: acc.platform === 'tiktok' ? acc.default_optimization_event || 'ON_WEB_ORDER' : null,
