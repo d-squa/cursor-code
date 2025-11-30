@@ -592,6 +592,7 @@ export function MediaPlanEditor() {
               tiktokProductSet: m.tiktokProductSet,
               tiktokOptimizationEvent: m.tiktokOptimizationEvent,
               tiktokLandingPageUrl: m.tiktokLandingPageUrl,
+              tiktokBidAmount: m.tiktokBidAmount,
             })),
           }), {}),
           generic_config: {
