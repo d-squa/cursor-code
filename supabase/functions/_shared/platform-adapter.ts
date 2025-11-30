@@ -332,29 +332,42 @@ class TikTokAdapter implements PlatformAdapter {
       body.bid_type = mapBidStrategy(params.bidStrategy, Boolean(params.bidAmount && params.bidAmount > 0));
       console.log(`✅ Bid strategy mapped: ${params.bidStrategy} → ${body.bid_type}`);
       
-      // Log billing event and bid amount for debugging
-      console.log(`DEBUG: Billing event: ${params.billingEvent || 'not set'}`);
+      // TikTok minimum bid requirements by billing event
+      const TIKTOK_MIN_BIDS = {
+        CPC: 10,  // €10 minimum for CPC (cost per click)
+        CPM: 5,   // €5 minimum for CPM (cost per thousand impressions)
+        OCPM: 1,  // €1 minimum for OCPM (optimized CPM)
+      };
+      
+      console.log(`DEBUG: Billing event: ${params.billingEvent || 'OCPM (default)'}`);
       console.log(`DEBUG: Bid amount provided: ${params.bidAmount}`);
       console.log(`DEBUG: Bid strategy: ${params.bidStrategy}`);
       
-      // CRITICAL: TikTok requires bid amount for CPC/CPM billing events REGARDLESS of bid_type
-      // Even with BID_TYPE_NO_BID (automatic bidding), CPC billing events need a bid amount
-      const requiresBidForBilling = params.billingEvent && ['CPC', 'CPM'].includes(params.billingEvent);
-      const hasBidAmount = params.bidAmount && params.bidAmount > 0;
+      // Determine final billing event based on bid amount and minimums
+      let finalBillingEvent = params.billingEvent || 'OCPM';
+      let finalBidAmount = params.bidAmount;
       
-      if (requiresBidForBilling && !hasBidAmount) {
-        console.error(`❌ CRITICAL: ${params.billingEvent} billing event requires a bid amount but none provided!`);
-        console.error(`This will cause TikTok API to reject the ad group creation.`);
+      // If CPC/CPM selected but bid too low, fallback to OCPM
+      if (finalBillingEvent === 'CPC' && finalBidAmount && finalBidAmount < TIKTOK_MIN_BIDS.CPC) {
+        console.warn(`⚠️ CPC bid €${finalBidAmount} is below minimum €${TIKTOK_MIN_BIDS.CPC}, switching to OCPM billing`);
+        finalBillingEvent = 'OCPM';
+        finalBidAmount = Math.max(finalBidAmount, TIKTOK_MIN_BIDS.OCPM);
+      } else if (finalBillingEvent === 'CPM' && finalBidAmount && finalBidAmount < TIKTOK_MIN_BIDS.CPM) {
+        console.warn(`⚠️ CPM bid €${finalBidAmount} is below minimum €${TIKTOK_MIN_BIDS.CPM}, switching to OCPM billing`);
+        finalBillingEvent = 'OCPM';
+        finalBidAmount = Math.max(finalBidAmount, TIKTOK_MIN_BIDS.OCPM);
       }
       
-      // Add bid amount if:
-      // 1. Using BID_TYPE_CUSTOM (manual bidding), OR
-      // 2. Using CPC/CPM billing event (TikTok requirement)
-      if ((body.bid_type === "BID_TYPE_CUSTOM" || requiresBidForBilling) && hasBidAmount) {
-        body.bid = params.bidAmount;
-        console.log(`✅ Bid amount set: €${params.bidAmount} (billing: ${params.billingEvent}, bid_type: ${body.bid_type})`);
-      } else if (requiresBidForBilling && !hasBidAmount) {
-        console.error("❌ Missing required bid amount for CPC/CPM billing event!");
+      // Update billing event in body
+      body.billing_event = finalBillingEvent;
+      
+      // Add bid amount for manual bidding strategies
+      const requiresBid = body.bid_type === "BID_TYPE_CUSTOM" || finalBillingEvent !== 'OCPM';
+      if (requiresBid && finalBidAmount && finalBidAmount > 0) {
+        body.bid = finalBidAmount;
+        console.log(`✅ Bid amount set: €${finalBidAmount} (billing: ${finalBillingEvent}, bid_type: ${body.bid_type})`);
+      } else if (requiresBid) {
+        console.warn(`⚠️ No bid amount provided for ${finalBillingEvent} billing event`);
       }
 
       // Location targeting - filter out restricted markets (US)
