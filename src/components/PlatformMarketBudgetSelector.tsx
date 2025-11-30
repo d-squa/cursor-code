@@ -133,6 +133,7 @@ export function PlatformMarketBudgetSelector({
             catalog: acc.default_catalog_id,
             productSet: acc.default_product_set_id,
             conversionEvent: acc.default_conversion_event,
+            bidStrategy: acc.default_bid_strategy,
             mainMarkets: Array.isArray(acc.main_markets) ? acc.main_markets : [],
           };
           console.log(`📋 Defaults for ${acc.account_name}:`, defaults[acc.account_id]);
@@ -402,7 +403,6 @@ export function PlatformMarketBudgetSelector({
           optimizationEvent: acc.default_optimization_event,
           landingPageUrl: acc.default_landing_page_url,
           bidStrategy: acc.default_bid_strategy,
-          bidAmount: acc.default_bid_amount,
           mainMarkets: Array.isArray(acc.main_markets) ? acc.main_markets : [],
         };
       });
@@ -1000,32 +1000,33 @@ export function PlatformMarketBudgetSelector({
                                                  productSet: defaults?.productSet
                                                });
                                                
-                                               return {
-                                                 id: `${marketCode}-${Date.now()}-${idx}`,
-                                                 name: marketCode,
-                                                 budgetPercentage: marketBudgetSplit,
-                                                 adAccountId: value,
-                                                 accountName: account?.name || "",
-                                                 pixel: defaults?.pixelId || "",
-                                                 pageId: defaults?.pageId || "",
-                                                 page: defaults?.pageId || "",
-                                                 instagramActorId: defaults?.instagramActorId || "",
-                                                 catalog: defaults?.catalog || "",
-                                                 productSet: defaults?.productSet || "",
-                                                 conversionEvent: defaults?.conversionEvent || "",
-                                                 phases: [],
-                                                 adFormats: [],
-                                                 countries: [marketCode],
-                                                 ageMin: 18,
-                                                 ageMax: 65,
-                                                 gender: "all",
-                                                 languages: [],
-                                                 publisherPlatforms: ["facebook"],
-                                                 positions: {},
-                                                 detailedTargeting: [],
-                                                 isCBOEnabled: false,
-                                                 isLifetimeBudget: false,
-                                               };
+                                                return {
+                                                  id: `${marketCode}-${Date.now()}-${idx}`,
+                                                  name: marketCode,
+                                                  budgetPercentage: marketBudgetSplit,
+                                                  adAccountId: value,
+                                                  accountName: account?.name || "",
+                                                  pixel: defaults?.pixelId || "",
+                                                  pageId: defaults?.pageId || "",
+                                                  page: defaults?.pageId || "",
+                                                  instagramActorId: defaults?.instagramActorId || "",
+                                                  catalog: defaults?.catalog || "",
+                                                  productSet: defaults?.productSet || "",
+                                                  conversionEvent: defaults?.conversionEvent || "",
+                                                  metaBidStrategy: defaults?.bidStrategy || 'LOWEST_COST_WITHOUT_CAP',
+                                                  phases: [],
+                                                  adFormats: [],
+                                                  countries: [marketCode],
+                                                  ageMin: 18,
+                                                  ageMax: 65,
+                                                  gender: "all",
+                                                  languages: [],
+                                                  publisherPlatforms: ["facebook"],
+                                                  positions: {},
+                                                  detailedTargeting: [],
+                                                  isCBOEnabled: false,
+                                                  isLifetimeBudget: false,
+                                                };
                                              });
                                              
                                              console.log('✅ Created markets:', newMarkets.map(m => ({ name: m.name, pixel: m.pixel, page: m.page, catalog: m.catalog })));
@@ -1054,22 +1055,23 @@ export function PlatformMarketBudgetSelector({
                                                      accountName: account?.name || "",
                                                    };
                                                    
-                                                   // Apply defaults if available
-                                                   if (defaults) {
-                                                     console.log("Applying defaults to current market:", value, defaults);
-                                                     
-                                                     if (defaults.pixelId) updated.pixel = defaults.pixelId;
-                                                     if (defaults.pageId) {
-                                                       updated.pageId = defaults.pageId;
-                                                       updated.page = defaults.pageId;
-                                                     }
-                                                     if (defaults.instagramActorId) updated.instagramActorId = defaults.instagramActorId;
-                                                     if (defaults.catalog) updated.catalog = defaults.catalog;
-                                                     if (defaults.productSet) updated.productSet = defaults.productSet;
-                                                     if (defaults.conversionEvent) updated.conversionEvent = defaults.conversionEvent;
-                                                     
-                                                     toast.success("Applied default settings for this ad account");
-                                                   }
+                                                    // Apply defaults if available
+                                                    if (defaults) {
+                                                      console.log("Applying defaults to current market:", value, defaults);
+                                                      
+                                                      if (defaults.pixelId) updated.pixel = defaults.pixelId;
+                                                      if (defaults.pageId) {
+                                                        updated.pageId = defaults.pageId;
+                                                        updated.page = defaults.pageId;
+                                                      }
+                                                      if (defaults.instagramActorId) updated.instagramActorId = defaults.instagramActorId;
+                                                      if (defaults.catalog) updated.catalog = defaults.catalog;
+                                                      if (defaults.productSet) updated.productSet = defaults.productSet;
+                                                      if (defaults.conversionEvent) updated.conversionEvent = defaults.conversionEvent;
+                                                      if (defaults.bidStrategy) updated.metaBidStrategy = defaults.bidStrategy;
+                                                      
+                                                      toast.success("Applied default settings for this ad account");
+                                                    }
                                                    
                                                    if (!updated.phases || updated.phases.length === 0) {
                                                      updated.phases = [];
@@ -1475,6 +1477,10 @@ export function PlatformMarketBudgetSelector({
                     if (defaults.landingPageUrl) {
                       updated.tiktokLandingPageUrl = defaults.landingPageUrl;
                       console.log("  ✓ Set tiktokLandingPageUrl:", defaults.landingPageUrl);
+                    }
+                    if (defaults.bidStrategy) {
+                      updated.tiktokBidStrategy = defaults.bidStrategy;
+                      console.log("  ✓ Set tiktokBidStrategy:", defaults.bidStrategy);
                     }
                     
                     toast.success("Applied default TikTok settings");
