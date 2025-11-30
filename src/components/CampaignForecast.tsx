@@ -238,6 +238,29 @@ export function CampaignForecast({
       return;
     }
 
+    // Check for TikTok conversion campaigns and warn user
+    const hasTikTokConversionCampaigns = platforms.some(platform => {
+      if (!platform.id.toLowerCase().includes('tiktok')) return false;
+      
+      return platform.markets?.some(market =>
+        market.phases?.some(phase => {
+          const objective = (phase.objective || '').toLowerCase();
+          const optimizationGoal = (phase.optimizationGoal || '').toLowerCase();
+          return objective.includes('conversion') || optimizationGoal.includes('convert');
+        })
+      );
+    });
+
+    if (hasTikTokConversionCampaigns) {
+      toast.warning(
+        "TikTok Conversion Adjustment: TikTok requires 90+ days of conversion data. Your conversion campaigns have been automatically switched to TRAFFIC objective (CLICK optimization) to ensure successful ad group creation.",
+        { 
+          duration: 8000,
+          description: "This fallback allows your campaigns to launch successfully without pixel data requirements."
+        }
+      );
+    }
+
     setPushingToDSP(true);
     try {
       const { supabase } = await import("@/integrations/supabase/client");

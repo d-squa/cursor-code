@@ -808,6 +808,22 @@ async function pushToGoogleAds(campaign: any, platformConfig: any, platform: any
 async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
   console.log("Pushing to TikTok...");
   
+  // Check for conversion campaigns and log automatic fallback warning
+  const hasConversionCampaigns = platformConfig.markets?.some((market: any) =>
+    market.phases?.some((phase: any) => {
+      const objective = (phase.objective || '').toLowerCase();
+      const optimizationGoal = (phase.optimizationGoal || '').toLowerCase();
+      return objective.includes('conversion') || optimizationGoal.includes('convert');
+    })
+  );
+  
+  if (hasConversionCampaigns) {
+    console.warn("⚠️⚠️⚠️ TIKTOK CONVERSION CAMPAIGN DETECTED ⚠️⚠️⚠️");
+    console.warn("TikTok requires conversion events to have 90+ days of historical data");
+    console.warn("System will AUTOMATICALLY fallback to TRAFFIC objective with CLICK optimization");
+    console.warn("This ensures ad groups can be created successfully without pixel data requirements");
+  }
+  
   const results = [];
   const errors = [];
   
