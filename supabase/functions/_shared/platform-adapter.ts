@@ -311,16 +311,15 @@ class TikTokAdapter implements PlatformAdapter {
         operation_status: params.status === 'PAUSED' ? 'DISABLE' : 'ENABLE',
       };
       
-      // Location targeting DISABLED due to TikTok restrictions
-      // US (6252001) and potentially other markets are unavailable due to TikTok policies
-      // Using broad targeting instead
-      const locationIds = this.mapLocationIds(params.targeting.geo_locations?.countries || []);
+      // Location targeting - filter out restricted markets (US)
+      const locationIds = this.mapLocationIds(params.targeting.geo_locations?.countries || [])
+        .filter(id => id !== "6252001"); // Remove US (restricted due to sanctions/political restrictions)
+      
       if (locationIds.length > 0) {
-        console.warn(`⚠️ Location targeting SKIPPED: ${JSON.stringify(locationIds)} - TikTok has restricted certain markets (including US)`);
-        console.warn("Using broad targeting instead to avoid permission errors");
-        // body.location_ids = locationIds; // Commented out - causes permission errors
+        body.location_ids = locationIds;
+        console.log(`✅ Location targeting applied: ${locationIds.join(', ')}`);
       } else {
-        console.log("No location targeting specified - using broad targeting");
+        console.warn("⚠️ All specified locations are restricted or no locations provided - using broad targeting");
       }
 
       // Add schedule information if dates are provided
