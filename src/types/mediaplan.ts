@@ -18,6 +18,7 @@ export interface Market {
   tiktokIdentity?: string; // TikTok Account/Identity ID
   tiktokCatalog?: string; // TikTok Catalog ID
   tiktokProductSet?: string; // TikTok Product Set ID
+  tiktokOptimizationEvent?: string; // TikTok Optimization Event
   strategy?: string; // Strategy type per market
   strategyFocus?: string;
   instagramActorId?: string;

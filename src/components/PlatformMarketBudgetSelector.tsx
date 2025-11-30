@@ -391,6 +391,7 @@ export function PlatformMarketBudgetSelector({
           identityId: acc.default_identity_id,
           catalogId: acc.default_catalog_id,
           productSetId: acc.default_product_set_id,
+          optimizationEvent: acc.default_optimization_event,
           mainMarkets: acc.main_markets,
         });
         defaults[acc.advertiser_id] = {
@@ -398,6 +399,7 @@ export function PlatformMarketBudgetSelector({
           identityId: acc.default_identity_id,
           catalogId: acc.default_catalog_id,
           productSetId: acc.default_product_set_id,
+          optimizationEvent: acc.default_optimization_event,
           mainMarkets: Array.isArray(acc.main_markets) ? acc.main_markets : [],
         };
       });
@@ -1368,6 +1370,7 @@ export function PlatformMarketBudgetSelector({
                                                 tiktokIdentity: defaults?.identityId || "",
                                                 tiktokCatalog: defaults?.catalogId || "",
                                                 tiktokProductSet: defaults?.productSetId || "",
+                                                tiktokOptimizationEvent: defaults?.optimizationEvent || "ON_WEB_ORDER",
                                                 phases: [],
                                                 adFormats: [],
                                                 countries: [marketCode],
@@ -1426,6 +1429,10 @@ export function PlatformMarketBudgetSelector({
                                                     if (defaults.productSetId) {
                                                       updated.tiktokProductSet = defaults.productSetId;
                                                       console.log("  ✓ Set tiktokProductSet:", defaults.productSetId);
+                                                    }
+                                                    if (defaults.optimizationEvent) {
+                                                      updated.tiktokOptimizationEvent = defaults.optimizationEvent;
+                                                      console.log("  ✓ Set tiktokOptimizationEvent:", defaults.optimizationEvent);
                                                     }
                                                     
                                                     toast.success("Applied default TikTok settings");
@@ -1596,6 +1603,30 @@ export function PlatformMarketBudgetSelector({
                                     </Select>
                                   </div>
                                 )}
+
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Optimization Event</Label>
+                                  <Select
+                                    value={market.tiktokOptimizationEvent || "ON_WEB_ORDER"}
+                                    onValueChange={(value) => updateMarketField(platformIndex, market.id, 'tiktokOptimizationEvent', value)}
+                                  >
+                                    <SelectTrigger className="h-7 text-xs">
+                                      <SelectValue placeholder="Select Event" />
+                                    </SelectTrigger>
+                                    <SelectContent className="z-50 bg-background">
+                                      <SelectItem value="ON_WEB_ORDER">Web Order (Purchase)</SelectItem>
+                                      <SelectItem value="ON_WEB_ADD_TO_CART">Add to Cart</SelectItem>
+                                      <SelectItem value="PAGE_VIEW">Page View</SelectItem>
+                                      <SelectItem value="ON_WEB_CART_PAGE_BROWSE">Cart Page Browse</SelectItem>
+                                      <SelectItem value="ON_WEB_DETAIL_PAGE_BROWSE">Detail Page Browse</SelectItem>
+                                      <SelectItem value="COMPLETE_PAYMENT">Complete Payment</SelectItem>
+                                      <SelectItem value="FORM_SUBMIT">Form Submit</SelectItem>
+                                      <SelectItem value="DOWNLOAD">Download</SelectItem>
+                                      <SelectItem value="REGISTRATION">Registration</SelectItem>
+                                      <SelectItem value="SUBSCRIBE">Subscribe</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
                               </div>
                             )}
 
