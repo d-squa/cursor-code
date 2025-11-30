@@ -374,16 +374,47 @@ class TikTokAdapter implements PlatformAdapter {
         body: JSON.stringify(body),
       });
 
-      const data = await response.json();
-
-      if (data.code !== 0) {
-        console.error("TikTok ad group creation error:", JSON.stringify(data, null, 2));
-        console.error("Failed request body was:", JSON.stringify(body, null, 2));
+      console.log("=== TIKTOK API RESPONSE DEBUG ===");
+      console.log("Status:", response.status, response.statusText);
+      console.log("Headers:", JSON.stringify(Object.fromEntries(response.headers.entries())));
+      
+      const responseText = await response.text();
+      console.log("Raw response body:", responseText);
+      
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (e) {
+        console.error("Failed to parse TikTok response:", e);
         return {
           success: false,
           adGroupId: "",
           platform: "tiktok",
-          error: `${data.message || "Failed to create ad group"} (Code: ${data.code})`,
+          error: `Invalid response from TikTok: ${responseText.substring(0, 200)}`,
+        };
+      }
+
+      if (data.code !== 0) {
+        console.error("=== TIKTOK AD GROUP CREATION FAILED ===");
+        console.error("Error code:", data.code);
+        console.error("Error message:", data.message);
+        console.error("Request ID:", data.request_id);
+        console.error("Full error response:", JSON.stringify(data, null, 2));
+        console.error("Request body that was sent:", JSON.stringify(body, null, 2));
+        
+        // Check for specific error patterns
+        if (data.message?.includes("location")) {
+          console.error("⚠️ LOCATION TARGETING ERROR - Account may not have permission for location_ids:", body.location_ids);
+        }
+        if (data.message?.includes("Unknown error")) {
+          console.error("⚠️ GENERIC ERROR - Check all required fields are present and correctly formatted");
+        }
+        
+        return {
+          success: false,
+          adGroupId: "",
+          platform: "tiktok",
+          error: `${data.message || "Failed to create ad group"} (Code: ${data.code}, Request ID: ${data.request_id})`,
         };
       }
       
