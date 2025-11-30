@@ -660,38 +660,40 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
           }
         }
 
+        // Validate bid strategy compatibility with optimization goal
+        // COST_CAP and LOWEST_COST_WITH_BID_CAP only work with specific optimization goals
+        const bidStrategyCompatibleGoals = ['OFFSITE_CONVERSIONS', 'VALUE', 'LINK_CLICKS', 'LANDING_PAGE_VIEWS', 'LEAD_GENERATION', 'APP_INSTALLS'];
+        const requestedBidStrategy = market.metaBidStrategy || "LOWEST_COST_WITHOUT_CAP";
+        const requiresBidCap = requestedBidStrategy === 'COST_CAP' || requestedBidStrategy === 'LOWEST_COST_WITH_BID_CAP';
+        const isCompatible = bidStrategyCompatibleGoals.includes(optimizationGoal);
+        
+        let finalBidStrategy = requestedBidStrategy;
+        if (requiresBidCap && !isCompatible) {
+          console.warn(`⚠️ Bid strategy ${requestedBidStrategy} is not compatible with optimization goal ${optimizationGoal}`);
+          console.warn(`Falling back to LOWEST_COST_WITHOUT_CAP for ${optimizationGoal}`);
+          finalBidStrategy = "LOWEST_COST_WITHOUT_CAP";
+        }
+
         // Create ad set
         const adSetPayload: any = {
           name: `${phase.name} - Ad Set`,
           campaign_id: campaignData.id,
           billing_event: "IMPRESSIONS",
           optimization_goal: optimizationGoal,
-          bid_strategy: market.metaBidStrategy || "LOWEST_COST_WITHOUT_CAP",
+          bid_strategy: finalBidStrategy,
           status: "PAUSED",
           start_time: startDate.toISOString(),
           end_time: endDate.toISOString(),
           targeting: targeting,
         };
 
-        // Debug bid strategy and amount
-        console.log(`=== BID STRATEGY DEBUG for market ${market.name} ===`);
-        console.log(`Bid Strategy: ${market.metaBidStrategy}`);
-        console.log(`Bid Amount (raw): ${market.metaBidAmount}`);
-        console.log(`Bid Amount type: ${typeof market.metaBidAmount}`);
-        console.log(`Bid Amount > 0: ${market.metaBidAmount > 0}`);
-        console.log(`Market object keys:`, Object.keys(market));
+        console.log(`✅ Bid strategy validated: ${finalBidStrategy} (requested: ${requestedBidStrategy}, compatible: ${isCompatible})`);
         
-        // Add bid amount if bid strategy requires it
-        if ((market.metaBidStrategy === 'LOWEST_COST_WITH_BID_CAP' || market.metaBidStrategy === 'COST_CAP') && 
+        // Add bid amount if bid strategy requires it AND it's compatible
+        if ((finalBidStrategy === 'LOWEST_COST_WITH_BID_CAP' || finalBidStrategy === 'COST_CAP') && 
             market.metaBidAmount && market.metaBidAmount > 0) {
           adSetPayload.bid_amount = Math.round(market.metaBidAmount * 100); // Convert to cents
-          console.log(`✅ Adding Meta bid amount: €${market.metaBidAmount} (${adSetPayload.bid_amount} cents) for strategy ${market.metaBidStrategy}`);
-        } else {
-          console.log(`❌ NOT adding bid amount. Conditions:`, {
-            requiresBid: market.metaBidStrategy === 'LOWEST_COST_WITH_BID_CAP' || market.metaBidStrategy === 'COST_CAP',
-            hasBidAmount: !!market.metaBidAmount,
-            isPositive: market.metaBidAmount > 0
-          });
+          console.log(`✅ Adding Meta bid amount: €${market.metaBidAmount} (${adSetPayload.bid_amount} cents) for strategy ${finalBidStrategy}`);
         }
         
         // Add conversion tracking for conversion-optimized ad sets (including VALUE)
