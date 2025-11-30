@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
@@ -28,6 +29,7 @@ interface AdAccount {
   default_identity_id?: string | null;
   default_billing_event?: string | null;
   default_optimization_event?: string | null;
+  default_landing_page_url?: string | null;
   main_markets?: string[] | null;
 }
 
@@ -159,6 +161,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         default_non_conversion_budget_type: acc.default_non_conversion_budget_type || null,
         default_billing_event: acc.default_billing_event || 'OCPM',
         default_optimization_event: acc.default_optimization_event || 'ON_WEB_ORDER',
+        default_landing_page_url: acc.default_landing_page_url || null,
       }));
 
       console.log("[AccountDefaultsTab] TikTok accounts loaded from database:", tiktokAccounts.map(acc => ({
@@ -193,6 +196,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
           default_identity_id: acc.platform === 'tiktok' ? acc.default_identity_id || null : null,
           default_billing_event: acc.platform === 'tiktok' ? acc.default_billing_event || 'OCPM' : null,
           default_optimization_event: acc.platform === 'tiktok' ? acc.default_optimization_event || 'ON_WEB_ORDER' : null,
+          default_landing_page_url: acc.platform === 'tiktok' ? acc.default_landing_page_url || null : null,
           main_markets: acc.main_markets,
         };
       });
@@ -290,6 +294,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         'default_non_conversion_budget_type',
         'default_billing_event',
         'default_optimization_event',
+        'default_landing_page_url',
         'main_markets'
       ];
       
@@ -860,6 +865,24 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                             </Select>
                             <p className="text-xs text-muted-foreground">
                               Conversion event to optimize for. Requires at least 90 days of historical data on the selected pixel.
+                            </p>
+                          </div>
+
+                          {/* TikTok Landing Page URL */}
+                          <div className="space-y-2">
+                            <Label className="flex items-center gap-2">
+                              <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
+                              Landing Page URL
+                            </Label>
+                            <Input
+                              type="url"
+                              placeholder="https://example.com"
+                              value={defaults.default_landing_page_url || ""}
+                              onChange={(e) => updateDefault(account.id, "default_landing_page_url", e.target.value)}
+                              className="border-black/20 dark:border-white/20"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              Required for conversion campaigns. Where users land after clicking your ad.
                             </p>
                           </div>
                         </>
