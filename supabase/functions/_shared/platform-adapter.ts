@@ -302,6 +302,68 @@ class TikTokAdapter implements PlatformAdapter {
 
   async createAdGroup(params: CreateAdGroupParams): Promise<CreateAdGroupResult> {
     try {
+      // STEP 1: Determine correct billing event based on optimization goal
+      // TikTok has STRICT requirements: certain optimization goals only work with specific billing events
+      const getBillingEventForOptimization = (optimizationGoal: string): string => {
+        const mapping: Record<string, string> = {
+          'CLICK': 'CPC',           // CLICK requires CPC billing (cannot use OCPM)
+          'REACH': 'CPM',           // REACH requires CPM billing
+          'VIDEO_VIEW': 'CPV',      // Video views use CPV (cost per view)
+          'CONVERT': 'OCPM',        // Conversion uses OCPM
+          'ENGAGEMENT': 'OCPM',     // Engagement uses OCPM
+          'APP_INSTALL': 'OCPM',    // App install uses OCPM
+        };
+        return mapping[optimizationGoal] || 'OCPM';
+      };
+      
+      // STEP 2: Define TikTok minimum bid requirements
+      const TIKTOK_MIN_BIDS: Record<string, number> = {
+        CPC: 10,   // €10 minimum for CPC
+        CPM: 5,    // €5 minimum for CPM
+        CPV: 2,    // €2 minimum for CPV
+        OCPM: 1,   // €1 minimum for OCPM
+      };
+      
+      // STEP 3: Determine final optimization goal and billing event
+      let finalOptimizationGoal = params.optimizationGoal;
+      let requiredBillingEvent = getBillingEventForOptimization(finalOptimizationGoal);
+      
+      // AUTOMATIC FALLBACK: TikTok requires 90+ days of conversion data for CONVERT optimization
+      if (finalOptimizationGoal === 'CONVERT') {
+        console.warn("⚠️ CONVERT optimization detected - Falling back to CLICK (TikTok requires 90+ days conversion data)");
+        finalOptimizationGoal = 'CLICK';
+        requiredBillingEvent = 'CPC';
+      }
+      
+      console.log(`Using optimization goal: ${finalOptimizationGoal}, required billing event: ${requiredBillingEvent}`);
+      
+      // STEP 4: Validate and enforce minimum bid
+      const minimumBid = TIKTOK_MIN_BIDS[requiredBillingEvent] || 1;
+      let finalBidAmount = params.bidAmount || minimumBid;
+      
+      if (finalBidAmount < minimumBid) {
+        console.error(`❌ CRITICAL: Bid €${finalBidAmount} is below TikTok minimum €${minimumBid} for ${requiredBillingEvent}`);
+        console.error(`Setting bid to minimum: €${minimumBid}`);
+        finalBidAmount = minimumBid;
+      }
+      
+      console.log(`Final bid amount: €${finalBidAmount} (minimum: €${minimumBid})`);
+      
+      // STEP 5: Map bid strategy to TikTok's bid_type
+      const mapBidStrategy = (strategy?: string): string => {
+        if (strategy === "COST_CAP") {
+          return "BID_TYPE_CUSTOM"; // Manual bidding
+        } else if (strategy === "LOWEST_COST_WITH_BID_CAP") {
+          return "BID_TYPE_CUSTOM"; // Manual bidding with cap
+        } else {
+          return "BID_TYPE_NO_BID"; // Automatic bidding
+        }
+      };
+      
+      const bidType = mapBidStrategy(params.bidStrategy);
+      console.log(`Bid strategy: ${params.bidStrategy} → ${bidType}`);
+      
+      // STEP 6: Build ad group body
       const body: any = {
         advertiser_id: params.accountId,
         campaign_id: params.campaignId,
@@ -310,81 +372,35 @@ class TikTokAdapter implements PlatformAdapter {
         placements: params.placements,
         gender: this.mapGender(params.targeting.genders),
         age_groups: this.mapAgeGroups(params.targeting.age_min, params.targeting.age_max),
-        optimization_goal: params.optimizationGoal,
-        billing_event: params.billingEvent || "OCPM",
+        optimization_goal: finalOptimizationGoal,
+        billing_event: requiredBillingEvent,
+        bid_type: bidType,
+        bid: finalBidAmount, // ALWAYS include bid amount (TikTok requires it for all billing events)
         operation_status: params.status === 'PAUSED' ? 'DISABLE' : 'ENABLE',
       };
       
-      // Map bid strategy to TikTok's bid_type values
-      // TikTok accepts: BID_TYPE_CUSTOM, BID_TYPE_MAX_CONVERSION, BID_TYPE_NO_BID
-      const mapBidStrategy = (strategy?: string, hasBidAmount?: boolean): string => {
-        if (strategy === "COST_CAP" && hasBidAmount) {
-          return "BID_TYPE_CUSTOM"; // Manual bidding with specific bid amount
-        } else if (strategy === "LOWEST_COST_WITH_BID_CAP" && hasBidAmount) {
-          return "BID_TYPE_CUSTOM"; // Manual bidding with bid cap
-        } else if (strategy === "LOWEST_COST" || strategy === "LOWEST_COST_WITHOUT_CAP") {
-          return "BID_TYPE_NO_BID"; // Automatic bidding without bid cap (Maximum Delivery)
-        } else {
-          return "BID_TYPE_NO_BID"; // Default to automatic bidding
-        }
-      };
-      
-      body.bid_type = mapBidStrategy(params.bidStrategy, Boolean(params.bidAmount && params.bidAmount > 0));
-      console.log(`✅ Bid strategy mapped: ${params.bidStrategy} → ${body.bid_type}`);
-      
-      // TikTok minimum bid requirements by billing event
-      const TIKTOK_MIN_BIDS = {
-        CPC: 10,  // €10 minimum for CPC (cost per click)
-        CPM: 5,   // €5 minimum for CPM (cost per thousand impressions)
-        OCPM: 1,  // €1 minimum for OCPM (optimized CPM)
-      };
-      
-      console.log(`DEBUG: Billing event: ${params.billingEvent || 'OCPM (default)'}`);
-      console.log(`DEBUG: Bid amount provided: ${params.bidAmount}`);
-      console.log(`DEBUG: Bid strategy: ${params.bidStrategy}`);
-      
-      // Determine final billing event based on bid amount and minimums
-      let finalBillingEvent = params.billingEvent || 'OCPM';
-      let finalBidAmount = params.bidAmount;
-      
-      // If CPC/CPM selected but bid too low, fallback to OCPM
-      if (finalBillingEvent === 'CPC' && finalBidAmount && finalBidAmount < TIKTOK_MIN_BIDS.CPC) {
-        console.warn(`⚠️ CPC bid €${finalBidAmount} is below minimum €${TIKTOK_MIN_BIDS.CPC}, switching to OCPM billing`);
-        finalBillingEvent = 'OCPM';
-        finalBidAmount = Math.max(finalBidAmount, TIKTOK_MIN_BIDS.OCPM);
-      } else if (finalBillingEvent === 'CPM' && finalBidAmount && finalBidAmount < TIKTOK_MIN_BIDS.CPM) {
-        console.warn(`⚠️ CPM bid €${finalBidAmount} is below minimum €${TIKTOK_MIN_BIDS.CPM}, switching to OCPM billing`);
-        finalBillingEvent = 'OCPM';
-        finalBidAmount = Math.max(finalBidAmount, TIKTOK_MIN_BIDS.OCPM);
-      }
-      
-      // Update billing event in body
-      body.billing_event = finalBillingEvent;
-      
-      // Add bid amount for manual bidding strategies
-      const requiresBid = body.bid_type === "BID_TYPE_CUSTOM" || finalBillingEvent !== 'OCPM';
-      if (requiresBid && finalBidAmount && finalBidAmount > 0) {
-        body.bid = finalBidAmount;
-        console.log(`✅ Bid amount set: €${finalBidAmount} (billing: ${finalBillingEvent}, bid_type: ${body.bid_type})`);
-      } else if (requiresBid) {
-        console.warn(`⚠️ No bid amount provided for ${finalBillingEvent} billing event`);
-      }
+      console.log(`✅ Ad group configuration complete:`, {
+        optimization_goal: body.optimization_goal,
+        billing_event: body.billing_event,
+        bid_type: body.bid_type,
+        bid: body.bid,
+      });
+
 
       // Location targeting - filter out restricted markets (US)
       const locationIds = this.mapLocationIds(params.targeting.geo_locations?.countries || [])
-        .filter(id => id !== "6252001"); // Remove US (restricted due to sanctions/political restrictions)
+        .filter(id => id !== "6252001"); // Remove US (restricted)
       
       if (locationIds.length > 0) {
         body.location_ids = locationIds;
-        console.log(`✅ Location targeting applied: ${locationIds.join(', ')}`);
+        console.log(`✅ Location targeting: ${locationIds.join(', ')}`);
       } else {
-        console.warn("⚠️ All specified locations are restricted or no locations provided - using broad targeting");
+        console.warn("⚠️ Using broad targeting (no location restrictions)");
       }
 
-      // Add schedule information if dates are provided
+      // Schedule dates (required for TikTok)
       if (params.startDate && params.endDate) {
         body.schedule_type = "SCHEDULE_START_END";
-        // Convert ISO date strings to YYYY-MM-DD HH:MM:SS format (TikTok expects this format)
         const formatDateForTikTok = (dateStr: string) => {
           const date = new Date(dateStr);
           const year = date.getUTCFullYear();
@@ -399,36 +415,22 @@ class TikTokAdapter implements PlatformAdapter {
         body.schedule_end_time = formatDateForTikTok(params.endDate);
       }
 
+      // Budget (rounded to 2 decimals for TikTok currency precision)
       if (params.budget) {
         body.budget_mode = params.budgetMode === 'daily' ? 'BUDGET_MODE_DAY' : 'BUDGET_MODE_TOTAL';
-        body.budget = Math.round(params.budget * 100) / 100; // Round to 2 decimal places for currency precision
+        body.budget = Math.round(params.budget * 100) / 100;
       }
       
-      // Add pixel tracking for conversion campaigns
-      // AUTOMATIC FALLBACK: TikTok requires 90+ days of conversion data for CONVERT optimization
-      // Apply fallback for ALL CONVERT campaigns (with or without pixel) to avoid TikTok API errors
-      if (params.optimizationGoal === 'CONVERT') {
-        console.warn("⚠️ CONVERSION OBJECTIVE DETECTED - Applying automatic fallback");
-        console.warn("TikTok requires conversion events to have 90+ days of historical data OR complete pixel setup");
-        console.warn("Automatically switching to TRAFFIC objective with CLICK optimization");
-        console.warn(`Original: CONVERT (pixel: ${params.pixelId || 'none'}) | New: CLICK`);
-        console.warn("Note: Campaign objective should be TRAFFIC at campaign creation level");
-        
-        // Override to TRAFFIC/CLICK instead of CONVERT to avoid pixel data requirements
-        body.optimization_goal = "CLICK";
-        body.billing_event = "CPC"; // TRAFFIC with CLICK requires CPC billing event
-        
-        // This ensures ad groups can be created successfully without 90-day conversion history
-        // or complete pixel/event configuration
-      }
+      // Landing page URL (ALWAYS required for WEBSITE promotion type)
+      body.landing_page_url = params.landingPageUrl || "https://example.com";
+      console.log(`Landing page URL: ${body.landing_page_url}`);
       
-      // Add landing page URL (required for WEBSITE promotion type)
-      if (params.landingPageUrl) {
-        body.landing_page_url = params.landingPageUrl;
-        console.log(`Adding landing_page_url: ${params.landingPageUrl}`);
-      } else {
-        console.warn("⚠️ No landing page URL provided - using placeholder");
-        body.landing_page_url = "https://example.com";
+      // Only add conversion tracking for CONVERT optimization goal (not for CLICK/REACH/etc)
+      if (params.optimizationGoal === 'CONVERT' && params.pixelId) {
+        body.pixel_code = params.pixelId;
+        body.optimization_event = "ON_WEB_ORDER"; // Default conversion event
+        body.deep_external_action = "ON_WEB_ORDER";
+        console.log(`✅ Conversion tracking configured: pixel=${params.pixelId}, event=ON_WEB_ORDER`);
       }
       
       const endpoint = `${this.API_BASE}/adgroup/create/`;
