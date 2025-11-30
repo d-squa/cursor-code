@@ -298,22 +298,28 @@ class TikTokAdapter implements PlatformAdapter {
 
   async createAdGroup(params: CreateAdGroupParams): Promise<CreateAdGroupResult> {
     try {
-      // Convert country codes to TikTok location IDs
-      const locationIds = this.mapLocationIds(params.targeting.geo_locations?.countries || []);
-      
       const body: any = {
         advertiser_id: params.accountId,
         campaign_id: params.campaignId,
         adgroup_name: params.adGroupName,
         promotion_type: "WEBSITE",
         placements: params.placements,
-        location_ids: locationIds,
         gender: this.mapGender(params.targeting.genders),
         age_groups: this.mapAgeGroups(params.targeting.age_min, params.targeting.age_max),
         optimization_goal: params.optimizationGoal,
         billing_event: params.billingEvent || "OCPM",
         operation_status: params.status === 'PAUSED' ? 'DISABLE' : 'ENABLE',
       };
+      
+      // Location targeting is optional - only add if we have valid locations
+      // Some accounts don't have permission for certain locations
+      const locationIds = this.mapLocationIds(params.targeting.geo_locations?.countries || []);
+      if (locationIds.length > 0) {
+        body.location_ids = locationIds;
+        console.log(`Adding location_ids: ${JSON.stringify(locationIds)}`);
+      } else {
+        console.log("No location targeting specified - using account default targeting");
+      }
 
       // Add schedule information if dates are provided
       if (params.startDate && params.endDate) {
@@ -347,13 +353,14 @@ class TikTokAdapter implements PlatformAdapter {
       }
       
       // Add landing page URL (required for WEBSITE promotion type)
-      if (params.landingPageUrl) {
+      // Try to get a valid URL or skip if not available
+      if (params.landingPageUrl && params.landingPageUrl !== "https://example.com") {
         body.landing_page_url = params.landingPageUrl;
         console.log(`Adding landing_page_url: ${params.landingPageUrl}`);
       } else {
-        // Use a default placeholder if not provided (TikTok requires this field)
-        body.landing_page_url = "https://example.com"; // This should be replaced with actual client website
-        console.warn("No landing page URL provided - using placeholder. This should be updated with actual client website.");
+        console.warn("⚠️ No valid landing page URL provided - ad group may fail without a real destination URL");
+        console.warn("TikTok requires a landing_page_url for WEBSITE promotion type");
+        // Don't add placeholder - let TikTok's error message tell us what's needed
       }
       
       const endpoint = `${this.API_BASE}/adgroup/create/`;
@@ -404,10 +411,19 @@ class TikTokAdapter implements PlatformAdapter {
         
         // Check for specific error patterns
         if (data.message?.includes("location")) {
-          console.error("⚠️ LOCATION TARGETING ERROR - Account may not have permission for location_ids:", body.location_ids);
+          console.error("⚠️ LOCATION TARGETING ERROR - Account doesn't have permission for specified locations");
+          console.error("Tried to target location_ids:", body.location_ids);
+          console.error("Solution: Remove location targeting or use different locations");
         }
         if (data.message?.includes("Unknown error")) {
-          console.error("⚠️ GENERIC ERROR - Check all required fields are present and correctly formatted");
+          console.error("⚠️ GENERIC ERROR (40002) - Possible causes:");
+          console.error("  1. Missing or invalid landing_page_url");
+          console.error("  2. Invalid conversion event or pixel configuration");
+          console.error("  3. Missing required fields for this objective/optimization goal combination");
+          console.error("  4. Account-level restrictions or permissions");
+        }
+        if (!body.landing_page_url) {
+          console.error("⚠️ MISSING landing_page_url - This is required for WEBSITE promotion type");
         }
         
         return {
