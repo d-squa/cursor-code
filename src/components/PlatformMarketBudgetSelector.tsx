@@ -15,7 +15,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import React, { useState, useEffect } from "react";
-import { MARKET_OPTIONS } from "@/utils/markets";
+import { MARKET_OPTIONS, TIKTOK_MARKET_OPTIONS } from "@/utils/markets";
 
 interface PlatformMarketBudgetSelectorProps {
   platforms: PlatformWithMarkets[];
@@ -1372,9 +1372,11 @@ export function PlatformMarketBudgetSelector({
                                                 tiktokCatalog: defaults?.catalogId || "",
                                                 tiktokProductSet: defaults?.productSetId || "",
                                                 tiktokOptimizationEvent: defaults?.optimizationEvent || "ON_WEB_ORDER",
+                                                tiktokLandingPageUrl: defaults?.landingPageUrl || "",
                                                 phases: [],
                                                 adFormats: [],
-                                                countries: [marketCode],
+                                                // Filter out US from TikTok countries
+                                                countries: marketCode !== 'US' ? [marketCode] : [],
                                                 ageMin: 18,
                                                 ageMax: 65,
                                                 gender: "all",
