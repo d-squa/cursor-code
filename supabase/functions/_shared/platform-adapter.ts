@@ -353,14 +353,12 @@ class TikTokAdapter implements PlatformAdapter {
       }
       
       // Add landing page URL (required for WEBSITE promotion type)
-      // Try to get a valid URL or skip if not available
-      if (params.landingPageUrl && params.landingPageUrl !== "https://example.com") {
+      if (params.landingPageUrl) {
         body.landing_page_url = params.landingPageUrl;
         console.log(`Adding landing_page_url: ${params.landingPageUrl}`);
       } else {
-        console.warn("⚠️ No valid landing page URL provided - ad group may fail without a real destination URL");
-        console.warn("TikTok requires a landing_page_url for WEBSITE promotion type");
-        // Don't add placeholder - let TikTok's error message tell us what's needed
+        console.warn("⚠️ No landing page URL provided - using placeholder");
+        body.landing_page_url = "https://example.com";
       }
       
       const endpoint = `${this.API_BASE}/adgroup/create/`;
