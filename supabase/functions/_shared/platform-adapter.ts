@@ -311,14 +311,16 @@ class TikTokAdapter implements PlatformAdapter {
         operation_status: params.status === 'PAUSED' ? 'DISABLE' : 'ENABLE',
       };
       
-      // Location targeting is optional - only add if we have valid locations
-      // Some accounts don't have permission for certain locations
+      // Location targeting DISABLED due to TikTok restrictions
+      // US (6252001) and potentially other markets are unavailable due to TikTok policies
+      // Using broad targeting instead
       const locationIds = this.mapLocationIds(params.targeting.geo_locations?.countries || []);
       if (locationIds.length > 0) {
-        body.location_ids = locationIds;
-        console.log(`Adding location_ids: ${JSON.stringify(locationIds)}`);
+        console.warn(`⚠️ Location targeting SKIPPED: ${JSON.stringify(locationIds)} - TikTok has restricted certain markets (including US)`);
+        console.warn("Using broad targeting instead to avoid permission errors");
+        // body.location_ids = locationIds; // Commented out - causes permission errors
       } else {
-        console.log("No location targeting specified - using account default targeting");
+        console.log("No location targeting specified - using broad targeting");
       }
 
       // Add schedule information if dates are provided
@@ -350,6 +352,9 @@ class TikTokAdapter implements PlatformAdapter {
         body.optimization_event = "ON_WEB_ORDER"; // Default web conversion event (valid TikTok event)
         body.deep_external_action = "ON_WEB_ORDER"; // Required for conversion optimization
         console.log(`Adding pixel_code ${params.pixelId}, optimization_event ON_WEB_ORDER, and deep_external_action ON_WEB_ORDER for CONVERT optimization goal`);
+        console.warn("⚠️ CRITICAL: TikTok requires conversion events to have historical data (last 90 days)");
+        console.warn("If this pixel has no conversion data, ad group creation will fail with error 40002");
+        console.warn("Solution: Use pixel with existing conversions OR switch to non-conversion objective (TRAFFIC/REACH)");
       }
       
       // Add landing page URL (required for WEBSITE promotion type)
