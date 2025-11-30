@@ -363,16 +363,20 @@ class TikTokAdapter implements PlatformAdapter {
       
       // Add pixel tracking for conversion campaigns
       // AUTOMATIC FALLBACK: TikTok requires 90+ days of conversion data for CONVERT optimization
-      if (params.pixelId && params.optimizationGoal === 'CONVERT') {
+      // Apply fallback for ALL CONVERT campaigns (with or without pixel) to avoid TikTok API errors
+      if (params.optimizationGoal === 'CONVERT') {
         console.warn("⚠️ CONVERSION OBJECTIVE DETECTED - Applying automatic fallback");
-        console.warn("TikTok requires conversion events to have 90+ days of historical data");
+        console.warn("TikTok requires conversion events to have 90+ days of historical data OR complete pixel setup");
         console.warn("Automatically switching to TRAFFIC objective with CLICK optimization");
-        console.warn("Original: CONVERT | New: CLICK (TRAFFIC objective should be used at campaign level)");
+        console.warn(`Original: CONVERT (pixel: ${params.pixelId || 'none'}) | New: CLICK`);
+        console.warn("Note: Campaign objective should be TRAFFIC at campaign creation level");
         
         // Override to TRAFFIC/CLICK instead of CONVERT to avoid pixel data requirements
         body.optimization_goal = "CLICK";
-        // Note: Campaign objective should be set to TRAFFIC at campaign creation level
+        body.billing_event = "CPC"; // TRAFFIC with CLICK requires CPC billing event
+        
         // This ensures ad groups can be created successfully without 90-day conversion history
+        // or complete pixel/event configuration
       }
       
       // Add landing page URL (required for WEBSITE promotion type)
