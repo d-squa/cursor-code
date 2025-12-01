@@ -60,6 +60,11 @@ export function TiktokPhaseConfig({ phase, onUpdate }: TiktokPhaseConfigProps) {
     "REACH", "VIDEO_VIEWS", "COMMUNITY_INTERACTION"
   ].includes(objective);
   
+  // Hide entire advanced settings section for Reach objective
+  if (objective === "REACH") {
+    return null;
+  }
+  
   return (
     <Card>
       <CardHeader>
