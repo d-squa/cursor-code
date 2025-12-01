@@ -300,6 +300,14 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
       return;
     }
 
+    // Determine which platforms are active
+    const activePlatforms = [];
+    if (metaAdAccountId) activePlatforms.push('Meta');
+    if (tiktokAdvertiserId) activePlatforms.push('TikTok');
+    
+    console.log('[AI Recommendations] Generating for platforms:', activePlatforms.join(', '));
+    console.log('[AI Recommendations] Platform IDs:', { metaAdAccountId, tiktokAdvertiserId });
+
     setGeneratingAI(true);
     try {
       const { data, error } = await supabase.functions.invoke('cross-platform-ai-recommendations', {
@@ -327,7 +335,20 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
       };
       
       setAiRecommendations(recommendations);
-      toast.success(`Generated ${recommendations.meta.interests.length + recommendations.meta.behaviors.length + recommendations.tiktok.interests.length + recommendations.tiktok.behaviors.length} cross-platform recommendations`);
+      
+      // Build platform-specific success message
+      const metaCount = recommendations.meta.interests.length + recommendations.meta.behaviors.length + recommendations.meta.demographics.length;
+      const tiktokCount = recommendations.tiktok.interests.length + recommendations.tiktok.behaviors.length + recommendations.tiktok.demographics.length;
+      
+      const messages = [];
+      if (metaAdAccountId && metaCount > 0) messages.push(`${metaCount} Meta`);
+      if (tiktokAdvertiserId && tiktokCount > 0) messages.push(`${tiktokCount} TikTok`);
+      
+      if (messages.length > 0) {
+        toast.success(`Generated ${messages.join(' and ')} recommendations`);
+      } else {
+        toast.warning('No recommendations found for the selected platforms');
+      }
     } catch (error: any) {
       console.error('Error generating recommendations:', error);
       toast.error(error.message || 'Failed to generate recommendations');
@@ -346,6 +367,14 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
       toast.error('At least one ad account must be selected');
       return;
     }
+
+    // Determine which platforms are active
+    const activePlatforms = [];
+    if (metaAdAccountId) activePlatforms.push('Meta');
+    if (tiktokAdvertiserId) activePlatforms.push('TikTok');
+    
+    console.log('[Search] Searching platforms:', activePlatforms.join(', '));
+    console.log('[Search] Platform IDs:', { metaAdAccountId, tiktokAdvertiserId });
 
     setSearching(true);
     try {
@@ -368,7 +397,16 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
       const totalMeta = (data.meta?.interests?.length || 0) + (data.meta?.behaviors?.length || 0) + (data.meta?.demographics?.length || 0);
       const totalTiktok = (data.tiktok?.interests?.length || 0) + (data.tiktok?.behaviors?.length || 0) + (data.tiktok?.purchaseIntention?.length || 0) + (data.tiktok?.videoInteractions?.length || 0);
       
-      toast.success(`Found ${totalMeta} Meta and ${totalTiktok} TikTok results across all categories`);
+      // Build platform-specific success message
+      const messages = [];
+      if (metaAdAccountId && totalMeta > 0) messages.push(`${totalMeta} Meta`);
+      if (tiktokAdvertiserId && totalTiktok > 0) messages.push(`${totalTiktok} TikTok`);
+      
+      if (messages.length > 0) {
+        toast.success(`Found ${messages.join(' and ')} results across all categories`);
+      } else {
+        toast.warning('No results found for the selected platforms');
+      }
     } catch (error: any) {
       console.error('Error searching:', error);
       toast.error(error.message || 'Failed to search');
