@@ -982,7 +982,6 @@ export type Database = {
           default_click_window: number | null
           default_conversion_budget_type: string | null
           default_event_count_enabled: boolean | null
-          default_frequency_enabled: boolean | null
           default_frequency_schedule: number | null
           default_identity_id: string | null
           default_landing_page_url: string | null
@@ -991,8 +990,6 @@ export type Database = {
           default_optimization_location: string | null
           default_pixel_id: string | null
           default_product_set_id: string | null
-          default_search_enabled: boolean | null
-          default_smart_plus_enabled: boolean | null
           default_view_window: number | null
           id: string
           main_markets: Json | null
@@ -1017,7 +1014,6 @@ export type Database = {
           default_click_window?: number | null
           default_conversion_budget_type?: string | null
           default_event_count_enabled?: boolean | null
-          default_frequency_enabled?: boolean | null
           default_frequency_schedule?: number | null
           default_identity_id?: string | null
           default_landing_page_url?: string | null
@@ -1026,8 +1022,6 @@ export type Database = {
           default_optimization_location?: string | null
           default_pixel_id?: string | null
           default_product_set_id?: string | null
-          default_search_enabled?: boolean | null
-          default_smart_plus_enabled?: boolean | null
           default_view_window?: number | null
           id?: string
           main_markets?: Json | null
@@ -1052,7 +1046,6 @@ export type Database = {
           default_click_window?: number | null
           default_conversion_budget_type?: string | null
           default_event_count_enabled?: boolean | null
-          default_frequency_enabled?: boolean | null
           default_frequency_schedule?: number | null
           default_identity_id?: string | null
           default_landing_page_url?: string | null
@@ -1061,8 +1054,6 @@ export type Database = {
           default_optimization_location?: string | null
           default_pixel_id?: string | null
           default_product_set_id?: string | null
-          default_search_enabled?: boolean | null
-          default_smart_plus_enabled?: boolean | null
           default_view_window?: number | null
           id?: string
           main_markets?: Json | null

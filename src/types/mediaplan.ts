@@ -29,9 +29,8 @@ export interface Market {
   tiktokFrequencySchedule?: number; // Frequency schedule (impressions per period)
   tiktokClickWindow?: number; // Click-through attribution window in days
   tiktokViewWindow?: number; // View-through attribution window in days
-  tiktokEventCountEnabled?: boolean; // Whether event count tracking is enabled
+  tiktokEventCount?: string; // Event count type: "every_conversion" or "once"
   tiktokSmartPlusEnabled?: boolean; // Whether Smart+ is enabled
-  tiktokSearchEnabled?: boolean; // Whether search ads are enabled
   metaBidStrategy?: string; // Meta Bid Strategy (LOWEST_COST_WITHOUT_CAP, LOWEST_COST_WITH_BID_CAP, COST_CAP, etc.)
   metaBidAmount?: number; // Meta Bid Amount (required for LOWEST_COST_WITH_BID_CAP and COST_CAP)
   strategy?: string; // Strategy type per market
@@ -85,9 +84,8 @@ export interface Phase {
   tiktokFrequencySchedule?: number; // Frequency schedule
   tiktokClickWindow?: number; // Click attribution window
   tiktokViewWindow?: number; // View attribution window
-  tiktokEventCountEnabled?: boolean; // Event count tracking
+  tiktokEventCount?: string; // Event count type: "every_conversion" or "once"
   tiktokSmartPlusEnabled?: boolean; // Smart+ enabled
-  tiktokSearchEnabled?: boolean; // Search ads enabled
   tiktokBidStrategy?: string; // Bid strategy override at phase level
   tiktokBidAmount?: number; // Bid amount override at phase level
   // Campaign-level overrides (inherits from market/generic if not set)
