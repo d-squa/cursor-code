@@ -247,14 +247,15 @@ export function MediaPlanEditor() {
       .find(p => p.id === 'tiktok' || p.name.toLowerCase() === 'tiktok')
       ?.markets[0]?.adAccountId;
     
-    if (metaAdAccount && metaAdAccount !== firstAdAccountId) {
-      setFirstAdAccountId(metaAdAccount);
-      console.log('✅ Updated Meta Ad Account ID for targeting:', metaAdAccount);
+    // Always update to current value (or null if platform not selected)
+    if (metaAdAccount !== firstAdAccountId) {
+      setFirstAdAccountId(metaAdAccount || null);
+      console.log(metaAdAccount ? '✅ Updated Meta Ad Account ID for targeting:' : '🔄 Cleared Meta Ad Account ID:', metaAdAccount);
     }
     
-    if (tiktokAdAccount && tiktokAdAccount !== firstTiktokAdvertiserId) {
-      setFirstTiktokAdvertiserId(tiktokAdAccount);
-      console.log('✅ Updated TikTok Advertiser ID for targeting:', tiktokAdAccount);
+    if (tiktokAdAccount !== firstTiktokAdvertiserId) {
+      setFirstTiktokAdvertiserId(tiktokAdAccount || null);
+      console.log(tiktokAdAccount ? '✅ Updated TikTok Advertiser ID for targeting:' : '🔄 Cleared TikTok Advertiser ID:', tiktokAdAccount);
     }
   }, [platformsWithMarkets]);
   
