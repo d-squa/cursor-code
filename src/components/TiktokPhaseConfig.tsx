@@ -27,7 +27,7 @@ export function TiktokPhaseConfig({ phase, onUpdate }: TiktokPhaseConfigProps) {
   // Determine field visibility based on matrix
   const showOptimizationLocation = ![
     "REACH", "VIDEO_VIEWS", "COMMUNITY_INTERACTION"
-  ].includes(objective);
+  ].includes(objective.toUpperCase());
 
   const showAppFields = (
     (objective === "TRAFFIC" && optimizationGoal === "CLICK" && phase.tiktokOptimizationLocation === "App") ||
@@ -58,10 +58,10 @@ export function TiktokPhaseConfig({ phase, onUpdate }: TiktokPhaseConfigProps) {
 
   const showSmartPlus = ![
     "REACH", "VIDEO_VIEWS", "COMMUNITY_INTERACTION"
-  ].includes(objective);
+  ].includes(objective.toUpperCase());
   
   // For REACH objective, only show frequency capping without the card
-  if (objective === "REACH") {
+  if (objective.toUpperCase() === "REACH") {
     return (
       <div className="space-y-2">
         <Label>Frequency Cap (impressions per 7 days)</Label>
