@@ -185,7 +185,7 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
     
     setAiRecommendations(restoredRecommendations);
     
-    // Auto-switch to the tab that has data
+    // Auto-switch to the tab based on platform context and available data
     const hasMetaData = restoredRecommendations.meta.interests.length > 0 || 
                         restoredRecommendations.meta.behaviors.length > 0 || 
                         restoredRecommendations.meta.demographics.length > 0;
@@ -193,12 +193,19 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
                           restoredRecommendations.tiktok.behaviors.length > 0 || 
                           restoredRecommendations.tiktok.demographics.length > 0;
     
-    // Switch to the platform that has data
-    if (hasTikTokData && !hasMetaData) {
+    // Priority 1: If only one platform account is available, show that platform
+    if (tiktokAdvertiserId && !metaAdAccountId) {
+      setActiveRecommendationTab("tiktok");
+    } else if (metaAdAccountId && !tiktokAdvertiserId) {
+      setActiveRecommendationTab("meta");
+    }
+    // Priority 2: If both accounts available, switch to the platform that has data
+    else if (hasTikTokData && !hasMetaData) {
       setActiveRecommendationTab("tiktok");
     } else if (hasMetaData && !hasTikTokData) {
       setActiveRecommendationTab("meta");
     }
+    // Priority 3: If both have data or neither has data, respect the initial state based on platform context
   }, [
     targeting.metaInterests, 
     targeting.tiktokInterests, 
