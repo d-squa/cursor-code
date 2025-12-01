@@ -79,6 +79,20 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
     matches: []
   });
   
+  // Controlled tab state for AI recommendations
+  const [activeRecommendationTab, setActiveRecommendationTab] = useState<string>(() => {
+    if (tiktokAdvertiserId && !metaAdAccountId) return "tiktok";
+    if (metaAdAccountId && !tiktokAdvertiserId) return "meta";
+    return "meta";
+  });
+  
+  // Controlled tab state for search results
+  const [activeSearchTab, setActiveSearchTab] = useState<string>(() => {
+    if (tiktokAdvertiserId && !metaAdAccountId) return "tiktok";
+    if (metaAdAccountId && !tiktokAdvertiserId) return "meta";
+    return "meta";
+  });
+  
   // Cross-platform search (all categories)
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<{
@@ -103,6 +117,21 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
   
   // Validation warnings
   const [validationWarnings, setValidationWarnings] = useState<string[]>([]);
+
+  // Update active tabs when account IDs change
+  useEffect(() => {
+    if (tiktokAdvertiserId && !metaAdAccountId) {
+      setActiveRecommendationTab("tiktok");
+      setActiveSearchTab("tiktok");
+    } else if (metaAdAccountId && !tiktokAdvertiserId) {
+      setActiveRecommendationTab("meta");
+      setActiveSearchTab("meta");
+    } else if (metaAdAccountId && tiktokAdvertiserId) {
+      // Keep current tabs if both exist, or default to meta
+      setActiveRecommendationTab(prev => prev || "meta");
+      setActiveSearchTab(prev => prev || "meta");
+    }
+  }, [metaAdAccountId, tiktokAdvertiserId]);
 
   useEffect(() => {
     loadTargetingOptions();
@@ -710,7 +739,8 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
             {/* Platform-Segmented Recommendations */}
             {(aiRecommendations.meta.interests.length > 0 || aiRecommendations.tiktok.interests.length > 0) && (
               <Tabs 
-                value={tiktokAdvertiserId && !metaAdAccountId ? "tiktok" : metaAdAccountId && !tiktokAdvertiserId ? "meta" : "meta"} 
+                value={activeRecommendationTab}
+                onValueChange={setActiveRecommendationTab}
                 className="w-full"
               >
                 {metaAdAccountId && tiktokAdvertiserId ? (
@@ -869,7 +899,7 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
 
             {/* Search Results - Grouped by Category */}
             {(Object.values(searchResults.meta).some(arr => arr.length > 0) || Object.values(searchResults.tiktok).some(arr => arr.length > 0)) && (
-              <Tabs defaultValue={metaAdAccountId ? "meta" : "tiktok"} className="w-full">
+              <Tabs value={activeSearchTab} onValueChange={setActiveSearchTab} className="w-full">
                 {metaAdAccountId && tiktokAdvertiserId ? (
                   <TabsList className="grid w-full grid-cols-2">
                     <TabsTrigger value="meta">
