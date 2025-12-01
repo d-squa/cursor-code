@@ -447,28 +447,10 @@ class TikTokAdapter implements PlatformAdapter {
       
       console.log(`🎯 Mapped gender: ${body.gender}, age_groups: ${JSON.stringify(body.age_groups)}`);
       
-      // Add device targeting (only if not 'all' and valid values)
-      if (params.targeting.devices && Array.isArray(params.targeting.devices) && params.targeting.devices.length > 0) {
-        const filteredDevices = params.targeting.devices.filter((d: any) => d !== 'all' && d !== null && d !== undefined && d !== '');
-        console.log(`🎯 Processing devices: original=${JSON.stringify(params.targeting.devices)}, filtered=${JSON.stringify(filteredDevices)}`);
-        if (filteredDevices.length > 0) {
-          const devicePlatforms = filteredDevices
-            .map((device: string) => {
-              const deviceMap: Record<string, string> = {
-                'mobile': 'MOBILE',
-                'desktop': 'PC',
-              };
-              return deviceMap[device.toLowerCase()] || null;
-            })
-            .filter(Boolean);
-          if (devicePlatforms.length > 0) {
-            body.device_model_ids = devicePlatforms;
-            console.log(`✅ Device targeting: ${devicePlatforms.join(', ')}`);
-          }
-        }
-      } else {
-        console.log(`⚠️ No device targeting (devices: ${JSON.stringify(params.targeting.devices)})`);
-      }
+      // Skip device_model_ids - TikTok expects specific numeric device model IDs (e.g., iPhone 12, Galaxy S21)
+      // Generic device types like "mobile" or "desktop" are not supported
+      // Device targeting is handled through placement selection instead
+      console.log(`⚠️ Device targeting skipped - TikTok requires specific device model IDs, not device types`);
       
       // Add OS targeting (only if not 'all' and valid values)
       if (params.targeting.os && Array.isArray(params.targeting.os) && params.targeting.os.length > 0) {
