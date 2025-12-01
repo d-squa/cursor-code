@@ -1515,17 +1515,9 @@ export function PlatformMarketBudgetSelector({
                                                        updated.tiktokFrequencySchedule = defaults.frequencySchedule;
                                                        console.log("  ✓ Set tiktokFrequencySchedule:", defaults.frequencySchedule);
                                                      }
-                                                     if (defaults.eventCountEnabled !== undefined) {
-                                                       updated.tiktokEventCountEnabled = defaults.eventCountEnabled;
-                                                       console.log("  ✓ Set tiktokEventCountEnabled:", defaults.eventCountEnabled);
-                                                     }
                                                      if (defaults.smartPlusEnabled !== undefined) {
                                                        updated.tiktokSmartPlusEnabled = defaults.smartPlusEnabled;
                                                        console.log("  ✓ Set tiktokSmartPlusEnabled:", defaults.smartPlusEnabled);
-                                                     }
-                                                     if (defaults.searchEnabled !== undefined) {
-                                                       updated.tiktokSearchEnabled = defaults.searchEnabled;
-                                                       console.log("  ✓ Set tiktokSearchEnabled:", defaults.searchEnabled);
                                                      }
                                                      
                                                      toast.success("Applied default TikTok settings");

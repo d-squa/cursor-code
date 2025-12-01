@@ -83,9 +83,8 @@ export interface CreateAdGroupParams {
   frequencySchedule?: number;
   clickWindow?: number;
   viewWindow?: number;
-  eventCountEnabled?: boolean;
+  eventCount?: string; // "every_conversion" or "once"
   smartPlusEnabled?: boolean;
-  searchEnabled?: boolean;
 }
 
 export interface CreateAdGroupResult {
@@ -403,7 +402,8 @@ class TikTokAdapter implements PlatformAdapter {
         body.frequency_schedule = 7; // Per 7 days as per matrix
       }
       if (params.appId) body.app_id = params.appId;
-      if (params.searchEnabled) body.is_search_ad = true;
+      if (params.eventCount) body.event_count = params.eventCount; // "every_conversion" or "once"
+      if (params.smartPlusEnabled) body.is_smart_performance_campaign = true;
       
       console.log(`✅ Ad group configuration complete:`, {
         optimization_goal: body.optimization_goal,

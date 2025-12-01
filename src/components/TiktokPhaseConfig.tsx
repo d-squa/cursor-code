@@ -2,7 +2,10 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Info } from "lucide-react";
 import { Phase } from "@/types/mediaplan";
+import { useState, useEffect } from "react";
 
 interface TiktokPhaseConfigProps {
   phase: Phase;
@@ -10,6 +13,14 @@ interface TiktokPhaseConfigProps {
 }
 
 export function TiktokPhaseConfig({ phase, onUpdate }: TiktokPhaseConfigProps) {
+  const [eventCountOptions, setEventCountOptions] = useState<Array<{ value: string; label: string }>>([
+    { value: "every_conversion", label: "Every Conversion" },
+    { value: "once", label: "Once" }
+  ]);
+
+  // Determine if frequency capping should be shown (only for Reach objective)
+  const showFrequencyCapping = phase.objective === "REACH";
+  
   return (
     <Card>
       <CardHeader>
@@ -140,59 +151,56 @@ export function TiktokPhaseConfig({ phase, onUpdate }: TiktokPhaseConfigProps) {
           </div>
         </div>
 
-        {/* Frequency Capping */}
-        <div className="space-y-2">
-          <Label>Enable Frequency Capping</Label>
-          <Select
-            value={phase.tiktokFrequencyEnabled ? "true" : "false"}
-            onValueChange={(value) => onUpdate("tiktokFrequencyEnabled", value === "true")}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="false">Disabled</SelectItem>
-              <SelectItem value="true">Enabled</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {phase.tiktokFrequencyEnabled && (
-          <div className="space-y-2">
-            <Label>Frequency Schedule (impressions per 7 days)</Label>
-            <Input
-              type="number"
-              placeholder="e.g., 3"
-              value={phase.tiktokFrequencySchedule || ""}
-              onChange={(e) => onUpdate("tiktokFrequencySchedule", parseInt(e.target.value) || undefined)}
-              min="1"
-            />
-          </div>
+        {/* Frequency Capping - Only for Reach objective */}
+        {showFrequencyCapping && (
+          <>
+            <div className="space-y-2">
+              <Label>Frequency Cap (impressions per 7 days)</Label>
+              <Input
+                type="number"
+                placeholder="e.g., 3"
+                value={phase.tiktokFrequencySchedule || ""}
+                onChange={(e) => {
+                  const value = parseInt(e.target.value) || undefined;
+                  onUpdate("tiktokFrequencySchedule", value);
+                  // Auto-enable frequency when a value is set
+                  onUpdate("tiktokFrequencyEnabled", !!value);
+                }}
+                min="1"
+              />
+              <p className="text-xs text-muted-foreground">
+                Limit how many times users see your ad (Reach campaigns only)
+              </p>
+            </div>
+          </>
         )}
 
-        {/* Event Count Tracking */}
+        {/* Event Count - For conversion campaigns */}
         <div className="space-y-2">
-          <Label>Enable Event Count Tracking</Label>
+          <Label>Event Count</Label>
           <Select
-            value={phase.tiktokEventCountEnabled ? "true" : "false"}
-            onValueChange={(value) => onUpdate("tiktokEventCountEnabled", value === "true")}
+            value={phase.tiktokEventCount || undefined}
+            onValueChange={(value) => onUpdate("tiktokEventCount", value)}
           >
             <SelectTrigger>
-              <SelectValue />
+              <SelectValue placeholder="Select event count type" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="false">Disabled</SelectItem>
-              <SelectItem value="true">Enabled</SelectItem>
+              {eventCountOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">
-            Track event counts for conversion campaigns
+            Track every conversion or once per user
           </p>
         </div>
 
-        {/* Smart+ */}
+        {/* Smart+ Campaigns */}
         <div className="space-y-2">
-          <Label>Enable Smart+ Campaigns</Label>
+          <Label>Smart+ Campaign</Label>
           <Select
             value={phase.tiktokSmartPlusEnabled ? "true" : "false"}
             onValueChange={(value) => onUpdate("tiktokSmartPlusEnabled", value === "true")}
@@ -201,33 +209,23 @@ export function TiktokPhaseConfig({ phase, onUpdate }: TiktokPhaseConfigProps) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="false">Disabled</SelectItem>
-              <SelectItem value="true">Enabled</SelectItem>
+              <SelectItem value="false">Manual Campaign</SelectItem>
+              <SelectItem value="true">Smart+ Campaign</SelectItem>
             </SelectContent>
           </Select>
-          <p className="text-xs text-muted-foreground">
-            AI-powered campaign optimization
-          </p>
-        </div>
-
-        {/* Search Ads */}
-        <div className="space-y-2">
-          <Label>Enable Search Ads</Label>
-          <Select
-            value={phase.tiktokSearchEnabled ? "true" : "false"}
-            onValueChange={(value) => onUpdate("tiktokSearchEnabled", value === "true")}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="false">Disabled</SelectItem>
-              <SelectItem value="true">Enabled</SelectItem>
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-muted-foreground">
-            Display ads in TikTok search results
-          </p>
+          {phase.tiktokSmartPlusEnabled && (
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertDescription className="text-xs">
+                <strong>Smart+ automatically enables:</strong>
+                <ul className="mt-1 ml-4 list-disc space-y-1">
+                  <li>Automatic placements across TikTok network</li>
+                  <li>AI-powered audience targeting</li>
+                  <li>Automatic ad creative optimization</li>
+                </ul>
+              </AlertDescription>
+            </Alert>
+          )}
         </div>
       </CardContent>
     </Card>

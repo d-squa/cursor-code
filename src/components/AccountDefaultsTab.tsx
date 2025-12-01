@@ -34,13 +34,9 @@ interface AdAccount {
   default_optimization_location?: string | null;
   default_app_name?: string | null;
   default_app_id?: string | null;
-  default_frequency_enabled?: boolean | null;
   default_frequency_schedule?: number | null;
   default_click_window?: number | null;
   default_view_window?: number | null;
-  default_event_count_enabled?: boolean | null;
-  default_smart_plus_enabled?: boolean | null;
-  default_search_enabled?: boolean | null;
   main_markets?: string[] | null;
 }
 
@@ -216,13 +212,9 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
           default_optimization_location: acc.platform === 'tiktok' ? (acc as any).default_optimization_location || null : null,
           default_app_name: acc.platform === 'tiktok' ? (acc as any).default_app_name || null : null,
           default_app_id: acc.platform === 'tiktok' ? (acc as any).default_app_id || null : null,
-          default_frequency_enabled: acc.platform === 'tiktok' ? (acc as any).default_frequency_enabled || false : null,
           default_frequency_schedule: acc.platform === 'tiktok' ? (acc as any).default_frequency_schedule || null : null,
           default_click_window: acc.platform === 'tiktok' ? (acc as any).default_click_window || null : null,
           default_view_window: acc.platform === 'tiktok' ? (acc as any).default_view_window || null : null,
-          default_event_count_enabled: acc.platform === 'tiktok' ? (acc as any).default_event_count_enabled || false : null,
-          default_smart_plus_enabled: acc.platform === 'tiktok' ? (acc as any).default_smart_plus_enabled || false : null,
-          default_search_enabled: acc.platform === 'tiktok' ? (acc as any).default_search_enabled || false : null,
           main_markets: acc.main_markets,
         };
       });
@@ -1076,110 +1068,6 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                             </p>
                           </div>
 
-                          {/* Frequency Capping */}
-                          <div className="space-y-2">
-                            <Label className="flex items-center gap-2">
-                              <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
-                              Enable Frequency Capping
-                            </Label>
-                            <Select
-                              value={defaults.default_frequency_enabled ? "true" : "false"}
-                              onValueChange={(value) => updateDefault(account.id, "default_frequency_enabled", value === "true")}
-                            >
-                              <SelectTrigger className="border-black/20 dark:border-white/20">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="false">Disabled</SelectItem>
-                                <SelectItem value="true">Enabled</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-
-                          {defaults.default_frequency_enabled && (
-                            <div className="space-y-2">
-                              <Label className="flex items-center gap-2">
-                                <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
-                                Frequency Schedule (impressions per 7 days)
-                              </Label>
-                              <Input
-                                type="number"
-                                placeholder="e.g., 3"
-                                value={defaults.default_frequency_schedule || ""}
-                                onChange={(e) => updateDefault(account.id, "default_frequency_schedule", parseInt(e.target.value) || null)}
-                                className="border-black/20 dark:border-white/20"
-                              />
-                            </div>
-                          )}
-
-                          {/* Event Count */}
-                          <div className="space-y-2">
-                            <Label className="flex items-center gap-2">
-                              <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
-                              Enable Event Count Tracking
-                            </Label>
-                            <Select
-                              value={defaults.default_event_count_enabled ? "true" : "false"}
-                              onValueChange={(value) => updateDefault(account.id, "default_event_count_enabled", value === "true")}
-                            >
-                              <SelectTrigger className="border-black/20 dark:border-white/20">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="false">Disabled</SelectItem>
-                                <SelectItem value="true">Enabled</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <p className="text-xs text-muted-foreground">
-                              Track event counts for conversion campaigns
-                            </p>
-                          </div>
-
-                          {/* Smart+ */}
-                          <div className="space-y-2">
-                            <Label className="flex items-center gap-2">
-                              <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
-                              Enable Smart+ Campaigns
-                            </Label>
-                            <Select
-                              value={defaults.default_smart_plus_enabled ? "true" : "false"}
-                              onValueChange={(value) => updateDefault(account.id, "default_smart_plus_enabled", value === "true")}
-                            >
-                              <SelectTrigger className="border-black/20 dark:border-white/20">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="false">Disabled</SelectItem>
-                                <SelectItem value="true">Enabled</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <p className="text-xs text-muted-foreground">
-                              AI-powered campaign optimization
-                            </p>
-                          </div>
-
-                          {/* Search Ads */}
-                          <div className="space-y-2">
-                            <Label className="flex items-center gap-2">
-                              <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
-                              Enable Search Ads
-                            </Label>
-                            <Select
-                              value={defaults.default_search_enabled ? "true" : "false"}
-                              onValueChange={(value) => updateDefault(account.id, "default_search_enabled", value === "true")}
-                            >
-                              <SelectTrigger className="border-black/20 dark:border-white/20">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="false">Disabled</SelectItem>
-                                <SelectItem value="true">Enabled</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <p className="text-xs text-muted-foreground">
-                              Display ads in TikTok search results
-                            </p>
-                          </div>
                         </>
                       )}
                     </div>

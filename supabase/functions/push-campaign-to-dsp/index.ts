@@ -1098,9 +1098,8 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           const tiktokViewWindow = phase.tiktokViewWindow || market.tiktokViewWindow;
           const tiktokFrequencyEnabled = phase.tiktokFrequencyEnabled ?? market.tiktokFrequencyEnabled;
           const tiktokFrequencySchedule = phase.tiktokFrequencySchedule || market.tiktokFrequencySchedule;
-          const tiktokEventCountEnabled = phase.tiktokEventCountEnabled ?? market.tiktokEventCountEnabled;
+          const tiktokEventCount = phase.tiktokEventCount || market.tiktokEventCount;
           const tiktokSmartPlusEnabled = phase.tiktokSmartPlusEnabled ?? market.tiktokSmartPlusEnabled;
-          const tiktokSearchEnabled = phase.tiktokSearchEnabled ?? market.tiktokSearchEnabled;
 
           console.log(`📋 TikTok phase config for ${phase.name}:`, {
             optimizationLocation: tiktokOptimizationLocation,
@@ -1112,9 +1111,8 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
             viewWindow: tiktokViewWindow,
             frequencyEnabled: tiktokFrequencyEnabled,
             frequencySchedule: tiktokFrequencySchedule,
-            eventCountEnabled: tiktokEventCountEnabled,
+            eventCount: tiktokEventCount,
             smartPlusEnabled: tiktokSmartPlusEnabled,
-            searchEnabled: tiktokSearchEnabled,
           });
 
           const adGroupResult = await tiktokAdapter.createAdGroup({
@@ -1142,9 +1140,8 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           viewWindow: viewWindow,
           frequencyEnabled: frequencyEnabled,
           frequencySchedule: frequencySchedule,
-          eventCountEnabled: eventCountEnabled,
+          eventCount: tiktokEventCount,
           smartPlusEnabled: smartPlusEnabled,
-          searchEnabled: searchEnabled,
         });
 
         if (!adGroupResult.success) {
