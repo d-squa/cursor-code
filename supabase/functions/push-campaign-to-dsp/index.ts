@@ -975,17 +975,18 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           },
           age_min: effectiveTargeting.ageMin || effectiveTargeting.age_min || effectiveTargeting.minAge || 18,
           age_max: effectiveTargeting.ageMax || effectiveTargeting.age_max || effectiveTargeting.maxAge || 65,
-          genders: effectiveTargeting.genders || effectiveTargeting.gender,
-          devices: effectiveTargeting.devices || effectiveTargeting.device,
-          os: effectiveTargeting.os || effectiveTargeting.operatingSystem,
-          languages: effectiveTargeting.languages || effectiveTargeting.language,
+          genders: effectiveTargeting.genders || effectiveTargeting.gender || [],
+          devices: effectiveTargeting.devices || effectiveTargeting.device || [],
+          os: effectiveTargeting.os || effectiveTargeting.operatingSystem || [],
+          languages: effectiveTargeting.languages || effectiveTargeting.language || [],
           // TikTok detailed targeting
           tiktokInterests: effectiveTargeting.tiktokInterests || [],
           tiktokBehaviors: effectiveTargeting.tiktokBehaviors || [],
           tiktokDemographics: effectiveTargeting.tiktokDemographics || [],
         };
         
-        console.log("📊 Constructed targeting object with mapped fields:", JSON.stringify(targeting, null, 2));
+        console.log("📊 RAW effectiveTargeting keys:", Object.keys(effectiveTargeting));
+        console.log("📊 Constructed targeting with all fields:", JSON.stringify(targeting, null, 2));
         
         // Map optimization goal based on TikTok objective
         // TikTok has strict optimization goal requirements per objective
