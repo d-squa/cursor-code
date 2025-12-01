@@ -46,8 +46,6 @@ export function TiktokPhaseConfig({ phase, onUpdate }: TiktokPhaseConfigProps) {
     (objective === "SALES" && ["VALUE", "CONVERSION"].includes(optimizationGoal) && ["Website", "TikTok Instant Page", "Website & App"].includes(phase.tiktokOptimizationLocation || ""))
   );
 
-  const showFrequencyCapping = objective === "REACH";
-
   const showEventCount = (
     (objective === "LEAD_GENERATION") ||
     (objective === "SALES" && optimizationGoal === "CLICK" && phase.tiktokOptimizationLocation === "App") ||
@@ -216,27 +214,6 @@ export function TiktokPhaseConfig({ phase, onUpdate }: TiktokPhaseConfigProps) {
                 </SelectContent>
               </Select>
             </div>
-          </div>
-        )}
-
-        {/* Frequency Capping */}
-        {showFrequencyCapping && (
-          <div className="space-y-2">
-            <Label>Frequency Cap (impressions per 7 days)</Label>
-            <Input
-              type="number"
-              placeholder="e.g., 3"
-              value={phase.tiktokFrequencySchedule || ""}
-              onChange={(e) => {
-                const value = parseInt(e.target.value) || undefined;
-                onUpdate("tiktokFrequencySchedule", value);
-                onUpdate("tiktokFrequencyEnabled", !!value);
-              }}
-              min="1"
-            />
-            <p className="text-xs text-muted-foreground">
-              Limit how many times users see your ad (Reach campaigns only)
-            </p>
           </div>
         )}
 
