@@ -1478,12 +1478,57 @@ export function PlatformMarketBudgetSelector({
                       updated.tiktokLandingPageUrl = defaults.landingPageUrl;
                       console.log("  ✓ Set tiktokLandingPageUrl:", defaults.landingPageUrl);
                     }
-                    if (defaults.bidStrategy) {
-                      updated.tiktokBidStrategy = defaults.bidStrategy;
-                      console.log("  ✓ Set tiktokBidStrategy:", defaults.bidStrategy);
-                    }
-                    
-                    toast.success("Applied default TikTok settings");
+                                                     if (defaults.bidStrategy) {
+                                                       updated.tiktokBidStrategy = defaults.bidStrategy;
+                                                       console.log("  ✓ Set tiktokBidStrategy:", defaults.bidStrategy);
+                                                     }
+                                                     if (defaults.bidAmount) {
+                                                       updated.tiktokBidAmount = defaults.bidAmount;
+                                                       console.log("  ✓ Set tiktokBidAmount:", defaults.bidAmount);
+                                                     }
+                                                     // New TikTok matrix fields
+                                                     if (defaults.optimizationLocation) {
+                                                       updated.tiktokOptimizationLocation = defaults.optimizationLocation;
+                                                       console.log("  ✓ Set tiktokOptimizationLocation:", defaults.optimizationLocation);
+                                                     }
+                                                     if (defaults.appName) {
+                                                       updated.tiktokAppName = defaults.appName;
+                                                       console.log("  ✓ Set tiktokAppName:", defaults.appName);
+                                                     }
+                                                     if (defaults.appId) {
+                                                       updated.tiktokAppId = defaults.appId;
+                                                       console.log("  ✓ Set tiktokAppId:", defaults.appId);
+                                                     }
+                                                     if (defaults.clickWindow !== undefined) {
+                                                       updated.tiktokClickWindow = defaults.clickWindow;
+                                                       console.log("  ✓ Set tiktokClickWindow:", defaults.clickWindow);
+                                                     }
+                                                     if (defaults.viewWindow !== undefined) {
+                                                       updated.tiktokViewWindow = defaults.viewWindow;
+                                                       console.log("  ✓ Set tiktokViewWindow:", defaults.viewWindow);
+                                                     }
+                                                     if (defaults.frequencyEnabled !== undefined) {
+                                                       updated.tiktokFrequencyEnabled = defaults.frequencyEnabled;
+                                                       console.log("  ✓ Set tiktokFrequencyEnabled:", defaults.frequencyEnabled);
+                                                     }
+                                                     if (defaults.frequencySchedule) {
+                                                       updated.tiktokFrequencySchedule = defaults.frequencySchedule;
+                                                       console.log("  ✓ Set tiktokFrequencySchedule:", defaults.frequencySchedule);
+                                                     }
+                                                     if (defaults.eventCountEnabled !== undefined) {
+                                                       updated.tiktokEventCountEnabled = defaults.eventCountEnabled;
+                                                       console.log("  ✓ Set tiktokEventCountEnabled:", defaults.eventCountEnabled);
+                                                     }
+                                                     if (defaults.smartPlusEnabled !== undefined) {
+                                                       updated.tiktokSmartPlusEnabled = defaults.smartPlusEnabled;
+                                                       console.log("  ✓ Set tiktokSmartPlusEnabled:", defaults.smartPlusEnabled);
+                                                     }
+                                                     if (defaults.searchEnabled !== undefined) {
+                                                       updated.tiktokSearchEnabled = defaults.searchEnabled;
+                                                       console.log("  ✓ Set tiktokSearchEnabled:", defaults.searchEnabled);
+                                                     }
+                                                     
+                                                     toast.success("Applied default TikTok settings");
                                                   } else {
                                                     console.log("❌ No defaults to apply - configure in Client Defaults");
                                                   }

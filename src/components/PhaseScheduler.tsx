@@ -19,6 +19,7 @@ import { getOptimizationGoalForFocus } from "@/utils/strategyFocusMapping";
 import { BudgetTypeApplyDialog } from "./BudgetTypeApplyDialog";
 import { PhaseAudienceSelector } from "./PhaseAudienceSelector";
 import { BasicTargeting, BasicTargetingConfig } from "./BasicTargeting";
+import { TiktokPhaseConfig } from "./TiktokPhaseConfig";
 
 interface PhaseSchedulerProps {
   phases: Phase[];
@@ -1206,6 +1207,14 @@ export function PhaseScheduler({
                             )}
                           </CollapsibleContent>
                         </Collapsible>
+                      )}
+
+                      {/* TikTok Advanced Settings - Platform-specific */}
+                      {platformId === 'tiktok' && (
+                        <TiktokPhaseConfig
+                          phase={phase}
+                          onUpdate={(field, value) => updatePhaseField(phase.id, field as keyof Phase, value)}
+                        />
                       )}
 
                       {/* Audience Selection */}

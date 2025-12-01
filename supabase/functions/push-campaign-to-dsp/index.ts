@@ -1088,7 +1088,36 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
         const searchEnabled = phase.tiktokSearchEnabled !== undefined ? phase.tiktokSearchEnabled : market.tiktokSearchEnabled;
         
         // Create ad group
-        const adGroupResult = await tiktokAdapter.createAdGroup({
+          // Retrieve TikTok-specific parameters from phase or market defaults
+          const tiktokOptimizationLocation = phase.tiktokOptimizationLocation || market.tiktokOptimizationLocation;
+          const tiktokAppName = phase.tiktokAppName || market.tiktokAppName;
+          const tiktokAppId = phase.tiktokAppId || market.tiktokAppId;
+          const tiktokBidStrategy = phase.tiktokBidStrategy || market.tiktokBidStrategy;
+          const tiktokBidAmount = phase.tiktokBidAmount || market.tiktokBidAmount;
+          const tiktokClickWindow = phase.tiktokClickWindow || market.tiktokClickWindow;
+          const tiktokViewWindow = phase.tiktokViewWindow || market.tiktokViewWindow;
+          const tiktokFrequencyEnabled = phase.tiktokFrequencyEnabled ?? market.tiktokFrequencyEnabled;
+          const tiktokFrequencySchedule = phase.tiktokFrequencySchedule || market.tiktokFrequencySchedule;
+          const tiktokEventCountEnabled = phase.tiktokEventCountEnabled ?? market.tiktokEventCountEnabled;
+          const tiktokSmartPlusEnabled = phase.tiktokSmartPlusEnabled ?? market.tiktokSmartPlusEnabled;
+          const tiktokSearchEnabled = phase.tiktokSearchEnabled ?? market.tiktokSearchEnabled;
+
+          console.log(`📋 TikTok phase config for ${phase.name}:`, {
+            optimizationLocation: tiktokOptimizationLocation,
+            appName: tiktokAppName,
+            appId: tiktokAppId,
+            bidStrategy: tiktokBidStrategy,
+            bidAmount: tiktokBidAmount,
+            clickWindow: tiktokClickWindow,
+            viewWindow: tiktokViewWindow,
+            frequencyEnabled: tiktokFrequencyEnabled,
+            frequencySchedule: tiktokFrequencySchedule,
+            eventCountEnabled: tiktokEventCountEnabled,
+            smartPlusEnabled: tiktokSmartPlusEnabled,
+            searchEnabled: tiktokSearchEnabled,
+          });
+
+          const adGroupResult = await tiktokAdapter.createAdGroup({
           accountId: advertiserId,
           accessToken: platform.access_token,
           campaignId: campaignResult.campaignId,
