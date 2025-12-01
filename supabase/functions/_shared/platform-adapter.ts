@@ -378,12 +378,39 @@ class TikTokAdapter implements PlatformAdapter {
       const bidType = mapBidStrategy(params.bidStrategy);
       console.log(`Bid strategy: ${params.bidStrategy} → ${bidType}`);
       
-      // STEP 6: Build ad group body with all TikTok matrix fields
+      // STEP 6: Map promotion_type from UI values to TikTok API values
+      const mapPromotionType = (location?: string, appName?: string): string => {
+        // Handle App promotion with specific app types
+        if (location === 'App' && appName) {
+          if (appName.toLowerCase().includes('ios') || appName.toLowerCase().includes('iphone')) {
+            return 'APP_IOS';
+          }
+          return 'APP_ANDROID'; // Default to Android
+        }
+        
+        const mapping: Record<string, string> = {
+          'Website': 'WEBSITE',
+          'App': 'APP_ANDROID', // Default when no appName specified
+          'TikTok Shop': 'TIKTOK_SHOP',
+          'Instant Form': 'LEAD_GENERATION',
+          'TikTok Direct Messages': 'LEAD_GEN_CLICK_TO_TT_DIRECT_MESSAGE',
+          'Instant Messaging Apps': 'LEAD_GEN_CLICK_TO_SOCIAL_MEDIA_APP_MESSAGE',
+          'Phone Call': 'LEAD_GEN_CLICK_TO_CALL',
+          'TikTok Instant Page': 'WEBSITE_OR_DISPLAY',
+          'Website & App': 'WEBSITE', // Default to website for hybrid
+        };
+        return mapping[location || ''] || 'WEBSITE';
+      };
+      
+      const promotionType = mapPromotionType(params.optimizationLocation, params.appName);
+      console.log(`Promotion type: ${params.optimizationLocation} → ${promotionType}`);
+      
+      // STEP 7: Build ad group body with all TikTok matrix fields
       const body: any = {
         advertiser_id: params.accountId,
         campaign_id: params.campaignId,
         adgroup_name: params.adGroupName,
-        promotion_type: params.optimizationLocation || "WEBSITE",
+        promotion_type: promotionType,
         placements: params.placements,
         gender: this.mapGender(params.targeting.genders),
         age_groups: this.mapAgeGroups(params.targeting.age_min, params.targeting.age_max),
