@@ -422,6 +422,94 @@ class TikTokAdapter implements PlatformAdapter {
         pacing: "PACING_MODE_SMOOTH", // Standard delivery (not accelerated)
       };
       
+      // Add device targeting
+      if (params.targeting.devices && Array.isArray(params.targeting.devices) && params.targeting.devices.length > 0) {
+        const devicePlatforms = params.targeting.devices
+          .map((device: string) => {
+            const deviceMap: Record<string, string> = {
+              'mobile': 'ANDROID',
+              'desktop': 'PC',
+            };
+            return deviceMap[device.toLowerCase()] || null;
+          })
+          .filter(Boolean);
+        if (devicePlatforms.length > 0) {
+          body.device_model = devicePlatforms;
+          console.log(`✅ Device targeting: ${devicePlatforms.join(', ')}`);
+        }
+      }
+      
+      // Add OS targeting
+      if (params.targeting.os && Array.isArray(params.targeting.os) && params.targeting.os.length > 0) {
+        const osList = params.targeting.os
+          .map((os: string) => {
+            const osMap: Record<string, string> = {
+              'ios': 'IOS',
+              'android': 'ANDROID',
+            };
+            return osMap[os.toLowerCase()] || null;
+          })
+          .filter(Boolean);
+        if (osList.length > 0) {
+          body.operating_systems = osList;
+          console.log(`✅ OS targeting: ${osList.join(', ')}`);
+        }
+      }
+      
+      // Add language targeting
+      if (params.targeting.languages && Array.isArray(params.targeting.languages) && params.targeting.languages.length > 0) {
+        const languageCodes = params.targeting.languages
+          .filter((lang: any) => lang !== 'all')
+          .map((lang: any) => String(lang));
+        if (languageCodes.length > 0) {
+          body.languages = languageCodes;
+          console.log(`✅ Language targeting: ${languageCodes.join(', ')}`);
+        }
+      }
+      
+      // Add TikTok detailed targeting (interests, behaviors, actions)
+      const interestIds: string[] = [];
+      const actionIds: string[] = [];
+      
+      // Extract TikTok interests
+      if (params.targeting.tiktokInterests && Array.isArray(params.targeting.tiktokInterests)) {
+        params.targeting.tiktokInterests.forEach((interest: any) => {
+          if (interest.id) {
+            interestIds.push(String(interest.id));
+          }
+        });
+      }
+      
+      // Extract TikTok behaviors/actions
+      if (params.targeting.tiktokBehaviors && Array.isArray(params.targeting.tiktokBehaviors)) {
+        params.targeting.tiktokBehaviors.forEach((behavior: any) => {
+          if (behavior.id) {
+            actionIds.push(String(behavior.id));
+          }
+        });
+      }
+      
+      // Extract TikTok demographics (also goes into interests or actions depending on type)
+      if (params.targeting.tiktokDemographics && Array.isArray(params.targeting.tiktokDemographics)) {
+        params.targeting.tiktokDemographics.forEach((demo: any) => {
+          if (demo.id) {
+            interestIds.push(String(demo.id));
+          }
+        });
+      }
+      
+      // Add interest targeting
+      if (interestIds.length > 0) {
+        body.interest_category_ids = interestIds;
+        console.log(`✅ Interest targeting: ${interestIds.length} interests`);
+      }
+      
+      // Add action/behavior targeting
+      if (actionIds.length > 0) {
+        body.action_category_ids = actionIds;
+        console.log(`✅ Action/Behavior targeting: ${actionIds.length} actions`);
+      }
+      
       // Add optional TikTok fields from matrix
       if (params.clickWindow) body.conversion_window = { click_window: params.clickWindow };
       if (params.viewWindow) body.conversion_window = { ...body.conversion_window, view_window: params.viewWindow };

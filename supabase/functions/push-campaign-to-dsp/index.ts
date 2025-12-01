@@ -964,6 +964,8 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
         const phaseBasicTargeting = phase.targeting || {};
         const effectiveTargeting = Object.keys(phaseBasicTargeting).length > 0 ? phaseBasicTargeting : basicTargeting;
         
+        console.log("📊 Effective targeting for TikTok ad group:", effectiveTargeting);
+        
         const targeting: any = {
           geo_locations: {
             countries: Array.isArray(market.countries) && market.countries.length > 0 
@@ -973,7 +975,16 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           age_min: effectiveTargeting.ageMin || 18,
           age_max: effectiveTargeting.ageMax || 65,
           genders: effectiveTargeting.genders,
+          devices: effectiveTargeting.devices,
+          os: effectiveTargeting.os,
+          languages: effectiveTargeting.languages,
+          // TikTok detailed targeting
+          tiktokInterests: effectiveTargeting.tiktokInterests || [],
+          tiktokBehaviors: effectiveTargeting.tiktokBehaviors || [],
+          tiktokDemographics: effectiveTargeting.tiktokDemographics || [],
         };
+        
+        console.log("📊 Constructed targeting object:", targeting);
         
         // Map optimization goal based on TikTok objective
         // TikTok has strict optimization goal requirements per objective
