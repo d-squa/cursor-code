@@ -22,6 +22,16 @@ export interface Market {
   tiktokLandingPageUrl?: string; // TikTok Landing Page URL
   tiktokBidStrategy?: string; // TikTok Bid Strategy (LOWEST_COST or COST_CAP)
   tiktokBidAmount?: number; // TikTok Bid Amount (required when bidStrategy is COST_CAP)
+  tiktokOptimizationLocation?: string; // TikTok Optimization Location (Website, App, etc.)
+  tiktokAppName?: string; // TikTok App Name for app campaigns
+  tiktokAppId?: string; // TikTok App ID for app campaigns
+  tiktokFrequencyEnabled?: boolean; // Whether frequency capping is enabled
+  tiktokFrequencySchedule?: number; // Frequency schedule (impressions per period)
+  tiktokClickWindow?: number; // Click-through attribution window in days
+  tiktokViewWindow?: number; // View-through attribution window in days
+  tiktokEventCountEnabled?: boolean; // Whether event count tracking is enabled
+  tiktokSmartPlusEnabled?: boolean; // Whether Smart+ is enabled
+  tiktokSearchEnabled?: boolean; // Whether search ads are enabled
   metaBidStrategy?: string; // Meta Bid Strategy (LOWEST_COST_WITHOUT_CAP, LOWEST_COST_WITH_BID_CAP, COST_CAP, etc.)
   metaBidAmount?: number; // Meta Bid Amount (required for LOWEST_COST_WITH_BID_CAP and COST_CAP)
   strategy?: string; // Strategy type per market
@@ -67,6 +77,19 @@ export interface Phase {
   optimizationGoal?: string;
   funnelStage?: string;
   budgetType?: "daily" | "lifetime";
+  // TikTok-specific fields at phase level
+  tiktokOptimizationLocation?: string; // Optimization location (Website, App, etc.)
+  tiktokAppName?: string; // App name for app campaigns
+  tiktokAppId?: string; // App ID for app campaigns
+  tiktokFrequencyEnabled?: boolean; // Whether frequency capping is enabled
+  tiktokFrequencySchedule?: number; // Frequency schedule
+  tiktokClickWindow?: number; // Click attribution window
+  tiktokViewWindow?: number; // View attribution window
+  tiktokEventCountEnabled?: boolean; // Event count tracking
+  tiktokSmartPlusEnabled?: boolean; // Smart+ enabled
+  tiktokSearchEnabled?: boolean; // Search ads enabled
+  tiktokBidStrategy?: string; // Bid strategy override at phase level
+  tiktokBidAmount?: number; // Bid amount override at phase level
   // Campaign-level overrides (inherits from market/generic if not set)
   publisherPlatforms?: string[];
   positions?: {
