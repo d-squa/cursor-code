@@ -108,9 +108,6 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
     loadTargetingOptions();
   }, []);
 
-  // Track if we're currently in initialization phase
-  const isInitializing = useRef(false);
-  
   // Initialize recommendations from saved targeting data
   useEffect(() => {
     // Check if we have saved data
@@ -139,8 +136,7 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
     // Skip if already initialized to prevent flickering
     if (hasInitialized.current) return;
     
-    // Mark as initializing
-    isInitializing.current = true;
+    // Mark as initialized
     hasInitialized.current = true;
     
     // Restore saved selections only once
@@ -157,11 +153,6 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
       },
       matches: []
     });
-    
-    // Clear initializing flag after state update
-    setTimeout(() => {
-      isInitializing.current = false;
-    }, 0);
   }, [
     targeting.metaInterests, 
     targeting.tiktokInterests, 
@@ -475,10 +466,19 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
     }));
   };
 
-  // Update targeting config when recommendations change (but skip during initialization)
+  // Update targeting config when recommendations change
   useEffect(() => {
-    // Skip update if we're in the middle of initializing from saved data
-    if (isInitializing.current) return;
+    // Skip if no recommendations at all
+    const hasAnyRecommendations = (
+      aiRecommendations.meta.interests.length > 0 ||
+      aiRecommendations.meta.behaviors.length > 0 ||
+      aiRecommendations.meta.demographics.length > 0 ||
+      aiRecommendations.tiktok.interests.length > 0 ||
+      aiRecommendations.tiktok.behaviors.length > 0 ||
+      aiRecommendations.tiktok.demographics.length > 0
+    );
+    
+    if (!hasAnyRecommendations) return;
     
     const metaInterests = aiRecommendations.meta.interests.filter(i => i.selected).map(({ selected, ...rest }) => rest);
     const metaBehaviors = aiRecommendations.meta.behaviors.filter(b => b.selected).map(({ selected, ...rest }) => rest);
