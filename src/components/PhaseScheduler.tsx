@@ -410,7 +410,9 @@ export function PhaseScheduler({
   const updatePhaseField = (phaseId: string, field: string, value: any) => {
     console.log("📝 updatePhaseField called:", { phaseId, field, value });
     const updatedPhases = phases.map(p => p.id === phaseId ? { ...p, [field]: value } : p);
-    console.log("📋 Updated phases:", updatedPhases.find(p => p.id === phaseId)?.[field]);
+    const updatedPhase = updatedPhases.find(p => p.id === phaseId);
+    console.log("📋 Updated phase full object:", updatedPhase);
+    console.log(`📋 Updated phase.${field}:`, updatedPhase?.[field]);
     onPhasesChange(updatedPhases);
   };
 
