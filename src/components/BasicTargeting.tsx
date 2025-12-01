@@ -673,14 +673,17 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
 
             {/* Platform-Segmented Recommendations */}
             {(aiRecommendations.meta.interests.length > 0 || aiRecommendations.tiktok.interests.length > 0) && (
-              <Tabs defaultValue={metaAdAccountId ? "meta" : "tiktok"} className="w-full">
+              <Tabs 
+                defaultValue={tiktokAdvertiserId && !metaAdAccountId ? "tiktok" : "meta"} 
+                className="w-full"
+              >
                 {metaAdAccountId && tiktokAdvertiserId ? (
                   <TabsList className="grid w-full grid-cols-3">
                     <TabsTrigger value="meta">
-                      Meta ({aiRecommendations.meta.interests.length + aiRecommendations.meta.behaviors.length + aiRecommendations.meta.demographics.length})
+                      Meta ({aiRecommendations.meta.interests.filter(i => i.selected).length + aiRecommendations.meta.behaviors.filter(b => b.selected).length + aiRecommendations.meta.demographics.filter(d => d.selected).length}/{aiRecommendations.meta.interests.length + aiRecommendations.meta.behaviors.length + aiRecommendations.meta.demographics.length})
                     </TabsTrigger>
                     <TabsTrigger value="tiktok">
-                      TikTok ({aiRecommendations.tiktok.interests.length + aiRecommendations.tiktok.behaviors.length})
+                      TikTok ({aiRecommendations.tiktok.interests.filter(i => i.selected).length + aiRecommendations.tiktok.behaviors.filter(b => b.selected).length}/{aiRecommendations.tiktok.interests.length + aiRecommendations.tiktok.behaviors.length})
                     </TabsTrigger>
                     <TabsTrigger value="matches">
                       Matches ({aiRecommendations.matches.length})
@@ -689,16 +692,16 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
                 ) : metaAdAccountId ? (
                   <TabsList className="w-full">
                     <TabsTrigger value="meta" className="flex-1">
-                      Meta Recommendations ({aiRecommendations.meta.interests.length + aiRecommendations.meta.behaviors.length + aiRecommendations.meta.demographics.length})
+                      Meta Recommendations ({aiRecommendations.meta.interests.filter(i => i.selected).length + aiRecommendations.meta.behaviors.filter(b => b.selected).length + aiRecommendations.meta.demographics.filter(d => d.selected).length}/{aiRecommendations.meta.interests.length + aiRecommendations.meta.behaviors.length + aiRecommendations.meta.demographics.length})
                     </TabsTrigger>
                   </TabsList>
-                ) : (
+                ) : tiktokAdvertiserId ? (
                   <TabsList className="w-full">
                     <TabsTrigger value="tiktok" className="flex-1">
-                      TikTok Recommendations ({aiRecommendations.tiktok.interests.length + aiRecommendations.tiktok.behaviors.length})
+                      TikTok Recommendations ({aiRecommendations.tiktok.interests.filter(i => i.selected).length + aiRecommendations.tiktok.behaviors.filter(b => b.selected).length}/{aiRecommendations.tiktok.interests.length + aiRecommendations.tiktok.behaviors.length})
                     </TabsTrigger>
                   </TabsList>
-                )}
+                ) : null}
                 
                 {/* Meta Recommendations */}
                 <TabsContent value="meta" className="space-y-4 mt-4">
