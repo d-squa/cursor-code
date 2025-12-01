@@ -419,6 +419,7 @@ class TikTokAdapter implements PlatformAdapter {
         bid_type: bidType,
         bid: finalBidAmount,
         operation_status: params.status === 'PAUSED' ? 'DISABLE' : 'ENABLE',
+        pacing: "PACING_MODE_SMOOTH", // Standard delivery (not accelerated)
       };
       
       // Add optional TikTok fields from matrix
