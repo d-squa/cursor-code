@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Info } from "lucide-react";
 import { Phase } from "@/types/mediaplan";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface TiktokPhaseConfigProps {
   phase: Phase;
@@ -17,6 +17,14 @@ export function TiktokPhaseConfig({ phase, onUpdate }: TiktokPhaseConfigProps) {
     { value: "every_conversion", label: "Every Conversion" },
     { value: "once", label: "Once" }
   ]);
+
+  const [frequencyCapInput, setFrequencyCapInput] = useState<string>(
+    phase.tiktokFrequencySchedule?.toString() ?? ""
+  );
+
+  useEffect(() => {
+    setFrequencyCapInput(phase.tiktokFrequencySchedule?.toString() ?? "");
+  }, [phase.tiktokFrequencySchedule]);
 
   // Get objective and optimization goal
   const objective = phase.objective || "";
@@ -71,9 +79,11 @@ export function TiktokPhaseConfig({ phase, onUpdate }: TiktokPhaseConfigProps) {
         <Input
           type="number"
           placeholder="e.g., 3"
-          value={phase.tiktokFrequencySchedule?.toString() ?? ""}
+          value={frequencyCapInput}
           onChange={(e) => {
             const inputValue = e.target.value;
+            setFrequencyCapInput(inputValue);
+            
             if (inputValue === "") {
               onUpdate("tiktokFrequencySchedule", undefined);
               onUpdate("tiktokFrequencyEnabled", false);
