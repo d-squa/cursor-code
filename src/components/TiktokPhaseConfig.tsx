@@ -22,7 +22,9 @@ export function TiktokPhaseConfig({ phase, onUpdate }: TiktokPhaseConfigProps) {
   const objective = phase.objective || "";
   const optimizationGoal = phase.optimizationGoal || "";
   
-  console.log("TikTok Phase Config - Objective:", objective, "Optimization Goal:", optimizationGoal);
+  console.log("🎯 TikTok Phase Config - Objective:", objective, "Upper:", objective.toUpperCase());
+  console.log("🎯 Current frequency schedule value:", phase.tiktokFrequencySchedule);
+  console.log("🎯 Is REACH?", objective.toUpperCase() === "REACH");
 
   // Determine field visibility based on matrix
   const showOptimizationLocation = ![
@@ -62,6 +64,7 @@ export function TiktokPhaseConfig({ phase, onUpdate }: TiktokPhaseConfigProps) {
   
   // For REACH objective, only show frequency capping without the card
   if (objective.toUpperCase() === "REACH") {
+    console.log("✅ Rendering REACH frequency cap field");
     return (
       <div className="space-y-2">
         <Label>Frequency Cap (impressions per 7 days)</Label>
@@ -70,15 +73,21 @@ export function TiktokPhaseConfig({ phase, onUpdate }: TiktokPhaseConfigProps) {
           placeholder="e.g., 3"
           value={phase.tiktokFrequencySchedule ?? ""}
           onChange={(e) => {
+            console.log("📝 Frequency cap onChange triggered, value:", e.target.value);
             const inputValue = e.target.value;
             if (inputValue === "") {
+              console.log("🔄 Clearing frequency cap");
               onUpdate("tiktokFrequencySchedule", undefined);
               onUpdate("tiktokFrequencyEnabled", false);
             } else {
               const numValue = parseInt(inputValue, 10);
+              console.log("🔢 Parsed number:", numValue);
               if (!isNaN(numValue) && numValue > 0) {
+                console.log("✅ Updating frequency cap to:", numValue);
                 onUpdate("tiktokFrequencySchedule", numValue);
                 onUpdate("tiktokFrequencyEnabled", true);
+              } else {
+                console.log("❌ Invalid number, not updating");
               }
             }
           }}

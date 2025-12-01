@@ -1228,7 +1228,10 @@ export function PhaseScheduler({
                       {platformId === 'tiktok' && (
                         <TiktokPhaseConfig
                           phase={phase}
-                          onUpdate={(field, value) => updatePhaseField(phase.id, field as keyof Phase, value)}
+                          onUpdate={(field, value) => {
+                            console.log("🔄 PhaseScheduler onUpdate called:", { phaseId: phase.id, field, value });
+                            updatePhaseField(phase.id, field as keyof Phase, value);
+                          }}
                         />
                       )}
 
