@@ -68,11 +68,19 @@ export function TiktokPhaseConfig({ phase, onUpdate }: TiktokPhaseConfigProps) {
         <Input
           type="number"
           placeholder="e.g., 3"
-          value={phase.tiktokFrequencySchedule || ""}
+          value={phase.tiktokFrequencySchedule ?? ""}
           onChange={(e) => {
-            const value = parseInt(e.target.value) || undefined;
-            onUpdate("tiktokFrequencySchedule", value);
-            onUpdate("tiktokFrequencyEnabled", !!value);
+            const inputValue = e.target.value;
+            if (inputValue === "") {
+              onUpdate("tiktokFrequencySchedule", undefined);
+              onUpdate("tiktokFrequencyEnabled", false);
+            } else {
+              const numValue = parseInt(inputValue, 10);
+              if (!isNaN(numValue) && numValue > 0) {
+                onUpdate("tiktokFrequencySchedule", numValue);
+                onUpdate("tiktokFrequencyEnabled", true);
+              }
+            }
           }}
           min="1"
         />
