@@ -406,13 +406,33 @@ class TikTokAdapter implements PlatformAdapter {
       console.log(`Promotion type: ${params.optimizationLocation} → ${promotionType}`);
       
       // STEP 7: Build ad group body with all TikTok matrix fields
+      
+      // Convert gender strings to numbers for mapGender
+      console.log(`🎯 Raw targeting data:`, {
+        genders: params.targeting.genders,
+        age_min: params.targeting.age_min,
+        age_max: params.targeting.age_max,
+        devices: params.targeting.devices,
+        os: params.targeting.os,
+        languages: params.targeting.languages
+      });
+      
+      const normalizedGenders = params.targeting.genders && Array.isArray(params.targeting.genders)
+        ? params.targeting.genders
+            .filter((g: any) => g !== 'all')
+            .map((g: any) => parseInt(String(g)))
+            .filter((g: number) => !isNaN(g))
+        : undefined;
+      
+      console.log(`🎯 Normalized genders:`, normalizedGenders);
+      
       const body: any = {
         advertiser_id: params.accountId,
         campaign_id: params.campaignId,
         adgroup_name: params.adGroupName,
         promotion_type: promotionType,
         placements: params.placements,
-        gender: this.mapGender(params.targeting.genders),
+        gender: this.mapGender(normalizedGenders),
         age_groups: this.mapAgeGroups(params.targeting.age_min, params.targeting.age_max),
         optimization_goal: finalOptimizationGoal,
         billing_event: requiredBillingEvent,
@@ -422,48 +442,57 @@ class TikTokAdapter implements PlatformAdapter {
         pacing: "PACING_MODE_SMOOTH", // Standard delivery (not accelerated)
       };
       
-      // Add device targeting
+      console.log(`🎯 Mapped gender: ${body.gender}, age_groups: ${JSON.stringify(body.age_groups)}`);
+      
+      // Add device targeting (only if not 'all' and valid values)
       if (params.targeting.devices && Array.isArray(params.targeting.devices) && params.targeting.devices.length > 0) {
-        const devicePlatforms = params.targeting.devices
-          .map((device: string) => {
-            const deviceMap: Record<string, string> = {
-              'mobile': 'ANDROID',
-              'desktop': 'PC',
-            };
-            return deviceMap[device.toLowerCase()] || null;
-          })
-          .filter(Boolean);
-        if (devicePlatforms.length > 0) {
-          body.device_model = devicePlatforms;
-          console.log(`✅ Device targeting: ${devicePlatforms.join(', ')}`);
+        const filteredDevices = params.targeting.devices.filter((d: any) => d !== 'all');
+        if (filteredDevices.length > 0) {
+          const devicePlatforms = filteredDevices
+            .map((device: string) => {
+              const deviceMap: Record<string, string> = {
+                'mobile': 'MOBILE',
+                'desktop': 'PC',
+              };
+              return deviceMap[device.toLowerCase()] || null;
+            })
+            .filter(Boolean);
+          if (devicePlatforms.length > 0) {
+            body.device_model_ids = devicePlatforms;
+            console.log(`✅ Device targeting: ${devicePlatforms.join(', ')}`);
+          }
         }
       }
       
-      // Add OS targeting
+      // Add OS targeting (only if not 'all' and valid values)
       if (params.targeting.os && Array.isArray(params.targeting.os) && params.targeting.os.length > 0) {
-        const osList = params.targeting.os
-          .map((os: string) => {
-            const osMap: Record<string, string> = {
-              'ios': 'IOS',
-              'android': 'ANDROID',
-            };
-            return osMap[os.toLowerCase()] || null;
-          })
-          .filter(Boolean);
-        if (osList.length > 0) {
-          body.operating_systems = osList;
-          console.log(`✅ OS targeting: ${osList.join(', ')}`);
+        const filteredOs = params.targeting.os.filter((o: any) => o !== 'all');
+        if (filteredOs.length > 0) {
+          const osList = filteredOs
+            .map((os: string) => {
+              const osMap: Record<string, string> = {
+                'ios': 'IOS',
+                'android': 'ANDROID',
+              };
+              return osMap[os.toLowerCase()] || null;
+            })
+            .filter(Boolean);
+          if (osList.length > 0) {
+            body.operating_systems = osList;
+            console.log(`✅ OS targeting: ${osList.join(', ')}`);
+          }
         }
       }
       
-      // Add language targeting
+      // Add language targeting (only if not 'all' and valid values)
       if (params.targeting.languages && Array.isArray(params.targeting.languages) && params.targeting.languages.length > 0) {
-        const languageCodes = params.targeting.languages
-          .filter((lang: any) => lang !== 'all')
-          .map((lang: any) => String(lang));
-        if (languageCodes.length > 0) {
-          body.languages = languageCodes;
-          console.log(`✅ Language targeting: ${languageCodes.join(', ')}`);
+        const filteredLanguages = params.targeting.languages.filter((lang: any) => lang !== 'all');
+        if (filteredLanguages.length > 0) {
+          const languageCodes = filteredLanguages.map((lang: any) => String(lang));
+          if (languageCodes.length > 0) {
+            body.languages = languageCodes;
+            console.log(`✅ Language targeting: ${languageCodes.join(', ')}`);
+          }
         }
       }
       
@@ -819,10 +848,20 @@ class TikTokAdapter implements PlatformAdapter {
   }
 
   private mapGender(genders?: number[]): string {
-    if (!genders || genders.length === 0 || genders.includes(0)) return "GENDER_UNLIMITED";
-    if (genders.includes(1) && genders.includes(2)) return "GENDER_UNLIMITED";
-    if (genders.includes(1)) return "GENDER_MALE";
-    if (genders.includes(2)) return "GENDER_FEMALE";
+    // If no genders specified or empty array, target all genders
+    if (!genders || genders.length === 0) {
+      return "GENDER_UNLIMITED";
+    }
+    
+    // If targeting both male and female, use unlimited
+    const hasMale = genders.includes(1);
+    const hasFemale = genders.includes(2);
+    
+    if (hasMale && hasFemale) return "GENDER_UNLIMITED";
+    if (hasMale) return "GENDER_MALE";
+    if (hasFemale) return "GENDER_FEMALE";
+    
+    // Default to unlimited if no valid gender codes
     return "GENDER_UNLIMITED";
   }
 
