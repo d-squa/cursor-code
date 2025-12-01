@@ -425,10 +425,14 @@ class TikTokAdapter implements PlatformAdapter {
       // Add optional TikTok fields from matrix
       if (params.clickWindow) body.conversion_window = { click_window: params.clickWindow };
       if (params.viewWindow) body.conversion_window = { ...body.conversion_window, view_window: params.viewWindow };
-      if (params.frequencyEnabled && params.frequencySchedule) {
+      
+      // Frequency cap - always pass if value exists (required for REACH campaigns)
+      if (params.frequencySchedule) {
         body.frequency = params.frequencySchedule;
-        body.frequency_schedule = 7; // Per 7 days as per matrix
+        body.frequency_schedule = 7; // Per 7 days as per TikTok API
+        console.log(`✅ Frequency cap configured: ${params.frequencySchedule} impressions per 7 days`);
       }
+      
       if (params.appId) body.app_id = params.appId;
       if (params.eventCount) body.event_count = params.eventCount; // "every_conversion" or "once"
       if (params.smartPlusEnabled) body.is_smart_performance_campaign = true;

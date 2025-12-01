@@ -1078,9 +1078,9 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
         const clickWindow = phase.tiktokClickWindow || market.tiktokClickWindow;
         const viewWindow = phase.tiktokViewWindow || market.tiktokViewWindow;
         
-        // Get frequency settings
-        const frequencyEnabled = phase.tiktokFrequencyEnabled !== undefined ? phase.tiktokFrequencyEnabled : market.tiktokFrequencyEnabled;
+        // Get frequency settings (required for REACH campaigns)
         const frequencySchedule = phase.tiktokFrequencySchedule || market.tiktokFrequencySchedule;
+        console.log(`📊 Frequency schedule for ${phase.name}: ${frequencySchedule}`);
         
         // Get feature toggles
         const eventCountEnabled = phase.tiktokEventCountEnabled !== undefined ? phase.tiktokEventCountEnabled : market.tiktokEventCountEnabled;
@@ -1096,7 +1096,6 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           const tiktokBidAmount = phase.tiktokBidAmount || market.tiktokBidAmount;
           const tiktokClickWindow = phase.tiktokClickWindow || market.tiktokClickWindow;
           const tiktokViewWindow = phase.tiktokViewWindow || market.tiktokViewWindow;
-          const tiktokFrequencyEnabled = phase.tiktokFrequencyEnabled ?? market.tiktokFrequencyEnabled;
           const tiktokFrequencySchedule = phase.tiktokFrequencySchedule || market.tiktokFrequencySchedule;
           const tiktokEventCount = phase.tiktokEventCount || market.tiktokEventCount;
           const tiktokSmartPlusEnabled = phase.tiktokSmartPlusEnabled ?? market.tiktokSmartPlusEnabled;
@@ -1109,7 +1108,6 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
             bidAmount: tiktokBidAmount,
             clickWindow: tiktokClickWindow,
             viewWindow: tiktokViewWindow,
-            frequencyEnabled: tiktokFrequencyEnabled,
             frequencySchedule: tiktokFrequencySchedule,
             eventCount: tiktokEventCount,
             smartPlusEnabled: tiktokSmartPlusEnabled,
@@ -1138,8 +1136,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           appId: appId,
           clickWindow: clickWindow,
           viewWindow: viewWindow,
-          frequencyEnabled: frequencyEnabled,
-          frequencySchedule: frequencySchedule,
+          frequencySchedule: tiktokFrequencySchedule,
           eventCount: tiktokEventCount,
           smartPlusEnabled: smartPlusEnabled,
         });
