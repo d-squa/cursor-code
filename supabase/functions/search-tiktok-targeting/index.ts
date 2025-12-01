@@ -63,80 +63,50 @@ serve(async (req) => {
     const accessToken = platformData.access_token;
     const apiVersion = 'v1.3';
     
-    // TikTok Interest and Action Category API
-    // Documentation: https://business-api.tiktok.com/portal/docs?id=1736275204260866
-    let searchUrl: string;
-    let searchBody: any;
+    // TikTok doesn't have keyword search - fetch all categories and filter locally
+    let fetchUrl: string;
+    let fetchMethod: string = 'GET';
+    let fetchBody: any = null;
     
-    if (type === 'interests' || type === 'behaviors') {
-      // TikTok uses /tool/targeting_category/recommend/ (singular 'tool')
-      // This endpoint returns both interests and action categories
-      searchUrl = `https://business-api.tiktok.com/open_api/${apiVersion}/tool/targeting_category/recommend/`;
-      searchBody = {
-        advertiser_id: advertiserId,
-        objective_type: "CONVERSIONS", // Can be adjusted based on campaign objective
-        placements: ["PLACEMENT_TIKTOK"], // TikTok placement
-        budget: 100, // Minimum budget for recommendation
-        region_codes: ["US", "GB", "CA", "AU", "DE", "FR", "IT", "ES"], // Required field - major markets
-        ...(query && { targeting_word_ids: [query] }) // Optional keyword filtering
-      };
-    } else if (type === 'actions') {
-      // TikTok uses /tool/action_category/ (singular 'tool')
-      searchUrl = `https://business-api.tiktok.com/open_api/${apiVersion}/tool/action_category/`;
-      searchBody = {
-        advertiser_id: advertiserId,
-        special_industries: [] // Can be customized based on ad account
-      };
-    } else {
-      // Fallback to targeting category recommend
-      searchUrl = `https://business-api.tiktok.com/open_api/${apiVersion}/tool/targeting_category/recommend/`;
-      searchBody = {
-        advertiser_id: advertiserId,
-        objective_type: "CONVERSIONS",
-        placements: ["PLACEMENT_TIKTOK"],
-        budget: 100
-      };
-    }
-    
-    console.log(`Searching TikTok ${type} with URL: ${searchUrl}`);
-    
-    let searchResponse;
     if (type === 'actions') {
-      // action_category uses GET with query parameters
-      const url = new URL(searchUrl);
-      url.searchParams.append('advertiser_id', advertiserId);
-      
-      searchResponse = await fetch(url.toString(), {
-        method: 'GET',
-        headers: {
-          'Access-Token': accessToken
-        }
-      });
+      // Fetch all action categories
+      fetchUrl = `https://business-api.tiktok.com/open_api/${apiVersion}/tool/action_category/?advertiser_id=${advertiserId}`;
+      fetchMethod = 'GET';
     } else {
-      // targeting_category/recommend uses POST with body
-      searchResponse = await fetch(searchUrl, {
-        method: 'POST',
-        headers: {
-          'Access-Token': accessToken,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(searchBody)
-      });
+      // Fetch interest categories (includes both interests and behaviors)
+      fetchUrl = `https://business-api.tiktok.com/open_api/${apiVersion}/tool/interest_category/?advertiser_id=${advertiserId}&language=en`;
+      fetchMethod = 'GET';
+    }
+    
+    console.log(`Fetching TikTok ${type} from: ${fetchUrl}`);
+    
+    const fetchOptions: RequestInit = {
+      method: fetchMethod,
+      headers: {
+        'Access-Token': accessToken,
+        'Content-Type': 'application/json'
+      }
+    };
+    
+    if (fetchBody) {
+      fetchOptions.body = JSON.stringify(fetchBody);
+    }
+    
+    const fetchResponse = await fetch(fetchUrl, fetchOptions);
+
+    if (!fetchResponse.ok) {
+      const errorText = await fetchResponse.text();
+      console.error('TikTok fetch error:', fetchResponse.status, errorText);
+      throw new Error(`TikTok API error: ${fetchResponse.status}`);
     }
 
-    if (!searchResponse.ok) {
-      const errorText = await searchResponse.text();
-      console.error('TikTok search error:', searchResponse.status, errorText);
-      throw new Error(`TikTok API error: ${searchResponse.status}`);
-    }
-
-    const searchData = await searchResponse.json();
+    const fetchData = await fetchResponse.json();
     
-    console.log('TikTok API full response:', JSON.stringify(searchData, null, 2));
+    console.log('TikTok API response code:', fetchData.code);
     
-    if (searchData.code !== 0) {
-      console.error('TikTok API error code:', searchData);
-      throw new Error(`TikTok API error: ${searchData.message}`);
+    if (fetchData.code !== 0) {
+      console.error('TikTok API error code:', fetchData);
+      throw new Error(`TikTok API error: ${fetchData.message || 'Unknown error'}`);
     }
     
     // Helper function to calculate relevance score
@@ -144,7 +114,7 @@ serve(async (req) => {
       const name = (item.name || '').toLowerCase();
       const description = (item.description || '').toLowerCase();
       
-      // Remove platform-specific terms and clean query
+      // Clean query
       const cleanQuery = searchQuery
         .toLowerCase()
         .replace(/\b(instagram|facebook|meta|retargeting|website|custom|saved|audience)\b/gi, '')
@@ -167,8 +137,8 @@ serve(async (req) => {
       
       // Count matching words
       queryWords.forEach(word => {
-        if (name.includes(word)) score += 10;
-        if (description.includes(word)) score += 5;
+        if (name.includes(word)) score += 15;
+        if (description && description.includes(word)) score += 8;
       });
       
       return score;
@@ -178,9 +148,9 @@ serve(async (req) => {
     const deduplicateResults = (items: any[]): any[] => {
       const seen = new Set<string>();
       return items.filter(item => {
-        const normalizedName = (item.name || '').toLowerCase().trim();
-        if (seen.has(normalizedName)) return false;
-        seen.add(normalizedName);
+        const key = `${item.id}-${(item.name || '').toLowerCase().trim()}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
         return true;
       });
     };
@@ -189,7 +159,7 @@ serve(async (req) => {
     
     // Handle different response structures
     if (type === 'actions') {
-      const dataList = searchData.data?.action_categories || [];
+      const dataList = fetchData.data?.action_categories || fetchData.data?.list || [];
       console.log(`Processing ${dataList.length} TikTok action categories for "${query}"`);
       
       // Score and filter items
@@ -198,29 +168,29 @@ serve(async (req) => {
           item,
           score: calculateRelevance(item, query)
         }))
-        .filter(({ score }: { score: number }) => score > 10)
+        .filter(({ score }: { score: number }) => score > 5)
         .sort((a: any, b: any) => b.score - a.score);
       
-      console.log(`Found ${scoredItems.length} relevant action categories after filtering (scores > 10)`);
+      console.log(`Found ${scoredItems.length} relevant action categories after filtering (scores > 5)`);
       
-      // Deduplicate and take top 10
+      // Deduplicate and take top 15
       const deduplicated = deduplicateResults(scoredItems.map((s: any) => s.item));
       
-      for (let i = 0; i < Math.min(deduplicated.length, 10); i++) {
+      for (let i = 0; i < Math.min(deduplicated.length, 15); i++) {
         const item = deduplicated[i];
-        const itemId = item.action_category_id || item.id || `action-${query}-${i}`;
+        const itemId = item.action_category_id || item.id || `action-${i}`;
         results.push({
           id: String(itemId),
           name: item.name || query,
           description: item.description,
           audienceSize: undefined,
-          type: type
+          type: 'behaviors'
         });
       }
     } else {
-      // For interests and behaviors using targeting_category/recommend
-      const categories = searchData.data?.interest_categories || searchData.data?.categories || [];
-      console.log(`Processing ${categories.length} TikTok ${type} results for "${query}"`);
+      // For interests using interest_category endpoint
+      const categories = fetchData.data?.interest_categories || fetchData.data?.list || [];
+      console.log(`Processing ${categories.length} TikTok interest categories for "${query}"`);
       
       // Score and filter items
       const scoredItems = categories
@@ -228,28 +198,28 @@ serve(async (req) => {
           item,
           score: calculateRelevance(item, query)
         }))
-        .filter(({ score }: { score: number }) => score > 10)
+        .filter(({ score }: { score: number }) => score > 5)
         .sort((a: any, b: any) => b.score - a.score);
       
-      console.log(`Found ${scoredItems.length} relevant ${type} after filtering (scores > 10)`);
+      console.log(`Found ${scoredItems.length} relevant interests after filtering (scores > 5)`);
       
-      // Deduplicate and take top 10
+      // Deduplicate and take top 15
       const deduplicated = deduplicateResults(scoredItems.map((s: any) => s.item));
       
-      for (let i = 0; i < Math.min(deduplicated.length, 10); i++) {
+      for (let i = 0; i < Math.min(deduplicated.length, 15); i++) {
         const item = deduplicated[i];
-        const itemId = item.interest_category_id || item.category_id || item.id || `interest-${query}-${i}`;
+        const itemId = item.interest_category_id || item.id || `interest-${i}`;
         results.push({
           id: String(itemId),
-          name: item.interest_category || item.category || item.name || query,
+          name: item.interest_category || item.name || query,
           description: item.description,
           audienceSize: item.coverage || undefined,
-          type: type
+          type: 'interests'
         });
       }
     }
 
-    console.log(`Returning ${results.length} TikTok ${type} results:`, results.map(r => ({ id: r.id, name: r.name })));
+    console.log(`Returning ${results.length} TikTok ${type} results:`, results.slice(0, 5).map(r => ({ id: r.id, name: r.name })));
 
     return new Response(
       JSON.stringify({ results }),
