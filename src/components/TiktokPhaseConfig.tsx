@@ -86,12 +86,10 @@ export function TiktokPhaseConfig({ phase, onUpdate }: TiktokPhaseConfigProps) {
             
             if (inputValue === "") {
               onUpdate("tiktokFrequencySchedule", undefined);
-              onUpdate("tiktokFrequencyEnabled", false);
             } else {
               const numValue = parseInt(inputValue, 10);
               if (!isNaN(numValue) && numValue > 0) {
                 onUpdate("tiktokFrequencySchedule", numValue);
-                onUpdate("tiktokFrequencyEnabled", true);
               }
             }
           }}
