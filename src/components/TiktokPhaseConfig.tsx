@@ -21,6 +21,8 @@ export function TiktokPhaseConfig({ phase, onUpdate }: TiktokPhaseConfigProps) {
   // Get objective and optimization goal
   const objective = phase.objective || "";
   const optimizationGoal = phase.optimizationGoal || "";
+  
+  console.log("TikTok Phase Config - Objective:", objective, "Optimization Goal:", optimizationGoal);
 
   // Determine field visibility based on matrix
   const showOptimizationLocation = ![
