@@ -71,23 +71,17 @@ export function TiktokPhaseConfig({ phase, onUpdate }: TiktokPhaseConfigProps) {
         <Input
           type="number"
           placeholder="e.g., 3"
-          value={phase.tiktokFrequencySchedule ?? ""}
+          value={phase.tiktokFrequencySchedule?.toString() ?? ""}
           onChange={(e) => {
-            console.log("📝 Frequency cap onChange triggered, value:", e.target.value);
             const inputValue = e.target.value;
             if (inputValue === "") {
-              console.log("🔄 Clearing frequency cap");
               onUpdate("tiktokFrequencySchedule", undefined);
               onUpdate("tiktokFrequencyEnabled", false);
             } else {
               const numValue = parseInt(inputValue, 10);
-              console.log("🔢 Parsed number:", numValue);
               if (!isNaN(numValue) && numValue > 0) {
-                console.log("✅ Updating frequency cap to:", numValue);
                 onUpdate("tiktokFrequencySchedule", numValue);
                 onUpdate("tiktokFrequencyEnabled", true);
-              } else {
-                console.log("❌ Invalid number, not updating");
               }
             }
           }}
