@@ -1488,11 +1488,24 @@ export function MediaPlanEditor() {
             <CardContent>
               <BasicTargeting
                 targeting={basicTargeting}
-                onUpdate={(targeting) => {
+                onUpdate={async (targeting) => {
                   console.log('📋 Received targeting update from BasicTargeting:', targeting);
-                  console.log('📋 Current basicTargeting before update:', basicTargeting);
                   setBasicTargeting(targeting);
-                  console.log('📋 Updated basicTargeting state to:', targeting);
+                  
+                  // Save immediately to database to avoid React state batching issues
+                  if (savedCampaignId && user) {
+                    try {
+                      await supabase.from("campaigns").update({
+                        generic_config: {
+                          ...genericConfig,
+                          basicTargeting: targeting,
+                        } as any,
+                      }).eq("id", savedCampaignId);
+                      console.log('✅ Saved basicTargeting to database:', targeting);
+                    } catch (error) {
+                      console.error('❌ Error saving basicTargeting:', error);
+                    }
+                  }
                 }}
                 metaAdAccountId={firstAdAccountId || undefined}
                 tiktokAdvertiserId={firstTiktokAdvertiserId || undefined}
