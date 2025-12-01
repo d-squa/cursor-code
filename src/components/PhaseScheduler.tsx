@@ -1161,6 +1161,10 @@ export function PhaseScheduler({
                             updatePhaseField(phase.id, "overrideTargeting", open);
                             if (open && !phase.targeting) {
                               // Initialize with campaign-level targeting on first open
+                              // Only copy platform-specific targeting data based on current platform
+                              const isTikTok = platformId === 'tiktok';
+                              const isMeta = platformId === 'meta';
+                              
                               const phaseTargeting: BasicTargetingConfig = {
                                 ageMin: basicTargeting.ageMin,
                                 ageMax: basicTargeting.ageMax,
@@ -1169,12 +1173,14 @@ export function PhaseScheduler({
                                 os: basicTargeting.os ? [...basicTargeting.os] : undefined,
                                 languages: basicTargeting.languages ? [...basicTargeting.languages] : undefined,
                                 productBrief: basicTargeting.productBrief,
-                                metaInterests: basicTargeting.metaInterests ? [...basicTargeting.metaInterests] : [],
-                                metaBehaviors: basicTargeting.metaBehaviors ? [...basicTargeting.metaBehaviors] : [],
-                                metaDemographics: basicTargeting.metaDemographics ? [...basicTargeting.metaDemographics] : [],
-                                tiktokInterests: basicTargeting.tiktokInterests ? [...basicTargeting.tiktokInterests] : [],
-                                tiktokBehaviors: basicTargeting.tiktokBehaviors ? [...basicTargeting.tiktokBehaviors] : [],
-                                tiktokDemographics: basicTargeting.tiktokDemographics ? [...basicTargeting.tiktokDemographics] : [],
+                                // Only include Meta targeting if this is a Meta platform phase
+                                metaInterests: isMeta && basicTargeting.metaInterests ? [...basicTargeting.metaInterests] : [],
+                                metaBehaviors: isMeta && basicTargeting.metaBehaviors ? [...basicTargeting.metaBehaviors] : [],
+                                metaDemographics: isMeta && basicTargeting.metaDemographics ? [...basicTargeting.metaDemographics] : [],
+                                // Only include TikTok targeting if this is a TikTok platform phase
+                                tiktokInterests: isTikTok && basicTargeting.tiktokInterests ? [...basicTargeting.tiktokInterests] : [],
+                                tiktokBehaviors: isTikTok && basicTargeting.tiktokBehaviors ? [...basicTargeting.tiktokBehaviors] : [],
+                                tiktokDemographics: isTikTok && basicTargeting.tiktokDemographics ? [...basicTargeting.tiktokDemographics] : [],
                               };
                               updatePhaseField(phase.id, "targeting", phaseTargeting);
                             }

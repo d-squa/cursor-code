@@ -110,9 +110,7 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
 
   // Initialize recommendations from saved targeting data
   useEffect(() => {
-    // Skip if already initialized or no saved data
-    if (hasInitialized.current) return;
-    
+    // Check if we have saved data
     const hasSavedData = (
       (targeting.metaInterests?.length || 0) > 0 ||
       (targeting.tiktokInterests?.length || 0) > 0 ||
@@ -122,12 +120,23 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
       (targeting.tiktokDemographics?.length || 0) > 0
     );
     
-    if (!hasSavedData) return;
+    if (!hasSavedData) {
+      // Reset if no data
+      if (hasInitialized.current) {
+        hasInitialized.current = false;
+        setAiRecommendations({
+          meta: { interests: [], behaviors: [], demographics: [] },
+          tiktok: { interests: [], behaviors: [], demographics: [] },
+          matches: []
+        });
+      }
+      return;
+    }
     
     // Mark as initialized
     hasInitialized.current = true;
     
-    // Restore saved selections
+    // Restore saved selections - always update when data changes
     setAiRecommendations({
       meta: {
         interests: (targeting.metaInterests || []).map(i => ({ ...i, selected: true })),
@@ -674,7 +683,7 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
             {/* Platform-Segmented Recommendations */}
             {(aiRecommendations.meta.interests.length > 0 || aiRecommendations.tiktok.interests.length > 0) && (
               <Tabs 
-                defaultValue={tiktokAdvertiserId && !metaAdAccountId ? "tiktok" : "meta"} 
+                value={tiktokAdvertiserId && !metaAdAccountId ? "tiktok" : metaAdAccountId && !tiktokAdvertiserId ? "meta" : "meta"} 
                 className="w-full"
               >
                 {metaAdAccountId && tiktokAdvertiserId ? (
