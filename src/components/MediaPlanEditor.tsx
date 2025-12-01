@@ -237,6 +237,27 @@ export function MediaPlanEditor() {
   const [firstAdAccountId, setFirstAdAccountId] = useState<string | null>(null);
   const [firstTiktokAdvertiserId, setFirstTiktokAdvertiserId] = useState<string | null>(null);
   
+  // Update ad account IDs based on selected platforms
+  useEffect(() => {
+    const metaAdAccount = platformsWithMarkets
+      .find(p => p.id === 'meta' || p.name.toLowerCase() === 'meta')
+      ?.markets[0]?.adAccountId;
+    
+    const tiktokAdAccount = platformsWithMarkets
+      .find(p => p.id === 'tiktok' || p.name.toLowerCase() === 'tiktok')
+      ?.markets[0]?.adAccountId;
+    
+    if (metaAdAccount && metaAdAccount !== firstAdAccountId) {
+      setFirstAdAccountId(metaAdAccount);
+      console.log('✅ Updated Meta Ad Account ID for targeting:', metaAdAccount);
+    }
+    
+    if (tiktokAdAccount && tiktokAdAccount !== firstTiktokAdvertiserId) {
+      setFirstTiktokAdvertiserId(tiktokAdAccount);
+      console.log('✅ Updated TikTok Advertiser ID for targeting:', tiktokAdAccount);
+    }
+  }, [platformsWithMarkets]);
+  
   // Dialog states
   const [platformDialogOpen, setPlatformDialogOpen] = useState(false);
   const [marketDialogOpen, setMarketDialogOpen] = useState(false);
