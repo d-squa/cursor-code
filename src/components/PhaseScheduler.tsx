@@ -1203,13 +1203,22 @@ export function PhaseScheduler({
                           </CollapsibleTrigger>
                           <CollapsibleContent className="pt-4">
                             {phase.targeting && (
-                              <BasicTargeting
-                                key={`phase-targeting-${phase.id}-${phase.overrideTargeting}`}
-                                targeting={phase.targeting as BasicTargetingConfig}
-                                onUpdate={(targeting) => updatePhaseField(phase.id, "targeting", targeting)}
-                                metaAdAccountId={platformId === 'meta' ? adAccountId : undefined}
-                                tiktokAdvertiserId={platformId === 'tiktok' ? adAccountId : undefined}
-                              />
+                              <>
+                                {console.log('[PhaseScheduler] Rendering BasicTargeting:', { 
+                                  platformId, 
+                                  adAccountId,
+                                  phaseId: phase.id,
+                                  metaAdAccountId: platformId === 'meta' ? adAccountId : undefined,
+                                  tiktokAdvertiserId: platformId === 'tiktok' ? adAccountId : undefined
+                                })}
+                                <BasicTargeting
+                                  key={`phase-targeting-${phase.id}-${phase.overrideTargeting}`}
+                                  targeting={phase.targeting as BasicTargetingConfig}
+                                  onUpdate={(targeting) => updatePhaseField(phase.id, "targeting", targeting)}
+                                  metaAdAccountId={platformId === 'meta' ? adAccountId : undefined}
+                                  tiktokAdvertiserId={platformId === 'tiktok' ? adAccountId : undefined}
+                                />
+                              </>
                             )}
                           </CollapsibleContent>
                         </Collapsible>
