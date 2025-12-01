@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -56,6 +56,9 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
   const [languageOptions, setLanguageOptions] = useState<TargetingOption[]>([]);
   const [ageOptions, setAgeOptions] = useState<TargetingOption[]>([]);
   
+  // Track if we've initialized recommendations from saved targeting
+  const hasInitialized = useRef(false);
+  
   // Cross-platform AI recommendations
   const [generatingAI, setGeneratingAI] = useState(false);
   const [aiRecommendations, setAiRecommendations] = useState<{
@@ -107,60 +110,45 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
 
   // Initialize recommendations from saved targeting data
   useEffect(() => {
-    // Only update if there are actual saved targeting items
-    const metaInterestsLength = targeting.metaInterests?.length || 0;
-    const tiktokInterestsLength = targeting.tiktokInterests?.length || 0;
-    const metaBehaviorsLength = targeting.metaBehaviors?.length || 0;
-    const tiktokBehaviorsLength = targeting.tiktokBehaviors?.length || 0;
-    const metaDemographicsLength = targeting.metaDemographics?.length || 0;
-    const tiktokDemographicsLength = targeting.tiktokDemographics?.length || 0;
+    // Skip if already initialized or no saved data
+    if (hasInitialized.current) return;
     
-    // Only update if we have saved data and the current recommendations are empty or don't match
-    if ((metaInterestsLength > 0 || tiktokInterestsLength > 0) && 
-        (aiRecommendations.meta.interests.length === 0 && aiRecommendations.tiktok.interests.length === 0)) {
-      setAiRecommendations(prev => ({
-        ...prev,
-        meta: {
-          ...prev.meta,
-          interests: (targeting.metaInterests || []).map(i => ({ ...i, selected: true }))
-        },
-        tiktok: {
-          ...prev.tiktok,
-          interests: (targeting.tiktokInterests || []).map(i => ({ ...i, selected: true }))
-        }
-      }));
-    }
+    const hasSavedData = (
+      (targeting.metaInterests?.length || 0) > 0 ||
+      (targeting.tiktokInterests?.length || 0) > 0 ||
+      (targeting.metaBehaviors?.length || 0) > 0 ||
+      (targeting.tiktokBehaviors?.length || 0) > 0 ||
+      (targeting.metaDemographics?.length || 0) > 0 ||
+      (targeting.tiktokDemographics?.length || 0) > 0
+    );
     
-    if ((metaBehaviorsLength > 0 || tiktokBehaviorsLength > 0) &&
-        (aiRecommendations.meta.behaviors.length === 0 && aiRecommendations.tiktok.behaviors.length === 0)) {
-      setAiRecommendations(prev => ({
-        ...prev,
-        meta: {
-          ...prev.meta,
-          behaviors: (targeting.metaBehaviors || []).map(b => ({ ...b, selected: true }))
-        },
-        tiktok: {
-          ...prev.tiktok,
-          behaviors: (targeting.tiktokBehaviors || []).map(b => ({ ...b, selected: true }))
-        }
-      }));
-    }
+    if (!hasSavedData) return;
     
-    if ((metaDemographicsLength > 0 || tiktokDemographicsLength > 0) &&
-        (aiRecommendations.meta.demographics.length === 0 && aiRecommendations.tiktok.demographics.length === 0)) {
-      setAiRecommendations(prev => ({
-        ...prev,
-        meta: {
-          ...prev.meta,
-          demographics: (targeting.metaDemographics || []).map(d => ({ ...d, selected: true }))
-        },
-        tiktok: {
-          ...prev.tiktok,
-          demographics: (targeting.tiktokDemographics || []).map(d => ({ ...d, selected: true }))
-        }
-      }));
-    }
-  }, []);
+    // Mark as initialized
+    hasInitialized.current = true;
+    
+    // Restore saved selections
+    setAiRecommendations({
+      meta: {
+        interests: (targeting.metaInterests || []).map(i => ({ ...i, selected: true })),
+        behaviors: (targeting.metaBehaviors || []).map(b => ({ ...b, selected: true })),
+        demographics: (targeting.metaDemographics || []).map(d => ({ ...d, selected: true }))
+      },
+      tiktok: {
+        interests: (targeting.tiktokInterests || []).map(i => ({ ...i, selected: true })),
+        behaviors: (targeting.tiktokBehaviors || []).map(b => ({ ...b, selected: true })),
+        demographics: (targeting.tiktokDemographics || []).map(d => ({ ...d, selected: true }))
+      },
+      matches: []
+    });
+  }, [
+    targeting.metaInterests, 
+    targeting.tiktokInterests, 
+    targeting.metaBehaviors, 
+    targeting.tiktokBehaviors,
+    targeting.metaDemographics,
+    targeting.tiktokDemographics
+  ]);
 
   const loadTargetingOptions = async () => {
     setLoading(true);
