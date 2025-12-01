@@ -606,18 +606,9 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
     );
     
     if (hasChanges) {
-      // CRITICAL: Preserve ALL basic targeting fields when updating platform-specific arrays
-      console.log('🔄 Updating platform-specific targeting. Current targeting:', targeting);
+      // Spread existing targeting first to preserve ALL fields
       const updatedTargeting = {
-        // Preserve basic demographic fields
-        ageMin: targeting.ageMin,
-        ageMax: targeting.ageMax,
-        genders: targeting.genders,
-        devices: targeting.devices,
-        os: targeting.os,
-        languages: targeting.languages,
-        productBrief: targeting.productBrief,
-        // Update platform-specific fields
+        ...targeting,
         metaInterests,
         metaBehaviors,
         metaDemographics,
@@ -625,7 +616,6 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
         tiktokBehaviors,
         tiktokDemographics
       };
-      console.log('🔄 Updated targeting object:', updatedTargeting);
       onUpdate(updatedTargeting);
     }
   }, [aiRecommendations, targeting.ageMin, targeting.ageMax, targeting.genders, targeting.devices, targeting.os, targeting.languages, targeting.productBrief]);
