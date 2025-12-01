@@ -972,11 +972,37 @@ export function PlatformMarketBudgetSelector({
                                    )}
                                    <Select
                                     value={market.adAccountId || ""}
-                                     onValueChange={(value) => {
+                                   onValueChange={(value) => {
                                        console.log('🔄 Ad account selected:', value);
                                        const account = adAccounts.find(a => a.id === value);
                                        const defaults = adAccountDefaults[value];
                                        console.log('📋 Ad account defaults found:', defaults);
+                                       console.log('📋 Client selected:', selectedClientId);
+                                       
+                                       // Only apply defaults if a client is selected
+                                       if (!selectedClientId) {
+                                         console.log('⚠️ No client selected - skipping defaults');
+                                         // Just update the ad account without applying defaults
+                                         setPlatforms(prev =>
+                                           prev.map((p, i) => {
+                                             if (i !== platformIndex) return p;
+                                             return {
+                                               ...p,
+                                               markets: p.markets.map(m => {
+                                                 if (m.id === market.id) {
+                                                   return {
+                                                     ...m,
+                                                     adAccountId: value,
+                                                     accountName: account?.name || "",
+                                                   };
+                                                 }
+                                                 return m;
+                                               }),
+                                             };
+                                           })
+                                         );
+                                         return;
+                                       }
                                        
                                        // Batch all updates including defaults and auto-create markets
                                        setPlatforms(prev =>
@@ -1376,6 +1402,32 @@ export function PlatformMarketBudgetSelector({
                                       console.log('📋 TikTok account defaults lookup for:', value);
                                       console.log('📋 All TikTok defaults:', tiktokAdAccountDefaults);
                                       console.log('📋 Found defaults:', defaults);
+                                      console.log('📋 Client selected:', selectedClientId);
+                                      
+                                      // Only apply defaults if a client is selected
+                                      if (!selectedClientId) {
+                                        console.log('⚠️ No client selected - skipping defaults');
+                                        // Just update the ad account without applying defaults
+                                        setPlatforms(prev =>
+                                          prev.map((p, i) => {
+                                            if (i !== platformIndex) return p;
+                                            return {
+                                              ...p,
+                                              markets: p.markets.map(m => {
+                                                if (m.id === market.id) {
+                                                  return {
+                                                    ...m,
+                                                    adAccountId: value,
+                                                    accountName: account?.name || "",
+                                                  };
+                                                }
+                                                return m;
+                                              }),
+                                            };
+                                          })
+                                        );
+                                        return;
+                                      }
                                       
                                       if (!defaults || (!defaults.pixelId && !defaults.identityId && !defaults.catalogId)) {
                                         console.warn('⚠️ No defaults configured for this TikTok account');
