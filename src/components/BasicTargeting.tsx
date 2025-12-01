@@ -108,6 +108,9 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
     loadTargetingOptions();
   }, []);
 
+  // Track if we're currently in initialization phase
+  const isInitializing = useRef(false);
+  
   // Initialize recommendations from saved targeting data
   useEffect(() => {
     // Check if we have saved data
@@ -136,7 +139,8 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
     // Skip if already initialized to prevent flickering
     if (hasInitialized.current) return;
     
-    // Mark as initialized
+    // Mark as initializing
+    isInitializing.current = true;
     hasInitialized.current = true;
     
     // Restore saved selections only once
@@ -153,6 +157,11 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
       },
       matches: []
     });
+    
+    // Clear initializing flag after state update
+    setTimeout(() => {
+      isInitializing.current = false;
+    }, 0);
   }, [
     targeting.metaInterests, 
     targeting.tiktokInterests, 
@@ -466,10 +475,10 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
     }));
   };
 
-  // Update targeting config when recommendations change (but not during initialization)
+  // Update targeting config when recommendations change (but skip during initialization)
   useEffect(() => {
-    // Don't update during initial load to prevent circular updates
-    if (!hasInitialized.current) return;
+    // Skip update if we're in the middle of initializing from saved data
+    if (isInitializing.current) return;
     
     const metaInterests = aiRecommendations.meta.interests.filter(i => i.selected).map(({ selected, ...rest }) => rest);
     const metaBehaviors = aiRecommendations.meta.behaviors.filter(b => b.selected).map(({ selected, ...rest }) => rest);
