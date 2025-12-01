@@ -121,7 +121,7 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
     );
     
     if (!hasSavedData) {
-      // Reset if no data
+      // Reset if no data and we were previously initialized
       if (hasInitialized.current) {
         hasInitialized.current = false;
         setAiRecommendations({
@@ -133,10 +133,13 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
       return;
     }
     
+    // Skip if already initialized to prevent flickering
+    if (hasInitialized.current) return;
+    
     // Mark as initialized
     hasInitialized.current = true;
     
-    // Restore saved selections - always update when data changes
+    // Restore saved selections only once
     setAiRecommendations({
       meta: {
         interests: (targeting.metaInterests || []).map(i => ({ ...i, selected: true })),
