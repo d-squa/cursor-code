@@ -62,34 +62,26 @@ export function TiktokPhaseConfig({ phase, onUpdate }: TiktokPhaseConfigProps) {
     "REACH", "VIDEO_VIEWS", "COMMUNITY_INTERACTION"
   ].includes(objective);
   
-  // For REACH objective, only show frequency capping
+  // For REACH objective, only show frequency capping without the card
   if (objective === "REACH") {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">TikTok Advanced Settings</CardTitle>
-          <CardDescription className="text-sm">Configure TikTok-specific campaign parameters</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label>Frequency Cap (impressions per 7 days)</Label>
-            <Input
-              type="number"
-              placeholder="e.g., 3"
-              value={phase.tiktokFrequencySchedule || ""}
-              onChange={(e) => {
-                const value = parseInt(e.target.value) || undefined;
-                onUpdate("tiktokFrequencySchedule", value);
-                onUpdate("tiktokFrequencyEnabled", !!value);
-              }}
-              min="1"
-            />
-            <p className="text-xs text-muted-foreground">
-              Limit how many times users see your ad
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="space-y-2">
+        <Label>Frequency Cap (impressions per 7 days)</Label>
+        <Input
+          type="number"
+          placeholder="e.g., 3"
+          value={phase.tiktokFrequencySchedule || ""}
+          onChange={(e) => {
+            const value = parseInt(e.target.value) || undefined;
+            onUpdate("tiktokFrequencySchedule", value);
+            onUpdate("tiktokFrequencyEnabled", !!value);
+          }}
+          min="1"
+        />
+        <p className="text-xs text-muted-foreground">
+          Limit how many times users see your ad
+        </p>
+      </div>
     );
   }
   
