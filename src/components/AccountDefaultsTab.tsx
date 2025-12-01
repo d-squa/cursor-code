@@ -31,6 +31,16 @@ interface AdAccount {
   default_optimization_event?: string | null;
   default_landing_page_url?: string | null;
   default_bid_strategy?: string | null;
+  default_optimization_location?: string | null;
+  default_app_name?: string | null;
+  default_app_id?: string | null;
+  default_frequency_enabled?: boolean | null;
+  default_frequency_schedule?: number | null;
+  default_click_window?: number | null;
+  default_view_window?: number | null;
+  default_event_count_enabled?: boolean | null;
+  default_smart_plus_enabled?: boolean | null;
+  default_search_enabled?: boolean | null;
   main_markets?: string[] | null;
 }
 
@@ -203,6 +213,16 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
           default_billing_event: acc.platform === 'tiktok' ? acc.default_billing_event || 'OCPM' : null,
           default_optimization_event: acc.platform === 'tiktok' ? acc.default_optimization_event || 'ON_WEB_ORDER' : null,
           default_landing_page_url: acc.platform === 'tiktok' ? acc.default_landing_page_url || null : null,
+          default_optimization_location: acc.platform === 'tiktok' ? (acc as any).default_optimization_location || null : null,
+          default_app_name: acc.platform === 'tiktok' ? (acc as any).default_app_name || null : null,
+          default_app_id: acc.platform === 'tiktok' ? (acc as any).default_app_id || null : null,
+          default_frequency_enabled: acc.platform === 'tiktok' ? (acc as any).default_frequency_enabled || false : null,
+          default_frequency_schedule: acc.platform === 'tiktok' ? (acc as any).default_frequency_schedule || null : null,
+          default_click_window: acc.platform === 'tiktok' ? (acc as any).default_click_window || null : null,
+          default_view_window: acc.platform === 'tiktok' ? (acc as any).default_view_window || null : null,
+          default_event_count_enabled: acc.platform === 'tiktok' ? (acc as any).default_event_count_enabled || false : null,
+          default_smart_plus_enabled: acc.platform === 'tiktok' ? (acc as any).default_smart_plus_enabled || false : null,
+          default_search_enabled: acc.platform === 'tiktok' ? (acc as any).default_search_enabled || false : null,
           main_markets: acc.main_markets,
         };
       });
@@ -303,6 +323,16 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         'default_optimization_event',
         'default_landing_page_url',
         'default_bid_strategy',
+        'default_optimization_location',
+        'default_app_name',
+        'default_app_id',
+        'default_frequency_enabled',
+        'default_frequency_schedule',
+        'default_click_window',
+        'default_view_window',
+        'default_event_count_enabled',
+        'default_smart_plus_enabled',
+        'default_search_enabled',
         'main_markets'
       ];
       
@@ -937,6 +967,217 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                             />
                             <p className="text-xs text-muted-foreground">
                               Required for conversion campaigns. Where users land after clicking your ad.
+                            </p>
+                          </div>
+
+                          {/* Optimization Location */}
+                          <div className="space-y-2">
+                            <Label className="flex items-center gap-2">
+                              <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
+                              Optimization Location
+                            </Label>
+                            <Select
+                              value={defaults.default_optimization_location || undefined}
+                              onValueChange={(value) => updateDefault(account.id, "default_optimization_location", value)}
+                            >
+                              <SelectTrigger className="border-black/20 dark:border-white/20">
+                                <SelectValue placeholder="Select location" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Website">Website</SelectItem>
+                                <SelectItem value="App">App</SelectItem>
+                                <SelectItem value="TikTok Shop">TikTok Shop</SelectItem>
+                                <SelectItem value="Instant Form">Instant Form</SelectItem>
+                                <SelectItem value="TikTok Direct Messages">TikTok Direct Messages</SelectItem>
+                                <SelectItem value="Instant Messaging Apps">Instant Messaging Apps</SelectItem>
+                                <SelectItem value="Phone Call">Phone Call</SelectItem>
+                                <SelectItem value="TikTok Instant Page">TikTok Instant Page</SelectItem>
+                                <SelectItem value="Website & App">Website & App</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">
+                              Where optimizations will occur (Website, App, TikTok Shop, etc.)
+                            </p>
+                          </div>
+
+                          {/* App Name - Only show when optimization location is App or Website & App */}
+                          {(defaults.default_optimization_location === 'App' || defaults.default_optimization_location === 'Website & App' || defaults.default_optimization_location === 'Instant Messaging Apps') && (
+                            <>
+                              <div className="space-y-2">
+                                <Label className="flex items-center gap-2">
+                                  <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
+                                  App Name
+                                </Label>
+                                <Input
+                                  placeholder="e.g., Android, iOS, Messenger, WhatsApp"
+                                  value={defaults.default_app_name || ""}
+                                  onChange={(e) => updateDefault(account.id, "default_app_name", e.target.value)}
+                                  className="border-black/20 dark:border-white/20"
+                                />
+                              </div>
+
+                              <div className="space-y-2">
+                                <Label className="flex items-center gap-2">
+                                  <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
+                                  App ID
+                                </Label>
+                                <Input
+                                  placeholder="App identifier"
+                                  value={defaults.default_app_id || ""}
+                                  onChange={(e) => updateDefault(account.id, "default_app_id", e.target.value)}
+                                  className="border-black/20 dark:border-white/20"
+                                />
+                              </div>
+                            </>
+                          )}
+
+                          {/* Attribution Windows */}
+                          <div className="space-y-2">
+                            <Label className="flex items-center gap-2">
+                              <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
+                              Click-Through Window (days)
+                            </Label>
+                            <Select
+                              value={defaults.default_click_window?.toString() || undefined}
+                              onValueChange={(value) => updateDefault(account.id, "default_click_window", parseInt(value))}
+                            >
+                              <SelectTrigger className="border-black/20 dark:border-white/20">
+                                <SelectValue placeholder="Select click window" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="7">7 days</SelectItem>
+                                <SelectItem value="28">28 days</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">
+                              Attribution window for clicks
+                            </p>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label className="flex items-center gap-2">
+                              <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
+                              View-Through Window (days)
+                            </Label>
+                            <Select
+                              value={defaults.default_view_window?.toString() || undefined}
+                              onValueChange={(value) => updateDefault(account.id, "default_view_window", parseInt(value))}
+                            >
+                              <SelectTrigger className="border-black/20 dark:border-white/20">
+                                <SelectValue placeholder="Select view window" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="1">1 day</SelectItem>
+                                <SelectItem value="7">7 days</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">
+                              Attribution window for views
+                            </p>
+                          </div>
+
+                          {/* Frequency Capping */}
+                          <div className="space-y-2">
+                            <Label className="flex items-center gap-2">
+                              <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
+                              Enable Frequency Capping
+                            </Label>
+                            <Select
+                              value={defaults.default_frequency_enabled ? "true" : "false"}
+                              onValueChange={(value) => updateDefault(account.id, "default_frequency_enabled", value === "true")}
+                            >
+                              <SelectTrigger className="border-black/20 dark:border-white/20">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="false">Disabled</SelectItem>
+                                <SelectItem value="true">Enabled</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {defaults.default_frequency_enabled && (
+                            <div className="space-y-2">
+                              <Label className="flex items-center gap-2">
+                                <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
+                                Frequency Schedule (impressions per 7 days)
+                              </Label>
+                              <Input
+                                type="number"
+                                placeholder="e.g., 3"
+                                value={defaults.default_frequency_schedule || ""}
+                                onChange={(e) => updateDefault(account.id, "default_frequency_schedule", parseInt(e.target.value) || null)}
+                                className="border-black/20 dark:border-white/20"
+                              />
+                            </div>
+                          )}
+
+                          {/* Event Count */}
+                          <div className="space-y-2">
+                            <Label className="flex items-center gap-2">
+                              <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
+                              Enable Event Count Tracking
+                            </Label>
+                            <Select
+                              value={defaults.default_event_count_enabled ? "true" : "false"}
+                              onValueChange={(value) => updateDefault(account.id, "default_event_count_enabled", value === "true")}
+                            >
+                              <SelectTrigger className="border-black/20 dark:border-white/20">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="false">Disabled</SelectItem>
+                                <SelectItem value="true">Enabled</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">
+                              Track event counts for conversion campaigns
+                            </p>
+                          </div>
+
+                          {/* Smart+ */}
+                          <div className="space-y-2">
+                            <Label className="flex items-center gap-2">
+                              <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
+                              Enable Smart+ Campaigns
+                            </Label>
+                            <Select
+                              value={defaults.default_smart_plus_enabled ? "true" : "false"}
+                              onValueChange={(value) => updateDefault(account.id, "default_smart_plus_enabled", value === "true")}
+                            >
+                              <SelectTrigger className="border-black/20 dark:border-white/20">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="false">Disabled</SelectItem>
+                                <SelectItem value="true">Enabled</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">
+                              AI-powered campaign optimization
+                            </p>
+                          </div>
+
+                          {/* Search Ads */}
+                          <div className="space-y-2">
+                            <Label className="flex items-center gap-2">
+                              <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
+                              Enable Search Ads
+                            </Label>
+                            <Select
+                              value={defaults.default_search_enabled ? "true" : "false"}
+                              onValueChange={(value) => updateDefault(account.id, "default_search_enabled", value === "true")}
+                            >
+                              <SelectTrigger className="border-black/20 dark:border-white/20">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="false">Disabled</SelectItem>
+                                <SelectItem value="true">Enabled</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">
+                              Display ads in TikTok search results
                             </p>
                           </div>
                         </>

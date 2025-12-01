@@ -70,11 +70,22 @@ export interface CreateAdGroupParams {
   status: string;
   pixelId?: string;
   conversionId?: string;
-  landingPageUrl?: string; // Required for TikTok WEBSITE promotion type
-  bidStrategy?: string; // TikTok bid strategy: LOWEST_COST or COST_CAP
-  bidAmount?: number; // Required when TikTok bidStrategy is COST_CAP
-  metaBidStrategy?: string; // Meta bid strategy: LOWEST_COST_WITHOUT_CAP, LOWEST_COST_WITH_BID_CAP, COST_CAP
-  metaBidAmount?: number; // Required when Meta bidStrategy is LOWEST_COST_WITH_BID_CAP or COST_CAP
+  landingPageUrl?: string;
+  bidStrategy?: string;
+  bidAmount?: number;
+  metaBidStrategy?: string;
+  metaBidAmount?: number;
+  // TikTok-specific advanced fields from matrix
+  optimizationLocation?: string;
+  appName?: string;
+  appId?: string;
+  frequencyEnabled?: boolean;
+  frequencySchedule?: number;
+  clickWindow?: number;
+  viewWindow?: number;
+  eventCountEnabled?: boolean;
+  smartPlusEnabled?: boolean;
+  searchEnabled?: boolean;
 }
 
 export interface CreateAdGroupResult {
@@ -302,16 +313,21 @@ class TikTokAdapter implements PlatformAdapter {
 
   async createAdGroup(params: CreateAdGroupParams): Promise<CreateAdGroupResult> {
     try {
-      // STEP 1: Determine correct billing event based on optimization goal
-      // TikTok has STRICT requirements: certain optimization goals only work with specific billing events
+      // STRICT BILLING EVENT MAPPING from TikTok matrix
       const getBillingEventForOptimization = (optimizationGoal: string): string => {
         const mapping: Record<string, string> = {
-          'CLICK': 'CPC',           // CLICK requires CPC billing (cannot use OCPM)
-          'REACH': 'CPM',           // REACH requires CPM billing
-          'VIDEO_VIEW': 'CPV',      // Video views use CPV (cost per view)
-          'CONVERT': 'OCPM',        // Conversion uses OCPM
-          'ENGAGEMENT': 'OCPM',     // Engagement uses OCPM
-          'APP_INSTALL': 'OCPM',    // App install uses OCPM
+          'REACH': 'CPM',
+          'CLICK': 'CPC',
+          'LANDING_PAGE': 'OCPM',
+          '6S_VIDEO_VIEW': 'CPV',
+          '15S_VIDEO_VIEW': 'CPV',
+          'CONVERT': 'OCPM',
+          'VALUE': 'OCPM',
+          'APP_INSTALL': 'CPC',
+          'ENGAGEMENT': 'OCPM',
+          'FOLLOW': 'OCPM',
+          'FORM_SUBMIT': 'OCPM',
+          'CONVERSATION': 'OCPM',
         };
         return mapping[optimizationGoal] || 'OCPM';
       };
@@ -363,21 +379,31 @@ class TikTokAdapter implements PlatformAdapter {
       const bidType = mapBidStrategy(params.bidStrategy);
       console.log(`Bid strategy: ${params.bidStrategy} → ${bidType}`);
       
-      // STEP 6: Build ad group body
+      // STEP 6: Build ad group body with all TikTok matrix fields
       const body: any = {
         advertiser_id: params.accountId,
         campaign_id: params.campaignId,
         adgroup_name: params.adGroupName,
-        promotion_type: "WEBSITE",
+        promotion_type: params.optimizationLocation || "WEBSITE",
         placements: params.placements,
         gender: this.mapGender(params.targeting.genders),
         age_groups: this.mapAgeGroups(params.targeting.age_min, params.targeting.age_max),
         optimization_goal: finalOptimizationGoal,
         billing_event: requiredBillingEvent,
         bid_type: bidType,
-        bid: finalBidAmount, // ALWAYS include bid amount (TikTok requires it for all billing events)
+        bid: finalBidAmount,
         operation_status: params.status === 'PAUSED' ? 'DISABLE' : 'ENABLE',
       };
+      
+      // Add optional TikTok fields from matrix
+      if (params.clickWindow) body.conversion_window = { click_window: params.clickWindow };
+      if (params.viewWindow) body.conversion_window = { ...body.conversion_window, view_window: params.viewWindow };
+      if (params.frequencyEnabled && params.frequencySchedule) {
+        body.frequency = params.frequencySchedule;
+        body.frequency_schedule = 7; // Per 7 days as per matrix
+      }
+      if (params.appId) body.app_id = params.appId;
+      if (params.searchEnabled) body.is_search_ad = true;
       
       console.log(`✅ Ad group configuration complete:`, {
         optimization_goal: body.optimization_goal,

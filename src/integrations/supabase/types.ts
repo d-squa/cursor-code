@@ -973,17 +973,27 @@ export type Database = {
           client_id: string | null
           created_at: string
           currency: string | null
+          default_app_id: string | null
+          default_app_name: string | null
           default_bid_amount: number | null
           default_bid_strategy: string | null
           default_billing_event: string | null
           default_catalog_id: string | null
+          default_click_window: number | null
           default_conversion_budget_type: string | null
+          default_event_count_enabled: boolean | null
+          default_frequency_enabled: boolean | null
+          default_frequency_schedule: number | null
           default_identity_id: string | null
           default_landing_page_url: string | null
           default_non_conversion_budget_type: string | null
           default_optimization_event: string | null
+          default_optimization_location: string | null
           default_pixel_id: string | null
           default_product_set_id: string | null
+          default_search_enabled: boolean | null
+          default_smart_plus_enabled: boolean | null
+          default_view_window: number | null
           id: string
           main_markets: Json | null
           synced_at: string
@@ -998,17 +1008,27 @@ export type Database = {
           client_id?: string | null
           created_at?: string
           currency?: string | null
+          default_app_id?: string | null
+          default_app_name?: string | null
           default_bid_amount?: number | null
           default_bid_strategy?: string | null
           default_billing_event?: string | null
           default_catalog_id?: string | null
+          default_click_window?: number | null
           default_conversion_budget_type?: string | null
+          default_event_count_enabled?: boolean | null
+          default_frequency_enabled?: boolean | null
+          default_frequency_schedule?: number | null
           default_identity_id?: string | null
           default_landing_page_url?: string | null
           default_non_conversion_budget_type?: string | null
           default_optimization_event?: string | null
+          default_optimization_location?: string | null
           default_pixel_id?: string | null
           default_product_set_id?: string | null
+          default_search_enabled?: boolean | null
+          default_smart_plus_enabled?: boolean | null
+          default_view_window?: number | null
           id?: string
           main_markets?: Json | null
           synced_at?: string
@@ -1023,17 +1043,27 @@ export type Database = {
           client_id?: string | null
           created_at?: string
           currency?: string | null
+          default_app_id?: string | null
+          default_app_name?: string | null
           default_bid_amount?: number | null
           default_bid_strategy?: string | null
           default_billing_event?: string | null
           default_catalog_id?: string | null
+          default_click_window?: number | null
           default_conversion_budget_type?: string | null
+          default_event_count_enabled?: boolean | null
+          default_frequency_enabled?: boolean | null
+          default_frequency_schedule?: number | null
           default_identity_id?: string | null
           default_landing_page_url?: string | null
           default_non_conversion_budget_type?: string | null
           default_optimization_event?: string | null
+          default_optimization_location?: string | null
           default_pixel_id?: string | null
           default_product_set_id?: string | null
+          default_search_enabled?: boolean | null
+          default_smart_plus_enabled?: boolean | null
+          default_view_window?: number | null
           id?: string
           main_markets?: Json | null
           synced_at?: string

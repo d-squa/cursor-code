@@ -1059,13 +1059,33 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
         const landingPageUrl = market.tiktokLandingPageUrl || market.websiteUrl || campaign.website_url || "https://example.com";
         console.log(`Using landing page URL: ${landingPageUrl}`);
         
-        // Get bid amount from market defaults
-        const bidAmount = market.tiktokBidAmount || undefined;
+        // Get bid amount from market defaults or phase overrides
+        const bidAmount = phase.tiktokBidAmount || market.tiktokBidAmount || undefined;
         if (bidAmount) {
           console.log(`Using bid amount: €${bidAmount}`);
         } else {
           console.warn(`⚠️ No bid amount configured - TikTok may require bid amount for CPC/CPM billing events`);
         }
+        
+        // Get optimization location (defaults fetched from tiktok_ad_accounts if not specified)
+        const optimizationLocation = phase.tiktokOptimizationLocation || market.tiktokOptimizationLocation || "Website";
+        
+        // Get app details for app campaigns
+        const appName = phase.tiktokAppName || market.tiktokAppName;
+        const appId = phase.tiktokAppId || market.tiktokAppId;
+        
+        // Get attribution windows
+        const clickWindow = phase.tiktokClickWindow || market.tiktokClickWindow;
+        const viewWindow = phase.tiktokViewWindow || market.tiktokViewWindow;
+        
+        // Get frequency settings
+        const frequencyEnabled = phase.tiktokFrequencyEnabled !== undefined ? phase.tiktokFrequencyEnabled : market.tiktokFrequencyEnabled;
+        const frequencySchedule = phase.tiktokFrequencySchedule || market.tiktokFrequencySchedule;
+        
+        // Get feature toggles
+        const eventCountEnabled = phase.tiktokEventCountEnabled !== undefined ? phase.tiktokEventCountEnabled : market.tiktokEventCountEnabled;
+        const smartPlusEnabled = phase.tiktokSmartPlusEnabled !== undefined ? phase.tiktokSmartPlusEnabled : market.tiktokSmartPlusEnabled;
+        const searchEnabled = phase.tiktokSearchEnabled !== undefined ? phase.tiktokSearchEnabled : market.tiktokSearchEnabled;
         
         // Create ad group
         const adGroupResult = await tiktokAdapter.createAdGroup({
@@ -1077,7 +1097,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           placements: tiktokPlacements,
           optimizationGoal: tiktokOptGoal,
           billingEvent: billingEvent,
-          bidStrategy: market.tiktokBidStrategy || "LOWEST_COST",
+          bidStrategy: phase.tiktokBidStrategy || market.tiktokBidStrategy || "LOWEST_COST",
           bidAmount: bidAmount,
           budget: campaignBudget,
           budgetMode: budgetType,
@@ -1086,6 +1106,16 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           status: "PAUSED",
           pixelId: pixelId,
           landingPageUrl: landingPageUrl,
+          optimizationLocation: optimizationLocation,
+          appName: appName,
+          appId: appId,
+          clickWindow: clickWindow,
+          viewWindow: viewWindow,
+          frequencyEnabled: frequencyEnabled,
+          frequencySchedule: frequencySchedule,
+          eventCountEnabled: eventCountEnabled,
+          smartPlusEnabled: smartPlusEnabled,
+          searchEnabled: searchEnabled,
         });
 
         if (!adGroupResult.success) {
