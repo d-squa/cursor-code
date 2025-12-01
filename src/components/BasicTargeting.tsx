@@ -466,8 +466,11 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
     }));
   };
 
-  // Update targeting config when recommendations change
+  // Update targeting config when recommendations change (but not during initialization)
   useEffect(() => {
+    // Don't update during initial load to prevent circular updates
+    if (!hasInitialized.current) return;
+    
     const metaInterests = aiRecommendations.meta.interests.filter(i => i.selected).map(({ selected, ...rest }) => rest);
     const metaBehaviors = aiRecommendations.meta.behaviors.filter(b => b.selected).map(({ selected, ...rest }) => rest);
     const metaDemographics = aiRecommendations.meta.demographics.filter(d => d.selected).map(({ selected, ...rest }) => rest);
@@ -476,15 +479,27 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
     const tiktokBehaviors = aiRecommendations.tiktok.behaviors.filter(b => b.selected).map(({ selected, ...rest }) => rest);
     const tiktokDemographics = aiRecommendations.tiktok.demographics.filter(d => d.selected).map(({ selected, ...rest }) => rest);
     
-    onUpdate({
-      ...targeting,
-      metaInterests,
-      metaBehaviors,
-      metaDemographics,
-      tiktokInterests,
-      tiktokBehaviors,
-      tiktokDemographics
-    });
+    // Only update if something actually changed
+    const hasChanges = (
+      JSON.stringify(metaInterests) !== JSON.stringify(targeting.metaInterests || []) ||
+      JSON.stringify(metaBehaviors) !== JSON.stringify(targeting.metaBehaviors || []) ||
+      JSON.stringify(metaDemographics) !== JSON.stringify(targeting.metaDemographics || []) ||
+      JSON.stringify(tiktokInterests) !== JSON.stringify(targeting.tiktokInterests || []) ||
+      JSON.stringify(tiktokBehaviors) !== JSON.stringify(targeting.tiktokBehaviors || []) ||
+      JSON.stringify(tiktokDemographics) !== JSON.stringify(targeting.tiktokDemographics || [])
+    );
+    
+    if (hasChanges) {
+      onUpdate({
+        ...targeting,
+        metaInterests,
+        metaBehaviors,
+        metaDemographics,
+        tiktokInterests,
+        tiktokBehaviors,
+        tiktokDemographics
+      });
+    }
   }, [aiRecommendations]);
 
   const handleMultiSelectWithAll = (field: keyof BasicTargetingConfig, newValues: string[]) => {
