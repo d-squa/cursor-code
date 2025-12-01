@@ -595,30 +595,29 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
     const tiktokBehaviors = aiRecommendations.tiktok.behaviors.filter(b => b.selected).map(({ selected, ...rest }) => rest);
     const tiktokDemographics = aiRecommendations.tiktok.demographics.filter(d => d.selected).map(({ selected, ...rest }) => rest);
     
-    // Only update if something actually changed
-    const hasChanges = (
-      JSON.stringify(metaInterests) !== JSON.stringify(targeting.metaInterests || []) ||
-      JSON.stringify(metaBehaviors) !== JSON.stringify(targeting.metaBehaviors || []) ||
-      JSON.stringify(metaDemographics) !== JSON.stringify(targeting.metaDemographics || []) ||
-      JSON.stringify(tiktokInterests) !== JSON.stringify(targeting.tiktokInterests || []) ||
-      JSON.stringify(tiktokBehaviors) !== JSON.stringify(targeting.tiktokBehaviors || []) ||
-      JSON.stringify(tiktokDemographics) !== JSON.stringify(targeting.tiktokDemographics || [])
-    );
+    console.log('[AI Recommendations] Saving to targeting config:', {
+      metaInterests: metaInterests.length,
+      metaBehaviors: metaBehaviors.length,
+      metaDemographics: metaDemographics.length,
+      tiktokInterests: tiktokInterests.length,
+      tiktokBehaviors: tiktokBehaviors.length,
+      tiktokDemographics: tiktokDemographics.length
+    });
     
-    if (hasChanges) {
-      // Spread existing targeting first to preserve ALL fields
-      const updatedTargeting = {
-        ...targeting,
-        metaInterests,
-        metaBehaviors,
-        metaDemographics,
-        tiktokInterests,
-        tiktokBehaviors,
-        tiktokDemographics
-      };
-      onUpdate(updatedTargeting);
-    }
-  }, [aiRecommendations, targeting.ageMin, targeting.ageMax, targeting.genders, targeting.devices, targeting.os, targeting.languages, targeting.productBrief]);
+    // Always update to ensure data is saved
+    const updatedTargeting = {
+      ...targeting,
+      metaInterests,
+      metaBehaviors,
+      metaDemographics,
+      tiktokInterests,
+      tiktokBehaviors,
+      tiktokDemographics
+    };
+    
+    console.log('[AI Recommendations] Calling onUpdate with:', updatedTargeting);
+    onUpdate(updatedTargeting);
+  }, [aiRecommendations]);
 
   const handleMultiSelectWithAll = (field: keyof BasicTargetingConfig, newValues: string[]) => {
     const previousValues = (targeting[field] as string[]) || [];
