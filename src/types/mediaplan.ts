@@ -88,6 +88,8 @@ export interface Phase {
   tiktokSmartPlusEnabled?: boolean; // Smart+ enabled
   tiktokBidStrategy?: string; // Bid strategy override at phase level
   tiktokBidAmount?: number; // Bid amount override at phase level
+  tiktokCatalog?: string; // TikTok Catalog ID at phase level
+  tiktokProductSet?: string; // TikTok Product Set ID at phase level
   // Campaign-level overrides (inherits from market/generic if not set)
   publisherPlatforms?: string[];
   positions?: {
