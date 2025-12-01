@@ -1101,6 +1101,9 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           const tiktokSmartPlusEnabled = phase.tiktokSmartPlusEnabled ?? market.tiktokSmartPlusEnabled;
 
           console.log(`📋 TikTok phase config for ${phase.name}:`, {
+            raw_phase_frequencySchedule: phase.tiktokFrequencySchedule,
+            raw_market_frequencySchedule: market.tiktokFrequencySchedule,
+            resolved_frequencySchedule: tiktokFrequencySchedule,
             optimizationLocation: tiktokOptimizationLocation,
             appName: tiktokAppName,
             appId: tiktokAppId,
@@ -1108,7 +1111,6 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
             bidAmount: tiktokBidAmount,
             clickWindow: tiktokClickWindow,
             viewWindow: tiktokViewWindow,
-            frequencySchedule: tiktokFrequencySchedule,
             eventCount: tiktokEventCount,
             smartPlusEnabled: tiktokSmartPlusEnabled,
           });
