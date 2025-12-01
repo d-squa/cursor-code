@@ -606,17 +606,29 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
     );
     
     if (hasChanges) {
-      onUpdate({
-        ...targeting,
+      // CRITICAL: Preserve ALL basic targeting fields when updating platform-specific arrays
+      console.log('🔄 Updating platform-specific targeting. Current targeting:', targeting);
+      const updatedTargeting = {
+        // Preserve basic demographic fields
+        ageMin: targeting.ageMin,
+        ageMax: targeting.ageMax,
+        genders: targeting.genders,
+        devices: targeting.devices,
+        os: targeting.os,
+        languages: targeting.languages,
+        productBrief: targeting.productBrief,
+        // Update platform-specific fields
         metaInterests,
         metaBehaviors,
         metaDemographics,
         tiktokInterests,
         tiktokBehaviors,
         tiktokDemographics
-      });
+      };
+      console.log('🔄 Updated targeting object:', updatedTargeting);
+      onUpdate(updatedTargeting);
     }
-  }, [aiRecommendations]);
+  }, [aiRecommendations, targeting.ageMin, targeting.ageMax, targeting.genders, targeting.devices, targeting.os, targeting.languages, targeting.productBrief]);
 
   const handleMultiSelectWithAll = (field: keyof BasicTargetingConfig, newValues: string[]) => {
     const previousValues = (targeting[field] as string[]) || [];
