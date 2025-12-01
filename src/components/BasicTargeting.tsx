@@ -107,48 +107,49 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
 
   // Initialize recommendations from saved targeting data
   useEffect(() => {
-    if (targeting.metaInterests || targeting.tiktokInterests) {
-      setAiRecommendations(prev => ({
-        ...prev,
-        meta: {
-          ...prev.meta,
-          interests: (targeting.metaInterests || []).map(i => ({ ...i, selected: true }))
-        },
-        tiktok: {
-          ...prev.tiktok,
-          interests: (targeting.tiktokInterests || []).map(i => ({ ...i, selected: true }))
-        }
-      }));
-    }
-    
-    if (targeting.metaBehaviors || targeting.tiktokBehaviors) {
-      setAiRecommendations(prev => ({
-        ...prev,
-        meta: {
-          ...prev.meta,
-          behaviors: (targeting.metaBehaviors || []).map(b => ({ ...b, selected: true }))
-        },
-        tiktok: {
-          ...prev.tiktok,
-          behaviors: (targeting.tiktokBehaviors || []).map(b => ({ ...b, selected: true }))
-        }
-      }));
-    }
-    
-    if (targeting.metaDemographics || targeting.tiktokDemographics) {
-      setAiRecommendations(prev => ({
-        ...prev,
-        meta: {
-          ...prev.meta,
-          demographics: (targeting.metaDemographics || []).map(d => ({ ...d, selected: true }))
-        },
-        tiktok: {
-          ...prev.tiktok,
-          demographics: (targeting.tiktokDemographics || []).map(d => ({ ...d, selected: true }))
-        }
-      }));
-    }
-  }, []);
+    // Update interests
+    setAiRecommendations(prev => ({
+      ...prev,
+      meta: {
+        ...prev.meta,
+        interests: (targeting.metaInterests || []).map(i => ({ ...i, selected: true }))
+      },
+      tiktok: {
+        ...prev.tiktok,
+        interests: (targeting.tiktokInterests || []).map(i => ({ ...i, selected: true }))
+      }
+    }));
+  }, [targeting.metaInterests, targeting.tiktokInterests]);
+  
+  useEffect(() => {
+    // Update behaviors
+    setAiRecommendations(prev => ({
+      ...prev,
+      meta: {
+        ...prev.meta,
+        behaviors: (targeting.metaBehaviors || []).map(b => ({ ...b, selected: true }))
+      },
+      tiktok: {
+        ...prev.tiktok,
+        behaviors: (targeting.tiktokBehaviors || []).map(b => ({ ...b, selected: true }))
+      }
+    }));
+  }, [targeting.metaBehaviors, targeting.tiktokBehaviors]);
+  
+  useEffect(() => {
+    // Update demographics
+    setAiRecommendations(prev => ({
+      ...prev,
+      meta: {
+        ...prev.meta,
+        demographics: (targeting.metaDemographics || []).map(d => ({ ...d, selected: true }))
+      },
+      tiktok: {
+        ...prev.tiktok,
+        demographics: (targeting.tiktokDemographics || []).map(d => ({ ...d, selected: true }))
+      }
+    }));
+  }, [targeting.metaDemographics, targeting.tiktokDemographics]);
 
   const loadTargetingOptions = async () => {
     setLoading(true);
