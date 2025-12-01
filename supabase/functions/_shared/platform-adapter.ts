@@ -408,23 +408,26 @@ class TikTokAdapter implements PlatformAdapter {
       // STEP 7: Build ad group body with all TikTok matrix fields
       
       // Convert gender strings to numbers for mapGender
-      console.log(`🎯 Raw targeting data:`, {
+      console.log(`🎯 Raw targeting data:`, JSON.stringify({
         genders: params.targeting.genders,
         age_min: params.targeting.age_min,
         age_max: params.targeting.age_max,
         devices: params.targeting.devices,
         os: params.targeting.os,
-        languages: params.targeting.languages
-      });
+        languages: params.targeting.languages,
+        tiktokInterests: params.targeting.tiktokInterests,
+        tiktokBehaviors: params.targeting.tiktokBehaviors,
+        tiktokDemographics: params.targeting.tiktokDemographics
+      }, null, 2));
       
       const normalizedGenders = params.targeting.genders && Array.isArray(params.targeting.genders)
         ? params.targeting.genders
-            .filter((g: any) => g !== 'all')
+            .filter((g: any) => g !== 'all' && g !== null && g !== undefined && g !== '')
             .map((g: any) => parseInt(String(g)))
             .filter((g: number) => !isNaN(g))
         : undefined;
       
-      console.log(`🎯 Normalized genders:`, normalizedGenders);
+      console.log(`🎯 Normalized genders:`, normalizedGenders, `(original: ${JSON.stringify(params.targeting.genders)})`);
       
       const body: any = {
         advertiser_id: params.accountId,
@@ -446,7 +449,8 @@ class TikTokAdapter implements PlatformAdapter {
       
       // Add device targeting (only if not 'all' and valid values)
       if (params.targeting.devices && Array.isArray(params.targeting.devices) && params.targeting.devices.length > 0) {
-        const filteredDevices = params.targeting.devices.filter((d: any) => d !== 'all');
+        const filteredDevices = params.targeting.devices.filter((d: any) => d !== 'all' && d !== null && d !== undefined && d !== '');
+        console.log(`🎯 Processing devices: original=${JSON.stringify(params.targeting.devices)}, filtered=${JSON.stringify(filteredDevices)}`);
         if (filteredDevices.length > 0) {
           const devicePlatforms = filteredDevices
             .map((device: string) => {
@@ -462,11 +466,14 @@ class TikTokAdapter implements PlatformAdapter {
             console.log(`✅ Device targeting: ${devicePlatforms.join(', ')}`);
           }
         }
+      } else {
+        console.log(`⚠️ No device targeting (devices: ${JSON.stringify(params.targeting.devices)})`);
       }
       
       // Add OS targeting (only if not 'all' and valid values)
       if (params.targeting.os && Array.isArray(params.targeting.os) && params.targeting.os.length > 0) {
-        const filteredOs = params.targeting.os.filter((o: any) => o !== 'all');
+        const filteredOs = params.targeting.os.filter((o: any) => o !== 'all' && o !== null && o !== undefined && o !== '');
+        console.log(`🎯 Processing OS: original=${JSON.stringify(params.targeting.os)}, filtered=${JSON.stringify(filteredOs)}`);
         if (filteredOs.length > 0) {
           const osList = filteredOs
             .map((os: string) => {
@@ -482,11 +489,14 @@ class TikTokAdapter implements PlatformAdapter {
             console.log(`✅ OS targeting: ${osList.join(', ')}`);
           }
         }
+      } else {
+        console.log(`⚠️ No OS targeting (os: ${JSON.stringify(params.targeting.os)})`);
       }
       
       // Add language targeting (only if not 'all' and valid values)
       if (params.targeting.languages && Array.isArray(params.targeting.languages) && params.targeting.languages.length > 0) {
-        const filteredLanguages = params.targeting.languages.filter((lang: any) => lang !== 'all');
+        const filteredLanguages = params.targeting.languages.filter((lang: any) => lang !== 'all' && lang !== null && lang !== undefined && lang !== '');
+        console.log(`🎯 Processing languages: original=${JSON.stringify(params.targeting.languages)}, filtered=${JSON.stringify(filteredLanguages)}`);
         if (filteredLanguages.length > 0) {
           const languageCodes = filteredLanguages.map((lang: any) => String(lang));
           if (languageCodes.length > 0) {
@@ -494,6 +504,8 @@ class TikTokAdapter implements PlatformAdapter {
             console.log(`✅ Language targeting: ${languageCodes.join(', ')}`);
           }
         }
+      } else {
+        console.log(`⚠️ No language targeting (languages: ${JSON.stringify(params.targeting.languages)})`);
       }
       
       // Add TikTok detailed targeting (interests, behaviors, actions)
@@ -502,41 +514,54 @@ class TikTokAdapter implements PlatformAdapter {
       
       // Extract TikTok interests
       if (params.targeting.tiktokInterests && Array.isArray(params.targeting.tiktokInterests)) {
+        console.log(`🎯 Processing ${params.targeting.tiktokInterests.length} TikTok interests`);
         params.targeting.tiktokInterests.forEach((interest: any) => {
           if (interest.id) {
             interestIds.push(String(interest.id));
           }
         });
+      } else {
+        console.log(`⚠️ No TikTok interests (tiktokInterests: ${JSON.stringify(params.targeting.tiktokInterests)})`);
       }
       
       // Extract TikTok behaviors/actions
       if (params.targeting.tiktokBehaviors && Array.isArray(params.targeting.tiktokBehaviors)) {
+        console.log(`🎯 Processing ${params.targeting.tiktokBehaviors.length} TikTok behaviors`);
         params.targeting.tiktokBehaviors.forEach((behavior: any) => {
           if (behavior.id) {
             actionIds.push(String(behavior.id));
           }
         });
+      } else {
+        console.log(`⚠️ No TikTok behaviors (tiktokBehaviors: ${JSON.stringify(params.targeting.tiktokBehaviors)})`);
       }
       
       // Extract TikTok demographics (also goes into interests or actions depending on type)
       if (params.targeting.tiktokDemographics && Array.isArray(params.targeting.tiktokDemographics)) {
+        console.log(`🎯 Processing ${params.targeting.tiktokDemographics.length} TikTok demographics`);
         params.targeting.tiktokDemographics.forEach((demo: any) => {
           if (demo.id) {
             interestIds.push(String(demo.id));
           }
         });
+      } else {
+        console.log(`⚠️ No TikTok demographics (tiktokDemographics: ${JSON.stringify(params.targeting.tiktokDemographics)})`);
       }
       
       // Add interest targeting
       if (interestIds.length > 0) {
         body.interest_category_ids = interestIds;
         console.log(`✅ Interest targeting: ${interestIds.length} interests`);
+      } else {
+        console.log(`⚠️ No interest_category_ids added to body`);
       }
       
       // Add action/behavior targeting
       if (actionIds.length > 0) {
         body.action_category_ids = actionIds;
         console.log(`✅ Action/Behavior targeting: ${actionIds.length} actions`);
+      } else {
+        console.log(`⚠️ No action_category_ids added to body`);
       }
       
       // Add optional TikTok fields from matrix

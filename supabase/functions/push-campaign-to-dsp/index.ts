@@ -964,27 +964,28 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
         const phaseBasicTargeting = phase.targeting || {};
         const effectiveTargeting = Object.keys(phaseBasicTargeting).length > 0 ? phaseBasicTargeting : basicTargeting;
         
-        console.log("📊 Effective targeting for TikTok ad group:", effectiveTargeting);
+        console.log("📊 RAW Effective targeting for TikTok ad group:", JSON.stringify(effectiveTargeting, null, 2));
         
+        // Map field names properly - handle both camelCase and snake_case from different sources
         const targeting: any = {
           geo_locations: {
             countries: Array.isArray(market.countries) && market.countries.length > 0 
               ? market.countries 
               : [market.name.substring(0, 2).toUpperCase()]
           },
-          age_min: effectiveTargeting.ageMin || 18,
-          age_max: effectiveTargeting.ageMax || 65,
-          genders: effectiveTargeting.genders,
-          devices: effectiveTargeting.devices,
-          os: effectiveTargeting.os,
-          languages: effectiveTargeting.languages,
+          age_min: effectiveTargeting.ageMin || effectiveTargeting.age_min || effectiveTargeting.minAge || 18,
+          age_max: effectiveTargeting.ageMax || effectiveTargeting.age_max || effectiveTargeting.maxAge || 65,
+          genders: effectiveTargeting.genders || effectiveTargeting.gender,
+          devices: effectiveTargeting.devices || effectiveTargeting.device,
+          os: effectiveTargeting.os || effectiveTargeting.operatingSystem,
+          languages: effectiveTargeting.languages || effectiveTargeting.language,
           // TikTok detailed targeting
           tiktokInterests: effectiveTargeting.tiktokInterests || [],
           tiktokBehaviors: effectiveTargeting.tiktokBehaviors || [],
           tiktokDemographics: effectiveTargeting.tiktokDemographics || [],
         };
         
-        console.log("📊 Constructed targeting object:", targeting);
+        console.log("📊 Constructed targeting object with mapped fields:", JSON.stringify(targeting, null, 2));
         
         // Map optimization goal based on TikTok objective
         // TikTok has strict optimization goal requirements per objective
