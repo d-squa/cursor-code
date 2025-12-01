@@ -98,6 +98,9 @@ export function PhaseAudienceSelector({
       basicTargeting.metaInterests?.forEach(i => initial.add(i.id));
       basicTargeting.metaBehaviors?.forEach(b => initial.add(b.id));
       basicTargeting.metaDemographics?.forEach(d => initial.add(d.id));
+      basicTargeting.tiktokInterests?.forEach(i => initial.add(i.id));
+      basicTargeting.tiktokBehaviors?.forEach(b => initial.add(b.id));
+      basicTargeting.tiktokDemographics?.forEach(d => initial.add(d.id));
     }
     return initial;
   });
