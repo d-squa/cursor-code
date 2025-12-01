@@ -169,7 +169,7 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
     hasInitialized.current = true;
     
     // Restore saved selections only once
-    setAiRecommendations({
+    const restoredRecommendations = {
       meta: {
         interests: (targeting.metaInterests || []).map(i => ({ ...i, selected: true })),
         behaviors: (targeting.metaBehaviors || []).map(b => ({ ...b, selected: true })),
@@ -181,7 +181,24 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
         demographics: (targeting.tiktokDemographics || []).map(d => ({ ...d, selected: true }))
       },
       matches: []
-    });
+    };
+    
+    setAiRecommendations(restoredRecommendations);
+    
+    // Auto-switch to the tab that has data
+    const hasMetaData = restoredRecommendations.meta.interests.length > 0 || 
+                        restoredRecommendations.meta.behaviors.length > 0 || 
+                        restoredRecommendations.meta.demographics.length > 0;
+    const hasTikTokData = restoredRecommendations.tiktok.interests.length > 0 || 
+                          restoredRecommendations.tiktok.behaviors.length > 0 || 
+                          restoredRecommendations.tiktok.demographics.length > 0;
+    
+    // Switch to the platform that has data
+    if (hasTikTokData && !hasMetaData) {
+      setActiveRecommendationTab("tiktok");
+    } else if (hasMetaData && !hasTikTokData) {
+      setActiveRecommendationTab("meta");
+    }
   }, [
     targeting.metaInterests, 
     targeting.tiktokInterests, 
