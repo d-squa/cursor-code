@@ -475,20 +475,15 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
           }));
         }
 
-        // Get targeting config from phase override or generic config
-        const phaseTargeting = phase.targeting || {};
+        // Get targeting config - use phase targeting or campaign basic targeting for ALL markets
+        // This ensures targeting is applied consistently across all markets in a platform
+        const campaignBasicTargeting = campaign.generic_config?.basicTargeting || {};
+        const phaseTargetingConfig = phase.targeting || {};
+        const effectiveTargeting = Object.keys(phaseTargetingConfig).length > 0 ? phaseTargetingConfig : campaignBasicTargeting;
+        
         const targetingConfig = (phase.overrideTargeting && phase.targeting) 
           ? phase.targeting 
           : (campaign.generic_config?.targeting || {});
-
-        // Get parsed targeting from AI brief (new approach)
-        const parsedTargeting = campaign.generic_config?.parsedTargeting || [];
-        const marketTargeting = parsedTargeting.find((t: any) => 
-          t.market.toLowerCase() === market.name.toLowerCase()
-        );
-
-        // Use phase targeting if available (takes priority)
-        const effectiveTargeting = marketTargeting || phaseTargeting;
         
         // Transform unified targeting format into Meta-specific arrays
         let metaInterests: any[] = [];
@@ -633,15 +628,12 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
           }
         }
 
-        // Fallback to old targeting config if no AI-parsed targeting
-        if (!marketTargeting) {
+        // Process old targeting config format (legacy fallback)
         if (targetingConfig.websiteAudience) {
           const audienceNames = targetingConfig.websiteAudience.split(',').map((s: string) => s.trim()).filter(Boolean);
           if (audienceNames.length > 0) {
             console.warn("Skipping websiteAudience fallback (names only). Audience IDs are required to target custom audiences.");
           }
-        }
-
         }
 
         // Fallback to old targeting config if no AI-parsed targeting (continued)
