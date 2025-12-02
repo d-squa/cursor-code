@@ -475,20 +475,10 @@ class TikTokAdapter implements PlatformAdapter {
         console.log(`⚠️ No OS targeting (os: ${JSON.stringify(params.targeting.os)})`);
       }
       
-      // Add language targeting (only if not 'all' and valid values)
-      if (params.targeting.languages && Array.isArray(params.targeting.languages) && params.targeting.languages.length > 0) {
-        const filteredLanguages = params.targeting.languages.filter((lang: any) => lang !== 'all' && lang !== null && lang !== undefined && lang !== '');
-        console.log(`🎯 Processing languages: original=${JSON.stringify(params.targeting.languages)}, filtered=${JSON.stringify(filteredLanguages)}`);
-        if (filteredLanguages.length > 0) {
-          const languageCodes = filteredLanguages.map((lang: any) => String(lang));
-          if (languageCodes.length > 0) {
-            body.languages = languageCodes;
-            console.log(`✅ Language targeting: ${languageCodes.join(', ')}`);
-          }
-        }
-      } else {
-        console.log(`⚠️ No language targeting (languages: ${JSON.stringify(params.targeting.languages)})`);
-      }
+      // Skip language targeting - TikTok uses different language codes than Meta
+      // Meta uses numeric IDs (e.g., "6"), but TikTok requires specific language codes
+      // This needs proper mapping between Meta language IDs and TikTok language codes
+      console.log(`⚠️ Language targeting skipped - requires Meta-to-TikTok language code mapping`);
       
       // Add TikTok detailed targeting (interests, behaviors, actions)
       const interestIds: string[] = [];
