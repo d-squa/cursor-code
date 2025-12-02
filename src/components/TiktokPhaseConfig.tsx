@@ -315,6 +315,68 @@ export function TiktokPhaseConfig({ phase, onUpdate }: TiktokPhaseConfigProps) {
             )}
           </div>
         )}
+
+        {/* Placement Type */}
+        <div className="space-y-2">
+          <Label>Placement Type</Label>
+          <Select
+            value={phase.tiktokPlacementType || "PLACEMENT_TYPE_AUTOMATIC"}
+            onValueChange={(value) => {
+              onUpdate("tiktokPlacementType", value);
+              // Reset placements when switching to automatic
+              if (value === "PLACEMENT_TYPE_AUTOMATIC") {
+                onUpdate("tiktokPlacements", ["PLACEMENT_TIKTOK"]);
+              }
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="PLACEMENT_TYPE_AUTOMATIC">Automatic Placement</SelectItem>
+              <SelectItem value="PLACEMENT_TYPE_NORMAL">Manual Placement</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Automatic lets TikTok optimize. Manual lets you select specific positions.
+          </p>
+        </div>
+
+        {/* Manual Placements - Only show when manual placement is selected */}
+        {phase.tiktokPlacementType === "PLACEMENT_TYPE_NORMAL" && (
+          <div className="space-y-2">
+            <Label>Placements</Label>
+            <div className="space-y-2">
+              {[
+                { value: "PLACEMENT_TIKTOK", label: "TikTok" },
+                { value: "PLACEMENT_GLOBAL_APP_BUNDLE", label: "Global App Bundle" },
+                { value: "PLACEMENT_PANGLE", label: "Pangle" },
+              ].map((placement) => (
+                <label key={placement.value} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={(phase.tiktokPlacements || ["PLACEMENT_TIKTOK"]).includes(placement.value)}
+                    onChange={(e) => {
+                      const currentPlacements = phase.tiktokPlacements || ["PLACEMENT_TIKTOK"];
+                      if (e.target.checked) {
+                        onUpdate("tiktokPlacements", [...currentPlacements, placement.value]);
+                      } else {
+                        const filtered = currentPlacements.filter(p => p !== placement.value);
+                        // Ensure at least one placement is selected
+                        onUpdate("tiktokPlacements", filtered.length > 0 ? filtered : ["PLACEMENT_TIKTOK"]);
+                      }
+                    }}
+                    className="rounded border-input"
+                  />
+                  <span className="text-sm">{placement.label}</span>
+                </label>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              TikTok: Main feed. Global App Bundle: Partner apps. Pangle: Audience network.
+            </p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

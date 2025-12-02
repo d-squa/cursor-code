@@ -31,6 +31,8 @@ export interface Market {
   tiktokViewWindow?: number; // View-through attribution window in days
   tiktokEventCount?: string; // Event count type: "every_conversion" or "once"
   tiktokSmartPlusEnabled?: boolean; // Whether Smart+ is enabled
+  tiktokPlacementType?: string; // PLACEMENT_TYPE_AUTOMATIC or PLACEMENT_TYPE_NORMAL
+  tiktokPlacements?: string[]; // Array of placement positions when manual
   metaBidStrategy?: string; // Meta Bid Strategy (LOWEST_COST_WITHOUT_CAP, LOWEST_COST_WITH_BID_CAP, COST_CAP, etc.)
   metaBidAmount?: number; // Meta Bid Amount (required for LOWEST_COST_WITH_BID_CAP and COST_CAP)
   strategy?: string; // Strategy type per market
@@ -90,6 +92,8 @@ export interface Phase {
   tiktokBidAmount?: number; // Bid amount override at phase level
   tiktokCatalog?: string; // TikTok Catalog ID at phase level
   tiktokProductSet?: string; // TikTok Product Set ID at phase level
+  tiktokPlacementType?: string; // PLACEMENT_TYPE_AUTOMATIC or PLACEMENT_TYPE_NORMAL
+  tiktokPlacements?: string[]; // Array of placement positions when manual
   // Campaign-level overrides (inherits from market/generic if not set)
   publisherPlatforms?: string[];
   positions?: {

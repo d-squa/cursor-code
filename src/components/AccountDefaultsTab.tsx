@@ -38,6 +38,8 @@ interface AdAccount {
   default_frequency_schedule?: number | null;
   default_click_window?: number | null;
   default_view_window?: number | null;
+  default_placement_type?: string | null;
+  default_placements?: string[] | null;
   main_markets?: string[] | null;
 }
 
@@ -174,6 +176,8 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         default_optimization_event: acc.default_optimization_event || 'ON_WEB_ORDER',
         default_landing_page_url: acc.default_landing_page_url || null,
         default_bid_strategy: acc.default_bid_strategy || 'LOWEST_COST',
+        default_placement_type: (acc as any).default_placement_type || 'PLACEMENT_TYPE_AUTOMATIC',
+        default_placements: Array.isArray((acc as any).default_placements) ? (acc as any).default_placements as string[] : ['PLACEMENT_TIKTOK'],
       }));
 
       console.log("[AccountDefaultsTab] TikTok accounts loaded from database:", tiktokAccounts.map(acc => ({
@@ -217,6 +221,8 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
           default_frequency_schedule: acc.platform === 'tiktok' ? (acc as any).default_frequency_schedule || null : null,
           default_click_window: acc.platform === 'tiktok' ? (acc as any).default_click_window || null : null,
           default_view_window: acc.platform === 'tiktok' ? (acc as any).default_view_window || null : null,
+          default_placement_type: acc.platform === 'tiktok' ? (acc as any).default_placement_type || 'PLACEMENT_TYPE_AUTOMATIC' : null,
+          default_placements: acc.platform === 'tiktok' ? (acc as any).default_placements || ['PLACEMENT_TIKTOK'] : null,
           main_markets: acc.main_markets,
         };
       });
@@ -328,6 +334,8 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         'default_event_count_enabled',
         'default_smart_plus_enabled',
         'default_search_enabled',
+        'default_placement_type',
+        'default_placements',
         'main_markets'
       ];
       
@@ -982,6 +990,59 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                               Required for conversion campaigns. Where users land after clicking your ad.
                             </p>
                           </div>
+
+                          {/* TikTok Placement Type */}
+                          <div className="space-y-2">
+                            <Label className="flex items-center gap-2">
+                              <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
+                              Placement Type
+                            </Label>
+                            <Select
+                              value={defaults.default_placement_type || "PLACEMENT_TYPE_AUTOMATIC"}
+                              onValueChange={(value) => {
+                                updateDefault(account.id, "default_placement_type", value);
+                                // Reset placements when switching to automatic
+                                if (value === "PLACEMENT_TYPE_AUTOMATIC") {
+                                  updateDefault(account.id, "default_placements", ["PLACEMENT_TIKTOK"]);
+                                }
+                              }}
+                            >
+                              <SelectTrigger className="border-black/20 dark:border-white/20">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="PLACEMENT_TYPE_AUTOMATIC">Automatic Placement</SelectItem>
+                                <SelectItem value="PLACEMENT_TYPE_NORMAL">Manual Placement</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">
+                              Automatic lets TikTok optimize placements. Manual lets you select specific positions.
+                            </p>
+                          </div>
+
+                          {/* TikTok Manual Placements - Only show when manual placement is selected */}
+                          {defaults.default_placement_type === "PLACEMENT_TYPE_NORMAL" && (
+                            <div className="space-y-2">
+                              <Label className="flex items-center gap-2">
+                                <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
+                                Placements
+                              </Label>
+                              <MultiSelect
+                                options={[
+                                  { value: "PLACEMENT_TIKTOK", label: "TikTok" },
+                                  { value: "PLACEMENT_GLOBAL_APP_BUNDLE", label: "Global App Bundle" },
+                                  { value: "PLACEMENT_PANGLE", label: "Pangle" },
+                                ]}
+                                value={defaults.default_placements || ["PLACEMENT_TIKTOK"]}
+                                onChange={(placements) => updateDefault(account.id, "default_placements", placements)}
+                                placeholder="Select placements"
+                                emptyText="No placements selected"
+                              />
+                              <p className="text-xs text-muted-foreground">
+                                TikTok: Main feed. Global App Bundle: Partner apps. Pangle: Audience network.
+                              </p>
+                            </div>
+                          )}
 
                           {/* Optimization Location */}
                           <div className="space-y-2">

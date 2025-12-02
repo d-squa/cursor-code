@@ -992,6 +992,8 @@ export type Database = {
           default_optimization_event: string | null
           default_optimization_location: string | null
           default_pixel_id: string | null
+          default_placement_type: string | null
+          default_placements: Json | null
           default_product_set_id: string | null
           default_view_window: number | null
           id: string
@@ -1024,6 +1026,8 @@ export type Database = {
           default_optimization_event?: string | null
           default_optimization_location?: string | null
           default_pixel_id?: string | null
+          default_placement_type?: string | null
+          default_placements?: Json | null
           default_product_set_id?: string | null
           default_view_window?: number | null
           id?: string
@@ -1056,6 +1060,8 @@ export type Database = {
           default_optimization_event?: string | null
           default_optimization_location?: string | null
           default_pixel_id?: string | null
+          default_placement_type?: string | null
+          default_placements?: Json | null
           default_product_set_id?: string | null
           default_view_window?: number | null
           id?: string
