@@ -79,25 +79,24 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
     matches: []
   });
   
+  // Helper to determine active platforms
+  const getActivePlatforms = () => ({
+    hasMeta: !!metaAdAccountId,
+    hasTiktok: !!tiktokAdvertiserId,
+    hasMultiple: !!metaAdAccountId && !!tiktokAdvertiserId
+  });
+
   // Controlled tab state for AI recommendations
   const [activeRecommendationTab, setActiveRecommendationTab] = useState<string>(() => {
-    console.log('[BasicTargeting INIT] Platform context:', { metaAdAccountId, tiktokAdvertiserId });
-    if (tiktokAdvertiserId && !metaAdAccountId) {
-      console.log('[BasicTargeting INIT] Setting initial tab to TikTok');
-      return "tiktok";
-    }
-    if (metaAdAccountId && !tiktokAdvertiserId) {
-      console.log('[BasicTargeting INIT] Setting initial tab to Meta');
-      return "meta";
-    }
-    console.log('[BasicTargeting INIT] Defaulting to Meta tab');
+    const { hasMeta, hasTiktok } = getActivePlatforms();
+    if (hasTiktok && !hasMeta) return "tiktok";
     return "meta";
   });
   
   // Controlled tab state for search results
   const [activeSearchTab, setActiveSearchTab] = useState<string>(() => {
-    if (tiktokAdvertiserId && !metaAdAccountId) return "tiktok";
-    if (metaAdAccountId && !tiktokAdvertiserId) return "meta";
+    const { hasMeta, hasTiktok } = getActivePlatforms();
+    if (hasTiktok && !hasMeta) return "tiktok";
     return "meta";
   });
   
@@ -126,18 +125,16 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
   // Validation warnings
   const [validationWarnings, setValidationWarnings] = useState<string[]>([]);
 
-  // Update active tabs when account IDs change
+  // Update active tabs when platform context changes
   useEffect(() => {
-    if (tiktokAdvertiserId && !metaAdAccountId) {
-      setActiveRecommendationTab("tiktok");
-      setActiveSearchTab("tiktok");
-    } else if (metaAdAccountId && !tiktokAdvertiserId) {
-      setActiveRecommendationTab("meta");
-      setActiveSearchTab("meta");
-    } else if (metaAdAccountId && tiktokAdvertiserId) {
-      // Keep current tabs if both exist, or default to meta
-      setActiveRecommendationTab(prev => prev || "meta");
-      setActiveSearchTab(prev => prev || "meta");
+    const { hasMeta, hasTiktok } = getActivePlatforms();
+    
+    if (hasTiktok && !hasMeta) {
+      setActiveRecommendationTab('tiktok');
+      setActiveSearchTab('tiktok');
+    } else if (hasMeta && !hasTiktok) {
+      setActiveRecommendationTab('meta');
+      setActiveSearchTab('meta');
     }
   }, [metaAdAccountId, tiktokAdvertiserId]);
 
@@ -816,45 +813,50 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
             </Button>
 
             {/* Platform-Segmented Recommendations */}
-            {(aiRecommendations.meta.interests.length > 0 || 
-              aiRecommendations.meta.behaviors.length > 0 || 
-              aiRecommendations.meta.demographics.length > 0 ||
-              aiRecommendations.tiktok.interests.length > 0 || 
-              aiRecommendations.tiktok.behaviors.length > 0 || 
-              aiRecommendations.tiktok.demographics.length > 0) && (
-              <Tabs
-                value={activeRecommendationTab}
-                onValueChange={setActiveRecommendationTab}
-                className="w-full"
-              >
-                {metaAdAccountId && tiktokAdvertiserId ? (
-                  <TabsList className="grid w-full grid-cols-3">
-                    <TabsTrigger value="meta">
-                      Meta ({aiRecommendations.meta.interests.filter(i => i.selected).length + aiRecommendations.meta.behaviors.filter(b => b.selected).length + aiRecommendations.meta.demographics.filter(d => d.selected).length}/{aiRecommendations.meta.interests.length + aiRecommendations.meta.behaviors.length + aiRecommendations.meta.demographics.length})
-                    </TabsTrigger>
-                    <TabsTrigger value="tiktok">
-                      TikTok ({aiRecommendations.tiktok.interests.filter(i => i.selected).length + aiRecommendations.tiktok.behaviors.filter(b => b.selected).length}/{aiRecommendations.tiktok.interests.length + aiRecommendations.tiktok.behaviors.length})
-                    </TabsTrigger>
-                    <TabsTrigger value="matches">
-                      Matches ({aiRecommendations.matches.length})
-                    </TabsTrigger>
-                  </TabsList>
-                ) : metaAdAccountId ? (
-                  <TabsList className="w-full">
-                    <TabsTrigger value="meta" className="flex-1">
-                      Meta Recommendations ({aiRecommendations.meta.interests.filter(i => i.selected).length + aiRecommendations.meta.behaviors.filter(b => b.selected).length + aiRecommendations.meta.demographics.filter(d => d.selected).length}/{aiRecommendations.meta.interests.length + aiRecommendations.meta.behaviors.length + aiRecommendations.meta.demographics.length})
-                    </TabsTrigger>
-                  </TabsList>
-                ) : tiktokAdvertiserId ? (
-                  <TabsList className="w-full">
-                    <TabsTrigger value="tiktok" className="flex-1">
-                      TikTok Recommendations ({aiRecommendations.tiktok.interests.filter(i => i.selected).length + aiRecommendations.tiktok.behaviors.filter(b => b.selected).length}/{aiRecommendations.tiktok.interests.length + aiRecommendations.tiktok.behaviors.length})
-                    </TabsTrigger>
-                  </TabsList>
-                ) : null}
+            {(() => {
+              const { hasMeta, hasTiktok, hasMultiple } = getActivePlatforms();
+              const hasMetaRecs = hasMeta && (
+                aiRecommendations.meta.interests.length > 0 || 
+                aiRecommendations.meta.behaviors.length > 0 || 
+                aiRecommendations.meta.demographics.length > 0
+              );
+              const hasTiktokRecs = hasTiktok && (
+                aiRecommendations.tiktok.interests.length > 0 || 
+                aiRecommendations.tiktok.behaviors.length > 0 || 
+                aiRecommendations.tiktok.demographics.length > 0
+              );
+              
+              if (!hasMetaRecs && !hasTiktokRecs) return null;
+
+              const metaSelected = aiRecommendations.meta.interests.filter(i => i.selected).length + 
+                                   aiRecommendations.meta.behaviors.filter(b => b.selected).length + 
+                                   aiRecommendations.meta.demographics.filter(d => d.selected).length;
+              const metaTotal = aiRecommendations.meta.interests.length + 
+                                aiRecommendations.meta.behaviors.length + 
+                                aiRecommendations.meta.demographics.length;
+              
+              const tiktokSelected = aiRecommendations.tiktok.interests.filter(i => i.selected).length + 
+                                     aiRecommendations.tiktok.behaviors.filter(b => b.selected).length;
+              const tiktokTotal = aiRecommendations.tiktok.interests.length + 
+                                  aiRecommendations.tiktok.behaviors.length;
+
+              return (
+                <Tabs value={activeRecommendationTab} onValueChange={setActiveRecommendationTab} className="w-full">
+                  {hasMultiple ? (
+                    <TabsList className="grid w-full grid-cols-3">
+                      {hasMeta && <TabsTrigger value="meta">Meta ({metaSelected}/{metaTotal})</TabsTrigger>}
+                      {hasTiktok && <TabsTrigger value="tiktok">TikTok ({tiktokSelected}/{tiktokTotal})</TabsTrigger>}
+                      <TabsTrigger value="matches">Matches ({aiRecommendations.matches.length})</TabsTrigger>
+                    </TabsList>
+                  ) : (
+                    <TabsList className="w-full">
+                      {hasMeta && <TabsTrigger value="meta" className="flex-1">Meta Recommendations ({metaSelected}/{metaTotal})</TabsTrigger>}
+                      {hasTiktok && <TabsTrigger value="tiktok" className="flex-1">TikTok Recommendations ({tiktokSelected}/{tiktokTotal})</TabsTrigger>}
+                    </TabsList>
+                  )}
                 
-                {/* Meta Recommendations */}
-                <TabsContent value="meta" className="space-y-4 mt-4">
+                  {hasMeta && hasMetaRecs && (
+                    <TabsContent value="meta" className="space-y-4 mt-4">
                   {aiRecommendations.meta.interests.length > 0 && (
                     <RecommendationSection
                       title="Interests"
@@ -888,10 +890,11 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
                       onDeselectAll={handleDeselectAll}
                     />
                   )}
-                </TabsContent>
+                    </TabsContent>
+                  )}
 
-                {/* TikTok Recommendations */}
-                <TabsContent value="tiktok" className="space-y-4 mt-4">
+                  {hasTiktok && hasTiktokRecs && (
+                    <TabsContent value="tiktok" className="space-y-4 mt-4">
                   {aiRecommendations.tiktok.interests.length > 0 && (
                     <RecommendationSection
                       title="Interests"
@@ -914,11 +917,11 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
                       onDeselectAll={handleDeselectAll}
                     />
                   )}
-                </TabsContent>
+                    </TabsContent>
+                  )}
 
-                {/* Cross-Platform Matches - only show when both platforms are available */}
-                {metaAdAccountId && tiktokAdvertiserId && (
-                  <TabsContent value="matches" className="space-y-2 mt-4">
+                  {hasMultiple && (
+                    <TabsContent value="matches" className="space-y-2 mt-4">
                   {aiRecommendations.matches.length > 0 ? (
                     aiRecommendations.matches.map((match, idx) => (
                       <Card key={idx} className="p-3">
@@ -938,10 +941,11 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
                       No cross-platform matches found
                     </div>
                   )}
-                  </TabsContent>
-                )}
-              </Tabs>
-            )}
+                    </TabsContent>
+                  )}
+                </Tabs>
+              );
+            })()}
           </CardContent>
         </Card>
 
@@ -982,33 +986,32 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
             </div>
 
             {/* Search Results - Grouped by Category */}
-            {(Object.values(searchResults.meta).some(arr => arr.length > 0) || Object.values(searchResults.tiktok).some(arr => arr.length > 0)) && (
-              <Tabs value={activeSearchTab} onValueChange={setActiveSearchTab} className="w-full">
-                {metaAdAccountId && tiktokAdvertiserId ? (
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="meta">
-                      Meta ({(searchResults.meta.interests.length + searchResults.meta.behaviors.length + searchResults.meta.demographics.length)})
-                    </TabsTrigger>
-                    <TabsTrigger value="tiktok">
-                      TikTok ({(searchResults.tiktok.interests.length + searchResults.tiktok.behaviors.length + searchResults.tiktok.purchaseIntention.length + searchResults.tiktok.videoInteractions.length)})
-                    </TabsTrigger>
-                  </TabsList>
-                ) : metaAdAccountId ? (
-                  <TabsList className="w-full">
-                    <TabsTrigger value="meta" className="flex-1">
-                      Meta Results ({(searchResults.meta.interests.length + searchResults.meta.behaviors.length + searchResults.meta.demographics.length)})
-                    </TabsTrigger>
-                  </TabsList>
-                ) : (
-                  <TabsList className="w-full">
-                    <TabsTrigger value="tiktok" className="flex-1">
-                      TikTok Results ({(searchResults.tiktok.interests.length + searchResults.tiktok.behaviors.length + searchResults.tiktok.purchaseIntention.length + searchResults.tiktok.videoInteractions.length)})
-                    </TabsTrigger>
-                  </TabsList>
-                )}
-                
-                {metaAdAccountId && (
-                  <TabsContent value="meta" className="space-y-4 mt-4">
+            {(() => {
+              const { hasMeta, hasTiktok, hasMultiple } = getActivePlatforms();
+              const hasMetaResults = hasMeta && Object.values(searchResults.meta).some(arr => arr.length > 0);
+              const hasTiktokResults = hasTiktok && Object.values(searchResults.tiktok).some(arr => arr.length > 0);
+              
+              if (!hasMetaResults && !hasTiktokResults) return null;
+
+              const metaCount = searchResults.meta.interests.length + searchResults.meta.behaviors.length + searchResults.meta.demographics.length;
+              const tiktokCount = searchResults.tiktok.interests.length + searchResults.tiktok.behaviors.length + searchResults.tiktok.purchaseIntention.length + searchResults.tiktok.videoInteractions.length;
+
+              return (
+                <Tabs value={activeSearchTab} onValueChange={setActiveSearchTab} className="w-full">
+                  {hasMultiple ? (
+                    <TabsList className="grid w-full grid-cols-2">
+                      {hasMeta && <TabsTrigger value="meta">Meta ({metaCount})</TabsTrigger>}
+                      {hasTiktok && <TabsTrigger value="tiktok">TikTok ({tiktokCount})</TabsTrigger>}
+                    </TabsList>
+                  ) : (
+                    <TabsList className="w-full">
+                      {hasMeta && <TabsTrigger value="meta" className="flex-1">Meta Results ({metaCount})</TabsTrigger>}
+                      {hasTiktok && <TabsTrigger value="tiktok" className="flex-1">TikTok Results ({tiktokCount})</TabsTrigger>}
+                    </TabsList>
+                  )}
+                  
+                  {hasMeta && hasMetaResults && (
+                    <TabsContent value="meta" className="space-y-4 mt-4">
                     <div className="flex justify-end gap-2 mb-4">
                       <Button variant="outline" size="sm" onClick={() => handleSelectAllSearch('meta')}>
                         Select All
@@ -1071,11 +1074,11 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
                         </div>
                       </div>
                     )}
-                  </TabsContent>
-                )}
+                    </TabsContent>
+                  )}
 
-                {tiktokAdvertiserId && (
-                  <TabsContent value="tiktok" className="space-y-4 mt-4">
+                  {hasTiktok && hasTiktokResults && (
+                    <TabsContent value="tiktok" className="space-y-4 mt-4">
                   <div className="flex justify-end gap-2 mb-4">
                     <Button variant="outline" size="sm" onClick={() => handleSelectAllSearch('tiktok')}>
                       Select All
@@ -1156,10 +1159,11 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
                       </div>
                     </div>
                   )}
-                  </TabsContent>
-                )}
-              </Tabs>
-            )}
+                    </TabsContent>
+                  )}
+                </Tabs>
+              );
+            })()}
           </CardContent>
         </Card>
       </CardContent>
