@@ -192,7 +192,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         default_landing_page_url: acc.default_landing_page_url || null,
         default_bid_strategy: acc.default_bid_strategy || 'LOWEST_COST',
         default_placement_type: (acc as any).default_placement_type || 'PLACEMENT_TYPE_AUTOMATIC',
-        default_placements: Array.isArray((acc as any).default_placements) ? (acc as any).default_placements as string[] : ['PLACEMENT_TIKTOK'],
+        default_placements: Array.isArray((acc as any).default_placements) ? (acc as any).default_placements as string[] : ['PLACEMENT_TIKTOK', 'PLACEMENT_GLOBAL_APP_BUNDLE', 'PLACEMENT_PANGLE'],
       }));
 
       console.log("[AccountDefaultsTab] TikTok accounts loaded from database:", tiktokAccounts.map(acc => ({
@@ -237,7 +237,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
           default_click_window: acc.platform === 'tiktok' ? (acc as any).default_click_window || null : null,
           default_view_window: acc.platform === 'tiktok' ? (acc as any).default_view_window || null : null,
           default_placement_type: acc.platform === 'tiktok' ? (acc as any).default_placement_type || 'PLACEMENT_TYPE_AUTOMATIC' : null,
-          default_placements: acc.platform === 'tiktok' ? (acc as any).default_placements || ['PLACEMENT_TIKTOK'] : null,
+          default_placements: acc.platform === 'tiktok' ? (acc as any).default_placements || ['PLACEMENT_TIKTOK', 'PLACEMENT_GLOBAL_APP_BUNDLE', 'PLACEMENT_PANGLE'] : null,
           // Meta-specific placements
           default_publisher_platforms: acc.platform === 'meta' ? (acc as any).default_publisher_platforms || ['facebook', 'instagram', 'audience_network'] : null,
           default_positions: acc.platform === 'meta' ? (acc as any).default_positions || {} : null,
@@ -1194,9 +1194,9 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                               value={defaults.default_placement_type || "PLACEMENT_TYPE_AUTOMATIC"}
                               onValueChange={(value) => {
                                 updateDefault(account.id, "default_placement_type", value);
-                                // Reset placements when switching to automatic
+                                // Select all placements when switching to automatic
                                 if (value === "PLACEMENT_TYPE_AUTOMATIC") {
-                                  updateDefault(account.id, "default_placements", ["PLACEMENT_TIKTOK"]);
+                                  updateDefault(account.id, "default_placements", ["PLACEMENT_TIKTOK", "PLACEMENT_GLOBAL_APP_BUNDLE", "PLACEMENT_PANGLE"]);
                                 }
                               }}
                             >
@@ -1226,7 +1226,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                   { value: "PLACEMENT_GLOBAL_APP_BUNDLE", label: "Global App Bundle" },
                                   { value: "PLACEMENT_PANGLE", label: "Pangle" },
                                 ]}
-                                value={defaults.default_placements || ["PLACEMENT_TIKTOK"]}
+                                value={defaults.default_placements || ["PLACEMENT_TIKTOK", "PLACEMENT_GLOBAL_APP_BUNDLE", "PLACEMENT_PANGLE"]}
                                 onChange={(placements) => updateDefault(account.id, "default_placements", placements)}
                                 placeholder="Select placements"
                                 emptyText="No placements selected"
