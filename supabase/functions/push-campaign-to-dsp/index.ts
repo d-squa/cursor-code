@@ -762,7 +762,15 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
         // Validate bid strategy compatibility with optimization goal
         // COST_CAP and LOWEST_COST_WITH_BID_CAP only work with specific optimization goals
         const bidStrategyCompatibleGoals = ['OFFSITE_CONVERSIONS', 'VALUE', 'LINK_CLICKS', 'LANDING_PAGE_VIEWS', 'LEAD_GENERATION', 'APP_INSTALLS'];
-        const requestedBidStrategy = market.metaBidStrategy || "LOWEST_COST_WITHOUT_CAP";
+        // Phase-level Meta fields take priority over market-level
+        const requestedBidStrategy = phase.metaBidStrategy || market.metaBidStrategy || "LOWEST_COST_WITHOUT_CAP";
+        const metaBidAmount = phase.metaBidAmount || market.metaBidAmount;
+        const metaBillingEvent = phase.metaBillingEvent || (market as any).metaBillingEvent || "IMPRESSIONS";
+        const metaLandingPageUrl = phase.metaLandingPageUrl || (market as any).metaLandingPageUrl;
+        const metaOptimizationLocation = phase.metaOptimizationLocation || (market as any).metaOptimizationLocation || "WEBSITE";
+        const metaClickWindow = phase.metaClickWindow || (market as any).metaClickWindow || 7;
+        const metaViewWindow = phase.metaViewWindow || (market as any).metaViewWindow || 1;
+        
         const requiresBidCap = requestedBidStrategy === 'COST_CAP' || requestedBidStrategy === 'LOWEST_COST_WITH_BID_CAP';
         const isCompatible = bidStrategyCompatibleGoals.includes(optimizationGoal);
         
@@ -777,7 +785,7 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
         const adSetPayload: any = {
           name: `${phase.name} - Ad Set`,
           campaign_id: campaignData.id,
-          billing_event: "IMPRESSIONS",
+          billing_event: metaBillingEvent,
           optimization_goal: optimizationGoal,
           bid_strategy: finalBidStrategy,
           status: "PAUSED",
@@ -786,13 +794,35 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
           targeting: targeting,
         };
 
+        // Add attribution settings if different from defaults
+        if (metaClickWindow || metaViewWindow) {
+          adSetPayload.attribution_spec = [
+            {
+              event_type: "CLICK_THROUGH",
+              window_days: metaClickWindow
+            },
+            {
+              event_type: "VIEW_THROUGH", 
+              window_days: metaViewWindow
+            }
+          ];
+          console.log(`✅ Attribution windows set: click=${metaClickWindow}d, view=${metaViewWindow}d`);
+        }
+
+        // Add destination URL for traffic campaigns
+        if (metaLandingPageUrl && (optimizationGoal === 'LINK_CLICKS' || optimizationGoal === 'LANDING_PAGE_VIEWS')) {
+          adSetPayload.destination_type = metaOptimizationLocation;
+          console.log(`✅ Destination type: ${metaOptimizationLocation}, Landing page: ${metaLandingPageUrl}`);
+        }
+
         console.log(`✅ Bid strategy validated: ${finalBidStrategy} (requested: ${requestedBidStrategy}, compatible: ${isCompatible})`);
+        console.log(`✅ Billing event: ${metaBillingEvent}`);
         
         // Add bid amount if bid strategy requires it AND it's compatible
         if ((finalBidStrategy === 'LOWEST_COST_WITH_BID_CAP' || finalBidStrategy === 'COST_CAP') && 
-            market.metaBidAmount && market.metaBidAmount > 0) {
-          adSetPayload.bid_amount = Math.round(market.metaBidAmount * 100); // Convert to cents
-          console.log(`✅ Adding Meta bid amount: €${market.metaBidAmount} (${adSetPayload.bid_amount} cents) for strategy ${finalBidStrategy}`);
+            metaBidAmount && metaBidAmount > 0) {
+          adSetPayload.bid_amount = Math.round(metaBidAmount * 100); // Convert to cents
+          console.log(`✅ Adding Meta bid amount: €${metaBidAmount} (${adSetPayload.bid_amount} cents) for strategy ${finalBidStrategy}`);
         }
         
         // Add conversion tracking for conversion-optimized ad sets (including VALUE)

@@ -35,6 +35,11 @@ export interface Market {
   tiktokPlacements?: string[]; // Array of placement positions when manual
   metaBidStrategy?: string; // Meta Bid Strategy (LOWEST_COST_WITHOUT_CAP, LOWEST_COST_WITH_BID_CAP, COST_CAP, etc.)
   metaBidAmount?: number; // Meta Bid Amount (required for LOWEST_COST_WITH_BID_CAP and COST_CAP)
+  metaBillingEvent?: string; // Meta Billing Event (IMPRESSIONS, LINK_CLICKS, etc.)
+  metaLandingPageUrl?: string; // Meta Landing Page URL for traffic campaigns
+  metaOptimizationLocation?: string; // Meta Optimization Location (WEBSITE, APP, MESSAGING_APPS, CALLS)
+  metaClickWindow?: number; // Meta Click-through attribution window in days (1, 7, 28)
+  metaViewWindow?: number; // Meta View-through attribution window in days (1, 7)
   // Meta placement fields
   metaPublisherPlatforms?: string[]; // Meta Publisher Platforms
   metaPositions?: {
@@ -104,6 +109,14 @@ export interface Phase {
   tiktokProductSet?: string; // TikTok Product Set ID at phase level
   tiktokPlacementType?: string; // PLACEMENT_TYPE_AUTOMATIC or PLACEMENT_TYPE_NORMAL
   tiktokPlacements?: string[]; // Array of placement positions when manual
+  // Meta-specific fields at phase level
+  metaBillingEvent?: string; // IMPRESSIONS, LINK_CLICKS, POST_ENGAGEMENT, etc.
+  metaLandingPageUrl?: string; // Default landing page URL
+  metaOptimizationLocation?: string; // WEBSITE, APP, MESSAGING_APPS, CALLS
+  metaClickWindow?: number; // Click-through attribution window in days (1, 7, 28)
+  metaViewWindow?: number; // View-through attribution window in days (1, 7)
+  metaBidStrategy?: string; // LOWEST_COST_WITHOUT_CAP, LOWEST_COST_WITH_BID_CAP, COST_CAP
+  metaBidAmount?: number; // Bid amount when bid cap is required
   // Campaign-level overrides (inherits from market/generic if not set)
   publisherPlatforms?: string[];
   positions?: {

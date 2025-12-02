@@ -32,6 +32,14 @@ export interface Phase {
     threads?: string[];
   };
   advantagePlusPlacements?: boolean;
+  // Meta-specific phase-level fields
+  metaBillingEvent?: string;
+  metaLandingPageUrl?: string;
+  metaOptimizationLocation?: string;
+  metaClickWindow?: number;
+  metaViewWindow?: number;
+  metaBidStrategy?: string;
+  metaBidAmount?: number;
   overrideTargeting?: boolean;
   targeting?: {
     adFormats?: string[];
