@@ -61,6 +61,7 @@ export interface CreateAdGroupParams {
   adGroupName: string;
   targeting: Record<string, any>;
   placements: string[];
+  placementType?: string; // PLACEMENT_TYPE_AUTOMATIC or PLACEMENT_TYPE_NORMAL
   optimizationGoal: string;
   billingEvent?: string;
   budget?: number;
@@ -434,6 +435,7 @@ class TikTokAdapter implements PlatformAdapter {
         campaign_id: params.campaignId,
         adgroup_name: params.adGroupName,
         promotion_type: promotionType,
+        placement_type: params.placementType || "PLACEMENT_TYPE_AUTOMATIC",
         placements: params.placements,
         gender: this.mapGender(normalizedGenders),
         age_groups: this.mapAgeGroups(params.targeting.age_min, params.targeting.age_max),

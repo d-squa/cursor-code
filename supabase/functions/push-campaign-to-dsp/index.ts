@@ -1020,13 +1020,24 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           status: "PAUSED",
         });
         
-        // Map placements
-        const tiktokPlacements = ["PLACEMENT_TIKTOK"];
-        const publisherPlatforms = phase.publisherPlatforms || [];
+        // Get placement settings from phase, market, or use defaults
+        const placementType = phase.tiktokPlacementType || market.tiktokPlacementType || "PLACEMENT_TYPE_AUTOMATIC";
+        let tiktokPlacements: string[];
         
-        if (publisherPlatforms.includes('audience_network')) {
-          tiktokPlacements.push("PLACEMENT_PANGLE");
+        if (placementType === "PLACEMENT_TYPE_NORMAL") {
+          // Use manual placements from phase or market
+          const configuredPlacements = phase.tiktokPlacements || market.tiktokPlacements;
+          tiktokPlacements = Array.isArray(configuredPlacements) && configuredPlacements.length > 0 
+            ? configuredPlacements 
+            : ["PLACEMENT_TIKTOK"];
+          console.log(`📍 Using MANUAL placements: ${tiktokPlacements.join(', ')}`);
+        } else {
+          // Automatic placement - TikTok will optimize
+          tiktokPlacements = ["PLACEMENT_TIKTOK", "PLACEMENT_GLOBAL_APP_BUNDLE", "PLACEMENT_PANGLE"];
+          console.log(`📍 Using AUTOMATIC placements (all positions enabled)`);
         }
+        
+        console.log(`📍 Placement type: ${placementType}, Placements: ${JSON.stringify(tiktokPlacements)}`);
         
         // Build targeting
         const basicTargeting = campaign.generic_config?.basicTargeting || {};
@@ -1269,6 +1280,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           adGroupName: `${phase.name} - Ad Group`,
           targeting: targeting,
           placements: tiktokPlacements,
+          placementType: placementType,
           optimizationGoal: tiktokOptGoal,
           billingEvent: billingEvent,
           bidStrategy: phase.tiktokBidStrategy || market.tiktokBidStrategy || "LOWEST_COST",
@@ -1309,7 +1321,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           tiktok_ad_group_id: adGroupResult.adGroupId,
           advertiser_id: advertiserId,
           ad_group_name: adGroupResult.metadata?.adgroup_name || "",
-          placement_type: "PLACEMENT_TYPE_AUTOMATIC",
+          placement_type: placementType,
           placements: tiktokPlacements,
           targeting: targeting,
           budget: campaignBudget,
