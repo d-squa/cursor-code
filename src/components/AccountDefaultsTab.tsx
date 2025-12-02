@@ -318,6 +318,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         'default_optimization_event',
         'default_landing_page_url',
         'default_bid_strategy',
+        'default_bid_amount',
         'default_optimization_location',
         'default_app_name',
         'default_app_id',
@@ -711,11 +712,14 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                           <div className="space-y-2">
                             <Label>Default TikTok Pixel</Label>
                             {(() => {
+                              const accountPixels = tiktokPixels.filter(p => p.advertiser_id === account.advertiser_id);
                               const pixelValue = defaults.default_pixel_id || undefined;
-                              console.log(`[TikTok Pixel Select] Account ${account.account_name}:`, {
+                              console.log(`[TikTok Pixel Select] Account ${account.account_name} (${account.advertiser_id}):`, {
                                 selectedValue: pixelValue,
-                                availablePixels: tiktokPixels.map(p => ({ id: p.pixel_id, name: p.pixel_name })),
-                                hasMatch: tiktokPixels.some(p => p.pixel_id === pixelValue)
+                                availablePixels: accountPixels.map(p => ({ id: p.pixel_id, name: p.pixel_name })),
+                                hasMatch: accountPixels.some(p => p.pixel_id === pixelValue),
+                                allPixels: tiktokPixels.length,
+                                filteredPixels: accountPixels.length
                               });
                               return null;
                             })()}
@@ -728,15 +732,18 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                 <SelectValue placeholder="Select TikTok pixel" />
                               </SelectTrigger>
                               <SelectContent>
-                                {tiktokPixels.length === 0 ? (
-                                  <SelectItem value="none" disabled>No pixels available</SelectItem>
-                                ) : (
-                                  tiktokPixels.map((pixel) => (
-                                    <SelectItem key={pixel.id} value={pixel.pixel_id}>
-                                      {pixel.pixel_name}
-                                    </SelectItem>
-                                  ))
-                                )}
+                                {(() => {
+                                  const accountPixels = tiktokPixels.filter(p => p.advertiser_id === account.advertiser_id);
+                                  return accountPixels.length === 0 ? (
+                                    <SelectItem value="none" disabled>No pixels available for this advertiser</SelectItem>
+                                  ) : (
+                                    accountPixels.map((pixel) => (
+                                      <SelectItem key={pixel.id} value={pixel.pixel_id}>
+                                        {pixel.pixel_name}
+                                      </SelectItem>
+                                    ))
+                                  );
+                                })()}
                               </SelectContent>
                             </Select>
                           </div>
@@ -745,11 +752,14 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                           <div className="space-y-2">
                             <Label>Default TikTok Identity</Label>
                             {(() => {
+                              const accountIdentities = tiktokIdentities.filter(i => i.advertiser_id === account.advertiser_id);
                               const identityValue = defaults.default_identity_id || undefined;
-                              console.log(`[TikTok Identity Select] Account ${account.account_name}:`, {
+                              console.log(`[TikTok Identity Select] Account ${account.account_name} (${account.advertiser_id}):`, {
                                 selectedValue: identityValue,
-                                availableIdentities: tiktokIdentities.map(i => ({ id: i.identity_id, name: i.identity_name })),
-                                hasMatch: tiktokIdentities.some(i => i.identity_id === identityValue)
+                                availableIdentities: accountIdentities.map(i => ({ id: i.identity_id, name: i.identity_name })),
+                                hasMatch: accountIdentities.some(i => i.identity_id === identityValue),
+                                allIdentities: tiktokIdentities.length,
+                                filteredIdentities: accountIdentities.length
                               });
                               return null;
                             })()}
@@ -762,15 +772,18 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                 <SelectValue placeholder="Select TikTok identity" />
                               </SelectTrigger>
                               <SelectContent>
-                                {tiktokIdentities.length === 0 ? (
-                                  <SelectItem value="none" disabled>No identities available</SelectItem>
-                                ) : (
-                                  tiktokIdentities.map((identity) => (
-                                    <SelectItem key={identity.id} value={identity.identity_id}>
-                                      {identity.identity_name}
-                                    </SelectItem>
-                                  ))
-                                )}
+                                {(() => {
+                                  const accountIdentities = tiktokIdentities.filter(i => i.advertiser_id === account.advertiser_id);
+                                  return accountIdentities.length === 0 ? (
+                                    <SelectItem value="none" disabled>No identities available for this advertiser</SelectItem>
+                                  ) : (
+                                    accountIdentities.map((identity) => (
+                                      <SelectItem key={identity.id} value={identity.identity_id}>
+                                        {identity.identity_name}
+                                      </SelectItem>
+                                    ))
+                                  );
+                                })()}
                               </SelectContent>
                             </Select>
                             <p className="text-xs text-muted-foreground">
@@ -782,11 +795,14 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                           <div className="space-y-2">
                             <Label>Default TikTok Catalog</Label>
                             {(() => {
+                              const accountCatalogs = tiktokCatalogs.filter(c => c.advertiser_id === account.advertiser_id);
                               const catalogValue = defaults.default_catalog_id || undefined;
-                              console.log(`[TikTok Catalog Select] Account ${account.account_name}:`, {
+                              console.log(`[TikTok Catalog Select] Account ${account.account_name} (${account.advertiser_id}):`, {
                                 selectedValue: catalogValue,
-                                availableCatalogs: tiktokCatalogs.map(c => ({ id: c.catalog_id, name: c.catalog_name })),
-                                hasMatch: tiktokCatalogs.some(c => c.catalog_id === catalogValue)
+                                availableCatalogs: accountCatalogs.map(c => ({ id: c.catalog_id, name: c.catalog_name })),
+                                hasMatch: accountCatalogs.some(c => c.catalog_id === catalogValue),
+                                allCatalogs: tiktokCatalogs.length,
+                                filteredCatalogs: accountCatalogs.length
                               });
                               return null;
                             })()}
@@ -799,15 +815,18 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                 <SelectValue placeholder="Select TikTok catalog" />
                               </SelectTrigger>
                               <SelectContent>
-                                {tiktokCatalogs.length === 0 ? (
-                                  <SelectItem value="none" disabled>No catalogs available</SelectItem>
-                                ) : (
-                                  tiktokCatalogs.map((catalog) => (
-                                    <SelectItem key={catalog.id} value={catalog.catalog_id}>
-                                      {catalog.catalog_name}
-                                    </SelectItem>
-                                  ))
-                                )}
+                                {(() => {
+                                  const accountCatalogs = tiktokCatalogs.filter(c => c.advertiser_id === account.advertiser_id);
+                                  return accountCatalogs.length === 0 ? (
+                                    <SelectItem value="none" disabled>No catalogs available for this advertiser</SelectItem>
+                                  ) : (
+                                    accountCatalogs.map((catalog) => (
+                                      <SelectItem key={catalog.id} value={catalog.catalog_id}>
+                                        {catalog.catalog_name}
+                                      </SelectItem>
+                                    ))
+                                  );
+                                })()}
                               </SelectContent>
                             </Select>
                           </div>
