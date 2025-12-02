@@ -18,7 +18,51 @@ export interface TaxonomyTemplate {
   params: TaxonomyParam[];
 }
 
-// Value shortening mappings
+// Context data passed from ActiPlan for auto-generation
+export interface TaxonomyContext {
+  // Platform & Account
+  platform?: string;
+  adAccountId?: string;
+  adAccountName?: string;
+  // Campaign Level
+  campaignName?: string;
+  boNumber?: string;
+  clientName?: string;
+  teamName?: string;
+  objective?: string;
+  funnelStage?: string;
+  // Market Level
+  country?: string;
+  market?: string;
+  // Phase/AdSet Level
+  optimizationGoal?: string;
+  conversionEvent?: string;
+  bidStrategy?: string;
+  billingEvent?: string;
+  // Placements
+  placementType?: string; // automatic/manual
+  placements?: string[];
+  publisherPlatforms?: string[];
+  advantagePlusPlacements?: boolean;
+  // Targeting
+  audienceType?: string;
+  ageMin?: number;
+  ageMax?: number;
+  gender?: string;
+  // Budget
+  budgetType?: string;
+  budget?: number;
+  // Creative/Ad Level
+  adFormat?: string;
+  creativeVariant?: string;
+  copyVariant?: string;
+  language?: string;
+  // Dates
+  startDate?: string;
+  endDate?: string;
+}
+
+// Value shortening mappings - comprehensive list
 const VALUE_MAPPINGS: Record<string, Record<string, string>> = {
   // Platforms
   platform: {
@@ -30,7 +74,7 @@ const VALUE_MAPPINGS: Record<string, Record<string, string>> = {
     'snapchat': 'SNAP',
     'pinterest': 'PIN',
   },
-  // Objectives
+  // Objectives - Meta
   objective: {
     'OUTCOME_AWARENESS': 'AWR',
     'OUTCOME_ENGAGEMENT': 'ENG',
@@ -38,6 +82,7 @@ const VALUE_MAPPINGS: Record<string, Record<string, string>> = {
     'OUTCOME_LEADS': 'LED',
     'OUTCOME_APP_PROMOTION': 'APP',
     'OUTCOME_SALES': 'SAL',
+    // TikTok objectives
     'REACH': 'RCH',
     'VIDEO_VIEWS': 'VV',
     'TRAFFIC': 'TRF',
@@ -46,6 +91,10 @@ const VALUE_MAPPINGS: Record<string, Record<string, string>> = {
     'LEAD_GENERATION': 'LDG',
     'PRODUCT_SALES': 'PSL',
     'WEB_CONVERSIONS': 'WCV',
+    'ENGAGEMENT': 'ENG',
+    'COMMUNITY_INTERACTION': 'CMI',
+    'APP_PROMOTION': 'APP',
+    'CATALOG_SALES': 'CAT',
   },
   // Optimization goals
   optimizationGoal: {
@@ -66,6 +115,10 @@ const VALUE_MAPPINGS: Record<string, Record<string, string>> = {
     '6S_VIDEO_VIEW': '6SV',
     '15S_VIDEO_VIEW': '15SV',
     'FOCUSED_VIEW': 'FCV',
+    'LEAD': 'LED',
+    'FORM_SUBMIT': 'FRM',
+    'PAGE_VIEW': 'PGV',
+    'FOLLOW': 'FLW',
   },
   // Conversion events
   conversionEvent: {
@@ -85,11 +138,14 @@ const VALUE_MAPPINGS: Record<string, Record<string, string>> = {
     'DOWNLOAD': 'DWN',
     'REGISTRATION': 'REG',
     'SUBSCRIBE': 'SUB',
+    'ADD_TO_WISHLIST': 'WSH',
+    'CONTACT': 'CNT',
   },
   // Countries/Markets
   country: {
     'US': 'US',
     'GB': 'UK',
+    'UK': 'UK',
     'DE': 'DE',
     'FR': 'FR',
     'ES': 'ES',
@@ -120,8 +176,16 @@ const VALUE_MAPPINGS: Record<string, Record<string, string>> = {
     'SA': 'SA',
     'ZA': 'ZA',
   },
-  // Placements
-  placement: {
+  // Placement types
+  placementType: {
+    'PLACEMENT_TYPE_AUTOMATIC': 'AUTO',
+    'PLACEMENT_TYPE_NORMAL': 'MAN',
+    'automatic': 'AUTO',
+    'manual': 'MAN',
+    'advantage_plus': 'AUTO',
+  },
+  // Publisher platforms
+  publisherPlatform: {
     'facebook': 'FB',
     'instagram': 'IG',
     'audience_network': 'AN',
@@ -130,8 +194,6 @@ const VALUE_MAPPINGS: Record<string, Record<string, string>> = {
     'PLACEMENT_TIKTOK': 'TT',
     'PLACEMENT_GLOBAL_APP_BUNDLE': 'GAB',
     'PLACEMENT_PANGLE': 'PAN',
-    'automatic': 'AUTO',
-    'manual': 'MAN',
   },
   // Bid strategies
   bidStrategy: {
@@ -143,6 +205,16 @@ const VALUE_MAPPINGS: Record<string, Record<string, string>> = {
     'BID_TYPE_CUSTOM': 'CB',
     'BID_TYPE_MAX_CONVERSION': 'MC',
   },
+  // Billing events
+  billingEvent: {
+    'IMPRESSIONS': 'CPM',
+    'LINK_CLICKS': 'CPC',
+    'APP_INSTALLS': 'CPI',
+    'OCPM': 'OCPM',
+    'CPC': 'CPC',
+    'CPM': 'CPM',
+    'CPV': 'CPV',
+  },
   // Audience types
   audienceType: {
     'broad': 'BRD',
@@ -150,6 +222,7 @@ const VALUE_MAPPINGS: Record<string, Record<string, string>> = {
     'lookalike': 'LAL',
     'retargeting': 'RTG',
     'custom': 'CUS',
+    'saved': 'SAV',
   },
   // Funnel stages
   funnelStage: {
@@ -157,6 +230,34 @@ const VALUE_MAPPINGS: Record<string, Record<string, string>> = {
     'consideration': 'MOF',
     'conversion': 'BOF',
     'retention': 'RET',
+    'Awareness': 'TOF',
+    'Consideration': 'MOF',
+    'Conversion': 'BOF',
+    'Retention': 'RET',
+  },
+  // Budget types
+  budgetType: {
+    'daily': 'DBD',
+    'lifetime': 'LTB',
+  },
+  // Ad formats
+  adFormat: {
+    'image': 'IMG',
+    'video': 'VID',
+    'carousel': 'CAR',
+    'collection': 'COL',
+    'dynamic': 'DYN',
+    'stories': 'STR',
+    'reels': 'RLS',
+  },
+  // Gender
+  gender: {
+    'all': 'ALL',
+    'male': 'M',
+    'female': 'F',
+    'All': 'ALL',
+    'Male': 'M',
+    'Female': 'F',
   },
 };
 
@@ -194,6 +295,130 @@ export function createShortCode(value: string): string {
   return cleaned.substring(0, 3).toUpperCase();
 }
 
+// Auto-extract taxonomy values from ActiPlan context
+export function extractTaxonomyValues(
+  template: TaxonomyParam[],
+  context: TaxonomyContext
+): Record<string, string> {
+  const values: Record<string, string> = {};
+  
+  for (const param of template) {
+    let rawValue: string | undefined;
+    
+    // Map param id to context field and shorten
+    switch (param.id) {
+      case 'platform':
+        rawValue = context.platform;
+        values[param.id] = rawValue ? shortenValue('platform', rawValue) : '';
+        break;
+      case 'objective':
+        rawValue = context.objective;
+        values[param.id] = rawValue ? shortenValue('objective', rawValue) : '';
+        break;
+      case 'optimizationGoal':
+        rawValue = context.optimizationGoal;
+        values[param.id] = rawValue ? shortenValue('optimizationGoal', rawValue) : '';
+        break;
+      case 'country':
+      case 'market':
+        rawValue = context.country || context.market;
+        values[param.id] = rawValue ? shortenValue('country', rawValue) : '';
+        break;
+      case 'funnelStage':
+        rawValue = context.funnelStage;
+        values[param.id] = rawValue ? shortenValue('funnelStage', rawValue) : '';
+        break;
+      case 'conversionEvent':
+        rawValue = context.conversionEvent;
+        values[param.id] = rawValue ? shortenValue('conversionEvent', rawValue) : '';
+        break;
+      case 'bidStrategy':
+        rawValue = context.bidStrategy;
+        values[param.id] = rawValue ? shortenValue('bidStrategy', rawValue) : '';
+        break;
+      case 'billingEvent':
+        rawValue = context.billingEvent;
+        values[param.id] = rawValue ? shortenValue('billingEvent', rawValue) : '';
+        break;
+      case 'placementType':
+      case 'placement':
+        // Check for advantage plus placements first
+        if (context.advantagePlusPlacements === true) {
+          values[param.id] = 'AUTO';
+        } else if (context.placementType) {
+          values[param.id] = shortenValue('placementType', context.placementType);
+        } else if (context.placements && context.placements.length > 0) {
+          // Use first placement as indicator
+          values[param.id] = 'MAN';
+        } else if (context.publisherPlatforms && context.publisherPlatforms.length > 0) {
+          // Multiple platforms = manual
+          values[param.id] = context.publisherPlatforms.length > 1 ? 'MIX' : 
+            shortenValue('publisherPlatform', context.publisherPlatforms[0]);
+        } else {
+          values[param.id] = 'AUTO';
+        }
+        break;
+      case 'audienceType':
+        rawValue = context.audienceType;
+        values[param.id] = rawValue ? shortenValue('audienceType', rawValue) : 'BRD';
+        break;
+      case 'budgetType':
+        rawValue = context.budgetType;
+        values[param.id] = rawValue ? shortenValue('budgetType', rawValue) : '';
+        break;
+      case 'adFormat':
+        rawValue = context.adFormat;
+        values[param.id] = rawValue ? shortenValue('adFormat', rawValue) : '';
+        break;
+      case 'gender':
+        rawValue = context.gender;
+        values[param.id] = rawValue ? shortenValue('gender', rawValue) : 'ALL';
+        break;
+      case 'boNumber':
+        rawValue = context.boNumber;
+        values[param.id] = rawValue ? createShortCode(rawValue) : '';
+        break;
+      case 'teamName':
+        rawValue = context.teamName;
+        values[param.id] = rawValue ? createShortCode(rawValue) : '';
+        break;
+      case 'clientName':
+        rawValue = context.clientName;
+        values[param.id] = rawValue ? createShortCode(rawValue) : '';
+        break;
+      case 'campaignName':
+        rawValue = context.campaignName;
+        values[param.id] = rawValue ? createShortCode(rawValue) : '';
+        break;
+      case 'creativeVariant':
+        rawValue = context.creativeVariant;
+        values[param.id] = rawValue ? createShortCode(rawValue) : '';
+        break;
+      case 'copyVariant':
+        rawValue = context.copyVariant;
+        values[param.id] = rawValue ? createShortCode(rawValue) : '';
+        break;
+      case 'language':
+        rawValue = context.language;
+        values[param.id] = rawValue ? rawValue.toUpperCase().substring(0, 2) : '';
+        break;
+      case 'ageRange':
+        if (context.ageMin && context.ageMax) {
+          values[param.id] = `${context.ageMin}${context.ageMax}`;
+        }
+        break;
+      default:
+        // For fixed values, use the param's value
+        if (param.type === 'fixed' && param.value) {
+          values[param.id] = param.value;
+        }
+        break;
+    }
+  }
+  
+  return values;
+}
+
 // Generate default campaign taxonomy params
 export function getDefaultCampaignParams(platform: 'meta' | 'tiktok'): TaxonomyParam[] {
   return [
@@ -203,22 +428,6 @@ export function getDefaultCampaignParams(platform: 'meta' | 'tiktok'): TaxonomyP
       label: 'Platform',
       type: 'fixed',
       value: platform === 'meta' ? 'META' : 'TT',
-      system: true,
-      required: true,
-    },
-    {
-      id: 'boNumber',
-      key: 'BO',
-      label: 'BO Number',
-      type: 'text',
-      system: true,
-      required: true,
-    },
-    {
-      id: 'teamName',
-      key: 'TEAM',
-      label: 'Team Name',
-      type: 'text',
       system: true,
       required: true,
     },
@@ -278,13 +487,13 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyPara
       required: true,
     },
     {
-      id: 'placement',
+      id: 'placementType',
       key: 'PLC',
       label: 'Placement',
       type: 'options',
       options: platform === 'meta'
-        ? ['AUTO', 'FB', 'IG', 'AN', 'MSG']
-        : ['AUTO', 'TT', 'GAB', 'PAN'],
+        ? ['AUTO', 'FB', 'IG', 'AN', 'MIX']
+        : ['AUTO', 'TT', 'GAB', 'PAN', 'MAN'],
       system: true,
       required: false,
     },
@@ -296,17 +505,6 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyPara
       options: platform === 'meta'
         ? ['LC', 'BC', 'CC']
         : ['LC', 'CB', 'MC', 'NB'],
-      system: false,
-      required: false,
-    },
-    {
-      id: 'conversionEvent',
-      key: 'EVT',
-      label: 'Conversion Event',
-      type: 'options',
-      options: platform === 'meta'
-        ? ['PUR', 'ATC', 'ICO', 'LED', 'REG', 'VWC']
-        : ['PUR', 'ATC', 'PGV', 'PAY', 'FRM', 'REG'],
       system: false,
       required: false,
     },
@@ -393,27 +591,26 @@ export function generateTaxonomyString(
 ): string {
   const parts: string[] = [];
   
+  // Only include params that are required or have values
   for (const param of template) {
+    if (param.required === false && !param.system) continue;
+    
     const value = values[param.id] || param.value || '';
     if (value) {
-      // Apply shortening based on param type
-      let shortValue = value;
-      
-      if (param.type === 'options' || param.type === 'fixed') {
-        // Use as-is if already short
-        shortValue = value;
-      } else if (param.type === 'text' || param.type === 'mixed') {
-        // Create short code
-        shortValue = createShortCode(value);
-      } else if (param.type === 'number') {
-        shortValue = value.toString();
-      }
-      
-      parts.push(shortValue.toUpperCase());
+      parts.push(value.toUpperCase());
     }
   }
   
   return parts.join('_');
+}
+
+// Generate taxonomy string automatically from context
+export function generateAutoTaxonomy(
+  template: TaxonomyParam[],
+  context: TaxonomyContext
+): string {
+  const values = extractTaxonomyValues(template, context);
+  return generateTaxonomyString(template, values);
 }
 
 // Preview taxonomy with example values
@@ -421,6 +618,8 @@ export function previewTaxonomy(template: TaxonomyParam[]): string {
   const exampleValues: Record<string, string> = {};
   
   for (const param of template) {
+    if (param.required === false && !param.system) continue;
+    
     if (param.value) {
       exampleValues[param.id] = param.value;
     } else if (param.options && param.options.length > 0) {
@@ -440,16 +639,31 @@ export function getAllAvailableParams(): TaxonomyParam[] {
   return [
     { id: 'clientName', key: 'CLT', label: 'Client Name', type: 'text', system: false },
     { id: 'campaignName', key: 'CMP', label: 'Campaign Name', type: 'text', system: false },
+    { id: 'boNumber', key: 'BO', label: 'BO Number', type: 'text', system: false },
+    { id: 'teamName', key: 'TEAM', label: 'Team Name', type: 'text', system: false },
     { id: 'startDate', key: 'STR', label: 'Start Date', type: 'text', system: false },
     { id: 'endDate', key: 'END', label: 'End Date', type: 'text', system: false },
     { id: 'budget', key: 'BDG', label: 'Budget', type: 'number', system: false },
-    { id: 'targetAge', key: 'AGE', label: 'Target Age', type: 'text', system: false },
-    { id: 'targetGender', key: 'GND', label: 'Target Gender', type: 'options', options: ['ALL', 'M', 'F'], system: false },
+    { id: 'ageRange', key: 'AGE', label: 'Age Range', type: 'text', system: false },
+    { id: 'gender', key: 'GND', label: 'Gender', type: 'options', options: ['ALL', 'M', 'F'], system: false },
     { id: 'deviceType', key: 'DEV', label: 'Device Type', type: 'options', options: ['ALL', 'MOB', 'DSK', 'TAB'], system: false },
-    { id: 'customField1', key: 'CF1', label: 'Custom Field 1', type: 'text', system: false },
-    { id: 'customField2', key: 'CF2', label: 'Custom Field 2', type: 'text', system: false },
-    { id: 'customField3', key: 'CF3', label: 'Custom Field 3', type: 'text', system: false },
+    { id: 'billingEvent', key: 'BIL', label: 'Billing Event', type: 'options', options: ['CPM', 'CPC', 'OCPM', 'CPV'], system: false },
+    { id: 'conversionEvent', key: 'EVT', label: 'Conversion Event', type: 'options', options: ['PUR', 'ATC', 'LED', 'REG', 'PGV'], system: false },
   ];
+}
+
+// Get count of missing required values
+export function getMissingRequiredCount(
+  template: TaxonomyParam[],
+  values: Record<string, string>
+): number {
+  let count = 0;
+  for (const param of template) {
+    if ((param.required !== false || param.system) && !values[param.id] && !param.value) {
+      count++;
+    }
+  }
+  return count;
 }
 
 export const VALUE_MAPPING_CATEGORIES = VALUE_MAPPINGS;

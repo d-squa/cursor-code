@@ -1,15 +1,20 @@
 import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
-import { FileText } from "lucide-react";
+import { FileText, CheckCircle2, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { TaxonomyParam, generateTaxonomyString } from "@/utils/taxonomyUtils";
+import { 
+  TaxonomyParam, 
+  TaxonomyContext,
+  extractTaxonomyValues,
+  generateTaxonomyString,
+  getMissingRequiredCount
+} from "@/utils/taxonomyUtils";
 
 interface PhaseTaxonomyPreviewProps {
   adAccountId: string;
   platform: 'meta' | 'tiktok';
-  campaignTaxonomyValues?: Record<string, string>;
-  adsetTaxonomyValues?: Record<string, string>;
-  contextValues?: Record<string, string>;
+  // Context values automatically extracted from ActiPlan phase/market data
+  context: TaxonomyContext;
 }
 
 interface TaxonomyTemplates {
@@ -20,9 +25,7 @@ interface TaxonomyTemplates {
 export function PhaseTaxonomyPreview({
   adAccountId,
   platform,
-  campaignTaxonomyValues = {},
-  adsetTaxonomyValues = {},
-  contextValues = {}
+  context
 }: PhaseTaxonomyPreviewProps) {
   const [templates, setTemplates] = useState<TaxonomyTemplates>({ campaign: [], adset: [] });
   const [loading, setLoading] = useState(true);
@@ -88,43 +91,51 @@ export function PhaseTaxonomyPreview({
     return null;
   }
 
-  // Count missing required fields
-  const getMissingCount = (template: TaxonomyParam[], values: Record<string, string>) => {
-    let missing = 0;
-    template.forEach(param => {
-      if (param.required) {
-        const value = values[param.id] || contextValues[param.id] || param.value;
-        if (!value) missing++;
-      }
-    });
-    return missing;
-  };
+  // Extract values and generate taxonomy strings
+  const campaignValues = templates.campaign.length > 0 
+    ? extractTaxonomyValues(templates.campaign, context) 
+    : {};
+  const adsetValues = templates.adset.length > 0 
+    ? extractTaxonomyValues(templates.adset, context) 
+    : {};
 
-  const campaignMissing = getMissingCount(templates.campaign, campaignTaxonomyValues);
-  const adsetMissing = getMissingCount(templates.adset, adsetTaxonomyValues);
+  const campaignTaxonomy = templates.campaign.length > 0 
+    ? generateTaxonomyString(templates.campaign, campaignValues)
+    : '';
+  const adsetTaxonomy = templates.adset.length > 0
+    ? generateTaxonomyString(templates.adset, adsetValues)
+    : '';
+
+  // Calculate missing counts
+  const campaignMissing = getMissingRequiredCount(templates.campaign, campaignValues);
+  const adsetMissing = getMissingRequiredCount(templates.adset, adsetValues);
   const totalMissing = campaignMissing + adsetMissing;
+
+  const displayTaxonomy = campaignTaxonomy || adsetTaxonomy;
   const hasTemplates = templates.campaign.length > 0 || templates.adset.length > 0;
 
   if (!hasTemplates) return null;
-
-  // Generate preview strings
-  const campaignPreview = templates.campaign.length > 0 
-    ? generateTaxonomyString(templates.campaign, { ...contextValues, ...campaignTaxonomyValues })
-    : '';
-  const adsetPreview = templates.adset.length > 0
-    ? generateTaxonomyString(templates.adset, { ...contextValues, ...adsetTaxonomyValues })
-    : '';
 
   return (
     <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
       <FileText className="h-3 w-3 text-muted-foreground" />
       {totalMissing > 0 ? (
-        <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
-          {totalMissing} taxonomy fields required
+        <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-amber-500/50 text-amber-600 bg-amber-500/10">
+          <AlertCircle className="h-2.5 w-2.5 mr-0.5" />
+          {totalMissing} pending
+        </Badge>
+      ) : displayTaxonomy ? (
+        <Badge 
+          variant="outline" 
+          className="text-[10px] px-1.5 py-0 font-mono max-w-[200px] truncate bg-green-500/10 text-green-600 border-green-500/30" 
+          title={displayTaxonomy}
+        >
+          <CheckCircle2 className="h-2.5 w-2.5 mr-0.5" />
+          {displayTaxonomy.substring(0, 25)}{displayTaxonomy.length > 25 ? '...' : ''}
         </Badge>
       ) : (
-        <Badge variant="outline" className="text-[10px] px-1.5 py-0 font-mono max-w-[200px] truncate" title={campaignPreview || adsetPreview}>
-          {(campaignPreview || adsetPreview).substring(0, 25)}{(campaignPreview || adsetPreview).length > 25 ? '...' : ''}
+        <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-muted-foreground">
+          No name
         </Badge>
       )}
     </div>
