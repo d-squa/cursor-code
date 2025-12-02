@@ -475,10 +475,42 @@ class TikTokAdapter implements PlatformAdapter {
         console.log(`⚠️ No OS targeting (os: ${JSON.stringify(params.targeting.os)})`);
       }
       
-      // Skip language targeting - TikTok uses different language codes than Meta
-      // Meta uses numeric IDs (e.g., "6"), but TikTok requires specific language codes
-      // This needs proper mapping between Meta language IDs and TikTok language codes
-      console.log(`⚠️ Language targeting skipped - requires Meta-to-TikTok language code mapping`);
+      // Map languages to TikTok language codes
+      if (params.targeting.languages && Array.isArray(params.targeting.languages) && params.targeting.languages.length > 0) {
+        const languageMap: { [key: string]: string } = {
+          // Meta numeric IDs to TikTok codes
+          '6': 'en', '24': 'es', '8': 'fr', '9': 'de', '11': 'it', '19': 'pt', 
+          '25': 'nl', '28': 'ru', '29': 'ja', '30': 'ko', '31': 'zh', '32': 'ar',
+          // English language names
+          'english': 'en', 'spanish': 'es', 'french': 'fr', 'german': 'de', 
+          'italian': 'it', 'portuguese': 'pt', 'dutch': 'nl', 'russian': 'ru',
+          'japanese': 'ja', 'korean': 'ko', 'chinese': 'zh', 'arabic': 'ar',
+          // Direct TikTok codes (pass through)
+          'en': 'en', 'es': 'es', 'fr': 'fr', 'de': 'de', 'it': 'it', 'pt': 'pt',
+          'nl': 'nl', 'ru': 'ru', 'ja': 'ja', 'ko': 'ko', 'zh': 'zh', 'ar': 'ar'
+        };
+        
+        const filteredLanguages = params.targeting.languages.filter((lang: any) => lang !== 'all' && lang !== null && lang !== undefined && lang !== '');
+        console.log(`🎯 Processing languages: original=${JSON.stringify(params.targeting.languages)}, filtered=${JSON.stringify(filteredLanguages)}`);
+        
+        if (filteredLanguages.length > 0) {
+          const languageCodes = filteredLanguages
+            .map((lang: any) => {
+              const langStr = String(lang).toLowerCase();
+              return languageMap[langStr] || null;
+            })
+            .filter((code: string | null) => code !== null);
+          
+          if (languageCodes.length > 0) {
+            body.languages = languageCodes;
+            console.log(`✅ Language targeting: ${languageCodes.join(', ')}`);
+          } else {
+            console.log(`⚠️ No valid language codes mapped from: ${JSON.stringify(filteredLanguages)}`);
+          }
+        }
+      } else {
+        console.log(`⚠️ No language targeting (languages: ${JSON.stringify(params.targeting.languages)})`);
+      }
       
       // Add TikTok detailed targeting (interests, behaviors, actions)
       const interestIds: string[] = [];
@@ -496,12 +528,23 @@ class TikTokAdapter implements PlatformAdapter {
         console.log(`⚠️ No TikTok interests (tiktokInterests: ${JSON.stringify(params.targeting.tiktokInterests)})`);
       }
       
-      // Extract TikTok behaviors/actions
+      // Extract TikTok behaviors/actions - categorize by type
       if (params.targeting.tiktokBehaviors && Array.isArray(params.targeting.tiktokBehaviors)) {
         console.log(`🎯 Processing ${params.targeting.tiktokBehaviors.length} TikTok behaviors`);
         params.targeting.tiktokBehaviors.forEach((behavior: any) => {
           if (behavior.id) {
-            actionIds.push(String(behavior.id));
+            // Behaviors with purchase_intention, video_interaction, creator_interaction categories go to action_category_ids
+            // Behaviors without category or with interest_category go to interest_category_ids
+            if (behavior.category && (behavior.category === 'purchase_intention' || 
+                behavior.category === 'video_interaction' || 
+                behavior.category === 'creator_interaction' ||
+                behavior.category === 'hashtag_interaction')) {
+              actionIds.push(String(behavior.id));
+              console.log(`  → Action category: ${behavior.name} (${behavior.id}) - ${behavior.category}`);
+            } else {
+              interestIds.push(String(behavior.id));
+              console.log(`  → Interest category: ${behavior.name} (${behavior.id}) - ${behavior.category || 'no category'}`);
+            }
           }
         });
       } else {
