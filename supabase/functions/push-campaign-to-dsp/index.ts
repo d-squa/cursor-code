@@ -392,16 +392,22 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
         // Add publisher platforms from phase (facebook, instagram, audience_network, messenger, threads)
         // Filter out 'messenger' since all messenger placements are now deprecated
         const publisherPlatforms = phase.publisherPlatforms;
+        console.log("📍 Raw publisherPlatforms from phase:", JSON.stringify(publisherPlatforms));
         if (publisherPlatforms && Array.isArray(publisherPlatforms) && publisherPlatforms.length > 0) {
           const filteredPlatforms = publisherPlatforms.filter((p: string) => p !== 'messenger');
           if (filteredPlatforms.length > 0) {
             targeting.publisher_platforms = filteredPlatforms;
             console.log("Adding publisher platforms (messenger filtered out):", filteredPlatforms);
           }
+        } else {
+          // If no publisher platforms specified, default to all except messenger
+          targeting.publisher_platforms = ['facebook', 'instagram', 'audience_network'];
+          console.log("No publisherPlatforms specified, using defaults:", targeting.publisher_platforms);
         }
         
         // Add placements/positions from phase
         const positions = phase.positions;
+        console.log("📍 Raw positions from phase:", JSON.stringify(positions));
         
         // Valid placements per Meta API (updated to remove deprecated ones)
         // NOTE: As of Oct 2025, ALL Messenger placements are deprecated:
@@ -412,7 +418,22 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
         const validAudienceNetworkPositions = ['classic', 'instream_video', 'rewarded_video'];
         const validMessengerPositions: string[] = []; // Empty - all messenger placements deprecated
         
-        if (positions) {
+        // If no positions specified or positions is empty, default to all valid positions for each publisher platform
+        if (!positions || Object.keys(positions).length === 0) {
+          console.log("📍 No positions specified, using all valid positions for each publisher platform");
+          if (targeting.publisher_platforms?.includes('facebook')) {
+            targeting.facebook_positions = validFacebookPositions;
+            console.log("Adding Facebook positions (default all):", validFacebookPositions);
+          }
+          if (targeting.publisher_platforms?.includes('instagram')) {
+            targeting.instagram_positions = validInstagramPositions;
+            console.log("Adding Instagram positions (default all):", validInstagramPositions);
+          }
+          if (targeting.publisher_platforms?.includes('audience_network')) {
+            targeting.audience_network_positions = validAudienceNetworkPositions;
+            console.log("Adding Audience Network positions (default all):", validAudienceNetworkPositions);
+          }
+        } else if (positions) {
           // Handle Facebook positions
           if (positions.facebook && Array.isArray(positions.facebook) && positions.facebook.length > 0) {
             if (positions.facebook.includes('automatic')) {
@@ -590,14 +611,22 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
               console.log(`Adding ${behaviors.length} behaviors:`, behaviors.map((b: any) => b.name).join(', '));
             }
           }
-
           // Add demographics from transformed targeting
-          // Note: Demographics are skipped for Meta because they require specific field types
-          // (life_events, education_statuses, work_employers, etc.) that we don't have in our data structure
+          // Meta demographics can be added to flexible_spec similar to behaviors
+          // Note: Some demographics may work better as a separate array in flexible_spec
           if (metaDemographics.length > 0) {
-            console.warn(`⚠️ Skipping ${metaDemographics.length} demographics for Meta (requires specific categorization):`, 
-              metaDemographics.map((d: any) => d.name).join(', '));
-            console.log(`To use demographics, add them as behaviors or use Meta's detailed targeting categories.`);
+            const demographics = metaDemographics.map((d: any) => ({
+              id: d.id || d,
+              name: d.name || d
+            })).filter((d: any) => d.id);
+            
+            if (demographics.length > 0) {
+              // Add demographics to flexible_spec - Meta accepts them in the same format as behaviors
+              // They come from the /targetingsearch API with type=adTargetingCategory&class=demographics
+              targeting.flexible_spec = targeting.flexible_spec || [];
+              targeting.flexible_spec.push({ demographics });
+              console.log(`Adding ${demographics.length} demographics:`, demographics.map((d: any) => d.name).join(', '));
+            }
           }
 
           // Add custom audiences
@@ -1014,9 +1043,11 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
         // If using unified targeting (selectedItems array from UnifiedTargeting component)
         if (effectiveTargeting.selectedItems && Array.isArray(effectiveTargeting.selectedItems)) {
           console.log(`🎯 Transforming ${effectiveTargeting.selectedItems.length} unified targeting items for TikTok`);
-          console.log(`📝 Sample item structure:`, JSON.stringify(effectiveTargeting.selectedItems[0], null, 2));
+          console.log(`📝 All items:`, JSON.stringify(effectiveTargeting.selectedItems, null, 2));
           
-          effectiveTargeting.selectedItems.forEach((item: any) => {
+          effectiveTargeting.selectedItems.forEach((item: any, index: number) => {
+            console.log(`📝 Item ${index}: platforms=${JSON.stringify(item.platforms)}, category='${item.category}', name='${item.name}'`);
+            
             // Only process items available on TikTok
             if (item.platforms && item.platforms.includes('tiktok')) {
               // Extract the correct TikTok ID - handle different ID formats
@@ -1035,20 +1066,28 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
                 category: item.category
               };
               
-              // Categorize by type (case-insensitive)
+              // Categorize by type (case-insensitive) - be more inclusive
               const categoryLower = (item.category || '').toLowerCase();
               if (categoryLower === 'interest' || categoryLower === 'interests') {
                 tiktokInterests.push(tiktokItem);
                 console.log(`  ✓ Interest: ${item.name} (${tiktokItem.id})`);
-              } else if (categoryLower === 'behavior' || categoryLower === 'behaviors') {
+              } else if (categoryLower === 'behavior' || categoryLower === 'behaviors' || 
+                         categoryLower === 'action' || categoryLower === 'actions' ||
+                         categoryLower === 'purchase_intention' || categoryLower === 'video_interaction' ||
+                         categoryLower === 'creator_interaction' || categoryLower === 'hashtag_interaction') {
+                // All action-based categories map to behaviors
                 tiktokBehaviors.push(tiktokItem);
-                console.log(`  ✓ Behavior: ${item.name} (${tiktokItem.id})`);
+                console.log(`  ✓ Behavior/Action: ${item.name} (${tiktokItem.id}) [category: ${item.category}]`);
               } else if (categoryLower === 'demographic' || categoryLower === 'demographics') {
                 tiktokDemographics.push(tiktokItem);
                 console.log(`  ✓ Demographic: ${item.name} (${tiktokItem.id})`);
               } else {
-                console.warn(`  ⚠️ Unknown category '${item.category}' for item: ${item.name}`);
+                // Default unknown categories to behaviors for TikTok (safer than skipping)
+                tiktokBehaviors.push(tiktokItem);
+                console.warn(`  ⚠️ Unknown category '${item.category}' for item: ${item.name} - treating as behavior`);
               }
+            } else {
+              console.log(`  ⏭️ Skipping item (not TikTok): ${item.name}`);
             }
           });
           
