@@ -435,8 +435,8 @@ class TikTokAdapter implements PlatformAdapter {
       
       console.log(`🎯 Normalized genders:`, normalizedGenders, `(original: ${JSON.stringify(params.targeting.genders)})`);
       
-      // VIDEO_VIEWS objective requires manual placement - override automatic placement
-      const objectivesRequiringManualPlacement = ['VIDEO_VIEW', 'VIDEO_VIEWS', '6S_VIDEO_VIEW', '15S_VIDEO_VIEW', 'FOCUSED_VIEW'];
+      // VIDEO_VIEWS and REACH objectives require manual placement - override automatic placement
+      const objectivesRequiringManualPlacement = ['VIDEO_VIEW', 'VIDEO_VIEWS', '6S_VIDEO_VIEW', '15S_VIDEO_VIEW', 'FOCUSED_VIEW', 'REACH'];
       const requiresManualPlacement = objectivesRequiringManualPlacement.includes(finalOptimizationGoal.toUpperCase()) ||
                                        objectivesRequiringManualPlacement.includes(params.optimizationGoal?.toUpperCase() || '');
       
