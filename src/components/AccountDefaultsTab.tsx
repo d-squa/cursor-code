@@ -303,7 +303,6 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         'default_conversion_budget_type',
         'default_non_conversion_budget_type',
         'default_bid_strategy',
-        'default_bid_amount',
         'main_markets'
       ];
       
@@ -684,24 +683,6 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                               </SelectContent>
                             </Select>
                           </div>
-
-                          {(defaults.default_bid_strategy === 'LOWEST_COST_WITH_BID_CAP' || defaults.default_bid_strategy === 'COST_CAP') && (
-                            <div className="space-y-2">
-                              <Label>Bid Amount (€) *</Label>
-                              <Input
-                                type="number"
-                                placeholder="Enter bid amount"
-                                value={defaults.default_bid_amount || ""}
-                                onChange={(e) => updateDefault(account.id, 'default_bid_amount', parseFloat(e.target.value) || undefined)}
-                                min="0"
-                                step="0.01"
-                                required
-                              />
-                              <p className="text-xs text-muted-foreground">
-                                Required for {defaults.default_bid_strategy === 'LOWEST_COST_WITH_BID_CAP' ? 'Bid Cap' : 'Cost Cap'} strategy
-                              </p>
-                            </div>
-                          )}
                         </>
                       )}
 
