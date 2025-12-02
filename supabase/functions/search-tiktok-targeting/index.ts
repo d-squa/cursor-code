@@ -111,12 +111,18 @@ serve(async (req) => {
     
     // Helper function to calculate relevance score - VERY lenient for better results
     const calculateRelevance = (item: any, searchQuery: string): number => {
-      const name = (item.name || item.interest_category || '').toLowerCase();
+      // For interests, prioritize interest_category field, for actions prioritize name
+      const name = (item.interest_category || item.name || item.action_category_name || '').toLowerCase();
       const description = (item.description || '').toLowerCase();
       
       const cleanQuery = searchQuery.toLowerCase().trim();
       
-      if (!cleanQuery || !name) return 0;
+      console.log(`[Score Debug] Item: ${name || 'NO NAME'}, Query: ${cleanQuery}`);
+      
+      if (!cleanQuery || !name) {
+        console.log(`[Score Debug] Skipping - cleanQuery: ${cleanQuery}, name: ${name}`);
+        return 0;
+      }
       
       const queryWords = cleanQuery.split(/\s+/).filter(w => w.length > 1); // Changed from > 2 to > 1
       if (queryWords.length === 0) return 0;
@@ -205,6 +211,11 @@ serve(async (req) => {
       // For interests using interest_category endpoint
       const categories = fetchData.data?.interest_categories || fetchData.data?.list || [];
       console.log(`Processing ${categories.length} TikTok interest categories for "${query}"`);
+      
+      // Log first few items to debug structure
+      if (categories.length > 0) {
+        console.log('Sample interest category structure:', JSON.stringify(categories.slice(0, 3), null, 2));
+      }
       
       // Score all items - NO FILTERING, just sort by score
       const scoredItems = categories

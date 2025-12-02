@@ -815,6 +815,7 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
             {/* Platform-Segmented Recommendations */}
             {(() => {
               const { hasMeta, hasTiktok, hasMultiple } = getActivePlatforms();
+              // Only show recommendations if platform is actually selected
               const hasMetaRecs = hasMeta && (
                 aiRecommendations.meta.interests.length > 0 || 
                 aiRecommendations.meta.behaviors.length > 0 || 
