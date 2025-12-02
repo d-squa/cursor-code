@@ -1794,6 +1794,13 @@ export function MediaPlanEditor() {
                         platformId={singlePlatform?.id || "meta"}
                         adAccountId={singleMarket.adAccountId}
                         basicTargeting={basicTargeting}
+                        adAccountDefaults={{
+                          hasDefaults: true,
+                          publisherPlatforms: singleMarket.metaPublisherPlatforms || singleMarket.publisherPlatforms,
+                          positions: singleMarket.metaPositions || singleMarket.positions,
+                          tiktokPlacementType: singleMarket.tiktokPlacementType,
+                          tiktokPlacements: singleMarket.tiktokPlacements,
+                        }}
                         onApplyBudgetTypeToAll={(type) => {
                           setPlatformsWithMarkets(prev => prev.map(p => p.id === singlePlatform?.id ? {
                             ...p,
@@ -2044,6 +2051,13 @@ export function MediaPlanEditor() {
                                   basicTargeting={basicTargeting}
                                   strategy={market.strategy || genericConfig.strategy}
                                   strategyFocus={market.strategyFocus || genericConfig.strategyFocus}
+                                  adAccountDefaults={{
+                                    hasDefaults: true,
+                                    publisherPlatforms: market.metaPublisherPlatforms || market.publisherPlatforms,
+                                    positions: market.metaPositions || market.positions,
+                                    tiktokPlacementType: market.tiktokPlacementType,
+                                    tiktokPlacements: market.tiktokPlacements,
+                                  }}
                                   marketTargeting={{
                                     ageMin: market.ageMin || genericConfig.targeting?.ageMin,
                                     ageMax: market.ageMax || genericConfig.targeting?.ageMax,

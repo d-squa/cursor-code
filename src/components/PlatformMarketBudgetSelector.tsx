@@ -1897,6 +1897,13 @@ export function PlatformMarketBudgetSelector({
                                   platformName={platform.name}
                                   platformId={platform.id}
                                   adAccountId={market.adAccountId}
+                                  adAccountDefaults={{
+                                    hasDefaults: true,
+                                    publisherPlatforms: market.metaPublisherPlatforms || market.publisherPlatforms,
+                                    positions: market.metaPositions || market.positions,
+                                    tiktokPlacementType: market.tiktokPlacementType,
+                                    tiktokPlacements: market.tiktokPlacements,
+                                  }}
                                   marketBudget={marketBudget}
                                 />
                               </div>
