@@ -312,7 +312,9 @@ class TikTokAdapter implements PlatformAdapter {
   }
 
   async createAdGroup(params: CreateAdGroupParams): Promise<CreateAdGroupResult> {
+    console.log(`🎯 TikTokAdapter.createAdGroup ENTRY - campaignId: ${params.campaignId}`);
     try {
+      console.log(`🎯 TikTokAdapter.createAdGroup TRY block entered`);
       // STRICT BILLING EVENT MAPPING from TikTok matrix
       const getBillingEventForOptimization = (optimizationGoal: string): string => {
         const mapping: Record<string, string> = {
