@@ -315,7 +315,7 @@ async function searchTikTokInterests(accessToken: string, advertiserId: string, 
   
   return filtered.map(({ item }: { item: any }) => ({
     id: item.interest_category_id || item.id,
-    name: item.interest_category || item.name || 'Unknown',
+    name: item.interest_category_name || item.interest_category || item.name || 'Unknown',
     description: item.description || ''
   }));
 }

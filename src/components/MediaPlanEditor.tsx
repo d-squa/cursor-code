@@ -566,11 +566,11 @@ export function MediaPlanEditor() {
     }
   }, [platformsWithMarkets, genericConfig.targeting?.adFormats, genericConfig.strategy]);
 
-  // Auto-save draft whenever key fields change
+  // Auto-save draft whenever key fields change (excluding basicTargeting - that's saved immediately in UnifiedTargeting's onUpdate)
   useEffect(() => {
     if (!savedCampaignId || !user) return;
     
-    console.log('⏰ Auto-save triggered. basicTargeting:', basicTargeting);
+    console.log('⏰ Auto-save triggered');
     
     const timer = setTimeout(async () => {
       try {
@@ -638,7 +638,7 @@ export function MediaPlanEditor() {
             phases: genericConfig.phases,
             campaigns: genericConfig.campaigns,
             targeting: genericConfig.targeting,
-            basicTargeting: basicTargeting,
+            // Don't update basicTargeting here - it's saved immediately in UnifiedTargeting's onUpdate callback
           } as any,
         }).eq("id", savedCampaignId);
         
@@ -649,7 +649,7 @@ export function MediaPlanEditor() {
     }, 1000); // Debounce for 1 second
 
     return () => clearTimeout(timer);
-  }, [campaignName, boNumber, totalBudget, startDate, endDate, platformsWithMarkets, genericConfig, basicTargeting, savedCampaignId, user]);
+  }, [campaignName, boNumber, totalBudget, startDate, endDate, platformsWithMarkets, genericConfig, savedCampaignId, user]);
 
   const isActivationDetailsComplete = () => {
     const allPlatformsSelected = platformsWithMarkets.every(p => p.id !== "");
