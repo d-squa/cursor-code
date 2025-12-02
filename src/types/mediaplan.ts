@@ -93,6 +93,9 @@ export interface Phase {
   optimizationGoal?: string;
   funnelStage?: string;
   budgetType?: "daily" | "lifetime";
+  // Taxonomy values for naming
+  campaignTaxonomyValues?: Record<string, string>;
+  adsetTaxonomyValues?: Record<string, string>;
   // TikTok-specific fields at phase level
   tiktokOptimizationLocation?: string; // Optimization location (Website, App, etc.)
   tiktokAppName?: string; // App name for app campaigns

@@ -20,6 +20,8 @@ import { BudgetTypeApplyDialog } from "./BudgetTypeApplyDialog";
 import { PhaseAudienceSelector } from "./PhaseAudienceSelector";
 import { UnifiedTargeting, UnifiedTargetingConfig } from "./UnifiedTargeting";
 import { TiktokPhaseConfig } from "./TiktokPhaseConfig";
+import { PhaseTaxonomyInputs } from "./PhaseTaxonomyInputs";
+import { shortenValue } from "@/utils/taxonomyUtils";
 import { 
   getObjectivesForPlatform, 
   getOptimizationGoalsForObjective, 
@@ -1096,6 +1098,44 @@ export function PhaseScheduler({
                           }
                         />
                       </div>
+
+                      {/* Campaign Taxonomy */}
+                      {adAccountId && (
+                        <div className="border rounded-lg p-4 bg-muted/30">
+                          <PhaseTaxonomyInputs
+                            adAccountId={adAccountId}
+                            platform={platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta'}
+                            entityType="campaign"
+                            taxonomyValues={phase.campaignTaxonomyValues || {}}
+                            onValuesChange={(values) => updatePhaseField(phase.id, "campaignTaxonomyValues", values)}
+                            contextValues={{
+                              objective: phase.objective ? shortenValue('objective', phase.objective) : undefined,
+                              optimizationGoal: phase.optimizationGoal ? shortenValue('optimizationGoal', phase.optimizationGoal) : undefined,
+                              funnelStage: phase.funnelStage ? shortenValue('funnelStage', phase.funnelStage) : undefined,
+                            }}
+                          />
+                        </div>
+                      )}
+
+                      {/* Ad Set Taxonomy */}
+                      {adAccountId && (
+                        <div className="border rounded-lg p-4 bg-muted/30">
+                          <PhaseTaxonomyInputs
+                            adAccountId={adAccountId}
+                            platform={platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta'}
+                            entityType="adset"
+                            taxonomyValues={phase.adsetTaxonomyValues || {}}
+                            onValuesChange={(values) => updatePhaseField(phase.id, "adsetTaxonomyValues", values)}
+                            contextValues={{
+                              optimizationGoal: phase.optimizationGoal ? shortenValue('optimizationGoal', phase.optimizationGoal) : undefined,
+                              placement: phase.advantagePlusPlacements ? 'AUTO' : 
+                                (phase.publisherPlatforms?.length ? shortenValue('placement', phase.publisherPlatforms[0]) : undefined),
+                              bidStrategy: phase.metaBidStrategy ? shortenValue('bidStrategy', phase.metaBidStrategy) : 
+                                (phase.tiktokBidStrategy ? shortenValue('bidStrategy', phase.tiktokBidStrategy) : undefined),
+                            }}
+                          />
+                        </div>
+                      )}
 
                       {/* Phase-Level Targeting Override - Available for all objectives */}
                       {basicTargeting && (
