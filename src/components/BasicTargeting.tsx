@@ -816,8 +816,13 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
             </Button>
 
             {/* Platform-Segmented Recommendations */}
-            {(aiRecommendations.meta.interests.length > 0 || aiRecommendations.tiktok.interests.length > 0) && (
-              <Tabs 
+            {(aiRecommendations.meta.interests.length > 0 || 
+              aiRecommendations.meta.behaviors.length > 0 || 
+              aiRecommendations.meta.demographics.length > 0 ||
+              aiRecommendations.tiktok.interests.length > 0 || 
+              aiRecommendations.tiktok.behaviors.length > 0 || 
+              aiRecommendations.tiktok.demographics.length > 0) && (
+              <Tabs
                 value={activeRecommendationTab}
                 onValueChange={setActiveRecommendationTab}
                 className="w-full"
