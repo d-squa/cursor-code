@@ -1007,72 +1007,75 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
                   </TabsList>
                 )}
                 
-                <TabsContent value="meta" className="space-y-4 mt-4">
-                  <div className="flex justify-end gap-2 mb-4">
-                    <Button variant="outline" size="sm" onClick={() => handleSelectAllSearch('meta')}>
-                      Select All
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => handleDeselectAllSearch('meta')}>
-                      Deselect All
-                    </Button>
-                  </div>
-                  {searchResults.meta.interests.length > 0 && (
-                    <div className="space-y-2">
-                      <Label className="text-sm font-semibold">Interests</Label>
-                      <div className="space-y-2">
-                        {searchResults.meta.interests.map((result) => (
-                          <SearchResultItem
-                            key={result.id}
-                            result={result}
-                            platform="meta"
-                            category="interests"
-                            isAdded={isResultAdded('meta', 'interests', result.id)}
-                            onAdd={handleAddSearchResult}
-                            onRemove={handleRemoveSearchResult}
-                          />
-                        ))}
-                      </div>
+                {metaAdAccountId && (
+                  <TabsContent value="meta" className="space-y-4 mt-4">
+                    <div className="flex justify-end gap-2 mb-4">
+                      <Button variant="outline" size="sm" onClick={() => handleSelectAllSearch('meta')}>
+                        Select All
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => handleDeselectAllSearch('meta')}>
+                        Deselect All
+                      </Button>
                     </div>
-                  )}
-                  {searchResults.meta.behaviors.length > 0 && (
-                    <div className="space-y-2">
-                      <Label className="text-sm font-semibold">Behaviors</Label>
+                    {searchResults.meta.interests.length > 0 && (
                       <div className="space-y-2">
-                        {searchResults.meta.behaviors.map((result) => (
-                          <SearchResultItem
-                            key={result.id}
-                            result={result}
-                            platform="meta"
-                            category="behaviors"
-                            isAdded={isResultAdded('meta', 'behaviors', result.id)}
-                            onAdd={handleAddSearchResult}
-                            onRemove={handleRemoveSearchResult}
-                          />
-                        ))}
+                        <Label className="text-sm font-semibold">Interests</Label>
+                        <div className="space-y-2">
+                          {searchResults.meta.interests.map((result) => (
+                            <SearchResultItem
+                              key={result.id}
+                              result={result}
+                              platform="meta"
+                              category="interests"
+                              isAdded={isResultAdded('meta', 'interests', result.id)}
+                              onAdd={handleAddSearchResult}
+                              onRemove={handleRemoveSearchResult}
+                            />
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
-                  {searchResults.meta.demographics.length > 0 && (
-                    <div className="space-y-2">
-                      <Label className="text-sm font-semibold">Demographics</Label>
+                    )}
+                    {searchResults.meta.behaviors.length > 0 && (
                       <div className="space-y-2">
-                        {searchResults.meta.demographics.map((result) => (
-                          <SearchResultItem
-                            key={result.id}
-                            result={result}
-                            platform="meta"
-                            category="demographics"
-                            isAdded={isResultAdded('meta', 'demographics', result.id)}
-                            onAdd={handleAddSearchResult}
-                            onRemove={handleRemoveSearchResult}
-                          />
-                        ))}
+                        <Label className="text-sm font-semibold">Behaviors</Label>
+                        <div className="space-y-2">
+                          {searchResults.meta.behaviors.map((result) => (
+                            <SearchResultItem
+                              key={result.id}
+                              result={result}
+                              platform="meta"
+                              category="behaviors"
+                              isAdded={isResultAdded('meta', 'behaviors', result.id)}
+                              onAdd={handleAddSearchResult}
+                              onRemove={handleRemoveSearchResult}
+                            />
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </TabsContent>
+                    )}
+                    {searchResults.meta.demographics.length > 0 && (
+                      <div className="space-y-2">
+                        <Label className="text-sm font-semibold">Demographics</Label>
+                        <div className="space-y-2">
+                          {searchResults.meta.demographics.map((result) => (
+                            <SearchResultItem
+                              key={result.id}
+                              result={result}
+                              platform="meta"
+                              category="demographics"
+                              isAdded={isResultAdded('meta', 'demographics', result.id)}
+                              onAdd={handleAddSearchResult}
+                              onRemove={handleRemoveSearchResult}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </TabsContent>
+                )}
 
-                <TabsContent value="tiktok" className="space-y-4 mt-4">
+                {tiktokAdvertiserId && (
+                  <TabsContent value="tiktok" className="space-y-4 mt-4">
                   <div className="flex justify-end gap-2 mb-4">
                     <Button variant="outline" size="sm" onClick={() => handleSelectAllSearch('tiktok')}>
                       Select All
@@ -1153,7 +1156,8 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
                       </div>
                     </div>
                   )}
-                </TabsContent>
+                  </TabsContent>
+                )}
               </Tabs>
             )}
           </CardContent>
