@@ -4,7 +4,6 @@ import { MultiSelect } from "@/components/ui/multi-select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Info, Sparkles } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 interface CampaignPublisherConfigProps {
   platformName: string;
@@ -101,14 +100,6 @@ export function CampaignPublisherConfig({
     return null;
   }
 
-  const handlePlacementModeChange = (mode: string) => {
-    if (mode === 'advantage_plus') {
-      onAdvantagePlusPlacementsChange?.(true);
-    } else {
-      onAdvantagePlusPlacementsChange?.(false);
-    }
-  };
-
   const updatePositions = (publisher: string, selectedPositions: string[]) => {
     onPositionsChange({
       ...positions,
@@ -143,35 +134,59 @@ export function CampaignPublisherConfig({
       {/* Placement Mode Selection */}
       <div className="space-y-3">
         <Label>Placement Strategy</Label>
-        <RadioGroup 
-          value={advantagePlusPlacements ? 'advantage_plus' : 'manual'}
-          onValueChange={handlePlacementModeChange}
-          className="space-y-2"
-        >
-          <div className="flex items-start space-x-3 p-3 border rounded-lg bg-background hover:bg-accent/50 cursor-pointer">
-            <RadioGroupItem value="advantage_plus" id="advantage_plus" className="mt-1" />
+        <div className="space-y-2">
+          <div 
+            className={`flex items-start space-x-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+              advantagePlusPlacements 
+                ? 'bg-primary/10 border-primary' 
+                : 'bg-background hover:bg-accent/50'
+            }`}
+            onClick={() => onAdvantagePlusPlacementsChange?.(true)}
+          >
+            <div className="flex items-center h-5 mt-0.5">
+              <input 
+                type="radio" 
+                name="placement-strategy"
+                checked={advantagePlusPlacements === true}
+                onChange={() => onAdvantagePlusPlacementsChange?.(true)}
+                className="h-4 w-4 text-primary"
+              />
+            </div>
             <div className="flex-1">
-              <Label htmlFor="advantage_plus" className="flex items-center gap-2 cursor-pointer font-medium">
+              <div className="flex items-center gap-2 font-medium">
                 <Sparkles className="h-4 w-4 text-primary" />
                 Advantage+ placements (recommended)
-              </Label>
+              </div>
               <p className="text-xs text-muted-foreground mt-1">
                 Meta automatically shows ads across all available placements to maximize performance
               </p>
             </div>
           </div>
-          <div className="flex items-start space-x-3 p-3 border rounded-lg bg-background hover:bg-accent/50 cursor-pointer">
-            <RadioGroupItem value="manual" id="manual" className="mt-1" />
+          <div 
+            className={`flex items-start space-x-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+              advantagePlusPlacements === false 
+                ? 'bg-primary/10 border-primary' 
+                : 'bg-background hover:bg-accent/50'
+            }`}
+            onClick={() => onAdvantagePlusPlacementsChange?.(false)}
+          >
+            <div className="flex items-center h-5 mt-0.5">
+              <input 
+                type="radio" 
+                name="placement-strategy"
+                checked={advantagePlusPlacements === false}
+                onChange={() => onAdvantagePlusPlacementsChange?.(false)}
+                className="h-4 w-4 text-primary"
+              />
+            </div>
             <div className="flex-1">
-              <Label htmlFor="manual" className="cursor-pointer font-medium">
-                Manual placements
-              </Label>
+              <div className="font-medium">Manual placements</div>
               <p className="text-xs text-muted-foreground mt-1">
                 Choose specific platforms and placements where your ads will appear
               </p>
             </div>
           </div>
-        </RadioGroup>
+        </div>
       </div>
 
       {/* Manual Placement Configuration - only shown when manual mode is selected */}
