@@ -598,14 +598,15 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
             const id = String(item.id || '');
             
             // Filter out "Friends of X" categories - Meta deprecated most of these for privacy
-            if (name.startsWith('friends of ')) {
+            if (name.includes('friends of')) {
               console.log(`  ⚠️ Filtering deprecated "Friends of" category: ${item.name}`);
               return false;
             }
             
-            // Filter out very long IDs that look like page/entity IDs rather than targeting categories
-            // Standard Meta targeting IDs are typically 13-16 digits starting with 6
-            if (id.length > 16 && !id.startsWith('6')) {
+            // Filter out IDs that don't look like standard Meta targeting category IDs
+            // Standard Meta targeting IDs are 13-14 digits starting with 6
+            // Entity/Page IDs are often longer or start with other numbers
+            if (id.length > 14 || (id.length > 10 && !id.startsWith('6'))) {
               console.log(`  ⚠️ Filtering suspicious ID (looks like entity ID, not targeting): ${item.name} (${id})`);
               return false;
             }
@@ -638,22 +639,11 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
               console.log(`Adding ${behaviors.length} behaviors:`, behaviors.map((b: any) => b.name).join(', '));
             }
           }
-          // Add demographics from transformed targeting
-          // IMPORTANT: Meta API does NOT support 'demographics' as a key in flexible_spec
-          // Meta demographic targeting items must be added as 'behaviors' instead
-          // The /targetingsearch API returns them with class=demographics but they use the behaviors format
+          
+          // SKIP demographics for now - they're causing "Category No Longer Available" errors
+          // Demographics from search API don't reliably map to valid targeting categories
           if (metaDemographics.length > 0) {
-            const demographicsAsBehaviors = metaDemographics.map((d: any) => ({
-              id: d.id || d,
-              name: d.name || d
-            })).filter((d: any) => d.id && isValidMetaTargeting(d));
-            
-            if (demographicsAsBehaviors.length > 0) {
-              // Add demographics as behaviors - Meta's flexible_spec only supports 'behaviors' key
-              targeting.flexible_spec = targeting.flexible_spec || [];
-              targeting.flexible_spec.push({ behaviors: demographicsAsBehaviors });
-              console.log(`Adding ${demographicsAsBehaviors.length} demographics (as behaviors):`, demographicsAsBehaviors.map((d: any) => d.name).join(', '));
-            }
+            console.log(`⚠️ Skipping ${metaDemographics.length} demographics to avoid deprecated category errors`);
           }
 
           // Add custom audiences
