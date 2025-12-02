@@ -70,11 +70,11 @@ export function TiktokPhaseConfig({ phase, onUpdate }: TiktokPhaseConfigProps) {
     "REACH", "VIDEO_VIEWS", "COMMUNITY_INTERACTION"
   ].includes(objective.toUpperCase());
   
-  // Check if it's REACH objective for special rendering
-  const isReachObjective = objective.toUpperCase() === "REACH";
+  // Check if it's REACH optimization goal for frequency capping
+  const isReachOptimizationGoal = optimizationGoal.toUpperCase() === "REACH";
   
-  // For REACH objective, show frequency capping AND placements (no advanced settings card)
-  if (isReachObjective) {
+  // For REACH optimization goal, show frequency capping AND placements (no advanced settings card)
+  if (isReachOptimizationGoal) {
     console.log("✅ Rendering REACH frequency cap and placement fields");
     return (
       <div className="space-y-4">
