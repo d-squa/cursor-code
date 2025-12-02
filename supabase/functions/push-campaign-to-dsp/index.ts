@@ -1300,7 +1300,10 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
             smartPlusEnabled: tiktokSmartPlusEnabled,
           });
 
-          const adGroupResult = await tiktokAdapter.createAdGroup({
+        console.log(`🚀 CALLING tiktokAdapter.createAdGroup for ${phase.name}...`);
+        console.log(`📍 campaignId: ${campaignResult.campaignId}, advertiserId: ${advertiserId}`);
+        
+        const adGroupResult = await tiktokAdapter.createAdGroup({
           accountId: advertiserId,
           accessToken: platform.access_token,
           campaignId: campaignResult.campaignId,
