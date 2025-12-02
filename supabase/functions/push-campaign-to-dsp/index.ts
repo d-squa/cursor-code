@@ -489,9 +489,54 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
 
         // Use phase targeting if available (takes priority)
         const effectiveTargeting = marketTargeting || phaseTargeting;
+        
+        // Transform unified targeting format into Meta-specific arrays
+        let metaInterests: any[] = [];
+        let metaBehaviors: any[] = [];
+        let metaDemographics: any[] = [];
+        
+        // If using unified targeting (selectedItems array from UnifiedTargeting component)
+        if (effectiveTargeting.selectedItems && Array.isArray(effectiveTargeting.selectedItems)) {
+          console.log(`🎯 Transforming ${effectiveTargeting.selectedItems.length} unified targeting items for Meta`);
+          
+          effectiveTargeting.selectedItems.forEach((item: any) => {
+            // Only process items available on Meta
+            if (item.platforms && item.platforms.includes('meta')) {
+              const metaItem = {
+                id: item.metaId || item.id,
+                name: item.name,
+                category: item.category
+              };
+              
+              // Categorize by type
+              if (item.category === 'interest') {
+                metaInterests.push(metaItem);
+                console.log(`  ✓ Interest: ${item.name} (${metaItem.id})`);
+              } else if (item.category === 'behavior') {
+                metaBehaviors.push(metaItem);
+                console.log(`  ✓ Behavior: ${item.name} (${metaItem.id})`);
+              } else if (item.category === 'demographic') {
+                metaDemographics.push(metaItem);
+                console.log(`  ✓ Demographic: ${item.name} (${metaItem.id})`);
+              }
+            }
+          });
+          
+          console.log(`📊 Transformed targeting - Interests: ${metaInterests.length}, Behaviors: ${metaBehaviors.length}, Demographics: ${metaDemographics.length}`);
+        } else {
+          // Fallback to legacy format
+          metaInterests = effectiveTargeting.aiInterests || effectiveTargeting.interests || [];
+          metaBehaviors = effectiveTargeting.aiBehaviors || effectiveTargeting.behaviors || [];
+          metaDemographics = effectiveTargeting.aiDemographics || [];
+          console.log("📊 Using legacy targeting format for Meta");
+        }
 
-        if (effectiveTargeting && (effectiveTargeting.interests || effectiveTargeting.behaviors || effectiveTargeting.aiInterests || effectiveTargeting.aiBehaviors)) {
-          console.log(`Using targeting for market ${market.name}:`, effectiveTargeting);
+        if (metaInterests.length > 0 || metaBehaviors.length > 0 || metaDemographics.length > 0) {
+          console.log(`Using transformed targeting for market ${market.name}:`, {
+            interests: metaInterests.length,
+            behaviors: metaBehaviors.length,
+            demographics: metaDemographics.length
+          });
           
           // Override basic demographics with data
           if (effectiveTargeting.location && effectiveTargeting.location.length > 0) {
@@ -511,10 +556,9 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
             }
           }
 
-          // Add interests from AI recommendations (aiInterests from BasicTargeting)
-          const interestsToAdd = effectiveTargeting.aiInterests || effectiveTargeting.interests || [];
-          if (interestsToAdd.length > 0) {
-            const interests = interestsToAdd.map((i: any) => ({
+          // Add interests from transformed targeting
+          if (metaInterests.length > 0) {
+            const interests = metaInterests.map((i: any) => ({
               id: i.id || i,
               name: i.name || i
             })).filter((i: any) => i.id);
@@ -525,10 +569,9 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
             }
           }
 
-          // Add behaviors from AI recommendations (aiBehaviors from BasicTargeting)
-          const behaviorsToAdd = effectiveTargeting.aiBehaviors || effectiveTargeting.behaviors || [];
-          if (behaviorsToAdd.length > 0) {
-            const behaviors = behaviorsToAdd.map((b: any) => ({
+          // Add behaviors from transformed targeting
+          if (metaBehaviors.length > 0) {
+            const behaviors = metaBehaviors.map((b: any) => ({
               id: b.id || b,
               name: b.name || b
             })).filter((b: any) => b.id);
@@ -539,10 +582,9 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
             }
           }
 
-          // Add demographics from AI recommendations (aiDemographics from BasicTargeting)
-          const demographicsToAdd = effectiveTargeting.aiDemographics || [];
-          if (demographicsToAdd.length > 0) {
-            const demographics = demographicsToAdd.map((d: any) => ({
+          // Add demographics from transformed targeting
+          if (metaDemographics.length > 0) {
+            const demographics = metaDemographics.map((d: any) => ({
               id: d.id,
               name: d.name
             })).filter((d: any) => d.id);
@@ -966,6 +1008,47 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
         
         console.log("📊 RAW Effective targeting for TikTok ad group:", JSON.stringify(effectiveTargeting, null, 2));
         
+        // Transform unified targeting format into platform-specific arrays
+        let tiktokInterests: any[] = [];
+        let tiktokBehaviors: any[] = [];
+        let tiktokDemographics: any[] = [];
+        
+        // If using unified targeting (selectedItems array from UnifiedTargeting component)
+        if (effectiveTargeting.selectedItems && Array.isArray(effectiveTargeting.selectedItems)) {
+          console.log(`🎯 Transforming ${effectiveTargeting.selectedItems.length} unified targeting items for TikTok`);
+          
+          effectiveTargeting.selectedItems.forEach((item: any) => {
+            // Only process items available on TikTok
+            if (item.platforms && item.platforms.includes('tiktok')) {
+              const tiktokItem = {
+                id: item.tiktokId || item.id,
+                name: item.name,
+                category: item.category
+              };
+              
+              // Categorize by type
+              if (item.category === 'interest') {
+                tiktokInterests.push(tiktokItem);
+                console.log(`  ✓ Interest: ${item.name} (${tiktokItem.id})`);
+              } else if (item.category === 'behavior') {
+                tiktokBehaviors.push(tiktokItem);
+                console.log(`  ✓ Behavior: ${item.name} (${tiktokItem.id})`);
+              } else if (item.category === 'demographic') {
+                tiktokDemographics.push(tiktokItem);
+                console.log(`  ✓ Demographic: ${item.name} (${tiktokItem.id})`);
+              }
+            }
+          });
+          
+          console.log(`📊 Transformed targeting - Interests: ${tiktokInterests.length}, Behaviors: ${tiktokBehaviors.length}, Demographics: ${tiktokDemographics.length}`);
+        } else {
+          // Fallback to legacy format (direct arrays)
+          tiktokInterests = effectiveTargeting.tiktokInterests || [];
+          tiktokBehaviors = effectiveTargeting.tiktokBehaviors || [];
+          tiktokDemographics = effectiveTargeting.tiktokDemographics || [];
+          console.log("📊 Using legacy targeting format (direct arrays)");
+        }
+        
         // Map field names properly - handle both camelCase and snake_case from different sources
         const targeting: any = {
           geo_locations: {
@@ -979,10 +1062,10 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           devices: effectiveTargeting.devices || effectiveTargeting.device || [],
           os: effectiveTargeting.os || effectiveTargeting.operatingSystem || [],
           languages: effectiveTargeting.languages || effectiveTargeting.language || [],
-          // TikTok detailed targeting
-          tiktokInterests: effectiveTargeting.tiktokInterests || [],
-          tiktokBehaviors: effectiveTargeting.tiktokBehaviors || [],
-          tiktokDemographics: effectiveTargeting.tiktokDemographics || [],
+          // TikTok detailed targeting (transformed from unified format)
+          tiktokInterests: tiktokInterests,
+          tiktokBehaviors: tiktokBehaviors,
+          tiktokDemographics: tiktokDemographics,
         };
         
         console.log("📊 RAW effectiveTargeting keys:", Object.keys(effectiveTargeting));
