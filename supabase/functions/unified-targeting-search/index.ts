@@ -98,14 +98,16 @@ serve(async (req) => {
         .single();
 
       if (tiktokPlatform?.access_token) {
-        // Search TikTok categories
-        const [interests, behaviors] = await Promise.all([
-          searchTikTokCategory(tiktokPlatform.access_token, tiktokAdvertiserId, 'interests', query),
-          searchTikTokCategory(tiktokPlatform.access_token, tiktokAdvertiserId, 'actions', query)
+        // Search both interests and actions/behaviors in parallel
+        const [interests, actions] = await Promise.all([
+          searchTikTokInterests(tiktokPlatform.access_token, tiktokAdvertiserId, query),
+          searchTikTokActions(tiktokPlatform.access_token, tiktokAdvertiserId, query)
         ]);
 
+        console.log(`TikTok found ${interests.length} interests and ${actions.length} actions`);
+
         interests.forEach((item: any) => tiktokResults.set(item.name.toLowerCase(), { ...item, category: 'interest' }));
-        behaviors.forEach((item: any) => tiktokResults.set(item.name.toLowerCase(), { ...item, category: 'behavior' }));
+        actions.forEach((item: any) => tiktokResults.set(item.name.toLowerCase(), { ...item, category: 'behavior' }));
       }
     }
 
@@ -213,15 +215,9 @@ async function searchMetaCategory(accessToken: string, adAccountId: string, type
   }));
 }
 
-async function searchTikTokCategory(accessToken: string, advertiserId: string, type: string, query: string) {
+async function searchTikTokInterests(accessToken: string, advertiserId: string, query: string) {
   const apiVersion = 'v1.3';
-  
-  let fetchUrl: string;
-  if (type === 'actions') {
-    fetchUrl = `https://business-api.tiktok.com/open_api/${apiVersion}/tool/action_category/?advertiser_id=${advertiserId}`;
-  } else {
-    fetchUrl = `https://business-api.tiktok.com/open_api/${apiVersion}/tool/interest_category/?advertiser_id=${advertiserId}&language=en`;
-  }
+  const fetchUrl = `https://business-api.tiktok.com/open_api/${apiVersion}/tool/interest_category/?advertiser_id=${advertiserId}&language=en`;
   
   const fetchResponse = await fetch(fetchUrl, {
     method: 'GET',
@@ -232,33 +228,71 @@ async function searchTikTokCategory(accessToken: string, advertiserId: string, t
   });
 
   if (!fetchResponse.ok) {
-    console.error('TikTok fetch error:', fetchResponse.status);
+    console.error('TikTok interests fetch error:', fetchResponse.status);
     return [];
   }
 
   const fetchData = await fetchResponse.json();
   
   if (fetchData.code !== 0) {
-    console.error('TikTok API error:', fetchData);
+    console.error('TikTok interests API error:', fetchData);
     return [];
   }
   
-  const dataList = type === 'actions' 
-    ? (fetchData.data?.action_categories || [])
-    : (fetchData.data?.interest_categories || []);
-  
-  // Simple filtering by query
+  const interests = fetchData.data?.interest_categories || [];
   const cleanQuery = query.toLowerCase().trim();
   
-  return dataList
+  // More lenient matching for interests
+  return interests
     .filter((item: any) => {
-      const name = (item.interest_category || item.name || '').toLowerCase();
-      return name.includes(cleanQuery);
+      const name = (item.interest_category || '').toLowerCase();
+      return name.includes(cleanQuery) || cleanQuery.split(' ').some(word => word.length > 2 && name.includes(word));
     })
-    .slice(0, 20)
+    .slice(0, 25)
     .map((item: any) => ({
-      id: item.interest_category_id || item.action_category_id || item.id,
-      name: item.interest_category || item.name,
-      description: item.description
+      id: item.interest_category_id,
+      name: item.interest_category,
+      description: item.description || ''
+    }));
+}
+
+async function searchTikTokActions(accessToken: string, advertiserId: string, query: string) {
+  const apiVersion = 'v1.3';
+  const fetchUrl = `https://business-api.tiktok.com/open_api/${apiVersion}/tool/action_category/?advertiser_id=${advertiserId}`;
+  
+  const fetchResponse = await fetch(fetchUrl, {
+    method: 'GET',
+    headers: {
+      'Access-Token': accessToken,
+      'Content-Type': 'application/json'
+    }
+  });
+
+  if (!fetchResponse.ok) {
+    console.error('TikTok actions fetch error:', fetchResponse.status);
+    return [];
+  }
+
+  const fetchData = await fetchResponse.json();
+  
+  if (fetchData.code !== 0) {
+    console.error('TikTok actions API error:', fetchData);
+    return [];
+  }
+  
+  const actions = fetchData.data?.action_categories || [];
+  const cleanQuery = query.toLowerCase().trim();
+  
+  // More lenient matching for actions/behaviors
+  return actions
+    .filter((item: any) => {
+      const name = (item.action_category_name || item.name || '').toLowerCase();
+      return name.includes(cleanQuery) || cleanQuery.split(' ').some(word => word.length > 2 && name.includes(word));
+    })
+    .slice(0, 25)
+    .map((item: any) => ({
+      id: item.action_category_id || item.id,
+      name: item.action_category_name || item.name,
+      description: item.description || ''
     }));
 }
