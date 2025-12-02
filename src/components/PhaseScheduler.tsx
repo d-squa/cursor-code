@@ -1097,13 +1097,8 @@ export function PhaseScheduler({
                         />
                       </div>
 
-                      {/* Phase-Level Targeting Override - For awareness/reach phases */}
-                      {(
-                        phase.objective === "Brand Awareness" || 
-                        phase.objective === "Reach" ||
-                        phase.optimizationGoal === "Reach" ||
-                        phase.optimizationGoal === "Brand Awareness"
-                      ) && basicTargeting && (
+                      {/* Phase-Level Targeting Override - Available for all objectives */}
+                      {basicTargeting && (
                         basicTargeting.selectedItems && basicTargeting.selectedItems.length > 0 ||
                         basicTargeting.ageMin !== undefined ||
                         basicTargeting.genders?.length ||
