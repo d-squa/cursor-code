@@ -16,6 +16,9 @@ interface UnifiedTargetingItem {
   tiktokId?: string;
 }
 
+// Minimum relevance score required for inclusion
+const MIN_RELEVANCE_SCORE = 15;
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -185,6 +188,41 @@ serve(async (req) => {
   }
 });
 
+// Calculate relevance score for a name against query
+function calculateRelevanceScore(nameStr: string, cleanQuery: string, queryWords: string[]): number {
+  if (!nameStr) return 0;
+  
+  let score = 0;
+  
+  // Exact match - highest priority
+  if (nameStr === cleanQuery) return 100;
+  
+  // Contains full query as substring
+  if (nameStr.includes(cleanQuery)) {
+    score += 50;
+  }
+  
+  // Word-level matching
+  const nameWords = nameStr.split(/[\s\-_&,]+/).filter(w => w.length > 1);
+  
+  for (const queryWord of queryWords) {
+    // Exact word match
+    if (nameWords.some(nw => nw === queryWord)) {
+      score += 25;
+    }
+    // Word starts with query word
+    else if (nameWords.some(nw => nw.startsWith(queryWord))) {
+      score += 15;
+    }
+    // Word contains query word (partial match)
+    else if (nameStr.includes(queryWord)) {
+      score += 10;
+    }
+  }
+  
+  return score;
+}
+
 async function searchMetaCategory(accessToken: string, adAccountId: string, type: string, query: string) {
   const apiVersion = 'v22.0';
   const cleanAccountId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
@@ -242,80 +280,28 @@ async function searchTikTokInterests(accessToken: string, advertiserId: string, 
   const interests = fetchData.data?.interest_categories || [];
   console.log(`TikTok returned ${interests.length} total interest categories`);
   
-  // Log sample items to see actual structure
-  if (interests.length > 0) {
-    console.log('Sample TikTok interest item:', JSON.stringify(interests[0]));
-    console.log('All fields in first item:', Object.keys(interests[0]));
-  }
-  
   const cleanQuery = query.toLowerCase().trim();
   const queryWords = cleanQuery.split(/\s+/).filter(w => w.length > 2);
   
-  // Calculate relevance score for each interest - VERY LENIENT
+  // Score and filter interests
   const scoredInterests = interests.map((item: any) => {
-    // Try ALL possible field names
-    const possibleNames = [
-      item.interest_category,
-      item.interest_name,
-      item.name,
-      item.category_name,
-      item.display_name,
-      item.title,
-      item.label
-    ];
-    
-    const name = possibleNames.find(n => n && String(n).trim().length > 0);
-    const nameStr = name ? String(name).toLowerCase() : '';
-    
-    // If we can't find a name, try stringifying all values
-    if (!nameStr) {
-      const allValues = Object.values(item).filter(v => typeof v === 'string').join(' ').toLowerCase();
-      if (allValues.length > 0) {
-        return { item, score: 1, name: allValues };
-      }
-      return { item, score: 0, name: '' };
-    }
-    
-    let score = 0;
-    
-    // Exact match
-    if (nameStr === cleanQuery) score += 100;
-    
-    // Contains full query
-    if (nameStr.includes(cleanQuery)) score += 50;
-    
-    // Word overlap - even single character matches count
-    for (const word of queryWords) {
-      if (nameStr.includes(word)) score += 15;
-    }
-    
-    // Partial word matches - very lenient
-    const nameWords = nameStr.split(/\s+/);
-    for (const queryWord of queryWords) {
-      for (const nameWord of nameWords) {
-        if (nameWord.includes(queryWord) || queryWord.includes(nameWord)) {
-          score += 5;
-        }
-      }
-    }
-    
-    // If no score yet, give any item a base score of 1 so we see what's available
-    if (score === 0) score = 1;
-    
+    const name = item.interest_category_name || item.name || '';
+    const nameStr = String(name).toLowerCase();
+    const score = calculateRelevanceScore(nameStr, cleanQuery, queryWords);
     return { item, score, name: nameStr };
   });
   
-  // Filter items with any score and sort by score
+  // Only include items with meaningful relevance score
   const filtered = scoredInterests
-    .filter((s: { score: number }) => s.score > 0)
+    .filter((s: { score: number }) => s.score >= MIN_RELEVANCE_SCORE)
     .sort((a: { score: number }, b: { score: number }) => b.score - a.score)
     .slice(0, 25);
   
-  console.log(`TikTok interests: filtered to ${filtered.length} matches for "${query}"`);
+  console.log(`TikTok interests: filtered to ${filtered.length} relevant matches for "${query}"`);
   
   return filtered.map(({ item }: { item: any }) => ({
     id: item.interest_category_id || item.id,
-    name: item.interest_category_name || item.interest_category || item.name || 'Unknown',
+    name: item.interest_category_name || item.name || 'Unknown',
     description: item.description || ''
   }));
 }
@@ -350,44 +336,21 @@ async function searchTikTokActions(accessToken: string, advertiserId: string, qu
   const cleanQuery = query.toLowerCase().trim();
   const queryWords = cleanQuery.split(/\s+/).filter(w => w.length > 2);
   
-  // Calculate relevance score for each action
+  // Score and filter actions
   const scoredActions = actions.map((item: any) => {
-    // Try multiple possible field names
-    const possibleNames = [
-      item.action_category_name,
-      item.name,
-      item.category_name,
-      item.display_name
-    ];
-    
-    const name = possibleNames.find(n => n && String(n).trim().length > 0);
-    const nameStr = name ? String(name).toLowerCase() : '';
-    
-    if (!nameStr) return { item, score: 0, name: '' };
-    
-    let score = 0;
-    
-    // Exact match
-    if (nameStr === cleanQuery) score += 100;
-    
-    // Contains full query
-    if (nameStr.includes(cleanQuery)) score += 50;
-    
-    // Word overlap
-    for (const word of queryWords) {
-      if (nameStr.includes(word)) score += 15;
-    }
-    
+    const name = item.action_category_name || item.name || '';
+    const nameStr = String(name).toLowerCase();
+    const score = calculateRelevanceScore(nameStr, cleanQuery, queryWords);
     return { item, score, name: nameStr };
   });
   
-  // Filter items with any score and sort by score
+  // Only include items with meaningful relevance score
   const filtered = scoredActions
-    .filter((s: { score: number }) => s.score > 0)
+    .filter((s: { score: number }) => s.score >= MIN_RELEVANCE_SCORE)
     .sort((a: { score: number }, b: { score: number }) => b.score - a.score)
     .slice(0, 25);
   
-  console.log(`TikTok actions: filtered to ${filtered.length} matches for "${query}"`);
+  console.log(`TikTok actions: filtered to ${filtered.length} relevant matches for "${query}"`);
   
   return filtered.map(({ item }: { item: any }) => ({
     id: item.action_category_id || item.id,
