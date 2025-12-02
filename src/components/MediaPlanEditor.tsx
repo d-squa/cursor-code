@@ -231,6 +231,7 @@ export function MediaPlanEditor() {
   
   // Unified targeting (Step 2)
   const [basicTargeting, setBasicTargeting] = useState<UnifiedTargetingConfig>({ selectedItems: [] });
+  const [targetingPreset, setTargetingPreset] = useState<UnifiedTargetingConfig | null>(null);
   
   // Phase audiences (Step 3.5 - after strategy config)
   const [phaseAudiences, setPhaseAudiences] = useState<Record<string, SelectedAudience[]>>({});
@@ -455,9 +456,22 @@ export function MediaPlanEditor() {
         console.log('Starting fresh campaign - clearing all state');
         window.history.replaceState({}, '', '/');
         localStorage.removeItem('draftCampaignId');
+        localStorage.removeItem('basicTargeting');
         setSavedCampaignId(null);
         setIsHydrated(true);
         return;
+      }
+      
+      // Rehydrate basicTargeting from localStorage first
+      const storedTargeting = localStorage.getItem('basicTargeting');
+      if (storedTargeting) {
+        try {
+          const parsed = JSON.parse(storedTargeting);
+          console.log('🔄 Rehydrated basicTargeting from localStorage:', parsed);
+          setBasicTargeting(parsed);
+        } catch (e) {
+          console.error('Failed to parse stored targeting:', e);
+        }
       }
       
       let cid = urlParams.get('campaignId') || localStorage.getItem('draftCampaignId') || '';
@@ -488,6 +502,20 @@ export function MediaPlanEditor() {
           setSavedCampaignId((c as any).id);
           localStorage.setItem('draftCampaignId', (c as any).id);
           hydrateFromCampaign(c);
+          
+          // Load targeting preset if exists
+          const config = (c as any).generic_config;
+          if (config?.targetingPreset) {
+            console.log('🎯 Loaded targeting preset from database:', config.targetingPreset);
+            setTargetingPreset(config.targetingPreset);
+          }
+          
+          // Load basicTargeting from database if not already loaded from localStorage
+          if (config?.basicTargeting && !storedTargeting) {
+            console.log('🔄 Loaded basicTargeting from database:', config.basicTargeting);
+            setBasicTargeting(config.basicTargeting);
+            localStorage.setItem('basicTargeting', JSON.stringify(config.basicTargeting));
+          }
         } else {
           console.log('No draft found, starting fresh');
           setIsHydrated(true);
@@ -1488,14 +1516,55 @@ export function MediaPlanEditor() {
             <CardContent>
               <UnifiedTargeting
                 targeting={basicTargeting}
-                onUpdate={async (targeting) => {
+                onUpdate={(targeting) => {
                   console.log('📋 Received targeting update from BasicTargeting:', targeting);
                   setBasicTargeting(targeting);
+                  // localStorage is already handled in UnifiedTargeting component
                   
-                  // Save immediately to database
+                  // Debounced database save
+                  if (savedCampaignId && user) {
+                    const timer = setTimeout(async () => {
+                      try {
+                        const { data: currentCampaign } = await supabase
+                          .from("campaigns")
+                          .select("generic_config")
+                          .eq("id", savedCampaignId)
+                          .single();
+                        
+                        const currentConfig = (currentCampaign?.generic_config && typeof currentCampaign.generic_config === 'object') 
+                          ? currentCampaign.generic_config 
+                          : genericConfig;
+                        
+                        await supabase.from("campaigns").update({
+                          generic_config: {
+                            ...currentConfig,
+                            basicTargeting: targeting,
+                          } as any,
+                        }).eq("id", savedCampaignId);
+                        console.log('✅ Saved basicTargeting to database:', targeting);
+                      } catch (error) {
+                        console.error('❌ Error saving basicTargeting:', error);
+                      }
+                    }, 500);
+                    return () => clearTimeout(timer);
+                  }
+                }}
+                metaAdAccountId={firstAdAccountId || undefined}
+                tiktokAdvertiserId={firstTiktokAdvertiserId || undefined}
+              />
+              <div className="mt-6 flex justify-between">
+                <Button variant="outline" onClick={() => setCurrentStep(1)}>
+                  Back
+                </Button>
+                <Button onClick={async () => {
+                  // Create targeting preset snapshot
+                  const preset = { ...basicTargeting };
+                  setTargetingPreset(preset);
+                  console.log('🎯 Created targeting preset:', preset);
+                  
+                  // Save preset to database
                   if (savedCampaignId && user) {
                     try {
-                      // Fetch the latest generic_config to avoid overwriting other fields
                       const { data: currentCampaign } = await supabase
                         .from("campaigns")
                         .select("generic_config")
@@ -1509,25 +1578,19 @@ export function MediaPlanEditor() {
                       await supabase.from("campaigns").update({
                         generic_config: {
                           ...currentConfig,
-                          basicTargeting: targeting,
+                          targetingPreset: preset,
                         } as any,
                       }).eq("id", savedCampaignId);
-                      console.log('✅ Saved basicTargeting to database:', targeting);
+                      console.log('✅ Saved targeting preset to database');
+                      toast.success('Targeting preset created');
                     } catch (error) {
-                      console.error('❌ Error saving basicTargeting:', error);
+                      console.error('❌ Error saving preset:', error);
+                      toast.error('Failed to save targeting preset');
                     }
                   }
-                }}
-                metaAdAccountId={firstAdAccountId || undefined}
-                tiktokAdvertiserId={firstTiktokAdvertiserId || undefined}
-              />
-              <div className="mt-6 flex justify-between">
-                <Button variant="outline" onClick={() => setCurrentStep(1)}>
-                  Back
-                </Button>
-                <Button onClick={() => {
+                  
                   setCurrentStep(3);
-                  ensureDraft();
+                  await ensureDraft();
                 }}>
                   Continue to Strategy
                 </Button>
