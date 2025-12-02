@@ -1147,9 +1147,9 @@ export function PhaseScheduler({
                           open={phase.overrideTargeting || false}
                           onOpenChange={(open) => {
                             updatePhaseField(phase.id, "overrideTargeting", open);
-                            if (open && !phase.targeting) {
-                              // Initialize with campaign-level targeting on first open
-                              // Only copy platform-specific targeting data based on current platform
+                            if (open) {
+                              // Always reinitialize with latest campaign-level targeting when opening override
+                              // This ensures phase targeting stays in sync with campaign-level changes
                               const isTikTok = platformId === 'tiktok';
                               const isMeta = platformId === 'meta';
                               
