@@ -42,6 +42,18 @@ interface PhaseSchedulerProps {
     hasDefaults: boolean;
     conversionBudgetType?: string;
     nonConversionBudgetType?: string;
+    // Meta placement defaults
+    publisherPlatforms?: string[];
+    positions?: {
+      facebook?: string[];
+      instagram?: string[];
+      audience_network?: string[];
+      messenger?: string[];
+      threads?: string[];
+    };
+    // TikTok placement defaults
+    tiktokPlacementType?: string;
+    tiktokPlacements?: string[];
   };
   onApplyBudgetTypeToAll?: (budgetType: "daily" | "lifetime") => void;
   onOpenCustomizeBudgetTypes?: () => void;
@@ -116,9 +128,29 @@ export function PhaseScheduler({
   const [pendingBudgetType, setPendingBudgetType] = useState<"daily" | "lifetime" | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Helper to get default publishers and placements for Meta platforms
+  // Helper to get default publishers and placements for platforms
   const getDefaultPublisherConfig = () => {
+    // For TikTok, use adAccountDefaults if available
+    if (platformId?.toLowerCase() === 'tiktok' || platformName.toLowerCase().includes('tiktok')) {
+      return {
+        tiktokPlacementType: adAccountDefaults?.tiktokPlacementType || 'PLACEMENT_TYPE_AUTOMATIC',
+        tiktokPlacements: adAccountDefaults?.tiktokPlacements || ['PLACEMENT_TIKTOK'],
+        publisherPlatforms: [],
+        positions: {}
+      };
+    }
+    
+    // For Meta, use adAccountDefaults if available
     if (platformName.includes("Meta")) {
+      // Use defaults from adAccountDefaults if available
+      if (adAccountDefaults?.publisherPlatforms && adAccountDefaults.publisherPlatforms.length > 0) {
+        return {
+          publisherPlatforms: adAccountDefaults.publisherPlatforms,
+          positions: adAccountDefaults.positions || {}
+        };
+      }
+      
+      // Fallback to hardcoded defaults
       const publishers = ["facebook", "instagram", "audience_network", "messenger", "threads"];
       const placementOptions: Record<string, Record<string, string[]>> = {
         "Facebook (Meta)": {
