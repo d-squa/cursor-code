@@ -1158,8 +1158,9 @@ export function PhaseScheduler({
                               )}
                             </div>
                             <Switch
-                              checked={phase.overrideTargeting || false}
+                              checked={phase.overrideTargeting === true}
                               onCheckedChange={(checked) => {
+                                console.log('🔄 Switch onCheckedChange:', { checked, currentValue: phase.overrideTargeting, phaseId: phase.id });
                                 const isTikTok = platformId === 'tiktok';
                                 
                                 if (checked) {
@@ -1177,8 +1178,10 @@ export function PhaseScheduler({
                                           isTikTok ? item.platforms.includes('tiktok') : item.platforms.includes('meta')
                                         ) : []
                                     };
+                                    console.log('🔄 Setting override ON with targeting:', phaseTargeting);
                                     updatePhaseFields(phase.id, { overrideTargeting: true, targeting: phaseTargeting });
                                   } else {
+                                    console.log('🔄 Setting override ON (no targeting init needed)');
                                     updatePhaseField(phase.id, "overrideTargeting", true);
                                   }
                                 } else {
@@ -1196,8 +1199,8 @@ export function PhaseScheduler({
                                       ) : []
                                   } : undefined;
                                   
+                                  console.log('🔄 Setting override OFF, resetting to preset:', presetCopy);
                                   updatePhaseFields(phase.id, { overrideTargeting: false, targeting: presetCopy });
-                                  console.log('🔄 Reset phase targeting to preset:', presetCopy);
                                 }
                               }}
                             />
