@@ -184,25 +184,26 @@ serve(async (req) => {
 });
 
 async function searchMetaCategory(accessToken: string, adAccountId: string, type: string, query: string) {
-  const endpoint = type === 'interests' 
-    ? 'adinterest' 
-    : type === 'behaviors' 
-    ? 'adTargetingCategory' 
-    : 'adTargetingCategory';
-    
-  const params = new URLSearchParams({
-    access_token: accessToken,
-    q: query,
-    limit: '20'
-  });
+  const apiVersion = 'v22.0';
+  const cleanAccountId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
   
-  if (type !== 'interests') {
-    params.append('class', type === 'behaviors' ? 'behaviors' : 'demographics');
+  let searchUrl: string;
+  
+  if (type === 'interests') {
+    searchUrl = `https://graph.facebook.com/${apiVersion}/search?type=adinterest&q=${encodeURIComponent(query)}&limit=25&access_token=${accessToken}`;
+  } else if (type === 'behaviors') {
+    searchUrl = `https://graph.facebook.com/${apiVersion}/${cleanAccountId}/targetingsearch?q=${encodeURIComponent(query)}&limit_type=behaviors&limit=25&access_token=${accessToken}`;
+  } else {
+    searchUrl = `https://graph.facebook.com/${apiVersion}/${cleanAccountId}/targetingsearch?q=${encodeURIComponent(query)}&limit=25&access_token=${accessToken}`;
   }
-
-  const url = `https://graph.facebook.com/v22.0/search?${params.toString()}`;
   
-  const response = await fetch(url);
+  const response = await fetch(searchUrl);
+  
+  if (!response.ok) {
+    console.error('Meta search error:', response.status);
+    return [];
+  }
+  
   const data = await response.json();
   
   return (data.data || []).map((item: any) => ({
