@@ -48,7 +48,10 @@ export function UnifiedTargeting({ targeting, onUpdate, metaAdAccountId, tiktokA
   ]);
 
   const updateField = (field: keyof UnifiedTargetingConfig, value: any) => {
-    onUpdate({ ...targeting, [field]: value });
+    const updated = { ...targeting, [field]: value };
+    onUpdate(updated);
+    // Persist immediately to localStorage
+    localStorage.setItem('basicTargeting', JSON.stringify(updated));
   };
 
   const handleSearch = async () => {
@@ -101,6 +104,8 @@ export function UnifiedTargeting({ targeting, onUpdate, metaAdAccountId, tiktokA
       selectedItems: [...targeting.selectedItems, item]
     };
     onUpdate(updated);
+    // Persist immediately to localStorage
+    localStorage.setItem('basicTargeting', JSON.stringify(updated));
     toast.success(`Added: ${item.name}`);
   };
 
@@ -110,6 +115,8 @@ export function UnifiedTargeting({ targeting, onUpdate, metaAdAccountId, tiktokA
       selectedItems: targeting.selectedItems.filter(i => i.id !== itemId)
     };
     onUpdate(updated);
+    // Persist immediately to localStorage
+    localStorage.setItem('basicTargeting', JSON.stringify(updated));
   };
 
   const getPlatformBadge = (platforms: ('meta' | 'tiktok')[]) => {

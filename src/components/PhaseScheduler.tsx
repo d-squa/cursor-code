@@ -1147,23 +1147,46 @@ export function PhaseScheduler({
                           open={phase.overrideTargeting || false}
                           onOpenChange={(open) => {
                             updatePhaseField(phase.id, "overrideTargeting", open);
-                            // Initialize phase.targeting only once when first enabling override
-                            if (open && !phase.targeting) {
-                              const isTikTok = platformId === 'tiktok';
-                              
-                              const phaseTargeting: UnifiedTargetingConfig = {
-                                ageMin: basicTargeting.ageMin,
-                                ageMax: basicTargeting.ageMax,
-                                genders: basicTargeting.genders ? [...basicTargeting.genders] : [],
-                                devices: basicTargeting.devices ? [...basicTargeting.devices] : [],
-                                os: basicTargeting.os ? [...basicTargeting.os] : [],
-                                languages: basicTargeting.languages ? [...basicTargeting.languages] : [],
-                                selectedItems: basicTargeting.selectedItems ? 
-                                  basicTargeting.selectedItems.filter(item => 
-                                    isTikTok ? item.platforms.includes('tiktok') : item.platforms.includes('meta')
-                                  ) : []
-                              };
-                              updatePhaseField(phase.id, "targeting", phaseTargeting);
+                            
+                            if (open) {
+                              // When enabling override, initialize with preset if not already customized
+                              if (!phase.targeting && basicTargeting) {
+                                const isTikTok = platformId === 'tiktok';
+                                
+                                const phaseTargeting: UnifiedTargetingConfig = {
+                                  ageMin: basicTargeting.ageMin,
+                                  ageMax: basicTargeting.ageMax,
+                                  genders: basicTargeting.genders ? [...basicTargeting.genders] : [],
+                                  devices: basicTargeting.devices ? [...basicTargeting.devices] : [],
+                                  os: basicTargeting.os ? [...basicTargeting.os] : [],
+                                  languages: basicTargeting.languages ? [...basicTargeting.languages] : [],
+                                  selectedItems: basicTargeting.selectedItems ? 
+                                    basicTargeting.selectedItems.filter(item => 
+                                      isTikTok ? item.platforms.includes('tiktok') : item.platforms.includes('meta')
+                                    ) : []
+                                };
+                                updatePhaseField(phase.id, "targeting", phaseTargeting);
+                              }
+                            } else {
+                              // When disabling override, reset to preset
+                              if (basicTargeting) {
+                                const isTikTok = platformId === 'tiktok';
+                                
+                                const presetCopy: UnifiedTargetingConfig = {
+                                  ageMin: basicTargeting.ageMin,
+                                  ageMax: basicTargeting.ageMax,
+                                  genders: basicTargeting.genders ? [...basicTargeting.genders] : [],
+                                  devices: basicTargeting.devices ? [...basicTargeting.devices] : [],
+                                  os: basicTargeting.os ? [...basicTargeting.os] : [],
+                                  languages: basicTargeting.languages ? [...basicTargeting.languages] : [],
+                                  selectedItems: basicTargeting.selectedItems ? 
+                                    basicTargeting.selectedItems.filter(item => 
+                                      isTikTok ? item.platforms.includes('tiktok') : item.platforms.includes('meta')
+                                    ) : []
+                                };
+                                updatePhaseField(phase.id, "targeting", presetCopy);
+                                console.log('🔄 Reset phase targeting to preset:', presetCopy);
+                              }
                             }
                           }}
                           className="border rounded-lg p-4 bg-muted/30"
