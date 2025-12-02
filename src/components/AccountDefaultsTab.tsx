@@ -320,6 +320,11 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         toast.error("Account not found");
         return;
       }
+      
+      // Debug: Log full updates object
+      console.log(`[AccountDefaultsTab] Full updates object for ${account.account_name}:`, updates);
+      console.log(`[AccountDefaultsTab] Pixel value in updates:`, updates?.default_pixel_id);
+      
       const platform = account.platform;
       const tableName = platform === 'tiktok' ? 'tiktok_ad_accounts' : 'meta_ad_accounts';
       
@@ -377,12 +382,20 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
       // Filter to only valid fields for this platform
       const updateData: Record<string, any> = {};
       validFields.forEach(field => {
-        if (field in updates) {
+        // Use hasOwnProperty to check if field exists (including null values)
+        if (updates && Object.prototype.hasOwnProperty.call(updates, field)) {
           updateData[field] = updates[field as keyof typeof updates];
         }
       });
       
+      // Ensure pixel is explicitly included for TikTok if it exists in updates
+      if (platform === 'tiktok' && updates?.default_pixel_id !== undefined) {
+        updateData.default_pixel_id = updates.default_pixel_id;
+        console.log(`[AccountDefaultsTab] Explicitly setting TikTok pixel:`, updates.default_pixel_id);
+      }
+      
       console.log(`[AccountDefaultsTab] Saving ${platform} account ${accountId} defaults:`, updateData);
+      console.log(`[AccountDefaultsTab] Update data keys:`, Object.keys(updateData));
       
       const { error, data } = await supabase
         .from(tableName)
@@ -408,6 +421,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         console.error(`[AccountDefaultsTab] Verification error:`, verifyError);
       } else {
         console.log(`[AccountDefaultsTab] Verification - data in database after save:`, verifyData);
+        console.log(`[AccountDefaultsTab] Verification - pixel value:`, verifyData?.default_pixel_id);
       }
       
       toast.success("Defaults saved successfully");
@@ -424,13 +438,18 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
 
 
   const updateDefault = (accountId: string, field: keyof AdAccount, value: any) => {
-    setLocalDefaults((prev) => ({
-      ...prev,
-      [accountId]: {
-        ...prev[accountId],
-        [field]: value,
-      },
-    }));
+    console.log(`[AccountDefaultsTab] updateDefault called:`, { accountId, field, value });
+    setLocalDefaults((prev) => {
+      const updated = {
+        ...prev,
+        [accountId]: {
+          ...prev[accountId],
+          [field]: value,
+        },
+      };
+      console.log(`[AccountDefaultsTab] Updated localDefaults for ${accountId}:`, updated[accountId]);
+      return updated;
+    });
   };
 
   if (loading) {
