@@ -18,7 +18,7 @@ import { TargetingConfigComponent } from "./TargetingConfig";
 import { getOptimizationGoalForFocus } from "@/utils/strategyFocusMapping";
 import { BudgetTypeApplyDialog } from "./BudgetTypeApplyDialog";
 import { PhaseAudienceSelector } from "./PhaseAudienceSelector";
-import { BasicTargeting, BasicTargetingConfig } from "./BasicTargeting";
+import { UnifiedTargeting, UnifiedTargetingConfig } from "./UnifiedTargeting";
 import { TiktokPhaseConfig } from "./TiktokPhaseConfig";
 
 interface PhaseSchedulerProps {
@@ -47,7 +47,7 @@ interface PhaseSchedulerProps {
   onOpenCustomizeBudgetTypes?: () => void;
   marketBudget?: number;
   adAccountId?: string;
-  basicTargeting?: BasicTargetingConfig;
+  basicTargeting?: UnifiedTargetingConfig;
 }
 
 interface DraggingState {
@@ -938,40 +938,31 @@ export function PhaseScheduler({
                               phase.objective?.toLowerCase().includes('reach') ||
                               phase.optimizationGoal?.toLowerCase().includes('awareness') ||
                               phase.optimizationGoal?.toLowerCase().includes('reach')) &&
-                              (basicTargeting?.metaInterests?.length || basicTargeting?.metaBehaviors?.length || basicTargeting?.metaDemographics?.length || basicTargeting?.tiktokInterests?.length || basicTargeting?.tiktokBehaviors?.length || basicTargeting?.tiktokDemographics?.length) && (
+                              basicTargeting?.selectedItems && basicTargeting.selectedItems.length > 0 && (
                               <div className="flex justify-between pt-2 border-t">
                                 <span>Detailed Targeting:</span>
                                 <div className="flex flex-col gap-2">
-                                  {/* Meta Categories */}
-                                  {(basicTargeting.metaInterests?.length || basicTargeting.metaBehaviors?.length || basicTargeting.metaDemographics?.length) && (
-                                    <div className="flex gap-2 items-center">
-                                      <span className="text-xs text-muted-foreground">Meta:</span>
-                                      {basicTargeting.metaInterests && basicTargeting.metaInterests.length > 0 && (
-                                        <Badge variant="outline" className="text-xs">Interests ({basicTargeting.metaInterests.length})</Badge>
-                                      )}
-                                      {basicTargeting.metaBehaviors && basicTargeting.metaBehaviors.length > 0 && (
-                                        <Badge variant="outline" className="text-xs">Behaviors ({basicTargeting.metaBehaviors.length})</Badge>
-                                      )}
-                                      {basicTargeting.metaDemographics && basicTargeting.metaDemographics.length > 0 && (
-                                        <Badge variant="outline" className="text-xs">Demographics ({basicTargeting.metaDemographics.length})</Badge>
-                                      )}
-                                    </div>
-                                  )}
-                                  {/* TikTok Categories */}
-                                  {(basicTargeting.tiktokInterests?.length || basicTargeting.tiktokBehaviors?.length || basicTargeting.tiktokDemographics?.length) && (
-                                    <div className="flex gap-2 items-center">
-                                      <span className="text-xs text-muted-foreground">TikTok:</span>
-                                      {basicTargeting.tiktokInterests && basicTargeting.tiktokInterests.length > 0 && (
-                                        <Badge variant="outline" className="text-xs">Interests ({basicTargeting.tiktokInterests.length})</Badge>
-                                      )}
-                                      {basicTargeting.tiktokBehaviors && basicTargeting.tiktokBehaviors.length > 0 && (
-                                        <Badge variant="outline" className="text-xs">Behaviors ({basicTargeting.tiktokBehaviors.length})</Badge>
-                                      )}
-                                      {basicTargeting.tiktokDemographics && basicTargeting.tiktokDemographics.length > 0 && (
-                                        <Badge variant="outline" className="text-xs">Demographics ({basicTargeting.tiktokDemographics.length})</Badge>
-                                      )}
-                                    </div>
-                                  )}
+                                  {/* Unified Targeting */}
+                                  <div className="flex gap-2 items-center flex-wrap">
+                                    <Badge variant="outline" className="text-xs">
+                                      {basicTargeting.selectedItems.length} Selected
+                                    </Badge>
+                                    {basicTargeting.selectedItems.filter(item => item.platforms.length === 2).length > 0 && (
+                                      <Badge variant="secondary" className="text-xs">
+                                        {basicTargeting.selectedItems.filter(item => item.platforms.length === 2).length} Both Platforms
+                                      </Badge>
+                                    )}
+                                    {basicTargeting.selectedItems.filter(item => item.platforms.includes('meta') && item.platforms.length === 1).length > 0 && (
+                                      <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                                        {basicTargeting.selectedItems.filter(item => item.platforms.includes('meta') && item.platforms.length === 1).length} Meta Only
+                                      </Badge>
+                                    )}
+                                    {basicTargeting.selectedItems.filter(item => item.platforms.includes('tiktok') && item.platforms.length === 1).length > 0 && (
+                                      <Badge variant="outline" className="text-xs bg-pink-50 text-pink-700 border-pink-200">
+                                        {basicTargeting.selectedItems.filter(item => item.platforms.includes('tiktok') && item.platforms.length === 1).length} TikTok Only
+                                      </Badge>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                             )}
@@ -1147,12 +1138,7 @@ export function PhaseScheduler({
                         phase.optimizationGoal === "Reach" ||
                         phase.optimizationGoal === "Brand Awareness"
                       ) && basicTargeting && (
-                        (basicTargeting.metaInterests?.length ?? 0) > 0 || 
-                        (basicTargeting.metaBehaviors?.length ?? 0) > 0 || 
-                        (basicTargeting.metaDemographics?.length ?? 0) > 0 ||
-                        (basicTargeting.tiktokInterests?.length ?? 0) > 0 ||
-                        (basicTargeting.tiktokBehaviors?.length ?? 0) > 0 ||
-                        (basicTargeting.tiktokDemographics?.length ?? 0) > 0 ||
+                        basicTargeting.selectedItems && basicTargeting.selectedItems.length > 0 ||
                         basicTargeting.ageMin !== undefined ||
                         basicTargeting.genders?.length ||
                         basicTargeting.devices?.length
@@ -1167,22 +1153,18 @@ export function PhaseScheduler({
                               const isTikTok = platformId === 'tiktok';
                               const isMeta = platformId === 'meta';
                               
-                              const phaseTargeting: BasicTargetingConfig = {
+                              const phaseTargeting: UnifiedTargetingConfig = {
                                 ageMin: basicTargeting.ageMin,
                                 ageMax: basicTargeting.ageMax,
                                 genders: basicTargeting.genders ? [...basicTargeting.genders] : undefined,
                                 devices: basicTargeting.devices ? [...basicTargeting.devices] : undefined,
                                 os: basicTargeting.os ? [...basicTargeting.os] : undefined,
                                 languages: basicTargeting.languages ? [...basicTargeting.languages] : undefined,
-                                productBrief: basicTargeting.productBrief,
-                                // Only include Meta targeting if this is a Meta platform phase
-                                metaInterests: isMeta && basicTargeting.metaInterests ? [...basicTargeting.metaInterests] : [],
-                                metaBehaviors: isMeta && basicTargeting.metaBehaviors ? [...basicTargeting.metaBehaviors] : [],
-                                metaDemographics: isMeta && basicTargeting.metaDemographics ? [...basicTargeting.metaDemographics] : [],
-                                // Only include TikTok targeting if this is a TikTok platform phase
-                                tiktokInterests: isTikTok && basicTargeting.tiktokInterests ? [...basicTargeting.tiktokInterests] : [],
-                                tiktokBehaviors: isTikTok && basicTargeting.tiktokBehaviors ? [...basicTargeting.tiktokBehaviors] : [],
-                                tiktokDemographics: isTikTok && basicTargeting.tiktokDemographics ? [...basicTargeting.tiktokDemographics] : [],
+                                // Copy selected items based on platform
+                                selectedItems: basicTargeting.selectedItems ? 
+                                  basicTargeting.selectedItems.filter(item => 
+                                    isTikTok ? item.platforms.includes('tiktok') : item.platforms.includes('meta')
+                                  ) : []
                               };
                               updatePhaseField(phase.id, "targeting", phaseTargeting);
                             }
@@ -1213,9 +1195,9 @@ export function PhaseScheduler({
                                   metaAdAccountId: platformId === 'meta' ? adAccountId : undefined,
                                   tiktokAdvertiserId: platformId === 'tiktok' ? adAccountId : undefined
                                 })}
-                                <BasicTargeting
+                                <UnifiedTargeting
                                   key={`phase-targeting-${phase.id}-${phase.overrideTargeting}`}
-                                  targeting={phase.targeting as BasicTargetingConfig}
+                                  targeting={phase.targeting as UnifiedTargetingConfig}
                                   onUpdate={(targeting) => updatePhaseField(phase.id, "targeting", targeting)}
                                   metaAdAccountId={platformId === 'meta' ? adAccountId : undefined}
                                   tiktokAdvertiserId={platformId === 'tiktok' ? adAccountId : undefined}
@@ -1253,7 +1235,7 @@ export function PhaseScheduler({
                             phaseOptimizationGoal={phase.optimizationGoal}
                             adAccountId={adAccountId}
                             platform={platformName}
-                            basicTargeting={basicTargeting}
+                            basicTargeting={undefined}
                             overrideTargeting={phase.overrideTargeting}
                             onAudiencesSelected={(audiences) => {
                               updatePhaseField(phase.id, "audiences", audiences);

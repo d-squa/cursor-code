@@ -14,7 +14,7 @@ import { GlobalFunnelPhasing } from "./GlobalFunnelPhasing";
 import { TargetingConfigComponent } from "./TargetingConfig";
 
 import { AudienceCard } from "./AudienceCard";
-import { BasicTargeting, BasicTargetingConfig } from "./BasicTargeting";
+import { UnifiedTargeting, UnifiedTargetingConfig } from "./UnifiedTargeting";
 import { PhaseAudienceSelector, SelectedAudience } from "./PhaseAudienceSelector";
 import { CampaignForecast } from "./CampaignForecast";
 import { PhaseScheduler } from "./PhaseScheduler";
@@ -229,8 +229,8 @@ export function MediaPlanEditor() {
     toast.success(`Auto-populated ${newPlatforms.length} platform(s) from ${selectedClient.name}. Select an ad account for each platform to auto-create markets.`, { duration: 5000 });
   };
   
-  // Basic targeting (Step 2)
-  const [basicTargeting, setBasicTargeting] = useState<BasicTargetingConfig>({});
+  // Unified targeting (Step 2)
+  const [basicTargeting, setBasicTargeting] = useState<UnifiedTargetingConfig>({ selectedItems: [] });
   
   // Phase audiences (Step 3.5 - after strategy config)
   const [phaseAudiences, setPhaseAudiences] = useState<Record<string, SelectedAudience[]>>({});
@@ -1486,7 +1486,7 @@ export function MediaPlanEditor() {
           </CardHeader>
           {currentStep === 2 ? (
             <CardContent>
-              <BasicTargeting
+              <UnifiedTargeting
                 targeting={basicTargeting}
                 onUpdate={async (targeting) => {
                   console.log('📋 Received targeting update from BasicTargeting:', targeting);
@@ -1555,40 +1555,30 @@ export function MediaPlanEditor() {
                     <span className="font-medium text-foreground">{basicTargeting.os.join(", ")}</span>
                   </div>
                 )}
-                {(basicTargeting.metaInterests?.length || basicTargeting.metaBehaviors?.length || basicTargeting.metaDemographics?.length || basicTargeting.tiktokInterests?.length || basicTargeting.tiktokBehaviors?.length || basicTargeting.tiktokDemographics?.length) && (
+                {basicTargeting.selectedItems?.length > 0 && (
                   <div className="flex justify-between pt-2 border-t">
                     <span>Detailed Targeting:</span>
                     <div className="flex flex-col gap-2">
-                      {/* Meta Categories */}
-                      {(basicTargeting.metaInterests?.length || basicTargeting.metaBehaviors?.length || basicTargeting.metaDemographics?.length) && (
-                        <div className="flex gap-2 items-center">
-                          <span className="text-xs text-muted-foreground">Meta:</span>
-                          {basicTargeting.metaInterests && basicTargeting.metaInterests.length > 0 && (
-                            <Badge variant="outline" className="text-xs">Interests ({basicTargeting.metaInterests.length})</Badge>
-                          )}
-                          {basicTargeting.metaBehaviors && basicTargeting.metaBehaviors.length > 0 && (
-                            <Badge variant="outline" className="text-xs">Behaviors ({basicTargeting.metaBehaviors.length})</Badge>
-                          )}
-                          {basicTargeting.metaDemographics && basicTargeting.metaDemographics.length > 0 && (
-                            <Badge variant="outline" className="text-xs">Demographics ({basicTargeting.metaDemographics.length})</Badge>
-                          )}
-                        </div>
-                      )}
-                      {/* TikTok Categories */}
-                      {(basicTargeting.tiktokInterests?.length || basicTargeting.tiktokBehaviors?.length || basicTargeting.tiktokDemographics?.length) && (
-                        <div className="flex gap-2 items-center">
-                          <span className="text-xs text-muted-foreground">TikTok:</span>
-                          {basicTargeting.tiktokInterests && basicTargeting.tiktokInterests.length > 0 && (
-                            <Badge variant="outline" className="text-xs">Interests ({basicTargeting.tiktokInterests.length})</Badge>
-                          )}
-                          {basicTargeting.tiktokBehaviors && basicTargeting.tiktokBehaviors.length > 0 && (
-                            <Badge variant="outline" className="text-xs">Behaviors ({basicTargeting.tiktokBehaviors.length})</Badge>
-                          )}
-                          {basicTargeting.tiktokDemographics && basicTargeting.tiktokDemographics.length > 0 && (
-                            <Badge variant="outline" className="text-xs">Demographics ({basicTargeting.tiktokDemographics.length})</Badge>
-                          )}
-                        </div>
-                      )}
+                      <div className="flex gap-2 items-center flex-wrap">
+                        <Badge variant="outline" className="text-xs">
+                          {basicTargeting.selectedItems.length} Selected
+                        </Badge>
+                        {basicTargeting.selectedItems.filter(item => item.platforms.length === 2).length > 0 && (
+                          <Badge variant="secondary" className="text-xs">
+                            {basicTargeting.selectedItems.filter(item => item.platforms.length === 2).length} Both Platforms
+                          </Badge>
+                        )}
+                        {basicTargeting.selectedItems.filter(item => item.platforms.includes('meta') && item.platforms.length === 1).length > 0 && (
+                          <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                            {basicTargeting.selectedItems.filter(item => item.platforms.includes('meta') && item.platforms.length === 1).length} Meta Only
+                          </Badge>
+                        )}
+                        {basicTargeting.selectedItems.filter(item => item.platforms.includes('tiktok') && item.platforms.length === 1).length > 0 && (
+                          <Badge variant="outline" className="text-xs bg-pink-50 text-pink-700 border-pink-200">
+                            {basicTargeting.selectedItems.filter(item => item.platforms.includes('tiktok') && item.platforms.length === 1).length} TikTok Only
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}
