@@ -49,6 +49,7 @@ interface AdAccount {
     messenger?: string[];
     threads?: string[];
   } | null;
+  default_advantage_plus_placements?: boolean | null;
   main_markets?: string[] | null;
 }
 
@@ -171,6 +172,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
           ? (acc as any).default_publisher_platforms as string[] 
           : ['facebook', 'instagram', 'audience_network'],
         default_positions: (acc as any).default_positions || {},
+        default_advantage_plus_placements: (acc as any).default_advantage_plus_placements ?? true,
       }));
 
       const tiktokAccounts = (tiktokAccountsData || []).map(acc => ({
@@ -239,6 +241,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
           // Meta-specific placements
           default_publisher_platforms: acc.platform === 'meta' ? (acc as any).default_publisher_platforms || ['facebook', 'instagram', 'audience_network'] : null,
           default_positions: acc.platform === 'meta' ? (acc as any).default_positions || {} : null,
+          default_advantage_plus_placements: acc.platform === 'meta' ? (acc as any).default_advantage_plus_placements ?? true : null,
           main_markets: acc.main_markets,
         };
       });
@@ -327,6 +330,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         'default_bid_strategy',
         'default_publisher_platforms',
         'default_positions',
+        'default_advantage_plus_placements',
         'main_markets'
       ];
       
@@ -710,112 +714,175 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                             </Select>
                           </div>
 
-                          {/* Publisher Platforms */}
-                          <div className="space-y-2 md:col-span-2">
-                            <Label>Default Publisher Platforms</Label>
-                            <MultiSelect
-                              options={[
-                                { value: "facebook", label: "Facebook" },
-                                { value: "instagram", label: "Instagram" },
-                                { value: "audience_network", label: "Audience Network" },
-                                { value: "messenger", label: "Messenger" },
-                                { value: "threads", label: "Threads" },
-                              ]}
-                              value={defaults.default_publisher_platforms || ['facebook', 'instagram', 'audience_network']}
-                              onChange={(platforms) => {
-                                updateDefault(account.id, "default_publisher_platforms", platforms);
-                                // Update positions to remove unselected platforms
-                                const currentPositions = defaults.default_positions || {};
-                                const updatedPositions: Record<string, string[]> = {};
-                                platforms.forEach((p: string) => {
-                                  if (currentPositions[p as keyof typeof currentPositions]) {
-                                    updatedPositions[p] = currentPositions[p as keyof typeof currentPositions] as string[];
-                                  }
-                                });
-                                updateDefault(account.id, "default_positions", updatedPositions);
-                              }}
-                              placeholder="Select publisher platforms"
-                              emptyText="No platforms selected"
-                            />
-                            <p className="text-xs text-muted-foreground">
-                              Where your ads will be shown
-                            </p>
+                          {/* Advantage+ Placements Toggle */}
+                          <div className="space-y-3 md:col-span-2">
+                            <Label>Placement Strategy</Label>
+                            <div className="space-y-2">
+                              <div 
+                                className={`flex items-start space-x-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+                                  (defaults as any).default_advantage_plus_placements !== false 
+                                    ? 'bg-primary/10 border-primary' 
+                                    : 'bg-background hover:bg-accent/50'
+                                }`}
+                                onClick={() => updateDefault(account.id, "default_advantage_plus_placements", true)}
+                              >
+                                <div className="flex items-center h-5 mt-0.5">
+                                  <input 
+                                    type="radio" 
+                                    checked={(defaults as any).default_advantage_plus_placements !== false}
+                                    onChange={() => updateDefault(account.id, "default_advantage_plus_placements", true)}
+                                    className="h-4 w-4"
+                                  />
+                                </div>
+                                <div className="flex-1">
+                                  <Label className="flex items-center gap-2 cursor-pointer font-medium">
+                                    <span className="text-primary">✨</span>
+                                    Advantage+ placements (recommended)
+                                  </Label>
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    Meta automatically optimizes placements for maximum performance
+                                  </p>
+                                </div>
+                              </div>
+                              <div 
+                                className={`flex items-start space-x-3 p-3 border rounded-lg cursor-pointer transition-colors ${
+                                  (defaults as any).default_advantage_plus_placements === false 
+                                    ? 'bg-primary/10 border-primary' 
+                                    : 'bg-background hover:bg-accent/50'
+                                }`}
+                                onClick={() => updateDefault(account.id, "default_advantage_plus_placements", false)}
+                              >
+                                <div className="flex items-center h-5 mt-0.5">
+                                  <input 
+                                    type="radio" 
+                                    checked={(defaults as any).default_advantage_plus_placements === false}
+                                    onChange={() => updateDefault(account.id, "default_advantage_plus_placements", false)}
+                                    className="h-4 w-4"
+                                  />
+                                </div>
+                                <div className="flex-1">
+                                  <Label className="cursor-pointer font-medium">
+                                    Manual placements
+                                  </Label>
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    Choose specific platforms and placements
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
                           </div>
 
-                          {/* Placements for each publisher */}
-                          {(defaults.default_publisher_platforms || ['facebook', 'instagram', 'audience_network']).includes('facebook') && (
-                            <div className="space-y-2">
-                              <Label>Facebook Placements</Label>
-                              <MultiSelect
-                                options={[
-                                  { value: "feed", label: "Feed" },
-                                  { value: "instant_article", label: "Instant Article" },
-                                  { value: "instream_video", label: "In-stream Video" },
-                                  { value: "marketplace", label: "Marketplace" },
-                                  { value: "search", label: "Search" },
-                                  { value: "video_feeds", label: "Video Feeds" },
-                                  { value: "story", label: "Story" },
-                                ]}
-                                value={(defaults.default_positions as any)?.facebook || []}
-                                onChange={(placements) => {
-                                  const currentPositions = defaults.default_positions || {};
-                                  updateDefault(account.id, "default_positions", {
-                                    ...currentPositions,
-                                    facebook: placements
-                                  });
-                                }}
-                                placeholder="All placements (automatic)"
-                                emptyText="No placements selected"
-                              />
-                            </div>
-                          )}
+                          {/* Manual Placement Configuration - only shown when manual mode */}
+                          {(defaults as any).default_advantage_plus_placements === false && (
+                            <>
+                              {/* Publisher Platforms */}
+                              <div className="space-y-2 md:col-span-2">
+                                <Label>Default Publisher Platforms</Label>
+                                <MultiSelect
+                                  options={[
+                                    { value: "facebook", label: "Facebook" },
+                                    { value: "instagram", label: "Instagram" },
+                                    { value: "audience_network", label: "Audience Network" },
+                                    { value: "messenger", label: "Messenger" },
+                                    { value: "threads", label: "Threads" },
+                                  ]}
+                                  value={defaults.default_publisher_platforms || ['facebook', 'instagram', 'audience_network']}
+                                  onChange={(platforms) => {
+                                    updateDefault(account.id, "default_publisher_platforms", platforms);
+                                    // Update positions to remove unselected platforms
+                                    const currentPositions = defaults.default_positions || {};
+                                    const updatedPositions: Record<string, string[]> = {};
+                                    platforms.forEach((p: string) => {
+                                      if (currentPositions[p as keyof typeof currentPositions]) {
+                                        updatedPositions[p] = currentPositions[p as keyof typeof currentPositions] as string[];
+                                      }
+                                    });
+                                    updateDefault(account.id, "default_positions", updatedPositions);
+                                  }}
+                                  placeholder="Select publisher platforms"
+                                  emptyText="No platforms selected"
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                  Where your ads will be shown
+                                </p>
+                              </div>
 
-                          {(defaults.default_publisher_platforms || ['facebook', 'instagram', 'audience_network']).includes('instagram') && (
-                            <div className="space-y-2">
-                              <Label>Instagram Placements</Label>
-                              <MultiSelect
-                                options={[
-                                  { value: "stream", label: "Feed" },
-                                  { value: "story", label: "Story" },
-                                  { value: "explore", label: "Explore" },
-                                  { value: "explore_home", label: "Explore Home" },
-                                  { value: "reels", label: "Reels" },
-                                ]}
-                                value={(defaults.default_positions as any)?.instagram || []}
-                                onChange={(placements) => {
-                                  const currentPositions = defaults.default_positions || {};
-                                  updateDefault(account.id, "default_positions", {
-                                    ...currentPositions,
-                                    instagram: placements
-                                  });
-                                }}
-                                placeholder="All placements (automatic)"
-                                emptyText="No placements selected"
-                              />
-                            </div>
-                          )}
+                              {/* Placements for each publisher */}
+                              {(defaults.default_publisher_platforms || ['facebook', 'instagram', 'audience_network']).includes('facebook') && (
+                                <div className="space-y-2">
+                                  <Label>Facebook Placements</Label>
+                                  <MultiSelect
+                                    options={[
+                                      { value: "feed", label: "Feed" },
+                                      { value: "instant_article", label: "Instant Article" },
+                                      { value: "instream_video", label: "In-stream Video" },
+                                      { value: "marketplace", label: "Marketplace" },
+                                      { value: "search", label: "Search" },
+                                      { value: "video_feeds", label: "Video Feeds" },
+                                      { value: "story", label: "Story" },
+                                    ]}
+                                    value={(defaults.default_positions as any)?.facebook || []}
+                                    onChange={(placements) => {
+                                      const currentPositions = defaults.default_positions || {};
+                                      updateDefault(account.id, "default_positions", {
+                                        ...currentPositions,
+                                        facebook: placements
+                                      });
+                                    }}
+                                    placeholder="All placements (automatic)"
+                                    emptyText="No placements selected"
+                                  />
+                                </div>
+                              )}
 
-                          {(defaults.default_publisher_platforms || ['facebook', 'instagram', 'audience_network']).includes('audience_network') && (
-                            <div className="space-y-2">
-                              <Label>Audience Network Placements</Label>
-                              <MultiSelect
-                                options={[
-                                  { value: "classic", label: "Native, Banner, Interstitial" },
-                                  { value: "instream_video", label: "In-stream Video" },
-                                  { value: "rewarded_video", label: "Rewarded Video" },
-                                ]}
-                                value={(defaults.default_positions as any)?.audience_network || []}
-                                onChange={(placements) => {
-                                  const currentPositions = defaults.default_positions || {};
-                                  updateDefault(account.id, "default_positions", {
-                                    ...currentPositions,
-                                    audience_network: placements
-                                  });
-                                }}
-                                placeholder="All placements (automatic)"
-                                emptyText="No placements selected"
-                              />
-                            </div>
+                              {(defaults.default_publisher_platforms || ['facebook', 'instagram', 'audience_network']).includes('instagram') && (
+                                <div className="space-y-2">
+                                  <Label>Instagram Placements</Label>
+                                  <MultiSelect
+                                    options={[
+                                      { value: "stream", label: "Feed" },
+                                      { value: "story", label: "Story" },
+                                      { value: "explore", label: "Explore" },
+                                      { value: "explore_home", label: "Explore Home" },
+                                      { value: "reels", label: "Reels" },
+                                    ]}
+                                    value={(defaults.default_positions as any)?.instagram || []}
+                                    onChange={(placements) => {
+                                      const currentPositions = defaults.default_positions || {};
+                                      updateDefault(account.id, "default_positions", {
+                                        ...currentPositions,
+                                        instagram: placements
+                                      });
+                                    }}
+                                    placeholder="All placements (automatic)"
+                                    emptyText="No placements selected"
+                                  />
+                                </div>
+                              )}
+
+                              {(defaults.default_publisher_platforms || ['facebook', 'instagram', 'audience_network']).includes('audience_network') && (
+                                <div className="space-y-2">
+                                  <Label>Audience Network Placements</Label>
+                                  <MultiSelect
+                                    options={[
+                                      { value: "classic", label: "Native, Banner, Interstitial" },
+                                      { value: "instream_video", label: "In-stream Video" },
+                                      { value: "rewarded_video", label: "Rewarded Video" },
+                                    ]}
+                                    value={(defaults.default_positions as any)?.audience_network || []}
+                                    onChange={(placements) => {
+                                      const currentPositions = defaults.default_positions || {};
+                                      updateDefault(account.id, "default_positions", {
+                                        ...currentPositions,
+                                        audience_network: placements
+                                      });
+                                    }}
+                                    placeholder="All placements (automatic)"
+                                    emptyText="No placements selected"
+                                  />
+                                </div>
+                              )}
+                            </>
                           )}
                         </>
                       )}

@@ -389,110 +389,123 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
           console.log("Adding OS targeting:", os);
         }
         
-        // Add publisher platforms from phase (facebook, instagram, audience_network, messenger, threads)
-        // Filter out 'messenger' since all messenger placements are now deprecated
-        // Priority: phase.publisherPlatforms > market.metaPublisherPlatforms > defaults
-        const publisherPlatforms = phase.publisherPlatforms || (market as any).metaPublisherPlatforms;
-        console.log("📍 Raw publisherPlatforms from phase:", JSON.stringify(phase.publisherPlatforms));
-        console.log("📍 Raw metaPublisherPlatforms from market:", JSON.stringify((market as any).metaPublisherPlatforms));
-        console.log("📍 Resolved publisherPlatforms:", JSON.stringify(publisherPlatforms));
-        if (publisherPlatforms && Array.isArray(publisherPlatforms) && publisherPlatforms.length > 0) {
-          const filteredPlatforms = publisherPlatforms.filter((p: string) => p !== 'messenger');
-          if (filteredPlatforms.length > 0) {
-            targeting.publisher_platforms = filteredPlatforms;
-            console.log("Adding publisher platforms (messenger filtered out):", filteredPlatforms);
-          }
+        // Check for Advantage+ placements flag (Meta automatic placement optimization)
+        // When enabled, don't set any publisher_platforms or positions - Meta optimizes automatically
+        const advantagePlusPlacements = phase.advantagePlusPlacements ?? (market as any).metaAdvantagePlusPlacements ?? true;
+        console.log("📍 Advantage+ placements enabled:", advantagePlusPlacements);
+        
+        if (advantagePlusPlacements) {
+          // With Advantage+ placements, we don't specify any placement constraints
+          // Meta will automatically optimize across all available placements
+          console.log("📍 Using Advantage+ placements - Meta will auto-optimize");
+          // Don't set publisher_platforms, facebook_positions, instagram_positions, etc.
         } else {
-          // If no publisher platforms specified, default to all except messenger
-          targeting.publisher_platforms = ['facebook', 'instagram', 'audience_network'];
-          console.log("No publisherPlatforms specified, using defaults:", targeting.publisher_platforms);
-        }
-        
-        // Add placements/positions from phase or market defaults
-        // Priority: phase.positions > market.metaPositions > defaults
-        const positions = phase.positions || (market as any).metaPositions;
-        console.log("📍 Raw positions from phase:", JSON.stringify(phase.positions));
-        console.log("📍 Raw metaPositions from market:", JSON.stringify((market as any).metaPositions));
-        console.log("📍 Resolved positions:", JSON.stringify(positions));
-        
-        // Valid placements per Meta API (updated to remove deprecated ones)
-        // NOTE: As of Oct 2025, ALL Messenger placements are deprecated:
-        // - messenger_home: deprecated Oct 9, 2025
-        // - sponsored_messages: deprecated May 2024
-        const validFacebookPositions = ['feed', 'instant_article', 'instream_video', 'marketplace', 'search', 'video_feeds', 'story'];
-        const validInstagramPositions = ['stream', 'story', 'explore', 'explore_home', 'reels'];
-        const validAudienceNetworkPositions = ['classic', 'instream_video', 'rewarded_video'];
-        const validMessengerPositions: string[] = []; // Empty - all messenger placements deprecated
-        
-        // If no positions specified or positions is empty, default to all valid positions for each publisher platform
-        if (!positions || Object.keys(positions).length === 0) {
-          console.log("📍 No positions specified, using all valid positions for each publisher platform");
-          if (targeting.publisher_platforms?.includes('facebook')) {
-            targeting.facebook_positions = validFacebookPositions;
-            console.log("Adding Facebook positions (default all):", validFacebookPositions);
+          // Manual placements mode - specify publisher platforms and positions
+          // Add publisher platforms from phase (facebook, instagram, audience_network, messenger, threads)
+          // Filter out 'messenger' since all messenger placements are now deprecated
+          // Priority: phase.publisherPlatforms > market.metaPublisherPlatforms > defaults
+          const publisherPlatforms = phase.publisherPlatforms || (market as any).metaPublisherPlatforms;
+          console.log("📍 Raw publisherPlatforms from phase:", JSON.stringify(phase.publisherPlatforms));
+          console.log("📍 Raw metaPublisherPlatforms from market:", JSON.stringify((market as any).metaPublisherPlatforms));
+          console.log("📍 Resolved publisherPlatforms:", JSON.stringify(publisherPlatforms));
+          if (publisherPlatforms && Array.isArray(publisherPlatforms) && publisherPlatforms.length > 0) {
+            const filteredPlatforms = publisherPlatforms.filter((p: string) => p !== 'messenger');
+            if (filteredPlatforms.length > 0) {
+              targeting.publisher_platforms = filteredPlatforms;
+              console.log("Adding publisher platforms (messenger filtered out):", filteredPlatforms);
+            }
+          } else {
+            // If no publisher platforms specified, default to all except messenger
+            targeting.publisher_platforms = ['facebook', 'instagram', 'audience_network'];
+            console.log("No publisherPlatforms specified, using defaults:", targeting.publisher_platforms);
           }
-          if (targeting.publisher_platforms?.includes('instagram')) {
-            targeting.instagram_positions = validInstagramPositions;
-            console.log("Adding Instagram positions (default all):", validInstagramPositions);
-          }
-          if (targeting.publisher_platforms?.includes('audience_network')) {
-            targeting.audience_network_positions = validAudienceNetworkPositions;
-            console.log("Adding Audience Network positions (default all):", validAudienceNetworkPositions);
-          }
-        } else if (positions) {
-          // Handle Facebook positions
-          if (positions.facebook && Array.isArray(positions.facebook) && positions.facebook.length > 0) {
-            if (positions.facebook.includes('automatic')) {
-              // When automatic, use all valid positions
+          
+          // Add placements/positions from phase or market defaults
+          // Priority: phase.positions > market.metaPositions > defaults
+          const positions = phase.positions || (market as any).metaPositions;
+          console.log("📍 Raw positions from phase:", JSON.stringify(phase.positions));
+          console.log("📍 Raw metaPositions from market:", JSON.stringify((market as any).metaPositions));
+          console.log("📍 Resolved positions:", JSON.stringify(positions));
+          
+          // Valid placements per Meta API (updated to remove deprecated ones)
+          // NOTE: As of Oct 2025, ALL Messenger placements are deprecated:
+          // - messenger_home: deprecated Oct 9, 2025
+          // - sponsored_messages: deprecated May 2024
+          const validFacebookPositions = ['feed', 'instant_article', 'instream_video', 'marketplace', 'search', 'video_feeds', 'story'];
+          const validInstagramPositions = ['stream', 'story', 'explore', 'explore_home', 'reels'];
+          const validAudienceNetworkPositions = ['classic', 'instream_video', 'rewarded_video'];
+          const validMessengerPositions: string[] = []; // Empty - all messenger placements deprecated
+          
+          // If no positions specified or positions is empty, default to all valid positions for each publisher platform
+          if (!positions || Object.keys(positions).length === 0) {
+            console.log("📍 No positions specified, using all valid positions for each publisher platform");
+            if (targeting.publisher_platforms?.includes('facebook')) {
               targeting.facebook_positions = validFacebookPositions;
-              console.log("Adding Facebook positions (automatic):", validFacebookPositions);
-            } else {
-              // Filter out deprecated placements
-              const filteredPositions = positions.facebook.filter((p: string) => validFacebookPositions.includes(p));
-              if (filteredPositions.length > 0) {
-                targeting.facebook_positions = filteredPositions;
-                console.log("Adding Facebook positions:", filteredPositions);
-              }
+              console.log("Adding Facebook positions (default all):", validFacebookPositions);
             }
-          }
-          
-          // Handle Instagram positions
-          if (positions.instagram && Array.isArray(positions.instagram) && positions.instagram.length > 0) {
-            if (positions.instagram.includes('automatic')) {
+            if (targeting.publisher_platforms?.includes('instagram')) {
               targeting.instagram_positions = validInstagramPositions;
-              console.log("Adding Instagram positions (automatic):", validInstagramPositions);
-            } else {
-              const filteredPositions = positions.instagram.filter((p: string) => validInstagramPositions.includes(p));
-              if (filteredPositions.length > 0) {
-                targeting.instagram_positions = filteredPositions;
-                console.log("Adding Instagram positions:", filteredPositions);
-              }
+              console.log("Adding Instagram positions (default all):", validInstagramPositions);
             }
-          }
-          
-          // Handle Audience Network positions
-          if (positions.audience_network && Array.isArray(positions.audience_network) && positions.audience_network.length > 0) {
-            if (positions.audience_network.includes('automatic')) {
+            if (targeting.publisher_platforms?.includes('audience_network')) {
               targeting.audience_network_positions = validAudienceNetworkPositions;
-              console.log("Adding Audience Network positions (automatic):", validAudienceNetworkPositions);
-            } else {
-              const filteredPositions = positions.audience_network.filter((p: string) => validAudienceNetworkPositions.includes(p));
-              if (filteredPositions.length > 0) {
-                targeting.audience_network_positions = filteredPositions;
-                console.log("Adding Audience Network positions:", filteredPositions);
+              console.log("Adding Audience Network positions (default all):", validAudienceNetworkPositions);
+            }
+          } else if (positions) {
+            // Handle Facebook positions
+            if (positions.facebook && Array.isArray(positions.facebook) && positions.facebook.length > 0) {
+              if (positions.facebook.includes('automatic')) {
+                // When automatic, use all valid positions
+                targeting.facebook_positions = validFacebookPositions;
+                console.log("Adding Facebook positions (automatic):", validFacebookPositions);
+              } else {
+                // Filter out deprecated placements
+                const filteredPositions = positions.facebook.filter((p: string) => validFacebookPositions.includes(p));
+                if (filteredPositions.length > 0) {
+                  targeting.facebook_positions = filteredPositions;
+                  console.log("Adding Facebook positions:", filteredPositions);
+                }
               }
             }
+            
+            // Handle Instagram positions
+            if (positions.instagram && Array.isArray(positions.instagram) && positions.instagram.length > 0) {
+              if (positions.instagram.includes('automatic')) {
+                targeting.instagram_positions = validInstagramPositions;
+                console.log("Adding Instagram positions (automatic):", validInstagramPositions);
+              } else {
+                const filteredPositions = positions.instagram.filter((p: string) => validInstagramPositions.includes(p));
+                if (filteredPositions.length > 0) {
+                  targeting.instagram_positions = filteredPositions;
+                  console.log("Adding Instagram positions:", filteredPositions);
+                }
+              }
+            }
+            
+            // Handle Audience Network positions
+            if (positions.audience_network && Array.isArray(positions.audience_network) && positions.audience_network.length > 0) {
+              if (positions.audience_network.includes('automatic')) {
+                targeting.audience_network_positions = validAudienceNetworkPositions;
+                console.log("Adding Audience Network positions (automatic):", validAudienceNetworkPositions);
+              } else {
+                const filteredPositions = positions.audience_network.filter((p: string) => validAudienceNetworkPositions.includes(p));
+                if (filteredPositions.length > 0) {
+                  targeting.audience_network_positions = filteredPositions;
+                  console.log("Adding Audience Network positions:", filteredPositions);
+                }
+              }
+            }
+            
+            // Handle Messenger positions - DEPRECATED: All messenger placements removed as of 2024-2025
+            // messenger_home: deprecated Oct 9, 2025
+            // sponsored_messages: deprecated May 2024
+            // Do not add messenger_positions to targeting to avoid MESSENGER_THREAD errors
+            if (positions.messenger && Array.isArray(positions.messenger) && positions.messenger.length > 0) {
+              console.log("Messenger positions requested but skipped (all deprecated):", positions.messenger);
+            }
+            // Note: Threads positions are handled automatically by Meta when 'threads' is in publisher_platforms
+            // Do not add threads_positions field as it causes API errors
           }
-          
-          // Handle Messenger positions - DEPRECATED: All messenger placements removed as of 2024-2025
-          // messenger_home: deprecated Oct 9, 2025
-          // sponsored_messages: deprecated May 2024
-          // Do not add messenger_positions to targeting to avoid MESSENGER_THREAD errors
-          if (positions.messenger && Array.isArray(positions.messenger) && positions.messenger.length > 0) {
-            console.log("Messenger positions requested but skipped (all deprecated):", positions.messenger);
-          }
-          // Note: Threads positions are handled automatically by Meta when 'threads' is in publisher_platforms
-          // Do not add threads_positions field as it causes API errors
         }
         
         // Add detailed targeting (interests, behaviors)
