@@ -493,26 +493,40 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
         // If using unified targeting (selectedItems array from UnifiedTargeting component)
         if (effectiveTargeting.selectedItems && Array.isArray(effectiveTargeting.selectedItems)) {
           console.log(`🎯 Transforming ${effectiveTargeting.selectedItems.length} unified targeting items for Meta`);
+          console.log(`📝 Sample item structure:`, JSON.stringify(effectiveTargeting.selectedItems[0], null, 2));
           
           effectiveTargeting.selectedItems.forEach((item: any) => {
             // Only process items available on Meta
             if (item.platforms && item.platforms.includes('meta')) {
+              // Extract the correct Meta ID - handle different ID formats
+              let metaIdValue = item.metaId || item.id;
+              // Remove prefix if present (e.g., "meta-123" -> "123")
+              if (typeof metaIdValue === 'string' && metaIdValue.startsWith('meta-')) {
+                metaIdValue = metaIdValue.substring(5);
+              }
+              if (typeof metaIdValue === 'string' && metaIdValue.startsWith('unified-')) {
+                metaIdValue = item.metaId; // For unified items, use metaId directly
+              }
+              
               const metaItem = {
-                id: item.metaId || item.id,
+                id: metaIdValue,
                 name: item.name,
                 category: item.category
               };
               
-              // Categorize by type
-              if (item.category === 'interest') {
+              // Categorize by type (case-insensitive)
+              const categoryLower = (item.category || '').toLowerCase();
+              if (categoryLower === 'interest' || categoryLower === 'interests') {
                 metaInterests.push(metaItem);
                 console.log(`  ✓ Interest: ${item.name} (${metaItem.id})`);
-              } else if (item.category === 'behavior') {
+              } else if (categoryLower === 'behavior' || categoryLower === 'behaviors') {
                 metaBehaviors.push(metaItem);
                 console.log(`  ✓ Behavior: ${item.name} (${metaItem.id})`);
-              } else if (item.category === 'demographic') {
+              } else if (categoryLower === 'demographic' || categoryLower === 'demographics') {
                 metaDemographics.push(metaItem);
                 console.log(`  ✓ Demographic: ${item.name} (${metaItem.id})`);
+              } else {
+                console.warn(`  ⚠️ Unknown category '${item.category}' for item: ${item.name}`);
               }
             }
           });
@@ -1008,26 +1022,40 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
         // If using unified targeting (selectedItems array from UnifiedTargeting component)
         if (effectiveTargeting.selectedItems && Array.isArray(effectiveTargeting.selectedItems)) {
           console.log(`🎯 Transforming ${effectiveTargeting.selectedItems.length} unified targeting items for TikTok`);
+          console.log(`📝 Sample item structure:`, JSON.stringify(effectiveTargeting.selectedItems[0], null, 2));
           
           effectiveTargeting.selectedItems.forEach((item: any) => {
             // Only process items available on TikTok
             if (item.platforms && item.platforms.includes('tiktok')) {
+              // Extract the correct TikTok ID - handle different ID formats
+              let tiktokIdValue = item.tiktokId || item.id;
+              // Remove prefix if present (e.g., "tiktok-123" -> "123")
+              if (typeof tiktokIdValue === 'string' && tiktokIdValue.startsWith('tiktok-')) {
+                tiktokIdValue = tiktokIdValue.substring(7);
+              }
+              if (typeof tiktokIdValue === 'string' && tiktokIdValue.startsWith('unified-')) {
+                tiktokIdValue = item.tiktokId; // For unified items, use tiktokId directly
+              }
+              
               const tiktokItem = {
-                id: item.tiktokId || item.id,
+                id: tiktokIdValue,
                 name: item.name,
                 category: item.category
               };
               
-              // Categorize by type
-              if (item.category === 'interest') {
+              // Categorize by type (case-insensitive)
+              const categoryLower = (item.category || '').toLowerCase();
+              if (categoryLower === 'interest' || categoryLower === 'interests') {
                 tiktokInterests.push(tiktokItem);
                 console.log(`  ✓ Interest: ${item.name} (${tiktokItem.id})`);
-              } else if (item.category === 'behavior') {
+              } else if (categoryLower === 'behavior' || categoryLower === 'behaviors') {
                 tiktokBehaviors.push(tiktokItem);
                 console.log(`  ✓ Behavior: ${item.name} (${tiktokItem.id})`);
-              } else if (item.category === 'demographic') {
+              } else if (categoryLower === 'demographic' || categoryLower === 'demographics') {
                 tiktokDemographics.push(tiktokItem);
                 console.log(`  ✓ Demographic: ${item.name} (${tiktokItem.id})`);
+              } else {
+                console.warn(`  ⚠️ Unknown category '${item.category}' for item: ${item.name}`);
               }
             }
           });
