@@ -379,6 +379,7 @@ export type Database = {
           client_id: string | null
           created_at: string
           currency: string | null
+          default_advantage_plus_placements: boolean | null
           default_bid_amount: number | null
           default_bid_strategy: string | null
           default_catalog_id: string | null
@@ -403,6 +404,7 @@ export type Database = {
           client_id?: string | null
           created_at?: string
           currency?: string | null
+          default_advantage_plus_placements?: boolean | null
           default_bid_amount?: number | null
           default_bid_strategy?: string | null
           default_catalog_id?: string | null
@@ -427,6 +429,7 @@ export type Database = {
           client_id?: string | null
           created_at?: string
           currency?: string | null
+          default_advantage_plus_placements?: boolean | null
           default_bid_amount?: number | null
           default_bid_strategy?: string | null
           default_catalog_id?: string | null
