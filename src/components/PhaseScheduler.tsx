@@ -21,6 +21,7 @@ import { PhaseAudienceSelector } from "./PhaseAudienceSelector";
 import { UnifiedTargeting, UnifiedTargetingConfig } from "./UnifiedTargeting";
 import { TiktokPhaseConfig } from "./TiktokPhaseConfig";
 import { PhaseTaxonomyInputs } from "./PhaseTaxonomyInputs";
+import { PhaseTaxonomyPreview } from "./PhaseTaxonomyPreview";
 import { shortenValue } from "@/utils/taxonomyUtils";
 import { 
   getObjectivesForPlatform, 
@@ -832,7 +833,7 @@ export function PhaseScheduler({
                       variant="ghost"
                       className="w-full flex items-center justify-between p-4 hover:bg-muted/50"
                     >
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 flex-wrap">
                         <div className={`w-3 h-3 rounded ${phase.isLoyaltyPhase ? 'bg-amber-500/40' : getPhaseColor(index).split(" ")[0]}`} />
                         <span className="font-medium">{phase.name}</span>
                         {phase.startDate && phase.endDate && (
@@ -843,6 +844,19 @@ export function PhaseScheduler({
                         <Badge variant="secondary" className="text-xs">
                           {phase.budgetPercentage}% budget
                         </Badge>
+                        {adAccountId && (
+                          <PhaseTaxonomyPreview
+                            adAccountId={adAccountId}
+                            platform={platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta'}
+                            campaignTaxonomyValues={phase.campaignTaxonomyValues}
+                            adsetTaxonomyValues={phase.adsetTaxonomyValues}
+                            contextValues={{
+                              objective: phase.objective ? shortenValue('objective', phase.objective) : undefined,
+                              optimizationGoal: phase.optimizationGoal ? shortenValue('optimizationGoal', phase.optimizationGoal) : undefined,
+                              funnelStage: phase.funnelStage ? shortenValue('funnelStage', phase.funnelStage) : undefined,
+                            }}
+                          />
+                        )}
                       </div>
                       <ChevronDown className={`h-4 w-4 transition-transform ${expandedPhases[phase.id] ? 'rotate-180' : ''}`} />
                     </Button>
