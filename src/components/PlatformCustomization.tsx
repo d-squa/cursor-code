@@ -17,6 +17,13 @@ import { CampaignPublisherConfig } from "./CampaignPublisherConfig";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { getObjectiveFromPhaseName, getStrategyLabel } from "@/utils/phaseObjectiveMapping";
 import { useToast } from "@/components/ui/use-toast";
+import { 
+  getObjectivesForPlatform, 
+  getOptimizationGoalsForObjective, 
+  getDefaultOptimizationGoal,
+  detectPlatformType,
+  type ObjectiveMapping 
+} from "@/utils/objectiveOptimizationMapping";
 
 interface PlatformCustomizationProps {
   platforms: PlatformWithMarkets[];
@@ -27,40 +34,6 @@ interface PlatformCustomizationProps {
   startDate: string;
   endDate: string;
 }
-
-// Platform-specific objective mappings
-const platformObjectiveMapping: Record<string, Record<string, string[]>> = {
-  "Facebook (Meta)": {
-    "Awareness": ["Brand Awareness", "Reach"],
-    "Consideration": ["Traffic", "Engagement", "App Installs", "Video Views", "Lead Generation"],
-    "Conversion": ["Conversions", "Catalog Sales"],
-  },
-  "Instagram (Meta)": {
-    "Awareness": ["Brand Awareness", "Reach"],
-    "Consideration": ["Traffic", "Engagement", "Video Views"],
-    "Conversion": ["Conversions", "Shopping"],
-  },
-  "Google Ads": {
-    "Awareness": ["Display", "Video", "Discovery"],
-    "Consideration": ["Search", "Shopping", "Video"],
-    "Conversion": ["Performance Max", "Shopping", "Search"],
-  },
-  "YouTube (Google)": {
-    "Awareness": ["Video Reach", "Brand Awareness"],
-    "Consideration": ["Video Views", "Consideration"],
-    "Conversion": ["Conversions", "Action"],
-  },
-  "LinkedIn": {
-    "Awareness": ["Brand Awareness", "Reach"],
-    "Consideration": ["Website Visits", "Engagement", "Video Views"],
-    "Conversion": ["Lead Generation", "Conversions"],
-  },
-  "TikTok": {
-    "Awareness": ["Reach", "Video Views"],
-    "Consideration": ["Traffic", "Community Interaction"],
-    "Conversion": ["Conversions", "App Installs"],
-  },
-};
 
 export function PlatformCustomization({
   platforms,
@@ -158,21 +131,28 @@ export function PlatformCustomization({
       }
     }
     
-    // Fallback to original mapping
-    const mapping: Record<string, string> = {
-      "Purchases": "Conversion",
-      "Conversions": "Conversion",
-      "Leads": "Conversion",
-      "Awareness": "Awareness",
-      "Market Presence": "Awareness",
-      "In-App Actions": "Consideration",
-      "Actions": "Consideration",
-      "Revenue": "Conversion",
-    };
+    // Fallback: use the new mapping system
+    const detectedPlatform = detectPlatformType(platformName);
+    if (detectedPlatform) {
+      const objectives = getObjectivesForPlatform(detectedPlatform);
+      // Map funnel stage to objective
+      const funnelStageMap: Record<string, string> = {
+        "Purchases": "OUTCOME_SALES",
+        "Conversions": "OUTCOME_SALES",
+        "Leads": "OUTCOME_LEADS",
+        "Awareness": "OUTCOME_AWARENESS",
+        "Market Presence": "OUTCOME_AWARENESS",
+        "In-App Actions": "OUTCOME_APP_PROMOTION",
+        "Actions": "OUTCOME_TRAFFIC",
+        "Revenue": "OUTCOME_SALES",
+      };
+      
+      const targetObjective = funnelStageMap[genericFocus || ""] || "OUTCOME_TRAFFIC";
+      const found = objectives.find(obj => obj.value === targetObjective);
+      return found?.value || objectives[0]?.value || "Traffic";
+    }
     
-    const funnelStage = mapping[genericFocus || ""] || "Consideration";
-    const objectives = platformObjectiveMapping[platformName]?.[funnelStage];
-    return objectives?.[0] || "Traffic";
+    return "Traffic";
   };
 
   const updateMarketField = (
@@ -612,154 +592,85 @@ return (
                                                       <Label htmlFor={`objective-${phase.id}`} className="text-xs">
                                                         Objective {isAutoDetected && <span className="text-blue-600">(Auto-detected)</span>}
                                                       </Label>
-                                                      <Select
-                                                        value={currentObjective}
-                                                        onValueChange={(value) => {
-                                                          if (value === "AUTO_DETECT") {
-                                                            // Clear both to trigger auto-detection
-                                                            updateCampaignField(platform.id, market.id, phase.id, "objective", undefined);
-                                                            updateCampaignField(platform.id, market.id, phase.id, "optimizationGoal", undefined);
-                                                          } else {
-                                                            updateCampaignField(platform.id, market.id, phase.id, "objective", value);
-                                                          }
-                                                        }}
-                                                      >
-                                                        <SelectTrigger id={`objective-${phase.id}`}>
-                                                          <SelectValue placeholder="Select objective" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                          <SelectItem value="AUTO_DETECT" className="text-blue-600 font-medium">
-                                                            🔄 Auto-detect from phase
-                                                          </SelectItem>
-                                                          {platform.name.includes("Meta") ? (
-                                                            <>
-                                                              <SelectItem value="OUTCOME_AWARENESS">Awareness</SelectItem>
-                                                              <SelectItem value="OUTCOME_TRAFFIC">Traffic</SelectItem>
-                                                              <SelectItem value="OUTCOME_ENGAGEMENT">Engagement</SelectItem>
-                                                              <SelectItem value="OUTCOME_LEADS">Lead Generation</SelectItem>
-                                                              <SelectItem value="OUTCOME_APP_PROMOTION">App Promotion</SelectItem>
-                                                              <SelectItem value="OUTCOME_SALES">Sales</SelectItem>
-                                                              <SelectItem value="Brand Awareness">Brand Awareness</SelectItem>
-                                                              <SelectItem value="Reach">Reach</SelectItem>
-                                                              <SelectItem value="Video Views">Video Views</SelectItem>
-                                                              <SelectItem value="Catalog Sales">Catalog Sales</SelectItem>
-                                                            </>
-                                                          ) : platform.name.includes("Google") || platform.name.includes("YouTube") ? (
-                                                            <>
-                                                              <SelectItem value="Display">Display</SelectItem>
-                                                              <SelectItem value="Search">Search</SelectItem>
-                                                              <SelectItem value="Shopping">Shopping</SelectItem>
-                                                              <SelectItem value="Video">Video</SelectItem>
-                                                              <SelectItem value="Discovery">Discovery</SelectItem>
-                                                              <SelectItem value="Performance Max">Performance Max</SelectItem>
-                                                              <SelectItem value="App">App</SelectItem>
-                                                            </>
-                                                          ) : platform.name.includes("LinkedIn") ? (
-                                                            <>
-                                                              <SelectItem value="Brand Awareness">Brand Awareness</SelectItem>
-                                                              <SelectItem value="Website Visits">Website Visits</SelectItem>
-                                                              <SelectItem value="Engagement">Engagement</SelectItem>
-                                                              <SelectItem value="Video Views">Video Views</SelectItem>
-                                                              <SelectItem value="Lead Generation">Lead Generation</SelectItem>
-                                                              <SelectItem value="Conversions">Conversions</SelectItem>
-                                                            </>
-                                                          ) : platform.name.includes("TikTok") ? (
-                                                            <>
-                                                              <SelectItem value="Reach">Reach</SelectItem>
-                                                              <SelectItem value="Traffic">Traffic</SelectItem>
-                                                              <SelectItem value="Video Views">Video Views</SelectItem>
-                                                              <SelectItem value="Community Interaction">Community Interaction</SelectItem>
-                                                              <SelectItem value="App Installs">App Installs</SelectItem>
-                                                              <SelectItem value="Conversions">Conversions</SelectItem>
-                                                            </>
-                                                          ) : (
-                                                            <>
-                                                              <SelectItem value="Awareness">Awareness</SelectItem>
-                                                              <SelectItem value="Consideration">Consideration</SelectItem>
-                                                              <SelectItem value="Conversion">Conversion</SelectItem>
-                                                            </>
-                                                          )}
-                                                        </SelectContent>
-                                                      </Select>
+                                                      {(() => {
+                                                        const detectedPlatform = detectPlatformType(platform.name);
+                                                        const objectives = detectedPlatform ? getObjectivesForPlatform(detectedPlatform) : [];
+                                                        
+                                                        return (
+                                                          <Select
+                                                            value={currentObjective}
+                                                            onValueChange={(value) => {
+                                                              if (value === "AUTO_DETECT") {
+                                                                updateCampaignField(platform.id, market.id, phase.id, "objective", undefined);
+                                                                updateCampaignField(platform.id, market.id, phase.id, "optimizationGoal", undefined);
+                                                              } else {
+                                                                updateCampaignField(platform.id, market.id, phase.id, "objective", value);
+                                                                // Auto-set optimization goal when objective changes
+                                                                if (detectedPlatform) {
+                                                                  const defaultGoal = getDefaultOptimizationGoal(detectedPlatform, value);
+                                                                  if (defaultGoal) {
+                                                                    updateCampaignField(platform.id, market.id, phase.id, "optimizationGoal", defaultGoal);
+                                                                  }
+                                                                }
+                                                              }
+                                                            }}
+                                                          >
+                                                            <SelectTrigger id={`objective-${phase.id}`}>
+                                                              <SelectValue placeholder="Select objective" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                              <SelectItem value="AUTO_DETECT" className="text-blue-600 font-medium">
+                                                                🔄 Auto-detect from phase
+                                                              </SelectItem>
+                                                              {objectives.map((obj) => (
+                                                                <SelectItem key={obj.value} value={obj.value}>
+                                                                  {obj.label}
+                                                                </SelectItem>
+                                                              ))}
+                                                            </SelectContent>
+                                                          </Select>
+                                                        );
+                                                      })()}
                                                     </div>
                                                     <div className="space-y-1">
                                                       <Label htmlFor={`opt-goal-${phase.id}`} className="text-xs">
                                                         Optimization Goal {isAutoDetected && <span className="text-blue-600">(Auto-detected)</span>}
                                                       </Label>
-                                                      <Select
-                                                        value={currentOptGoal}
-                                                        onValueChange={(value) => {
-                                                          if (value === "AUTO_DETECT") {
-                                                            updateCampaignField(platform.id, market.id, phase.id, "optimizationGoal", undefined);
-                                                          } else {
-                                                            updateCampaignField(platform.id, market.id, phase.id, "optimizationGoal", value);
-                                                          }
-                                                        }}
-                                                      >
-                                                        <SelectTrigger id={`opt-goal-${phase.id}`}>
-                                                          <SelectValue placeholder="Select optimization goal" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                          <SelectItem value="AUTO_DETECT" className="text-blue-600 font-medium">
-                                                            🔄 Auto-detect from phase
-                                                          </SelectItem>
-                                                          {platform.name.includes("Meta") ? (
-                                                            <>
-                                                              <SelectItem value="LINK_CLICKS">Link Clicks</SelectItem>
-                                                              <SelectItem value="LANDING_PAGE_VIEWS">Landing Page Views</SelectItem>
-                                                              <SelectItem value="LEADS">Leads</SelectItem>
-                                                              <SelectItem value="OFFSITE_CONVERSIONS">Conversions</SelectItem>
-                                                              <SelectItem value="APP_INSTALLS">App Installs</SelectItem>
-                                                              <SelectItem value="APP_EVENTS">App Events</SelectItem>
-                                                              <SelectItem value="POST_ENGAGEMENT">Post Engagement</SelectItem>
-                                                              <SelectItem value="PAGE_LIKES">Page Likes</SelectItem>
-                                                              <SelectItem value="THRUPLAY">ThruPlay</SelectItem>
-                                                              <SelectItem value="VIDEO_VIEWS">Video Views</SelectItem>
-                                                              <SelectItem value="REACH">Reach</SelectItem>
-                                                              <SelectItem value="IMPRESSIONS">Impressions</SelectItem>
-                                                              <SelectItem value="CONVERSATIONS">Conversations</SelectItem>
-                                                              <SelectItem value="VALUE">Conversion Value (ROAS)</SelectItem>
-                                                            </>
-                                                          ) : platform.name.includes("Google") || platform.name.includes("YouTube") ? (
-                                                            <>
-                                                              <SelectItem value="Clicks">Clicks</SelectItem>
-                                                              <SelectItem value="Impressions">Impressions</SelectItem>
-                                                              <SelectItem value="Conversions">Conversions</SelectItem>
-                                                              <SelectItem value="Conversion Value">Conversion Value</SelectItem>
-                                                              <SelectItem value="Views">Views</SelectItem>
-                                                              <SelectItem value="View Rate">View Rate</SelectItem>
-                                                              <SelectItem value="Engagement">Engagement</SelectItem>
-                                                              <SelectItem value="CPV">CPV (Cost Per View)</SelectItem>
-                                                            </>
-                                                          ) : platform.name.includes("LinkedIn") ? (
-                                                            <>
-                                                              <SelectItem value="Impressions">Impressions</SelectItem>
-                                                              <SelectItem value="Clicks">Clicks</SelectItem>
-                                                              <SelectItem value="Landing Page Actions">Landing Page Actions</SelectItem>
-                                                              <SelectItem value="Conversions">Conversions</SelectItem>
-                                                              <SelectItem value="Video Views">Video Views</SelectItem>
-                                                              <SelectItem value="Engagement">Engagement</SelectItem>
-                                                            </>
-                                                          ) : platform.name.includes("TikTok") ? (
-                                                            <>
-                                                              <SelectItem value="Reach">Reach</SelectItem>
-                                                              <SelectItem value="Click">Click</SelectItem>
-                                                              <SelectItem value="Video Views">Video Views</SelectItem>
-                                                              <SelectItem value="Engagement">Engagement</SelectItem>
-                                                              <SelectItem value="Conversion">Conversion</SelectItem>
-                                                              <SelectItem value="Value">Value</SelectItem>
-                                                              <SelectItem value="App Installs">App Installs</SelectItem>
-                                                            </>
-                                                          ) : (
-                                                            <>
-                                                              <SelectItem value="Impressions">Impressions</SelectItem>
-                                                              <SelectItem value="Clicks">Clicks</SelectItem>
-                                                              <SelectItem value="Conversions">Conversions</SelectItem>
-                                                              <SelectItem value="Engagement">Engagement</SelectItem>
-                                                            </>
-                                                          )}
-                                                        </SelectContent>
-                                                      </Select>
+                                                      {(() => {
+                                                        const detectedPlatform = detectPlatformType(platform.name);
+                                                        const optimizationGoals = detectedPlatform && currentObjective && currentObjective !== "AUTO_DETECT" 
+                                                          ? getOptimizationGoalsForObjective(detectedPlatform, currentObjective) 
+                                                          : [];
+                                                        const isDisabled = !currentObjective || currentObjective === "AUTO_DETECT";
+                                                        
+                                                        return (
+                                                          <Select
+                                                            value={currentOptGoal}
+                                                            onValueChange={(value) => {
+                                                              if (value === "AUTO_DETECT") {
+                                                                updateCampaignField(platform.id, market.id, phase.id, "optimizationGoal", undefined);
+                                                              } else {
+                                                                updateCampaignField(platform.id, market.id, phase.id, "optimizationGoal", value);
+                                                              }
+                                                            }}
+                                                            disabled={isDisabled}
+                                                          >
+                                                            <SelectTrigger id={`opt-goal-${phase.id}`} className={isDisabled ? 'opacity-50' : ''}>
+                                                              <SelectValue placeholder={isDisabled ? "Select objective first" : "Select optimization goal"} />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                              <SelectItem value="AUTO_DETECT" className="text-blue-600 font-medium">
+                                                                🔄 Auto-detect from phase
+                                                              </SelectItem>
+                                                              {optimizationGoals.map((goal) => (
+                                                                <SelectItem key={goal.value} value={goal.value}>
+                                                                  {goal.label}
+                                                                </SelectItem>
+                                                              ))}
+                                                            </SelectContent>
+                                                          </Select>
+                                                        );
+                                                      })()}
                                                     </div>
                                                   </div>
                                                   <p className="text-xs text-muted-foreground">
