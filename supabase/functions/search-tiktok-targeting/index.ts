@@ -111,15 +111,12 @@ serve(async (req) => {
     
     // Helper function to calculate relevance score
     const calculateRelevance = (item: any, searchQuery: string): number => {
-      const name = (item.name || '').toLowerCase();
+      const name = (item.name || item.interest_category || '').toLowerCase();
       const description = (item.description || '').toLowerCase();
       
-      // Clean query
+      // Clean query - be less aggressive with cleaning
       const cleanQuery = searchQuery
         .toLowerCase()
-        .replace(/\b(instagram|facebook|meta|retargeting|website|custom|saved|audience)\b/gi, '')
-        .replace(/\(.*?\)/g, '')
-        .replace(/[^\w\s]/g, '')
         .trim();
       
       if (!cleanQuery) return 0;
@@ -135,10 +132,22 @@ serve(async (req) => {
       // Name contains full query
       if (name.includes(cleanQuery)) score += 50;
       
-      // Count matching words
+      // Name starts with query
+      if (name.startsWith(cleanQuery)) score += 30;
+      
+      // Query starts with name (for broader categories)
+      if (cleanQuery.startsWith(name) && name.length > 3) score += 25;
+      
+      // Partial word matches in name
       queryWords.forEach(word => {
-        if (name.includes(word)) score += 15;
-        if (description && description.includes(word)) score += 8;
+        if (name === word) score += 20; // Exact word match
+        if (name.includes(word)) score += 12; // Word contained in name
+        if (word.length > 4 && name.includes(word.substring(0, 4))) score += 5; // Partial match
+      });
+      
+      // Description matches (lower weight)
+      queryWords.forEach(word => {
+        if (description.includes(word)) score += 6;
       });
       
       return score;
@@ -162,16 +171,16 @@ serve(async (req) => {
       const dataList = fetchData.data?.action_categories || fetchData.data?.list || [];
       console.log(`Processing ${dataList.length} TikTok action categories for "${query}"`);
       
-      // Score and filter items
+      // Score and filter items - be more lenient with threshold
       const scoredItems = dataList
         .map((item: any) => ({
           item,
           score: calculateRelevance(item, query)
         }))
-        .filter(({ score }: { score: number }) => score > 5)
+        .filter(({ score }: { score: number }) => score > 0)
         .sort((a: any, b: any) => b.score - a.score);
       
-      console.log(`Found ${scoredItems.length} relevant action categories after filtering (scores > 5)`);
+      console.log(`Found ${scoredItems.length} relevant action categories after filtering (scores > 0)`);
       
       // Deduplicate and take top 15
       const deduplicated = deduplicateResults(scoredItems.map((s: any) => s.item));
@@ -192,16 +201,16 @@ serve(async (req) => {
       const categories = fetchData.data?.interest_categories || fetchData.data?.list || [];
       console.log(`Processing ${categories.length} TikTok interest categories for "${query}"`);
       
-      // Score and filter items
+      // Score and filter items - be more lenient with threshold
       const scoredItems = categories
         .map((item: any) => ({
           item,
           score: calculateRelevance(item, query)
         }))
-        .filter(({ score }: { score: number }) => score > 5)
+        .filter(({ score }: { score: number }) => score > 0)
         .sort((a: any, b: any) => b.score - a.score);
       
-      console.log(`Found ${scoredItems.length} relevant interests after filtering (scores > 5)`);
+      console.log(`Found ${scoredItems.length} relevant interests after filtering (scores > 0)`);
       
       // Deduplicate and take top 15
       const deduplicated = deduplicateResults(scoredItems.map((s: any) => s.item));
