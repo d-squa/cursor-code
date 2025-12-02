@@ -1143,89 +1143,85 @@ export function PhaseScheduler({
                         basicTargeting.genders?.length ||
                         basicTargeting.devices?.length
                       ) && (
-                        <Collapsible
-                          open={phase.overrideTargeting || false}
-                          onOpenChange={(open) => {
-                            updatePhaseField(phase.id, "overrideTargeting", open);
-                            
-                            if (open) {
-                              // When enabling override, initialize with preset if not already customized
-                              if (!phase.targeting && basicTargeting) {
-                                const isTikTok = platformId === 'tiktok';
+                        <div className="border rounded-lg p-4 bg-muted/30">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">Override Campaign Targeting</span>
+                              {phase.overrideTargeting && (
+                                <Badge variant="secondary" className="text-xs">Active</Badge>
+                              )}
+                            </div>
+                            <Switch
+                              checked={phase.overrideTargeting || false}
+                              onCheckedChange={(checked) => {
+                                updatePhaseField(phase.id, "overrideTargeting", checked);
                                 
-                                const phaseTargeting: UnifiedTargetingConfig = {
-                                  ageMin: basicTargeting.ageMin,
-                                  ageMax: basicTargeting.ageMax,
-                                  genders: basicTargeting.genders ? [...basicTargeting.genders] : [],
-                                  devices: basicTargeting.devices ? [...basicTargeting.devices] : [],
-                                  os: basicTargeting.os ? [...basicTargeting.os] : [],
-                                  languages: basicTargeting.languages ? [...basicTargeting.languages] : [],
-                                  selectedItems: basicTargeting.selectedItems ? 
-                                    basicTargeting.selectedItems.filter(item => 
-                                      isTikTok ? item.platforms.includes('tiktok') : item.platforms.includes('meta')
-                                    ) : []
-                                };
-                                updatePhaseField(phase.id, "targeting", phaseTargeting);
-                              }
-                            } else {
-                              // When disabling override, reset to preset
-                              if (basicTargeting) {
-                                const isTikTok = platformId === 'tiktok';
-                                
-                                const presetCopy: UnifiedTargetingConfig = {
-                                  ageMin: basicTargeting.ageMin,
-                                  ageMax: basicTargeting.ageMax,
-                                  genders: basicTargeting.genders ? [...basicTargeting.genders] : [],
-                                  devices: basicTargeting.devices ? [...basicTargeting.devices] : [],
-                                  os: basicTargeting.os ? [...basicTargeting.os] : [],
-                                  languages: basicTargeting.languages ? [...basicTargeting.languages] : [],
-                                  selectedItems: basicTargeting.selectedItems ? 
-                                    basicTargeting.selectedItems.filter(item => 
-                                      isTikTok ? item.platforms.includes('tiktok') : item.platforms.includes('meta')
-                                    ) : []
-                                };
-                                updatePhaseField(phase.id, "targeting", presetCopy);
-                                console.log('🔄 Reset phase targeting to preset:', presetCopy);
-                              }
-                            }
-                          }}
-                          className="border rounded-lg p-4 bg-muted/30"
-                        >
-                          <CollapsibleTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              className="w-full flex items-center justify-between p-2 hover:bg-accent"
-                            >
-                              <div className="flex items-center gap-2">
-                                <span className="font-medium">Override Campaign Targeting</span>
-                                {phase.overrideTargeting && (
-                                  <Badge variant="secondary" className="text-xs">Active</Badge>
-                                )}
-                              </div>
-                              <ChevronDown className={`h-4 w-4 transition-transform ${phase.overrideTargeting ? 'rotate-180' : ''}`} />
-                            </Button>
-                          </CollapsibleTrigger>
-                          <CollapsibleContent className="pt-4">
-                            {phase.targeting && (
-                              <>
-                                {console.log('[PhaseScheduler] Rendering BasicTargeting:', { 
-                                  platformId, 
-                                  adAccountId,
-                                  phaseId: phase.id,
-                                  metaAdAccountId: platformId === 'meta' ? adAccountId : undefined,
-                                  tiktokAdvertiserId: platformId === 'tiktok' ? adAccountId : undefined
-                                })}
-                                <UnifiedTargeting
-                                  key={`phase-targeting-${phase.id}-${phase.overrideTargeting}`}
-                                  targeting={phase.targeting as UnifiedTargetingConfig}
-                                  onUpdate={(targeting) => updatePhaseField(phase.id, "targeting", targeting)}
-                                  metaAdAccountId={platformId === 'meta' ? adAccountId : undefined}
-                                  tiktokAdvertiserId={platformId === 'tiktok' ? adAccountId : undefined}
-                                />
-                              </>
-                            )}
-                          </CollapsibleContent>
-                        </Collapsible>
+                                if (checked) {
+                                  // When enabling override, initialize with preset if not already customized
+                                  if (!phase.targeting && basicTargeting) {
+                                    const isTikTok = platformId === 'tiktok';
+                                    
+                                    const phaseTargeting: UnifiedTargetingConfig = {
+                                      ageMin: basicTargeting.ageMin,
+                                      ageMax: basicTargeting.ageMax,
+                                      genders: basicTargeting.genders ? [...basicTargeting.genders] : [],
+                                      devices: basicTargeting.devices ? [...basicTargeting.devices] : [],
+                                      os: basicTargeting.os ? [...basicTargeting.os] : [],
+                                      languages: basicTargeting.languages ? [...basicTargeting.languages] : [],
+                                      selectedItems: basicTargeting.selectedItems ? 
+                                        basicTargeting.selectedItems.filter(item => 
+                                          isTikTok ? item.platforms.includes('tiktok') : item.platforms.includes('meta')
+                                        ) : []
+                                    };
+                                    updatePhaseField(phase.id, "targeting", phaseTargeting);
+                                  }
+                                } else {
+                                  // When disabling override, reset to preset
+                                  if (basicTargeting) {
+                                    const isTikTok = platformId === 'tiktok';
+                                    
+                                    const presetCopy: UnifiedTargetingConfig = {
+                                      ageMin: basicTargeting.ageMin,
+                                      ageMax: basicTargeting.ageMax,
+                                      genders: basicTargeting.genders ? [...basicTargeting.genders] : [],
+                                      devices: basicTargeting.devices ? [...basicTargeting.devices] : [],
+                                      os: basicTargeting.os ? [...basicTargeting.os] : [],
+                                      languages: basicTargeting.languages ? [...basicTargeting.languages] : [],
+                                      selectedItems: basicTargeting.selectedItems ? 
+                                        basicTargeting.selectedItems.filter(item => 
+                                          isTikTok ? item.platforms.includes('tiktok') : item.platforms.includes('meta')
+                                        ) : []
+                                    };
+                                    updatePhaseField(phase.id, "targeting", presetCopy);
+                                    console.log('🔄 Reset phase targeting to preset:', presetCopy);
+                                  }
+                                }
+                              }}
+                            />
+                          </div>
+                          {phase.overrideTargeting && (
+                            <div className="pt-4 border-t mt-4">
+                              {phase.targeting && (
+                                <>
+                                  {console.log('[PhaseScheduler] Rendering BasicTargeting:', { 
+                                    platformId, 
+                                    adAccountId,
+                                    phaseId: phase.id,
+                                    metaAdAccountId: platformId === 'meta' ? adAccountId : undefined,
+                                    tiktokAdvertiserId: platformId === 'tiktok' ? adAccountId : undefined
+                                  })}
+                                  <UnifiedTargeting
+                                    key={`phase-targeting-${phase.id}-${phase.overrideTargeting}`}
+                                    targeting={phase.targeting as UnifiedTargetingConfig}
+                                    onUpdate={(targeting) => updatePhaseField(phase.id, "targeting", targeting)}
+                                    metaAdAccountId={platformId === 'meta' ? adAccountId : undefined}
+                                    tiktokAdvertiserId={platformId === 'tiktok' ? adAccountId : undefined}
+                                  />
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       )}
 
                       {/* TikTok Advanced Settings - Platform-specific */}
