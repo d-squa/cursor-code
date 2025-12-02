@@ -31,6 +31,7 @@ export interface Phase {
     messenger?: string[];
     threads?: string[];
   };
+  advantagePlusPlacements?: boolean;
   overrideTargeting?: boolean;
   targeting?: {
     adFormats?: string[];
