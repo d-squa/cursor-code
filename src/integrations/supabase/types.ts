@@ -388,7 +388,9 @@ export type Database = {
           default_non_conversion_budget_type: string | null
           default_page_id: string | null
           default_pixel_id: string | null
+          default_positions: Json | null
           default_product_set_id: string | null
+          default_publisher_platforms: Json | null
           id: string
           main_markets: Json | null
           synced_at: string
@@ -410,7 +412,9 @@ export type Database = {
           default_non_conversion_budget_type?: string | null
           default_page_id?: string | null
           default_pixel_id?: string | null
+          default_positions?: Json | null
           default_product_set_id?: string | null
+          default_publisher_platforms?: Json | null
           id?: string
           main_markets?: Json | null
           synced_at?: string
@@ -432,7 +436,9 @@ export type Database = {
           default_non_conversion_budget_type?: string | null
           default_page_id?: string | null
           default_pixel_id?: string | null
+          default_positions?: Json | null
           default_product_set_id?: string | null
+          default_publisher_platforms?: Json | null
           id?: string
           main_markets?: Json | null
           synced_at?: string
