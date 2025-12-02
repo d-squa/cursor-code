@@ -22,6 +22,7 @@ export interface Phase {
   isLoyaltyPhase?: boolean;
   objective?: string;
   optimizationGoal?: string;
+  funnelStage?: string;
   budgetType?: "daily" | "lifetime";
   publisherPlatforms?: string[];
   positions?: {
@@ -40,6 +41,19 @@ export interface Phase {
   metaViewWindow?: number;
   metaBidStrategy?: string;
   metaBidAmount?: number;
+  // TikTok-specific phase-level fields
+  tiktokBidStrategy?: string;
+  tiktokBidAmount?: number;
+  tiktokPlacementType?: string;
+  tiktokPlacements?: string[];
+  tiktokFrequencySchedule?: number;
+  tiktokOptimizationLocation?: string;
+  tiktokAppName?: string;
+  tiktokAppId?: string;
+  tiktokSmartPlusEnabled?: boolean;
+  // Taxonomy values for naming
+  campaignTaxonomyValues?: Record<string, string>;
+  adsetTaxonomyValues?: Record<string, string>;
   overrideTargeting?: boolean;
   targeting?: {
     adFormats?: string[];
