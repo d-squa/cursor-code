@@ -592,12 +592,33 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
             }
           }
 
+          // Helper function to filter out deprecated Meta targeting categories
+          const isValidMetaTargeting = (item: any): boolean => {
+            const name = (item.name || '').toLowerCase();
+            const id = String(item.id || '');
+            
+            // Filter out "Friends of X" categories - Meta deprecated most of these for privacy
+            if (name.startsWith('friends of ')) {
+              console.log(`  ⚠️ Filtering deprecated "Friends of" category: ${item.name}`);
+              return false;
+            }
+            
+            // Filter out very long IDs that look like page/entity IDs rather than targeting categories
+            // Standard Meta targeting IDs are typically 13-16 digits starting with 6
+            if (id.length > 16 && !id.startsWith('6')) {
+              console.log(`  ⚠️ Filtering suspicious ID (looks like entity ID, not targeting): ${item.name} (${id})`);
+              return false;
+            }
+            
+            return true;
+          };
+
           // Add interests from transformed targeting
           if (metaInterests.length > 0) {
             const interests = metaInterests.map((i: any) => ({
               id: i.id || i,
               name: i.name || i
-            })).filter((i: any) => i.id);
+            })).filter((i: any) => i.id && isValidMetaTargeting(i));
             if (interests.length > 0) {
               targeting.flexible_spec = targeting.flexible_spec || [];
               targeting.flexible_spec.push({ interests });
@@ -610,7 +631,7 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
             const behaviors = metaBehaviors.map((b: any) => ({
               id: b.id || b,
               name: b.name || b
-            })).filter((b: any) => b.id);
+            })).filter((b: any) => b.id && isValidMetaTargeting(b));
             if (behaviors.length > 0) {
               targeting.flexible_spec = targeting.flexible_spec || [];
               targeting.flexible_spec.push({ behaviors });
@@ -625,7 +646,7 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
             const demographicsAsBehaviors = metaDemographics.map((d: any) => ({
               id: d.id || d,
               name: d.name || d
-            })).filter((d: any) => d.id);
+            })).filter((d: any) => d.id && isValidMetaTargeting(d));
             
             if (demographicsAsBehaviors.length > 0) {
               // Add demographics as behaviors - Meta's flexible_spec only supports 'behaviors' key
