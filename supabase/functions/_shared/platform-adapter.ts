@@ -528,20 +528,15 @@ class TikTokAdapter implements PlatformAdapter {
         console.log(`⚠️ No TikTok interests (tiktokInterests: ${JSON.stringify(params.targeting.tiktokInterests)})`);
       }
       
-      // Extract TikTok behaviors/actions - categorize based on whether they have a category field
+      // Extract TikTok behaviors/actions - ALL go to action_category_ids
+      // The tiktokBehaviors array contains all action-based targeting (behaviors, purchase intention, etc.)
+      // Only tiktokInterests should populate interest_category_ids
       if (params.targeting.tiktokBehaviors && Array.isArray(params.targeting.tiktokBehaviors)) {
         console.log(`🎯 Processing ${params.targeting.tiktokBehaviors.length} TikTok behaviors`);
         params.targeting.tiktokBehaviors.forEach((behavior: any) => {
           if (behavior.id) {
-            // Behaviors WITH a category field (purchase_intention, video_interaction, etc.) → action_category_ids
-            // Behaviors WITHOUT a category field → interest_category_ids (they're actually interests mislabeled as behaviors)
-            if (behavior.category) {
-              actionIds.push(String(behavior.id));
-              console.log(`  → Action category: ${behavior.name} (${behavior.id}) - ${behavior.category}`);
-            } else {
-              interestIds.push(String(behavior.id));
-              console.log(`  → Interest category (from behaviors): ${behavior.name} (${behavior.id}) - no category field`);
-            }
+            actionIds.push(String(behavior.id));
+            console.log(`  → Action category: ${behavior.name} (${behavior.id})${behavior.category ? ` - ${behavior.category}` : ''}`);
           }
         });
       } else {
