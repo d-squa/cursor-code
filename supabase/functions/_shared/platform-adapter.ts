@@ -435,22 +435,46 @@ class TikTokAdapter implements PlatformAdapter {
       
       console.log(`🎯 Normalized genders:`, normalizedGenders, `(original: ${JSON.stringify(params.targeting.genders)})`);
       
+      // VIDEO_VIEWS objective requires manual placement - override automatic placement
+      const objectivesRequiringManualPlacement = ['VIDEO_VIEW', 'VIDEO_VIEWS', '6S_VIDEO_VIEW', '15S_VIDEO_VIEW', 'FOCUSED_VIEW'];
+      const requiresManualPlacement = objectivesRequiringManualPlacement.includes(finalOptimizationGoal.toUpperCase()) ||
+                                       objectivesRequiringManualPlacement.includes(params.optimizationGoal?.toUpperCase() || '');
+      
+      let finalPlacementType = params.placementType || "PLACEMENT_TYPE_AUTOMATIC";
+      let finalPlacements = params.placements;
+      
+      if (requiresManualPlacement) {
+        console.warn(`⚠️ ${finalOptimizationGoal} objective requires manual placement - overriding to PLACEMENT_TYPE_NORMAL`);
+        finalPlacementType = "PLACEMENT_TYPE_NORMAL";
+        // Ensure we have valid placements for manual mode
+        if (!finalPlacements || finalPlacements.length === 0) {
+          finalPlacements = ["PLACEMENT_TIKTOK"];
+        }
+      }
+      
       const body: any = {
         advertiser_id: params.accountId,
         campaign_id: params.campaignId,
         adgroup_name: params.adGroupName,
         promotion_type: promotionType,
-        placement_type: params.placementType || "PLACEMENT_TYPE_AUTOMATIC",
-        placements: params.placements,
+        placement_type: finalPlacementType,
+        placements: finalPlacements,
         gender: this.mapGender(normalizedGenders),
         age_groups: this.mapAgeGroups(params.targeting.age_min, params.targeting.age_max),
         optimization_goal: finalOptimizationGoal,
         billing_event: requiredBillingEvent,
         bid_type: bidType,
-        bid: finalBidAmount,
         operation_status: params.status === 'PAUSED' ? 'DISABLE' : 'ENABLE',
         pacing: "PACING_MODE_SMOOTH", // Standard delivery (not accelerated)
       };
+      
+      // Only add bid when bid_type requires it (not for BID_TYPE_NO_BID)
+      if (bidType !== "BID_TYPE_NO_BID") {
+        body.bid = finalBidAmount;
+        console.log(`✅ Including bid: €${finalBidAmount} for bid_type: ${bidType}`);
+      } else {
+        console.log(`⚠️ Skipping bid field for bid_type: ${bidType} (automatic bidding)`);
+      }
       
       console.log(`🎯 Mapped gender: ${body.gender}, age_groups: ${JSON.stringify(body.age_groups)}`);
       
