@@ -73,9 +73,9 @@ export function TiktokPhaseConfig({ phase, onUpdate }: TiktokPhaseConfigProps) {
   // Check if it's REACH optimization goal for frequency capping
   const isReachOptimizationGoal = optimizationGoal.toUpperCase() === "REACH";
   
-  // For REACH optimization goal, show frequency capping AND placements (no advanced settings card)
+  // For REACH optimization goal, show frequency capping only (placements auto-configured)
   if (isReachOptimizationGoal) {
-    console.log("✅ Rendering REACH frequency cap and placement fields");
+    console.log("✅ Rendering REACH frequency cap field only (placements auto-configured)");
     return (
       <div className="space-y-4">
         <div className="space-y-2">
@@ -104,65 +104,13 @@ export function TiktokPhaseConfig({ phase, onUpdate }: TiktokPhaseConfigProps) {
           </p>
         </div>
 
-        {/* Placement Type for REACH */}
-        <div className="space-y-2">
-          <Label>Placement Type</Label>
-          <Select
-            value={phase.tiktokPlacementType || "PLACEMENT_TYPE_AUTOMATIC"}
-            onValueChange={(value) => {
-              onUpdate("tiktokPlacementType", value);
-              if (value === "PLACEMENT_TYPE_AUTOMATIC") {
-                onUpdate("tiktokPlacements", ["PLACEMENT_TIKTOK", "PLACEMENT_GLOBAL_APP_BUNDLE", "PLACEMENT_PANGLE"]);
-              }
-            }}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="PLACEMENT_TYPE_AUTOMATIC">Automatic Placement</SelectItem>
-              <SelectItem value="PLACEMENT_TYPE_NORMAL">Manual Placement</SelectItem>
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-muted-foreground">
-            Automatic lets TikTok optimize. Manual lets you select specific positions.
-          </p>
-        </div>
-
-        {/* Manual Placements for REACH */}
-        {phase.tiktokPlacementType === "PLACEMENT_TYPE_NORMAL" && (
-          <div className="space-y-2">
-            <Label>Placements</Label>
-            <div className="space-y-2">
-              {[
-                { value: "PLACEMENT_TIKTOK", label: "TikTok" },
-                { value: "PLACEMENT_GLOBAL_APP_BUNDLE", label: "Global App Bundle" },
-                { value: "PLACEMENT_PANGLE", label: "Pangle" },
-              ].map((placement) => (
-                <label key={placement.value} className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={(phase.tiktokPlacements || ["PLACEMENT_TIKTOK", "PLACEMENT_GLOBAL_APP_BUNDLE", "PLACEMENT_PANGLE"]).includes(placement.value)}
-                    onChange={(e) => {
-                      const currentPlacements = phase.tiktokPlacements || ["PLACEMENT_TIKTOK", "PLACEMENT_GLOBAL_APP_BUNDLE", "PLACEMENT_PANGLE"];
-                      if (e.target.checked) {
-                        onUpdate("tiktokPlacements", [...currentPlacements, placement.value]);
-                      } else {
-                        const filtered = currentPlacements.filter(p => p !== placement.value);
-                        onUpdate("tiktokPlacements", filtered.length > 0 ? filtered : ["PLACEMENT_TIKTOK"]);
-                      }
-                    }}
-                    className="rounded border-input"
-                  />
-                  <span className="text-sm">{placement.label}</span>
-                </label>
-              ))}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              TikTok: Main feed. Global App Bundle: Partner apps. Pangle: Audience network.
-            </p>
-          </div>
-        )}
+        {/* Placement info for REACH - auto-configured, not editable */}
+        <Alert>
+          <Info className="h-4 w-4" />
+          <AlertDescription className="text-xs">
+            <strong>Placements:</strong> TikTok REACH campaigns are automatically configured to use TikTok placement only. Other placements (Pangle, Global App Bundle) are not available for this objective.
+          </AlertDescription>
+        </Alert>
       </div>
     );
   }
