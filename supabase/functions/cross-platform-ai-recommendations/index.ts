@@ -61,31 +61,40 @@ serve(async (req) => {
           },
           {
             role: "user",
-            content: `Analyze this product/audience brief and extract highly relevant targeting keywords:\n\n${brief}\n\nCRITICAL RULES:
-1. FIRST: Identify the PRIMARY PRODUCT CATEGORY (e.g., "Pet Products", "Digital Services", "Human Food", "Fitness", etc.)
-2. Extract interests that are DIRECTLY related to THIS SPECIFIC product category - NOT adjacent or unrelated categories
-3. SEMANTIC FILTERING: If the product is for pets, DO NOT suggest human-focused categories (e.g., "Food & Drink" for pet food). If the product is digital services, DO NOT suggest physical retail or unrelated categories (e.g., "Outdoor Activities" for ebooks).
-4. NEVER suggest generic options like "Frequent travelers", "Travel", "Small business owners" unless EXPLICITLY mentioned in the brief
-5. For behaviors, focus on purchase patterns and activities SPECIFIC to THIS product category only
-6. For purchaseIntention, use category-specific purchase intents (e.g., "Pet Supplies" not "Food & Beverage" for pet products)
-7. For videoInteractions, focus on content themes directly related to the product category
-
-Return ONLY valid JSON with this EXACT structure. Do NOT include any text outside the JSON object:\n\n{\n  "productCategory": "identify the main product category here",\n  "interests": ["highly specific interest 1 related to product category", "highly specific interest 2"],\n  "behaviors": ["specific behavior 1 for this category", "specific behavior 2"],\n  "demographics": ["specific demographic 1 (only if clearly relevant)"],\n  "purchaseIntention": ["category-specific purchase intent 1", "purchase intent 2"],\n  "videoInteractions": ["product category video topic 1", "video topic 2"],\n  "demographicMetadata": {\n    "ageRange": "18-65",\n    "genders": ["all"],\n    "notes": "demographic insights"\n  }\n}\n\nExamples:
-- For "wet & dry food for dogs & cats, supplements and toys": 
+            content: `Analyze this product/audience brief and extract highly relevant targeting keywords:\n\n${brief}\n\nCRITICAL RULES FOR TIKTOK KEYWORD GENERATION:
+1. FIRST: Identify the PRIMARY PRODUCT CATEGORY (e.g., "Electronics", "Pet Products", "Fashion", "Food", etc.)
+2. Use SIMPLE, BROAD category-level terms that would exist as advertising categories - NOT specific phrases
+3. For interests: Use 1-2 word category names (e.g., "Electronics", "Technology", "Mobile Devices", "Gadgets", "Smartphones", "Tablets")
+4. AVOID complex phrases like "Mobile phone reviews", "Smartphone comparisons", "Unboxing videos" - TikTok categories are simpler
+5. SEMANTIC FILTERING: If product is for pets, DO NOT suggest human categories. If product is electronics, DO NOT suggest unrelated categories
+6. For behaviors: Use simple action-oriented categories (e.g., "Online Shopping", "Tech Enthusiasts", "Gadget Lovers")
+7. For purchaseIntention: Use broad purchase categories (e.g., "Electronics Purchase", "Tech Products", "Mobile Devices")
+8. For videoInteractions: Use simple content themes (e.g., "Technology", "Gadgets", "Product Reviews", "Tech News")
+ 
+Return ONLY valid JSON with this EXACT structure. Do NOT include any text outside the JSON object:\n\n{\n  "productCategory": "identify the main product category here",\n  "interests": ["simple category 1", "simple category 2"],\n  "behaviors": ["simple behavior 1", "simple behavior 2"],\n  "demographics": ["specific demographic 1 (only if clearly relevant)"],\n  "purchaseIntention": ["broad purchase category 1", "purchase category 2"],\n  "videoInteractions": ["simple video theme 1", "video theme 2"],\n  "demographicMetadata": {\n    "ageRange": "18-65",\n    "genders": ["all"],\n    "notes": "demographic insights"\n  }\n}\n\nExamples:
+- For "mobile phones & tablets online":
+  productCategory: "Electronics"
+  interests: ["Electronics", "Technology", "Smartphones", "Tablets", "Mobile Devices", "Gadgets", "Tech"]
+  behaviors: ["Online Shopping", "Tech Enthusiasts", "Gadget Lovers"]
+  purchaseIntention: ["Electronics Purchase", "Tech Products", "Mobile Devices", "Consumer Electronics"]
+  videoInteractions: ["Technology", "Gadgets", "Product Reviews", "Tech News", "Unboxing"]
+  ❌ DO NOT use: "Mobile phone reviews", "Smartphone comparisons", "Tablet comparisons", "Mobile phone features Explained"
+  
+- For "wet & dry food for dogs & cats":
   productCategory: "Pet Products"
-  interests: ["Pets", "Pet", "Dogs", "Cats", "Pet Care", "Pet Supplies", "Dog Food", "Cat Food"]
-  behaviors: ["Pet owners", "Online pet supply shoppers"]
-  purchaseIntention: ["Pet Supplies", "Pet Food", "Pet Toys"]
-  videoInteractions: ["Pet Care Tips", "Dog Training", "Cat Care"]
-  ❌ DO NOT include: "Food & Drink", "Food Display", "Human food categories", "Outdoor Activities"
+  interests: ["Pets", "Dogs", "Cats", "Pet Care", "Animals"]
+  behaviors: ["Pet Owners", "Online Shopping"]
+  purchaseIntention: ["Pet Supplies", "Pet Food", "Pet Products"]
+  videoInteractions: ["Pets", "Pet Care", "Animals", "Dogs", "Cats"]
+  ❌ DO NOT include: "Food & Drink", "Food Display", "Human food categories"
   
 - For "digital marketing ebook":
-  productCategory: "Digital Education/Services"
-  interests: ["Online Marketing", "SEO", "Social Media Marketing", "Content Marketing", "Digital Marketing"]
-  behaviors: ["Online shoppers", "Digital content consumers"]
-  purchaseIntention: ["Online Courses", "E-books", "Digital Products"]
-  videoInteractions: ["Marketing Tutorials", "Business Tips", "SEO Guides"]
-  ❌ DO NOT include: "Outdoor Activities", generic business, unrelated categories`
+  productCategory: "Education"
+  interests: ["Marketing", "Business", "Education", "Digital Marketing"]
+  behaviors: ["Online Learning", "Business Owners"]
+  purchaseIntention: ["Online Courses", "Digital Products", "Education"]
+  videoInteractions: ["Marketing", "Business", "Education", "Learning"]
+  ❌ DO NOT use: "Digital marketing ebook features", "Marketing tutorial reviews"`
           }
         ]
       }),
