@@ -111,51 +111,50 @@ serve(async (req) => {
     
     // Helper function to calculate relevance score - VERY lenient for better results
     const calculateRelevance = (item: any, searchQuery: string): number => {
-      // For interests, prioritize interest_category field, for actions prioritize name
-      const name = (item.interest_category || item.name || item.action_category_name || '').toLowerCase();
+      // Try ALL possible field names that TikTok might use
+      const possibleNames = [
+        item.interest_category,
+        item.interest_name,
+        item.name,
+        item.category_name,
+        item.action_category_name,
+        item.action_name,
+        item.display_name,
+        item.title
+      ];
+      
+      // Log the item structure once to see what fields exist
+      if (Math.random() < 0.01) { // Log 1% of items to avoid spam
+        console.log('[Field Debug] Item structure:', JSON.stringify(Object.keys(item)));
+      }
+      
+      const name = possibleNames.find(n => n && String(n).trim().length > 0);
+      const nameStr = name ? String(name).toLowerCase() : '';
       const description = (item.description || '').toLowerCase();
       
       const cleanQuery = searchQuery.toLowerCase().trim();
       
-      console.log(`[Score Debug] Item: ${name || 'NO NAME'}, Query: ${cleanQuery}`);
-      
-      if (!cleanQuery || !name) {
-        console.log(`[Score Debug] Skipping - cleanQuery: ${cleanQuery}, name: ${name}`);
+      if (!cleanQuery || !nameStr) {
         return 0;
       }
       
-      const queryWords = cleanQuery.split(/\s+/).filter(w => w.length > 1); // Changed from > 2 to > 1
+      const queryWords = cleanQuery.split(/\s+/).filter(w => w.length > 1);
       if (queryWords.length === 0) return 0;
       
       let score = 0;
       
-      // Exact name match
-      if (name === cleanQuery) score += 100;
+      // Exact match
+      if (nameStr === cleanQuery) return 100;
       
-      // Name contains full query
-      if (name.includes(cleanQuery)) score += 60;
+      // Contains full query
+      if (nameStr.includes(cleanQuery)) score += 50;
+      if (description.includes(cleanQuery)) score += 20;
       
-      // Query contains name (for broader categories)
-      if (cleanQuery.includes(name) && name.length > 2) score += 40;
-      
-      // Name starts with query
-      if (name.startsWith(cleanQuery)) score += 45;
-      
-      // Query starts with name
-      if (cleanQuery.startsWith(name) && name.length > 2) score += 35;
-      
-      // Any word matches - be very generous
-      queryWords.forEach(word => {
-        if (name === word) score += 25;
-        if (name.includes(word)) score += 15;
-        if (description.includes(word)) score += 8;
-        
-        // Even partial matches count
-        if (word.length > 3) {
-          const partial = word.substring(0, 3);
-          if (name.includes(partial)) score += 3;
-        }
-      });
+      // Word overlap scoring
+      for (const word of queryWords) {
+        if (nameStr.includes(word)) score += 15;
+        if (description.includes(word)) score += 5;
+      }
       
       return score;
     };
