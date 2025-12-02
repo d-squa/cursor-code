@@ -592,20 +592,12 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
           }
 
           // Add demographics from transformed targeting
+          // Note: Demographics are skipped for Meta because they require specific field types
+          // (life_events, education_statuses, work_employers, etc.) that we don't have in our data structure
           if (metaDemographics.length > 0) {
-            const demographics = metaDemographics.map((d: any) => ({
-              id: d.id,
-              name: d.name
-            })).filter((d: any) => d.id);
-            if (demographics.length > 0) {
-              targeting.flexible_spec = targeting.flexible_spec || [];
-              targeting.flexible_spec.push({ 
-                // Demographics in Meta are usually under life_events, education, work, etc.
-                // We'll add them as interests for now since we don't know the exact type
-                interests: demographics
-              });
-              console.log(`Adding ${demographics.length} demographics:`, demographics.map((d: any) => d.name).join(', '));
-            }
+            console.warn(`⚠️ Skipping ${metaDemographics.length} demographics for Meta (requires specific categorization):`, 
+              metaDemographics.map((d: any) => d.name).join(', '));
+            console.log(`To use demographics, add them as behaviors or use Meta's detailed targeting categories.`);
           }
 
           // Add custom audiences
