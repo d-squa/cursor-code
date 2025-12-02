@@ -618,20 +618,20 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
             }
           }
           // Add demographics from transformed targeting
-          // Meta demographics can be added to flexible_spec similar to behaviors
-          // Note: Some demographics may work better as a separate array in flexible_spec
+          // IMPORTANT: Meta API does NOT support 'demographics' as a key in flexible_spec
+          // Meta demographic targeting items must be added as 'behaviors' instead
+          // The /targetingsearch API returns them with class=demographics but they use the behaviors format
           if (metaDemographics.length > 0) {
-            const demographics = metaDemographics.map((d: any) => ({
+            const demographicsAsBehaviors = metaDemographics.map((d: any) => ({
               id: d.id || d,
               name: d.name || d
             })).filter((d: any) => d.id);
             
-            if (demographics.length > 0) {
-              // Add demographics to flexible_spec - Meta accepts them in the same format as behaviors
-              // They come from the /targetingsearch API with type=adTargetingCategory&class=demographics
+            if (demographicsAsBehaviors.length > 0) {
+              // Add demographics as behaviors - Meta's flexible_spec only supports 'behaviors' key
               targeting.flexible_spec = targeting.flexible_spec || [];
-              targeting.flexible_spec.push({ demographics });
-              console.log(`Adding ${demographics.length} demographics:`, demographics.map((d: any) => d.name).join(', '));
+              targeting.flexible_spec.push({ behaviors: demographicsAsBehaviors });
+              console.log(`Adding ${demographicsAsBehaviors.length} demographics (as behaviors):`, demographicsAsBehaviors.map((d: any) => d.name).join(', '));
             }
           }
 
