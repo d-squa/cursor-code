@@ -1147,30 +1147,23 @@ export function PhaseScheduler({
                           open={phase.overrideTargeting || false}
                           onOpenChange={(open) => {
                             updatePhaseField(phase.id, "overrideTargeting", open);
-                            if (open) {
-                              // Reinitialize with latest campaign-level targeting when opening override
-                              // Only if basicTargeting has data OR phase.targeting doesn't exist yet
-                              const hasBasicTargetingData = basicTargeting.selectedItems?.length > 0 || 
-                                basicTargeting.ageMin || basicTargeting.ageMax || 
-                                basicTargeting.genders?.length > 0;
+                            // Initialize phase.targeting only once when first enabling override
+                            if (open && !phase.targeting) {
+                              const isTikTok = platformId === 'tiktok';
                               
-                              if (hasBasicTargetingData || !phase.targeting) {
-                                const isTikTok = platformId === 'tiktok';
-                                
-                                const phaseTargeting: UnifiedTargetingConfig = {
-                                  ageMin: basicTargeting.ageMin,
-                                  ageMax: basicTargeting.ageMax,
-                                  genders: basicTargeting.genders ? [...basicTargeting.genders] : undefined,
-                                  devices: basicTargeting.devices ? [...basicTargeting.devices] : undefined,
-                                  os: basicTargeting.os ? [...basicTargeting.os] : undefined,
-                                  languages: basicTargeting.languages ? [...basicTargeting.languages] : undefined,
-                                  selectedItems: basicTargeting.selectedItems ? 
-                                    basicTargeting.selectedItems.filter(item => 
-                                      isTikTok ? item.platforms.includes('tiktok') : item.platforms.includes('meta')
-                                    ) : []
-                                };
-                                updatePhaseField(phase.id, "targeting", phaseTargeting);
-                              }
+                              const phaseTargeting: UnifiedTargetingConfig = {
+                                ageMin: basicTargeting.ageMin,
+                                ageMax: basicTargeting.ageMax,
+                                genders: basicTargeting.genders ? [...basicTargeting.genders] : [],
+                                devices: basicTargeting.devices ? [...basicTargeting.devices] : [],
+                                os: basicTargeting.os ? [...basicTargeting.os] : [],
+                                languages: basicTargeting.languages ? [...basicTargeting.languages] : [],
+                                selectedItems: basicTargeting.selectedItems ? 
+                                  basicTargeting.selectedItems.filter(item => 
+                                    isTikTok ? item.platforms.includes('tiktok') : item.platforms.includes('meta')
+                                  ) : []
+                              };
+                              updatePhaseField(phase.id, "targeting", phaseTargeting);
                             }
                           }}
                           className="border rounded-lg p-4 bg-muted/30"
