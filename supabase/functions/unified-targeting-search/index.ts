@@ -242,24 +242,39 @@ async function searchTikTokInterests(accessToken: string, advertiserId: string, 
   const interests = fetchData.data?.interest_categories || [];
   console.log(`TikTok returned ${interests.length} total interest categories`);
   
+  // Log sample items to see actual structure
+  if (interests.length > 0) {
+    console.log('Sample TikTok interest item:', JSON.stringify(interests[0]));
+    console.log('All fields in first item:', Object.keys(interests[0]));
+  }
+  
   const cleanQuery = query.toLowerCase().trim();
   const queryWords = cleanQuery.split(/\s+/).filter(w => w.length > 2);
   
-  // Calculate relevance score for each interest
+  // Calculate relevance score for each interest - VERY LENIENT
   const scoredInterests = interests.map((item: any) => {
-    // Try multiple possible field names
+    // Try ALL possible field names
     const possibleNames = [
       item.interest_category,
       item.interest_name,
       item.name,
       item.category_name,
-      item.display_name
+      item.display_name,
+      item.title,
+      item.label
     ];
     
     const name = possibleNames.find(n => n && String(n).trim().length > 0);
     const nameStr = name ? String(name).toLowerCase() : '';
     
-    if (!nameStr) return { item, score: 0, name: '' };
+    // If we can't find a name, try stringifying all values
+    if (!nameStr) {
+      const allValues = Object.values(item).filter(v => typeof v === 'string').join(' ').toLowerCase();
+      if (allValues.length > 0) {
+        return { item, score: 1, name: allValues };
+      }
+      return { item, score: 0, name: '' };
+    }
     
     let score = 0;
     
@@ -269,10 +284,23 @@ async function searchTikTokInterests(accessToken: string, advertiserId: string, 
     // Contains full query
     if (nameStr.includes(cleanQuery)) score += 50;
     
-    // Word overlap
+    // Word overlap - even single character matches count
     for (const word of queryWords) {
       if (nameStr.includes(word)) score += 15;
     }
+    
+    // Partial word matches - very lenient
+    const nameWords = nameStr.split(/\s+/);
+    for (const queryWord of queryWords) {
+      for (const nameWord of nameWords) {
+        if (nameWord.includes(queryWord) || queryWord.includes(nameWord)) {
+          score += 5;
+        }
+      }
+    }
+    
+    // If no score yet, give any item a base score of 1 so we see what's available
+    if (score === 0) score = 1;
     
     return { item, score, name: nameStr };
   });
