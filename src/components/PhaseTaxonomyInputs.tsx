@@ -46,10 +46,29 @@ export function PhaseTaxonomyInputs({
       }
 
       try {
+        // First try to get the database UUID for this platform account
+        let dbAccountId = adAccountId;
+        
+        if (platform === 'tiktok') {
+          const { data: accountData } = await supabase
+            .from('tiktok_ad_accounts')
+            .select('id')
+            .eq('advertiser_id', adAccountId)
+            .maybeSingle();
+          if (accountData?.id) dbAccountId = accountData.id;
+        } else {
+          const { data: accountData } = await supabase
+            .from('meta_ad_accounts')
+            .select('id')
+            .eq('account_id', adAccountId)
+            .maybeSingle();
+          if (accountData?.id) dbAccountId = accountData.id;
+        }
+        
         const { data, error } = await supabase
           .from('taxonomy_templates')
           .select('template')
-          .eq('ad_account_id', adAccountId)
+          .eq('ad_account_id', dbAccountId)
           .eq('entity_type', entityType)
           .eq('platform', platform)
           .maybeSingle();
@@ -127,7 +146,14 @@ export function PhaseTaxonomyInputs({
   }
 
   if (template.length === 0) {
-    return null; // No taxonomy template configured
+    return (
+      <div className="p-3 bg-muted/30 rounded-lg border border-dashed">
+        <p className="text-xs text-muted-foreground">
+          No {entityType === 'campaign' ? 'Campaign' : 'Ad Set'} taxonomy configured. 
+          Set up naming templates in Client Defaults for this ad account.
+        </p>
+      </div>
+    );
   }
 
   const editableParams = getUserEditableParams();
