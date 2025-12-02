@@ -1084,11 +1084,15 @@ export function PhaseScheduler({
                           platformName={platformName}
                           publisherPlatforms={phase.publisherPlatforms || []}
                           positions={phase.positions || {}}
+                          advantagePlusPlacements={phase.advantagePlusPlacements}
                           onPublisherPlatformsChange={(publishers) => 
                             updatePhaseField(phase.id, "publisherPlatforms", publishers)
                           }
                           onPositionsChange={(positions) => 
                             updatePhaseField(phase.id, "positions", positions)
+                          }
+                          onAdvantagePlusPlacementsChange={(enabled) =>
+                            updatePhaseField(phase.id, "advantagePlusPlacements", enabled)
                           }
                         />
                       </div>

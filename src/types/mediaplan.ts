@@ -64,6 +64,7 @@ export interface Market {
     messenger?: string[];
     threads?: string[];
   };
+  advantagePlusPlacements?: boolean; // Meta Advantage+ placements toggle
   detailedTargeting?: Array<{ id: string; type: string; name?: string }>;
 }
 
@@ -112,6 +113,7 @@ export interface Phase {
     messenger?: string[];
     threads?: string[];
   };
+  advantagePlusPlacements?: boolean; // Meta Advantage+ placements toggle
   countries?: string[];
   gender?: string;
   languages?: number[];

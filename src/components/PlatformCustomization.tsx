@@ -705,6 +705,10 @@ return (
                                                 market.positions || 
                                                 {}
                                               }
+                                              advantagePlusPlacements={
+                                                phase.advantagePlusPlacements ?? 
+                                                market.advantagePlusPlacements
+                                              }
                                               onPublisherPlatformsChange={(platforms) => {
                                                 updateCampaignField(
                                                   platform.id,
@@ -721,6 +725,15 @@ return (
                                                   phase.id,
                                                   "positions",
                                                   positions
+                                                );
+                                              }}
+                                              onAdvantagePlusPlacementsChange={(enabled) => {
+                                                updateCampaignField(
+                                                  platform.id,
+                                                  market.id,
+                                                  phase.id,
+                                                  "advantagePlusPlacements",
+                                                  enabled
                                                 );
                                               }}
                                             />
