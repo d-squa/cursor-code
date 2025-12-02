@@ -20,6 +20,13 @@ import { BudgetTypeApplyDialog } from "./BudgetTypeApplyDialog";
 import { PhaseAudienceSelector } from "./PhaseAudienceSelector";
 import { UnifiedTargeting, UnifiedTargetingConfig } from "./UnifiedTargeting";
 import { TiktokPhaseConfig } from "./TiktokPhaseConfig";
+import { 
+  getObjectivesForPlatform, 
+  getOptimizationGoalsForObjective, 
+  getDefaultOptimizationGoal,
+  detectPlatformType,
+  type ObjectiveMapping 
+} from "@/utils/objectiveOptimizationMapping";
 
 interface PhaseSchedulerProps {
   phases: Phase[];
@@ -67,40 +74,6 @@ interface DraggingState {
   isStart: boolean;
   initialX: number;
 }
-
-// Platform-specific objective mappings
-const platformObjectiveMapping: Record<string, Record<string, string[]>> = {
-  "Facebook (Meta)": {
-    "Awareness": ["Brand Awareness", "Reach"],
-    "Consideration": ["Traffic", "Engagement", "App Installs", "Video Views", "Lead Generation"],
-    "Conversion": ["Conversions", "Catalog Sales"],
-  },
-  "Instagram (Meta)": {
-    "Awareness": ["Brand Awareness", "Reach"],
-    "Consideration": ["Traffic", "Engagement", "Video Views"],
-    "Conversion": ["Conversions", "Shopping"],
-  },
-  "Google Ads": {
-    "Awareness": ["Display", "Video", "Discovery"],
-    "Consideration": ["Search", "Shopping", "Video"],
-    "Conversion": ["Performance Max", "Shopping", "Search"],
-  },
-  "YouTube (Google)": {
-    "Awareness": ["Video Reach", "Brand Awareness"],
-    "Consideration": ["Video Views", "Consideration"],
-    "Conversion": ["Conversions", "Action"],
-  },
-  "LinkedIn": {
-    "Awareness": ["Brand Awareness", "Reach"],
-    "Consideration": ["Website Visits", "Engagement", "Video Views"],
-    "Conversion": ["Lead Generation", "Conversions"],
-  },
-  "TikTok": {
-    "Awareness": ["Reach", "Video Views"],
-    "Consideration": ["Traffic", "Community Interaction"],
-    "Conversion": ["Conversions", "App Installs"],
-  },
-};
 
 export function PhaseScheduler({ 
   phases, 
@@ -454,83 +427,33 @@ export function PhaseScheduler({
     onPhasesChange(updatedPhases);
   };
 
-  const getAvailableObjectives = () => {
-    // Return ALL objectives for the platform, not filtered by phase
-    const allObjectives: string[] = [];
-    const platformLowerCase = platformName.toLowerCase();
-    const platformMapping = platformObjectiveMapping[platformName] || 
-                           (platformLowerCase.includes("meta") ? platformObjectiveMapping["Facebook (Meta)"] : 
-                            platformLowerCase.includes("tiktok") ? platformObjectiveMapping["TikTok"] : null);
-    
-    if (platformMapping) {
-      // Combine all objectives from all funnel stages
-      Object.values(platformMapping).forEach(objectives => {
-        objectives.forEach(obj => {
-          if (!allObjectives.includes(obj)) {
-            allObjectives.push(obj);
-          }
-        });
-      });
+  // Detect platform type for mapping
+  const detectedPlatform = detectPlatformType(platformName);
+  
+  // Get objectives from the centralized mapping
+  const getAvailableObjectives = (): ObjectiveMapping[] => {
+    if (detectedPlatform) {
+      return getObjectivesForPlatform(detectedPlatform);
     }
-    
-    // Fallback to common objectives if platform not found
-    return allObjectives.length > 0 ? allObjectives : [
-      "Brand Awareness", "Reach", "Traffic", "Engagement", 
-      "Video Views", "Lead Generation", "App Installs", "Conversions", "Catalog Sales"
+    // Fallback for unsupported platforms
+    return [
+      { value: "Awareness", label: "Awareness", optimizationGoals: [{ value: "REACH", label: "Reach" }] },
+      { value: "Consideration", label: "Consideration", optimizationGoals: [{ value: "CLICKS", label: "Clicks" }] },
+      { value: "Conversion", label: "Conversion", optimizationGoals: [{ value: "CONVERSIONS", label: "Conversions" }] },
     ];
   };
 
-  const getOptimizationGoals = () => {
-    // Return ALL optimization goals for the platform - must match TikTok API values
-    const platformGoals: Record<string, string[]> = {
-      "Facebook (Meta)": ["Impressions", "Reach", "Brand Awareness", "Link Clicks", "Landing Page Views", "Post Engagement", "Page Likes", "Event Responses", "ThruPlay", "2-Second Video Views", "Video Views", "Leads", "Conversions", "Value", "App Installs", "App Events"],
-      "Instagram (Meta)": ["Impressions", "Reach", "Link Clicks", "Landing Page Views", "Post Engagement", "Profile Visits", "Video Views", "Conversions", "Value"],
-      "Google Ads": ["Clicks", "Impressions", "Conversions", "Conversion Value", "Views", "Engagement"],
-      "YouTube (Google)": ["Views", "Impressions", "Conversions", "View Rate", "CPV"],
-      "LinkedIn": ["Impressions", "Clicks", "Landing Page Actions", "Conversions", "Video Views", "Engagement"],
-      "TikTok": ["Reach", "Engagement", "Click", "Landing Page View", "Lead Generation", "Web Conversion", "Value Optimization", "App Install"],
-    };
-    
-    const platformLowerCase = platformName.toLowerCase();
-    const goals = platformGoals[platformName] || 
-                 (platformLowerCase.includes("meta") ? platformGoals["Facebook (Meta)"] : 
-                  platformLowerCase.includes("tiktok") ? platformGoals["TikTok"] : null);
-    
-    return goals || ["Impressions", "Clicks", "Conversions", "Link Clicks", "Reach", "Video Views", "Engagement"];
+  // Get optimization goals for a specific objective
+  const getOptimizationGoalsForPhase = (objective: string) => {
+    if (!objective || !detectedPlatform) return [];
+    return getOptimizationGoalsForObjective(detectedPlatform, objective);
   };
 
   // Auto-select optimization goal based on objective and platform
   const getAutoOptimizationGoal = (objective: string): string => {
-    const isTikTok = platformName.toLowerCase().includes('tiktok');
-    
-    if (isTikTok) {
-      // TikTok conversion campaigns require 90+ days of pixel data
-      // Automatically fallback to Traffic/Click for conversion objectives
-      if (objective === "Conversions" || objective === "Sales") {
-        console.warn("⚠️ TikTok conversion objective detected - auto-switching to Traffic/Click");
-        return "Click";
-      }
-      
-      // TikTok objective -> optimization goal mapping
-      if (objective === "Reach") return "Reach";
-      if (objective === "Community Interaction") return "Engagement";
-      if (objective === "Traffic") return "Landing Page View";
-      if (objective === "Lead Generation") return "Lead Generation";
-      if (objective === "App Promotion") return "App Install";
-      return "Click";
-    }
-    
-    // Meta objective -> optimization goal mapping
-    if (objective === "Brand Awareness" || objective === "Reach") return "Reach";
-    if (objective === "Engagement") return "Post Engagement";
-    if (objective === "Traffic") return "Landing Page Views";
-    if (objective === "Lead Generation") return "Leads";
-    if (objective === "Conversions") return "Conversions";
-    if (objective === "Catalog Sales") return "Conversions";
-    if (objective === "App Installs") return "App Installs";
-    if (objective === "Video Views") return "ThruPlay";
-    
-    return "Conversions";
+    if (!detectedPlatform) return "";
+    const defaultGoal = getDefaultOptimizationGoal(detectedPlatform, objective);
+    return defaultGoal || "";
   };
 
   const togglePhaseExpansion = (phaseId: string) => {
@@ -1047,8 +970,8 @@ export function PhaseScheduler({
                           </SelectTrigger>
                           <SelectContent>
                             {availableObjectives.map((obj) => (
-                              <SelectItem key={obj} value={obj}>
-                                {obj}
+                              <SelectItem key={obj.value} value={obj.value}>
+                                {obj.label}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -1061,14 +984,15 @@ export function PhaseScheduler({
                         <Select
                           value={phase.optimizationGoal || ""}
                           onValueChange={(value) => updatePhaseField(phase.id, "optimizationGoal", value)}
+                          disabled={!phase.objective}
                         >
-                          <SelectTrigger id={`optimization-${phase.id}`}>
-                            <SelectValue placeholder="Select optimization goal" />
+                          <SelectTrigger id={`optimization-${phase.id}`} className={!phase.objective ? 'opacity-50' : ''}>
+                            <SelectValue placeholder={phase.objective ? "Select optimization goal" : "Select objective first"} />
                           </SelectTrigger>
                           <SelectContent>
-                            {getOptimizationGoals().map((goal) => (
-                              <SelectItem key={goal} value={goal}>
-                                {goal}
+                            {getOptimizationGoalsForPhase(phase.objective || "").map((goal) => (
+                              <SelectItem key={goal.value} value={goal.value}>
+                                {goal.label}
                               </SelectItem>
                             ))}
                           </SelectContent>
