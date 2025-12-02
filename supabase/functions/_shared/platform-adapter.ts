@@ -528,23 +528,15 @@ class TikTokAdapter implements PlatformAdapter {
         console.log(`⚠️ No TikTok interests (tiktokInterests: ${JSON.stringify(params.targeting.tiktokInterests)})`);
       }
       
-      // Extract TikTok behaviors/actions - categorize by type
+      // Extract TikTok behaviors/actions - ALL behaviors go to action_category_ids
       if (params.targeting.tiktokBehaviors && Array.isArray(params.targeting.tiktokBehaviors)) {
         console.log(`🎯 Processing ${params.targeting.tiktokBehaviors.length} TikTok behaviors`);
         params.targeting.tiktokBehaviors.forEach((behavior: any) => {
           if (behavior.id) {
-            // Behaviors with purchase_intention, video_interaction, creator_interaction categories go to action_category_ids
-            // Behaviors without category or with interest_category go to interest_category_ids
-            if (behavior.category && (behavior.category === 'purchase_intention' || 
-                behavior.category === 'video_interaction' || 
-                behavior.category === 'creator_interaction' ||
-                behavior.category === 'hashtag_interaction')) {
-              actionIds.push(String(behavior.id));
-              console.log(`  → Action category: ${behavior.name} (${behavior.id}) - ${behavior.category}`);
-            } else {
-              interestIds.push(String(behavior.id));
-              console.log(`  → Interest category: ${behavior.name} (${behavior.id}) - ${behavior.category || 'no category'}`);
-            }
+            // ALL TikTok behaviors go to action_category_ids regardless of category
+            // Only tiktokInterests should go to interest_category_ids
+            actionIds.push(String(behavior.id));
+            console.log(`  → Action category: ${behavior.name} (${behavior.id})${behavior.category ? ` - ${behavior.category}` : ''}`);
           }
         });
       } else {
