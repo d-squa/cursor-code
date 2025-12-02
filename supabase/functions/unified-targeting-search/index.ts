@@ -240,20 +240,56 @@ async function searchTikTokInterests(accessToken: string, advertiserId: string, 
   }
   
   const interests = fetchData.data?.interest_categories || [];
-  const cleanQuery = query.toLowerCase().trim();
+  console.log(`TikTok returned ${interests.length} total interest categories`);
   
-  // More lenient matching for interests
-  return interests
-    .filter((item: any) => {
-      const name = (item.interest_category || '').toLowerCase();
-      return name.includes(cleanQuery) || cleanQuery.split(' ').some(word => word.length > 2 && name.includes(word));
-    })
-    .slice(0, 25)
-    .map((item: any) => ({
-      id: item.interest_category_id,
-      name: item.interest_category,
-      description: item.description || ''
-    }));
+  const cleanQuery = query.toLowerCase().trim();
+  const queryWords = cleanQuery.split(/\s+/).filter(w => w.length > 2);
+  
+  // Calculate relevance score for each interest
+  const scoredInterests = interests.map((item: any) => {
+    // Try multiple possible field names
+    const possibleNames = [
+      item.interest_category,
+      item.interest_name,
+      item.name,
+      item.category_name,
+      item.display_name
+    ];
+    
+    const name = possibleNames.find(n => n && String(n).trim().length > 0);
+    const nameStr = name ? String(name).toLowerCase() : '';
+    
+    if (!nameStr) return { item, score: 0, name: '' };
+    
+    let score = 0;
+    
+    // Exact match
+    if (nameStr === cleanQuery) score += 100;
+    
+    // Contains full query
+    if (nameStr.includes(cleanQuery)) score += 50;
+    
+    // Word overlap
+    for (const word of queryWords) {
+      if (nameStr.includes(word)) score += 15;
+    }
+    
+    return { item, score, name: nameStr };
+  });
+  
+  // Filter items with any score and sort by score
+  const filtered = scoredInterests
+    .filter((s: { score: number }) => s.score > 0)
+    .sort((a: { score: number }, b: { score: number }) => b.score - a.score)
+    .slice(0, 25);
+  
+  console.log(`TikTok interests: filtered to ${filtered.length} matches for "${query}"`);
+  
+  return filtered.map(({ item }: { item: any }) => ({
+    id: item.interest_category_id || item.id,
+    name: item.interest_category || item.name || 'Unknown',
+    description: item.description || ''
+  }));
 }
 
 async function searchTikTokActions(accessToken: string, advertiserId: string, query: string) {
@@ -281,18 +317,53 @@ async function searchTikTokActions(accessToken: string, advertiserId: string, qu
   }
   
   const actions = fetchData.data?.action_categories || [];
-  const cleanQuery = query.toLowerCase().trim();
+  console.log(`TikTok returned ${actions.length} total action categories`);
   
-  // More lenient matching for actions/behaviors
-  return actions
-    .filter((item: any) => {
-      const name = (item.action_category_name || item.name || '').toLowerCase();
-      return name.includes(cleanQuery) || cleanQuery.split(' ').some(word => word.length > 2 && name.includes(word));
-    })
-    .slice(0, 25)
-    .map((item: any) => ({
-      id: item.action_category_id || item.id,
-      name: item.action_category_name || item.name,
-      description: item.description || ''
-    }));
+  const cleanQuery = query.toLowerCase().trim();
+  const queryWords = cleanQuery.split(/\s+/).filter(w => w.length > 2);
+  
+  // Calculate relevance score for each action
+  const scoredActions = actions.map((item: any) => {
+    // Try multiple possible field names
+    const possibleNames = [
+      item.action_category_name,
+      item.name,
+      item.category_name,
+      item.display_name
+    ];
+    
+    const name = possibleNames.find(n => n && String(n).trim().length > 0);
+    const nameStr = name ? String(name).toLowerCase() : '';
+    
+    if (!nameStr) return { item, score: 0, name: '' };
+    
+    let score = 0;
+    
+    // Exact match
+    if (nameStr === cleanQuery) score += 100;
+    
+    // Contains full query
+    if (nameStr.includes(cleanQuery)) score += 50;
+    
+    // Word overlap
+    for (const word of queryWords) {
+      if (nameStr.includes(word)) score += 15;
+    }
+    
+    return { item, score, name: nameStr };
+  });
+  
+  // Filter items with any score and sort by score
+  const filtered = scoredActions
+    .filter((s: { score: number }) => s.score > 0)
+    .sort((a: { score: number }, b: { score: number }) => b.score - a.score)
+    .slice(0, 25);
+  
+  console.log(`TikTok actions: filtered to ${filtered.length} matches for "${query}"`);
+  
+  return filtered.map(({ item }: { item: any }) => ({
+    id: item.action_category_id || item.id,
+    name: item.action_category_name || item.name || 'Unknown',
+    description: item.description || ''
+  }));
 }
