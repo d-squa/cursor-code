@@ -566,7 +566,7 @@ export function MediaPlanEditor() {
     }
   }, [platformsWithMarkets, genericConfig.targeting?.adFormats, genericConfig.strategy]);
 
-  // Auto-save draft whenever key fields change (excluding basicTargeting - that's saved immediately in UnifiedTargeting's onUpdate)
+  // Auto-save draft whenever key fields change (including basicTargeting)
   useEffect(() => {
     if (!savedCampaignId || !user) return;
     
@@ -638,7 +638,7 @@ export function MediaPlanEditor() {
             phases: genericConfig.phases,
             campaigns: genericConfig.campaigns,
             targeting: genericConfig.targeting,
-            // Don't update basicTargeting here - it's saved immediately in UnifiedTargeting's onUpdate callback
+            basicTargeting: basicTargeting, // Include basicTargeting to prevent it from being overwritten
           } as any,
         }).eq("id", savedCampaignId);
         
@@ -649,7 +649,7 @@ export function MediaPlanEditor() {
     }, 1000); // Debounce for 1 second
 
     return () => clearTimeout(timer);
-  }, [campaignName, boNumber, totalBudget, startDate, endDate, platformsWithMarkets, genericConfig, savedCampaignId, user]);
+  }, [campaignName, boNumber, totalBudget, startDate, endDate, platformsWithMarkets, genericConfig, basicTargeting, savedCampaignId, user]);
 
   const isActivationDetailsComplete = () => {
     const allPlatformsSelected = platformsWithMarkets.every(p => p.id !== "");
@@ -1492,12 +1492,23 @@ export function MediaPlanEditor() {
                   console.log('📋 Received targeting update from BasicTargeting:', targeting);
                   setBasicTargeting(targeting);
                   
-                  // Save immediately to database to avoid React state batching issues
+                  // Save immediately to database
                   if (savedCampaignId && user) {
                     try {
+                      // Fetch the latest generic_config to avoid overwriting other fields
+                      const { data: currentCampaign } = await supabase
+                        .from("campaigns")
+                        .select("generic_config")
+                        .eq("id", savedCampaignId)
+                        .single();
+                      
+                      const currentConfig = (currentCampaign?.generic_config && typeof currentCampaign.generic_config === 'object') 
+                        ? currentCampaign.generic_config 
+                        : genericConfig;
+                      
                       await supabase.from("campaigns").update({
                         generic_config: {
-                          ...genericConfig,
+                          ...currentConfig,
                           basicTargeting: targeting,
                         } as any,
                       }).eq("id", savedCampaignId);
