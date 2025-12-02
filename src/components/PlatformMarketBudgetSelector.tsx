@@ -134,6 +134,7 @@ export function PlatformMarketBudgetSelector({
             productSet: acc.default_product_set_id,
             conversionEvent: acc.default_conversion_event,
             bidStrategy: acc.default_bid_strategy,
+            bidAmount: acc.default_bid_amount,
             mainMarkets: Array.isArray(acc.main_markets) ? acc.main_markets : [],
           };
           console.log(`📋 Defaults for ${acc.account_name}:`, defaults[acc.account_id]);
@@ -403,6 +404,7 @@ export function PlatformMarketBudgetSelector({
           optimizationEvent: acc.default_optimization_event,
           landingPageUrl: acc.default_landing_page_url,
           bidStrategy: acc.default_bid_strategy,
+          bidAmount: acc.default_bid_amount,
           mainMarkets: Array.isArray(acc.main_markets) ? acc.main_markets : [],
         };
       });
@@ -1040,6 +1042,7 @@ export function PlatformMarketBudgetSelector({
                                                   productSet: defaults?.productSet || "",
                                                   conversionEvent: defaults?.conversionEvent || "",
                                                   metaBidStrategy: defaults?.bidStrategy || 'LOWEST_COST_WITHOUT_CAP',
+                                                  metaBidAmount: defaults?.bidAmount || undefined,
                                                   phases: [],
                                                   adFormats: [],
                                                   countries: [marketCode],
@@ -1095,6 +1098,7 @@ export function PlatformMarketBudgetSelector({
                                                       if (defaults.productSet) updated.productSet = defaults.productSet;
                                                       if (defaults.conversionEvent) updated.conversionEvent = defaults.conversionEvent;
                                                       if (defaults.bidStrategy) updated.metaBidStrategy = defaults.bidStrategy;
+                                                      if (defaults.bidAmount !== undefined) updated.metaBidAmount = defaults.bidAmount;
                                                       
                                                       toast.success("Applied default settings for this ad account");
                                                     }

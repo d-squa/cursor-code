@@ -31,6 +31,7 @@ interface AdAccount {
   default_optimization_event?: string | null;
   default_landing_page_url?: string | null;
   default_bid_strategy?: string | null;
+  default_bid_amount?: number | null;
   default_optimization_location?: string | null;
   default_app_name?: string | null;
   default_app_id?: string | null;
@@ -205,6 +206,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
           default_conversion_budget_type: acc.default_conversion_budget_type || null,
           default_non_conversion_budget_type: acc.default_non_conversion_budget_type || null,
           default_bid_strategy: acc.default_bid_strategy || (acc.platform === 'meta' ? 'LOWEST_COST_WITHOUT_CAP' : 'LOWEST_COST'),
+          default_bid_amount: (acc as any).default_bid_amount || null,
           default_identity_id: acc.platform === 'tiktok' ? acc.default_identity_id || null : null,
           default_billing_event: acc.platform === 'tiktok' ? acc.default_billing_event || 'OCPM' : null,
           default_optimization_event: acc.platform === 'tiktok' ? acc.default_optimization_event || 'ON_WEB_ORDER' : null,
@@ -301,6 +303,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         'default_conversion_budget_type',
         'default_non_conversion_budget_type',
         'default_bid_strategy',
+        'default_bid_amount',
         'main_markets'
       ];
       
@@ -680,6 +683,24 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                               </SelectContent>
                             </Select>
                           </div>
+
+                          {(defaults.default_bid_strategy === 'LOWEST_COST_WITH_BID_CAP' || defaults.default_bid_strategy === 'COST_CAP') && (
+                            <div className="space-y-2">
+                              <Label>Bid Amount (€) *</Label>
+                              <Input
+                                type="number"
+                                placeholder="Enter bid amount"
+                                value={defaults.default_bid_amount || ""}
+                                onChange={(e) => updateDefault(account.id, 'default_bid_amount', parseFloat(e.target.value) || undefined)}
+                                min="0"
+                                step="0.01"
+                                required
+                              />
+                              <p className="text-xs text-muted-foreground">
+                                Required for {defaults.default_bid_strategy === 'LOWEST_COST_WITH_BID_CAP' ? 'Bid Cap' : 'Cost Cap'} strategy
+                              </p>
+                            </div>
+                          )}
                         </>
                       )}
 
