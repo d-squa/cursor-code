@@ -22,7 +22,6 @@ import { UnifiedTargeting, UnifiedTargetingConfig } from "./UnifiedTargeting";
 import { TiktokPhaseConfig } from "./TiktokPhaseConfig";
 import { PhaseTaxonomyInputs } from "./PhaseTaxonomyInputs";
 import { PhaseTaxonomyPreview } from "./PhaseTaxonomyPreview";
-import { shortenValue } from "@/utils/taxonomyUtils";
 import { 
   getObjectivesForPlatform, 
   getOptimizationGoalsForObjective, 
@@ -848,12 +847,16 @@ export function PhaseScheduler({
                           <PhaseTaxonomyPreview
                             adAccountId={adAccountId}
                             platform={platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta'}
-                            campaignTaxonomyValues={phase.campaignTaxonomyValues}
-                            adsetTaxonomyValues={phase.adsetTaxonomyValues}
-                            contextValues={{
-                              objective: phase.objective ? shortenValue('objective', phase.objective) : undefined,
-                              optimizationGoal: phase.optimizationGoal ? shortenValue('optimizationGoal', phase.optimizationGoal) : undefined,
-                              funnelStage: phase.funnelStage ? shortenValue('funnelStage', phase.funnelStage) : undefined,
+                            context={{
+                              platform: platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta',
+                              objective: phase.objective,
+                              optimizationGoal: phase.optimizationGoal,
+                              funnelStage: phase.funnelStage,
+                              bidStrategy: phase.metaBidStrategy || phase.tiktokBidStrategy,
+                              budgetType: phase.budgetType,
+                              advantagePlusPlacements: phase.advantagePlusPlacements,
+                              placementType: phase.tiktokPlacementType,
+                              publisherPlatforms: phase.publisherPlatforms,
                             }}
                           />
                         )}
@@ -1113,36 +1116,39 @@ export function PhaseScheduler({
                         />
                       </div>
 
-                      {/* Campaign Taxonomy */}
+                      {/* Campaign Taxonomy - Auto-generated from phase settings */}
                       {adAccountId && (
                         <PhaseTaxonomyInputs
                           adAccountId={adAccountId}
                           platform={platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta'}
                           entityType="campaign"
-                          taxonomyValues={phase.campaignTaxonomyValues || {}}
-                          onValuesChange={(values) => updatePhaseField(phase.id, "campaignTaxonomyValues", values)}
-                          contextValues={{
-                            objective: phase.objective ? shortenValue('objective', phase.objective) : undefined,
-                            optimizationGoal: phase.optimizationGoal ? shortenValue('optimizationGoal', phase.optimizationGoal) : undefined,
-                            funnelStage: phase.funnelStage ? shortenValue('funnelStage', phase.funnelStage) : undefined,
+                          context={{
+                            platform: platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta',
+                            objective: phase.objective,
+                            optimizationGoal: phase.optimizationGoal,
+                            funnelStage: phase.funnelStage,
+                            budgetType: phase.budgetType,
                           }}
                         />
                       )}
 
-                      {/* Ad Set Taxonomy */}
+                      {/* Ad Set Taxonomy - Auto-generated from phase settings */}
                       {adAccountId && (
                         <PhaseTaxonomyInputs
                           adAccountId={adAccountId}
                           platform={platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta'}
                           entityType="adset"
-                          taxonomyValues={phase.adsetTaxonomyValues || {}}
-                          onValuesChange={(values) => updatePhaseField(phase.id, "adsetTaxonomyValues", values)}
-                          contextValues={{
-                            optimizationGoal: phase.optimizationGoal ? shortenValue('optimizationGoal', phase.optimizationGoal) : undefined,
-                            placement: phase.advantagePlusPlacements ? 'AUTO' : 
-                              (phase.publisherPlatforms?.length ? shortenValue('placement', phase.publisherPlatforms[0]) : undefined),
-                            bidStrategy: phase.metaBidStrategy ? shortenValue('bidStrategy', phase.metaBidStrategy) : 
-                              (phase.tiktokBidStrategy ? shortenValue('bidStrategy', phase.tiktokBidStrategy) : undefined),
+                          context={{
+                            platform: platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta',
+                            optimizationGoal: phase.optimizationGoal,
+                            bidStrategy: phase.metaBidStrategy || phase.tiktokBidStrategy,
+                            billingEvent: phase.metaBillingEvent,
+                            advantagePlusPlacements: phase.advantagePlusPlacements,
+                            placementType: phase.tiktokPlacementType,
+                            publisherPlatforms: phase.publisherPlatforms,
+                            ageMin: phase.targeting?.ageMin || marketTargeting?.ageMin,
+                            ageMax: phase.targeting?.ageMax || marketTargeting?.ageMax,
+                            gender: phase.targeting?.genders?.[0] || marketTargeting?.gender,
                           }}
                         />
                       )}

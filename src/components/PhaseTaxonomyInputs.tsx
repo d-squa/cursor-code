@@ -1,41 +1,34 @@
 import { useState, useEffect } from "react";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle } from "lucide-react";
+import { CheckCircle2, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { TaxonomyParam, generateTaxonomyString } from "@/utils/taxonomyUtils";
+import { 
+  TaxonomyParam, 
+  TaxonomyContext,
+  extractTaxonomyValues,
+  generateTaxonomyString,
+  getMissingRequiredCount
+} from "@/utils/taxonomyUtils";
 
 interface PhaseTaxonomyInputsProps {
   adAccountId: string;
   platform: 'meta' | 'tiktok';
   entityType: 'campaign' | 'adset';
-  taxonomyValues: Record<string, string>;
-  onValuesChange: (values: Record<string, string>) => void;
-  // Context values that are auto-filled from phase/campaign data
-  contextValues?: {
-    objective?: string;
-    optimizationGoal?: string;
-    country?: string;
-    funnelStage?: string;
-    placement?: string;
-    bidStrategy?: string;
-    conversionEvent?: string;
-  };
+  // Context values automatically extracted from ActiPlan
+  context: TaxonomyContext;
 }
 
 export function PhaseTaxonomyInputs({
   adAccountId,
   platform,
   entityType,
-  taxonomyValues,
-  onValuesChange,
-  contextValues
+  context
 }: PhaseTaxonomyInputsProps) {
   const [template, setTemplate] = useState<TaxonomyParam[]>([]);
   const [loading, setLoading] = useState(true);
-  const [previewString, setPreviewString] = useState("");
+  const [taxonomyString, setTaxonomyString] = useState("");
+  const [extractedValues, setExtractedValues] = useState<Record<string, string>>({});
 
   // Load taxonomy template for this account and entity type
   useEffect(() => {
@@ -93,151 +86,76 @@ export function PhaseTaxonomyInputs({
     loadTemplate();
   }, [adAccountId, entityType, platform]);
 
-  // Update preview string when values change
+  // Auto-generate taxonomy when template or context changes
   useEffect(() => {
     if (template.length > 0) {
-      const mergedValues = { ...contextValues, ...taxonomyValues };
-      const preview = generateTaxonomyString(template, mergedValues);
-      setPreviewString(preview);
+      const values = extractTaxonomyValues(template, context);
+      setExtractedValues(values);
+      const generated = generateTaxonomyString(template, values);
+      setTaxonomyString(generated);
     }
-  }, [template, taxonomyValues, contextValues]);
-
-  // Get user-editable params (non-system params that need user input)
-  const getUserEditableParams = () => {
-    return template.filter(param => {
-      // System params with fixed values or auto-filled from context are not editable
-      if (param.type === 'fixed' && param.value) return false;
-      
-      // Check if this param is auto-filled from context
-      const contextKey = param.id;
-      if (contextValues && contextKey in contextValues && contextValues[contextKey as keyof typeof contextValues]) {
-        return false;
-      }
-      
-      return true;
-    });
-  };
-
-  const handleValueChange = (paramId: string, value: string) => {
-    onValuesChange({
-      ...taxonomyValues,
-      [paramId]: value
-    });
-  };
-
-  // Check if all required fields are filled
-  const getMissingRequiredFields = () => {
-    const missing: string[] = [];
-    template.forEach(param => {
-      if (param.required) {
-        const value = taxonomyValues[param.id] || 
-          (contextValues && param.id in contextValues ? contextValues[param.id as keyof typeof contextValues] : undefined) ||
-          param.value;
-        if (!value) {
-          missing.push(param.label);
-        }
-      }
-    });
-    return missing;
-  };
+  }, [template, context]);
 
   if (loading) {
-    return null; // Don't show anything while loading
+    return null;
   }
 
   if (template.length === 0) {
-    return (
-      <div className="p-3 bg-muted/30 rounded-lg border border-dashed">
-        <p className="text-xs text-muted-foreground">
-          No {entityType === 'campaign' ? 'Campaign' : 'Ad Set'} taxonomy configured. 
-          Set up naming templates in Client Defaults for this ad account.
-        </p>
-      </div>
-    );
+    return null; // No template configured, don't show anything
   }
 
-  const editableParams = getUserEditableParams();
-  const missingFields = getMissingRequiredFields();
+  const missingCount = getMissingRequiredCount(template, extractedValues);
+  const isComplete = missingCount === 0;
+  const entityLabel = entityType === 'campaign' ? 'Campaign' : (platform === 'tiktok' ? 'Ad Group' : 'Ad Set');
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <Label className="text-sm font-medium">
-          {entityType === 'campaign' ? 'Campaign' : 'Ad Set'} Taxonomy
+        <Label className="text-sm font-medium flex items-center gap-2">
+          <FileText className="h-4 w-4" />
+          {entityLabel} Name
         </Label>
-        {missingFields.length > 0 && (
+        {isComplete ? (
+          <Badge variant="outline" className="text-xs bg-green-500/10 text-green-600 border-green-500/30">
+            <CheckCircle2 className="h-3 w-3 mr-1" />
+            Auto-generated
+          </Badge>
+        ) : (
           <Badge variant="destructive" className="text-xs">
-            <AlertCircle className="h-3 w-3 mr-1" />
-            {missingFields.length} required
+            {missingCount} values missing
           </Badge>
         )}
       </div>
 
-      {/* Preview */}
-      {previewString && (
-        <div className="p-2 bg-muted rounded-md">
-          <p className="text-xs text-muted-foreground mb-1">Preview:</p>
-          <code className="text-xs font-mono break-all">{previewString}</code>
-        </div>
-      )}
+      {/* Generated Taxonomy Preview */}
+      <div className="p-3 bg-muted rounded-md border">
+        {taxonomyString ? (
+          <code className="text-sm font-mono break-all">{taxonomyString}</code>
+        ) : (
+          <span className="text-sm text-muted-foreground italic">
+            Configure campaign settings to generate name
+          </span>
+        )}
+      </div>
 
-      {/* Editable Parameters */}
-      {editableParams.length > 0 && (
-        <div className="grid gap-3">
-          {editableParams.map(param => (
-            <div key={param.id} className="space-y-1">
-              <Label className="text-xs">
-                {param.label}
-                {param.required && <span className="text-destructive ml-1">*</span>}
-              </Label>
-              
-              {param.type === 'options' && param.options ? (
-                <Select
-                  value={taxonomyValues[param.id] || ''}
-                  onValueChange={(value) => handleValueChange(param.id, value)}
+      {/* Show extracted values breakdown */}
+      {template.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {template
+            .filter(p => p.required !== false || p.system)
+            .map(param => {
+              const value = extractedValues[param.id] || param.value;
+              return (
+                <Badge
+                  key={param.id}
+                  variant={value ? "secondary" : "outline"}
+                  className={`text-xs ${!value ? 'border-dashed text-muted-foreground' : ''}`}
                 >
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder={`Select ${param.label}`} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {param.options.map(option => (
-                      <SelectItem key={option} value={option}>
-                        {option}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : param.type === 'number' ? (
-                <Input
-                  type="number"
-                  value={taxonomyValues[param.id] || ''}
-                  onChange={(e) => handleValueChange(param.id, e.target.value)}
-                  placeholder={`Enter ${param.label}`}
-                  className="h-8 text-xs"
-                />
-              ) : (
-                <Input
-                  type="text"
-                  value={taxonomyValues[param.id] || ''}
-                  onChange={(e) => {
-                    // Remove invalid characters
-                    const cleaned = e.target.value.replace(/[^a-zA-Z0-9]/g, '');
-                    handleValueChange(param.id, cleaned.toUpperCase());
-                  }}
-                  placeholder={`Enter ${param.label}`}
-                  className="h-8 text-xs"
-                  maxLength={20}
-                />
-              )}
-            </div>
-          ))}
+                  {param.key}: {value || '—'}
+                </Badge>
+              );
+            })}
         </div>
-      )}
-
-      {editableParams.length === 0 && (
-        <p className="text-xs text-muted-foreground">
-          All taxonomy fields are auto-filled from campaign settings.
-        </p>
       )}
     </div>
   );
@@ -246,16 +164,17 @@ export function PhaseTaxonomyInputs({
 // Helper function to check if taxonomy is complete for a phase
 export function isTaxonomyComplete(
   template: TaxonomyParam[],
-  taxonomyValues: Record<string, string>,
-  contextValues?: Record<string, string>
+  context: TaxonomyContext
 ): boolean {
-  for (const param of template) {
-    if (param.required) {
-      const value = taxonomyValues[param.id] || 
-        contextValues?.[param.id] ||
-        param.value;
-      if (!value) return false;
-    }
-  }
-  return true;
+  const values = extractTaxonomyValues(template, context);
+  return getMissingRequiredCount(template, values) === 0;
+}
+
+// Export for use in campaign publishing
+export function generatePhaseTaxonomy(
+  template: TaxonomyParam[],
+  context: TaxonomyContext
+): string {
+  const values = extractTaxonomyValues(template, context);
+  return generateTaxonomyString(template, values);
 }
