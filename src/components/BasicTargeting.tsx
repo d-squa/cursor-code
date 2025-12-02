@@ -292,41 +292,56 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
       return;
     }
     
-    if (!metaAdAccountId && !tiktokAdvertiserId) {
+    // Determine which platforms are actually active
+    const { hasMeta, hasTiktok } = getActivePlatforms();
+    
+    if (!hasMeta && !hasTiktok) {
       toast.error('At least one ad account must be selected (Meta or TikTok)');
       return;
     }
 
-    // Determine which platforms are active
     const activePlatforms = [];
-    if (metaAdAccountId) activePlatforms.push('Meta');
-    if (tiktokAdvertiserId) activePlatforms.push('TikTok');
+    if (hasMeta) activePlatforms.push('Meta');
+    if (hasTiktok) activePlatforms.push('TikTok');
     
     console.log('[AI Recommendations] Generating for platforms:', activePlatforms.join(', '));
-    console.log('[AI Recommendations] Platform IDs:', { metaAdAccountId, tiktokAdvertiserId });
+    console.log('[AI Recommendations] Platform IDs:', { 
+      metaAdAccountId: hasMeta ? metaAdAccountId : 'NOT SELECTED',
+      tiktokAdvertiserId: hasTiktok ? tiktokAdvertiserId : 'NOT SELECTED'
+    });
 
     setGeneratingAI(true);
     try {
+      // Only pass IDs for platforms that are actually selected
+      const requestBody: any = { brief: targeting.productBrief };
+      if (hasMeta) requestBody.metaAdAccountId = metaAdAccountId;
+      if (hasTiktok) requestBody.tiktokAdvertiserId = tiktokAdvertiserId;
+      
       const { data, error } = await supabase.functions.invoke('cross-platform-ai-recommendations', {
-        body: { 
-          brief: targeting.productBrief,
-          metaAdAccountId,
-          tiktokAdvertiserId
-        }
+        body: requestBody
       });
 
       if (error) throw error;
 
+      // Only populate recommendations for platforms that were actually requested
       const recommendations = {
-        meta: {
+        meta: hasMeta ? {
           interests: (data.meta?.interests || []).map((i: TargetingParameter) => ({ ...i, selected: true })),
           behaviors: (data.meta?.behaviors || []).map((b: TargetingParameter) => ({ ...b, selected: true })),
           demographics: (data.meta?.demographics || []).map((d: TargetingParameter) => ({ ...d, selected: true }))
+        } : {
+          interests: [],
+          behaviors: [],
+          demographics: []
         },
-        tiktok: {
+        tiktok: hasTiktok ? {
           interests: (data.tiktok?.interests || []).map((i: TargetingParameter) => ({ ...i, selected: true })),
           behaviors: (data.tiktok?.behaviors || []).map((b: TargetingParameter) => ({ ...b, selected: true })),
           demographics: (data.tiktok?.demographics || []).map((d: TargetingParameter) => ({ ...d, selected: true }))
+        } : {
+          interests: [],
+          behaviors: [],
+          demographics: []
         },
         matches: data.matches || []
       };
