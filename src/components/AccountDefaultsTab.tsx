@@ -227,15 +227,21 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
           default_bid_strategy: acc.default_bid_strategy || (acc.platform === 'meta' ? 'LOWEST_COST_WITHOUT_CAP' : 'LOWEST_COST'),
           default_bid_amount: (acc as any).default_bid_amount || null,
           default_identity_id: acc.platform === 'tiktok' ? acc.default_identity_id || null : null,
-          default_billing_event: acc.platform === 'tiktok' ? acc.default_billing_event || 'OCPM' : null,
+          // Billing event for both platforms
+          default_billing_event: acc.platform === 'tiktok' 
+            ? acc.default_billing_event || 'OCPM' 
+            : (acc as any).default_billing_event || 'IMPRESSIONS',
           default_optimization_event: acc.platform === 'tiktok' ? acc.default_optimization_event || 'ON_WEB_ORDER' : null,
-          default_landing_page_url: acc.platform === 'tiktok' ? acc.default_landing_page_url || null : null,
-          default_optimization_location: acc.platform === 'tiktok' ? (acc as any).default_optimization_location || null : null,
+          // Landing page URL for both platforms
+          default_landing_page_url: (acc as any).default_landing_page_url || null,
+          // Optimization location for both platforms
+          default_optimization_location: (acc as any).default_optimization_location || (acc.platform === 'meta' ? 'WEBSITE' : null),
           default_app_name: acc.platform === 'tiktok' ? (acc as any).default_app_name || null : null,
           default_app_id: acc.platform === 'tiktok' ? (acc as any).default_app_id || null : null,
           default_frequency_schedule: acc.platform === 'tiktok' ? (acc as any).default_frequency_schedule || null : null,
-          default_click_window: acc.platform === 'tiktok' ? (acc as any).default_click_window || null : null,
-          default_view_window: acc.platform === 'tiktok' ? (acc as any).default_view_window || null : null,
+          // Attribution windows for both platforms
+          default_click_window: (acc as any).default_click_window || (acc.platform === 'meta' ? 7 : null),
+          default_view_window: (acc as any).default_view_window || (acc.platform === 'meta' ? 1 : null),
           default_placement_type: acc.platform === 'tiktok' ? (acc as any).default_placement_type || 'PLACEMENT_TYPE_AUTOMATIC' : null,
           default_placements: acc.platform === 'tiktok' ? (acc as any).default_placements || ['PLACEMENT_TIKTOK', 'PLACEMENT_GLOBAL_APP_BUNDLE', 'PLACEMENT_PANGLE'] : null,
           // Meta-specific placements
@@ -328,6 +334,11 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         'default_conversion_budget_type',
         'default_non_conversion_budget_type',
         'default_bid_strategy',
+        'default_billing_event',
+        'default_landing_page_url',
+        'default_optimization_location',
+        'default_click_window',
+        'default_view_window',
         'default_publisher_platforms',
         'default_positions',
         'default_advantage_plus_placements',
@@ -712,6 +723,99 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                 <SelectItem value="COST_CAP">Cost Cap</SelectItem>
                               </SelectContent>
                             </Select>
+                          </div>
+
+                          {/* Billing Event */}
+                          <div className="space-y-2">
+                            <Label>Default Billing Event</Label>
+                            <Select
+                              value={defaults.default_billing_event || "IMPRESSIONS"}
+                              onValueChange={(value) => updateDefault(account.id, "default_billing_event", value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select billing event" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="IMPRESSIONS">Impressions (CPM)</SelectItem>
+                                <SelectItem value="LINK_CLICKS">Link Clicks (CPC)</SelectItem>
+                                <SelectItem value="POST_ENGAGEMENT">Post Engagement</SelectItem>
+                                <SelectItem value="THRUPLAY">ThruPlay (Video)</SelectItem>
+                                <SelectItem value="PAGE_LIKES">Page Likes</SelectItem>
+                                <SelectItem value="APP_INSTALLS">App Installs</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {/* Optimization Location */}
+                          <div className="space-y-2">
+                            <Label>Default Optimization Location</Label>
+                            <Select
+                              value={defaults.default_optimization_location || "WEBSITE"}
+                              onValueChange={(value) => updateDefault(account.id, "default_optimization_location", value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select optimization location" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="WEBSITE">Website</SelectItem>
+                                <SelectItem value="APP">App</SelectItem>
+                                <SelectItem value="MESSAGING_APPS">Messaging Apps</SelectItem>
+                                <SelectItem value="CALLS">Calls</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          {/* Landing Page URL */}
+                          <div className="space-y-2">
+                            <Label>Default Landing Page URL</Label>
+                            <Input
+                              value={defaults.default_landing_page_url || ""}
+                              onChange={(e) => updateDefault(account.id, "default_landing_page_url", e.target.value)}
+                              placeholder="https://example.com"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              Default destination URL for traffic campaigns
+                            </p>
+                          </div>
+
+                          {/* Attribution Windows */}
+                          <div className="space-y-2">
+                            <Label>Click-Through Window (days)</Label>
+                            <Select
+                              value={String(defaults.default_click_window || 7)}
+                              onValueChange={(value) => updateDefault(account.id, "default_click_window", parseInt(value))}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select click window" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="1">1 day</SelectItem>
+                                <SelectItem value="7">7 days</SelectItem>
+                                <SelectItem value="28">28 days</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">
+                              Attribution window for clicks
+                            </p>
+                          </div>
+
+                          <div className="space-y-2">
+                            <Label>View-Through Window (days)</Label>
+                            <Select
+                              value={String(defaults.default_view_window || 1)}
+                              onValueChange={(value) => updateDefault(account.id, "default_view_window", parseInt(value))}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select view window" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="1">1 day</SelectItem>
+                                <SelectItem value="7">7 days</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">
+                              Attribution window for views
+                            </p>
                           </div>
 
                           {/* Advantage+ Placements Toggle */}

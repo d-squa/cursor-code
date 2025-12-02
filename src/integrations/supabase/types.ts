@@ -382,16 +382,21 @@ export type Database = {
           default_advantage_plus_placements: boolean | null
           default_bid_amount: number | null
           default_bid_strategy: string | null
+          default_billing_event: string | null
           default_catalog_id: string | null
+          default_click_window: number | null
           default_conversion_budget_type: string | null
           default_conversion_event: string | null
           default_instagram_account_id: string | null
+          default_landing_page_url: string | null
           default_non_conversion_budget_type: string | null
+          default_optimization_location: string | null
           default_page_id: string | null
           default_pixel_id: string | null
           default_positions: Json | null
           default_product_set_id: string | null
           default_publisher_platforms: Json | null
+          default_view_window: number | null
           id: string
           main_markets: Json | null
           synced_at: string
@@ -407,16 +412,21 @@ export type Database = {
           default_advantage_plus_placements?: boolean | null
           default_bid_amount?: number | null
           default_bid_strategy?: string | null
+          default_billing_event?: string | null
           default_catalog_id?: string | null
+          default_click_window?: number | null
           default_conversion_budget_type?: string | null
           default_conversion_event?: string | null
           default_instagram_account_id?: string | null
+          default_landing_page_url?: string | null
           default_non_conversion_budget_type?: string | null
+          default_optimization_location?: string | null
           default_page_id?: string | null
           default_pixel_id?: string | null
           default_positions?: Json | null
           default_product_set_id?: string | null
           default_publisher_platforms?: Json | null
+          default_view_window?: number | null
           id?: string
           main_markets?: Json | null
           synced_at?: string
@@ -432,16 +442,21 @@ export type Database = {
           default_advantage_plus_placements?: boolean | null
           default_bid_amount?: number | null
           default_bid_strategy?: string | null
+          default_billing_event?: string | null
           default_catalog_id?: string | null
+          default_click_window?: number | null
           default_conversion_budget_type?: string | null
           default_conversion_event?: string | null
           default_instagram_account_id?: string | null
+          default_landing_page_url?: string | null
           default_non_conversion_budget_type?: string | null
+          default_optimization_location?: string | null
           default_page_id?: string | null
           default_pixel_id?: string | null
           default_positions?: Json | null
           default_product_set_id?: string | null
           default_publisher_platforms?: Json | null
+          default_view_window?: number | null
           id?: string
           main_markets?: Json | null
           synced_at?: string
