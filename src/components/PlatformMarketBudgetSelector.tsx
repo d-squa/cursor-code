@@ -136,6 +136,8 @@ export function PlatformMarketBudgetSelector({
             bidStrategy: acc.default_bid_strategy,
             bidAmount: acc.default_bid_amount,
             mainMarkets: Array.isArray(acc.main_markets) ? acc.main_markets : [],
+            publisherPlatforms: Array.isArray(acc.default_publisher_platforms) ? acc.default_publisher_platforms : ['facebook', 'instagram', 'audience_network'],
+            positions: acc.default_positions || {},
           };
           console.log(`📋 Defaults for ${acc.account_name}:`, defaults[acc.account_id]);
         });
@@ -395,6 +397,8 @@ export function PlatformMarketBudgetSelector({
           productSetId: acc.default_product_set_id,
           optimizationEvent: acc.default_optimization_event,
           mainMarkets: acc.main_markets,
+          placementType: acc.default_placement_type,
+          placements: acc.default_placements,
         });
         defaults[acc.advertiser_id] = {
           pixelId: acc.default_pixel_id,
@@ -406,6 +410,8 @@ export function PlatformMarketBudgetSelector({
           bidStrategy: acc.default_bid_strategy,
           bidAmount: acc.default_bid_amount,
           mainMarkets: Array.isArray(acc.main_markets) ? acc.main_markets : [],
+          placementType: acc.default_placement_type || 'PLACEMENT_TYPE_AUTOMATIC',
+          placements: Array.isArray(acc.default_placements) ? acc.default_placements : ['PLACEMENT_TIKTOK'],
         };
       });
       console.log('✅ TikTok Ad Account Defaults loaded:', defaults);
@@ -1028,34 +1034,36 @@ export function PlatformMarketBudgetSelector({
                                                  productSet: defaults?.productSet
                                                });
                                                
-                                                return {
-                                                  id: `${marketCode}-${Date.now()}-${idx}`,
-                                                  name: marketCode,
-                                                  budgetPercentage: marketBudgetSplit,
-                                                  adAccountId: value,
-                                                  accountName: account?.name || "",
-                                                  pixel: defaults?.pixelId || "",
-                                                  pageId: defaults?.pageId || "",
-                                                  page: defaults?.pageId || "",
-                                                  instagramActorId: defaults?.instagramActorId || "",
-                                                  catalog: defaults?.catalog || "",
-                                                  productSet: defaults?.productSet || "",
-                                                  conversionEvent: defaults?.conversionEvent || "",
-                                                  metaBidStrategy: defaults?.bidStrategy || 'LOWEST_COST_WITHOUT_CAP',
-                                                  metaBidAmount: defaults?.bidAmount || undefined,
-                                                  phases: [],
-                                                  adFormats: [],
-                                                  countries: [marketCode],
-                                                  ageMin: 18,
-                                                  ageMax: 65,
-                                                  gender: "all",
-                                                  languages: [],
-                                                  publisherPlatforms: ["facebook"],
-                                                  positions: {},
-                                                  detailedTargeting: [],
-                                                  isCBOEnabled: false,
-                                                  isLifetimeBudget: false,
-                                                };
+                                                 return {
+                                                   id: `${marketCode}-${Date.now()}-${idx}`,
+                                                   name: marketCode,
+                                                   budgetPercentage: marketBudgetSplit,
+                                                   adAccountId: value,
+                                                   accountName: account?.name || "",
+                                                   pixel: defaults?.pixelId || "",
+                                                   pageId: defaults?.pageId || "",
+                                                   page: defaults?.pageId || "",
+                                                   instagramActorId: defaults?.instagramActorId || "",
+                                                   catalog: defaults?.catalog || "",
+                                                   productSet: defaults?.productSet || "",
+                                                   conversionEvent: defaults?.conversionEvent || "",
+                                                   metaBidStrategy: defaults?.bidStrategy || 'LOWEST_COST_WITHOUT_CAP',
+                                                   metaBidAmount: defaults?.bidAmount || undefined,
+                                                   phases: [],
+                                                   adFormats: [],
+                                                   countries: [marketCode],
+                                                   ageMin: 18,
+                                                   ageMax: 65,
+                                                   gender: "all",
+                                                   languages: [],
+                                                   metaPublisherPlatforms: defaults?.publisherPlatforms || ['facebook', 'instagram', 'audience_network'],
+                                                   metaPositions: defaults?.positions || {},
+                                                   publisherPlatforms: defaults?.publisherPlatforms || ['facebook', 'instagram', 'audience_network'],
+                                                   positions: defaults?.positions || {},
+                                                   detailedTargeting: [],
+                                                   isCBOEnabled: false,
+                                                   isLifetimeBudget: false,
+                                                 };
                                              });
                                              
                                              console.log('✅ Created markets:', newMarkets.map(m => ({ name: m.name, pixel: m.pixel, page: m.page, catalog: m.catalog })));
@@ -1099,6 +1107,14 @@ export function PlatformMarketBudgetSelector({
                                                       if (defaults.conversionEvent) updated.conversionEvent = defaults.conversionEvent;
                                                       if (defaults.bidStrategy) updated.metaBidStrategy = defaults.bidStrategy;
                                                       if (defaults.bidAmount !== undefined) updated.metaBidAmount = defaults.bidAmount;
+                                                      if (defaults.publisherPlatforms) {
+                                                        updated.metaPublisherPlatforms = defaults.publisherPlatforms;
+                                                        updated.publisherPlatforms = defaults.publisherPlatforms;
+                                                      }
+                                                      if (defaults.positions) {
+                                                        updated.metaPositions = defaults.positions;
+                                                        updated.positions = defaults.positions;
+                                                      }
                                                       
                                                       toast.success("Applied default settings for this ad account");
                                                     }
@@ -1466,6 +1482,8 @@ export function PlatformMarketBudgetSelector({
                                                 tiktokOptimizationEvent: defaults?.optimizationEvent || "ON_WEB_ORDER",
                                                 tiktokLandingPageUrl: defaults?.landingPageUrl || "",
                                                 tiktokBidStrategy: defaults?.bidStrategy || "LOWEST_COST",
+                                                tiktokPlacementType: defaults?.placementType || "PLACEMENT_TYPE_AUTOMATIC",
+                                                tiktokPlacements: defaults?.placements || ["PLACEMENT_TIKTOK"],
                                                 phases: [],
                                                 adFormats: [],
                                                 // Filter out US from TikTok countries
@@ -1574,6 +1592,14 @@ export function PlatformMarketBudgetSelector({
                                                      if (defaults.smartPlusEnabled !== undefined) {
                                                        updated.tiktokSmartPlusEnabled = defaults.smartPlusEnabled;
                                                        console.log("  ✓ Set tiktokSmartPlusEnabled:", defaults.smartPlusEnabled);
+                                                     }
+                                                     if (defaults.placementType) {
+                                                       updated.tiktokPlacementType = defaults.placementType;
+                                                       console.log("  ✓ Set tiktokPlacementType:", defaults.placementType);
+                                                     }
+                                                     if (defaults.placements) {
+                                                       updated.tiktokPlacements = defaults.placements;
+                                                       console.log("  ✓ Set tiktokPlacements:", defaults.placements);
                                                      }
                                                      
                                                      toast.success("Applied default TikTok settings");
