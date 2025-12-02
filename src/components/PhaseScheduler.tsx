@@ -1231,7 +1231,7 @@ export function PhaseScheduler({
                       )}
 
                       {/* TikTok Advanced Settings - Platform-specific */}
-                      {platformId === 'tiktok' && (
+                      {platformId?.toLowerCase() === 'tiktok' && (
                         <TiktokPhaseConfig
                           phase={phase}
                           onUpdate={(field, value) => {
