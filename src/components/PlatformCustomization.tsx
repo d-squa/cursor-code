@@ -574,7 +574,8 @@ return (
                                             {(() => {
                                               const autoDetected = getObjectiveFromPhaseName(
                                                 phase.name,
-                                                market.strategyFocus || genericConfig.strategyFocus
+                                                market.strategyFocus || genericConfig.strategyFocus,
+                                                platform.name
                                               );
                                               const currentObjective = phase.objective || autoDetected.objective;
                                               const currentOptGoal = phase.optimizationGoal || autoDetected.optimizationGoal;

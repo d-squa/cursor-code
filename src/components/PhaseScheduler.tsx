@@ -937,7 +937,7 @@ export function PhaseScheduler({
                           <Label htmlFor={`objective-${phase.id}`}>Campaign Objective</Label>
                           {phase.objective && phase.optimizationGoal && (
                             <Badge variant="secondary" className="text-xs">
-                              Goal: {phase.optimizationGoal}
+                              Goal: {getOptimizationGoalsForPhase(phase.objective).find(g => g.value === phase.optimizationGoal)?.label || phase.optimizationGoal}
                             </Badge>
                           )}
                         </div>
@@ -949,9 +949,9 @@ export function PhaseScheduler({
                             
                             // TikTok conversion campaigns require 90+ days of pixel data
                             // Automatically switch to Traffic objective for better success rate
-                            if (isTikTok && (value === "Conversions" || value === "Sales")) {
+                            if (isTikTok && (value === "CONVERSIONS" || value === "PRODUCT_SALES")) {
                               console.warn("⚠️ TikTok conversion objective auto-adjusted to Traffic");
-                              adjustedObjective = "Traffic";
+                              adjustedObjective = "TRAFFIC";
                             }
                             
                             const updatedPhases = phases.map(p => {
