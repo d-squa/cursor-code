@@ -11,6 +11,8 @@ import { Loader2, Save } from "lucide-react";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { MARKET_OPTIONS, TIKTOK_MARKET_OPTIONS } from "@/utils/markets";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Separator } from "@/components/ui/separator";
+import AccountTaxonomySection from "./AccountTaxonomySection";
 
 interface AdAccount {
   id: string;
@@ -1469,6 +1471,14 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                         </>
                       )}
                     </div>
+
+                    {/* Naming Taxonomy Section */}
+                    <Separator className="my-6" />
+                    <AccountTaxonomySection
+                      adAccountId={account.id}
+                      platform={account.platform}
+                      userId={userId}
+                    />
 
                     <div className="flex justify-end gap-2 pt-4">
                       <Button

@@ -928,6 +928,39 @@ export type Database = {
         }
         Relationships: []
       }
+      taxonomy_templates: {
+        Row: {
+          ad_account_id: string
+          created_at: string
+          entity_type: string
+          id: string
+          platform: string
+          template: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ad_account_id: string
+          created_at?: string
+          entity_type: string
+          id?: string
+          platform: string
+          template?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ad_account_id?: string
+          created_at?: string
+          entity_type?: string
+          id?: string
+          platform?: string
+          template?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       team_clients: {
         Row: {
           client_id: string
