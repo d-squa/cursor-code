@@ -321,8 +321,11 @@ class TikTokAdapter implements PlatformAdapter {
           'REACH': 'CPM',
           'CLICK': 'CPC',
           'LANDING_PAGE': 'OCPM',
+          'LANDING_PAGE_VIEW': 'OCPM', // Added missing mapping
           '6S_VIDEO_VIEW': 'CPV',
           '15S_VIDEO_VIEW': 'CPV',
+          'VIDEO_VIEW': 'CPV', // Added VIDEO_VIEW mapping
+          'FOCUSED_VIEW': 'CPV', // Added FOCUSED_VIEW mapping
           'CONVERT': 'OCPM',
           'VALUE': 'OCPM',
           'APP_INSTALL': 'CPC',
