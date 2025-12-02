@@ -518,12 +518,44 @@ class TikTokAdapter implements PlatformAdapter {
       const interestIds: string[] = [];
       const actionIds: string[] = [];
       
-      // Extract TikTok interests
+      // Validate TikTok interest ID format
+      // TikTok interest category IDs are typically:
+      // - Main categories: 4-5 digit numbers (e.g., "2010" for Sports)
+      // - Subcategories: 5-6 digit numbers (e.g., "28101" for Sports equipment)
+      // IDs with patterns like "999" or very long numbers (10+ digits) are often invalid/placeholder IDs
+      const isValidTikTokInterestId = (id: string): boolean => {
+        if (!id || typeof id !== 'string') return false;
+        
+        // Must be numeric
+        if (!/^\d+$/.test(id)) return false;
+        
+        // IDs containing "999" patterns are often placeholder/synthetic IDs
+        if (id.includes('999')) {
+          console.log(`  ⚠️ Skipping suspicious interest ID (contains 999): ${id}`);
+          return false;
+        }
+        
+        // Very long IDs (10+ digits) that don't match known patterns are suspicious
+        if (id.length >= 10) {
+          console.log(`  ⚠️ Skipping suspicious interest ID (too long): ${id}`);
+          return false;
+        }
+        
+        return true;
+      };
+      
+      // Extract TikTok interests with validation
       if (params.targeting.tiktokInterests && Array.isArray(params.targeting.tiktokInterests)) {
         console.log(`🎯 Processing ${params.targeting.tiktokInterests.length} TikTok interests`);
         params.targeting.tiktokInterests.forEach((interest: any) => {
           if (interest.id) {
-            interestIds.push(String(interest.id));
+            const idStr = String(interest.id);
+            if (isValidTikTokInterestId(idStr)) {
+              interestIds.push(idStr);
+              console.log(`  ✓ Valid interest: ${interest.name} (${idStr})`);
+            } else {
+              console.log(`  ⏭️ Skipping invalid interest ID: ${interest.name} (${idStr})`);
+            }
           }
         });
       } else {
@@ -537,40 +569,40 @@ class TikTokAdapter implements PlatformAdapter {
         console.log(`🎯 Processing ${params.targeting.tiktokBehaviors.length} TikTok behaviors`);
         params.targeting.tiktokBehaviors.forEach((behavior: any) => {
           if (behavior.id) {
-            actionIds.push(String(behavior.id));
-            console.log(`  → Action category: ${behavior.name} (${behavior.id})${behavior.category ? ` - ${behavior.category}` : ''}`);
+            const idStr = String(behavior.id);
+            // Apply same validation to action IDs
+            if (isValidTikTokInterestId(idStr)) {
+              actionIds.push(idStr);
+              console.log(`  → Action category: ${behavior.name} (${idStr})${behavior.category ? ` - ${behavior.category}` : ''}`);
+            } else {
+              console.log(`  ⏭️ Skipping invalid action ID: ${behavior.name} (${idStr})`);
+            }
           }
         });
       } else {
         console.log(`⚠️ No TikTok behaviors (tiktokBehaviors: ${JSON.stringify(params.targeting.tiktokBehaviors)})`);
       }
       
-      // Extract TikTok demographics (also goes into interests or actions depending on type)
-      if (params.targeting.tiktokDemographics && Array.isArray(params.targeting.tiktokDemographics)) {
-        console.log(`🎯 Processing ${params.targeting.tiktokDemographics.length} TikTok demographics`);
-        params.targeting.tiktokDemographics.forEach((demo: any) => {
-          if (demo.id) {
-            interestIds.push(String(demo.id));
-          }
-        });
-      } else {
-        console.log(`⚠️ No TikTok demographics (tiktokDemographics: ${JSON.stringify(params.targeting.tiktokDemographics)})`);
+      // TikTok demographics are handled through age/gender/location - not through interest IDs
+      // Skipping tiktokDemographics as they're not supported in interest_category_ids
+      if (params.targeting.tiktokDemographics && Array.isArray(params.targeting.tiktokDemographics) && params.targeting.tiktokDemographics.length > 0) {
+        console.log(`⚠️ Skipping ${params.targeting.tiktokDemographics.length} TikTok demographics (not supported in interest targeting)`);
       }
       
       // Add interest targeting
       if (interestIds.length > 0) {
         body.interest_category_ids = interestIds;
-        console.log(`✅ Interest targeting: ${interestIds.length} interests`);
+        console.log(`✅ Interest targeting: ${interestIds.length} valid interests`);
       } else {
-        console.log(`⚠️ No interest_category_ids added to body`);
+        console.log(`⚠️ No interest_category_ids added to body (all IDs were invalid or none provided)`);
       }
       
       // Add action/behavior targeting
       if (actionIds.length > 0) {
         body.action_category_ids = actionIds;
-        console.log(`✅ Action/Behavior targeting: ${actionIds.length} actions`);
+        console.log(`✅ Action/Behavior targeting: ${actionIds.length} valid actions`);
       } else {
-        console.log(`⚠️ No action_category_ids added to body`);
+        console.log(`⚠️ No action_category_ids added to body (all IDs were invalid or none provided)`);
       }
       
       // Add optional TikTok fields from matrix
