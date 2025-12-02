@@ -841,22 +841,17 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
                                   aiRecommendations.tiktok.behaviors.length;
 
               return (
-                <Tabs value={activeRecommendationTab} onValueChange={setActiveRecommendationTab} className="w-full">
+                <>
                   {hasMultiple ? (
-                    <TabsList className="grid w-full grid-cols-3">
-                      {hasMeta && <TabsTrigger value="meta">Meta ({metaSelected}/{metaTotal})</TabsTrigger>}
-                      {hasTiktok && <TabsTrigger value="tiktok">TikTok ({tiktokSelected}/{tiktokTotal})</TabsTrigger>}
-                      <TabsTrigger value="matches">Matches ({aiRecommendations.matches.length})</TabsTrigger>
-                    </TabsList>
-                  ) : (
-                    <TabsList className="w-full">
-                      {hasMeta && <TabsTrigger value="meta" className="flex-1">Meta Recommendations ({metaSelected}/{metaTotal})</TabsTrigger>}
-                      {hasTiktok && <TabsTrigger value="tiktok" className="flex-1">TikTok Recommendations ({tiktokSelected}/{tiktokTotal})</TabsTrigger>}
-                    </TabsList>
-                  )}
-                
-                  {hasMeta && hasMetaRecs && (
-                    <TabsContent value="meta" className="space-y-4 mt-4">
+                    <Tabs value={activeRecommendationTab} onValueChange={setActiveRecommendationTab} className="w-full">
+                      <TabsList className="grid w-full grid-cols-3">
+                        {hasMeta && <TabsTrigger value="meta">Meta ({metaSelected}/{metaTotal})</TabsTrigger>}
+                        {hasTiktok && <TabsTrigger value="tiktok">TikTok ({tiktokSelected}/{tiktokTotal})</TabsTrigger>}
+                        <TabsTrigger value="matches">Matches ({aiRecommendations.matches.length})</TabsTrigger>
+                      </TabsList>
+                      
+                      {hasMeta && hasMetaRecs && (
+                        <TabsContent value="meta" className="space-y-4 mt-4">
                   {aiRecommendations.meta.interests.length > 0 && (
                     <RecommendationSection
                       title="Interests"
@@ -917,33 +912,100 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
                       onDeselectAll={handleDeselectAll}
                     />
                   )}
-                    </TabsContent>
-                  )}
+                        </TabsContent>
+                      )}
 
-                  {hasMultiple && (
-                    <TabsContent value="matches" className="space-y-2 mt-4">
-                  {aiRecommendations.matches.length > 0 ? (
-                    aiRecommendations.matches.map((match, idx) => (
-                      <Card key={idx} className="p-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1">
-                            <div className="text-sm font-medium">Meta: {match.meta.name}</div>
-                            <div className="text-sm text-muted-foreground">TikTok: {match.tiktok.name}</div>
+                      <TabsContent value="matches" className="space-y-2 mt-4">
+                        {aiRecommendations.matches.length > 0 ? (
+                          aiRecommendations.matches.map((match, idx) => (
+                            <Card key={idx} className="p-3">
+                              <div className="flex items-center justify-between">
+                                <div className="flex-1">
+                                  <div className="text-sm font-medium">Meta: {match.meta.name}</div>
+                                  <div className="text-sm text-muted-foreground">TikTok: {match.tiktok.name}</div>
+                                </div>
+                                <Badge variant={match.score >= 80 ? "default" : "secondary"}>
+                                  {match.score}% match
+                                </Badge>
+                              </div>
+                            </Card>
+                          ))
+                        ) : (
+                          <div className="text-center text-muted-foreground py-4">
+                            No cross-platform matches found
                           </div>
-                          <Badge variant={match.score >= 80 ? "default" : "secondary"}>
-                            {match.score}% match
-                          </Badge>
-                        </div>
-                      </Card>
-                    ))
+                        )}
+                      </TabsContent>
+                    </Tabs>
                   ) : (
-                    <div className="text-center text-muted-foreground py-4">
-                      No cross-platform matches found
+                    // Single platform - show content directly without tabs
+                    <div className="space-y-4 mt-4">
+                      {hasMeta && hasMetaRecs && (
+                        <>
+                          {aiRecommendations.meta.interests.length > 0 && (
+                            <RecommendationSection
+                              title="Interests"
+                              items={aiRecommendations.meta.interests}
+                              platform="meta"
+                              type="interests"
+                              onToggle={handleToggleRecommendation}
+                              onSelectAll={handleSelectAll}
+                              onDeselectAll={handleDeselectAll}
+                            />
+                          )}
+                          {aiRecommendations.meta.behaviors.length > 0 && (
+                            <RecommendationSection
+                              title="Behaviors"
+                              items={aiRecommendations.meta.behaviors}
+                              platform="meta"
+                              type="behaviors"
+                              onToggle={handleToggleRecommendation}
+                              onSelectAll={handleSelectAll}
+                              onDeselectAll={handleDeselectAll}
+                            />
+                          )}
+                          {aiRecommendations.meta.demographics.length > 0 && (
+                            <RecommendationSection
+                              title="Demographics"
+                              items={aiRecommendations.meta.demographics}
+                              platform="meta"
+                              type="demographics"
+                              onToggle={handleToggleRecommendation}
+                              onSelectAll={handleSelectAll}
+                              onDeselectAll={handleDeselectAll}
+                            />
+                          )}
+                        </>
+                      )}
+                      {hasTiktok && hasTiktokRecs && (
+                        <>
+                          {aiRecommendations.tiktok.interests.length > 0 && (
+                            <RecommendationSection
+                              title="Interests"
+                              items={aiRecommendations.tiktok.interests}
+                              platform="tiktok"
+                              type="interests"
+                              onToggle={handleToggleRecommendation}
+                              onSelectAll={handleSelectAll}
+                              onDeselectAll={handleDeselectAll}
+                            />
+                          )}
+                          {aiRecommendations.tiktok.behaviors.length > 0 && (
+                            <RecommendationSection
+                              title="Actions"
+                              items={aiRecommendations.tiktok.behaviors}
+                              platform="tiktok"
+                              type="behaviors"
+                              onToggle={handleToggleRecommendation}
+                              onSelectAll={handleSelectAll}
+                              onDeselectAll={handleDeselectAll}
+                            />
+                          )}
+                        </>
+                      )}
                     </div>
                   )}
-                    </TabsContent>
-                  )}
-                </Tabs>
+                </>
               );
             })()}
           </CardContent>
@@ -997,21 +1059,16 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
               const tiktokCount = searchResults.tiktok.interests.length + searchResults.tiktok.behaviors.length + searchResults.tiktok.purchaseIntention.length + searchResults.tiktok.videoInteractions.length;
 
               return (
-                <Tabs value={activeSearchTab} onValueChange={setActiveSearchTab} className="w-full">
+                <>
                   {hasMultiple ? (
-                    <TabsList className="grid w-full grid-cols-2">
-                      {hasMeta && <TabsTrigger value="meta">Meta ({metaCount})</TabsTrigger>}
-                      {hasTiktok && <TabsTrigger value="tiktok">TikTok ({tiktokCount})</TabsTrigger>}
-                    </TabsList>
-                  ) : (
-                    <TabsList className="w-full">
-                      {hasMeta && <TabsTrigger value="meta" className="flex-1">Meta Results ({metaCount})</TabsTrigger>}
-                      {hasTiktok && <TabsTrigger value="tiktok" className="flex-1">TikTok Results ({tiktokCount})</TabsTrigger>}
-                    </TabsList>
-                  )}
-                  
-                  {hasMeta && hasMetaResults && (
-                    <TabsContent value="meta" className="space-y-4 mt-4">
+                    <Tabs value={activeSearchTab} onValueChange={setActiveSearchTab} className="w-full">
+                      <TabsList className="grid w-full grid-cols-2">
+                        {hasMeta && <TabsTrigger value="meta">Meta ({metaCount})</TabsTrigger>}
+                        {hasTiktok && <TabsTrigger value="tiktok">TikTok ({tiktokCount})</TabsTrigger>}
+                      </TabsList>
+                      
+                      {hasMeta && hasMetaResults && (
+                        <TabsContent value="meta" className="space-y-4 mt-4">
                     <div className="flex justify-end gap-2 mb-4">
                       <Button variant="outline" size="sm" onClick={() => handleSelectAllSearch('meta')}>
                         Select All
@@ -1159,9 +1216,165 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
                       </div>
                     </div>
                   )}
-                    </TabsContent>
+                        </TabsContent>
+                      )}
+                    </Tabs>
+                  ) : (
+                    // Single platform - show content directly without tabs
+                    <div className="space-y-4 mt-4">
+                      {hasMeta && hasMetaResults && (
+                        <>
+                          <div className="flex justify-end gap-2 mb-4">
+                            <Button variant="outline" size="sm" onClick={() => handleSelectAllSearch('meta')}>
+                              Select All
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => handleDeselectAllSearch('meta')}>
+                              Deselect All
+                            </Button>
+                          </div>
+                          {searchResults.meta.interests.length > 0 && (
+                            <div className="space-y-2">
+                              <Label className="text-sm font-semibold">Interests</Label>
+                              <div className="space-y-2">
+                                {searchResults.meta.interests.map((result) => (
+                                  <SearchResultItem
+                                    key={result.id}
+                                    result={result}
+                                    platform="meta"
+                                    category="interests"
+                                    isAdded={isResultAdded('meta', 'interests', result.id)}
+                                    onAdd={handleAddSearchResult}
+                                    onRemove={handleRemoveSearchResult}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {searchResults.meta.behaviors.length > 0 && (
+                            <div className="space-y-2">
+                              <Label className="text-sm font-semibold">Behaviors</Label>
+                              <div className="space-y-2">
+                                {searchResults.meta.behaviors.map((result) => (
+                                  <SearchResultItem
+                                    key={result.id}
+                                    result={result}
+                                    platform="meta"
+                                    category="behaviors"
+                                    isAdded={isResultAdded('meta', 'behaviors', result.id)}
+                                    onAdd={handleAddSearchResult}
+                                    onRemove={handleRemoveSearchResult}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {searchResults.meta.demographics.length > 0 && (
+                            <div className="space-y-2">
+                              <Label className="text-sm font-semibold">Demographics</Label>
+                              <div className="space-y-2">
+                                {searchResults.meta.demographics.map((result) => (
+                                  <SearchResultItem
+                                    key={result.id}
+                                    result={result}
+                                    platform="meta"
+                                    category="demographics"
+                                    isAdded={isResultAdded('meta', 'demographics', result.id)}
+                                    onAdd={handleAddSearchResult}
+                                    onRemove={handleRemoveSearchResult}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )}
+                      {hasTiktok && hasTiktokResults && (
+                        <>
+                          <div className="flex justify-end gap-2 mb-4">
+                            <Button variant="outline" size="sm" onClick={() => handleSelectAllSearch('tiktok')}>
+                              Select All
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => handleDeselectAllSearch('tiktok')}>
+                              Deselect All
+                            </Button>
+                          </div>
+                          {searchResults.tiktok.interests.length > 0 && (
+                            <div className="space-y-2">
+                              <Label className="text-sm font-semibold">Interests</Label>
+                              <div className="space-y-2">
+                                {searchResults.tiktok.interests.map((result) => (
+                                  <SearchResultItem
+                                    key={result.id}
+                                    result={result}
+                                    platform="tiktok"
+                                    category="interests"
+                                    isAdded={isResultAdded('tiktok', 'interests', result.id)}
+                                    onAdd={handleAddSearchResult}
+                                    onRemove={handleRemoveSearchResult}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {searchResults.tiktok.behaviors.length > 0 && (
+                            <div className="space-y-2">
+                              <Label className="text-sm font-semibold">Behaviors</Label>
+                              <div className="space-y-2">
+                                {searchResults.tiktok.behaviors.map((result) => (
+                                  <SearchResultItem
+                                    key={result.id}
+                                    result={result}
+                                    platform="tiktok"
+                                    category="behaviors"
+                                    isAdded={isResultAdded('tiktok', 'behaviors', result.id)}
+                                    onAdd={handleAddSearchResult}
+                                    onRemove={handleRemoveSearchResult}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {searchResults.tiktok.purchaseIntention.length > 0 && (
+                            <div className="space-y-2">
+                              <Label className="text-sm font-semibold">Purchase Intention</Label>
+                              <div className="space-y-2">
+                                {searchResults.tiktok.purchaseIntention.map((result) => (
+                                  <SearchResultItem
+                                    key={result.id}
+                                    result={result}
+                                    platform="tiktok"
+                                    category="purchase_intention"
+                                    isAdded={isResultAdded('tiktok', 'purchase_intention', result.id)}
+                                    onAdd={handleAddSearchResult}
+                                    onRemove={handleRemoveSearchResult}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {searchResults.tiktok.videoInteractions.length > 0 && (
+                            <div className="space-y-2">
+                              <Label className="text-sm font-semibold">Video Interactions</Label>
+                              <div className="space-y-2">
+                                {searchResults.tiktok.videoInteractions.map((result) => (
+                                  <SearchResultItem
+                                    key={result.id}
+                                    result={result}
+                                    platform="tiktok"
+                                    category="video_interactions"
+                                    isAdded={isResultAdded('tiktok', 'video_interactions', result.id)}
+                                    onAdd={handleAddSearchResult}
+                                    onRemove={handleRemoveSearchResult}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
                   )}
-                </Tabs>
+                </>
               );
             })()}
           </CardContent>
