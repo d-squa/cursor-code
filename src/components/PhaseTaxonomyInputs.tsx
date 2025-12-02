@@ -123,9 +123,7 @@ export function PhaseTaxonomyInputs({
   };
 
   if (loading) {
-    return (
-      <div className="text-sm text-muted-foreground">Loading taxonomy...</div>
-    );
+    return null; // Don't show anything while loading
   }
 
   if (template.length === 0) {
