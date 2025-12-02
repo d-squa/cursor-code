@@ -35,6 +35,15 @@ export interface Market {
   tiktokPlacements?: string[]; // Array of placement positions when manual
   metaBidStrategy?: string; // Meta Bid Strategy (LOWEST_COST_WITHOUT_CAP, LOWEST_COST_WITH_BID_CAP, COST_CAP, etc.)
   metaBidAmount?: number; // Meta Bid Amount (required for LOWEST_COST_WITH_BID_CAP and COST_CAP)
+  // Meta placement fields
+  metaPublisherPlatforms?: string[]; // Meta Publisher Platforms
+  metaPositions?: {
+    facebook?: string[];
+    instagram?: string[];
+    audience_network?: string[];
+    messenger?: string[];
+    threads?: string[];
+  }; // Meta Positions per publisher
   strategy?: string; // Strategy type per market
   strategyFocus?: string;
   instagramActorId?: string;

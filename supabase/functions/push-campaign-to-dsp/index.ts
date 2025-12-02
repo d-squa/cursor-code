@@ -391,8 +391,11 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
         
         // Add publisher platforms from phase (facebook, instagram, audience_network, messenger, threads)
         // Filter out 'messenger' since all messenger placements are now deprecated
-        const publisherPlatforms = phase.publisherPlatforms;
-        console.log("📍 Raw publisherPlatforms from phase:", JSON.stringify(publisherPlatforms));
+        // Priority: phase.publisherPlatforms > market.metaPublisherPlatforms > defaults
+        const publisherPlatforms = phase.publisherPlatforms || (market as any).metaPublisherPlatforms;
+        console.log("📍 Raw publisherPlatforms from phase:", JSON.stringify(phase.publisherPlatforms));
+        console.log("📍 Raw metaPublisherPlatforms from market:", JSON.stringify((market as any).metaPublisherPlatforms));
+        console.log("📍 Resolved publisherPlatforms:", JSON.stringify(publisherPlatforms));
         if (publisherPlatforms && Array.isArray(publisherPlatforms) && publisherPlatforms.length > 0) {
           const filteredPlatforms = publisherPlatforms.filter((p: string) => p !== 'messenger');
           if (filteredPlatforms.length > 0) {
@@ -405,9 +408,12 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
           console.log("No publisherPlatforms specified, using defaults:", targeting.publisher_platforms);
         }
         
-        // Add placements/positions from phase
-        const positions = phase.positions;
-        console.log("📍 Raw positions from phase:", JSON.stringify(positions));
+        // Add placements/positions from phase or market defaults
+        // Priority: phase.positions > market.metaPositions > defaults
+        const positions = phase.positions || (market as any).metaPositions;
+        console.log("📍 Raw positions from phase:", JSON.stringify(phase.positions));
+        console.log("📍 Raw metaPositions from market:", JSON.stringify((market as any).metaPositions));
+        console.log("📍 Resolved positions:", JSON.stringify(positions));
         
         // Valid placements per Meta API (updated to remove deprecated ones)
         // NOTE: As of Oct 2025, ALL Messenger placements are deprecated:

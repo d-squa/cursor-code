@@ -40,6 +40,15 @@ interface AdAccount {
   default_view_window?: number | null;
   default_placement_type?: string | null;
   default_placements?: string[] | null;
+  // Meta-specific placements
+  default_publisher_platforms?: string[] | null;
+  default_positions?: {
+    facebook?: string[];
+    instagram?: string[];
+    audience_network?: string[];
+    messenger?: string[];
+    threads?: string[];
+  } | null;
   main_markets?: string[] | null;
 }
 
@@ -158,6 +167,10 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         default_conversion_budget_type: acc.default_conversion_budget_type || null,
         default_non_conversion_budget_type: acc.default_non_conversion_budget_type || null,
         default_bid_strategy: acc.default_bid_strategy || 'LOWEST_COST_WITHOUT_CAP',
+        default_publisher_platforms: Array.isArray((acc as any).default_publisher_platforms) 
+          ? (acc as any).default_publisher_platforms as string[] 
+          : ['facebook', 'instagram', 'audience_network'],
+        default_positions: (acc as any).default_positions || {},
       }));
 
       const tiktokAccounts = (tiktokAccountsData || []).map(acc => ({
@@ -223,6 +236,9 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
           default_view_window: acc.platform === 'tiktok' ? (acc as any).default_view_window || null : null,
           default_placement_type: acc.platform === 'tiktok' ? (acc as any).default_placement_type || 'PLACEMENT_TYPE_AUTOMATIC' : null,
           default_placements: acc.platform === 'tiktok' ? (acc as any).default_placements || ['PLACEMENT_TIKTOK'] : null,
+          // Meta-specific placements
+          default_publisher_platforms: acc.platform === 'meta' ? (acc as any).default_publisher_platforms || ['facebook', 'instagram', 'audience_network'] : null,
+          default_positions: acc.platform === 'meta' ? (acc as any).default_positions || {} : null,
           main_markets: acc.main_markets,
         };
       });
@@ -309,6 +325,8 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         'default_conversion_budget_type',
         'default_non_conversion_budget_type',
         'default_bid_strategy',
+        'default_publisher_platforms',
+        'default_positions',
         'main_markets'
       ];
       
@@ -691,6 +709,114 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                               </SelectContent>
                             </Select>
                           </div>
+
+                          {/* Publisher Platforms */}
+                          <div className="space-y-2 md:col-span-2">
+                            <Label>Default Publisher Platforms</Label>
+                            <MultiSelect
+                              options={[
+                                { value: "facebook", label: "Facebook" },
+                                { value: "instagram", label: "Instagram" },
+                                { value: "audience_network", label: "Audience Network" },
+                                { value: "messenger", label: "Messenger" },
+                                { value: "threads", label: "Threads" },
+                              ]}
+                              value={defaults.default_publisher_platforms || ['facebook', 'instagram', 'audience_network']}
+                              onChange={(platforms) => {
+                                updateDefault(account.id, "default_publisher_platforms", platforms);
+                                // Update positions to remove unselected platforms
+                                const currentPositions = defaults.default_positions || {};
+                                const updatedPositions: Record<string, string[]> = {};
+                                platforms.forEach((p: string) => {
+                                  if (currentPositions[p as keyof typeof currentPositions]) {
+                                    updatedPositions[p] = currentPositions[p as keyof typeof currentPositions] as string[];
+                                  }
+                                });
+                                updateDefault(account.id, "default_positions", updatedPositions);
+                              }}
+                              placeholder="Select publisher platforms"
+                              emptyText="No platforms selected"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              Where your ads will be shown
+                            </p>
+                          </div>
+
+                          {/* Placements for each publisher */}
+                          {(defaults.default_publisher_platforms || ['facebook', 'instagram', 'audience_network']).includes('facebook') && (
+                            <div className="space-y-2">
+                              <Label>Facebook Placements</Label>
+                              <MultiSelect
+                                options={[
+                                  { value: "feed", label: "Feed" },
+                                  { value: "instant_article", label: "Instant Article" },
+                                  { value: "instream_video", label: "In-stream Video" },
+                                  { value: "marketplace", label: "Marketplace" },
+                                  { value: "search", label: "Search" },
+                                  { value: "video_feeds", label: "Video Feeds" },
+                                  { value: "story", label: "Story" },
+                                ]}
+                                value={(defaults.default_positions as any)?.facebook || []}
+                                onChange={(placements) => {
+                                  const currentPositions = defaults.default_positions || {};
+                                  updateDefault(account.id, "default_positions", {
+                                    ...currentPositions,
+                                    facebook: placements
+                                  });
+                                }}
+                                placeholder="All placements (automatic)"
+                                emptyText="No placements selected"
+                              />
+                            </div>
+                          )}
+
+                          {(defaults.default_publisher_platforms || ['facebook', 'instagram', 'audience_network']).includes('instagram') && (
+                            <div className="space-y-2">
+                              <Label>Instagram Placements</Label>
+                              <MultiSelect
+                                options={[
+                                  { value: "stream", label: "Feed" },
+                                  { value: "story", label: "Story" },
+                                  { value: "explore", label: "Explore" },
+                                  { value: "explore_home", label: "Explore Home" },
+                                  { value: "reels", label: "Reels" },
+                                ]}
+                                value={(defaults.default_positions as any)?.instagram || []}
+                                onChange={(placements) => {
+                                  const currentPositions = defaults.default_positions || {};
+                                  updateDefault(account.id, "default_positions", {
+                                    ...currentPositions,
+                                    instagram: placements
+                                  });
+                                }}
+                                placeholder="All placements (automatic)"
+                                emptyText="No placements selected"
+                              />
+                            </div>
+                          )}
+
+                          {(defaults.default_publisher_platforms || ['facebook', 'instagram', 'audience_network']).includes('audience_network') && (
+                            <div className="space-y-2">
+                              <Label>Audience Network Placements</Label>
+                              <MultiSelect
+                                options={[
+                                  { value: "classic", label: "Native, Banner, Interstitial" },
+                                  { value: "instream_video", label: "In-stream Video" },
+                                  { value: "rewarded_video", label: "Rewarded Video" },
+                                ]}
+                                value={(defaults.default_positions as any)?.audience_network || []}
+                                onChange={(placements) => {
+                                  const currentPositions = defaults.default_positions || {};
+                                  updateDefault(account.id, "default_positions", {
+                                    ...currentPositions,
+                                    audience_network: placements
+                                  });
+                                }}
+                                placeholder="All placements (automatic)"
+                                emptyText="No placements selected"
+                              />
+                            </div>
+                          )}
                         </>
                       )}
 
