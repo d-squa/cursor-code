@@ -112,7 +112,7 @@ export function TiktokPhaseConfig({ phase, onUpdate }: TiktokPhaseConfigProps) {
             onValueChange={(value) => {
               onUpdate("tiktokPlacementType", value);
               if (value === "PLACEMENT_TYPE_AUTOMATIC") {
-                onUpdate("tiktokPlacements", ["PLACEMENT_TIKTOK"]);
+                onUpdate("tiktokPlacements", ["PLACEMENT_TIKTOK", "PLACEMENT_GLOBAL_APP_BUNDLE", "PLACEMENT_PANGLE"]);
               }
             }}
           >
@@ -142,9 +142,9 @@ export function TiktokPhaseConfig({ phase, onUpdate }: TiktokPhaseConfigProps) {
                 <label key={placement.value} className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={(phase.tiktokPlacements || ["PLACEMENT_TIKTOK"]).includes(placement.value)}
+                    checked={(phase.tiktokPlacements || ["PLACEMENT_TIKTOK", "PLACEMENT_GLOBAL_APP_BUNDLE", "PLACEMENT_PANGLE"]).includes(placement.value)}
                     onChange={(e) => {
-                      const currentPlacements = phase.tiktokPlacements || ["PLACEMENT_TIKTOK"];
+                      const currentPlacements = phase.tiktokPlacements || ["PLACEMENT_TIKTOK", "PLACEMENT_GLOBAL_APP_BUNDLE", "PLACEMENT_PANGLE"];
                       if (e.target.checked) {
                         onUpdate("tiktokPlacements", [...currentPlacements, placement.value]);
                       } else {
@@ -388,9 +388,9 @@ export function TiktokPhaseConfig({ phase, onUpdate }: TiktokPhaseConfigProps) {
             value={phase.tiktokPlacementType || "PLACEMENT_TYPE_AUTOMATIC"}
             onValueChange={(value) => {
               onUpdate("tiktokPlacementType", value);
-              // Reset placements when switching to automatic
+              // Select all placements when switching to automatic
               if (value === "PLACEMENT_TYPE_AUTOMATIC") {
-                onUpdate("tiktokPlacements", ["PLACEMENT_TIKTOK"]);
+                onUpdate("tiktokPlacements", ["PLACEMENT_TIKTOK", "PLACEMENT_GLOBAL_APP_BUNDLE", "PLACEMENT_PANGLE"]);
               }
             }}
           >
@@ -420,9 +420,9 @@ export function TiktokPhaseConfig({ phase, onUpdate }: TiktokPhaseConfigProps) {
                 <label key={placement.value} className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={(phase.tiktokPlacements || ["PLACEMENT_TIKTOK"]).includes(placement.value)}
+                    checked={(phase.tiktokPlacements || ["PLACEMENT_TIKTOK", "PLACEMENT_GLOBAL_APP_BUNDLE", "PLACEMENT_PANGLE"]).includes(placement.value)}
                     onChange={(e) => {
-                      const currentPlacements = phase.tiktokPlacements || ["PLACEMENT_TIKTOK"];
+                      const currentPlacements = phase.tiktokPlacements || ["PLACEMENT_TIKTOK", "PLACEMENT_GLOBAL_APP_BUNDLE", "PLACEMENT_PANGLE"];
                       if (e.target.checked) {
                         onUpdate("tiktokPlacements", [...currentPlacements, placement.value]);
                       } else {
