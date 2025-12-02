@@ -1,5 +1,6 @@
 /**
  * Maps funnel phase names to platform-specific objectives and optimization goals
+ * Values align with objectiveOptimizationMapping.ts for dropdown compatibility
  */
 
 export interface PhaseObjectiveMapping {
@@ -29,6 +30,7 @@ export function getObjectiveFromPhaseName(
 
 /**
  * Meta-specific objective mapping
+ * Uses API-style values that match objectiveOptimizationMapping.ts
  */
 function getMetaObjectiveFromPhaseName(
   phaseName: string,
@@ -39,8 +41,8 @@ function getMetaObjectiveFromPhaseName(
   // Awareness/Reach phases
   if (normalizedPhase.includes("awareness") || normalizedPhase.includes("reach") || normalizedPhase.includes("visibility")) {
     return {
-      objective: "Brand Awareness",
-      optimizationGoal: "Reach",
+      objective: "OUTCOME_AWARENESS",
+      optimizationGoal: "REACH",
       destination: "On Your Ad"
     };
   }
@@ -48,8 +50,8 @@ function getMetaObjectiveFromPhaseName(
   // Video/Engagement phases
   if (normalizedPhase.includes("engagement") || normalizedPhase.includes("authority") || normalizedPhase.includes("trust")) {
     return {
-      objective: "Engagement",
-      optimizationGoal: "Post Engagement",
+      objective: "OUTCOME_ENGAGEMENT",
+      optimizationGoal: "POST_ENGAGEMENT",
       destination: "Post Engagement"
     };
   }
@@ -57,8 +59,8 @@ function getMetaObjectiveFromPhaseName(
   // Consideration phases
   if (normalizedPhase.includes("consideration") || normalizedPhase.includes("interest") || normalizedPhase.includes("preference")) {
     return {
-      objective: "Traffic",
-      optimizationGoal: "Landing Page Views",
+      objective: "OUTCOME_TRAFFIC",
+      optimizationGoal: "LANDING_PAGE_VIEWS",
       destination: "Website"
     };
   }
@@ -67,14 +69,14 @@ function getMetaObjectiveFromPhaseName(
   if (normalizedPhase.includes("capture") || normalizedPhase.includes("nurture") || strategyFocus === "Leads") {
     if (normalizedPhase.includes("capture")) {
       return {
-        objective: "Lead Generation",
-        optimizationGoal: "Leads",
+        objective: "OUTCOME_LEADS",
+        optimizationGoal: "LEAD_GENERATION",
         destination: "Instant Forms"
       };
     }
     return {
-      objective: "Lead Generation",
-      optimizationGoal: "Conversions",
+      objective: "OUTCOME_LEADS",
+      optimizationGoal: "OFFSITE_CONVERSIONS",
       destination: "Website"
     };
   }
@@ -82,8 +84,8 @@ function getMetaObjectiveFromPhaseName(
   // Conversion/Purchase phases
   if (normalizedPhase.includes("conversion") || normalizedPhase.includes("purchase") || normalizedPhase.includes("intent")) {
     return {
-      objective: "Conversions",
-      optimizationGoal: "Conversions",
+      objective: "OUTCOME_SALES",
+      optimizationGoal: "OFFSITE_CONVERSIONS",
       destination: "Website"
     };
   }
@@ -91,8 +93,8 @@ function getMetaObjectiveFromPhaseName(
   // Loyalty/Retention phases
   if (normalizedPhase.includes("loyalty") || normalizedPhase.includes("retention") || normalizedPhase.includes("expansion")) {
     return {
-      objective: "Conversions",
-      optimizationGoal: "Value",
+      objective: "OUTCOME_SALES",
+      optimizationGoal: "VALUE",
       destination: "Website"
     };
   }
@@ -100,22 +102,23 @@ function getMetaObjectiveFromPhaseName(
   // App-specific phases
   if (normalizedPhase.includes("acquisition") || normalizedPhase.includes("onboarding") || normalizedPhase.includes("activation")) {
     return {
-      objective: "App Installs",
-      optimizationGoal: "App Installs",
+      objective: "OUTCOME_APP_PROMOTION",
+      optimizationGoal: "APP_INSTALLS",
       destination: "App"
     };
   }
   
   // Default to traffic
   return {
-    objective: "Traffic",
-    optimizationGoal: "Link Clicks",
+    objective: "OUTCOME_TRAFFIC",
+    optimizationGoal: "LINK_CLICKS",
     destination: "Website"
   };
 }
 
 /**
  * TikTok-specific objective mapping
+ * Uses API-style values that match objectiveOptimizationMapping.ts
  */
 function getTikTokObjectiveFromPhaseName(
   phaseName: string,
@@ -126,8 +129,8 @@ function getTikTokObjectiveFromPhaseName(
   // Awareness/Reach phases
   if (normalizedPhase.includes("awareness") || normalizedPhase.includes("reach") || normalizedPhase.includes("visibility")) {
     return {
-      objective: "Reach",
-      optimizationGoal: "Reach",
+      objective: "REACH",
+      optimizationGoal: "REACH",
       destination: "On Your Ad"
     };
   }
@@ -135,8 +138,8 @@ function getTikTokObjectiveFromPhaseName(
   // Video/Engagement phases
   if (normalizedPhase.includes("engagement") || normalizedPhase.includes("authority") || normalizedPhase.includes("trust")) {
     return {
-      objective: "Community Interaction",
-      optimizationGoal: "Engagement",
+      objective: "COMMUNITY_INTERACTION",
+      optimizationGoal: "PROFILE_VISIT",
       destination: "TikTok Profile"
     };
   }
@@ -144,8 +147,8 @@ function getTikTokObjectiveFromPhaseName(
   // Consideration/Traffic phases
   if (normalizedPhase.includes("consideration") || normalizedPhase.includes("interest") || normalizedPhase.includes("preference")) {
     return {
-      objective: "Traffic",
-      optimizationGoal: "Landing Page View",
+      objective: "TRAFFIC",
+      optimizationGoal: "LANDING_PAGE_VIEW",
       destination: "Website"
     };
   }
@@ -153,8 +156,8 @@ function getTikTokObjectiveFromPhaseName(
   // Lead-focused phases
   if (normalizedPhase.includes("capture") || normalizedPhase.includes("nurture") || strategyFocus === "Leads") {
     return {
-      objective: "Lead Generation",
-      optimizationGoal: "Lead Generation",
+      objective: "LEAD_GENERATION",
+      optimizationGoal: "FORM",
       destination: "Instant Form"
     };
   }
@@ -162,8 +165,8 @@ function getTikTokObjectiveFromPhaseName(
   // Conversion/Purchase phases
   if (normalizedPhase.includes("conversion") || normalizedPhase.includes("purchase") || normalizedPhase.includes("intent")) {
     return {
-      objective: "Sales",
-      optimizationGoal: "Web Conversion",
+      objective: "CONVERSIONS",
+      optimizationGoal: "CONVERT",
       destination: "Website"
     };
   }
@@ -171,8 +174,8 @@ function getTikTokObjectiveFromPhaseName(
   // Loyalty/Retention phases
   if (normalizedPhase.includes("loyalty") || normalizedPhase.includes("retention") || normalizedPhase.includes("expansion")) {
     return {
-      objective: "Sales",
-      optimizationGoal: "Value Optimization",
+      objective: "CONVERSIONS",
+      optimizationGoal: "VALUE",
       destination: "Website"
     };
   }
@@ -180,16 +183,16 @@ function getTikTokObjectiveFromPhaseName(
   // App-specific phases
   if (normalizedPhase.includes("acquisition") || normalizedPhase.includes("onboarding") || normalizedPhase.includes("activation")) {
     return {
-      objective: "App Promotion",
-      optimizationGoal: "App Install",
+      objective: "APP_PROMOTION",
+      optimizationGoal: "APP_INSTALL",
       destination: "App"
     };
   }
   
   // Default to traffic
   return {
-    objective: "Traffic",
-    optimizationGoal: "Click",
+    objective: "TRAFFIC",
+    optimizationGoal: "CLICK",
     destination: "Website"
   };
 }
