@@ -214,25 +214,50 @@ function generateTaxonomyString(template: TaxonomyParam[], values: Record<string
 async function generateTaxonomyName(
   supabase: any,
   userId: string,
-  adAccountId: string,
+  platformAccountId: string, // This is the platform's native ID (e.g., TikTok advertiser_id or Meta account_id)
   platform: 'meta' | 'tiktok',
   entityType: 'campaign' | 'adset',
   context: TaxonomyContext,
   customValues?: Record<string, string>
 ): Promise<string | null> {
   try {
-    // Fetch taxonomy template from database
+    // First, convert platform's native account ID to our internal UUID
+    // taxonomy_templates.ad_account_id stores our internal UUIDs, not platform IDs
+    let internalAdAccountId: string | null = null;
+    
+    if (platform === 'tiktok') {
+      const { data: tiktokAccount } = await supabase
+        .from('tiktok_ad_accounts')
+        .select('id')
+        .eq('advertiser_id', platformAccountId)
+        .maybeSingle();
+      internalAdAccountId = tiktokAccount?.id;
+    } else if (platform === 'meta') {
+      const { data: metaAccount } = await supabase
+        .from('meta_ad_accounts')
+        .select('id')
+        .eq('account_id', platformAccountId)
+        .maybeSingle();
+      internalAdAccountId = metaAccount?.id;
+    }
+    
+    if (!internalAdAccountId) {
+      console.log(`No internal account found for ${platform} account ${platformAccountId}`);
+      return null;
+    }
+    
+    // Fetch taxonomy template from database using internal UUID
     const { data: templateData, error } = await supabase
       .from('taxonomy_templates')
       .select('template')
       .eq('user_id', userId)
-      .eq('ad_account_id', adAccountId)
+      .eq('ad_account_id', internalAdAccountId)
       .eq('platform', platform)
       .eq('entity_type', entityType)
       .maybeSingle();
     
     if (error || !templateData?.template) {
-      console.log(`No taxonomy template found for ${platform} ${entityType} on account ${adAccountId}`);
+      console.log(`No taxonomy template found for ${platform} ${entityType} on account ${internalAdAccountId} (platform ID: ${platformAccountId})`);
       return null;
     }
     
