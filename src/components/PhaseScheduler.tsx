@@ -69,6 +69,17 @@ interface PhaseSchedulerProps {
   marketBudget?: number;
   adAccountId?: string;
   basicTargeting?: UnifiedTargetingConfig;
+  // Activation-level context for taxonomy
+  activationContext?: {
+    activationName?: string;
+    boNumber?: string;
+    clientName?: string;
+    teamName?: string;
+    totalBudget?: number;
+    market?: string;
+    markets?: string[];
+    platformBudget?: number;
+  };
 }
 
 interface DraggingState {
@@ -92,7 +103,8 @@ export function PhaseScheduler({
   onOpenCustomizeBudgetTypes,
   marketBudget,
   adAccountId,
-  basicTargeting
+  basicTargeting,
+  activationContext
 }: PhaseSchedulerProps) {
   console.log("PhaseScheduler marketBudget:", marketBudget);
   const [dragging, setDragging] = useState<DraggingState | null>(null);
@@ -1124,10 +1136,18 @@ export function PhaseScheduler({
                           entityType="campaign"
                           context={{
                             platform: platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta',
-                            objective: phase.objective,
-                            optimizationGoal: phase.optimizationGoal,
-                            funnelStage: phase.funnelStage,
-                            budgetType: phase.budgetType,
+                            activationName: activationContext?.activationName,
+                            boNumber: activationContext?.boNumber,
+                            clientName: activationContext?.clientName,
+                            teamName: activationContext?.teamName,
+                            totalBudget: activationContext?.totalBudget,
+                            market: activationContext?.market,
+                            markets: activationContext?.markets,
+                            platformBudget: activationContext?.platformBudget,
+                            placementType: phase.advantagePlusPlacements ? 'automatic' : (phase.tiktokPlacementType || 'manual'),
+                            publisherPlatforms: phase.publisherPlatforms,
+                            startDate: phase.startDate || startDate,
+                            endDate: phase.endDate || endDate,
                           }}
                         />
                       )}
@@ -1141,14 +1161,15 @@ export function PhaseScheduler({
                           context={{
                             platform: platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta',
                             optimizationGoal: phase.optimizationGoal,
-                            bidStrategy: phase.metaBidStrategy || phase.tiktokBidStrategy,
-                            billingEvent: phase.metaBillingEvent,
-                            advantagePlusPlacements: phase.advantagePlusPlacements,
-                            placementType: phase.tiktokPlacementType,
-                            publisherPlatforms: phase.publisherPlatforms,
+                            phaseBudget: marketBudget ? marketBudget * (phase.budgetPercentage / 100) : undefined,
+                            budgetType: phase.budgetType,
                             ageMin: phase.targeting?.ageMin || marketTargeting?.ageMin,
                             ageMax: phase.targeting?.ageMax || marketTargeting?.ageMax,
                             gender: phase.targeting?.genders?.[0] || marketTargeting?.gender,
+                            location: activationContext?.market,
+                            devices: phase.targeting?.devices || marketTargeting?.devices,
+                            positions: phase.positions,
+                            targetingType: phase.targeting?.targetingExpansion ? 'expand' : 'native',
                           }}
                         />
                       )}
