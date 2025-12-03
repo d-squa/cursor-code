@@ -7,6 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { 
   GripVertical, 
   Plus, 
@@ -16,7 +22,8 @@ import {
   ChevronUp,
   ChevronDown,
   Eye,
-  Settings2
+  Settings2,
+  Info
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -316,80 +323,100 @@ export default function TaxonomyBuilder({
         </div>
 
         {/* Parameters List */}
-        <div className="space-y-2">
-          {params.map((param, index) => (
-            <div
-              key={param.id}
-              className="flex items-center gap-2 p-2 bg-card border rounded-md"
-            >
-              <div className="flex flex-col gap-0.5">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-5 w-5"
-                  onClick={() => moveParam(index, 'up')}
-                  disabled={index === 0}
-                >
-                  <ChevronUp className="h-3 w-3" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-5 w-5"
-                  onClick={() => moveParam(index, 'down')}
-                  disabled={index === params.length - 1}
-                >
-                  <ChevronDown className="h-3 w-3" />
-                </Button>
-              </div>
+        <TooltipProvider>
+          <div className="space-y-2">
+            {params.map((param, index) => (
+              <div
+                key={param.id}
+                className="flex items-center gap-2 p-2 bg-card border rounded-md"
+              >
+                <div className="flex flex-col gap-0.5">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5"
+                    onClick={() => moveParam(index, 'up')}
+                    disabled={index === 0}
+                  >
+                    <ChevronUp className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5"
+                    onClick={() => moveParam(index, 'down')}
+                    disabled={index === params.length - 1}
+                  >
+                    <ChevronDown className="h-3 w-3" />
+                  </Button>
+                </div>
 
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary" className="font-mono text-xs">
-                    {param.key}
-                  </Badge>
-                  <span className="text-sm truncate">{param.label}</span>
-                  {param.system && (
-                    <Badge variant="outline" className="text-xs">
-                      System
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary" className="font-mono text-xs">
+                      {param.key}
                     </Badge>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-xs text-muted-foreground capitalize">
-                    {param.type}
-                  </span>
-                  {param.options && param.options.length > 0 && (
-                    <span className="text-xs text-muted-foreground">
-                      ({param.options.length} options)
+                    <span className="text-sm truncate">{param.label}</span>
+                    {param.system && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Badge variant="outline" className="text-xs cursor-help bg-green-500/10 text-green-700 border-green-500/30">
+                            <Info className="h-2.5 w-2.5 mr-1" />
+                            Auto-fill
+                          </Badge>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-[280px]">
+                          <p className="text-xs">{param.description || 'This value is automatically extracted from ActiPlan workflow data'}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-xs text-muted-foreground capitalize">
+                      {param.type}
                     </span>
-                  )}
+                    {param.options && param.options.length > 0 && (
+                      <span className="text-xs text-muted-foreground">
+                        ({param.options.length} options)
+                      </span>
+                    )}
+                    {param.description && !param.system && (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-[280px]">
+                          <p className="text-xs">{param.description}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    )}
+                  </div>
                 </div>
-              </div>
 
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1">
-                  <Switch
-                    checked={param.required !== false}
-                    onCheckedChange={() => toggleParam(index)}
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
+                    <Switch
+                      checked={param.required !== false}
+                      onCheckedChange={() => toggleParam(index)}
+                      disabled={param.system}
+                      className="scale-75"
+                    />
+                    <span className="text-xs text-muted-foreground">Include</span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => removeParam(index)}
                     disabled={param.system}
-                    className="scale-75"
-                  />
-                  <span className="text-xs text-muted-foreground">Include</span>
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={() => removeParam(index)}
-                  disabled={param.system}
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        </TooltipProvider>
 
         {/* Add New Parameter */}
         {!showAddParam ? (
