@@ -553,107 +553,19 @@ class TikTokAdapter implements PlatformAdapter {
         console.log(`⚠️ No language targeting (languages: ${JSON.stringify(params.targeting.languages)})`);
       }
       
-      // Add TikTok detailed targeting (interests, behaviors, actions)
-      const interestIds: string[] = [];
-      const actionIds: string[] = [];
+      // TikTok interest/behavior targeting - DISABLED
+      // The unified targeting system maps internal IDs that TikTok API doesn't recognize
+      // Until we implement direct TikTok targeting API integration with proper ID validation,
+      // we skip interest_category_ids and action_category_ids to prevent ad group creation failures
+      // Ad groups will still be created with age/gender/location targeting
       
-      // Validate TikTok interest ID format
-      // TikTok interest category IDs are typically:
-      // - Main categories: 4-5 digit numbers (e.g., "2010" for Sports)
-      // - Subcategories: 5-6 digit numbers (e.g., "28101" for Sports equipment)
-      // IDs with patterns like "999" or very long numbers (10+ digits) are often invalid/placeholder IDs
-      const isValidTikTokInterestId = (id: string, name?: string): boolean => {
-        if (!id || typeof id !== 'string') return false;
-        
-        // Must be numeric
-        if (!/^\d+$/.test(id)) {
-          console.log(`  ⚠️ Skipping non-numeric interest ID: ${name} (${id})`);
-          return false;
-        }
-        
-        // IDs containing "999" patterns are often placeholder/synthetic IDs
-        if (id.includes('999')) {
-          console.log(`  ⚠️ Skipping suspicious interest ID (contains 999): ${name} (${id})`);
-          return false;
-        }
-        
-        // IDs containing "000" patterns at end are often placeholder/invalid
-        if (id.endsWith('000')) {
-          console.log(`  ⚠️ Skipping suspicious interest ID (ends with 000): ${name} (${id})`);
-          return false;
-        }
-        
-        // Very long IDs (8+ digits) are suspicious - valid TikTok interest IDs are typically 4-6 digits
-        if (id.length > 7) {
-          console.log(`  ⚠️ Skipping suspicious interest ID (too long, ${id.length} digits): ${name} (${id})`);
-          return false;
-        }
-        
-        // Very short IDs (less than 2 digits) are also suspicious
-        if (id.length < 2) {
-          console.log(`  ⚠️ Skipping suspicious interest ID (too short): ${name} (${id})`);
-          return false;
-        }
-        
-        return true;
-      };
+      console.log(`⚠️ SKIPPING interest/behavior targeting - TikTok requires IDs from their Targeting API`);
+      console.log(`⚠️ Provided interests: ${params.targeting.tiktokInterests?.length || 0}, behaviors: ${params.targeting.tiktokBehaviors?.length || 0}`);
+      console.log(`⚠️ Ad group will use demographic targeting only (age, gender, location)`);
       
-      // Extract TikTok interests with validation
-      if (params.targeting.tiktokInterests && Array.isArray(params.targeting.tiktokInterests)) {
-        console.log(`🎯 Processing ${params.targeting.tiktokInterests.length} TikTok interests`);
-        params.targeting.tiktokInterests.forEach((interest: any) => {
-          if (interest.id) {
-            const idStr = String(interest.id);
-            if (isValidTikTokInterestId(idStr, interest.name)) {
-              interestIds.push(idStr);
-              console.log(`  ✓ Valid interest: ${interest.name} (${idStr})`);
-            }
-          }
-        });
-      } else {
-        console.log(`⚠️ No TikTok interests (tiktokInterests: ${JSON.stringify(params.targeting.tiktokInterests)})`);
-      }
-      
-      // Extract TikTok behaviors/actions - ALL go to action_category_ids
-      // The tiktokBehaviors array contains all action-based targeting (behaviors, purchase intention, etc.)
-      // Only tiktokInterests should populate interest_category_ids
-      if (params.targeting.tiktokBehaviors && Array.isArray(params.targeting.tiktokBehaviors)) {
-        console.log(`🎯 Processing ${params.targeting.tiktokBehaviors.length} TikTok behaviors`);
-        params.targeting.tiktokBehaviors.forEach((behavior: any) => {
-          if (behavior.id) {
-            const idStr = String(behavior.id);
-            // Apply same validation to action IDs
-            if (isValidTikTokInterestId(idStr, behavior.name)) {
-              actionIds.push(idStr);
-              console.log(`  → Action category: ${behavior.name} (${idStr})${behavior.category ? ` - ${behavior.category}` : ''}`);
-            }
-          }
-        });
-      } else {
-        console.log(`⚠️ No TikTok behaviors (tiktokBehaviors: ${JSON.stringify(params.targeting.tiktokBehaviors)})`);
-      }
-      
-      // TikTok demographics are handled through age/gender/location - not through interest IDs
-      // Skipping tiktokDemographics as they're not supported in interest_category_ids
-      if (params.targeting.tiktokDemographics && Array.isArray(params.targeting.tiktokDemographics) && params.targeting.tiktokDemographics.length > 0) {
-        console.log(`⚠️ Skipping ${params.targeting.tiktokDemographics.length} TikTok demographics (not supported in interest targeting)`);
-      }
-      
-      // Add interest targeting
-      if (interestIds.length > 0) {
-        body.interest_category_ids = interestIds;
-        console.log(`✅ Interest targeting: ${interestIds.length} valid interests`);
-      } else {
-        console.log(`⚠️ No interest_category_ids added to body (all IDs were invalid or none provided)`);
-      }
-      
-      // Add action/behavior targeting
-      if (actionIds.length > 0) {
-        body.action_category_ids = actionIds;
-        console.log(`✅ Action/Behavior targeting: ${actionIds.length} valid actions`);
-      } else {
-        console.log(`⚠️ No action_category_ids added to body (all IDs were invalid or none provided)`);
-      }
+      // NOTE: When proper TikTok targeting search is implemented, uncomment and fix the following:
+      // The IDs must come from TikTok's /interest_category/get/ or /targeting/search/ endpoints
+      // Current unified targeting IDs (e.g., "2010", "28101") are not recognized by TikTok API
       
       // Add optional TikTok fields from matrix
       if (params.clickWindow) body.conversion_window = { click_window: params.clickWindow };
