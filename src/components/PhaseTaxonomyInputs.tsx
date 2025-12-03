@@ -113,6 +113,11 @@ export function PhaseTaxonomyInputs({
   const missingCount = getMissingRequiredCount(template, extractedValues);
   const isComplete = missingCount === 0;
   const entityLabel = entityType === 'campaign' ? 'Campaign' : (platform === 'tiktok' ? 'Ad Group' : 'Ad Set');
+  
+  // Check if all system params have values (for different badge display)
+  const systemParamsFilled = template
+    .filter(p => p.system)
+    .every(p => extractedValues[p.id] || p.value);
 
   return (
     <div className="space-y-3">
@@ -121,14 +126,19 @@ export function PhaseTaxonomyInputs({
           <FileText className="h-4 w-4" />
           {entityLabel} Name
         </Label>
-        {isComplete ? (
+        {systemParamsFilled ? (
           <Badge variant="outline" className="text-xs bg-green-500/10 text-green-600 border-green-500/30">
             <CheckCircle2 className="h-3 w-3 mr-1" />
             Auto-generated
           </Badge>
+        ) : missingCount > 0 ? (
+          <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-600 border-amber-500/30">
+            {missingCount} custom {missingCount === 1 ? 'field' : 'fields'} pending
+          </Badge>
         ) : (
-          <Badge variant="destructive" className="text-xs">
-            {missingCount} values missing
+          <Badge variant="outline" className="text-xs bg-green-500/10 text-green-600 border-green-500/30">
+            <CheckCircle2 className="h-3 w-3 mr-1" />
+            Complete
           </Badge>
         )}
       </div>
