@@ -58,6 +58,7 @@ export interface TaxonomyContext {
   ageMax?: number;
   gender?: string;
   devices?: string[];
+  languages?: string[]; // Multiple languages for targeting
   positions?: Record<string, string[]>;
   location?: string;
   // Budget
@@ -540,6 +541,15 @@ export function extractTaxonomyValues(
         rawValue = context.language;
         values[param.id] = rawValue ? rawValue.toUpperCase().substring(0, 2) : '';
         break;
+      case 'languages':
+        // Handle multiple languages for adset level
+        if (context.languages && Array.isArray(context.languages) && context.languages.length > 0) {
+          // Take first 3 language codes abbreviated
+          values[param.id] = context.languages.slice(0, 3).map((l: string) => l.substring(0, 2).toUpperCase()).join('');
+        } else {
+          values[param.id] = 'ALL';
+        }
+        break;
       case 'ageRange':
         if (context.ageMin && context.ageMax) {
           values[param.id] = `${context.ageMin}${context.ageMax}`;
@@ -747,6 +757,15 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyPara
       system: true,
       required: false,
       description: 'Auto-filled from Targeting → Expansion Strategy. NTV=Native (selected interests only), EXP=Expand (find new audiences), SIM=Similar, RTG=Retargeting, BRD=Broad, LAL=Lookalike.',
+    },
+    {
+      id: 'languages',
+      key: 'LNG',
+      label: 'Languages',
+      type: 'text',
+      system: true,
+      required: false,
+      description: 'Auto-filled from Targeting → Languages. Shows abbreviated language codes (e.g., EN, ES, DE). Uses phase override if active.',
     },
   ];
 }

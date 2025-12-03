@@ -387,8 +387,10 @@ export type Database = {
           default_click_window: number | null
           default_conversion_budget_type: string | null
           default_conversion_event: string | null
+          default_devices: Json | null
           default_instagram_account_id: string | null
           default_landing_page_url: string | null
+          default_languages: Json | null
           default_non_conversion_budget_type: string | null
           default_optimization_location: string | null
           default_page_id: string | null
@@ -417,8 +419,10 @@ export type Database = {
           default_click_window?: number | null
           default_conversion_budget_type?: string | null
           default_conversion_event?: string | null
+          default_devices?: Json | null
           default_instagram_account_id?: string | null
           default_landing_page_url?: string | null
+          default_languages?: Json | null
           default_non_conversion_budget_type?: string | null
           default_optimization_location?: string | null
           default_page_id?: string | null
@@ -447,8 +451,10 @@ export type Database = {
           default_click_window?: number | null
           default_conversion_budget_type?: string | null
           default_conversion_event?: string | null
+          default_devices?: Json | null
           default_instagram_account_id?: string | null
           default_landing_page_url?: string | null
+          default_languages?: Json | null
           default_non_conversion_budget_type?: string | null
           default_optimization_location?: string | null
           default_page_id?: string | null
@@ -1041,10 +1047,12 @@ export type Database = {
           default_catalog_id: string | null
           default_click_window: number | null
           default_conversion_budget_type: string | null
+          default_devices: Json | null
           default_event_count_enabled: boolean | null
           default_frequency_schedule: number | null
           default_identity_id: string | null
           default_landing_page_url: string | null
+          default_languages: Json | null
           default_non_conversion_budget_type: string | null
           default_optimization_event: string | null
           default_optimization_location: string | null
@@ -1075,10 +1083,12 @@ export type Database = {
           default_catalog_id?: string | null
           default_click_window?: number | null
           default_conversion_budget_type?: string | null
+          default_devices?: Json | null
           default_event_count_enabled?: boolean | null
           default_frequency_schedule?: number | null
           default_identity_id?: string | null
           default_landing_page_url?: string | null
+          default_languages?: Json | null
           default_non_conversion_budget_type?: string | null
           default_optimization_event?: string | null
           default_optimization_location?: string | null
@@ -1109,10 +1119,12 @@ export type Database = {
           default_catalog_id?: string | null
           default_click_window?: number | null
           default_conversion_budget_type?: string | null
+          default_devices?: Json | null
           default_event_count_enabled?: boolean | null
           default_frequency_schedule?: number | null
           default_identity_id?: string | null
           default_landing_page_url?: string | null
+          default_languages?: Json | null
           default_non_conversion_budget_type?: string | null
           default_optimization_event?: string | null
           default_optimization_location?: string | null
