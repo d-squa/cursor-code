@@ -1163,11 +1163,12 @@ export function PhaseScheduler({
                             optimizationGoal: phase.optimizationGoal,
                             phaseBudget: marketBudget ? marketBudget * (phase.budgetPercentage / 100) : undefined,
                             budgetType: phase.budgetType,
-                            ageMin: phase.targeting?.ageMin || marketTargeting?.ageMin,
-                            ageMax: phase.targeting?.ageMax || marketTargeting?.ageMax,
-                            gender: phase.targeting?.genders?.[0] || marketTargeting?.gender,
+                            // Age comes from phase override first, then inherited basicTargeting, then marketTargeting
+                            ageMin: phase.targeting?.ageMin ?? basicTargeting?.ageMin ?? marketTargeting?.ageMin,
+                            ageMax: phase.targeting?.ageMax ?? basicTargeting?.ageMax ?? marketTargeting?.ageMax,
+                            gender: phase.targeting?.genders?.[0] || basicTargeting?.genders?.[0] || marketTargeting?.gender,
                             location: activationContext?.market,
-                            devices: phase.targeting?.devices || marketTargeting?.devices,
+                            devices: phase.targeting?.devices || basicTargeting?.devices || marketTargeting?.devices,
                             positions: phase.positions,
                             targetingType: phase.targeting?.targetingExpansion ? 'expand' : 'native',
                           }}

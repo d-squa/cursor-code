@@ -623,14 +623,14 @@ export function extractTaxonomyValues(
 // Campaign: activation name, market, placements, platform budget, start date, end date, BO number, team name
 export function getDefaultCampaignParams(platform: 'meta' | 'tiktok'): TaxonomyParam[] {
   return [
-    { id: 'activationName', key: 'ACT', label: 'Activation Name', type: 'text', system: true, required: true, description: 'From Activation Details → Activation Name field' },
-    { id: 'country', key: 'MKT', label: 'Market', type: 'text', system: true, required: true, description: 'From Platform & Market Selection → Targeted Market' },
-    { id: 'placementType', key: 'PLC', label: 'Placement', type: 'options', options: ['AUT', 'MAN'], system: true, required: true, description: 'From Phase Config → Placement Type (AUT=Automatic, MAN=Manual)' },
-    { id: 'platformBudget', key: 'BDG', label: 'Platform Budget', type: 'text', system: true, required: true, description: 'From Platform & Market Selection → Platform Budget' },
-    { id: 'startDate', key: 'STR', label: 'Start Date', type: 'text', system: true, required: true, description: 'From Phase Config → Start Date (DDMM format)' },
-    { id: 'endDate', key: 'END', label: 'End Date', type: 'text', system: true, required: true, description: 'From Phase Config → End Date (DDMM format)' },
-    { id: 'boNumber', key: 'BO', label: 'BO Number', type: 'text', system: true, required: true, description: 'From Activation Details → BO Number field' },
-    { id: 'teamName', key: 'TEAM', label: 'Team', type: 'text', system: true, required: true, description: 'From Settings → Manage Your Team → Assigned Team' },
+    { id: 'activationName', key: 'ACT', label: 'Activation Name', type: 'text', system: true, required: true, description: 'Auto-filled from Activation Details → Activation Name field. The main identifier for this campaign activation.' },
+    { id: 'country', key: 'MKT', label: 'Market', type: 'text', system: true, required: true, description: 'Auto-filled from Platform & Market Selection → Targeted Market (e.g., ES, MX, US). Country code for the market being targeted.' },
+    { id: 'placementType', key: 'PLC', label: 'Placement', type: 'options', options: ['AUT', 'MAN'], system: true, required: true, description: 'Auto-filled from Phase Config → Placement Type. AUT=Automatic (platform optimizes placements), MAN=Manual (user-selected placements).' },
+    { id: 'platformBudget', key: 'BDG', label: 'Platform Budget', type: 'text', system: true, required: true, description: 'Auto-filled from Platform & Market Selection → Platform Budget allocation. Shows budget in K/M format (e.g., 10K, 1M).' },
+    { id: 'startDate', key: 'STR', label: 'Start Date', type: 'text', system: true, required: true, description: 'Auto-filled from Phase Config → Start Date in DDMM format (e.g., 0412 = December 4th).' },
+    { id: 'endDate', key: 'END', label: 'End Date', type: 'text', system: true, required: true, description: 'Auto-filled from Phase Config → End Date in DDMM format (e.g., 1812 = December 18th).' },
+    { id: 'boNumber', key: 'BO', label: 'BO Number', type: 'text', system: true, required: true, description: 'Auto-filled from Activation Details → BO Number field. Business Order or Purchase Order reference number.' },
+    { id: 'teamName', key: 'TEAM', label: 'Team', type: 'text', system: true, required: true, description: 'Auto-filled from Settings → Manage Your Team. The assigned team responsible for this campaign.' },
   ];
 }
 
@@ -648,7 +648,7 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyPara
         : ['RCH', 'CLK', 'CVT', 'VV', '6SV', 'FCV'],
       system: true,
       required: true,
-      description: 'From Phase Config → Optimization Goal (e.g., RCH=Reach, CNV=Conversions)',
+      description: 'Auto-filled from Phase Config → Optimization Goal. RCH=Reach, IMP=Impressions, CLK=Clicks, LPV=Landing Page Views, CVN=Conversions, VAL=Value, VV=Video Views.',
     },
     {
       id: 'phaseBudget',
@@ -657,7 +657,7 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyPara
       type: 'number',
       system: true,
       required: true,
-      description: 'From Phase Config → Phase Budget allocation',
+      description: 'Auto-filled from Phase Config → Phase Budget allocation. Shows budget in K/M format based on phase percentage of total market budget.',
     },
     {
       id: 'budgetType',
@@ -667,7 +667,7 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyPara
       options: ['DLY', 'LTB'],
       system: true,
       required: true,
-      description: 'From Phase Config → Budget Type (LTB=Lifetime, DLY=Daily)',
+      description: 'Auto-filled from Phase Config → Budget Type. LTB=Lifetime Budget (spend entire budget over campaign duration), DLY=Daily Budget (fixed daily spend cap).',
     },
     {
       id: 'ageRange',
@@ -676,7 +676,7 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyPara
       type: 'text',
       system: true,
       required: true,
-      description: 'From Targeting → Age Range (e.g., 1865 = 18-65 years)',
+      description: 'Auto-filled from Targeting → Age Range (min + max combined). Example: 1865 means targeting ages 18-65. Uses phase override if active, otherwise inherited from campaign targeting.',
     },
     {
       id: 'gender',
@@ -686,7 +686,7 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyPara
       options: ['ALL', 'M', 'F'],
       system: true,
       required: true,
-      description: 'From Targeting → Gender (ALL, M=Male, F=Female)',
+      description: 'Auto-filled from Targeting → Gender selection. ALL=All genders, M=Male only, F=Female only. Uses phase override if active, otherwise inherited from campaign targeting.',
     },
     {
       id: 'location',
@@ -696,7 +696,7 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyPara
       options: Object.values(VALUE_MAPPINGS.country),
       system: true,
       required: true,
-      description: 'From Platform & Market Selection → Targeted Market',
+      description: 'Auto-filled from Platform & Market Selection → Targeted Market. Country code of the market being targeted (e.g., ES, MX, US).',
     },
     {
       id: 'devices',
@@ -706,7 +706,7 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyPara
       options: ['ALL', 'MOB', 'DSK', 'TAB'],
       system: true,
       required: false,
-      description: 'From Targeting → Device Types (ALL, MOB=Mobile, DSK=Desktop)',
+      description: 'Auto-filled from Targeting → Device Types. ALL=All devices, MOB=Mobile only, DSK=Desktop only, TAB=Tablet only. Uses phase override if active.',
     },
     {
       id: 'placementType',
@@ -718,7 +718,9 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyPara
         : ['AUTO', 'TT', 'GAB', 'PAN'],
       system: true,
       required: false,
-      description: 'From Phase Config → Placement Type',
+      description: platform === 'meta'
+        ? 'Auto-filled from Phase Config → Placement Type. AUTO=Advantage+ placements, FB=Facebook, IG=Instagram, AN=Audience Network, MIX=Multiple platforms.'
+        : 'Auto-filled from Phase Config → Placement Type. AUTO=Automatic, TT=TikTok, GAB=Global App Bundle, PAN=Pangle.',
     },
     {
       id: 'positions',
@@ -730,7 +732,9 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyPara
         : ['AUTO', 'TT', 'GAB', 'PAN'],
       system: true,
       required: false,
-      description: 'From Phase Config → Specific placement positions',
+      description: platform === 'meta'
+        ? 'Auto-filled from Phase Config → Specific ad positions. FEED=Feed placements, STORY=Stories, REEL=Reels, MIX=Multiple positions.'
+        : 'Auto-filled from Phase Config → Specific TikTok positions.',
     },
     {
       id: 'targetingType',
@@ -740,7 +744,7 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyPara
       options: ['NTV', 'EXP', 'SIM', 'RTG', 'BRD', 'LAL'],
       system: true,
       required: false,
-      description: 'From Targeting → Strategy (NAT=Native, EXP=Expand, SIM=Similar, RET=Retargeting)',
+      description: 'Auto-filled from Targeting → Expansion Strategy. NTV=Native (selected interests only), EXP=Expand (find new audiences), SIM=Similar, RTG=Retargeting, BRD=Broad, LAL=Lookalike.',
     },
   ];
 }
@@ -756,7 +760,7 @@ export function getDefaultAdParams(): TaxonomyParam[] {
       options: ['IMG', 'VID', 'CAR', 'COL', 'DYN'],
       system: true,
       required: true,
-      description: 'Auto-filled from Creative Setup → Ad format type (Image/Video/Carousel)',
+      description: 'Auto-filled from Creative Setup → Ad format type. IMG=Single Image, VID=Video, CAR=Carousel, COL=Collection, DYN=Dynamic Creative.',
     },
     {
       id: 'creativeVariant',
@@ -765,7 +769,7 @@ export function getDefaultAdParams(): TaxonomyParam[] {
       type: 'mixed',
       system: true,
       required: true,
-      description: 'Auto-filled from Creative Setup → Variant identifier',
+      description: 'Auto-filled from Creative Setup → Variant identifier. Used to distinguish different creative versions (A/B testing, etc.).',
     },
     {
       id: 'copyVariant',
@@ -774,7 +778,7 @@ export function getDefaultAdParams(): TaxonomyParam[] {
       type: 'mixed',
       system: false,
       required: false,
-      description: 'User-defined copy variant identifier (optional)',
+      description: 'User-defined copy variant identifier. Use to track different ad copy versions for the same creative.',
     },
     {
       id: 'language',
@@ -784,7 +788,7 @@ export function getDefaultAdParams(): TaxonomyParam[] {
       options: ['EN', 'ES', 'DE', 'FR', 'IT', 'PT', 'NL'],
       system: false,
       required: false,
-      description: 'User-defined language code for the ad creative (optional)',
+      description: 'User-defined language code for the ad creative. Helps identify ads in different languages for multi-language campaigns.',
     },
   ];
 }
