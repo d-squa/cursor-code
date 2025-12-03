@@ -72,6 +72,7 @@ export default function TaxonomyBuilder({
     label: '',
     type: 'text',
     options: [],
+    description: '',
   });
   const [newOptionValue, setNewOptionValue] = useState('');
 
@@ -225,12 +226,13 @@ export default function TaxonomyBuilder({
       type: newParam.type || 'text',
       options: newParam.type === 'options' ? newParam.options : undefined,
       value: newParam.type === 'fixed' ? newParam.value : undefined,
+      description: newParam.description || undefined,
       system: false,
       required: false,
     };
 
     setParams([...params, param]);
-    setNewParam({ key: '', label: '', type: 'text', options: [] });
+    setNewParam({ key: '', label: '', type: 'text', options: [], description: '' });
     setShowAddParam(false);
     toast.success('Parameter added');
   };
@@ -398,20 +400,20 @@ export default function TaxonomyBuilder({
                     <Switch
                       checked={param.required !== false}
                       onCheckedChange={() => toggleParam(index)}
-                      disabled={param.system}
                       className="scale-75"
                     />
                     <span className="text-xs text-muted-foreground">Include</span>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={() => removeParam(index)}
-                    disabled={param.system}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
+                  {!param.system && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => removeParam(index)}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  )}
                 </div>
               </div>
             ))}
@@ -521,13 +523,23 @@ export default function TaxonomyBuilder({
                 </div>
               )}
 
+              <div>
+                <Label className="text-xs">Description (shown in tooltip)</Label>
+                <Input
+                  value={newParam.description || ''}
+                  onChange={(e) => setNewParam({ ...newParam, description: e.target.value })}
+                  placeholder="Describe what this parameter represents..."
+                  className="h-8 text-sm"
+                />
+              </div>
+
               <div className="flex justify-end gap-2">
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => {
                     setShowAddParam(false);
-                    setNewParam({ key: '', label: '', type: 'text', options: [] });
+                    setNewParam({ key: '', label: '', type: 'text', options: [], description: '' });
                   }}
                 >
                   Cancel
