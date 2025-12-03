@@ -40,6 +40,7 @@ interface TaxonomyContext {
   gender?: string;
   location?: string;
   devices?: string[];
+  languages?: string[];
   placementType?: string;
   advantagePlusPlacements?: boolean;
   publisherPlatforms?: string[];
@@ -1117,6 +1118,7 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           gender: effectiveBasicTargeting.genders?.[0],
           location: market.name,
           devices: effectiveBasicTargeting.devices,
+          languages: effectiveBasicTargeting.languages,
           placementType: advantagePlusPlacements ? 'automatic' : 'manual',
           advantagePlusPlacements: advantagePlusPlacements,
           targetingType: effectiveBasicTargeting.targetingExpansion ? 'expand' : 'native',

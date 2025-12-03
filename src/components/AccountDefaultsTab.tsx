@@ -53,7 +53,42 @@ interface AdAccount {
   } | null;
   default_advantage_plus_placements?: boolean | null;
   main_markets?: string[] | null;
+  // Targeting defaults
+  default_devices?: string[] | null;
+  default_languages?: string[] | null;
 }
+
+// Static device options
+const DEVICE_OPTIONS = [
+  { value: "mobile", label: "Mobile" },
+  { value: "desktop", label: "Desktop" },
+  { value: "tablet", label: "Tablet" },
+];
+
+// Common language options (locale keys for Meta API)
+const LANGUAGE_OPTIONS = [
+  { value: "6", label: "English (US)" },
+  { value: "24", label: "English (UK)" },
+  { value: "10", label: "Spanish" },
+  { value: "5", label: "German" },
+  { value: "7", label: "French" },
+  { value: "16", label: "Italian" },
+  { value: "15", label: "Portuguese" },
+  { value: "20", label: "Dutch" },
+  { value: "28", label: "Polish" },
+  { value: "27", label: "Swedish" },
+  { value: "30", label: "Norwegian" },
+  { value: "3", label: "Danish" },
+  { value: "8", label: "Finnish" },
+  { value: "1", label: "Arabic" },
+  { value: "14", label: "Japanese" },
+  { value: "19", label: "Korean" },
+  { value: "25", label: "Chinese (Simplified)" },
+  { value: "26", label: "Chinese (Traditional)" },
+  { value: "13", label: "Hindi" },
+  { value: "22", label: "Russian" },
+  { value: "29", label: "Turkish" },
+];
 
 interface MetaResource {
   id: string;
@@ -175,6 +210,8 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
           : ['facebook', 'instagram', 'audience_network'],
         default_positions: (acc as any).default_positions || {},
         default_advantage_plus_placements: (acc as any).default_advantage_plus_placements ?? true,
+        default_devices: Array.isArray((acc as any).default_devices) ? (acc as any).default_devices as string[] : [],
+        default_languages: Array.isArray((acc as any).default_languages) ? (acc as any).default_languages as string[] : [],
       }));
 
       const tiktokAccounts = (tiktokAccountsData || []).map(acc => ({
@@ -195,6 +232,8 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         default_bid_strategy: acc.default_bid_strategy || 'LOWEST_COST',
         default_placement_type: (acc as any).default_placement_type || 'PLACEMENT_TYPE_AUTOMATIC',
         default_placements: Array.isArray((acc as any).default_placements) ? (acc as any).default_placements as string[] : ['PLACEMENT_TIKTOK', 'PLACEMENT_GLOBAL_APP_BUNDLE', 'PLACEMENT_PANGLE'],
+        default_devices: Array.isArray((acc as any).default_devices) ? (acc as any).default_devices as string[] : [],
+        default_languages: Array.isArray((acc as any).default_languages) ? (acc as any).default_languages as string[] : [],
       }));
 
       console.log("[AccountDefaultsTab] TikTok accounts loaded from database:", tiktokAccounts.map(acc => ({
@@ -251,6 +290,9 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
           default_positions: acc.platform === 'meta' ? (acc as any).default_positions || {} : null,
           default_advantage_plus_placements: acc.platform === 'meta' ? (acc as any).default_advantage_plus_placements ?? true : null,
           main_markets: acc.main_markets,
+          // Targeting defaults
+          default_devices: (acc as any).default_devices || [],
+          default_languages: (acc as any).default_languages || [],
         };
       });
       
@@ -349,7 +391,9 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         'default_publisher_platforms',
         'default_positions',
         'default_advantage_plus_placements',
-        'main_markets'
+        'main_markets',
+        'default_devices',
+        'default_languages',
       ];
       
       const tiktokFields = [
@@ -376,7 +420,9 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         'default_search_enabled',
         'default_placement_type',
         'default_placements',
-        'main_markets'
+        'main_markets',
+        'default_devices',
+        'default_languages',
       ];
       
       const validFields = platform === 'tiktok' ? tiktokFields : metaFields;
@@ -537,6 +583,44 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                         Which client markets this ad account should target
                       </p>
                     </div>
+
+                    {/* Default Targeting Section - Common for both platforms */}
+                    <Separator className="my-4" />
+                    <div className="space-y-4">
+                      <h4 className="font-medium text-sm">Default Targeting</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Devices */}
+                        <div className="space-y-2">
+                          <Label>Default Devices</Label>
+                          <MultiSelect
+                            options={DEVICE_OPTIONS}
+                            value={defaults.default_devices || []}
+                            onChange={(devices) => updateDefault(account.id, "default_devices", devices)}
+                            placeholder="All devices"
+                            emptyText="No devices selected (all devices)"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Leave empty to target all devices
+                          </p>
+                        </div>
+
+                        {/* Languages */}
+                        <div className="space-y-2">
+                          <Label>Default Languages</Label>
+                          <MultiSelect
+                            options={LANGUAGE_OPTIONS}
+                            value={defaults.default_languages || []}
+                            onChange={(languages) => updateDefault(account.id, "default_languages", languages)}
+                            placeholder="All languages"
+                            emptyText="No languages selected (all languages)"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Leave empty to target all languages
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <Separator className="my-4" />
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {/* Meta-specific fields */}
