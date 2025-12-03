@@ -124,6 +124,23 @@ export function PhaseScheduler({
   const taxonomyValidationCallbackRef = useRef(onTaxonomyValidationChange);
   taxonomyValidationCallbackRef.current = onTaxonomyValidationChange;
   
+  // Clean up stale phase IDs from validation state when phases change
+  useEffect(() => {
+    const currentPhaseIds = new Set(phases.map(p => p.id));
+    setTaxonomyValidation(prev => {
+      const cleanedValidation: typeof prev = {};
+      let hasChanges = false;
+      Object.entries(prev).forEach(([phaseId, value]) => {
+        if (currentPhaseIds.has(phaseId)) {
+          cleanedValidation[phaseId] = value;
+        } else {
+          hasChanges = true;
+        }
+      });
+      return hasChanges ? cleanedValidation : prev;
+    });
+  }, [phases]);
+  
   // Report aggregated validation status to parent
   useEffect(() => {
     const totalMissing = Object.values(taxonomyValidation).reduce((sum, v) => sum + v.campaignMissing + v.adsetMissing, 0);
@@ -926,6 +943,8 @@ export function PhaseScheduler({
                               placementType: phase.tiktokPlacementType,
                               publisherPlatforms: phase.publisherPlatforms,
                             }}
+                            campaignCustomValues={phase.campaignTaxonomyValues}
+                            adsetCustomValues={phase.adsetTaxonomyValues}
                           />
                         )}
                       </div>

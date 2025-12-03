@@ -129,6 +129,9 @@ export function PhaseTaxonomyInputs({
 
   // Merge extracted values with custom values (custom values override)
   const mergedValues = { ...extractedValues, ...customValues };
+  
+  // Stringify customValues for stable dependency comparison
+  const customValuesKey = JSON.stringify(customValues);
 
   // Auto-generate taxonomy when template, context, or custom values change
   useEffect(() => {
@@ -148,7 +151,8 @@ export function PhaseTaxonomyInputs({
       // No template = complete (nothing to validate)
       validationCallbackRef.current?.(true, 0);
     }
-  }, [template, context, customValues]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [template, context, customValuesKey]);
 
   if (loading) {
     return null;
