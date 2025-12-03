@@ -562,21 +562,36 @@ class TikTokAdapter implements PlatformAdapter {
       // - Main categories: 4-5 digit numbers (e.g., "2010" for Sports)
       // - Subcategories: 5-6 digit numbers (e.g., "28101" for Sports equipment)
       // IDs with patterns like "999" or very long numbers (10+ digits) are often invalid/placeholder IDs
-      const isValidTikTokInterestId = (id: string): boolean => {
+      const isValidTikTokInterestId = (id: string, name?: string): boolean => {
         if (!id || typeof id !== 'string') return false;
         
         // Must be numeric
-        if (!/^\d+$/.test(id)) return false;
-        
-        // IDs containing "999" patterns are often placeholder/synthetic IDs
-        if (id.includes('999')) {
-          console.log(`  ⚠️ Skipping suspicious interest ID (contains 999): ${id}`);
+        if (!/^\d+$/.test(id)) {
+          console.log(`  ⚠️ Skipping non-numeric interest ID: ${name} (${id})`);
           return false;
         }
         
-        // Very long IDs (10+ digits) that don't match known patterns are suspicious
-        if (id.length >= 10) {
-          console.log(`  ⚠️ Skipping suspicious interest ID (too long): ${id}`);
+        // IDs containing "999" patterns are often placeholder/synthetic IDs
+        if (id.includes('999')) {
+          console.log(`  ⚠️ Skipping suspicious interest ID (contains 999): ${name} (${id})`);
+          return false;
+        }
+        
+        // IDs containing "000" patterns at end are often placeholder/invalid
+        if (id.endsWith('000')) {
+          console.log(`  ⚠️ Skipping suspicious interest ID (ends with 000): ${name} (${id})`);
+          return false;
+        }
+        
+        // Very long IDs (8+ digits) are suspicious - valid TikTok interest IDs are typically 4-6 digits
+        if (id.length > 7) {
+          console.log(`  ⚠️ Skipping suspicious interest ID (too long, ${id.length} digits): ${name} (${id})`);
+          return false;
+        }
+        
+        // Very short IDs (less than 2 digits) are also suspicious
+        if (id.length < 2) {
+          console.log(`  ⚠️ Skipping suspicious interest ID (too short): ${name} (${id})`);
           return false;
         }
         
@@ -589,11 +604,9 @@ class TikTokAdapter implements PlatformAdapter {
         params.targeting.tiktokInterests.forEach((interest: any) => {
           if (interest.id) {
             const idStr = String(interest.id);
-            if (isValidTikTokInterestId(idStr)) {
+            if (isValidTikTokInterestId(idStr, interest.name)) {
               interestIds.push(idStr);
               console.log(`  ✓ Valid interest: ${interest.name} (${idStr})`);
-            } else {
-              console.log(`  ⏭️ Skipping invalid interest ID: ${interest.name} (${idStr})`);
             }
           }
         });
@@ -610,11 +623,9 @@ class TikTokAdapter implements PlatformAdapter {
           if (behavior.id) {
             const idStr = String(behavior.id);
             // Apply same validation to action IDs
-            if (isValidTikTokInterestId(idStr)) {
+            if (isValidTikTokInterestId(idStr, behavior.name)) {
               actionIds.push(idStr);
               console.log(`  → Action category: ${behavior.name} (${idStr})${behavior.category ? ` - ${behavior.category}` : ''}`);
-            } else {
-              console.log(`  ⏭️ Skipping invalid action ID: ${behavior.name} (${idStr})`);
             }
           }
         });
