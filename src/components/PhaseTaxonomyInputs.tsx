@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, FileText, Info } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { CheckCircle2, FileText, Info, RefreshCw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Tooltip,
@@ -33,64 +34,72 @@ export function PhaseTaxonomyInputs({
 }: PhaseTaxonomyInputsProps) {
   const [template, setTemplate] = useState<TaxonomyParam[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [taxonomyString, setTaxonomyString] = useState("");
   const [extractedValues, setExtractedValues] = useState<Record<string, string>>({});
 
   // Load taxonomy template for this account and entity type
-  useEffect(() => {
-    const loadTemplate = async () => {
-      if (!adAccountId) {
-        setLoading(false);
+  const loadTemplate = useCallback(async (showRefreshState = false) => {
+    if (!adAccountId) {
+      setLoading(false);
+      return;
+    }
+
+    if (showRefreshState) setRefreshing(true);
+    else setLoading(true);
+
+    try {
+      // First try to get the database UUID for this platform account
+      let dbAccountId = adAccountId;
+      
+      if (platform === 'tiktok') {
+        const { data: accountData } = await supabase
+          .from('tiktok_ad_accounts')
+          .select('id')
+          .eq('advertiser_id', adAccountId)
+          .maybeSingle();
+        if (accountData?.id) dbAccountId = accountData.id;
+      } else {
+        const { data: accountData } = await supabase
+          .from('meta_ad_accounts')
+          .select('id')
+          .eq('account_id', adAccountId)
+          .maybeSingle();
+        if (accountData?.id) dbAccountId = accountData.id;
+      }
+      
+      const { data, error } = await supabase
+        .from('taxonomy_templates')
+        .select('template')
+        .eq('ad_account_id', dbAccountId)
+        .eq('entity_type', entityType)
+        .eq('platform', platform)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error loading taxonomy template:', error);
         return;
       }
 
-      try {
-        // First try to get the database UUID for this platform account
-        let dbAccountId = adAccountId;
-        
-        if (platform === 'tiktok') {
-          const { data: accountData } = await supabase
-            .from('tiktok_ad_accounts')
-            .select('id')
-            .eq('advertiser_id', adAccountId)
-            .maybeSingle();
-          if (accountData?.id) dbAccountId = accountData.id;
-        } else {
-          const { data: accountData } = await supabase
-            .from('meta_ad_accounts')
-            .select('id')
-            .eq('account_id', adAccountId)
-            .maybeSingle();
-          if (accountData?.id) dbAccountId = accountData.id;
-        }
-        
-        const { data, error } = await supabase
-          .from('taxonomy_templates')
-          .select('template')
-          .eq('ad_account_id', dbAccountId)
-          .eq('entity_type', entityType)
-          .eq('platform', platform)
-          .maybeSingle();
-
-        if (error) {
-          console.error('Error loading taxonomy template:', error);
-          setLoading(false);
-          return;
-        }
-
-        if (data?.template) {
-          const templateData = data.template as unknown as TaxonomyParam[];
-          setTemplate(templateData);
-        }
-      } catch (err) {
-        console.error('Error loading taxonomy template:', err);
-      } finally {
-        setLoading(false);
+      if (data?.template) {
+        const templateData = data.template as unknown as TaxonomyParam[];
+        setTemplate(templateData);
       }
-    };
-
-    loadTemplate();
+    } catch (err) {
+      console.error('Error loading taxonomy template:', err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, [adAccountId, entityType, platform]);
+
+  useEffect(() => {
+    loadTemplate();
+  }, [loadTemplate]);
+
+  const handleRefresh = () => {
+    loadTemplate(true);
+  };
 
   // Auto-generate taxonomy when template or context changes
   useEffect(() => {
@@ -126,21 +135,33 @@ export function PhaseTaxonomyInputs({
           <FileText className="h-4 w-4" />
           {entityLabel} Name
         </Label>
-        {systemParamsFilled ? (
-          <Badge variant="outline" className="text-xs bg-green-500/10 text-green-600 border-green-500/30">
-            <CheckCircle2 className="h-3 w-3 mr-1" />
-            Auto-generated
-          </Badge>
-        ) : missingCount > 0 ? (
-          <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-600 border-amber-500/30">
-            {missingCount} custom {missingCount === 1 ? 'field' : 'fields'} pending
-          </Badge>
-        ) : (
-          <Badge variant="outline" className="text-xs bg-green-500/10 text-green-600 border-green-500/30">
-            <CheckCircle2 className="h-3 w-3 mr-1" />
-            Complete
-          </Badge>
-        )}
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            title="Refresh taxonomy template"
+          >
+            <RefreshCw className={`h-3 w-3 ${refreshing ? 'animate-spin' : ''}`} />
+          </Button>
+          {systemParamsFilled ? (
+            <Badge variant="outline" className="text-xs bg-green-500/10 text-green-600 border-green-500/30">
+              <CheckCircle2 className="h-3 w-3 mr-1" />
+              Auto-generated
+            </Badge>
+          ) : missingCount > 0 ? (
+            <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-600 border-amber-500/30">
+              {missingCount} custom {missingCount === 1 ? 'field' : 'fields'} pending
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="text-xs bg-green-500/10 text-green-600 border-green-500/30">
+              <CheckCircle2 className="h-3 w-3 mr-1" />
+              Complete
+            </Badge>
+          )}
+        </div>
       </div>
 
       {/* Generated Taxonomy Preview */}
@@ -187,9 +208,11 @@ export function PhaseTaxonomyInputs({
                     <TooltipContent side="top" className="max-w-[280px]">
                       <div className="space-y-1">
                         <p className="font-medium text-xs">{param.label}</p>
-                        {param.description && (
+                        {param.description ? (
                           <p className="text-xs text-muted-foreground">{param.description}</p>
-                        )}
+                        ) : !param.system ? (
+                          <p className="text-xs text-muted-foreground italic">Custom parameter - enter value manually</p>
+                        ) : null}
                         {param.system && !value && (
                           <p className="text-xs text-amber-600">
                             Configure this field in ActiPlan to auto-populate
@@ -197,6 +220,11 @@ export function PhaseTaxonomyInputs({
                         )}
                         {param.system && value && (
                           <p className="text-xs text-green-600">✓ Auto-filled from ActiPlan</p>
+                        )}
+                        {!param.system && !value && (
+                          <p className="text-xs text-amber-600">
+                            This custom field requires manual input
+                          </p>
                         )}
                       </div>
                     </TooltipContent>
