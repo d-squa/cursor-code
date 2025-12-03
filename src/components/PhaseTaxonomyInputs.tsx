@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { CheckCircle2, FileText, Info, RefreshCw, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -10,6 +11,18 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { 
   TaxonomyParam, 
   TaxonomyContext,
@@ -26,6 +39,10 @@ interface PhaseTaxonomyInputsProps {
   context: TaxonomyContext;
   // Validation callback - reports whether all custom fields are complete
   onValidationChange?: (isComplete: boolean, missingCount: number) => void;
+  // Custom parameter values (user-entered values for non-system params)
+  customValues?: Record<string, string>;
+  // Callback when user changes a custom parameter value
+  onCustomValueChange?: (paramId: string, value: string) => void;
 }
 
 export function PhaseTaxonomyInputs({
@@ -33,7 +50,9 @@ export function PhaseTaxonomyInputs({
   platform,
   entityType,
   context,
-  onValidationChange
+  onValidationChange,
+  customValues = {},
+  onCustomValueChange
 }: PhaseTaxonomyInputsProps) {
   const [template, setTemplate] = useState<TaxonomyParam[]>([]);
   const [loading, setLoading] = useState(true);
@@ -104,22 +123,28 @@ export function PhaseTaxonomyInputs({
     loadTemplate(true);
   };
 
-  // Auto-generate taxonomy when template or context changes
+  // Merge extracted values with custom values (custom values override)
+  const mergedValues = { ...extractedValues, ...customValues };
+
+  // Auto-generate taxonomy when template, context, or custom values change
   useEffect(() => {
     if (template.length > 0) {
       const values = extractTaxonomyValues(template, context);
       setExtractedValues(values);
-      const generated = generateTaxonomyString(template, values);
+      
+      // Merge with custom values for display
+      const allValues = { ...values, ...customValues };
+      const generated = generateTaxonomyString(template, allValues);
       setTaxonomyString(generated);
       
-      // Report validation status
-      const missing = getMissingRequiredCount(template, values);
+      // Report validation status using merged values
+      const missing = getMissingRequiredCount(template, allValues);
       onValidationChange?.(missing === 0, missing);
     } else {
       // No template = complete (nothing to validate)
       onValidationChange?.(true, 0);
     }
-  }, [template, context, onValidationChange]);
+  }, [template, context, customValues, onValidationChange]);
 
   if (loading) {
     return null;
@@ -129,14 +154,60 @@ export function PhaseTaxonomyInputs({
     return null; // No template configured, don't show anything
   }
 
-  const missingCount = getMissingRequiredCount(template, extractedValues);
-  const isComplete = missingCount === 0;
+  const missingCount = getMissingRequiredCount(template, mergedValues);
   const entityLabel = entityType === 'campaign' ? 'Campaign' : (platform === 'tiktok' ? 'Ad Group' : 'Ad Set');
   
   // Check if all system params have values (for different badge display)
   const systemParamsFilled = template
     .filter(p => p.system)
-    .every(p => extractedValues[p.id] || p.value);
+    .every(p => mergedValues[p.id] || p.value);
+
+  // Render custom parameter input (dropdown for options, text input for text)
+  const renderCustomParamInput = (param: TaxonomyParam) => {
+    const currentValue = mergedValues[param.id] || '';
+    
+    if (param.type === 'options' && param.options && param.options.length > 0) {
+      return (
+        <div className="space-y-2 p-1">
+          <Label className="text-xs font-medium">{param.label}</Label>
+          {param.description && (
+            <p className="text-xs text-muted-foreground">{param.description}</p>
+          )}
+          <Select
+            value={currentValue}
+            onValueChange={(value) => onCustomValueChange?.(param.id, value)}
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder={`Select ${param.label}`} />
+            </SelectTrigger>
+            <SelectContent>
+              {param.options.map((option) => (
+                <SelectItem key={option} value={option} className="text-xs">
+                  {option}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      );
+    }
+    
+    // Default to text input
+    return (
+      <div className="space-y-2 p-1">
+        <Label className="text-xs font-medium">{param.label}</Label>
+        {param.description && (
+          <p className="text-xs text-muted-foreground">{param.description}</p>
+        )}
+        <Input
+          className="h-8 text-xs"
+          placeholder={`Enter ${param.label}`}
+          value={currentValue}
+          onChange={(e) => onCustomValueChange?.(param.id, e.target.value)}
+        />
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-3">
@@ -186,63 +257,75 @@ export function PhaseTaxonomyInputs({
         )}
       </div>
 
-      {/* Show extracted values breakdown with tooltips */}
+      {/* Show extracted values breakdown with tooltips/popovers */}
       {template.length > 0 && (
         <TooltipProvider>
           <div className="flex flex-wrap gap-1.5">
             {template
               .filter(p => p.required !== false || p.system)
               .map(param => {
-                const value = extractedValues[param.id] || param.value;
+                const value = mergedValues[param.id] || param.value;
                 const isSystemWithValue = param.system && value;
                 const isSystemMissing = param.system && !value;
                 const isCustomMissing = !param.system && !value;
                 const isCustomFilled = !param.system && value;
                 
+                const badgeClassName = `text-xs ${
+                  isCustomMissing 
+                    ? 'border-destructive bg-destructive/10 text-destructive cursor-pointer hover:bg-destructive/20' 
+                    : isCustomFilled
+                      ? 'bg-green-500/10 text-green-700 border-green-500/30 cursor-pointer hover:bg-green-500/20'
+                      : isSystemMissing 
+                        ? 'border-dashed border-amber-500/50 text-amber-600 bg-amber-500/10 cursor-help' 
+                        : isSystemWithValue 
+                          ? 'bg-green-500/10 text-green-700 border-green-500/30 cursor-help'
+                          : 'cursor-help'
+                }`;
+
+                // Custom params get Popover with input
+                if (!param.system) {
+                  return (
+                    <Popover key={param.id}>
+                      <PopoverTrigger asChild>
+                        <Badge
+                          variant={value ? "secondary" : "outline"}
+                          className={badgeClassName}
+                        >
+                          {param.key}: {value || '—'}
+                        </Badge>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-56 p-3" align="start">
+                        {renderCustomParamInput(param)}
+                      </PopoverContent>
+                    </Popover>
+                  );
+                }
+                
+                // System params get Tooltip (read-only)
                 return (
                   <Tooltip key={param.id}>
                     <TooltipTrigger asChild>
                       <Badge
                         variant={value ? "secondary" : "outline"}
-                        className={`text-xs cursor-help ${
-                          isCustomMissing 
-                            ? 'border-destructive bg-destructive/10 text-destructive' 
-                            : isCustomFilled
-                              ? 'bg-green-500/10 text-green-700 border-green-500/30'
-                              : isSystemMissing 
-                                ? 'border-dashed border-amber-500/50 text-amber-600 bg-amber-500/10' 
-                                : isSystemWithValue 
-                                  ? 'bg-green-500/10 text-green-700 border-green-500/30'
-                                  : ''
-                        }`}
+                        className={badgeClassName}
                       >
-                        {param.system && <Info className="h-2.5 w-2.5 mr-1 opacity-60" />}
+                        <Info className="h-2.5 w-2.5 mr-1 opacity-60" />
                         {param.key}: {value || '—'}
                       </Badge>
                     </TooltipTrigger>
                     <TooltipContent side="top" className="max-w-[280px]">
                       <div className="space-y-1">
                         <p className="font-medium text-xs">{param.label}</p>
-                        {param.description ? (
+                        {param.description && (
                           <p className="text-xs text-muted-foreground">{param.description}</p>
-                        ) : !param.system ? (
-                          <p className="text-xs text-muted-foreground italic">Custom parameter - enter value manually</p>
-                        ) : null}
-                        {param.system && !value && (
+                        )}
+                        {!value && (
                           <p className="text-xs text-amber-600">
                             Configure this field in ActiPlan to auto-populate
                           </p>
                         )}
-                        {param.system && value && (
+                        {value && (
                           <p className="text-xs text-green-600">✓ Auto-filled from ActiPlan</p>
-                        )}
-                        {!param.system && !value && (
-                          <p className="text-xs text-destructive font-medium">
-                            ⚠ Required: Enter value to proceed
-                          </p>
-                        )}
-                        {!param.system && value && (
-                          <p className="text-xs text-green-600">✓ Custom field filled</p>
                         )}
                       </div>
                     </TooltipContent>
