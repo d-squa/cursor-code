@@ -768,8 +768,26 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
         const metaBillingEvent = phase.metaBillingEvent || (market as any).metaBillingEvent || "IMPRESSIONS";
         const metaLandingPageUrl = phase.metaLandingPageUrl || (market as any).metaLandingPageUrl;
         const metaOptimizationLocation = phase.metaOptimizationLocation || (market as any).metaOptimizationLocation || "WEBSITE";
-        const metaClickWindow = phase.metaClickWindow || (market as any).metaClickWindow || 7;
-        const metaViewWindow = phase.metaViewWindow || (market as any).metaViewWindow || 1;
+        
+        // Attribution window validation - certain objectives only support specific combinations
+        // LINK_CLICKS/LANDING_PAGE_VIEWS only support (1, 0) - 1 day click, 0 day view-through
+        // OFFSITE_CONVERSIONS/VALUE support longer windows
+        const objectivesWithLimitedAttribution = ['LINK_CLICKS', 'LANDING_PAGE_VIEWS', 'REACH', 'POST_ENGAGEMENT'];
+        const hasLimitedAttribution = objectivesWithLimitedAttribution.includes(optimizationGoal);
+        
+        let metaClickWindow: number;
+        let metaViewWindow: number;
+        
+        if (hasLimitedAttribution) {
+          // Force (1, 0) for objectives with limited attribution support
+          metaClickWindow = 1;
+          metaViewWindow = 0;
+          console.log(`⚠️ ${optimizationGoal} only supports limited attribution. Forcing click=${metaClickWindow}d, view=${metaViewWindow}d`);
+        } else {
+          // Use configured values or defaults for other objectives
+          metaClickWindow = phase.metaClickWindow || (market as any).metaClickWindow || 7;
+          metaViewWindow = phase.metaViewWindow || (market as any).metaViewWindow || 1;
+        }
         
         const requiresBidCap = requestedBidStrategy === 'COST_CAP' || requestedBidStrategy === 'LOWEST_COST_WITH_BID_CAP';
         const isCompatible = bidStrategyCompatibleGoals.includes(optimizationGoal);
@@ -794,20 +812,18 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
           targeting: targeting,
         };
 
-        // Add attribution settings if different from defaults
-        if (metaClickWindow || metaViewWindow) {
-          adSetPayload.attribution_spec = [
-            {
-              event_type: "CLICK_THROUGH",
-              window_days: metaClickWindow
-            },
-            {
-              event_type: "VIEW_THROUGH", 
-              window_days: metaViewWindow
-            }
-          ];
-          console.log(`✅ Attribution windows set: click=${metaClickWindow}d, view=${metaViewWindow}d`);
-        }
+        // Add attribution settings - always include for consistency
+        adSetPayload.attribution_spec = [
+          {
+            event_type: "CLICK_THROUGH",
+            window_days: metaClickWindow
+          },
+          {
+            event_type: "VIEW_THROUGH", 
+            window_days: metaViewWindow
+          }
+        ];
+        console.log(`✅ Attribution windows set: click=${metaClickWindow}d, view=${metaViewWindow}d`);
 
         // Add destination URL for traffic campaigns
         if (metaLandingPageUrl && (optimizationGoal === 'LINK_CLICKS' || optimizationGoal === 'LANDING_PAGE_VIEWS')) {
