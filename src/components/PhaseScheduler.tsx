@@ -879,6 +879,50 @@ export function PhaseScheduler({
 
                   <CollapsibleContent>
                     <div className="p-4 pt-0 space-y-4 border-t">
+                      {/* Campaign & Ad Set Taxonomy - Right after phase name */}
+                      {adAccountId && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <PhaseTaxonomyInputs
+                            adAccountId={adAccountId}
+                            platform={platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta'}
+                            entityType="campaign"
+                            context={{
+                              platform: platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta',
+                              activationName: activationContext?.activationName,
+                              boNumber: activationContext?.boNumber,
+                              clientName: activationContext?.clientName,
+                              teamName: activationContext?.teamName,
+                              totalBudget: activationContext?.totalBudget,
+                              market: activationContext?.market,
+                              markets: activationContext?.markets,
+                              platformBudget: activationContext?.platformBudget,
+                              placementType: phase.advantagePlusPlacements ? 'automatic' : (phase.tiktokPlacementType || 'manual'),
+                              publisherPlatforms: phase.publisherPlatforms,
+                              startDate: phase.startDate || startDate,
+                              endDate: phase.endDate || endDate,
+                            }}
+                          />
+                          <PhaseTaxonomyInputs
+                            adAccountId={adAccountId}
+                            platform={platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta'}
+                            entityType="adset"
+                            context={{
+                              platform: platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta',
+                              optimizationGoal: phase.optimizationGoal,
+                              phaseBudget: marketBudget ? marketBudget * (phase.budgetPercentage / 100) : undefined,
+                              budgetType: phase.budgetType,
+                              ageMin: phase.targeting?.ageMin ?? basicTargeting?.ageMin ?? marketTargeting?.ageMin,
+                              ageMax: phase.targeting?.ageMax ?? basicTargeting?.ageMax ?? marketTargeting?.ageMax,
+                              gender: phase.targeting?.genders?.[0] || basicTargeting?.genders?.[0] || marketTargeting?.gender,
+                              location: activationContext?.market,
+                              devices: phase.targeting?.devices || basicTargeting?.devices || marketTargeting?.devices,
+                              positions: phase.positions,
+                              targetingType: phase.targeting?.targetingExpansion ? 'expand' : 'native',
+                            }}
+                          />
+                        </div>
+                      )}
+
                       {/* Targeting Summary */}
                       {marketTargeting && (
                         <div className="p-3 bg-muted/50 rounded-lg space-y-2">
@@ -1127,53 +1171,6 @@ export function PhaseScheduler({
                           }
                         />
                       </div>
-
-                      {/* Campaign Taxonomy - Auto-generated from phase settings */}
-                      {adAccountId && (
-                        <PhaseTaxonomyInputs
-                          adAccountId={adAccountId}
-                          platform={platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta'}
-                          entityType="campaign"
-                          context={{
-                            platform: platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta',
-                            activationName: activationContext?.activationName,
-                            boNumber: activationContext?.boNumber,
-                            clientName: activationContext?.clientName,
-                            teamName: activationContext?.teamName,
-                            totalBudget: activationContext?.totalBudget,
-                            market: activationContext?.market,
-                            markets: activationContext?.markets,
-                            platformBudget: activationContext?.platformBudget,
-                            placementType: phase.advantagePlusPlacements ? 'automatic' : (phase.tiktokPlacementType || 'manual'),
-                            publisherPlatforms: phase.publisherPlatforms,
-                            startDate: phase.startDate || startDate,
-                            endDate: phase.endDate || endDate,
-                          }}
-                        />
-                      )}
-
-                      {/* Ad Set Taxonomy - Auto-generated from phase settings */}
-                      {adAccountId && (
-                        <PhaseTaxonomyInputs
-                          adAccountId={adAccountId}
-                          platform={platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta'}
-                          entityType="adset"
-                          context={{
-                            platform: platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta',
-                            optimizationGoal: phase.optimizationGoal,
-                            phaseBudget: marketBudget ? marketBudget * (phase.budgetPercentage / 100) : undefined,
-                            budgetType: phase.budgetType,
-                            // Age comes from phase override first, then inherited basicTargeting, then marketTargeting
-                            ageMin: phase.targeting?.ageMin ?? basicTargeting?.ageMin ?? marketTargeting?.ageMin,
-                            ageMax: phase.targeting?.ageMax ?? basicTargeting?.ageMax ?? marketTargeting?.ageMax,
-                            gender: phase.targeting?.genders?.[0] || basicTargeting?.genders?.[0] || marketTargeting?.gender,
-                            location: activationContext?.market,
-                            devices: phase.targeting?.devices || basicTargeting?.devices || marketTargeting?.devices,
-                            positions: phase.positions,
-                            targetingType: phase.targeting?.targetingExpansion ? 'expand' : 'native',
-                          }}
-                        />
-                      )}
 
                       {/* Phase-Level Targeting Override - Available for all objectives */}
                       {basicTargeting && (

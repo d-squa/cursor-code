@@ -511,12 +511,14 @@ export function extractTaxonomyValues(
         values[param.id] = rawValue ? shortenValue('gender', rawValue) : 'ALL';
         break;
       case 'boNumber':
+        // Don't shorten BO number - use as-is
         rawValue = context.boNumber;
-        values[param.id] = rawValue ? createShortCode(rawValue) : '';
+        values[param.id] = rawValue ? rawValue.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() : '';
         break;
       case 'teamName':
+        // Don't shorten team name - use as-is (just clean special chars)
         rawValue = context.teamName;
-        values[param.id] = rawValue ? createShortCode(rawValue) : '';
+        values[param.id] = rawValue ? rawValue.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() : '';
         break;
       case 'clientName':
         rawValue = context.clientName;
@@ -544,9 +546,9 @@ export function extractTaxonomyValues(
         }
         break;
       case 'activationName':
+        // Don't shorten activation name - use as-is (just clean special chars)
         rawValue = context.activationName;
-        values[param.id] = rawValue ? createShortCode(rawValue) : '';
-        break;
+        values[param.id] = rawValue ? rawValue.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() : '';
       case 'region':
         // Auto-detect region from markets if multiple
         if (context.region) {
@@ -894,14 +896,16 @@ export function getAllAvailableParams(): TaxonomyParam[] {
   ];
 }
 
-// Get count of missing required values
+// Get count of missing required values - ONLY counts custom (non-system) params that need user input
 export function getMissingRequiredCount(
   template: TaxonomyParam[],
   values: Record<string, string>
 ): number {
   let count = 0;
   for (const param of template) {
-    if ((param.required !== false || param.system) && !values[param.id] && !param.value) {
+    // Only count missing values for custom (non-system) params that are required
+    // System params are auto-filled and should not count as "pending"
+    if (!param.system && param.required !== false && !values[param.id] && !param.value) {
       count++;
     }
   }
