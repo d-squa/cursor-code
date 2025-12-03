@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -109,7 +109,6 @@ export function PhaseScheduler({
   activationContext,
   onTaxonomyValidationChange
 }: PhaseSchedulerProps) {
-  console.log("PhaseScheduler marketBudget:", marketBudget);
   const [dragging, setDragging] = useState<DraggingState | null>(null);
   const [editingName, setEditingName] = useState<string | null>(null);
   const [editingBudget, setEditingBudget] = useState<string | null>(null);
@@ -121,26 +120,38 @@ export function PhaseScheduler({
   // Taxonomy validation state - track per phase per entity type
   const [taxonomyValidation, setTaxonomyValidation] = useState<Record<string, { campaign: boolean; adset: boolean; campaignMissing: number; adsetMissing: number }>>({});
   
+  // Store callback in ref to avoid re-render loops
+  const taxonomyValidationCallbackRef = useRef(onTaxonomyValidationChange);
+  taxonomyValidationCallbackRef.current = onTaxonomyValidationChange;
+  
   // Report aggregated validation status to parent
   useEffect(() => {
     const totalMissing = Object.values(taxonomyValidation).reduce((sum, v) => sum + v.campaignMissing + v.adsetMissing, 0);
-    const allComplete = Object.values(taxonomyValidation).every(v => v.campaign && v.adset);
-    onTaxonomyValidationChange?.(allComplete, totalMissing);
-  }, [taxonomyValidation, onTaxonomyValidationChange]);
+    const allComplete = Object.values(taxonomyValidation).length === 0 || Object.values(taxonomyValidation).every(v => v.campaign && v.adset);
+    taxonomyValidationCallbackRef.current?.(allComplete, totalMissing);
+  }, [taxonomyValidation]);
   
   // Helper to update taxonomy validation for a specific phase
-  const handleTaxonomyValidation = (phaseId: string, entityType: 'campaign' | 'adset', isComplete: boolean, missingCount: number) => {
-    setTaxonomyValidation(prev => ({
-      ...prev,
-      [phaseId]: {
-        ...prev[phaseId],
-        campaign: entityType === 'campaign' ? isComplete : (prev[phaseId]?.campaign ?? true),
-        adset: entityType === 'adset' ? isComplete : (prev[phaseId]?.adset ?? true),
-        campaignMissing: entityType === 'campaign' ? missingCount : (prev[phaseId]?.campaignMissing ?? 0),
-        adsetMissing: entityType === 'adset' ? missingCount : (prev[phaseId]?.adsetMissing ?? 0),
+  const handleTaxonomyValidation = useCallback((phaseId: string, entityType: 'campaign' | 'adset', isComplete: boolean, missingCount: number) => {
+    setTaxonomyValidation(prev => {
+      const current = prev[phaseId];
+      const newValues = {
+        campaign: entityType === 'campaign' ? isComplete : (current?.campaign ?? true),
+        adset: entityType === 'adset' ? isComplete : (current?.adset ?? true),
+        campaignMissing: entityType === 'campaign' ? missingCount : (current?.campaignMissing ?? 0),
+        adsetMissing: entityType === 'adset' ? missingCount : (current?.adsetMissing ?? 0),
+      };
+      // Only update if values changed
+      if (current && 
+          current.campaign === newValues.campaign && 
+          current.adset === newValues.adset &&
+          current.campaignMissing === newValues.campaignMissing &&
+          current.adsetMissing === newValues.adsetMissing) {
+        return prev;
       }
-    }));
-  };
+      return { ...prev, [phaseId]: newValues };
+    });
+  }, []);
 
   // Helper to update custom taxonomy values for a phase
   const handleTaxonomyValueChange = (phaseId: string, entityType: 'campaign' | 'adset', paramId: string, value: string) => {
