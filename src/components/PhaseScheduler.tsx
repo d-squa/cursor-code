@@ -142,6 +142,24 @@ export function PhaseScheduler({
     }));
   };
 
+  // Helper to update custom taxonomy values for a phase
+  const handleTaxonomyValueChange = (phaseId: string, entityType: 'campaign' | 'adset', paramId: string, value: string) => {
+    const updatedPhases = phases.map(phase => {
+      if (phase.id === phaseId) {
+        const valuesKey = entityType === 'campaign' ? 'campaignTaxonomyValues' : 'adsetTaxonomyValues';
+        return {
+          ...phase,
+          [valuesKey]: {
+            ...(phase[valuesKey] || {}),
+            [paramId]: value
+          }
+        };
+      }
+      return phase;
+    });
+    onPhasesChange(updatedPhases);
+  };
+
   // Helper to get default publishers and placements for platforms
   const getDefaultPublisherConfig = () => {
     // For TikTok, use adAccountDefaults if available
@@ -928,6 +946,8 @@ export function PhaseScheduler({
                               startDate: phase.startDate || startDate,
                               endDate: phase.endDate || endDate,
                             }}
+                            customValues={phase.campaignTaxonomyValues}
+                            onCustomValueChange={(paramId, value) => handleTaxonomyValueChange(phase.id, 'campaign', paramId, value)}
                             onValidationChange={(isComplete, missing) => handleTaxonomyValidation(phase.id, 'campaign', isComplete, missing)}
                           />
                           <PhaseTaxonomyInputs
@@ -947,6 +967,8 @@ export function PhaseScheduler({
                               positions: phase.positions,
                               targetingType: phase.targeting?.targetingExpansion ? 'expand' : 'native',
                             }}
+                            customValues={phase.adsetTaxonomyValues}
+                            onCustomValueChange={(paramId, value) => handleTaxonomyValueChange(phase.id, 'adset', paramId, value)}
                             onValidationChange={(isComplete, missing) => handleTaxonomyValidation(phase.id, 'adset', isComplete, missing)}
                           />
                         </div>
