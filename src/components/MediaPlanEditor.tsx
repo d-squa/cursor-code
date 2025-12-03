@@ -90,6 +90,22 @@ export function MediaPlanEditor() {
   const [expandedPlatforms, setExpandedPlatforms] = useState<Record<string, boolean>>({});
   const [bulkBudgetDialogOpen, setBulkBudgetDialogOpen] = useState(false);
   const [bulkPlatform, setBulkPlatform] = useState<PlatformWithMarkets | null>(null);
+  const [teamName, setTeamName] = useState<string>("");
+  
+  // Load team name for current user
+  useEffect(() => {
+    if (user) {
+      const loadTeamName = async () => {
+        const { data } = await supabase
+          .from("teams")
+          .select("name")
+          .eq("owner_id", user.id)
+          .single();
+        if (data?.name) setTeamName(data.name);
+      };
+      loadTeamName();
+    }
+  }, [user]);
   
   // Load clients for selection
   useEffect(() => {
@@ -1817,6 +1833,16 @@ export function MediaPlanEditor() {
                           }
                         }}
                         marketBudget={(parseFloat(totalBudget || "0") * ((singlePlatform?.budgetPercentage || 0) / 100) * ((singleMarket.budgetPercentage || 0) / 100))}
+                        activationContext={{
+                          activationName: campaignName,
+                          boNumber: boNumber,
+                          clientName: clients.find(c => c.id === selectedClientId)?.name,
+                          teamName: teamName,
+                          totalBudget: parseFloat(totalBudget || "0"),
+                          market: singleMarket.name,
+                          markets: [singleMarket.name],
+                          platformBudget: parseFloat(totalBudget || "0") * ((singlePlatform?.budgetPercentage || 0) / 100),
+                        }}
                       />
                     </div>
                   ) : null;
@@ -2081,6 +2107,16 @@ export function MediaPlanEditor() {
                                     setBulkBudgetDialogOpen(true);
                                   }}
                                   marketBudget={(parseFloat(totalBudget || "0") * ((platform.budgetPercentage || 0) / 100) * ((market.budgetPercentage || 0) / 100))}
+                                  activationContext={{
+                                    activationName: campaignName,
+                                    boNumber: boNumber,
+                                    clientName: clients.find(c => c.id === selectedClientId)?.name,
+                                    teamName: teamName,
+                                    totalBudget: parseFloat(totalBudget || "0"),
+                                    market: market.name,
+                                    markets: platform.markets.map(m => m.name),
+                                    platformBudget: parseFloat(totalBudget || "0") * ((platform.budgetPercentage || 0) / 100),
+                                  }}
                                   />
                                 </Card>
                               ))}
