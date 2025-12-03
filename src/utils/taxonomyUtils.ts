@@ -11,6 +11,7 @@ export interface TaxonomyParam {
   options?: string[];
   required?: boolean;
   system?: boolean; // System-generated params cannot be removed
+  description?: string; // Tooltip description explaining the data source
 }
 
 export interface TaxonomyTemplate {
@@ -629,6 +630,7 @@ export function getDefaultCampaignParams(platform: 'meta' | 'tiktok'): TaxonomyP
       type: 'text',
       system: true,
       required: true,
+      description: 'Auto-filled from Activation Details → Campaign Name field',
     },
     {
       id: 'country',
@@ -638,6 +640,7 @@ export function getDefaultCampaignParams(platform: 'meta' | 'tiktok'): TaxonomyP
       options: [...Object.values(VALUE_MAPPINGS.country), ...Object.values(VALUE_MAPPINGS.region)],
       system: true,
       required: true,
+      description: 'Auto-filled from Platform & Market Selection. Shows region (e.g., MENA) if multiple markets share the same region',
     },
     {
       id: 'placementType',
@@ -649,6 +652,7 @@ export function getDefaultCampaignParams(platform: 'meta' | 'tiktok'): TaxonomyP
         : ['AUTO', 'TT', 'GAB', 'PAN', 'MAN'],
       system: true,
       required: true,
+      description: 'Auto-filled from Phase Configuration → Placement settings (Automatic/Manual)',
     },
     {
       id: 'platformBudget',
@@ -657,6 +661,7 @@ export function getDefaultCampaignParams(platform: 'meta' | 'tiktok'): TaxonomyP
       type: 'number',
       system: true,
       required: true,
+      description: 'Auto-filled from Budget Allocation → Platform budget amount',
     },
     {
       id: 'startDate',
@@ -665,6 +670,7 @@ export function getDefaultCampaignParams(platform: 'meta' | 'tiktok'): TaxonomyP
       type: 'text',
       system: true,
       required: true,
+      description: 'Auto-filled from Phase Schedule → Start date (format: DDMM)',
     },
     {
       id: 'endDate',
@@ -673,6 +679,7 @@ export function getDefaultCampaignParams(platform: 'meta' | 'tiktok'): TaxonomyP
       type: 'text',
       system: true,
       required: true,
+      description: 'Auto-filled from Phase Schedule → End date (format: DDMM)',
     },
     {
       id: 'boNumber',
@@ -681,6 +688,7 @@ export function getDefaultCampaignParams(platform: 'meta' | 'tiktok'): TaxonomyP
       type: 'text',
       system: true,
       required: false,
+      description: 'Auto-filled from Activation Details → BO Number field',
     },
     {
       id: 'teamName',
@@ -689,6 +697,7 @@ export function getDefaultCampaignParams(platform: 'meta' | 'tiktok'): TaxonomyP
       type: 'text',
       system: true,
       required: false,
+      description: 'Auto-filled from your assigned team name',
     },
   ];
 }
@@ -707,6 +716,7 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyPara
         : ['RCH', 'CLK', 'CVT', 'VV', '6SV', 'FCV'],
       system: true,
       required: true,
+      description: 'Auto-filled from Phase Configuration → Optimization Goal selection',
     },
     {
       id: 'phaseBudget',
@@ -715,6 +725,7 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyPara
       type: 'number',
       system: true,
       required: true,
+      description: 'Auto-filled from Phase Budget Allocation → Total phase budget',
     },
     {
       id: 'budgetType',
@@ -724,6 +735,7 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyPara
       options: ['DBD', 'LTB'],
       system: true,
       required: true,
+      description: 'Auto-filled from Phase Configuration → Budget Type (Daily/Lifetime)',
     },
     {
       id: 'ageRange',
@@ -732,6 +744,7 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyPara
       type: 'text',
       system: true,
       required: true,
+      description: 'Auto-filled from Targeting → Age range (e.g., 1865 for 18-65)',
     },
     {
       id: 'gender',
@@ -741,6 +754,7 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyPara
       options: ['ALL', 'M', 'F'],
       system: true,
       required: true,
+      description: 'Auto-filled from Targeting → Gender selection (All/Male/Female)',
     },
     {
       id: 'location',
@@ -750,6 +764,7 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyPara
       options: Object.values(VALUE_MAPPINGS.country),
       system: true,
       required: true,
+      description: 'Auto-filled from Platform & Market Selection → Targeted market/country',
     },
     {
       id: 'devices',
@@ -759,6 +774,7 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyPara
       options: ['ALL', 'MOB', 'DSK', 'TAB'],
       system: true,
       required: true,
+      description: 'Auto-filled from Targeting → Device targeting (Mobile/Desktop/Tablet)',
     },
     {
       id: 'placementType',
@@ -770,6 +786,7 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyPara
         : ['AUTO', 'TT', 'GAB', 'PAN'],
       system: true,
       required: true,
+      description: 'Auto-filled from Phase Configuration → Placement type (Automatic/Manual)',
     },
     {
       id: 'positions',
@@ -781,6 +798,7 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyPara
         : ['AUTO', 'TT', 'GAB', 'PAN'],
       system: true,
       required: false,
+      description: 'Auto-filled from Phase Configuration → Selected positions (Feed/Story/Reel)',
     },
     {
       id: 'targetingType',
@@ -790,6 +808,7 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyPara
       options: ['NTV', 'EXP', 'SIM', 'RTG', 'BRD', 'LAL'],
       system: true,
       required: true,
+      description: 'Auto-filled from Targeting → Audience type (Native/Expand/Similar/Retargeting)',
     },
   ];
 }
@@ -805,6 +824,7 @@ export function getDefaultAdParams(): TaxonomyParam[] {
       options: ['IMG', 'VID', 'CAR', 'COL', 'DYN'],
       system: true,
       required: true,
+      description: 'Auto-filled from Creative Setup → Ad format type (Image/Video/Carousel)',
     },
     {
       id: 'creativeVariant',
@@ -813,6 +833,7 @@ export function getDefaultAdParams(): TaxonomyParam[] {
       type: 'mixed',
       system: true,
       required: true,
+      description: 'Auto-filled from Creative Setup → Variant identifier',
     },
     {
       id: 'copyVariant',
@@ -821,6 +842,7 @@ export function getDefaultAdParams(): TaxonomyParam[] {
       type: 'mixed',
       system: false,
       required: false,
+      description: 'User-defined copy variant identifier (optional)',
     },
     {
       id: 'language',
@@ -830,6 +852,7 @@ export function getDefaultAdParams(): TaxonomyParam[] {
       options: ['EN', 'ES', 'DE', 'FR', 'IT', 'PT', 'NL'],
       system: false,
       required: false,
+      description: 'User-defined language code for the ad creative (optional)',
     },
   ];
 }

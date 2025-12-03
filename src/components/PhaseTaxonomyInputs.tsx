@@ -1,8 +1,14 @@
 import { useState, useEffect } from "react";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, FileText } from "lucide-react";
+import { CheckCircle2, FileText, Info } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { 
   TaxonomyParam, 
   TaxonomyContext,
@@ -138,24 +144,57 @@ export function PhaseTaxonomyInputs({
         )}
       </div>
 
-      {/* Show extracted values breakdown */}
+      {/* Show extracted values breakdown with tooltips */}
       {template.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {template
-            .filter(p => p.required !== false || p.system)
-            .map(param => {
-              const value = extractedValues[param.id] || param.value;
-              return (
-                <Badge
-                  key={param.id}
-                  variant={value ? "secondary" : "outline"}
-                  className={`text-xs ${!value ? 'border-dashed text-muted-foreground' : ''}`}
-                >
-                  {param.key}: {value || '—'}
-                </Badge>
-              );
-            })}
-        </div>
+        <TooltipProvider>
+          <div className="flex flex-wrap gap-1.5">
+            {template
+              .filter(p => p.required !== false || p.system)
+              .map(param => {
+                const value = extractedValues[param.id] || param.value;
+                const isSystemWithValue = param.system && value;
+                const isSystemMissing = param.system && !value;
+                
+                return (
+                  <Tooltip key={param.id}>
+                    <TooltipTrigger asChild>
+                      <Badge
+                        variant={value ? "secondary" : "outline"}
+                        className={`text-xs cursor-help ${
+                          isSystemMissing 
+                            ? 'border-dashed border-amber-500/50 text-amber-600 bg-amber-500/10' 
+                            : isSystemWithValue 
+                              ? 'bg-green-500/10 text-green-700 border-green-500/30'
+                              : !value 
+                                ? 'border-dashed text-muted-foreground' 
+                                : ''
+                        }`}
+                      >
+                        {param.system && <Info className="h-2.5 w-2.5 mr-1 opacity-60" />}
+                        {param.key}: {value || '—'}
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-[280px]">
+                      <div className="space-y-1">
+                        <p className="font-medium text-xs">{param.label}</p>
+                        {param.description && (
+                          <p className="text-xs text-muted-foreground">{param.description}</p>
+                        )}
+                        {param.system && !value && (
+                          <p className="text-xs text-amber-600">
+                            Configure this field in ActiPlan to auto-populate
+                          </p>
+                        )}
+                        {param.system && value && (
+                          <p className="text-xs text-green-600">✓ Auto-filled from ActiPlan</p>
+                        )}
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                );
+              })}
+          </div>
+        </TooltipProvider>
       )}
     </div>
   );
