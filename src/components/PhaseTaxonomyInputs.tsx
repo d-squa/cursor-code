@@ -287,14 +287,16 @@ export function PhaseTaxonomyInputs({
                   return (
                     <Popover key={param.id}>
                       <PopoverTrigger asChild>
-                        <Badge
-                          variant={value ? "secondary" : "outline"}
-                          className={badgeClassName}
-                        >
-                          {param.key}: {value || '—'}
-                        </Badge>
+                        <button type="button" className="focus:outline-none">
+                          <Badge
+                            variant={value ? "secondary" : "outline"}
+                            className={badgeClassName}
+                          >
+                            {param.key}: {value || '—'}
+                          </Badge>
+                        </button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-56 p-3" align="start">
+                      <PopoverContent className="w-56 p-3 pointer-events-auto" align="start">
                         {renderCustomParamInput(param)}
                       </PopoverContent>
                     </Popover>
