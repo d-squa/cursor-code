@@ -24,21 +24,27 @@ export interface TaxonomyContext {
   platform?: string;
   adAccountId?: string;
   adAccountName?: string;
-  // Campaign Level
-  campaignName?: string;
+  // Activation Level (from MediaPlanEditor)
+  activationName?: string;
   boNumber?: string;
   clientName?: string;
   teamName?: string;
+  totalBudget?: number;
+  // Campaign Level
+  campaignName?: string;
   objective?: string;
   funnelStage?: string;
   // Market Level
   country?: string;
   market?: string;
+  markets?: string[]; // Multiple markets for region detection
+  region?: string; // Auto-detected region
   // Phase/AdSet Level
   optimizationGoal?: string;
   conversionEvent?: string;
   bidStrategy?: string;
   billingEvent?: string;
+  phaseBudget?: number;
   // Placements
   placementType?: string; // automatic/manual
   placements?: string[];
@@ -46,12 +52,17 @@ export interface TaxonomyContext {
   advantagePlusPlacements?: boolean;
   // Targeting
   audienceType?: string;
+  targetingType?: string; // native, expand, similar, retargeting
   ageMin?: number;
   ageMax?: number;
   gender?: string;
+  devices?: string[];
+  positions?: Record<string, string[]>;
+  location?: string;
   // Budget
   budgetType?: string;
   budget?: number;
+  platformBudget?: number;
   // Creative/Ad Level
   adFormat?: string;
   creativeVariant?: string;
@@ -176,6 +187,40 @@ const VALUE_MAPPINGS: Record<string, Record<string, string>> = {
     'SA': 'SA',
     'ZA': 'ZA',
   },
+  // Regions (for multi-market grouping)
+  region: {
+    'MENA': 'MENA', // Middle East & North Africa
+    'EMEA': 'EMEA', // Europe, Middle East & Africa
+    'APAC': 'APAC', // Asia Pacific
+    'LATAM': 'LATAM', // Latin America
+    'NA': 'NA', // North America
+    'EU': 'EU', // European Union
+    'GCC': 'GCC', // Gulf Cooperation Council
+    'DACH': 'DACH', // Germany, Austria, Switzerland
+    'NORDICS': 'NRD', // Nordic countries
+    'ANZ': 'ANZ', // Australia & New Zealand
+    'SEA': 'SEA', // Southeast Asia
+  },
+  // Targeting types
+  targetingType: {
+    'native': 'NTV',
+    'native_only': 'NTV',
+    'expand': 'EXP',
+    'expand_to_new': 'EXP',
+    'similar': 'SIM',
+    'new_but_similar': 'SIM',
+    'retargeting': 'RTG',
+    'broad': 'BRD',
+    'lookalike': 'LAL',
+    'custom': 'CUS',
+  },
+  // Devices
+  device: {
+    'mobile': 'MOB',
+    'desktop': 'DSK',
+    'tablet': 'TAB',
+    'all': 'ALL',
+  },
   // Placement types
   placementType: {
     'PLACEMENT_TYPE_AUTOMATIC': 'AUTO',
@@ -260,6 +305,96 @@ const VALUE_MAPPINGS: Record<string, Record<string, string>> = {
     'Female': 'F',
   },
 };
+
+// Region mapping for multi-market detection
+const MARKET_TO_REGION: Record<string, string> = {
+  // MENA - Middle East & North Africa
+  'AE': 'MENA', 'SA': 'MENA', 'KW': 'MENA', 'QA': 'MENA', 'BH': 'MENA', 'OM': 'MENA',
+  'EG': 'MENA', 'MA': 'MENA', 'TN': 'MENA', 'DZ': 'MENA', 'JO': 'MENA', 'LB': 'MENA',
+  // GCC - Gulf Cooperation Council (subset of MENA)
+  // EU - European Union
+  'DE': 'EU', 'FR': 'EU', 'IT': 'EU', 'ES': 'EU', 'PT': 'EU', 'NL': 'EU', 'BE': 'EU',
+  'AT': 'EU', 'PL': 'EU', 'SE': 'EU', 'DK': 'EU', 'FI': 'EU', 'IE': 'EU', 'GR': 'EU',
+  'CZ': 'EU', 'HU': 'EU', 'RO': 'EU', 'BG': 'EU', 'SK': 'EU', 'HR': 'EU', 'SI': 'EU',
+  // DACH
+  // NA - North America
+  'US': 'NA', 'CA': 'NA',
+  // LATAM - Latin America
+  'MX': 'LATAM', 'BR': 'LATAM', 'AR': 'LATAM', 'CL': 'LATAM', 'CO': 'LATAM', 'PE': 'LATAM',
+  // APAC - Asia Pacific
+  'JP': 'APAC', 'KR': 'APAC', 'CN': 'APAC', 'IN': 'APAC', 'SG': 'APAC', 'MY': 'APAC',
+  'TH': 'APAC', 'VN': 'APAC', 'PH': 'APAC', 'ID': 'APAC', 'TW': 'APAC', 'HK': 'APAC',
+  // ANZ - Australia & New Zealand
+  'AU': 'ANZ', 'NZ': 'ANZ',
+  // UK/GB
+  'GB': 'EU', 'UK': 'EU',
+  // Africa
+  'ZA': 'EMEA', 'NG': 'EMEA', 'KE': 'EMEA',
+};
+
+// Detect region from multiple markets
+export function detectRegionFromMarkets(markets: string[]): string | undefined {
+  if (!markets || markets.length === 0) return undefined;
+  if (markets.length === 1) return undefined; // Single market doesn't need region
+  
+  // Get regions for all markets
+  const regions = markets.map(m => MARKET_TO_REGION[m.toUpperCase()]).filter(Boolean);
+  
+  // If all markets are in the same region, return that region
+  const uniqueRegions = [...new Set(regions)];
+  if (uniqueRegions.length === 1) {
+    return uniqueRegions[0];
+  }
+  
+  // Check for specific groupings
+  const upperMarkets = markets.map(m => m.toUpperCase());
+  
+  // DACH check
+  const dachCountries = ['DE', 'AT', 'CH'];
+  if (upperMarkets.every(m => dachCountries.includes(m))) return 'DACH';
+  
+  // Nordics check
+  const nordicCountries = ['SE', 'NO', 'DK', 'FI', 'IS'];
+  if (upperMarkets.every(m => nordicCountries.includes(m))) return 'NORDICS';
+  
+  // GCC check
+  const gccCountries = ['AE', 'SA', 'KW', 'QA', 'BH', 'OM'];
+  if (upperMarkets.every(m => gccCountries.includes(m))) return 'GCC';
+  
+  // SEA check
+  const seaCountries = ['SG', 'MY', 'TH', 'VN', 'PH', 'ID'];
+  if (upperMarkets.every(m => seaCountries.includes(m))) return 'SEA';
+  
+  // If multiple regions, return the most common one or MULTI
+  if (uniqueRegions.length > 1) return 'MULTI';
+  
+  return undefined;
+}
+
+// Format date for taxonomy (DDMM or MMDD format)
+export function formatDateForTaxonomy(dateStr: string): string {
+  if (!dateStr) return '';
+  try {
+    const date = new Date(dateStr);
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    return `${day}${month}`;
+  } catch {
+    return '';
+  }
+}
+
+// Format budget for taxonomy (K format)
+export function formatBudgetForTaxonomy(budget: number): string {
+  if (!budget || budget === 0) return '';
+  if (budget >= 1000000) {
+    return `${Math.round(budget / 1000000)}M`;
+  }
+  if (budget >= 1000) {
+    return `${Math.round(budget / 1000)}K`;
+  }
+  return Math.round(budget).toString();
+}
 
 // Shorten a value based on its category
 export function shortenValue(category: string, value: string): string {
@@ -407,6 +542,70 @@ export function extractTaxonomyValues(
           values[param.id] = `${context.ageMin}${context.ageMax}`;
         }
         break;
+      case 'activationName':
+        rawValue = context.activationName;
+        values[param.id] = rawValue ? createShortCode(rawValue) : '';
+        break;
+      case 'region':
+        // Auto-detect region from markets if multiple
+        if (context.region) {
+          values[param.id] = shortenValue('region', context.region);
+        } else if (context.markets && context.markets.length > 1) {
+          const detectedRegion = detectRegionFromMarkets(context.markets);
+          values[param.id] = detectedRegion ? shortenValue('region', detectedRegion) : '';
+        } else {
+          values[param.id] = '';
+        }
+        break;
+      case 'phaseBudget':
+        values[param.id] = context.phaseBudget ? formatBudgetForTaxonomy(context.phaseBudget) : '';
+        break;
+      case 'platformBudget':
+        values[param.id] = context.platformBudget ? formatBudgetForTaxonomy(context.platformBudget) : '';
+        break;
+      case 'totalBudget':
+        values[param.id] = context.totalBudget ? formatBudgetForTaxonomy(context.totalBudget) : '';
+        break;
+      case 'startDate':
+        values[param.id] = context.startDate ? formatDateForTaxonomy(context.startDate) : '';
+        break;
+      case 'endDate':
+        values[param.id] = context.endDate ? formatDateForTaxonomy(context.endDate) : '';
+        break;
+      case 'targetingType':
+        rawValue = context.targetingType;
+        values[param.id] = rawValue ? shortenValue('targetingType', rawValue) : '';
+        break;
+      case 'devices':
+        if (context.devices && context.devices.length > 0) {
+          if (context.devices.length === 1) {
+            values[param.id] = shortenValue('device', context.devices[0]);
+          } else {
+            values[param.id] = 'ALL';
+          }
+        } else {
+          values[param.id] = 'ALL';
+        }
+        break;
+      case 'location':
+        rawValue = context.location || context.country || context.market;
+        values[param.id] = rawValue ? shortenValue('country', rawValue) : '';
+        break;
+      case 'positions':
+        // Format positions summary
+        if (context.positions) {
+          const posKeys = Object.keys(context.positions).filter(k => context.positions?.[k]?.length);
+          if (posKeys.length === 0) {
+            values[param.id] = 'AUTO';
+          } else if (posKeys.length === 1) {
+            values[param.id] = shortenValue('publisherPlatform', posKeys[0]);
+          } else {
+            values[param.id] = 'MIX';
+          }
+        } else {
+          values[param.id] = 'AUTO';
+        }
+        break;
       default:
         // For fixed values, use the param's value
         if (param.type === 'fixed' && param.value) {
@@ -423,41 +622,71 @@ export function extractTaxonomyValues(
 export function getDefaultCampaignParams(platform: 'meta' | 'tiktok'): TaxonomyParam[] {
   return [
     {
-      id: 'platform',
-      key: 'PLAT',
-      label: 'Platform',
-      type: 'fixed',
-      value: platform === 'meta' ? 'META' : 'TT',
-      system: true,
-      required: true,
-    },
-    {
-      id: 'objective',
-      key: 'OBJ',
-      label: 'Objective',
-      type: 'options',
-      options: platform === 'meta' 
-        ? ['AWR', 'ENG', 'TRF', 'LED', 'APP', 'SAL']
-        : ['RCH', 'TRF', 'VV', 'CVN', 'LDG', 'PSL'],
+      id: 'activationName',
+      key: 'ACT',
+      label: 'Activation Name',
+      type: 'text',
       system: true,
       required: true,
     },
     {
       id: 'country',
       key: 'MKT',
-      label: 'Market/Country',
+      label: 'Market/Region',
       type: 'options',
-      options: Object.values(VALUE_MAPPINGS.country),
+      options: [...Object.values(VALUE_MAPPINGS.country), ...Object.values(VALUE_MAPPINGS.region)],
       system: true,
       required: true,
     },
     {
-      id: 'funnelStage',
-      key: 'FNL',
-      label: 'Funnel Stage',
+      id: 'placementType',
+      key: 'PLC',
+      label: 'Placements',
       type: 'options',
-      options: ['TOF', 'MOF', 'BOF', 'RET'],
-      system: false,
+      options: platform === 'meta'
+        ? ['AUTO', 'FB', 'IG', 'AN', 'MIX']
+        : ['AUTO', 'TT', 'GAB', 'PAN', 'MAN'],
+      system: true,
+      required: true,
+    },
+    {
+      id: 'platformBudget',
+      key: 'BDG',
+      label: 'Platform Budget',
+      type: 'number',
+      system: true,
+      required: true,
+    },
+    {
+      id: 'startDate',
+      key: 'STR',
+      label: 'Start Date',
+      type: 'text',
+      system: true,
+      required: true,
+    },
+    {
+      id: 'endDate',
+      key: 'END',
+      label: 'End Date',
+      type: 'text',
+      system: true,
+      required: true,
+    },
+    {
+      id: 'boNumber',
+      key: 'BO',
+      label: 'BO Number',
+      type: 'text',
+      system: true,
+      required: false,
+    },
+    {
+      id: 'teamName',
+      key: 'TEAM',
+      label: 'Team Name',
+      type: 'text',
+      system: true,
       required: false,
     },
   ];
@@ -466,15 +695,6 @@ export function getDefaultCampaignParams(platform: 'meta' | 'tiktok'): TaxonomyP
 // Generate default ad set taxonomy params
 export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyParam[] {
   return [
-    {
-      id: 'audienceType',
-      key: 'AUD',
-      label: 'Audience Type',
-      type: 'options',
-      options: ['BRD', 'INT', 'LAL', 'RTG', 'CUS'],
-      system: true,
-      required: true,
-    },
     {
       id: 'optimizationGoal',
       key: 'OPT',
@@ -487,26 +707,76 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyPara
       required: true,
     },
     {
-      id: 'placementType',
-      key: 'PLC',
-      label: 'Placement',
+      id: 'phaseBudget',
+      key: 'BDG',
+      label: 'Phase Budget',
+      type: 'number',
+      system: true,
+      required: true,
+    },
+    {
+      id: 'budgetType',
+      key: 'BTYP',
+      label: 'Budget Type',
       type: 'options',
-      options: platform === 'meta'
-        ? ['AUTO', 'FB', 'IG', 'AN', 'MIX']
-        : ['AUTO', 'TT', 'GAB', 'PAN', 'MAN'],
+      options: ['DBD', 'LTB'],
+      system: true,
+      required: true,
+    },
+    {
+      id: 'ageRange',
+      key: 'AGE',
+      label: 'Age Range',
+      type: 'text',
+      system: true,
+      required: true,
+    },
+    {
+      id: 'gender',
+      key: 'GND',
+      label: 'Gender',
+      type: 'options',
+      options: ['ALL', 'M', 'F'],
+      system: true,
+      required: true,
+    },
+    {
+      id: 'location',
+      key: 'LOC',
+      label: 'Location',
+      type: 'options',
+      options: Object.values(VALUE_MAPPINGS.country),
+      system: true,
+      required: true,
+    },
+    {
+      id: 'devices',
+      key: 'DEV',
+      label: 'Devices',
+      type: 'options',
+      options: ['ALL', 'MOB', 'DSK', 'TAB'],
       system: true,
       required: false,
     },
     {
-      id: 'bidStrategy',
-      key: 'BID',
-      label: 'Bid Strategy',
+      id: 'positions',
+      key: 'POS',
+      label: 'Positions',
       type: 'options',
       options: platform === 'meta'
-        ? ['LC', 'BC', 'CC']
-        : ['LC', 'CB', 'MC', 'NB'],
-      system: false,
+        ? ['AUTO', 'FB', 'IG', 'AN', 'MIX']
+        : ['AUTO', 'TT', 'GAB', 'PAN'],
+      system: true,
       required: false,
+    },
+    {
+      id: 'targetingType',
+      key: 'TGT',
+      label: 'Targeting Type',
+      type: 'options',
+      options: ['NTV', 'EXP', 'SIM', 'RTG', 'BRD', 'LAL'],
+      system: true,
+      required: true,
     },
   ];
 }
