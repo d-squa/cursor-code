@@ -92,6 +92,28 @@ export function MediaPlanEditor() {
   const [bulkPlatform, setBulkPlatform] = useState<PlatformWithMarkets | null>(null);
   const [teamName, setTeamName] = useState<string>("");
   
+  // Taxonomy validation state - track per market
+  const [taxonomyValidation, setTaxonomyValidation] = useState<Record<string, { isComplete: boolean; missingCount: number }>>({});
+  
+  // Helper to update taxonomy validation for a specific market
+  const handleMarketTaxonomyValidation = (marketId: string, isComplete: boolean, missingCount: number) => {
+    setTaxonomyValidation(prev => ({
+      ...prev,
+      [marketId]: { isComplete, missingCount }
+    }));
+  };
+  
+  // Check if all taxonomy fields are complete across all markets
+  const isTaxonomyComplete = () => {
+    // If no validation data, assume complete (no templates configured)
+    if (Object.keys(taxonomyValidation).length === 0) return true;
+    return Object.values(taxonomyValidation).every(v => v.isComplete);
+  };
+  
+  const getTotalMissingTaxonomyFields = () => {
+    return Object.values(taxonomyValidation).reduce((sum, v) => sum + v.missingCount, 0);
+  };
+  
   // Load team name for current user
   useEffect(() => {
     if (user) {
@@ -2117,6 +2139,7 @@ export function MediaPlanEditor() {
                                     markets: platform.markets.map(m => m.name),
                                     platformBudget: parseFloat(totalBudget || "0") * ((platform.budgetPercentage || 0) / 100),
                                   }}
+                                  onTaxonomyValidationChange={(isComplete, missingCount) => handleMarketTaxonomyValidation(market.id, isComplete, missingCount)}
                                   />
                                 </Card>
                               ))}
@@ -2234,6 +2257,12 @@ export function MediaPlanEditor() {
                     }
                     await applyBudgetTypeDefaultsIfAvailable();
                     if (!validateBudgetTypes()) {
+                      return;
+                    }
+                    // Check taxonomy validation before proceeding
+                    if (!isTaxonomyComplete()) {
+                      const missingCount = getTotalMissingTaxonomyFields();
+                      toast.error(`Please fill all required custom taxonomy fields before proceeding (${missingCount} field${missingCount === 1 ? '' : 's'} missing)`);
                       return;
                     }
                     await ensureDraft();

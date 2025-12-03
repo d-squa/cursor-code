@@ -80,6 +80,8 @@ interface PhaseSchedulerProps {
     markets?: string[];
     platformBudget?: number;
   };
+  // Taxonomy validation callback - reports if all custom fields are complete
+  onTaxonomyValidationChange?: (isComplete: boolean, totalMissing: number) => void;
 }
 
 interface DraggingState {
@@ -104,7 +106,8 @@ export function PhaseScheduler({
   marketBudget,
   adAccountId,
   basicTargeting,
-  activationContext
+  activationContext,
+  onTaxonomyValidationChange
 }: PhaseSchedulerProps) {
   console.log("PhaseScheduler marketBudget:", marketBudget);
   const [dragging, setDragging] = useState<DraggingState | null>(null);
@@ -114,6 +117,30 @@ export function PhaseScheduler({
   const [budgetTypeDialogOpen, setBudgetTypeDialogOpen] = useState(false);
   const [pendingBudgetType, setPendingBudgetType] = useState<"daily" | "lifetime" | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  
+  // Taxonomy validation state - track per phase per entity type
+  const [taxonomyValidation, setTaxonomyValidation] = useState<Record<string, { campaign: boolean; adset: boolean; campaignMissing: number; adsetMissing: number }>>({});
+  
+  // Report aggregated validation status to parent
+  useEffect(() => {
+    const totalMissing = Object.values(taxonomyValidation).reduce((sum, v) => sum + v.campaignMissing + v.adsetMissing, 0);
+    const allComplete = Object.values(taxonomyValidation).every(v => v.campaign && v.adset);
+    onTaxonomyValidationChange?.(allComplete, totalMissing);
+  }, [taxonomyValidation, onTaxonomyValidationChange]);
+  
+  // Helper to update taxonomy validation for a specific phase
+  const handleTaxonomyValidation = (phaseId: string, entityType: 'campaign' | 'adset', isComplete: boolean, missingCount: number) => {
+    setTaxonomyValidation(prev => ({
+      ...prev,
+      [phaseId]: {
+        ...prev[phaseId],
+        campaign: entityType === 'campaign' ? isComplete : (prev[phaseId]?.campaign ?? true),
+        adset: entityType === 'adset' ? isComplete : (prev[phaseId]?.adset ?? true),
+        campaignMissing: entityType === 'campaign' ? missingCount : (prev[phaseId]?.campaignMissing ?? 0),
+        adsetMissing: entityType === 'adset' ? missingCount : (prev[phaseId]?.adsetMissing ?? 0),
+      }
+    }));
+  };
 
   // Helper to get default publishers and placements for platforms
   const getDefaultPublisherConfig = () => {
@@ -901,6 +928,7 @@ export function PhaseScheduler({
                               startDate: phase.startDate || startDate,
                               endDate: phase.endDate || endDate,
                             }}
+                            onValidationChange={(isComplete, missing) => handleTaxonomyValidation(phase.id, 'campaign', isComplete, missing)}
                           />
                           <PhaseTaxonomyInputs
                             adAccountId={adAccountId}
@@ -919,6 +947,7 @@ export function PhaseScheduler({
                               positions: phase.positions,
                               targetingType: phase.targeting?.targetingExpansion ? 'expand' : 'native',
                             }}
+                            onValidationChange={(isComplete, missing) => handleTaxonomyValidation(phase.id, 'adset', isComplete, missing)}
                           />
                         </div>
                       )}

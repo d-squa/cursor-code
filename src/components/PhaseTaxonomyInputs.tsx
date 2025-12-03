@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2, FileText, Info, RefreshCw } from "lucide-react";
+import { CheckCircle2, FileText, Info, RefreshCw, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Tooltip,
@@ -24,13 +24,16 @@ interface PhaseTaxonomyInputsProps {
   entityType: 'campaign' | 'adset';
   // Context values automatically extracted from ActiPlan
   context: TaxonomyContext;
+  // Validation callback - reports whether all custom fields are complete
+  onValidationChange?: (isComplete: boolean, missingCount: number) => void;
 }
 
 export function PhaseTaxonomyInputs({
   adAccountId,
   platform,
   entityType,
-  context
+  context,
+  onValidationChange
 }: PhaseTaxonomyInputsProps) {
   const [template, setTemplate] = useState<TaxonomyParam[]>([]);
   const [loading, setLoading] = useState(true);
@@ -108,8 +111,15 @@ export function PhaseTaxonomyInputs({
       setExtractedValues(values);
       const generated = generateTaxonomyString(template, values);
       setTaxonomyString(generated);
+      
+      // Report validation status
+      const missing = getMissingRequiredCount(template, values);
+      onValidationChange?.(missing === 0, missing);
+    } else {
+      // No template = complete (nothing to validate)
+      onValidationChange?.(true, 0);
     }
-  }, [template, context]);
+  }, [template, context, onValidationChange]);
 
   if (loading) {
     return null;
@@ -146,14 +156,15 @@ export function PhaseTaxonomyInputs({
           >
             <RefreshCw className={`h-3 w-3 ${refreshing ? 'animate-spin' : ''}`} />
           </Button>
-          {systemParamsFilled ? (
+          {missingCount > 0 ? (
+            <Badge variant="outline" className="text-xs bg-destructive/10 text-destructive border-destructive/30">
+              <AlertCircle className="h-3 w-3 mr-1" />
+              {missingCount} custom {missingCount === 1 ? 'field' : 'fields'} required
+            </Badge>
+          ) : systemParamsFilled ? (
             <Badge variant="outline" className="text-xs bg-green-500/10 text-green-600 border-green-500/30">
               <CheckCircle2 className="h-3 w-3 mr-1" />
               Auto-generated
-            </Badge>
-          ) : missingCount > 0 ? (
-            <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-600 border-amber-500/30">
-              {missingCount} custom {missingCount === 1 ? 'field' : 'fields'} pending
             </Badge>
           ) : (
             <Badge variant="outline" className="text-xs bg-green-500/10 text-green-600 border-green-500/30">
@@ -185,6 +196,8 @@ export function PhaseTaxonomyInputs({
                 const value = extractedValues[param.id] || param.value;
                 const isSystemWithValue = param.system && value;
                 const isSystemMissing = param.system && !value;
+                const isCustomMissing = !param.system && !value;
+                const isCustomFilled = !param.system && value;
                 
                 return (
                   <Tooltip key={param.id}>
@@ -192,13 +205,15 @@ export function PhaseTaxonomyInputs({
                       <Badge
                         variant={value ? "secondary" : "outline"}
                         className={`text-xs cursor-help ${
-                          isSystemMissing 
-                            ? 'border-dashed border-amber-500/50 text-amber-600 bg-amber-500/10' 
-                            : isSystemWithValue 
+                          isCustomMissing 
+                            ? 'border-destructive bg-destructive/10 text-destructive' 
+                            : isCustomFilled
                               ? 'bg-green-500/10 text-green-700 border-green-500/30'
-                              : !value 
-                                ? 'border-dashed text-muted-foreground' 
-                                : ''
+                              : isSystemMissing 
+                                ? 'border-dashed border-amber-500/50 text-amber-600 bg-amber-500/10' 
+                                : isSystemWithValue 
+                                  ? 'bg-green-500/10 text-green-700 border-green-500/30'
+                                  : ''
                         }`}
                       >
                         {param.system && <Info className="h-2.5 w-2.5 mr-1 opacity-60" />}
@@ -222,9 +237,12 @@ export function PhaseTaxonomyInputs({
                           <p className="text-xs text-green-600">✓ Auto-filled from ActiPlan</p>
                         )}
                         {!param.system && !value && (
-                          <p className="text-xs text-amber-600">
-                            This custom field requires manual input
+                          <p className="text-xs text-destructive font-medium">
+                            ⚠ Required: Enter value to proceed
                           </p>
+                        )}
+                        {!param.system && value && (
+                          <p className="text-xs text-green-600">✓ Custom field filled</p>
                         )}
                       </div>
                     </TooltipContent>
