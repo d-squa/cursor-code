@@ -25,7 +25,8 @@ export default function AccountTaxonomySection({
       </div>
       
       <p className="text-xs text-muted-foreground">
-        Configure naming conventions for campaigns, ad sets, and ads. These templates will be used to generate clean, consistent names.
+        Configure naming structure for campaigns, ad sets, and ads. Values are auto-extracted from ActiPlan workflow data. 
+        Click "Reset" to update to the latest default template.
       </p>
 
       <Accordion type="multiple" className="space-y-2">

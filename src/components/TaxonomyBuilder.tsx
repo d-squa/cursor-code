@@ -279,7 +279,7 @@ export default function TaxonomyBuilder({
               {entityLabel} Taxonomy
             </CardTitle>
             <CardDescription className="text-xs mt-1">
-              Define naming convention for {entityLabel.toLowerCase()}s
+              Structure only - values auto-populate from ActiPlan
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">

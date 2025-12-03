@@ -619,6 +619,7 @@ export function extractTaxonomyValues(
 }
 
 // Generate default campaign taxonomy params
+// Campaign: activation name, market, placements, platform budget, start date, end date, BO number, team name
 export function getDefaultCampaignParams(platform: 'meta' | 'tiktok'): TaxonomyParam[] {
   return [
     {
@@ -693,6 +694,7 @@ export function getDefaultCampaignParams(platform: 'meta' | 'tiktok'): TaxonomyP
 }
 
 // Generate default ad set taxonomy params
+// AdSet: optimization goal, total phase budget, budget type, age, gender, location, device, placements, positions, targeting type
 export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyParam[] {
   return [
     {
@@ -756,7 +758,18 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyPara
       type: 'options',
       options: ['ALL', 'MOB', 'DSK', 'TAB'],
       system: true,
-      required: false,
+      required: true,
+    },
+    {
+      id: 'placementType',
+      key: 'PLC',
+      label: 'Placements',
+      type: 'options',
+      options: platform === 'meta'
+        ? ['AUTO', 'FB', 'IG', 'AN', 'MIX']
+        : ['AUTO', 'TT', 'GAB', 'PAN'],
+      system: true,
+      required: true,
     },
     {
       id: 'positions',
@@ -764,7 +777,7 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyPara
       label: 'Positions',
       type: 'options',
       options: platform === 'meta'
-        ? ['AUTO', 'FB', 'IG', 'AN', 'MIX']
+        ? ['AUTO', 'FEED', 'STORY', 'REEL', 'MIX']
         : ['AUTO', 'TT', 'GAB', 'PAN'],
       system: true,
       required: false,
