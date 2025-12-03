@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -59,6 +59,10 @@ export function PhaseTaxonomyInputs({
   const [refreshing, setRefreshing] = useState(false);
   const [taxonomyString, setTaxonomyString] = useState("");
   const [extractedValues, setExtractedValues] = useState<Record<string, string>>({});
+
+  // Store callback in ref to avoid re-render loops
+  const validationCallbackRef = useRef(onValidationChange);
+  validationCallbackRef.current = onValidationChange;
 
   // Load taxonomy template for this account and entity type
   const loadTemplate = useCallback(async (showRefreshState = false) => {
@@ -137,14 +141,14 @@ export function PhaseTaxonomyInputs({
       const generated = generateTaxonomyString(template, allValues);
       setTaxonomyString(generated);
       
-      // Report validation status using merged values
+      // Report validation status using merged values via ref (avoids re-render loop)
       const missing = getMissingRequiredCount(template, allValues);
-      onValidationChange?.(missing === 0, missing);
+      validationCallbackRef.current?.(missing === 0, missing);
     } else {
       // No template = complete (nothing to validate)
-      onValidationChange?.(true, 0);
+      validationCallbackRef.current?.(true, 0);
     }
-  }, [template, context, customValues, onValidationChange]);
+  }, [template, context, customValues]);
 
   if (loading) {
     return null;
