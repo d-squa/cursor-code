@@ -15,6 +15,9 @@ interface PhaseTaxonomyPreviewProps {
   platform: 'meta' | 'tiktok';
   // Context values automatically extracted from ActiPlan phase/market data
   context: TaxonomyContext;
+  // Custom parameter values filled by user
+  campaignCustomValues?: Record<string, string>;
+  adsetCustomValues?: Record<string, string>;
 }
 
 interface TaxonomyTemplates {
@@ -25,7 +28,9 @@ interface TaxonomyTemplates {
 export function PhaseTaxonomyPreview({
   adAccountId,
   platform,
-  context
+  context,
+  campaignCustomValues = {},
+  adsetCustomValues = {}
 }: PhaseTaxonomyPreviewProps) {
   const [templates, setTemplates] = useState<TaxonomyTemplates>({ campaign: [], adset: [] });
   const [loading, setLoading] = useState(true);
@@ -91,13 +96,17 @@ export function PhaseTaxonomyPreview({
     return null;
   }
 
-  // Extract values and generate taxonomy strings
-  const campaignValues = templates.campaign.length > 0 
+  // Extract values and merge with custom values
+  const campaignExtracted = templates.campaign.length > 0 
     ? extractTaxonomyValues(templates.campaign, context) 
     : {};
-  const adsetValues = templates.adset.length > 0 
+  const adsetExtracted = templates.adset.length > 0 
     ? extractTaxonomyValues(templates.adset, context) 
     : {};
+
+  // Merge extracted system values with user-provided custom values
+  const campaignValues = { ...campaignExtracted, ...campaignCustomValues };
+  const adsetValues = { ...adsetExtracted, ...adsetCustomValues };
 
   const campaignTaxonomy = templates.campaign.length > 0 
     ? generateTaxonomyString(templates.campaign, campaignValues)
@@ -106,7 +115,7 @@ export function PhaseTaxonomyPreview({
     ? generateTaxonomyString(templates.adset, adsetValues)
     : '';
 
-  // Calculate missing counts
+  // Calculate missing counts (only custom params, system params should auto-fill)
   const campaignMissing = getMissingRequiredCount(templates.campaign, campaignValues);
   const adsetMissing = getMissingRequiredCount(templates.adset, adsetValues);
   const totalMissing = campaignMissing + adsetMissing;
