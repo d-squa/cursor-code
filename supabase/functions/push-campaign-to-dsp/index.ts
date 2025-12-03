@@ -6,6 +6,251 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// ============= TAXONOMY GENERATION HELPERS =============
+// Replicates frontend taxonomy generation logic for campaign/ad set naming
+
+interface TaxonomyParam {
+  id: string;
+  key: string;
+  label: string;
+  type: string;
+  value?: string;
+  options?: string[];
+  required?: boolean;
+  system?: boolean;
+}
+
+interface TaxonomyContext {
+  platform?: string;
+  activationName?: string;
+  boNumber?: string;
+  teamName?: string;
+  totalBudget?: number;
+  platformBudget?: number;
+  market?: string;
+  country?: string;
+  objective?: string;
+  optimizationGoal?: string;
+  funnelStage?: string;
+  bidStrategy?: string;
+  budgetType?: string;
+  phaseBudget?: number;
+  ageMin?: number;
+  ageMax?: number;
+  gender?: string;
+  location?: string;
+  devices?: string[];
+  placementType?: string;
+  advantagePlusPlacements?: boolean;
+  publisherPlatforms?: string[];
+  targetingType?: string;
+  startDate?: string;
+  endDate?: string;
+}
+
+// Value shortening mappings
+const VALUE_MAPPINGS: Record<string, Record<string, string>> = {
+  platform: { 'meta': 'META', 'tiktok': 'TT', 'google': 'GADS' },
+  objective: {
+    'OUTCOME_AWARENESS': 'AWR', 'OUTCOME_ENGAGEMENT': 'ENG', 'OUTCOME_TRAFFIC': 'TRF',
+    'OUTCOME_LEADS': 'LED', 'OUTCOME_APP_PROMOTION': 'APP', 'OUTCOME_SALES': 'SAL',
+    'REACH': 'RCH', 'VIDEO_VIEWS': 'VV', 'TRAFFIC': 'TRF', 'CONVERSIONS': 'CVN',
+    'APP_INSTALLS': 'API', 'LEAD_GENERATION': 'LDG',
+  },
+  optimizationGoal: {
+    'REACH': 'RCH', 'IMPRESSIONS': 'IMP', 'LINK_CLICKS': 'CLK', 'LANDING_PAGE_VIEWS': 'LPV',
+    'CONVERSIONS': 'CVN', 'VALUE': 'VAL', 'OFFSITE_CONVERSIONS': 'OCV', 'CLICK': 'CLK',
+    'CONVERT': 'CVT', 'VIDEO_VIEW': 'VV',
+  },
+  country: {
+    'US': 'US', 'GB': 'UK', 'DE': 'DE', 'FR': 'FR', 'ES': 'ES', 'IT': 'IT',
+    'NL': 'NL', 'BE': 'BE', 'MX': 'MX', 'BR': 'BR', 'JP': 'JP', 'AU': 'AU',
+  },
+  bidStrategy: {
+    'LOWEST_COST_WITHOUT_CAP': 'LC', 'LOWEST_COST_WITH_BID_CAP': 'BC', 'COST_CAP': 'CC',
+    'LOWEST_COST': 'LC', 'BID_TYPE_NO_BID': 'NB',
+  },
+  budgetType: { 'daily': 'DLY', 'lifetime': 'LTB' },
+  placementType: { 'PLACEMENT_TYPE_AUTOMATIC': 'AUTO', 'PLACEMENT_TYPE_NORMAL': 'MAN', 'automatic': 'AUTO', 'manual': 'MAN' },
+  gender: { 'all': 'ALL', 'male': 'M', 'female': 'F', '1': 'M', '2': 'F' },
+  device: { 'mobile': 'MOB', 'desktop': 'DSK', 'all': 'ALL' },
+  targetingType: { 'native': 'NTV', 'expand': 'EXP', 'retargeting': 'RTG', 'broad': 'BRD' },
+};
+
+function shortenValue(category: string, value: string): string {
+  if (!value) return '';
+  const mappings = VALUE_MAPPINGS[category];
+  if (mappings && mappings[value]) return mappings[value];
+  // Create short code from value
+  const cleaned = value.replace(/[^a-zA-Z0-9]/g, '');
+  if (cleaned.length <= 3) return cleaned.toUpperCase();
+  return cleaned.substring(0, 3).toUpperCase();
+}
+
+function formatDateForTaxonomy(dateStr: string): string {
+  if (!dateStr) return '';
+  try {
+    const date = new Date(dateStr);
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    return `${day}${month}`;
+  } catch { return ''; }
+}
+
+function formatBudgetForTaxonomy(budget: number): string {
+  if (!budget || budget === 0) return '';
+  if (budget >= 1000000) return `${Math.round(budget / 1000000)}M`;
+  if (budget >= 1000) return `${Math.round(budget / 1000)}K`;
+  return Math.round(budget).toString();
+}
+
+function extractTaxonomyValues(template: TaxonomyParam[], context: TaxonomyContext): Record<string, string> {
+  const values: Record<string, string> = {};
+  
+  for (const param of template) {
+    let rawValue: string | undefined;
+    
+    switch (param.id) {
+      case 'platform':
+        values[param.id] = context.platform ? shortenValue('platform', context.platform) : '';
+        break;
+      case 'objective':
+        values[param.id] = context.objective ? shortenValue('objective', context.objective) : '';
+        break;
+      case 'optimizationGoal':
+        values[param.id] = context.optimizationGoal ? shortenValue('optimizationGoal', context.optimizationGoal) : '';
+        break;
+      case 'country':
+      case 'market':
+        rawValue = context.country || context.market;
+        values[param.id] = rawValue ? shortenValue('country', rawValue.toUpperCase()) : '';
+        break;
+      case 'location':
+        rawValue = context.location || context.country || context.market;
+        values[param.id] = rawValue ? shortenValue('country', rawValue.toUpperCase()) : '';
+        break;
+      case 'bidStrategy':
+        values[param.id] = context.bidStrategy ? shortenValue('bidStrategy', context.bidStrategy) : '';
+        break;
+      case 'budgetType':
+        values[param.id] = context.budgetType ? shortenValue('budgetType', context.budgetType) : '';
+        break;
+      case 'placementType':
+      case 'placement':
+        if (context.advantagePlusPlacements === true) {
+          values[param.id] = 'AUTO';
+        } else if (context.placementType) {
+          values[param.id] = shortenValue('placementType', context.placementType);
+        } else {
+          values[param.id] = 'AUTO';
+        }
+        break;
+      case 'gender':
+        values[param.id] = context.gender ? shortenValue('gender', context.gender) : 'ALL';
+        break;
+      case 'ageRange':
+        const ageMin = context.ageMin || 18;
+        const ageMax = context.ageMax || 65;
+        values[param.id] = `${ageMin}${ageMax}`;
+        break;
+      case 'devices':
+        if (context.devices && context.devices.length > 0 && context.devices.length < 3) {
+          values[param.id] = shortenValue('device', context.devices[0]);
+        } else {
+          values[param.id] = 'ALL';
+        }
+        break;
+      case 'targetingType':
+        values[param.id] = context.targetingType ? shortenValue('targetingType', context.targetingType) : '';
+        break;
+      case 'activationName':
+        // Don't shorten activation name - preserve as is with special chars removed
+        values[param.id] = context.activationName?.replace(/[^a-zA-Z0-9]/g, '') || '';
+        break;
+      case 'boNumber':
+        values[param.id] = context.boNumber?.replace(/[^a-zA-Z0-9]/g, '') || '';
+        break;
+      case 'teamName':
+        values[param.id] = context.teamName?.replace(/[^a-zA-Z0-9]/g, '') || '';
+        break;
+      case 'platformBudget':
+      case 'phaseBudget':
+      case 'totalBudget':
+        const budget = context.platformBudget || context.phaseBudget || context.totalBudget;
+        values[param.id] = budget ? formatBudgetForTaxonomy(budget) : '';
+        break;
+      case 'startDate':
+        values[param.id] = context.startDate ? formatDateForTaxonomy(context.startDate) : '';
+        break;
+      case 'endDate':
+        values[param.id] = context.endDate ? formatDateForTaxonomy(context.endDate) : '';
+        break;
+      default:
+        if (param.type === 'fixed' && param.value) {
+          values[param.id] = param.value;
+        }
+        break;
+    }
+  }
+  
+  return values;
+}
+
+function generateTaxonomyString(template: TaxonomyParam[], values: Record<string, string>): string {
+  const parts: string[] = [];
+  
+  for (const param of template) {
+    if (param.required === false && !param.system) continue;
+    const value = values[param.id] || param.value || '';
+    if (value) {
+      parts.push(value.toUpperCase());
+    }
+  }
+  
+  return parts.join('_');
+}
+
+// Helper to generate taxonomy name for campaign or adset
+async function generateTaxonomyName(
+  supabase: any,
+  userId: string,
+  adAccountId: string,
+  platform: 'meta' | 'tiktok',
+  entityType: 'campaign' | 'adset',
+  context: TaxonomyContext,
+  customValues?: Record<string, string>
+): Promise<string | null> {
+  try {
+    // Fetch taxonomy template from database
+    const { data: templateData, error } = await supabase
+      .from('taxonomy_templates')
+      .select('template')
+      .eq('user_id', userId)
+      .eq('ad_account_id', adAccountId)
+      .eq('platform', platform)
+      .eq('entity_type', entityType)
+      .maybeSingle();
+    
+    if (error || !templateData?.template) {
+      console.log(`No taxonomy template found for ${platform} ${entityType} on account ${adAccountId}`);
+      return null;
+    }
+    
+    const template = templateData.template as TaxonomyParam[];
+    const extractedValues = extractTaxonomyValues(template, context);
+    // Merge with custom values (custom values override extracted)
+    const mergedValues = { ...extractedValues, ...customValues };
+    const taxonomyString = generateTaxonomyString(template, mergedValues);
+    
+    console.log(`📋 Generated ${entityType} taxonomy: ${taxonomyString}`);
+    return taxonomyString;
+  } catch (err) {
+    console.error(`Error generating taxonomy name:`, err);
+    return null;
+  }
+}
+// ============= END TAXONOMY HELPERS =============
+
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -113,7 +358,7 @@ const handler = async (req: Request): Promise<Response> => {
       };
 
       if (platformName.includes('Meta') || platformName.includes('Facebook')) {
-        const result = await pushToMeta(campaign, platformConfig, platform);
+        const result = await pushToMeta(campaign, platformConfig, platform, supabase);
         results.push(result);
       } else if (platformName.includes('Google')) {
         const result = await pushToGoogleAds(campaign, platformConfig, platform);
@@ -186,7 +431,7 @@ function getMetaObjectiveFromPhase(phaseName: string, strategyFocus?: string, op
   return { objective: 'OUTCOME_TRAFFIC', optimizationGoal: 'LINK_CLICKS' };
 }
 
-async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
+async function pushToMeta(campaign: any, platformConfig: any, platform: any, supabase: any) {
   console.log("Pushing to Meta...");
   
   const results = [];
@@ -257,9 +502,45 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
           }
         }
         
-        // Create campaign
+        // Create campaign - try to use taxonomy name first
+        const genericConfig = campaign.generic_config || {};
+        const adAccountId = (market as any).adAccountId || (market as any).ad_account_id;
+        
+        // Build context for campaign taxonomy
+        const campaignTaxonomyContext: TaxonomyContext = {
+          platform: 'meta',
+          activationName: campaign.name,
+          boNumber: campaign.bo_number,
+          teamName: genericConfig.teamName,
+          totalBudget: campaign.total_budget,
+          platformBudget: (campaign.total_budget * (platformConfig.budgetPercentage || 100) / 100) * ((market.budgetPercentage || 100) / 100),
+          market: market.name,
+          country: market.name?.substring(0, 2)?.toUpperCase(),
+          objective: objective,
+          optimizationGoal: optimizationGoal,
+          funnelStage: phase.funnelStage,
+          placementType: phase.advantagePlusPlacements ? 'automatic' : (phase.tiktokPlacementType || 'manual'),
+          advantagePlusPlacements: phase.advantagePlusPlacements,
+          publisherPlatforms: phase.publisherPlatforms,
+          startDate: phase.startDate || campaign.start_date,
+          endDate: phase.endDate || campaign.end_date,
+        };
+        
+        // Generate taxonomy name or fall back to default
+        const campaignTaxonomyName = adAccountId ? await generateTaxonomyName(
+          supabase, 
+          campaign.user_id, 
+          adAccountId, 
+          'meta', 
+          'campaign',
+          campaignTaxonomyContext,
+          phase.campaignTaxonomyValues
+        ) : null;
+        
+        const defaultCampaignName = `${campaign.name} - ${market.name}${phases.length > 1 ? ` - ${phase.name}` : ''}`;
+        
         const campaignPayload = {
-          name: `${campaign.name} - ${market.name}${phases.length > 1 ? ` - ${phase.name}` : ''}`,
+          name: campaignTaxonomyName || defaultCampaignName,
           objective: objective,
           status: "PAUSED",
           special_ad_categories: [],
@@ -799,9 +1080,39 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any) {
           finalBidStrategy = "LOWEST_COST_WITHOUT_CAP";
         }
 
-        // Create ad set
+        // Create ad set - try to use taxonomy name first
+        const adsetTaxonomyContext: TaxonomyContext = {
+          platform: 'meta',
+          objective: objective,
+          optimizationGoal: optimizationGoal,
+          phaseBudget: phaseBudget,
+          budgetType: budgetType,
+          ageMin: effectiveBasicTargeting.ageMin || 18,
+          ageMax: effectiveBasicTargeting.ageMax || 65,
+          gender: effectiveBasicTargeting.genders?.[0],
+          location: market.name,
+          devices: effectiveBasicTargeting.devices,
+          placementType: advantagePlusPlacements ? 'automatic' : 'manual',
+          advantagePlusPlacements: advantagePlusPlacements,
+          targetingType: effectiveBasicTargeting.targetingExpansion ? 'expand' : 'native',
+          startDate: phase.startDate || campaign.start_date,
+          endDate: phase.endDate || campaign.end_date,
+        };
+        
+        const adsetTaxonomyName = adAccountId ? await generateTaxonomyName(
+          supabase,
+          campaign.user_id,
+          adAccountId,
+          'meta',
+          'adset',
+          adsetTaxonomyContext,
+          phase.adsetTaxonomyValues
+        ) : null;
+        
+        const defaultAdSetName = `${phase.name} - Ad Set`;
+        
         const adSetPayload: any = {
-          name: `${phase.name} - Ad Set`,
+          name: adsetTaxonomyName || defaultAdSetName,
           campaign_id: campaignData.id,
           billing_event: metaBillingEvent,
           optimization_goal: optimizationGoal,
@@ -1058,11 +1369,41 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
         const budgetType = phase.budgetType || 'lifetime';
         const campaignBudget = budgetType === 'daily' ? phaseBudget / durationDays : phaseBudget;
         
+        // Build context for TikTok campaign taxonomy
+        const genericConfig = campaign.generic_config || {};
+        const tiktokCampaignTaxonomyContext: TaxonomyContext = {
+          platform: 'tiktok',
+          activationName: campaign.name,
+          boNumber: campaign.bo_number,
+          teamName: genericConfig.teamName,
+          totalBudget: campaign.total_budget,
+          platformBudget: phaseBudget,
+          market: market.name,
+          country: market.name?.substring(0, 2)?.toUpperCase(),
+          objective: objectiveMapping.targetObjective,
+          funnelStage: phase.funnelStage,
+          placementType: phase.tiktokPlacementType || 'automatic',
+          startDate: phase.startDate || campaign.start_date,
+          endDate: phase.endDate || campaign.end_date,
+        };
+        
+        const tiktokCampaignTaxonomyName = advertiserId ? await generateTaxonomyName(
+          supabase,
+          campaign.user_id,
+          advertiserId,
+          'tiktok',
+          'campaign',
+          tiktokCampaignTaxonomyContext,
+          phase.campaignTaxonomyValues
+        ) : null;
+        
+        const defaultTiktokCampaignName = `${campaign.name} - ${market.name}${phases.length > 1 ? ` - ${phase.name}` : ''}`;
+        
         // Create TikTok campaign
         const campaignResult = await tiktokAdapter.createCampaign({
           accountId: advertiserId,
           accessToken: platform.access_token,
-          campaignName: `${campaign.name} - ${market.name}${phases.length > 1 ? ` - ${phase.name}` : ''}`,
+          campaignName: tiktokCampaignTaxonomyName || defaultTiktokCampaignName,
           objective: objectiveMapping.targetObjective,
           budget: campaignBudget,
           budgetMode: budgetType,
@@ -1352,11 +1693,41 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
         console.log(`🚀 CALLING tiktokAdapter.createAdGroup for ${phase.name}...`);
         console.log(`📍 campaignId: ${campaignResult.campaignId}, advertiserId: ${advertiserId}`);
         
+        // Build context for TikTok ad group taxonomy
+        const tiktokAdgroupTaxonomyContext: TaxonomyContext = {
+          platform: 'tiktok',
+          objective: objectiveMapping.targetObjective,
+          optimizationGoal: tiktokOptGoal,
+          phaseBudget: campaignBudget,
+          budgetType: budgetType,
+          ageMin: effectiveTargeting.ageMin || effectiveTargeting.age_min || 18,
+          ageMax: effectiveTargeting.ageMax || effectiveTargeting.age_max || 65,
+          gender: effectiveTargeting.genders?.[0],
+          location: market.name,
+          devices: effectiveTargeting.devices,
+          placementType: placementType,
+          targetingType: effectiveTargeting.targetingExpansion ? 'expand' : 'native',
+          startDate: phase.startDate || campaign.start_date,
+          endDate: phase.endDate || campaign.end_date,
+        };
+        
+        const tiktokAdgroupTaxonomyName = advertiserId ? await generateTaxonomyName(
+          supabase,
+          campaign.user_id,
+          advertiserId,
+          'tiktok',
+          'adset',
+          tiktokAdgroupTaxonomyContext,
+          phase.adsetTaxonomyValues
+        ) : null;
+        
+        const defaultTiktokAdGroupName = `${phase.name} - Ad Group`;
+        
         const adGroupResult = await tiktokAdapter.createAdGroup({
           accountId: advertiserId,
           accessToken: platform.access_token,
           campaignId: campaignResult.campaignId,
-          adGroupName: `${phase.name} - Ad Group`,
+          adGroupName: tiktokAdgroupTaxonomyName || defaultTiktokAdGroupName,
           targeting: targeting,
           placements: tiktokPlacements,
           placementType: placementType,
