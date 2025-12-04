@@ -61,7 +61,7 @@ interface AdAccount {
   default_gender?: string | null;
 }
 
-import { DEVICE_OPTIONS, LANGUAGE_OPTIONS, GENDER_OPTIONS, AGE_OPTIONS } from "@/utils/targetingOptions";
+import { DEVICE_OPTIONS, LANGUAGE_OPTIONS, GENDER_OPTIONS, AGE_OPTIONS, normalizeLanguageValues } from "@/utils/targetingOptions";
 
 interface MetaResource {
   id: string;
@@ -168,12 +168,17 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
       }
       
       // Set client-level targeting defaults
+      // Normalize language values to handle legacy numeric IDs
+      const normalizedLanguages = Array.isArray(clientData.default_languages) 
+        ? normalizeLanguageValues(clientData.default_languages as (string | number)[])
+        : [];
+      
       setClientTargeting({
         default_age_min: clientData.default_age_min ?? 18,
         default_age_max: clientData.default_age_max ?? 65,
         default_gender: clientData.default_gender || 'all',
         default_devices: Array.isArray(clientData.default_devices) ? clientData.default_devices as string[] : [],
-        default_languages: Array.isArray(clientData.default_languages) ? clientData.default_languages as string[] : [],
+        default_languages: normalizedLanguages,
       });
 
       // Load Meta ad accounts for this client
