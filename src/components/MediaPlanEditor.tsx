@@ -135,7 +135,7 @@ export function MediaPlanEditor() {
       const loadClients = async () => {
         const { data } = await supabase
           .from("clients")
-          .select("id, name, platforms, markets")
+          .select("id, name, platforms, markets, default_age_min, default_age_max, default_gender, default_devices, default_languages")
           .order("name");
         setClients(data || []);
       };
@@ -163,16 +163,31 @@ export function MediaPlanEditor() {
   }, [selectedClientId, totalBudget, startDate, endDate, isHydrated]);
 
   const autoPopulateFromClient = async () => {
-    const selectedClient = clients.find(c => c.id === selectedClientId);
+    const selectedClient = clients.find(c => c.id === selectedClientId) as any;
     if (!selectedClient) return;
 
     console.log('🔄 Auto-populating from client:', selectedClient);
 
-    const clientPlatforms = Array.isArray((selectedClient as any).platforms) ? (selectedClient as any).platforms : [];
-    const clientMarkets = Array.isArray((selectedClient as any).markets) ? (selectedClient as any).markets : [];
+    const clientPlatforms = Array.isArray(selectedClient.platforms) ? selectedClient.platforms : [];
+    const clientMarkets = Array.isArray(selectedClient.markets) ? selectedClient.markets : [];
 
     console.log('Client platforms:', clientPlatforms);
     console.log('Client markets:', clientMarkets);
+
+    // Auto-populate basicTargeting from client's cross-platform defaults
+    const clientTargetingDefaults: UnifiedTargetingConfig = {
+      ageMin: selectedClient.default_age_min ?? 18,
+      ageMax: selectedClient.default_age_max ?? 65,
+      genders: selectedClient.default_gender ? [selectedClient.default_gender] : ['all'],
+      devices: Array.isArray(selectedClient.default_devices) ? selectedClient.default_devices : [],
+      languages: Array.isArray(selectedClient.default_languages) ? selectedClient.default_languages : [],
+      os: [],
+      selectedItems: basicTargeting.selectedItems || [], // Preserve any existing selected items
+    };
+    
+    console.log('🎯 Setting basicTargeting from client defaults:', clientTargetingDefaults);
+    setBasicTargeting(clientTargetingDefaults);
+    localStorage.setItem('basicTargeting', JSON.stringify(clientTargetingDefaults));
 
     // Platform name normalization mapping
     const platformMapping: Record<string, string> = {
@@ -247,11 +262,11 @@ export function MediaPlanEditor() {
           phases: [],
           adFormats: [],
           // Filter out US for TikTok platforms
-          countries: platformId === 'tiktok' ? clientMarkets.filter(m => m !== 'US') : clientMarkets,
-          ageMin: 18,
-          ageMax: 65,
-          gender: "all",
-          languages: [],
+          countries: platformId === 'tiktok' ? clientMarkets.filter((m: string) => m !== 'US') : clientMarkets,
+          ageMin: selectedClient.default_age_min ?? 18,
+          ageMax: selectedClient.default_age_max ?? 65,
+          gender: selectedClient.default_gender || "all",
+          languages: Array.isArray(selectedClient.default_languages) ? selectedClient.default_languages : [],
           publisherPlatforms: ["facebook"],
           positions: {},
           detailedTargeting: [],
