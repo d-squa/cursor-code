@@ -163,6 +163,15 @@ const TIKTOK_OPTIMIZATION_EVENT_OPTIONS = [
   { value: "SUBSCRIBE", label: "Subscribe" },
 ];
 
+// Cross-platform targeting defaults stored at client level
+interface ClientTargetingDefaults {
+  default_age_min: number;
+  default_age_max: number;
+  default_gender: string;
+  default_devices: string[];
+  default_languages: string[];
+}
+
 export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: Props) {
   const [adAccounts, setAdAccounts] = useState<AdAccount[]>([]);
   const [pixels, setPixels] = useState<MetaResource[]>([]);
@@ -179,6 +188,14 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
   const [saving, setSaving] = useState<string | null>(null);
   const [localDefaults, setLocalDefaults] = useState<Record<string, Partial<AdAccount>>>({});
   const [fetchedClientMarkets, setFetchedClientMarkets] = useState<string[]>([]);
+  const [clientTargeting, setClientTargeting] = useState<ClientTargetingDefaults>({
+    default_age_min: 18,
+    default_age_max: 65,
+    default_gender: 'all',
+    default_devices: [],
+    default_languages: [],
+  });
+  const [savingClientDefaults, setSavingClientDefaults] = useState(false);
 
   useEffect(() => {
     if (clientId && userId) {
@@ -189,17 +206,27 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
   const loadData = async () => {
     setLoading(true);
     try {
-      // Fetch client markets if not provided as prop
-      if (!clientMarkets) {
-        const { data: clientData, error: clientError } = await supabase
-          .from("clients")
-          .select("markets")
-          .eq("id", clientId)
-          .single();
+      // Fetch client data including markets and targeting defaults
+      const { data: clientData, error: clientError } = await supabase
+        .from("clients")
+        .select("markets, default_age_min, default_age_max, default_gender, default_devices, default_languages")
+        .eq("id", clientId)
+        .single();
 
-        if (clientError) throw clientError;
+      if (clientError) throw clientError;
+      
+      if (!clientMarkets) {
         setFetchedClientMarkets(Array.isArray(clientData.markets) ? clientData.markets as string[] : []);
       }
+      
+      // Set client-level targeting defaults
+      setClientTargeting({
+        default_age_min: clientData.default_age_min ?? 18,
+        default_age_max: clientData.default_age_max ?? 65,
+        default_gender: clientData.default_gender || 'all',
+        default_devices: Array.isArray(clientData.default_devices) ? clientData.default_devices as string[] : [],
+        default_languages: Array.isArray(clientData.default_languages) ? clientData.default_languages as string[] : [],
+      });
 
       // Load Meta ad accounts for this client
       const { data: metaAccountsData, error: metaAccountsError } = await supabase
@@ -524,6 +551,30 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
     }
   };
 
+  // Save cross-platform targeting defaults to clients table
+  const handleSaveClientTargeting = async () => {
+    setSavingClientDefaults(true);
+    try {
+      const { error } = await supabase
+        .from("clients")
+        .update({
+          default_age_min: clientTargeting.default_age_min,
+          default_age_max: clientTargeting.default_age_max,
+          default_gender: clientTargeting.default_gender,
+          default_devices: clientTargeting.default_devices,
+          default_languages: clientTargeting.default_languages,
+        })
+        .eq("id", clientId);
+
+      if (error) throw error;
+      toast.success("Cross-platform defaults saved");
+    } catch (error: any) {
+      console.error("Error saving client targeting defaults:", error);
+      toast.error("Failed to save cross-platform defaults");
+    } finally {
+      setSavingClientDefaults(false);
+    }
+  };
 
   const updateDefault = (accountId: string, field: keyof AdAccount, value: any) => {
     console.log(`[AccountDefaultsTab] updateDefault called:`, { accountId, field, value });
@@ -570,7 +621,122 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      {/* Cross-platform defaults - applies to all accounts */}
+      <Card className="p-6">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold">Cross-Platform Defaults</h3>
+              <p className="text-sm text-muted-foreground">
+                These targeting defaults apply to all ad accounts across all platforms
+              </p>
+            </div>
+            <Button
+              onClick={handleSaveClientTargeting}
+              disabled={savingClientDefaults}
+              size="sm"
+            >
+              {savingClientDefaults ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Save className="h-4 w-4 mr-2" />
+              )}
+              Save Defaults
+            </Button>
+          </div>
+          
+          <Separator />
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            {/* Age Min */}
+            <div className="space-y-2">
+              <Label>Age Min</Label>
+              <Select
+                value={String(clientTargeting.default_age_min)}
+                onValueChange={(value) => setClientTargeting(prev => ({ ...prev, default_age_min: parseInt(value) }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Min age" />
+                </SelectTrigger>
+                <SelectContent>
+                  {AGE_OPTIONS.map((age) => (
+                    <SelectItem key={age.value} value={age.value}>
+                      {age.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Age Max */}
+            <div className="space-y-2">
+              <Label>Age Max</Label>
+              <Select
+                value={String(clientTargeting.default_age_max)}
+                onValueChange={(value) => setClientTargeting(prev => ({ ...prev, default_age_max: parseInt(value) }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Max age" />
+                </SelectTrigger>
+                <SelectContent>
+                  {AGE_OPTIONS.map((age) => (
+                    <SelectItem key={age.value} value={age.value}>
+                      {age.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Gender */}
+            <div className="space-y-2">
+              <Label>Gender</Label>
+              <Select
+                value={clientTargeting.default_gender}
+                onValueChange={(value) => setClientTargeting(prev => ({ ...prev, default_gender: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select gender" />
+                </SelectTrigger>
+                <SelectContent>
+                  {GENDER_OPTIONS.map((gender) => (
+                    <SelectItem key={gender.value} value={gender.value}>
+                      {gender.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Devices */}
+            <div className="space-y-2">
+              <Label>Devices</Label>
+              <MultiSelect
+                options={DEVICE_OPTIONS}
+                value={clientTargeting.default_devices}
+                onChange={(devices) => setClientTargeting(prev => ({ ...prev, default_devices: devices }))}
+                placeholder="All devices"
+                emptyText="All devices"
+              />
+            </div>
+
+            {/* Languages */}
+            <div className="space-y-2">
+              <Label>Languages</Label>
+              <MultiSelect
+                options={LANGUAGE_OPTIONS}
+                value={clientTargeting.default_languages}
+                onChange={(languages) => setClientTargeting(prev => ({ ...prev, default_languages: languages }))}
+                placeholder="All languages"
+                emptyText="All languages"
+              />
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {/* Platform-specific account defaults */}
       <Accordion type="single" collapsible className="space-y-4">
         {adAccounts.map((account) => {
           const defaults = localDefaults[account.id] || {};
@@ -624,102 +790,6 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                       </p>
                     </div>
 
-                    {/* Default Targeting Section - Common for both platforms */}
-                    <Separator className="my-4" />
-                    <div className="space-y-4">
-                      <h4 className="font-medium text-sm">Default Targeting</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {/* Age Min */}
-                        <div className="space-y-2">
-                          <Label>Age Min</Label>
-                          <Select
-                            value={String(defaults.default_age_min ?? 18)}
-                            onValueChange={(value) => updateDefault(account.id, "default_age_min", parseInt(value))}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Min age" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {AGE_OPTIONS.map((age) => (
-                                <SelectItem key={age.value} value={age.value}>
-                                  {age.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        {/* Age Max */}
-                        <div className="space-y-2">
-                          <Label>Age Max</Label>
-                          <Select
-                            value={String(defaults.default_age_max ?? 65)}
-                            onValueChange={(value) => updateDefault(account.id, "default_age_max", parseInt(value))}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Max age" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {AGE_OPTIONS.map((age) => (
-                                <SelectItem key={age.value} value={age.value}>
-                                  {age.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        {/* Gender */}
-                        <div className="space-y-2">
-                          <Label>Gender</Label>
-                          <Select
-                            value={defaults.default_gender || 'all'}
-                            onValueChange={(value) => updateDefault(account.id, "default_gender", value)}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select gender" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {GENDER_OPTIONS.map((gender) => (
-                                <SelectItem key={gender.value} value={gender.value}>
-                                  {gender.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        {/* Devices */}
-                        <div className="space-y-2">
-                          <Label>Default Devices</Label>
-                          <MultiSelect
-                            options={DEVICE_OPTIONS}
-                            value={defaults.default_devices || []}
-                            onChange={(devices) => updateDefault(account.id, "default_devices", devices)}
-                            placeholder="All devices"
-                            emptyText="No devices selected (all devices)"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Second row */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* Languages */}
-                        <div className="space-y-2">
-                          <Label>Default Languages</Label>
-                          <MultiSelect
-                            options={LANGUAGE_OPTIONS}
-                            value={defaults.default_languages || []}
-                            onChange={(languages) => updateDefault(account.id, "default_languages", languages)}
-                            placeholder="All languages"
-                            emptyText="No languages selected (all languages)"
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            Leave empty to target all languages
-                          </p>
-                        </div>
-                      </div>
-                    </div>
                     <Separator className="my-4" />
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
