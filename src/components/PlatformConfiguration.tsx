@@ -41,6 +41,11 @@ export interface Phase {
   metaViewWindow?: number;
   metaBidStrategy?: string;
   metaBidAmount?: number;
+  // Meta destination-specific fields
+  metaAppStore?: string;
+  metaAppId?: string;
+  metaMessagingMode?: string;
+  metaWhatsappNumber?: string;
   // TikTok-specific phase-level fields
   tiktokBidStrategy?: string;
   tiktokBidAmount?: number;
@@ -51,6 +56,14 @@ export interface Phase {
   tiktokAppName?: string;
   tiktokAppId?: string;
   tiktokSmartPlusEnabled?: boolean;
+  tiktokLandingPageUrl?: string;
+  // TikTok destination-specific fields
+  tiktokMessagingApp?: string;
+  tiktokFacebookPageId?: string;
+  tiktokMessageEventSet?: string;
+  tiktokWhatsappNumber?: string;
+  tiktokZaloAccountId?: string;
+  tiktokLineBusinessId?: string;
   // Taxonomy values for naming
   campaignTaxonomyValues?: Record<string, string>;
   adsetTaxonomyValues?: Record<string, string>;

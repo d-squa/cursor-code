@@ -29,6 +29,15 @@ import {
   detectPlatformType,
   type ObjectiveMapping 
 } from "@/utils/objectiveOptimizationMapping";
+import {
+  getDestinationsForObjective,
+  destinationRequiresApp,
+  destinationRequiresMessaging,
+  destinationRequiresWebsite,
+  META_APP_STORES,
+  META_MESSAGING_MODES,
+  TIKTOK_MESSAGING_APPS,
+} from "@/utils/destinationOptions";
 
 interface PhaseSchedulerProps {
   phases: Phase[];
@@ -63,6 +72,29 @@ interface PhaseSchedulerProps {
     // TikTok placement defaults
     tiktokPlacementType?: string;
     tiktokPlacements?: string[];
+    // Meta destination defaults
+    metaOptimizationLocation?: string;
+    metaAppStore?: string;
+    metaAppId?: string;
+    metaMessagingMode?: string;
+    metaMessengerEnabled?: boolean;
+    metaInstagramDmEnabled?: boolean;
+    metaWhatsappEnabled?: boolean;
+    metaWhatsappNumber?: string;
+    metaPageId?: string;
+    metaInstagramAccountId?: string;
+    metaLandingPageUrl?: string;
+    // TikTok destination defaults
+    tiktokOptimizationLocation?: string;
+    tiktokAppId?: string;
+    tiktokAppName?: string;
+    tiktokMessagingApp?: string;
+    tiktokFacebookPageId?: string;
+    tiktokMessageEventSet?: string;
+    tiktokWhatsappNumber?: string;
+    tiktokZaloAccountId?: string;
+    tiktokLineBusinessId?: string;
+    tiktokLandingPageUrl?: string;
   };
   onApplyBudgetTypeToAll?: (budgetType: "daily" | "lifetime") => void;
   onOpenCustomizeBudgetTypes?: () => void;
@@ -1101,6 +1133,7 @@ export function PhaseScheduler({
                           value={phase.objective || ""}
                           onValueChange={(value) => {
                             const isTikTok = platformName.toLowerCase().includes('tiktok');
+                            const isMeta = !isTikTok;
                             let adjustedObjective = value;
                             
                             // TikTok conversion campaigns require 90+ days of pixel data
@@ -1110,11 +1143,72 @@ export function PhaseScheduler({
                               adjustedObjective = "TRAFFIC";
                             }
                             
+                            // Get valid destinations for this objective
+                            const platformType = isTikTok ? "tiktok" : "meta";
+                            const validDestinations = getDestinationsForObjective(platformType, adjustedObjective);
+                            
                             const updatedPhases = phases.map(p => {
                               if (p.id === phase.id) {
                                 // Auto-set optimization goal based on objective and platform
                                 const autoGoal = getAutoOptimizationGoal(adjustedObjective);
-                                return { ...p, objective: adjustedObjective, optimizationGoal: autoGoal };
+                                
+                                // Build updated phase with destination defaults if applicable
+                                const updatedPhase: any = { 
+                                  ...p, 
+                                  objective: adjustedObjective, 
+                                  optimizationGoal: autoGoal 
+                                };
+                                
+                                // Auto-populate destination from account defaults if objective requires destination
+                                if (validDestinations.length > 0 && adAccountDefaults) {
+                                  if (isMeta) {
+                                    // Set Meta destination defaults only if not already set
+                                    if (!p.metaOptimizationLocation && adAccountDefaults.metaOptimizationLocation) {
+                                      const defaultDest = adAccountDefaults.metaOptimizationLocation;
+                                      // Only set if it's a valid destination for this objective
+                                      if (validDestinations.some(d => d.value === defaultDest)) {
+                                        updatedPhase.metaOptimizationLocation = defaultDest;
+                                        // Auto-populate related fields based on destination
+                                        if (defaultDest === 'APP') {
+                                          updatedPhase.metaAppStore = p.metaAppStore || adAccountDefaults.metaAppStore;
+                                          updatedPhase.metaAppId = p.metaAppId || adAccountDefaults.metaAppId;
+                                        } else if (defaultDest === 'MESSAGING_APPS') {
+                                          updatedPhase.metaMessagingMode = p.metaMessagingMode || adAccountDefaults.metaMessagingMode;
+                                          updatedPhase.metaWhatsappNumber = p.metaWhatsappNumber || adAccountDefaults.metaWhatsappNumber;
+                                        } else if (defaultDest === 'WEBSITE') {
+                                          updatedPhase.metaLandingPageUrl = p.metaLandingPageUrl || adAccountDefaults.metaLandingPageUrl;
+                                        }
+                                      }
+                                    }
+                                  } else {
+                                    // Set TikTok destination defaults only if not already set
+                                    if (!p.tiktokOptimizationLocation && adAccountDefaults.tiktokOptimizationLocation) {
+                                      const defaultDest = adAccountDefaults.tiktokOptimizationLocation;
+                                      // Only set if it's a valid destination for this objective
+                                      if (validDestinations.some(d => d.value === defaultDest)) {
+                                        updatedPhase.tiktokOptimizationLocation = defaultDest;
+                                        // Auto-populate related fields based on destination
+                                        if (defaultDest === 'App') {
+                                          updatedPhase.tiktokAppId = p.tiktokAppId || adAccountDefaults.tiktokAppId;
+                                          updatedPhase.tiktokAppName = p.tiktokAppName || adAccountDefaults.tiktokAppName;
+                                        } else if (defaultDest === 'Instant Messaging Apps') {
+                                          updatedPhase.tiktokMessagingApp = p.tiktokMessagingApp || adAccountDefaults.tiktokMessagingApp;
+                                          updatedPhase.tiktokFacebookPageId = p.tiktokFacebookPageId || adAccountDefaults.tiktokFacebookPageId;
+                                          updatedPhase.tiktokMessageEventSet = p.tiktokMessageEventSet || adAccountDefaults.tiktokMessageEventSet;
+                                          updatedPhase.tiktokWhatsappNumber = p.tiktokWhatsappNumber || adAccountDefaults.tiktokWhatsappNumber;
+                                          updatedPhase.tiktokZaloAccountId = p.tiktokZaloAccountId || adAccountDefaults.tiktokZaloAccountId;
+                                          updatedPhase.tiktokLineBusinessId = p.tiktokLineBusinessId || adAccountDefaults.tiktokLineBusinessId;
+                                        } else if (defaultDest === 'TikTok Direct Messages') {
+                                          updatedPhase.tiktokMessageEventSet = p.tiktokMessageEventSet || adAccountDefaults.tiktokMessageEventSet;
+                                        } else if (defaultDest === 'Website' || defaultDest === 'TikTok Instant Page' || defaultDest === 'Website & App') {
+                                          updatedPhase.tiktokLandingPageUrl = p.tiktokLandingPageUrl || adAccountDefaults.tiktokLandingPageUrl;
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                                
+                                return updatedPhase;
                               }
                               return p;
                             });
@@ -1154,6 +1248,253 @@ export function PhaseScheduler({
                           </SelectContent>
                         </Select>
                       </div>
+
+                      {/* Destination Configuration - Show when objective requires it */}
+                      {(() => {
+                        const isTikTok = platformName.toLowerCase().includes('tiktok');
+                        const platformType = isTikTok ? "tiktok" : "meta";
+                        const validDestinations = phase.objective ? getDestinationsForObjective(platformType, phase.objective) : [];
+                        
+                        if (validDestinations.length === 0) return null;
+                        
+                        const currentDestination = isTikTok ? phase.tiktokOptimizationLocation : phase.metaOptimizationLocation;
+                        
+                        return (
+                          <div className="p-4 rounded-lg border bg-muted/30 space-y-4">
+                            <Label className="font-medium">Optimization Location</Label>
+                            
+                            {/* Destination Selection */}
+                            <Select
+                              value={currentDestination || ""}
+                              onValueChange={(value) => {
+                                if (isTikTok) {
+                                  updatePhaseField(phase.id, "tiktokOptimizationLocation", value);
+                                } else {
+                                  updatePhaseField(phase.id, "metaOptimizationLocation", value);
+                                }
+                              }}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select destination" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {validDestinations.map((dest) => (
+                                  <SelectItem key={dest.value} value={dest.value}>
+                                    {dest.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            
+                            {/* Meta-specific destination fields */}
+                            {!isTikTok && currentDestination === 'WEBSITE' && (
+                              <div className="space-y-2">
+                                <Label className="text-xs">Landing Page URL</Label>
+                                <Input
+                                  placeholder="https://example.com"
+                                  value={phase.metaLandingPageUrl || ""}
+                                  onChange={(e) => updatePhaseField(phase.id, "metaLandingPageUrl", e.target.value)}
+                                />
+                              </div>
+                            )}
+                            
+                            {!isTikTok && currentDestination === 'APP' && (
+                              <div className="space-y-3">
+                                <div className="space-y-2">
+                                  <Label className="text-xs">App Store</Label>
+                                  <Select
+                                    value={phase.metaAppStore || ""}
+                                    onValueChange={(value) => updatePhaseField(phase.id, "metaAppStore", value)}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Select app store" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {META_APP_STORES.map((store) => (
+                                        <SelectItem key={store.value} value={store.value}>
+                                          {store.label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div className="space-y-2">
+                                  <Label className="text-xs">App ID</Label>
+                                  <Input
+                                    placeholder="App identifier"
+                                    value={phase.metaAppId || ""}
+                                    onChange={(e) => updatePhaseField(phase.id, "metaAppId", e.target.value)}
+                                  />
+                                </div>
+                              </div>
+                            )}
+                            
+                            {!isTikTok && currentDestination === 'MESSAGING_APPS' && (
+                              <div className="space-y-3">
+                                <div className="space-y-2">
+                                  <Label className="text-xs">Messaging Mode</Label>
+                                  <Select
+                                    value={phase.metaMessagingMode || "AUTOMATIC"}
+                                    onValueChange={(value) => updatePhaseField(phase.id, "metaMessagingMode", value)}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {META_MESSAGING_MODES.map((mode) => (
+                                        <SelectItem key={mode.value} value={mode.value}>
+                                          {mode.label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                {phase.metaMessagingMode === 'MANUAL' && (
+                                  <div className="space-y-2">
+                                    <Label className="text-xs">WhatsApp Number (Optional)</Label>
+                                    <Input
+                                      placeholder="+1234567890"
+                                      value={phase.metaWhatsappNumber || ""}
+                                      onChange={(e) => updatePhaseField(phase.id, "metaWhatsappNumber", e.target.value)}
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            
+                            {/* TikTok-specific destination fields */}
+                            {isTikTok && (currentDestination === 'Website' || currentDestination === 'TikTok Instant Page') && (
+                              <div className="space-y-2">
+                                <Label className="text-xs">Landing Page URL</Label>
+                                <Input
+                                  placeholder="https://example.com"
+                                  value={phase.tiktokLandingPageUrl || ""}
+                                  onChange={(e) => updatePhaseField(phase.id, "tiktokLandingPageUrl", e.target.value)}
+                                />
+                              </div>
+                            )}
+                            
+                            {isTikTok && currentDestination === 'App' && (
+                              <div className="space-y-3">
+                                <div className="space-y-2">
+                                  <Label className="text-xs">App Name</Label>
+                                  <Input
+                                    placeholder="App name"
+                                    value={phase.tiktokAppName || ""}
+                                    onChange={(e) => updatePhaseField(phase.id, "tiktokAppName", e.target.value)}
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label className="text-xs">App ID</Label>
+                                  <Input
+                                    placeholder="App identifier"
+                                    value={phase.tiktokAppId || ""}
+                                    onChange={(e) => updatePhaseField(phase.id, "tiktokAppId", e.target.value)}
+                                  />
+                                </div>
+                              </div>
+                            )}
+                            
+                            {isTikTok && currentDestination === 'TikTok Direct Messages' && (
+                              <div className="space-y-2">
+                                <Label className="text-xs">Message Event Set</Label>
+                                <Input
+                                  placeholder="Event set ID"
+                                  value={phase.tiktokMessageEventSet || ""}
+                                  onChange={(e) => updatePhaseField(phase.id, "tiktokMessageEventSet", e.target.value)}
+                                />
+                              </div>
+                            )}
+                            
+                            {isTikTok && currentDestination === 'Instant Messaging Apps' && (
+                              <div className="space-y-3">
+                                <div className="space-y-2">
+                                  <Label className="text-xs">Messaging App</Label>
+                                  <Select
+                                    value={phase.tiktokMessagingApp || ""}
+                                    onValueChange={(value) => updatePhaseField(phase.id, "tiktokMessagingApp", value)}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Select messaging app" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {TIKTOK_MESSAGING_APPS.map((app) => (
+                                        <SelectItem key={app.value} value={app.value}>
+                                          {app.label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                
+                                {phase.tiktokMessagingApp === 'MESSENGER' && (
+                                  <>
+                                    <div className="space-y-2">
+                                      <Label className="text-xs">Facebook Page ID</Label>
+                                      <Input
+                                        placeholder="Page ID"
+                                        value={phase.tiktokFacebookPageId || ""}
+                                        onChange={(e) => updatePhaseField(phase.id, "tiktokFacebookPageId", e.target.value)}
+                                      />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label className="text-xs">Message Event Set (Optional)</Label>
+                                      <Input
+                                        placeholder="Event set ID"
+                                        value={phase.tiktokMessageEventSet || ""}
+                                        onChange={(e) => updatePhaseField(phase.id, "tiktokMessageEventSet", e.target.value)}
+                                      />
+                                    </div>
+                                  </>
+                                )}
+                                
+                                {phase.tiktokMessagingApp === 'WHATSAPP' && (
+                                  <>
+                                    <div className="space-y-2">
+                                      <Label className="text-xs">WhatsApp Number</Label>
+                                      <Input
+                                        placeholder="+1234567890"
+                                        value={phase.tiktokWhatsappNumber || ""}
+                                        onChange={(e) => updatePhaseField(phase.id, "tiktokWhatsappNumber", e.target.value)}
+                                      />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label className="text-xs">Message Event Set (Optional)</Label>
+                                      <Input
+                                        placeholder="Event set ID"
+                                        value={phase.tiktokMessageEventSet || ""}
+                                        onChange={(e) => updatePhaseField(phase.id, "tiktokMessageEventSet", e.target.value)}
+                                      />
+                                    </div>
+                                  </>
+                                )}
+                                
+                                {phase.tiktokMessagingApp === 'ZALO' && (
+                                  <div className="space-y-2">
+                                    <Label className="text-xs">Zalo Account ID</Label>
+                                    <Input
+                                      placeholder="Zalo Official Account ID"
+                                      value={phase.tiktokZaloAccountId || ""}
+                                      onChange={(e) => updatePhaseField(phase.id, "tiktokZaloAccountId", e.target.value)}
+                                    />
+                                  </div>
+                                )}
+                                
+                                {phase.tiktokMessagingApp === 'LINE' && (
+                                  <div className="space-y-2">
+                                    <Label className="text-xs">LINE Business ID</Label>
+                                    <Input
+                                      placeholder="LINE Business ID"
+                                      value={phase.tiktokLineBusinessId || ""}
+                                      onChange={(e) => updatePhaseField(phase.id, "tiktokLineBusinessId", e.target.value)}
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
 
                       {/* Budget Type - Inline with validation */}
                       <div className={`p-4 rounded-lg border-2 ${!phase.budgetType ? 'border-yellow-500 bg-yellow-50 dark:bg-yellow-950/20' : 'border-border bg-muted/50'}`}>
