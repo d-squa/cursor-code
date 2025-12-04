@@ -1161,6 +1161,14 @@ export function PhaseScheduler({
                                 
                                 // Auto-populate destination from account defaults if objective requires destination
                                 if (validDestinations.length > 0 && adAccountDefaults) {
+                                  // Always load landing page URL from defaults (used across destinations)
+                                  if (isMeta && !p.metaLandingPageUrl && adAccountDefaults.metaLandingPageUrl) {
+                                    updatedPhase.metaLandingPageUrl = adAccountDefaults.metaLandingPageUrl;
+                                  }
+                                  if (!isMeta && !p.tiktokLandingPageUrl && adAccountDefaults.tiktokLandingPageUrl) {
+                                    updatedPhase.tiktokLandingPageUrl = adAccountDefaults.tiktokLandingPageUrl;
+                                  }
+                                  
                                   if (isMeta) {
                                     // Set Meta destination defaults only if not already set
                                     if (!p.metaOptimizationLocation && adAccountDefaults.metaOptimizationLocation) {
@@ -1174,9 +1182,12 @@ export function PhaseScheduler({
                                           updatedPhase.metaAppId = p.metaAppId || adAccountDefaults.metaAppId;
                                         } else if (defaultDest === 'MESSAGING_APPS') {
                                           updatedPhase.metaMessagingMode = p.metaMessagingMode || adAccountDefaults.metaMessagingMode;
+                                          updatedPhase.metaMessengerEnabled = p.metaMessengerEnabled !== undefined ? p.metaMessengerEnabled : adAccountDefaults.metaMessengerEnabled;
+                                          updatedPhase.metaInstagramDmEnabled = p.metaInstagramDmEnabled !== undefined ? p.metaInstagramDmEnabled : adAccountDefaults.metaInstagramDmEnabled;
+                                          updatedPhase.metaWhatsappEnabled = p.metaWhatsappEnabled !== undefined ? p.metaWhatsappEnabled : adAccountDefaults.metaWhatsappEnabled;
                                           updatedPhase.metaWhatsappNumber = p.metaWhatsappNumber || adAccountDefaults.metaWhatsappNumber;
-                                        } else if (defaultDest === 'WEBSITE') {
-                                          updatedPhase.metaLandingPageUrl = p.metaLandingPageUrl || adAccountDefaults.metaLandingPageUrl;
+                                          updatedPhase.metaPageId = p.metaPageId || adAccountDefaults.metaPageId;
+                                          updatedPhase.metaInstagramAccountId = p.metaInstagramAccountId || adAccountDefaults.metaInstagramAccountId;
                                         }
                                       }
                                     }
@@ -1200,8 +1211,6 @@ export function PhaseScheduler({
                                           updatedPhase.tiktokLineBusinessId = p.tiktokLineBusinessId || adAccountDefaults.tiktokLineBusinessId;
                                         } else if (defaultDest === 'TikTok Direct Messages') {
                                           updatedPhase.tiktokMessageEventSet = p.tiktokMessageEventSet || adAccountDefaults.tiktokMessageEventSet;
-                                        } else if (defaultDest === 'Website' || defaultDest === 'TikTok Instant Page' || defaultDest === 'Website & App') {
-                                          updatedPhase.tiktokLandingPageUrl = p.tiktokLandingPageUrl || adAccountDefaults.tiktokLandingPageUrl;
                                         }
                                       }
                                     }
