@@ -1873,8 +1873,12 @@ export function MediaPlanEditor() {
                           metaAppStore: (singleMarket as any).metaAppStore,
                           metaAppId: (singleMarket as any).metaAppId,
                           metaMessagingMode: (singleMarket as any).metaMessagingMode,
+                          metaMessengerEnabled: (singleMarket as any).metaMessengerEnabled,
+                          metaInstagramDmEnabled: (singleMarket as any).metaInstagramDmEnabled,
+                          metaWhatsappEnabled: (singleMarket as any).metaWhatsappEnabled,
                           metaWhatsappNumber: (singleMarket as any).metaWhatsappNumber,
                           metaPageId: singleMarket.pageId,
+                          metaInstagramAccountId: (singleMarket as any).metaInstagramAccountId || singleMarket.instagramActorId,
                           metaLandingPageUrl: (singleMarket as any).metaLandingPageUrl,
                           // TikTok destination defaults
                           tiktokOptimizationLocation: singleMarket.tiktokOptimizationLocation,

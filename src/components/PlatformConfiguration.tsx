@@ -45,7 +45,12 @@ export interface Phase {
   metaAppStore?: string;
   metaAppId?: string;
   metaMessagingMode?: string;
+  metaMessengerEnabled?: boolean;
+  metaInstagramDmEnabled?: boolean;
+  metaWhatsappEnabled?: boolean;
   metaWhatsappNumber?: string;
+  metaPageId?: string;
+  metaInstagramAccountId?: string;
   // TikTok-specific phase-level fields
   tiktokBidStrategy?: string;
   tiktokBidAmount?: number;
