@@ -33,6 +33,13 @@ export interface Market {
   tiktokSmartPlusEnabled?: boolean; // Whether Smart+ is enabled
   tiktokPlacementType?: string; // PLACEMENT_TYPE_AUTOMATIC or PLACEMENT_TYPE_NORMAL
   tiktokPlacements?: string[]; // Array of placement positions when manual
+  // TikTok messaging/destination fields
+  tiktokMessagingApp?: string; // TikTok Messaging App (MESSENGER, WHATSAPP, ZALO, LINE)
+  tiktokFacebookPageId?: string; // Facebook Page ID for Messenger
+  tiktokMessageEventSet?: string; // Message Event Set ID
+  tiktokWhatsappNumber?: string; // WhatsApp Business number
+  tiktokZaloAccountId?: string; // Zalo Official Account ID
+  tiktokLineBusinessId?: string; // LINE Business ID
   metaBidStrategy?: string; // Meta Bid Strategy (LOWEST_COST_WITHOUT_CAP, LOWEST_COST_WITH_BID_CAP, COST_CAP, etc.)
   metaBidAmount?: number; // Meta Bid Amount (required for LOWEST_COST_WITH_BID_CAP and COST_CAP)
   metaBillingEvent?: string; // Meta Billing Event (IMPRESSIONS, LINK_CLICKS, etc.)
@@ -40,6 +47,16 @@ export interface Market {
   metaOptimizationLocation?: string; // Meta Optimization Location (WEBSITE, APP, MESSAGING_APPS, CALLS)
   metaClickWindow?: number; // Meta Click-through attribution window in days (1, 7, 28)
   metaViewWindow?: number; // Meta View-through attribution window in days (1, 7)
+  // Meta destination/app fields
+  metaAppStore?: string; // Meta App Store (GOOGLE_PLAY, APPLE_APP_STORE, etc.)
+  metaAppId?: string; // Meta App ID for app campaigns
+  // Meta messaging fields
+  metaMessagingMode?: string; // Meta Messaging Mode (AUTOMATIC, MANUAL)
+  metaMessengerEnabled?: boolean; // Facebook Messenger enabled
+  metaInstagramDmEnabled?: boolean; // Instagram DM enabled
+  metaWhatsappEnabled?: boolean; // WhatsApp enabled
+  metaWhatsappNumber?: string; // WhatsApp Business number
+  metaAdvantagePlusPlacements?: boolean; // Meta Advantage+ placements toggle
   // Meta placement fields
   metaPublisherPlatforms?: string[]; // Meta Publisher Platforms
   metaPositions?: {
@@ -69,7 +86,7 @@ export interface Market {
     messenger?: string[];
     threads?: string[];
   };
-  advantagePlusPlacements?: boolean; // Meta Advantage+ placements toggle
+  advantagePlusPlacements?: boolean; // Meta Advantage+ placements toggle (legacy)
   detailedTargeting?: Array<{ id: string; type: string; name?: string }>;
 }
 
