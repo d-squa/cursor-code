@@ -236,6 +236,11 @@ export type Database = {
           app_name: string | null
           business_objective: string
           created_at: string
+          default_age_max: number | null
+          default_age_min: number | null
+          default_devices: Json | null
+          default_gender: string | null
+          default_languages: Json | null
           id: string
           industry: string
           markets: Json | null
@@ -249,6 +254,11 @@ export type Database = {
           app_name?: string | null
           business_objective: string
           created_at?: string
+          default_age_max?: number | null
+          default_age_min?: number | null
+          default_devices?: Json | null
+          default_gender?: string | null
+          default_languages?: Json | null
           id?: string
           industry: string
           markets?: Json | null
@@ -262,6 +272,11 @@ export type Database = {
           app_name?: string | null
           business_objective?: string
           created_at?: string
+          default_age_max?: number | null
+          default_age_min?: number | null
+          default_devices?: Json | null
+          default_gender?: string | null
+          default_languages?: Json | null
           id?: string
           industry?: string
           markets?: Json | null
