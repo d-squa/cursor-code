@@ -9,6 +9,45 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { MultiSelect } from "@/components/ui/multi-select";
+
+const DEVICE_OPTIONS = [
+  { value: "mobile", label: "Mobile" },
+  { value: "desktop", label: "Desktop" },
+  { value: "tablet", label: "Tablet" },
+];
+
+const LANGUAGE_OPTIONS = [
+  { value: "en", label: "English" },
+  { value: "es", label: "Spanish" },
+  { value: "fr", label: "French" },
+  { value: "de", label: "German" },
+  { value: "it", label: "Italian" },
+  { value: "pt", label: "Portuguese" },
+  { value: "nl", label: "Dutch" },
+  { value: "pl", label: "Polish" },
+  { value: "ru", label: "Russian" },
+  { value: "ja", label: "Japanese" },
+  { value: "ko", label: "Korean" },
+  { value: "zh", label: "Chinese" },
+  { value: "ar", label: "Arabic" },
+  { value: "hi", label: "Hindi" },
+  { value: "tr", label: "Turkish" },
+  { value: "vi", label: "Vietnamese" },
+  { value: "th", label: "Thai" },
+  { value: "id", label: "Indonesian" },
+  { value: "ms", label: "Malay" },
+  { value: "sv", label: "Swedish" },
+  { value: "da", label: "Danish" },
+  { value: "fi", label: "Finnish" },
+  { value: "no", label: "Norwegian" },
+  { value: "cs", label: "Czech" },
+  { value: "hu", label: "Hungarian" },
+  { value: "ro", label: "Romanian" },
+  { value: "el", label: "Greek" },
+  { value: "he", label: "Hebrew" },
+  { value: "uk", label: "Ukrainian" },
+];
 
 export interface UnifiedTargetingItem {
   id: string;
@@ -178,6 +217,28 @@ export function UnifiedTargeting({ targeting, onUpdate, metaAdAccountId, tiktokA
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Devices</Label>
+              <MultiSelect
+                options={DEVICE_OPTIONS}
+                value={targeting.devices || []}
+                onChange={(values) => updateField('devices', values)}
+                placeholder="Select devices"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Languages</Label>
+              <MultiSelect
+                options={LANGUAGE_OPTIONS}
+                value={targeting.languages || []}
+                onChange={(values) => updateField('languages', values)}
+                placeholder="Select languages"
+              />
             </div>
           </div>
         </CardContent>
