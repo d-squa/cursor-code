@@ -97,11 +97,18 @@ export const TIKTOK_MESSAGING_APPS: TikTokMessagingApp[] = [
 
 /**
  * Maps objectives to their valid optimization locations for Meta
+ * Based on Meta Marketing API documentation:
+ * - OUTCOME_AWARENESS: No destination selection (ad recall, impressions, reach)
+ * - OUTCOME_TRAFFIC: Website, App, Messaging Apps, Calls
+ * - OUTCOME_ENGAGEMENT: No destination selection (post engagement, page likes, video views)
+ * - OUTCOME_LEADS: Website, App, Messaging Apps, Calls (Instant Forms)
+ * - OUTCOME_APP_PROMOTION: App only
+ * - OUTCOME_SALES: Website, App, Messaging Apps
  */
 export const META_OBJECTIVE_DESTINATIONS: Record<string, string[]> = {
-  "OUTCOME_AWARENESS": ["WEBSITE"],
+  "OUTCOME_AWARENESS": [], // No destination - awareness objectives use impressions/reach
   "OUTCOME_TRAFFIC": ["WEBSITE", "APP", "MESSAGING_APPS", "CALLS"],
-  "OUTCOME_ENGAGEMENT": ["WEBSITE"],
+  "OUTCOME_ENGAGEMENT": [], // No destination - engagement objectives (post engagement, page likes, video)
   "OUTCOME_LEADS": ["WEBSITE", "APP", "MESSAGING_APPS", "CALLS"],
   "OUTCOME_APP_PROMOTION": ["APP"],
   "OUTCOME_SALES": ["WEBSITE", "APP", "MESSAGING_APPS"],
@@ -109,6 +116,15 @@ export const META_OBJECTIVE_DESTINATIONS: Record<string, string[]> = {
 
 /**
  * Maps objectives to their valid optimization locations for TikTok
+ * Based on TikTok Marketing API documentation:
+ * - REACH: No destination selection (CPM-based reach campaigns)
+ * - TRAFFIC: Website, App
+ * - VIDEO_VIEWS: No destination selection (video view optimization only)
+ * - COMMUNITY_INTERACTION: No destination selection (profile visits, follows)
+ * - APP_PROMOTION: App only
+ * - LEAD_GENERATION: Website, Instant Form, TikTok Direct Messages, Instant Messaging Apps, Phone Call
+ * - CONVERSIONS: Website, App, TikTok Instant Page, Website & App
+ * - PRODUCT_SALES: Website, TikTok Shop, Website & App
  */
 export const TIKTOK_OBJECTIVE_DESTINATIONS: Record<string, string[]> = {
   "REACH": [], // No destination selection for REACH
