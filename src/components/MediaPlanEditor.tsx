@@ -1868,6 +1868,25 @@ export function MediaPlanEditor() {
                           positions: singleMarket.metaPositions || singleMarket.positions,
                           tiktokPlacementType: singleMarket.tiktokPlacementType,
                           tiktokPlacements: singleMarket.tiktokPlacements,
+                          // Meta destination defaults
+                          metaOptimizationLocation: (singleMarket as any).metaOptimizationLocation,
+                          metaAppStore: (singleMarket as any).metaAppStore,
+                          metaAppId: (singleMarket as any).metaAppId,
+                          metaMessagingMode: (singleMarket as any).metaMessagingMode,
+                          metaWhatsappNumber: (singleMarket as any).metaWhatsappNumber,
+                          metaPageId: singleMarket.pageId,
+                          metaLandingPageUrl: (singleMarket as any).metaLandingPageUrl,
+                          // TikTok destination defaults
+                          tiktokOptimizationLocation: singleMarket.tiktokOptimizationLocation,
+                          tiktokAppId: singleMarket.tiktokAppId,
+                          tiktokAppName: singleMarket.tiktokAppName,
+                          tiktokMessagingApp: (singleMarket as any).tiktokMessagingApp,
+                          tiktokFacebookPageId: (singleMarket as any).tiktokFacebookPageId,
+                          tiktokMessageEventSet: (singleMarket as any).tiktokMessageEventSet,
+                          tiktokWhatsappNumber: (singleMarket as any).tiktokWhatsappNumber,
+                          tiktokZaloAccountId: (singleMarket as any).tiktokZaloAccountId,
+                          tiktokLineBusinessId: (singleMarket as any).tiktokLineBusinessId,
+                          tiktokLandingPageUrl: singleMarket.tiktokLandingPageUrl,
                         }}
                         onApplyBudgetTypeToAll={(type) => {
                           setPlatformsWithMarkets(prev => prev.map(p => p.id === singlePlatform?.id ? {
@@ -2135,6 +2154,29 @@ export function MediaPlanEditor() {
                                     positions: market.metaPositions || market.positions,
                                     tiktokPlacementType: market.tiktokPlacementType,
                                     tiktokPlacements: market.tiktokPlacements,
+                                    // Meta destination defaults from market (loaded from account defaults)
+                                    metaOptimizationLocation: (market as any).metaOptimizationLocation,
+                                    metaAppStore: (market as any).metaAppStore,
+                                    metaAppId: (market as any).metaAppId,
+                                    metaMessagingMode: (market as any).metaMessagingMode,
+                                    metaMessengerEnabled: (market as any).metaMessengerEnabled,
+                                    metaInstagramDmEnabled: (market as any).metaInstagramDmEnabled,
+                                    metaWhatsappEnabled: (market as any).metaWhatsappEnabled,
+                                    metaWhatsappNumber: (market as any).metaWhatsappNumber,
+                                    metaPageId: market.pageId,
+                                    metaInstagramAccountId: market.instagramActorId,
+                                    metaLandingPageUrl: (market as any).metaLandingPageUrl,
+                                    // TikTok destination defaults from market (loaded from account defaults)
+                                    tiktokOptimizationLocation: market.tiktokOptimizationLocation,
+                                    tiktokAppId: market.tiktokAppId,
+                                    tiktokAppName: market.tiktokAppName,
+                                    tiktokMessagingApp: (market as any).tiktokMessagingApp,
+                                    tiktokFacebookPageId: (market as any).tiktokFacebookPageId,
+                                    tiktokMessageEventSet: (market as any).tiktokMessageEventSet,
+                                    tiktokWhatsappNumber: (market as any).tiktokWhatsappNumber,
+                                    tiktokZaloAccountId: (market as any).tiktokZaloAccountId,
+                                    tiktokLineBusinessId: (market as any).tiktokLineBusinessId,
+                                    tiktokLandingPageUrl: market.tiktokLandingPageUrl,
                                   }}
                                   marketTargeting={{
                                     ageMin: market.ageMin || genericConfig.targeting?.ageMin,
