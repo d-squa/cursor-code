@@ -56,6 +56,9 @@ interface AdAccount {
   // Targeting defaults
   default_devices?: string[] | null;
   default_languages?: string[] | null;
+  default_age_min?: number | null;
+  default_age_max?: number | null;
+  default_gender?: string | null;
 }
 
 // Static device options
@@ -88,6 +91,28 @@ const LANGUAGE_OPTIONS = [
   { value: "13", label: "Hindi" },
   { value: "22", label: "Russian" },
   { value: "29", label: "Turkish" },
+];
+
+// Age options (18-65+)
+const AGE_OPTIONS = [
+  { value: "18", label: "18" },
+  { value: "21", label: "21" },
+  { value: "25", label: "25" },
+  { value: "30", label: "30" },
+  { value: "35", label: "35" },
+  { value: "40", label: "40" },
+  { value: "45", label: "45" },
+  { value: "50", label: "50" },
+  { value: "55", label: "55" },
+  { value: "60", label: "60" },
+  { value: "65", label: "65+" },
+];
+
+// Gender options
+const GENDER_OPTIONS = [
+  { value: "all", label: "All Genders" },
+  { value: "male", label: "Male" },
+  { value: "female", label: "Female" },
 ];
 
 interface MetaResource {
@@ -212,6 +237,9 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         default_advantage_plus_placements: (acc as any).default_advantage_plus_placements ?? true,
         default_devices: Array.isArray((acc as any).default_devices) ? (acc as any).default_devices as string[] : [],
         default_languages: Array.isArray((acc as any).default_languages) ? (acc as any).default_languages as string[] : [],
+        default_age_min: (acc as any).default_age_min ?? 18,
+        default_age_max: (acc as any).default_age_max ?? 65,
+        default_gender: (acc as any).default_gender || 'all',
       }));
 
       const tiktokAccounts = (tiktokAccountsData || []).map(acc => ({
@@ -234,6 +262,9 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         default_placements: Array.isArray((acc as any).default_placements) ? (acc as any).default_placements as string[] : ['PLACEMENT_TIKTOK', 'PLACEMENT_GLOBAL_APP_BUNDLE', 'PLACEMENT_PANGLE'],
         default_devices: Array.isArray((acc as any).default_devices) ? (acc as any).default_devices as string[] : [],
         default_languages: Array.isArray((acc as any).default_languages) ? (acc as any).default_languages as string[] : [],
+        default_age_min: (acc as any).default_age_min ?? 18,
+        default_age_max: (acc as any).default_age_max ?? 65,
+        default_gender: (acc as any).default_gender || 'all',
       }));
 
       console.log("[AccountDefaultsTab] TikTok accounts loaded from database:", tiktokAccounts.map(acc => ({
@@ -293,6 +324,9 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
           // Targeting defaults
           default_devices: (acc as any).default_devices || [],
           default_languages: (acc as any).default_languages || [],
+          default_age_min: (acc as any).default_age_min ?? 18,
+          default_age_max: (acc as any).default_age_max ?? 65,
+          default_gender: (acc as any).default_gender || 'all',
         };
       });
       
@@ -394,6 +428,9 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         'main_markets',
         'default_devices',
         'default_languages',
+        'default_age_min',
+        'default_age_max',
+        'default_gender',
       ];
       
       const tiktokFields = [
@@ -423,6 +460,9 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         'main_markets',
         'default_devices',
         'default_languages',
+        'default_age_min',
+        'default_age_max',
+        'default_gender',
       ];
       
       const validFields = platform === 'tiktok' ? tiktokFields : metaFields;
@@ -588,7 +628,67 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                     <Separator className="my-4" />
                     <div className="space-y-4">
                       <h4 className="font-medium text-sm">Default Targeting</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {/* Age Min */}
+                        <div className="space-y-2">
+                          <Label>Age Min</Label>
+                          <Select
+                            value={String(defaults.default_age_min ?? 18)}
+                            onValueChange={(value) => updateDefault(account.id, "default_age_min", parseInt(value))}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Min age" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {AGE_OPTIONS.map((age) => (
+                                <SelectItem key={age.value} value={age.value}>
+                                  {age.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* Age Max */}
+                        <div className="space-y-2">
+                          <Label>Age Max</Label>
+                          <Select
+                            value={String(defaults.default_age_max ?? 65)}
+                            onValueChange={(value) => updateDefault(account.id, "default_age_max", parseInt(value))}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Max age" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {AGE_OPTIONS.map((age) => (
+                                <SelectItem key={age.value} value={age.value}>
+                                  {age.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* Gender */}
+                        <div className="space-y-2">
+                          <Label>Gender</Label>
+                          <Select
+                            value={defaults.default_gender || 'all'}
+                            onValueChange={(value) => updateDefault(account.id, "default_gender", value)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select gender" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {GENDER_OPTIONS.map((gender) => (
+                                <SelectItem key={gender.value} value={gender.value}>
+                                  {gender.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
                         {/* Devices */}
                         <div className="space-y-2">
                           <Label>Default Devices</Label>
@@ -599,11 +699,11 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                             placeholder="All devices"
                             emptyText="No devices selected (all devices)"
                           />
-                          <p className="text-xs text-muted-foreground">
-                            Leave empty to target all devices
-                          </p>
                         </div>
+                      </div>
 
+                      {/* Second row */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {/* Languages */}
                         <div className="space-y-2">
                           <Label>Default Languages</Label>

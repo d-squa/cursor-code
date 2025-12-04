@@ -380,6 +380,8 @@ export type Database = {
           created_at: string
           currency: string | null
           default_advantage_plus_placements: boolean | null
+          default_age_max: number | null
+          default_age_min: number | null
           default_bid_amount: number | null
           default_bid_strategy: string | null
           default_billing_event: string | null
@@ -388,6 +390,7 @@ export type Database = {
           default_conversion_budget_type: string | null
           default_conversion_event: string | null
           default_devices: Json | null
+          default_gender: string | null
           default_instagram_account_id: string | null
           default_landing_page_url: string | null
           default_languages: Json | null
@@ -412,6 +415,8 @@ export type Database = {
           created_at?: string
           currency?: string | null
           default_advantage_plus_placements?: boolean | null
+          default_age_max?: number | null
+          default_age_min?: number | null
           default_bid_amount?: number | null
           default_bid_strategy?: string | null
           default_billing_event?: string | null
@@ -420,6 +425,7 @@ export type Database = {
           default_conversion_budget_type?: string | null
           default_conversion_event?: string | null
           default_devices?: Json | null
+          default_gender?: string | null
           default_instagram_account_id?: string | null
           default_landing_page_url?: string | null
           default_languages?: Json | null
@@ -444,6 +450,8 @@ export type Database = {
           created_at?: string
           currency?: string | null
           default_advantage_plus_placements?: boolean | null
+          default_age_max?: number | null
+          default_age_min?: number | null
           default_bid_amount?: number | null
           default_bid_strategy?: string | null
           default_billing_event?: string | null
@@ -452,6 +460,7 @@ export type Database = {
           default_conversion_budget_type?: string | null
           default_conversion_event?: string | null
           default_devices?: Json | null
+          default_gender?: string | null
           default_instagram_account_id?: string | null
           default_landing_page_url?: string | null
           default_languages?: Json | null
@@ -1039,6 +1048,8 @@ export type Database = {
           client_id: string | null
           created_at: string
           currency: string | null
+          default_age_max: number | null
+          default_age_min: number | null
           default_app_id: string | null
           default_app_name: string | null
           default_bid_amount: number | null
@@ -1050,6 +1061,7 @@ export type Database = {
           default_devices: Json | null
           default_event_count_enabled: boolean | null
           default_frequency_schedule: number | null
+          default_gender: string | null
           default_identity_id: string | null
           default_landing_page_url: string | null
           default_languages: Json | null
@@ -1075,6 +1087,8 @@ export type Database = {
           client_id?: string | null
           created_at?: string
           currency?: string | null
+          default_age_max?: number | null
+          default_age_min?: number | null
           default_app_id?: string | null
           default_app_name?: string | null
           default_bid_amount?: number | null
@@ -1086,6 +1100,7 @@ export type Database = {
           default_devices?: Json | null
           default_event_count_enabled?: boolean | null
           default_frequency_schedule?: number | null
+          default_gender?: string | null
           default_identity_id?: string | null
           default_landing_page_url?: string | null
           default_languages?: Json | null
@@ -1111,6 +1126,8 @@ export type Database = {
           client_id?: string | null
           created_at?: string
           currency?: string | null
+          default_age_max?: number | null
+          default_age_min?: number | null
           default_app_id?: string | null
           default_app_name?: string | null
           default_bid_amount?: number | null
@@ -1122,6 +1139,7 @@ export type Database = {
           default_devices?: Json | null
           default_event_count_enabled?: boolean | null
           default_frequency_schedule?: number | null
+          default_gender?: string | null
           default_identity_id?: string | null
           default_landing_page_url?: string | null
           default_languages?: Json | null
