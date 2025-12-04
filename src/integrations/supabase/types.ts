@@ -397,6 +397,8 @@ export type Database = {
           default_advantage_plus_placements: boolean | null
           default_age_max: number | null
           default_age_min: number | null
+          default_app_id: string | null
+          default_app_store: string | null
           default_bid_amount: number | null
           default_bid_strategy: string | null
           default_billing_event: string | null
@@ -409,6 +411,7 @@ export type Database = {
           default_instagram_account_id: string | null
           default_landing_page_url: string | null
           default_languages: Json | null
+          default_messaging_mode: string | null
           default_non_conversion_budget_type: string | null
           default_optimization_location: string | null
           default_page_id: string | null
@@ -417,6 +420,7 @@ export type Database = {
           default_product_set_id: string | null
           default_publisher_platforms: Json | null
           default_view_window: number | null
+          default_whatsapp_number: string | null
           id: string
           main_markets: Json | null
           synced_at: string
@@ -432,6 +436,8 @@ export type Database = {
           default_advantage_plus_placements?: boolean | null
           default_age_max?: number | null
           default_age_min?: number | null
+          default_app_id?: string | null
+          default_app_store?: string | null
           default_bid_amount?: number | null
           default_bid_strategy?: string | null
           default_billing_event?: string | null
@@ -444,6 +450,7 @@ export type Database = {
           default_instagram_account_id?: string | null
           default_landing_page_url?: string | null
           default_languages?: Json | null
+          default_messaging_mode?: string | null
           default_non_conversion_budget_type?: string | null
           default_optimization_location?: string | null
           default_page_id?: string | null
@@ -452,6 +459,7 @@ export type Database = {
           default_product_set_id?: string | null
           default_publisher_platforms?: Json | null
           default_view_window?: number | null
+          default_whatsapp_number?: string | null
           id?: string
           main_markets?: Json | null
           synced_at?: string
@@ -467,6 +475,8 @@ export type Database = {
           default_advantage_plus_placements?: boolean | null
           default_age_max?: number | null
           default_age_min?: number | null
+          default_app_id?: string | null
+          default_app_store?: string | null
           default_bid_amount?: number | null
           default_bid_strategy?: string | null
           default_billing_event?: string | null
@@ -479,6 +489,7 @@ export type Database = {
           default_instagram_account_id?: string | null
           default_landing_page_url?: string | null
           default_languages?: Json | null
+          default_messaging_mode?: string | null
           default_non_conversion_budget_type?: string | null
           default_optimization_location?: string | null
           default_page_id?: string | null
@@ -487,6 +498,7 @@ export type Database = {
           default_product_set_id?: string | null
           default_publisher_platforms?: Json | null
           default_view_window?: number | null
+          default_whatsapp_number?: string | null
           id?: string
           main_markets?: Json | null
           synced_at?: string
@@ -1075,11 +1087,15 @@ export type Database = {
           default_conversion_budget_type: string | null
           default_devices: Json | null
           default_event_count_enabled: boolean | null
+          default_facebook_page_id: string | null
           default_frequency_schedule: number | null
           default_gender: string | null
           default_identity_id: string | null
           default_landing_page_url: string | null
           default_languages: Json | null
+          default_line_business_id: string | null
+          default_message_event_set: string | null
+          default_messaging_app: string | null
           default_non_conversion_budget_type: string | null
           default_optimization_event: string | null
           default_optimization_location: string | null
@@ -1088,6 +1104,8 @@ export type Database = {
           default_placements: Json | null
           default_product_set_id: string | null
           default_view_window: number | null
+          default_whatsapp_number: string | null
+          default_zalo_account_id: string | null
           id: string
           main_markets: Json | null
           synced_at: string
@@ -1114,11 +1132,15 @@ export type Database = {
           default_conversion_budget_type?: string | null
           default_devices?: Json | null
           default_event_count_enabled?: boolean | null
+          default_facebook_page_id?: string | null
           default_frequency_schedule?: number | null
           default_gender?: string | null
           default_identity_id?: string | null
           default_landing_page_url?: string | null
           default_languages?: Json | null
+          default_line_business_id?: string | null
+          default_message_event_set?: string | null
+          default_messaging_app?: string | null
           default_non_conversion_budget_type?: string | null
           default_optimization_event?: string | null
           default_optimization_location?: string | null
@@ -1127,6 +1149,8 @@ export type Database = {
           default_placements?: Json | null
           default_product_set_id?: string | null
           default_view_window?: number | null
+          default_whatsapp_number?: string | null
+          default_zalo_account_id?: string | null
           id?: string
           main_markets?: Json | null
           synced_at?: string
@@ -1153,11 +1177,15 @@ export type Database = {
           default_conversion_budget_type?: string | null
           default_devices?: Json | null
           default_event_count_enabled?: boolean | null
+          default_facebook_page_id?: string | null
           default_frequency_schedule?: number | null
           default_gender?: string | null
           default_identity_id?: string | null
           default_landing_page_url?: string | null
           default_languages?: Json | null
+          default_line_business_id?: string | null
+          default_message_event_set?: string | null
+          default_messaging_app?: string | null
           default_non_conversion_budget_type?: string | null
           default_optimization_event?: string | null
           default_optimization_location?: string | null
@@ -1166,6 +1194,8 @@ export type Database = {
           default_placements?: Json | null
           default_product_set_id?: string | null
           default_view_window?: number | null
+          default_whatsapp_number?: string | null
+          default_zalo_account_id?: string | null
           id?: string
           main_markets?: Json | null
           synced_at?: string

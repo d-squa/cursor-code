@@ -13,6 +13,12 @@ import { MARKET_OPTIONS, TIKTOK_MARKET_OPTIONS } from "@/utils/markets";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Separator } from "@/components/ui/separator";
 import AccountTaxonomySection from "./AccountTaxonomySection";
+import { 
+  META_APP_STORES, 
+  META_MESSAGING_MODES, 
+  TIKTOK_MESSAGING_APPS,
+  TIKTOK_OPTIMIZATION_LOCATIONS 
+} from "@/utils/destinationOptions";
 
 interface AdAccount {
   id: string;
@@ -59,6 +65,16 @@ interface AdAccount {
   default_age_min?: number | null;
   default_age_max?: number | null;
   default_gender?: string | null;
+  // Meta destination-specific fields
+  default_app_store?: string | null;
+  default_whatsapp_number?: string | null;
+  default_messaging_mode?: string | null;
+  // TikTok destination-specific fields
+  default_messaging_app?: string | null;
+  default_facebook_page_id?: string | null;
+  default_message_event_set?: string | null;
+  default_zalo_account_id?: string | null;
+  default_line_business_id?: string | null;
 }
 
 import { DEVICE_OPTIONS, LANGUAGE_OPTIONS, GENDER_OPTIONS, AGE_OPTIONS, normalizeLanguageValues } from "@/utils/targetingOptions";
@@ -417,6 +433,11 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         'default_age_min',
         'default_age_max',
         'default_gender',
+        // Meta destination-specific fields
+        'default_app_store',
+        'default_app_id',
+        'default_whatsapp_number',
+        'default_messaging_mode',
       ];
       
       const tiktokFields = [
@@ -449,6 +470,13 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         'default_age_min',
         'default_age_max',
         'default_gender',
+        // TikTok destination-specific fields
+        'default_messaging_app',
+        'default_facebook_page_id',
+        'default_message_event_set',
+        'default_whatsapp_number',
+        'default_zalo_account_id',
+        'default_line_business_id',
       ];
       
       const validFields = platform === 'tiktok' ? tiktokFields : metaFields;
@@ -985,7 +1013,17 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                             <Label>Default Optimization Location</Label>
                             <Select
                               value={defaults.default_optimization_location || "WEBSITE"}
-                              onValueChange={(value) => updateDefault(account.id, "default_optimization_location", value)}
+                              onValueChange={(value) => {
+                                updateDefault(account.id, "default_optimization_location", value);
+                                // Reset dependent fields when changing location
+                                if (value !== "APP") {
+                                  updateDefault(account.id, "default_app_store", null);
+                                  updateDefault(account.id, "default_app_id", null);
+                                }
+                                if (value !== "MESSAGING_APPS") {
+                                  updateDefault(account.id, "default_messaging_mode", "AUTOMATIC");
+                                }
+                              }}
                             >
                               <SelectTrigger>
                                 <SelectValue placeholder="Select optimization location" />
@@ -998,6 +1036,94 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                               </SelectContent>
                             </Select>
                           </div>
+
+                          {/* App Store - Only show when optimization location is APP */}
+                          {defaults.default_optimization_location === "APP" && (
+                            <>
+                              <div className="space-y-2">
+                                <Label>App Store</Label>
+                                <Select
+                                  value={defaults.default_app_store || undefined}
+                                  onValueChange={(value) => updateDefault(account.id, "default_app_store", value)}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select app store" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {META_APP_STORES.map((store) => (
+                                      <SelectItem key={store.value} value={store.value}>
+                                        {store.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <p className="text-xs text-muted-foreground">
+                                  The store where your app is published
+                                </p>
+                              </div>
+
+                              <div className="space-y-2">
+                                <Label>App ID</Label>
+                                <Input
+                                  value={defaults.default_app_id || ""}
+                                  onChange={(e) => updateDefault(account.id, "default_app_id", e.target.value)}
+                                  placeholder="Enter app ID or search..."
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                  The app identifier from the selected store
+                                </p>
+                              </div>
+                            </>
+                          )}
+
+                          {/* Messaging Mode - Only show when optimization location is MESSAGING_APPS */}
+                          {defaults.default_optimization_location === "MESSAGING_APPS" && (
+                            <>
+                              <div className="space-y-2">
+                                <Label>Messaging Mode</Label>
+                                <Select
+                                  value={defaults.default_messaging_mode || "AUTOMATIC"}
+                                  onValueChange={(value) => updateDefault(account.id, "default_messaging_mode", value)}
+                                >
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select messaging mode" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {META_MESSAGING_MODES.map((mode) => (
+                                      <SelectItem key={mode.value} value={mode.value}>
+                                        {mode.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <p className="text-xs text-muted-foreground">
+                                  Automatic lets Meta choose the best messaging channel
+                                </p>
+                              </div>
+
+                              {/* Manual messaging configuration */}
+                              {defaults.default_messaging_mode === "MANUAL" && (
+                                <>
+                                  <div className="space-y-2 md:col-span-2">
+                                    <p className="text-sm text-muted-foreground">
+                                      Manual messaging requires Facebook Page, Instagram Account (already configured above), and optionally a WhatsApp number.
+                                    </p>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label>WhatsApp Business Number</Label>
+                                    <Input
+                                      value={defaults.default_whatsapp_number || ""}
+                                      onChange={(e) => updateDefault(account.id, "default_whatsapp_number", e.target.value)}
+                                      placeholder="+1234567890"
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                      WhatsApp Business number configured in Ads Manager
+                                    </p>
+                                  </div>
+                                </>
+                              )}
+                            </>
+                          )}
 
                           {/* Landing Page URL */}
                           <div className="space-y-2">
@@ -1583,21 +1709,32 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                             </Label>
                             <Select
                               value={defaults.default_optimization_location || undefined}
-                              onValueChange={(value) => updateDefault(account.id, "default_optimization_location", value)}
+                              onValueChange={(value) => {
+                                updateDefault(account.id, "default_optimization_location", value);
+                                // Reset dependent fields when changing location
+                                if (value !== "App" && value !== "Website & App") {
+                                  updateDefault(account.id, "default_app_name", null);
+                                  updateDefault(account.id, "default_app_id", null);
+                                }
+                                if (value !== "Instant Messaging Apps") {
+                                  updateDefault(account.id, "default_messaging_app", null);
+                                  updateDefault(account.id, "default_facebook_page_id", null);
+                                  updateDefault(account.id, "default_message_event_set", null);
+                                  updateDefault(account.id, "default_whatsapp_number", null);
+                                  updateDefault(account.id, "default_zalo_account_id", null);
+                                  updateDefault(account.id, "default_line_business_id", null);
+                                }
+                              }}
                             >
                               <SelectTrigger className="border-black/20 dark:border-white/20">
                                 <SelectValue placeholder="Select location" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="Website">Website</SelectItem>
-                                <SelectItem value="App">App</SelectItem>
-                                <SelectItem value="TikTok Shop">TikTok Shop</SelectItem>
-                                <SelectItem value="Instant Form">Instant Form</SelectItem>
-                                <SelectItem value="TikTok Direct Messages">TikTok Direct Messages</SelectItem>
-                                <SelectItem value="Instant Messaging Apps">Instant Messaging Apps</SelectItem>
-                                <SelectItem value="Phone Call">Phone Call</SelectItem>
-                                <SelectItem value="TikTok Instant Page">TikTok Instant Page</SelectItem>
-                                <SelectItem value="Website & App">Website & App</SelectItem>
+                                {TIKTOK_OPTIMIZATION_LOCATIONS.map((loc) => (
+                                  <SelectItem key={loc.value} value={loc.value}>
+                                    {loc.label}
+                                  </SelectItem>
+                                ))}
                               </SelectContent>
                             </Select>
                             <p className="text-xs text-muted-foreground">
@@ -1605,8 +1742,8 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                             </p>
                           </div>
 
-                          {/* App Name - Only show when optimization location is App or Website & App */}
-                          {(defaults.default_optimization_location === 'App' || defaults.default_optimization_location === 'Website & App' || defaults.default_optimization_location === 'Instant Messaging Apps') && (
+                          {/* App Fields - Only show when optimization location is App or Website & App */}
+                          {(defaults.default_optimization_location === 'App' || defaults.default_optimization_location === 'Website & App') && (
                             <>
                               <div className="space-y-2">
                                 <Label className="flex items-center gap-2">
@@ -1614,11 +1751,14 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                   App Name
                                 </Label>
                                 <Input
-                                  placeholder="e.g., Android, iOS, Messenger, WhatsApp"
+                                  placeholder="Select from your TikTok data source apps"
                                   value={defaults.default_app_name || ""}
                                   onChange={(e) => updateDefault(account.id, "default_app_name", e.target.value)}
                                   className="border-black/20 dark:border-white/20"
                                 />
+                                <p className="text-xs text-muted-foreground">
+                                  Apps created in TikTok Ads Manager data source
+                                </p>
                               </div>
 
                               <div className="space-y-2">
@@ -1627,12 +1767,169 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                   App ID
                                 </Label>
                                 <Input
-                                  placeholder="App identifier"
+                                  placeholder="App identifier from data source"
                                   value={defaults.default_app_id || ""}
                                   onChange={(e) => updateDefault(account.id, "default_app_id", e.target.value)}
                                   className="border-black/20 dark:border-white/20"
                                 />
                               </div>
+                            </>
+                          )}
+
+                          {/* Instant Messaging Apps Configuration */}
+                          {defaults.default_optimization_location === 'Instant Messaging Apps' && (
+                            <>
+                              <div className="space-y-2">
+                                <Label className="flex items-center gap-2">
+                                  <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
+                                  Messaging App
+                                </Label>
+                                <Select
+                                  value={defaults.default_messaging_app || undefined}
+                                  onValueChange={(value) => {
+                                    updateDefault(account.id, "default_messaging_app", value);
+                                    // Reset other messaging fields when changing app
+                                    updateDefault(account.id, "default_facebook_page_id", null);
+                                    updateDefault(account.id, "default_message_event_set", null);
+                                    updateDefault(account.id, "default_whatsapp_number", null);
+                                    updateDefault(account.id, "default_zalo_account_id", null);
+                                    updateDefault(account.id, "default_line_business_id", null);
+                                  }}
+                                >
+                                  <SelectTrigger className="border-black/20 dark:border-white/20">
+                                    <SelectValue placeholder="Select messaging app" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {TIKTOK_MESSAGING_APPS.map((app) => (
+                                      <SelectItem key={app.value} value={app.value}>
+                                        {app.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <p className="text-xs text-muted-foreground">
+                                  {TIKTOK_MESSAGING_APPS.find(a => a.value === defaults.default_messaging_app)?.description || "Select a messaging app destination"}
+                                </p>
+                              </div>
+
+                              {/* Messenger Fields */}
+                              {defaults.default_messaging_app === 'MESSENGER' && (
+                                <>
+                                  <div className="space-y-2">
+                                    <Label className="flex items-center gap-2">
+                                      <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
+                                      Facebook Page ID
+                                    </Label>
+                                    <Input
+                                      placeholder="Enter Facebook Page ID"
+                                      value={defaults.default_facebook_page_id || ""}
+                                      onChange={(e) => updateDefault(account.id, "default_facebook_page_id", e.target.value)}
+                                      className="border-black/20 dark:border-white/20"
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                      Required for Messenger destination
+                                    </p>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label className="flex items-center gap-2">
+                                      <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
+                                      Message Event Set
+                                    </Label>
+                                    <Input
+                                      placeholder="Event set for conversation goals"
+                                      value={defaults.default_message_event_set || ""}
+                                      onChange={(e) => updateDefault(account.id, "default_message_event_set", e.target.value)}
+                                      className="border-black/20 dark:border-white/20"
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                      Required if optimization goal is Conversations
+                                    </p>
+                                  </div>
+                                </>
+                              )}
+
+                              {/* WhatsApp Fields */}
+                              {defaults.default_messaging_app === 'WHATSAPP' && (
+                                <>
+                                  <div className="space-y-2">
+                                    <Label className="flex items-center gap-2">
+                                      <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
+                                      WhatsApp Number
+                                    </Label>
+                                    <Input
+                                      placeholder="+1234567890"
+                                      value={defaults.default_whatsapp_number || ""}
+                                      onChange={(e) => updateDefault(account.id, "default_whatsapp_number", e.target.value)}
+                                      className="border-black/20 dark:border-white/20"
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                      WhatsApp Business number
+                                    </p>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label className="flex items-center gap-2">
+                                      <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
+                                      Message Event Set
+                                    </Label>
+                                    <Input
+                                      placeholder="Event set for conversation goals"
+                                      value={defaults.default_message_event_set || ""}
+                                      onChange={(e) => updateDefault(account.id, "default_message_event_set", e.target.value)}
+                                      className="border-black/20 dark:border-white/20"
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                      Required if optimization goal is Conversations
+                                    </p>
+                                  </div>
+                                </>
+                              )}
+
+                              {/* Zalo Fields */}
+                              {defaults.default_messaging_app === 'ZALO' && (
+                                <div className="space-y-2">
+                                  <Label className="flex items-center gap-2">
+                                    <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
+                                    Zalo Official Account ID
+                                  </Label>
+                                  <Input
+                                    placeholder="Zalo OA ID or phone number"
+                                    value={defaults.default_zalo_account_id || ""}
+                                    onChange={(e) => updateDefault(account.id, "default_zalo_account_id", e.target.value)}
+                                    className="border-black/20 dark:border-white/20"
+                                  />
+                                  <p className="text-xs text-muted-foreground">
+                                    Zalo Official Account ID or phone number
+                                  </p>
+                                </div>
+                              )}
+
+                              {/* LINE Fields */}
+                              {defaults.default_messaging_app === 'LINE' && (
+                                <div className="space-y-2">
+                                  <Label className="flex items-center gap-2">
+                                    <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
+                                    LINE Business ID
+                                  </Label>
+                                  <Input
+                                    placeholder="Enter LINE Business ID"
+                                    value={defaults.default_line_business_id || ""}
+                                    onChange={(e) => updateDefault(account.id, "default_line_business_id", e.target.value)}
+                                    className="border-black/20 dark:border-white/20"
+                                  />
+                                  <p className="text-xs text-muted-foreground">
+                                    Your LINE Official Account Business ID
+                                  </p>
+                                </div>
+                              )}
+
+                              {/* URL - No additional fields needed */}
+                              {defaults.default_messaging_app === 'URL' && (
+                                <div className="space-y-2 md:col-span-2">
+                                  <p className="text-sm text-muted-foreground">
+                                    Instant Messaging URL requires no additional configuration. Users will be directed to the landing page URL.
+                                  </p>
+                                </div>
+                              )}
                             </>
                           )}
 
