@@ -1283,6 +1283,42 @@ export type Database = {
           },
         ]
       }
+      tiktok_apps: {
+        Row: {
+          advertiser_id: string
+          app_id: string
+          app_name: string
+          app_type: string | null
+          created_at: string
+          download_url: string | null
+          id: string
+          synced_at: string
+          user_id: string
+        }
+        Insert: {
+          advertiser_id: string
+          app_id: string
+          app_name: string
+          app_type?: string | null
+          created_at?: string
+          download_url?: string | null
+          id?: string
+          synced_at?: string
+          user_id: string
+        }
+        Update: {
+          advertiser_id?: string
+          app_id?: string
+          app_name?: string
+          app_type?: string | null
+          created_at?: string
+          download_url?: string | null
+          id?: string
+          synced_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       tiktok_campaigns: {
         Row: {
           actiplan_campaign_id: string | null
