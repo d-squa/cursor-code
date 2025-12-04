@@ -8,6 +8,56 @@ import { INDUSTRIES, BUSINESS_OBJECTIVES } from "@/utils/clientOptions";
 import { PLATFORM_OPTIONS } from "@/utils/platformOptions";
 import { MARKET_OPTIONS } from "@/utils/markets";
 import { MultiSelect } from "@/components/ui/multi-select";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
+const DEVICE_OPTIONS = [
+  { value: "mobile", label: "Mobile" },
+  { value: "desktop", label: "Desktop" },
+  { value: "tablet", label: "Tablet" },
+];
+
+const LANGUAGE_OPTIONS = [
+  { value: "en", label: "English" },
+  { value: "es", label: "Spanish" },
+  { value: "fr", label: "French" },
+  { value: "de", label: "German" },
+  { value: "it", label: "Italian" },
+  { value: "pt", label: "Portuguese" },
+  { value: "nl", label: "Dutch" },
+  { value: "pl", label: "Polish" },
+  { value: "ru", label: "Russian" },
+  { value: "ja", label: "Japanese" },
+  { value: "ko", label: "Korean" },
+  { value: "zh", label: "Chinese" },
+  { value: "ar", label: "Arabic" },
+  { value: "hi", label: "Hindi" },
+  { value: "tr", label: "Turkish" },
+  { value: "vi", label: "Vietnamese" },
+  { value: "th", label: "Thai" },
+  { value: "id", label: "Indonesian" },
+  { value: "ms", label: "Malay" },
+  { value: "sv", label: "Swedish" },
+  { value: "da", label: "Danish" },
+  { value: "fi", label: "Finnish" },
+  { value: "no", label: "Norwegian" },
+  { value: "cs", label: "Czech" },
+  { value: "hu", label: "Hungarian" },
+  { value: "ro", label: "Romanian" },
+  { value: "el", label: "Greek" },
+  { value: "he", label: "Hebrew" },
+  { value: "uk", label: "Ukrainian" },
+];
+
+const AGE_OPTIONS = Array.from({ length: 53 }, (_, i) => ({
+  value: String(13 + i),
+  label: String(13 + i)
+}));
+
+const GENDER_OPTIONS = [
+  { value: "all", label: "All" },
+  { value: "1", label: "Male" },
+  { value: "2", label: "Female" },
+];
 
 interface ClientFormData {
   name: string;
@@ -17,6 +67,11 @@ interface ClientFormData {
   business_objective: string;
   platforms: string[];
   markets: string[];
+  default_age_min?: number;
+  default_age_max?: number;
+  default_gender?: string;
+  default_devices?: string[];
+  default_languages?: string[];
 }
 
 interface Props {
@@ -35,6 +90,11 @@ export default function ClientForm({ initialData, onSubmit, onCancel, submitLabe
     business_objective: initialData?.business_objective || "",
     platforms: (initialData as any)?.platforms || [],
     markets: (initialData as any)?.markets || [],
+    default_age_min: (initialData as any)?.default_age_min ?? 18,
+    default_age_max: (initialData as any)?.default_age_max ?? 65,
+    default_gender: (initialData as any)?.default_gender || "all",
+    default_devices: (initialData as any)?.default_devices || [],
+    default_languages: (initialData as any)?.default_languages || [],
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -48,6 +108,11 @@ export default function ClientForm({ initialData, onSubmit, onCancel, submitLabe
         business_objective: initialData.business_objective || "",
         platforms: (initialData as any)?.platforms || [],
         markets: (initialData as any)?.markets || [],
+        default_age_min: (initialData as any)?.default_age_min ?? 18,
+        default_age_max: (initialData as any)?.default_age_max ?? 65,
+        default_gender: (initialData as any)?.default_gender || "all",
+        default_devices: (initialData as any)?.default_devices || [],
+        default_languages: (initialData as any)?.default_languages || [],
       });
     }
   }, [initialData]);
@@ -170,6 +235,95 @@ export default function ClientForm({ initialData, onSubmit, onCancel, submitLabe
           Markets where this client operates
         </p>
       </div>
+
+      {/* Default Targeting Section */}
+      <Card className="mt-6">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Default Targeting</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            These targeting defaults will apply to all campaigns for this client
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Age Min</Label>
+              <Select
+                value={String(formData.default_age_min || 18)}
+                onValueChange={(value) => setFormData({ ...formData, default_age_min: parseInt(value) })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Min age" />
+                </SelectTrigger>
+                <SelectContent>
+                  {AGE_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Age Max</Label>
+              <Select
+                value={String(formData.default_age_max || 65)}
+                onValueChange={(value) => setFormData({ ...formData, default_age_max: parseInt(value) })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Max age" />
+                </SelectTrigger>
+                <SelectContent>
+                  {AGE_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Gender</Label>
+            <Select
+              value={formData.default_gender || "all"}
+              onValueChange={(value) => setFormData({ ...formData, default_gender: value })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select gender" />
+              </SelectTrigger>
+              <SelectContent>
+                {GENDER_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Devices</Label>
+            <MultiSelect
+              options={DEVICE_OPTIONS}
+              value={formData.default_devices || []}
+              onChange={(values) => setFormData({ ...formData, default_devices: values })}
+              placeholder="Select devices"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Languages</Label>
+            <MultiSelect
+              options={LANGUAGE_OPTIONS}
+              value={formData.default_languages || []}
+              onChange={(values) => setFormData({ ...formData, default_languages: values })}
+              placeholder="Select languages"
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="flex gap-3 justify-end pt-4">
         {onCancel && (
