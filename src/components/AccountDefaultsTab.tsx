@@ -316,7 +316,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
           // Optimization location for both platforms
           default_optimization_location: (acc as any).default_optimization_location || (acc.platform === 'meta' ? 'WEBSITE' : null),
           default_app_name: acc.platform === 'tiktok' ? (acc as any).default_app_name || null : null,
-          default_app_id: acc.platform === 'tiktok' ? (acc as any).default_app_id || null : null,
+          default_app_id: (acc as any).default_app_id || null,
           default_frequency_schedule: acc.platform === 'tiktok' ? (acc as any).default_frequency_schedule || null : null,
           // Attribution windows for both platforms
           default_click_window: (acc as any).default_click_window || (acc.platform === 'meta' ? 7 : null),
@@ -336,6 +336,19 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
           default_age_min: (acc as any).default_age_min ?? 18,
           default_age_max: (acc as any).default_age_max ?? 65,
           default_gender: (acc as any).default_gender || 'all',
+          // Meta messaging/destination fields
+          default_app_store: acc.platform === 'meta' ? (acc as any).default_app_store || null : null,
+          default_messaging_mode: acc.platform === 'meta' ? (acc as any).default_messaging_mode || null : null,
+          default_messenger_enabled: acc.platform === 'meta' ? (acc as any).default_messenger_enabled || false : null,
+          default_instagram_dm_enabled: acc.platform === 'meta' ? (acc as any).default_instagram_dm_enabled || false : null,
+          default_whatsapp_enabled: acc.platform === 'meta' ? (acc as any).default_whatsapp_enabled || false : null,
+          default_whatsapp_number: (acc as any).default_whatsapp_number || null,
+          // TikTok messaging fields
+          default_messaging_app: acc.platform === 'tiktok' ? (acc as any).default_messaging_app || null : null,
+          default_facebook_page_id: acc.platform === 'tiktok' ? (acc as any).default_facebook_page_id || null : null,
+          default_message_event_set: acc.platform === 'tiktok' ? (acc as any).default_message_event_set || null : null,
+          default_zalo_account_id: acc.platform === 'tiktok' ? (acc as any).default_zalo_account_id || null : null,
+          default_line_business_id: acc.platform === 'tiktok' ? (acc as any).default_line_business_id || null : null,
         };
       });
       

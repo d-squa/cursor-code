@@ -138,6 +138,22 @@ export function PlatformMarketBudgetSelector({
             mainMarkets: Array.isArray(acc.main_markets) ? acc.main_markets : [],
             publisherPlatforms: Array.isArray(acc.default_publisher_platforms) ? acc.default_publisher_platforms : ['facebook', 'instagram', 'audience_network'],
             positions: acc.default_positions || {},
+            advantagePlusPlacements: acc.default_advantage_plus_placements ?? true,
+            // Destination/Optimization location fields
+            optimizationLocation: acc.default_optimization_location,
+            appStore: acc.default_app_store,
+            appId: acc.default_app_id,
+            landingPageUrl: acc.default_landing_page_url,
+            // Messaging fields
+            messagingMode: acc.default_messaging_mode,
+            messengerEnabled: acc.default_messenger_enabled,
+            instagramDmEnabled: acc.default_instagram_dm_enabled,
+            whatsappEnabled: acc.default_whatsapp_enabled,
+            whatsappNumber: acc.default_whatsapp_number,
+            // Attribution windows
+            clickWindow: acc.default_click_window,
+            viewWindow: acc.default_view_window,
+            billingEvent: acc.default_billing_event,
           };
           console.log(`📋 Defaults for ${acc.account_name}:`, defaults[acc.account_id]);
         });
@@ -412,6 +428,21 @@ export function PlatformMarketBudgetSelector({
           mainMarkets: Array.isArray(acc.main_markets) ? acc.main_markets : [],
           placementType: acc.default_placement_type || 'PLACEMENT_TYPE_AUTOMATIC',
           placements: Array.isArray(acc.default_placements) ? acc.default_placements : ['PLACEMENT_TIKTOK'],
+          // TikTok destination fields
+          optimizationLocation: acc.default_optimization_location,
+          appName: acc.default_app_name,
+          appId: acc.default_app_id,
+          // TikTok messaging fields
+          messagingApp: acc.default_messaging_app,
+          facebookPageId: acc.default_facebook_page_id,
+          messageEventSet: acc.default_message_event_set,
+          whatsappNumber: acc.default_whatsapp_number,
+          zaloAccountId: acc.default_zalo_account_id,
+          lineBusinessId: acc.default_line_business_id,
+          // Attribution windows
+          clickWindow: acc.default_click_window,
+          viewWindow: acc.default_view_window,
+          billingEvent: acc.default_billing_event,
         };
       });
       console.log('✅ TikTok Ad Account Defaults loaded:', defaults);
@@ -1034,37 +1065,51 @@ export function PlatformMarketBudgetSelector({
                                                  productSet: defaults?.productSet
                                                });
                                                
-                                                 return {
-                                                   id: `${marketCode}-${Date.now()}-${idx}`,
-                                                   name: marketCode,
-                                                   budgetPercentage: marketBudgetSplit,
-                                                   adAccountId: value,
-                                                   accountName: account?.name || "",
-                                                   pixel: defaults?.pixelId || "",
-                                                   pageId: defaults?.pageId || "",
-                                                   page: defaults?.pageId || "",
-                                                   instagramActorId: defaults?.instagramActorId || "",
-                                                   catalog: defaults?.catalog || "",
-                                                   productSet: defaults?.productSet || "",
-                                                   conversionEvent: defaults?.conversionEvent || "",
-                                                   metaBidStrategy: defaults?.bidStrategy || 'LOWEST_COST_WITHOUT_CAP',
-                                                   metaBidAmount: defaults?.bidAmount || undefined,
-                                                   phases: [],
-                                                   adFormats: [],
-                                                   countries: [marketCode],
-                                                   ageMin: 18,
-                                                   ageMax: 65,
-                                                   gender: "all",
-                                                   languages: [],
-                                                   metaPublisherPlatforms: defaults?.publisherPlatforms || ['facebook', 'instagram', 'audience_network'],
-                                                   metaPositions: defaults?.positions || {},
-                                                   publisherPlatforms: defaults?.publisherPlatforms || ['facebook', 'instagram', 'audience_network'],
-                                                   positions: defaults?.positions || {},
-                                                   detailedTargeting: [],
-                                                   isCBOEnabled: false,
-                                                   isLifetimeBudget: false,
-                                                 };
-                                             });
+                                                  return {
+                                                    id: `${marketCode}-${Date.now()}-${idx}`,
+                                                    name: marketCode,
+                                                    budgetPercentage: marketBudgetSplit,
+                                                    adAccountId: value,
+                                                    accountName: account?.name || "",
+                                                    pixel: defaults?.pixelId || "",
+                                                    pageId: defaults?.pageId || "",
+                                                    page: defaults?.pageId || "",
+                                                    instagramActorId: defaults?.instagramActorId || "",
+                                                    catalog: defaults?.catalog || "",
+                                                    productSet: defaults?.productSet || "",
+                                                    conversionEvent: defaults?.conversionEvent || "",
+                                                    metaBidStrategy: defaults?.bidStrategy || 'LOWEST_COST_WITHOUT_CAP',
+                                                    metaBidAmount: defaults?.bidAmount || undefined,
+                                                    phases: [],
+                                                    adFormats: [],
+                                                    countries: [marketCode],
+                                                    ageMin: 18,
+                                                    ageMax: 65,
+                                                    gender: "all",
+                                                    languages: [],
+                                                    metaPublisherPlatforms: defaults?.publisherPlatforms || ['facebook', 'instagram', 'audience_network'],
+                                                    metaPositions: defaults?.positions || {},
+                                                    publisherPlatforms: defaults?.publisherPlatforms || ['facebook', 'instagram', 'audience_network'],
+                                                    positions: defaults?.positions || {},
+                                                    detailedTargeting: [],
+                                                    isCBOEnabled: false,
+                                                    isLifetimeBudget: false,
+                                                    // Destination/Optimization location fields
+                                                    metaOptimizationLocation: defaults?.optimizationLocation || "",
+                                                    metaAppStore: defaults?.appStore || "",
+                                                    metaAppId: defaults?.appId || "",
+                                                    metaLandingPageUrl: defaults?.landingPageUrl || "",
+                                                    metaMessagingMode: defaults?.messagingMode || "AUTOMATIC",
+                                                    metaMessengerEnabled: defaults?.messengerEnabled || false,
+                                                    metaInstagramDmEnabled: defaults?.instagramDmEnabled || false,
+                                                    metaWhatsappEnabled: defaults?.whatsappEnabled || false,
+                                                    metaWhatsappNumber: defaults?.whatsappNumber || "",
+                                                    metaBillingEvent: defaults?.billingEvent || "IMPRESSIONS",
+                                                    metaClickWindow: defaults?.clickWindow || 7,
+                                                    metaViewWindow: defaults?.viewWindow || 1,
+                                                    metaAdvantagePlusPlacements: defaults?.advantagePlusPlacements ?? true,
+                                                  };
+                                              });
                                              
                                              console.log('✅ Created markets:', newMarkets.map(m => ({ name: m.name, pixel: m.pixel, page: m.page, catalog: m.catalog })));
                                              
@@ -1092,32 +1137,46 @@ export function PlatformMarketBudgetSelector({
                                                      accountName: account?.name || "",
                                                    };
                                                    
-                                                    // Apply defaults if available
-                                                    if (defaults) {
-                                                      console.log("Applying defaults to current market:", value, defaults);
-                                                      
-                                                      if (defaults.pixelId) updated.pixel = defaults.pixelId;
-                                                      if (defaults.pageId) {
-                                                        updated.pageId = defaults.pageId;
-                                                        updated.page = defaults.pageId;
-                                                      }
-                                                      if (defaults.instagramActorId) updated.instagramActorId = defaults.instagramActorId;
-                                                      if (defaults.catalog) updated.catalog = defaults.catalog;
-                                                      if (defaults.productSet) updated.productSet = defaults.productSet;
-                                                      if (defaults.conversionEvent) updated.conversionEvent = defaults.conversionEvent;
-                                                      if (defaults.bidStrategy) updated.metaBidStrategy = defaults.bidStrategy;
-                                                      if (defaults.bidAmount !== undefined) updated.metaBidAmount = defaults.bidAmount;
-                                                      if (defaults.publisherPlatforms) {
-                                                        updated.metaPublisherPlatforms = defaults.publisherPlatforms;
-                                                        updated.publisherPlatforms = defaults.publisherPlatforms;
-                                                      }
-                                                      if (defaults.positions) {
-                                                        updated.metaPositions = defaults.positions;
-                                                        updated.positions = defaults.positions;
-                                                      }
-                                                      
-                                                      toast.success("Applied default settings for this ad account");
-                                                    }
+                                                     // Apply defaults if available
+                                                     if (defaults) {
+                                                       console.log("Applying defaults to current market:", value, defaults);
+                                                       
+                                                       if (defaults.pixelId) updated.pixel = defaults.pixelId;
+                                                       if (defaults.pageId) {
+                                                         updated.pageId = defaults.pageId;
+                                                         updated.page = defaults.pageId;
+                                                       }
+                                                       if (defaults.instagramActorId) updated.instagramActorId = defaults.instagramActorId;
+                                                       if (defaults.catalog) updated.catalog = defaults.catalog;
+                                                       if (defaults.productSet) updated.productSet = defaults.productSet;
+                                                       if (defaults.conversionEvent) updated.conversionEvent = defaults.conversionEvent;
+                                                       if (defaults.bidStrategy) updated.metaBidStrategy = defaults.bidStrategy;
+                                                       if (defaults.bidAmount !== undefined) updated.metaBidAmount = defaults.bidAmount;
+                                                       if (defaults.publisherPlatforms) {
+                                                         updated.metaPublisherPlatforms = defaults.publisherPlatforms;
+                                                         updated.publisherPlatforms = defaults.publisherPlatforms;
+                                                       }
+                                                       if (defaults.positions) {
+                                                         updated.metaPositions = defaults.positions;
+                                                         updated.positions = defaults.positions;
+                                                       }
+                                                       // Destination/Optimization location defaults
+                                                       if (defaults.optimizationLocation) updated.metaOptimizationLocation = defaults.optimizationLocation;
+                                                       if (defaults.appStore) updated.metaAppStore = defaults.appStore;
+                                                       if (defaults.appId) updated.metaAppId = defaults.appId;
+                                                       if (defaults.landingPageUrl) updated.metaLandingPageUrl = defaults.landingPageUrl;
+                                                       if (defaults.messagingMode) updated.metaMessagingMode = defaults.messagingMode;
+                                                       if (defaults.messengerEnabled !== undefined) updated.metaMessengerEnabled = defaults.messengerEnabled;
+                                                       if (defaults.instagramDmEnabled !== undefined) updated.metaInstagramDmEnabled = defaults.instagramDmEnabled;
+                                                       if (defaults.whatsappEnabled !== undefined) updated.metaWhatsappEnabled = defaults.whatsappEnabled;
+                                                       if (defaults.whatsappNumber) updated.metaWhatsappNumber = defaults.whatsappNumber;
+                                                       if (defaults.billingEvent) updated.metaBillingEvent = defaults.billingEvent;
+                                                       if (defaults.clickWindow) updated.metaClickWindow = defaults.clickWindow;
+                                                       if (defaults.viewWindow) updated.metaViewWindow = defaults.viewWindow;
+                                                       if (defaults.advantagePlusPlacements !== undefined) updated.metaAdvantagePlusPlacements = defaults.advantagePlusPlacements;
+                                                       
+                                                       toast.success("Applied default settings for this ad account");
+                                                     }
                                                    
                                                    if (!updated.phases || updated.phases.length === 0) {
                                                      updated.phases = [];
@@ -1484,6 +1543,20 @@ export function PlatformMarketBudgetSelector({
                                                 tiktokBidStrategy: defaults?.bidStrategy || "LOWEST_COST",
                                                 tiktokPlacementType: defaults?.placementType || "PLACEMENT_TYPE_AUTOMATIC",
                                                 tiktokPlacements: defaults?.placements || ["PLACEMENT_TIKTOK"],
+                                                // TikTok destination fields
+                                                tiktokOptimizationLocation: defaults?.optimizationLocation || "",
+                                                tiktokAppName: defaults?.appName || "",
+                                                tiktokAppId: defaults?.appId || "",
+                                                // TikTok messaging fields
+                                                tiktokMessagingApp: defaults?.messagingApp || "",
+                                                tiktokFacebookPageId: defaults?.facebookPageId || "",
+                                                tiktokMessageEventSet: defaults?.messageEventSet || "",
+                                                tiktokWhatsappNumber: defaults?.whatsappNumber || "",
+                                                tiktokZaloAccountId: defaults?.zaloAccountId || "",
+                                                tiktokLineBusinessId: defaults?.lineBusinessId || "",
+                                                // Attribution windows
+                                                tiktokClickWindow: defaults?.clickWindow || undefined,
+                                                tiktokViewWindow: defaults?.viewWindow || undefined,
                                                 phases: [],
                                                 adFormats: [],
                                                 // Filter out US from TikTok countries
@@ -1597,15 +1670,22 @@ export function PlatformMarketBudgetSelector({
                                                        updated.tiktokPlacementType = defaults.placementType;
                                                        console.log("  ✓ Set tiktokPlacementType:", defaults.placementType);
                                                      }
-                                                     if (defaults.placements) {
-                                                       updated.tiktokPlacements = defaults.placements;
-                                                       console.log("  ✓ Set tiktokPlacements:", defaults.placements);
-                                                     }
-                                                     
-                                                     toast.success("Applied default TikTok settings");
-                                                  } else {
-                                                    console.log("❌ No defaults to apply - configure in Client Defaults");
-                                                  }
+                                                      if (defaults.placements) {
+                                                        updated.tiktokPlacements = defaults.placements;
+                                                        console.log("  ✓ Set tiktokPlacements:", defaults.placements);
+                                                      }
+                                                      // TikTok messaging fields
+                                                      if (defaults.messagingApp) updated.tiktokMessagingApp = defaults.messagingApp;
+                                                      if (defaults.facebookPageId) updated.tiktokFacebookPageId = defaults.facebookPageId;
+                                                      if (defaults.messageEventSet) updated.tiktokMessageEventSet = defaults.messageEventSet;
+                                                      if (defaults.whatsappNumber) updated.tiktokWhatsappNumber = defaults.whatsappNumber;
+                                                      if (defaults.zaloAccountId) updated.tiktokZaloAccountId = defaults.zaloAccountId;
+                                                      if (defaults.lineBusinessId) updated.tiktokLineBusinessId = defaults.lineBusinessId;
+                                                      
+                                                      toast.success("Applied default TikTok settings");
+                                                   } else {
+                                                     console.log("❌ No defaults to apply - configure in Client Defaults");
+                                                   }
                                                   
                                                   if (!updated.phases || updated.phases.length === 0) {
                                                     updated.phases = [];
