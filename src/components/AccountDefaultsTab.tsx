@@ -216,7 +216,9 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         default_positions: (acc as any).default_positions || {},
         default_advantage_plus_placements: (acc as any).default_advantage_plus_placements ?? true,
         default_devices: Array.isArray((acc as any).default_devices) ? (acc as any).default_devices as string[] : [],
-        default_languages: Array.isArray((acc as any).default_languages) ? (acc as any).default_languages as string[] : [],
+        default_languages: Array.isArray((acc as any).default_languages) 
+          ? normalizeLanguageValues((acc as any).default_languages as (string | number)[])
+          : [],
         default_age_min: (acc as any).default_age_min ?? 18,
         default_age_max: (acc as any).default_age_max ?? 65,
         default_gender: (acc as any).default_gender || 'all',
@@ -241,7 +243,9 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         default_placement_type: (acc as any).default_placement_type || 'PLACEMENT_TYPE_AUTOMATIC',
         default_placements: Array.isArray((acc as any).default_placements) ? (acc as any).default_placements as string[] : ['PLACEMENT_TIKTOK', 'PLACEMENT_GLOBAL_APP_BUNDLE', 'PLACEMENT_PANGLE'],
         default_devices: Array.isArray((acc as any).default_devices) ? (acc as any).default_devices as string[] : [],
-        default_languages: Array.isArray((acc as any).default_languages) ? (acc as any).default_languages as string[] : [],
+        default_languages: Array.isArray((acc as any).default_languages) 
+          ? normalizeLanguageValues((acc as any).default_languages as (string | number)[])
+          : [],
         default_age_min: (acc as any).default_age_min ?? 18,
         default_age_max: (acc as any).default_age_max ?? 65,
         default_gender: (acc as any).default_gender || 'all',
@@ -303,7 +307,9 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
           main_markets: acc.main_markets,
           // Targeting defaults
           default_devices: (acc as any).default_devices || [],
-          default_languages: (acc as any).default_languages || [],
+          default_languages: Array.isArray((acc as any).default_languages) 
+            ? normalizeLanguageValues((acc as any).default_languages as (string | number)[])
+            : [],
           default_age_min: (acc as any).default_age_min ?? 18,
           default_age_max: (acc as any).default_age_max ?? 65,
           default_gender: (acc as any).default_gender || 'all',
