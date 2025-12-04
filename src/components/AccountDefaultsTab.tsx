@@ -7,12 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Save } from "lucide-react";
+import { Loader2, Save, Phone } from "lucide-react";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { MARKET_OPTIONS, TIKTOK_MARKET_OPTIONS } from "@/utils/markets";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Separator } from "@/components/ui/separator";
 import AccountTaxonomySection from "./AccountTaxonomySection";
+import MetaAppSearch from "./MetaAppSearch";
 import { 
   META_APP_STORES, 
   META_MESSAGING_MODES, 
@@ -151,6 +152,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
   const [tiktokIdentities, setTiktokIdentities] = useState<any[]>([]);
   const [tiktokCatalogs, setTiktokCatalogs] = useState<any[]>([]);
   const [tiktokProductSets, setTiktokProductSets] = useState<any[]>([]);
+  const [tiktokApps, setTiktokApps] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [localDefaults, setLocalDefaults] = useState<Record<string, Partial<AdAccount>>>({});
@@ -352,7 +354,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
       setLocalDefaults(defaults);
 
       // Load all available resources
-      const [pixelsRes, pagesRes, igRes, catalogsRes, productSetsRes, eventsRes, tiktokPixelsRes, tiktokIdentitiesRes, tiktokCatalogsRes, tiktokProductSetsRes] = await Promise.all([
+      const [pixelsRes, pagesRes, igRes, catalogsRes, productSetsRes, eventsRes, tiktokPixelsRes, tiktokIdentitiesRes, tiktokCatalogsRes, tiktokProductSetsRes, tiktokAppsRes] = await Promise.all([
         supabase.from("meta_pixels").select("id, ad_account_id, pixel_id, pixel_name").eq("user_id", userId),
         supabase.from("meta_pages").select("id, page_id, page_name").eq("user_id", userId),
         supabase.from("meta_instagram_accounts").select("id, instagram_account_id, username").eq("user_id", userId),
@@ -363,6 +365,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         supabase.from("tiktok_identities").select("*").eq("user_id", userId),
         supabase.from("tiktok_catalogs").select("*").eq("user_id", userId),
         supabase.from("tiktok_product_sets").select("*").eq("user_id", userId),
+        supabase.from("tiktok_apps").select("*").eq("user_id", userId),
       ]);
 
       if (pixelsRes.error) throw pixelsRes.error;
@@ -382,10 +385,12 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
       console.log("TikTok Identities loaded:", tiktokIdentitiesRes.data?.length || 0, tiktokIdentitiesRes.data);
       console.log("TikTok Catalogs loaded:", tiktokCatalogsRes.data?.length || 0, tiktokCatalogsRes.data);
       console.log("TikTok Product Sets loaded:", tiktokProductSetsRes.data?.length || 0, tiktokProductSetsRes.data);
+      console.log("TikTok Apps loaded:", tiktokAppsRes.data?.length || 0, tiktokAppsRes.data);
       setTiktokPixels(tiktokPixelsRes.data || []);
       setTiktokIdentities(tiktokIdentitiesRes.data || []);
       setTiktokCatalogs(tiktokCatalogsRes.data || []);
       setTiktokProductSets(tiktokProductSetsRes.data || []);
+      setTiktokApps(tiktokAppsRes.data || []);
     } catch (error: any) {
       console.error("Error loading data:", error);
       toast.error("Failed to load account defaults");
@@ -1050,7 +1055,11 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                 <Label>App Store</Label>
                                 <Select
                                   value={defaults.default_app_store || undefined}
-                                  onValueChange={(value) => updateDefault(account.id, "default_app_store", value)}
+                                  onValueChange={(value) => {
+                                    updateDefault(account.id, "default_app_store", value);
+                                    // Clear app selection when store changes
+                                    updateDefault(account.id, "default_app_id", null);
+                                  }}
                                 >
                                   <SelectTrigger>
                                     <SelectValue placeholder="Select app store" />
@@ -1069,17 +1078,40 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                               </div>
 
                               <div className="space-y-2">
-                                <Label>App ID</Label>
-                                <Input
-                                  value={defaults.default_app_id || ""}
-                                  onChange={(e) => updateDefault(account.id, "default_app_id", e.target.value)}
-                                  placeholder="Enter app ID or search..."
+                                <Label>Search & Select App</Label>
+                                <MetaAppSearch
+                                  appStore={defaults.default_app_store || null}
+                                  adAccountId={account.account_id}
+                                  value={defaults.default_app_id || null}
+                                  onChange={(appId) => updateDefault(account.id, "default_app_id", appId)}
                                 />
                                 <p className="text-xs text-muted-foreground">
-                                  The app identifier from the selected store
+                                  Search for your app by name after selecting a store
                                 </p>
                               </div>
                             </>
+                          )}
+
+                          {/* Calls - Auto-show selected Facebook Page */}
+                          {defaults.default_optimization_location === "CALLS" && (
+                            <div className="space-y-2 md:col-span-2">
+                              <Label className="flex items-center gap-2">
+                                <Phone className="h-4 w-4" />
+                                Phone Calls Destination
+                              </Label>
+                              <div className="p-3 bg-muted/50 rounded-md border">
+                                <p className="text-sm">
+                                  <span className="text-muted-foreground">Facebook Page: </span>
+                                  <span className="font-medium">
+                                    {pages.find(p => p.page_id === defaults.default_page_id)?.page_name || 
+                                     (defaults.default_page_id ? `Page ID: ${defaults.default_page_id}` : "No page selected")}
+                                  </span>
+                                </p>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Phone calls will use the Facebook Page configured above. Users will see a "Call Now" button.
+                                </p>
+                              </div>
+                            </div>
                           )}
 
                           {/* Messaging Mode - Only show when optimization location is MESSAGING_APPS */}
@@ -1822,33 +1854,74 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                           {/* App Fields - Only show when optimization location is App or Website & App */}
                           {(defaults.default_optimization_location === 'App' || defaults.default_optimization_location === 'Website & App') && (
                             <>
-                              <div className="space-y-2">
+                              <div className="space-y-2 md:col-span-2">
                                 <Label className="flex items-center gap-2">
                                   <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
-                                  App Name
+                                  Select App
                                 </Label>
-                                <Input
-                                  placeholder="Select from your TikTok data source apps"
-                                  value={defaults.default_app_name || ""}
-                                  onChange={(e) => updateDefault(account.id, "default_app_name", e.target.value)}
-                                  className="border-black/20 dark:border-white/20"
-                                />
+                                {(() => {
+                                  const accountApps = tiktokApps.filter(app => app.advertiser_id === account.advertiser_id);
+                                  return accountApps.length > 0 ? (
+                                    <Select
+                                      value={defaults.default_app_id || undefined}
+                                      onValueChange={(value) => {
+                                        const selectedApp = accountApps.find(app => app.app_id === value);
+                                        updateDefault(account.id, "default_app_id", value);
+                                        updateDefault(account.id, "default_app_name", selectedApp?.app_name || null);
+                                      }}
+                                    >
+                                      <SelectTrigger className="border-black/20 dark:border-white/20">
+                                        <SelectValue placeholder="Select an app from your data source" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {accountApps.map((app) => (
+                                          <SelectItem key={app.id} value={app.app_id}>
+                                            {app.app_name} {app.app_type && `(${app.app_type})`}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  ) : (
+                                    <div className="p-3 bg-muted/50 rounded-md border text-sm text-muted-foreground">
+                                      <p>No apps found in your TikTok data source.</p>
+                                      <p className="mt-1 text-xs">Apps must be created in TikTok Ads Manager first, then they will appear here after syncing.</p>
+                                      <Button 
+                                        variant="outline" 
+                                        size="sm" 
+                                        className="mt-2"
+                                        onClick={async () => {
+                                          try {
+                                            const { data: { session } } = await supabase.auth.getSession();
+                                            if (!session) return;
+                                            
+                                            toast.info("Syncing TikTok apps...");
+                                            const response = await supabase.functions.invoke("sync-tiktok-apps", {
+                                              body: { advertiserId: account.advertiser_id }
+                                            });
+                                            
+                                            if (response.data?.apps?.length > 0) {
+                                              setTiktokApps(prev => {
+                                                const otherApps = prev.filter(a => a.advertiser_id !== account.advertiser_id);
+                                                return [...otherApps, ...response.data.apps];
+                                              });
+                                              toast.success(`Found ${response.data.apps.length} app(s)`);
+                                            } else {
+                                              toast.info("No apps found for this advertiser");
+                                            }
+                                          } catch (error) {
+                                            console.error("Error syncing apps:", error);
+                                            toast.error("Failed to sync apps");
+                                          }
+                                        }}
+                                      >
+                                        Sync Apps from TikTok
+                                      </Button>
+                                    </div>
+                                  );
+                                })()}
                                 <p className="text-xs text-muted-foreground">
                                   Apps created in TikTok Ads Manager data source
                                 </p>
-                              </div>
-
-                              <div className="space-y-2">
-                                <Label className="flex items-center gap-2">
-                                  <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
-                                  App ID
-                                </Label>
-                                <Input
-                                  placeholder="App identifier from data source"
-                                  value={defaults.default_app_id || ""}
-                                  onChange={(e) => updateDefault(account.id, "default_app_id", e.target.value)}
-                                  className="border-black/20 dark:border-white/20"
-                                />
                               </div>
                             </>
                           )}
