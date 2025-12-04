@@ -153,6 +153,8 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
   const [tiktokCatalogs, setTiktokCatalogs] = useState<any[]>([]);
   const [tiktokProductSets, setTiktokProductSets] = useState<any[]>([]);
   const [tiktokApps, setTiktokApps] = useState<any[]>([]);
+  const [tiktokEvents, setTiktokEvents] = useState<Record<string, Array<{ id: string; name: string }>>>({});
+  const [loadingTiktokEvents, setLoadingTiktokEvents] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [localDefaults, setLocalDefaults] = useState<Record<string, Partial<AdAccount>>>({});
@@ -396,6 +398,41 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
       toast.error("Failed to load account defaults");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Fetch TikTok events for an advertiser
+  const fetchTiktokEvents = async (advertiserId: string, pixelId?: string) => {
+    if (tiktokEvents[advertiserId]) return; // Already fetched
+    
+    setLoadingTiktokEvents(advertiserId);
+    try {
+      const { data, error } = await supabase.functions.invoke('fetch-tiktok-events', {
+        body: { advertiserId, pixelId }
+      });
+      
+      if (error) throw error;
+      
+      if (data?.events) {
+        setTiktokEvents(prev => ({
+          ...prev,
+          [advertiserId]: data.events
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching TikTok events:', error);
+      // Set fallback events
+      setTiktokEvents(prev => ({
+        ...prev,
+        [advertiserId]: [
+          { id: "SubmitForm", name: "Submit Form" },
+          { id: "CompletePayment", name: "Complete Payment" },
+          { id: "PlaceAnOrder", name: "Place an Order" },
+          { id: "Contact", name: "Contact" },
+        ]
+      }));
+    } finally {
+      setLoadingTiktokEvents(null);
     }
   };
 
@@ -1985,12 +2022,30 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                       <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
                                       Message Event Set
                                     </Label>
-                                    <Input
-                                      placeholder="Event set for conversation goals"
-                                      value={defaults.default_message_event_set || ""}
-                                      onChange={(e) => updateDefault(account.id, "default_message_event_set", e.target.value)}
-                                      className="border-black/20 dark:border-white/20"
-                                    />
+                                    {(() => {
+                                      // Fetch events if not already loaded
+                                      if (account.advertiser_id && !tiktokEvents[account.advertiser_id] && loadingTiktokEvents !== account.advertiser_id) {
+                                        fetchTiktokEvents(account.advertiser_id, defaults.default_pixel_id || undefined);
+                                      }
+                                      const events = tiktokEvents[account.advertiser_id] || [];
+                                      return (
+                                        <Select
+                                          value={defaults.default_message_event_set || undefined}
+                                          onValueChange={(value) => updateDefault(account.id, "default_message_event_set", value)}
+                                        >
+                                          <SelectTrigger className="border-black/20 dark:border-white/20">
+                                            <SelectValue placeholder={loadingTiktokEvents === account.advertiser_id ? "Loading events..." : "Select event"} />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            {events.map((event) => (
+                                              <SelectItem key={event.id} value={event.id}>
+                                                {event.name}
+                                              </SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                      );
+                                    })()}
                                     <p className="text-xs text-muted-foreground">
                                       Required if optimization goal is Conversations
                                     </p>
@@ -2021,12 +2076,30 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                       <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
                                       Message Event Set
                                     </Label>
-                                    <Input
-                                      placeholder="Event set for conversation goals"
-                                      value={defaults.default_message_event_set || ""}
-                                      onChange={(e) => updateDefault(account.id, "default_message_event_set", e.target.value)}
-                                      className="border-black/20 dark:border-white/20"
-                                    />
+                                    {(() => {
+                                      // Fetch events if not already loaded
+                                      if (account.advertiser_id && !tiktokEvents[account.advertiser_id] && loadingTiktokEvents !== account.advertiser_id) {
+                                        fetchTiktokEvents(account.advertiser_id, defaults.default_pixel_id || undefined);
+                                      }
+                                      const events = tiktokEvents[account.advertiser_id] || [];
+                                      return (
+                                        <Select
+                                          value={defaults.default_message_event_set || undefined}
+                                          onValueChange={(value) => updateDefault(account.id, "default_message_event_set", value)}
+                                        >
+                                          <SelectTrigger className="border-black/20 dark:border-white/20">
+                                            <SelectValue placeholder={loadingTiktokEvents === account.advertiser_id ? "Loading events..." : "Select event"} />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            {events.map((event) => (
+                                              <SelectItem key={event.id} value={event.id}>
+                                                {event.name}
+                                              </SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                      );
+                                    })()}
                                     <p className="text-xs text-muted-foreground">
                                       Required if optimization goal is Conversations
                                     </p>
