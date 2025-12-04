@@ -69,6 +69,9 @@ interface AdAccount {
   default_app_store?: string | null;
   default_whatsapp_number?: string | null;
   default_messaging_mode?: string | null;
+  default_messenger_enabled?: boolean | null;
+  default_instagram_dm_enabled?: boolean | null;
+  default_whatsapp_enabled?: boolean | null;
   // TikTok destination-specific fields
   default_messaging_app?: string | null;
   default_facebook_page_id?: string | null;
@@ -438,6 +441,9 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         'default_app_id',
         'default_whatsapp_number',
         'default_messaging_mode',
+        'default_messenger_enabled',
+        'default_instagram_dm_enabled',
+        'default_whatsapp_enabled',
       ];
       
       const tiktokFields = [
@@ -1106,19 +1112,90 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                 <>
                                   <div className="space-y-2 md:col-span-2">
                                     <p className="text-sm text-muted-foreground">
-                                      Manual messaging requires Facebook Page, Instagram Account (already configured above), and optionally a WhatsApp number.
+                                      Select which messaging channels to enable:
                                     </p>
                                   </div>
+                                  
+                                  {/* Facebook Messenger */}
                                   <div className="space-y-2">
-                                    <Label>WhatsApp Business Number</Label>
-                                    <Input
-                                      value={defaults.default_whatsapp_number || ""}
-                                      onChange={(e) => updateDefault(account.id, "default_whatsapp_number", e.target.value)}
-                                      placeholder="+1234567890"
-                                    />
-                                    <p className="text-xs text-muted-foreground">
-                                      WhatsApp Business number configured in Ads Manager
-                                    </p>
+                                    <div className="flex items-center space-x-2">
+                                      <input
+                                        type="checkbox"
+                                        id={`messenger-${account.id}`}
+                                        checked={defaults.default_messenger_enabled || false}
+                                        onChange={(e) => updateDefault(account.id, "default_messenger_enabled", e.target.checked)}
+                                        className="h-4 w-4 rounded border-input"
+                                      />
+                                      <Label htmlFor={`messenger-${account.id}`}>Facebook Messenger</Label>
+                                    </div>
+                                    {defaults.default_messenger_enabled && (
+                                      <div className="ml-6 p-2 bg-muted/50 rounded-md">
+                                        <p className="text-sm">
+                                          <span className="text-muted-foreground">Page: </span>
+                                          <span className="font-medium">
+                                            {pages.find(p => p.page_id === defaults.default_page_id)?.page_name || 
+                                             (defaults.default_page_id ? `Page ID: ${defaults.default_page_id}` : "No page selected")}
+                                          </span>
+                                        </p>
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                          Uses the Facebook Page configured above
+                                        </p>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Instagram Direct Messages */}
+                                  <div className="space-y-2">
+                                    <div className="flex items-center space-x-2">
+                                      <input
+                                        type="checkbox"
+                                        id={`instagram-dm-${account.id}`}
+                                        checked={defaults.default_instagram_dm_enabled || false}
+                                        onChange={(e) => updateDefault(account.id, "default_instagram_dm_enabled", e.target.checked)}
+                                        className="h-4 w-4 rounded border-input"
+                                      />
+                                      <Label htmlFor={`instagram-dm-${account.id}`}>Instagram Direct Messages</Label>
+                                    </div>
+                                    {defaults.default_instagram_dm_enabled && (
+                                      <div className="ml-6 p-2 bg-muted/50 rounded-md">
+                                        <p className="text-sm">
+                                          <span className="text-muted-foreground">Account: </span>
+                                          <span className="font-medium">
+                                            {instagramAccounts.find(i => i.instagram_account_id === defaults.default_instagram_account_id)?.username || 
+                                             (defaults.default_instagram_account_id ? `ID: ${defaults.default_instagram_account_id}` : "No account selected")}
+                                          </span>
+                                        </p>
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                          Uses the Instagram Account configured above
+                                        </p>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* WhatsApp */}
+                                  <div className="space-y-2 md:col-span-2">
+                                    <div className="flex items-center space-x-2">
+                                      <input
+                                        type="checkbox"
+                                        id={`whatsapp-${account.id}`}
+                                        checked={defaults.default_whatsapp_enabled || false}
+                                        onChange={(e) => updateDefault(account.id, "default_whatsapp_enabled", e.target.checked)}
+                                        className="h-4 w-4 rounded border-input"
+                                      />
+                                      <Label htmlFor={`whatsapp-${account.id}`}>WhatsApp</Label>
+                                    </div>
+                                    {defaults.default_whatsapp_enabled && (
+                                      <div className="ml-6 space-y-2">
+                                        <Input
+                                          value={defaults.default_whatsapp_number || ""}
+                                          onChange={(e) => updateDefault(account.id, "default_whatsapp_number", e.target.value)}
+                                          placeholder="+1234567890"
+                                        />
+                                        <p className="text-xs text-muted-foreground">
+                                          WhatsApp Business number configured in Meta Business Suite
+                                        </p>
+                                      </div>
+                                    )}
                                   </div>
                                 </>
                               )}

@@ -409,9 +409,11 @@ export type Database = {
           default_devices: Json | null
           default_gender: string | null
           default_instagram_account_id: string | null
+          default_instagram_dm_enabled: boolean | null
           default_landing_page_url: string | null
           default_languages: Json | null
           default_messaging_mode: string | null
+          default_messenger_enabled: boolean | null
           default_non_conversion_budget_type: string | null
           default_optimization_location: string | null
           default_page_id: string | null
@@ -420,6 +422,7 @@ export type Database = {
           default_product_set_id: string | null
           default_publisher_platforms: Json | null
           default_view_window: number | null
+          default_whatsapp_enabled: boolean | null
           default_whatsapp_number: string | null
           id: string
           main_markets: Json | null
@@ -448,9 +451,11 @@ export type Database = {
           default_devices?: Json | null
           default_gender?: string | null
           default_instagram_account_id?: string | null
+          default_instagram_dm_enabled?: boolean | null
           default_landing_page_url?: string | null
           default_languages?: Json | null
           default_messaging_mode?: string | null
+          default_messenger_enabled?: boolean | null
           default_non_conversion_budget_type?: string | null
           default_optimization_location?: string | null
           default_page_id?: string | null
@@ -459,6 +464,7 @@ export type Database = {
           default_product_set_id?: string | null
           default_publisher_platforms?: Json | null
           default_view_window?: number | null
+          default_whatsapp_enabled?: boolean | null
           default_whatsapp_number?: string | null
           id?: string
           main_markets?: Json | null
@@ -487,9 +493,11 @@ export type Database = {
           default_devices?: Json | null
           default_gender?: string | null
           default_instagram_account_id?: string | null
+          default_instagram_dm_enabled?: boolean | null
           default_landing_page_url?: string | null
           default_languages?: Json | null
           default_messaging_mode?: string | null
+          default_messenger_enabled?: boolean | null
           default_non_conversion_budget_type?: string | null
           default_optimization_location?: string | null
           default_page_id?: string | null
@@ -498,6 +506,7 @@ export type Database = {
           default_product_set_id?: string | null
           default_publisher_platforms?: Json | null
           default_view_window?: number | null
+          default_whatsapp_enabled?: boolean | null
           default_whatsapp_number?: string | null
           id?: string
           main_markets?: Json | null
