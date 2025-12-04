@@ -34,6 +34,7 @@ import { MarketSelectionDialog } from "./MarketSelectionDialog";
 import { MARKET_OPTIONS } from "@/utils/markets";
 import { CampaignBudgetTypeDialog } from "./CampaignBudgetTypeDialog";
 import BulkBudgetTypeDialog from "./BulkBudgetTypeDialog";
+import { normalizeLanguageValues } from "@/utils/targetingOptions";
 
 // Helper: map internal focus to funnel template key
 const mapFocusToTemplate = (focus?: string): string | undefined => {
@@ -175,12 +176,17 @@ export function MediaPlanEditor() {
     console.log('Client markets:', clientMarkets);
 
     // Auto-populate basicTargeting from client's cross-platform defaults
+    // Normalize language values to handle legacy numeric IDs
+    const normalizedLanguages = Array.isArray(selectedClient.default_languages) 
+      ? normalizeLanguageValues(selectedClient.default_languages)
+      : [];
+    
     const clientTargetingDefaults: UnifiedTargetingConfig = {
       ageMin: selectedClient.default_age_min ?? 18,
       ageMax: selectedClient.default_age_max ?? 65,
       genders: selectedClient.default_gender ? [selectedClient.default_gender] : ['all'],
       devices: Array.isArray(selectedClient.default_devices) ? selectedClient.default_devices : [],
-      languages: Array.isArray(selectedClient.default_languages) ? selectedClient.default_languages : [],
+      languages: normalizedLanguages,
       os: [],
       selectedItems: basicTargeting.selectedItems || [], // Preserve any existing selected items
     };

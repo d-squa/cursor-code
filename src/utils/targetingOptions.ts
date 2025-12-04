@@ -29,20 +29,16 @@ export const AGE_OPTIONS = [
   { value: "65", label: "65+" },
 ];
 
-// Unified language options using ISO 639-1 codes
-// These are platform-agnostic and will be mapped to platform-specific values in adapters
+// Unified language options - base languages available on all platforms
+// Regional variants are labeled with their platform availability
 export const LANGUAGE_OPTIONS = [
+  // Base languages (available on all platforms)
   { value: "en", label: "English" },
-  { value: "en_US", label: "English (US)" },
-  { value: "en_GB", label: "English (UK)" },
   { value: "es", label: "Spanish" },
-  { value: "es_ES", label: "Spanish (Spain)" },
-  { value: "es_MX", label: "Spanish (Mexico)" },
   { value: "fr", label: "French" },
   { value: "de", label: "German" },
   { value: "it", label: "Italian" },
   { value: "pt", label: "Portuguese" },
-  { value: "pt_BR", label: "Portuguese (Brazil)" },
   { value: "nl", label: "Dutch" },
   { value: "pl", label: "Polish" },
   { value: "sv", label: "Swedish" },
@@ -52,8 +48,6 @@ export const LANGUAGE_OPTIONS = [
   { value: "ar", label: "Arabic" },
   { value: "ja", label: "Japanese" },
   { value: "ko", label: "Korean" },
-  { value: "zh_CN", label: "Chinese (Simplified)" },
-  { value: "zh_TW", label: "Chinese (Traditional)" },
   { value: "hi", label: "Hindi" },
   { value: "ru", label: "Russian" },
   { value: "tr", label: "Turkish" },
@@ -67,6 +61,14 @@ export const LANGUAGE_OPTIONS = [
   { value: "el", label: "Greek" },
   { value: "he", label: "Hebrew" },
   { value: "uk", label: "Ukrainian" },
+  // Regional variants (Meta-specific - will map to base for TikTok)
+  { value: "en_US", label: "English (US) — Meta only" },
+  { value: "en_GB", label: "English (UK) — Meta only" },
+  { value: "es_ES", label: "Spanish (Spain) — Meta only" },
+  { value: "es_MX", label: "Spanish (Mexico) — Meta only" },
+  { value: "pt_BR", label: "Portuguese (Brazil) — Meta only" },
+  { value: "zh_CN", label: "Chinese (Simplified)" },
+  { value: "zh_TW", label: "Chinese (Traditional)" },
 ];
 
 // Platform-specific language mappings for API calls
@@ -179,4 +181,62 @@ export function convertGenderToMeta(gender: string): number[] {
 
 export function convertGenderToTikTok(gender: string): string {
   return TIKTOK_GENDER_MAPPING[gender] || "GENDER_UNLIMITED";
+}
+
+// Get language label by value
+export function getLanguageLabel(value: string): string {
+  const option = LANGUAGE_OPTIONS.find(opt => opt.value === value);
+  return option?.label || value;
+}
+
+// Reverse mapping: Meta language ID to ISO code
+export const META_LANGUAGE_ID_TO_ISO: Record<number, string> = {
+  1: "ar",
+  3: "da",
+  4: "cs",
+  5: "de",
+  6: "en",
+  7: "fr",
+  8: "fi",
+  9: "el",
+  10: "es",
+  11: "he",
+  12: "hu",
+  13: "hi",
+  14: "ja",
+  15: "pt",
+  16: "it",
+  19: "ko",
+  20: "nl",
+  21: "ro",
+  22: "ru",
+  24: "en_GB",
+  25: "zh_CN",
+  26: "zh_TW",
+  27: "sv",
+  28: "pl",
+  29: "tr",
+  30: "no",
+  32: "th",
+  50: "uk",
+  51: "vi",
+  61: "ms",
+  62: "id",
+};
+
+// Convert stored language values to ISO codes (handles both old numeric IDs and new ISO codes)
+export function normalizeLanguageValues(values: (string | number)[]): string[] {
+  return values.map(val => {
+    // If it's already a valid ISO code in our options, keep it
+    if (typeof val === 'string' && LANGUAGE_OPTIONS.some(opt => opt.value === val)) {
+      return val;
+    }
+    // Try to convert numeric ID to ISO
+    const numericVal = typeof val === 'string' ? parseInt(val, 10) : val;
+    if (!isNaN(numericVal) && META_LANGUAGE_ID_TO_ISO[numericVal]) {
+      return META_LANGUAGE_ID_TO_ISO[numericVal];
+    }
+    // Return as string if we can't convert
+    return String(val);
+  }).filter((val): val is string => typeof val === 'string');
 }
