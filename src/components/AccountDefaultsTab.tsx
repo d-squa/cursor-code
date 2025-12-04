@@ -61,59 +61,7 @@ interface AdAccount {
   default_gender?: string | null;
 }
 
-// Static device options
-const DEVICE_OPTIONS = [
-  { value: "mobile", label: "Mobile" },
-  { value: "desktop", label: "Desktop" },
-  { value: "tablet", label: "Tablet" },
-];
-
-// Common language options (locale keys for Meta API)
-const LANGUAGE_OPTIONS = [
-  { value: "6", label: "English (US)" },
-  { value: "24", label: "English (UK)" },
-  { value: "10", label: "Spanish" },
-  { value: "5", label: "German" },
-  { value: "7", label: "French" },
-  { value: "16", label: "Italian" },
-  { value: "15", label: "Portuguese" },
-  { value: "20", label: "Dutch" },
-  { value: "28", label: "Polish" },
-  { value: "27", label: "Swedish" },
-  { value: "30", label: "Norwegian" },
-  { value: "3", label: "Danish" },
-  { value: "8", label: "Finnish" },
-  { value: "1", label: "Arabic" },
-  { value: "14", label: "Japanese" },
-  { value: "19", label: "Korean" },
-  { value: "25", label: "Chinese (Simplified)" },
-  { value: "26", label: "Chinese (Traditional)" },
-  { value: "13", label: "Hindi" },
-  { value: "22", label: "Russian" },
-  { value: "29", label: "Turkish" },
-];
-
-// Age options (18-65+)
-const AGE_OPTIONS = [
-  { value: "18", label: "18" },
-  { value: "21", label: "21" },
-  { value: "25", label: "25" },
-  { value: "30", label: "30" },
-  { value: "35", label: "35" },
-  { value: "40", label: "40" },
-  { value: "45", label: "45" },
-  { value: "50", label: "50" },
-  { value: "55", label: "55" },
-  { value: "60", label: "60" },
-  { value: "65", label: "65+" },
-];
-
-// Gender options
-const GENDER_OPTIONS = [
-  { value: "all", label: "All Genders" },
-  { value: "male", label: "Male" },
-  { value: "female", label: "Female" },
-];
+import { DEVICE_OPTIONS, LANGUAGE_OPTIONS, GENDER_OPTIONS, AGE_OPTIONS } from "@/utils/targetingOptions";
 
 interface MetaResource {
   id: string;
