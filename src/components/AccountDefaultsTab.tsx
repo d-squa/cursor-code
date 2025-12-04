@@ -2156,6 +2156,43 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                             </>
                           )}
 
+                          {/* TikTok Direct Messages Configuration */}
+                          {defaults.default_optimization_location === 'TikTok Direct Messages' && (
+                            <div className="space-y-2">
+                              <Label className="flex items-center gap-2">
+                                <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
+                                Message Event Set
+                              </Label>
+                              {(() => {
+                                // Fetch events if not already loaded
+                                if (account.advertiser_id && !tiktokEvents[account.advertiser_id] && loadingTiktokEvents !== account.advertiser_id) {
+                                  fetchTiktokEvents(account.advertiser_id, defaults.default_pixel_id || undefined);
+                                }
+                                const events = tiktokEvents[account.advertiser_id] || [];
+                                return (
+                                  <Select
+                                    value={defaults.default_message_event_set || undefined}
+                                    onValueChange={(value) => updateDefault(account.id, "default_message_event_set", value)}
+                                  >
+                                    <SelectTrigger className="border-black/20 dark:border-white/20">
+                                      <SelectValue placeholder={loadingTiktokEvents === account.advertiser_id ? "Loading events..." : "Select event"} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {events.map((event) => (
+                                        <SelectItem key={event.id} value={event.id}>
+                                          {event.name}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                );
+                              })()}
+                              <p className="text-xs text-muted-foreground">
+                                Required for TikTok Direct Messages lead generation. Fetched from TikTok API.
+                              </p>
+                            </div>
+                          )}
+
                           {/* Attribution Windows */}
                           <div className="space-y-2">
                             <Label className="flex items-center gap-2">
