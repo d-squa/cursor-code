@@ -526,6 +526,10 @@ export function MediaPlanEditor() {
       if (storedTargeting) {
         try {
           const parsed = JSON.parse(storedTargeting);
+          // Normalize language values to handle legacy numeric IDs
+          if (parsed.languages && Array.isArray(parsed.languages)) {
+            parsed.languages = normalizeLanguageValues(parsed.languages);
+          }
           console.log('🔄 Rehydrated basicTargeting from localStorage:', parsed);
           setBasicTargeting(parsed);
         } catch (e) {
@@ -571,9 +575,14 @@ export function MediaPlanEditor() {
           
           // Load basicTargeting from database if not already loaded from localStorage
           if (config?.basicTargeting && !storedTargeting) {
-            console.log('🔄 Loaded basicTargeting from database:', config.basicTargeting);
-            setBasicTargeting(config.basicTargeting);
-            localStorage.setItem('basicTargeting', JSON.stringify(config.basicTargeting));
+            const dbTargeting = { ...config.basicTargeting };
+            // Normalize language values to handle legacy numeric IDs
+            if (dbTargeting.languages && Array.isArray(dbTargeting.languages)) {
+              dbTargeting.languages = normalizeLanguageValues(dbTargeting.languages);
+            }
+            console.log('🔄 Loaded basicTargeting from database:', dbTargeting);
+            setBasicTargeting(dbTargeting);
+            localStorage.setItem('basicTargeting', JSON.stringify(dbTargeting));
           }
         } else {
           console.log('No draft found, starting fresh');
