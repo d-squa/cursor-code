@@ -112,6 +112,13 @@ export interface Phase {
   tiktokProductSet?: string; // TikTok Product Set ID at phase level
   tiktokPlacementType?: string; // PLACEMENT_TYPE_AUTOMATIC or PLACEMENT_TYPE_NORMAL
   tiktokPlacements?: string[]; // Array of placement positions when manual
+  // TikTok destination-specific fields
+  tiktokMessagingApp?: string; // MESSENGER, WHATSAPP, ZALO, LINE, URL
+  tiktokFacebookPageId?: string; // Facebook page ID for Messenger
+  tiktokMessageEventSet?: string; // Message event set for conversation goals
+  tiktokWhatsappNumber?: string; // WhatsApp number
+  tiktokZaloAccountId?: string; // Zalo Official Account ID
+  tiktokLineBusinessId?: string; // LINE Business ID
   // Meta-specific fields at phase level
   metaBillingEvent?: string; // IMPRESSIONS, LINK_CLICKS, POST_ENGAGEMENT, etc.
   metaLandingPageUrl?: string; // Default landing page URL
@@ -120,6 +127,11 @@ export interface Phase {
   metaViewWindow?: number; // View-through attribution window in days (1, 7)
   metaBidStrategy?: string; // LOWEST_COST_WITHOUT_CAP, LOWEST_COST_WITH_BID_CAP, COST_CAP
   metaBidAmount?: number; // Bid amount when bid cap is required
+  // Meta destination-specific fields
+  metaAppStore?: string; // Store for app destination
+  metaAppId?: string; // App identifier from the selected store
+  metaMessagingMode?: string; // AUTOMATIC or MANUAL
+  metaWhatsappNumber?: string; // WhatsApp Business number
   // Campaign-level overrides (inherits from market/generic if not set)
   publisherPlatforms?: string[];
   positions?: {
