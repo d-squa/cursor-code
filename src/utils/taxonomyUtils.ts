@@ -662,16 +662,6 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyPara
       description: 'Auto-filled from Phase Config → Optimization Goal. RCH=Reach, IMP=Impressions, CLK=Clicks, LPV=Landing Page Views, CVN=Conversions, VAL=Value, VV=Video Views.',
     },
     {
-      id: 'placementType',
-      key: 'PLC',
-      label: 'Placement',
-      type: 'options',
-      options: ['AUT', 'MAN'],
-      system: true,
-      required: true,
-      description: 'Auto-filled from Phase Config → Placement Type. AUT=Automatic (platform optimizes placements), MAN=Manual (user-selected placements).',
-    },
-    {
       id: 'budgetType',
       key: 'BTYP',
       label: 'Budget Type',
