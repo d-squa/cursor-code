@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.76.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -18,14 +19,75 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
+    // Authenticate the user
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+      throw new Error("Server configuration error");
+    }
+
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    
+    // Verify the user's JWT token
+    const token = authHeader.replace("Bearer ", "");
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
+
     const { email, teamName, role, invitationToken }: InvitationRequest = await req.json();
 
-    console.log("Processing invitation for:", email);
+    console.log("Processing invitation for:", email, "by user:", user.id);
+
+    // Verify the invitation exists and was created by this user or a team admin
+    const { data: invitation, error: invitationError } = await supabase
+      .from("invitations")
+      .select("id, created_by, team_id")
+      .eq("token", invitationToken)
+      .eq("status", "pending")
+      .single();
+
+    if (invitationError || !invitation) {
+      return new Response(JSON.stringify({ error: "Invalid invitation" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
+
+    // Verify the caller created this invitation or is an admin
+    if (invitation.created_by !== user.id) {
+      const { data: userRole } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
+        .single();
+      
+      if (!userRole) {
+        return new Response(JSON.stringify({ error: "Permission denied" }), {
+          status: 403,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        });
+      }
+    }
 
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
     if (!resendApiKey) {
       console.error("RESEND_API_KEY not configured");
-      throw new Error("Email service not configured. Please add RESEND_API_KEY secret.");
+      throw new Error("Email service not configured");
     }
 
     // Get the base URL for the invitation link
@@ -77,7 +139,7 @@ const handler = async (req: Request): Promise<Response> => {
     if (!response.ok) {
       const error = await response.text();
       console.error(`Resend API error (${response.status}):`, error);
-      throw new Error(`Resend API error: ${error}`);
+      throw new Error("Failed to send email");
     }
 
     const result = await response.json();
@@ -89,15 +151,8 @@ const handler = async (req: Request): Promise<Response> => {
     });
   } catch (error: any) {
     console.error("Error in send-invitation-email function:", error);
-    console.error("Error details:", {
-      message: error.message,
-      stack: error.stack,
-      name: error.name,
-    });
     return new Response(
-      JSON.stringify({
-        error: error.message || "Failed to send invitation email",
-      }),
+      JSON.stringify({ error: "Failed to send invitation email" }),
       {
         status: 500,
         headers: { "Content-Type": "application/json", ...corsHeaders },
