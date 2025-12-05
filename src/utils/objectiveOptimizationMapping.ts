@@ -70,6 +70,7 @@ export const META_OBJECTIVE_MAPPING: ObjectiveMapping[] = [
       { value: "LEAD_GENERATION", label: "Leads (Instant Forms)", billingEvent: "IMPRESSIONS" },
       { value: "CONVERSATIONS", label: "Conversations (Messaging)", billingEvent: "IMPRESSIONS" },
       { value: "OFFSITE_CONVERSIONS", label: "Conversions (Website)", billingEvent: "IMPRESSIONS" },
+      { value: "APP_INSTALLS", label: "Leads (App)", billingEvent: "IMPRESSIONS" },
       { value: "LINK_CLICKS", label: "Link Clicks", billingEvent: "LINK_CLICKS" },
     ]
   },
