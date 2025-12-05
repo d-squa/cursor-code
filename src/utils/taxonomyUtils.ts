@@ -559,16 +559,6 @@ export function extractTaxonomyValues(
         // Don't shorten activation name - use as-is (just clean special chars)
         rawValue = context.activationName;
         values[param.id] = rawValue ? rawValue.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() : '';
-      case 'region':
-        // Auto-detect region from markets if multiple
-        if (context.region) {
-          values[param.id] = shortenValue('region', context.region);
-        } else if (context.markets && context.markets.length > 1) {
-          const detectedRegion = detectRegionFromMarkets(context.markets);
-          values[param.id] = detectedRegion ? shortenValue('region', detectedRegion) : '';
-        } else {
-          values[param.id] = '';
-        }
         break;
       case 'phaseBudget':
         values[param.id] = context.phaseBudget ? formatBudgetForTaxonomy(context.phaseBudget) : '';
