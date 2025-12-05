@@ -1079,232 +1079,33 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                             </Select>
                           </div>
 
-                          {/* Optimization Location */}
-                          <div className="space-y-2">
-                            <Label>Default Optimization Location</Label>
-                            <Select
-                              value={defaults.default_optimization_location || "WEBSITE"}
-                              onValueChange={(value) => {
-                                updateDefault(account.id, "default_optimization_location", value);
-                                // Reset dependent fields when changing location
-                                if (value !== "APP") {
-                                  updateDefault(account.id, "default_app_store", null);
-                                  updateDefault(account.id, "default_app_id", null);
-                                }
-                                if (value !== "MESSAGING_APPS") {
-                                  updateDefault(account.id, "default_messaging_mode", "AUTOMATIC");
+                          {/* Conversion Locations Section */}
+                          <div className="space-y-2 md:col-span-2">
+                            <Label className="text-base font-medium">Conversion Locations</Label>
+                            <p className="text-xs text-muted-foreground mb-4">
+                              Configure destination locations. When a campaign objective requires a specific location, it will auto-fill from here.
+                            </p>
+                            <ConversionLocationsSection
+                              platform="meta"
+                              accountId={account.id}
+                              metaAdAccountId={account.account_id}
+                              configuredLocations={extractMetaLocations(defaults)}
+                              onSaveLocation={async (locationType, data) => {
+                                const updates = metaLocationToDefaults(locationType, data);
+                                for (const [key, value] of Object.entries(updates)) {
+                                  await updateDefault(account.id, key as any, value);
                                 }
                               }}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select optimization location" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="WEBSITE">Website</SelectItem>
-                                <SelectItem value="APP">App</SelectItem>
-                                <SelectItem value="MESSAGING_APPS">Messaging Apps</SelectItem>
-                                <SelectItem value="CALLS">Calls</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-
-                          {/* App Store - Only show when optimization location is APP */}
-                          {defaults.default_optimization_location === "APP" && (
-                            <>
-                              <div className="space-y-2">
-                                <Label>App Store</Label>
-                                <Select
-                                  value={defaults.default_app_store || undefined}
-                                  onValueChange={(value) => {
-                                    updateDefault(account.id, "default_app_store", value);
-                                    // Clear app selection when store changes
-                                    updateDefault(account.id, "default_app_id", null);
-                                  }}
-                                >
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Select app store" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {META_APP_STORES.map((store) => (
-                                      <SelectItem key={store.value} value={store.value}>
-                                        {store.label}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                <p className="text-xs text-muted-foreground">
-                                  The store where your app is published
-                                </p>
-                              </div>
-
-                              <div className="space-y-2">
-                                <Label>Search & Select App</Label>
-                                <MetaAppSearch
-                                  appStore={defaults.default_app_store || null}
-                                  adAccountId={account.account_id}
-                                  value={defaults.default_app_id || null}
-                                  onChange={(appId) => updateDefault(account.id, "default_app_id", appId)}
-                                />
-                                <p className="text-xs text-muted-foreground">
-                                  Search for your app by name after selecting a store
-                                </p>
-                              </div>
-                            </>
-                          )}
-
-                          {/* Calls - Auto-show selected Facebook Page */}
-                          {defaults.default_optimization_location === "CALLS" && (
-                            <div className="space-y-2 md:col-span-2">
-                              <Label className="flex items-center gap-2">
-                                <Phone className="h-4 w-4" />
-                                Phone Calls Destination
-                              </Label>
-                              <div className="p-3 bg-muted/50 rounded-md border">
-                                <p className="text-sm">
-                                  <span className="text-muted-foreground">Facebook Page: </span>
-                                  <span className="font-medium">
-                                    {pages.find(p => p.page_id === defaults.default_page_id)?.page_name || 
-                                     (defaults.default_page_id ? `Page ID: ${defaults.default_page_id}` : "No page selected")}
-                                  </span>
-                                </p>
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  Phone calls will use the Facebook Page configured above. Users will see a "Call Now" button.
-                                </p>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Messaging Mode - Only show when optimization location is MESSAGING_APPS */}
-                          {defaults.default_optimization_location === "MESSAGING_APPS" && (
-                            <>
-                              <div className="space-y-2">
-                                <Label>Messaging Mode</Label>
-                                <Select
-                                  value={defaults.default_messaging_mode || "AUTOMATIC"}
-                                  onValueChange={(value) => updateDefault(account.id, "default_messaging_mode", value)}
-                                >
-                                  <SelectTrigger>
-                                    <SelectValue placeholder="Select messaging mode" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {META_MESSAGING_MODES.map((mode) => (
-                                      <SelectItem key={mode.value} value={mode.value}>
-                                        {mode.label}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                <p className="text-xs text-muted-foreground">
-                                  Automatic lets Meta choose the best messaging channel
-                                </p>
-                              </div>
-
-                              {/* Manual messaging configuration */}
-                              {defaults.default_messaging_mode === "MANUAL" && (
-                                <>
-                                  <div className="space-y-2 md:col-span-2">
-                                    <p className="text-sm text-muted-foreground">
-                                      Select which messaging channels to enable:
-                                    </p>
-                                  </div>
-                                  
-                                  {/* Facebook Messenger */}
-                                  <div className="space-y-2">
-                                    <div className="flex items-center space-x-2">
-                                      <input
-                                        type="checkbox"
-                                        id={`messenger-${account.id}`}
-                                        checked={defaults.default_messenger_enabled || false}
-                                        onChange={(e) => updateDefault(account.id, "default_messenger_enabled", e.target.checked)}
-                                        className="h-4 w-4 rounded border-input"
-                                      />
-                                      <Label htmlFor={`messenger-${account.id}`}>Facebook Messenger</Label>
-                                    </div>
-                                    {defaults.default_messenger_enabled && (
-                                      <div className="ml-6 p-2 bg-muted/50 rounded-md">
-                                        <p className="text-sm">
-                                          <span className="text-muted-foreground">Page: </span>
-                                          <span className="font-medium">
-                                            {pages.find(p => p.page_id === defaults.default_page_id)?.page_name || 
-                                             (defaults.default_page_id ? `Page ID: ${defaults.default_page_id}` : "No page selected")}
-                                          </span>
-                                        </p>
-                                        <p className="text-xs text-muted-foreground mt-1">
-                                          Uses the Facebook Page configured above
-                                        </p>
-                                      </div>
-                                    )}
-                                  </div>
-
-                                  {/* Instagram Direct Messages */}
-                                  <div className="space-y-2">
-                                    <div className="flex items-center space-x-2">
-                                      <input
-                                        type="checkbox"
-                                        id={`instagram-dm-${account.id}`}
-                                        checked={defaults.default_instagram_dm_enabled || false}
-                                        onChange={(e) => updateDefault(account.id, "default_instagram_dm_enabled", e.target.checked)}
-                                        className="h-4 w-4 rounded border-input"
-                                      />
-                                      <Label htmlFor={`instagram-dm-${account.id}`}>Instagram Direct Messages</Label>
-                                    </div>
-                                    {defaults.default_instagram_dm_enabled && (
-                                      <div className="ml-6 p-2 bg-muted/50 rounded-md">
-                                        <p className="text-sm">
-                                          <span className="text-muted-foreground">Account: </span>
-                                          <span className="font-medium">
-                                            {instagramAccounts.find(i => i.instagram_account_id === defaults.default_instagram_account_id)?.username || 
-                                             (defaults.default_instagram_account_id ? `ID: ${defaults.default_instagram_account_id}` : "No account selected")}
-                                          </span>
-                                        </p>
-                                        <p className="text-xs text-muted-foreground mt-1">
-                                          Uses the Instagram Account configured above
-                                        </p>
-                                      </div>
-                                    )}
-                                  </div>
-
-                                  {/* WhatsApp */}
-                                  <div className="space-y-2 md:col-span-2">
-                                    <div className="flex items-center space-x-2">
-                                      <input
-                                        type="checkbox"
-                                        id={`whatsapp-${account.id}`}
-                                        checked={defaults.default_whatsapp_enabled || false}
-                                        onChange={(e) => updateDefault(account.id, "default_whatsapp_enabled", e.target.checked)}
-                                        className="h-4 w-4 rounded border-input"
-                                      />
-                                      <Label htmlFor={`whatsapp-${account.id}`}>WhatsApp</Label>
-                                    </div>
-                                    {defaults.default_whatsapp_enabled && (
-                                      <div className="ml-6 space-y-2">
-                                        <Input
-                                          value={defaults.default_whatsapp_number || ""}
-                                          onChange={(e) => updateDefault(account.id, "default_whatsapp_number", e.target.value)}
-                                          placeholder="+1234567890"
-                                        />
-                                        <p className="text-xs text-muted-foreground">
-                                          WhatsApp Business number configured in Meta Business Suite
-                                        </p>
-                                      </div>
-                                    )}
-                                  </div>
-                                </>
-                              )}
-                            </>
-                          )}
-
-                          {/* Landing Page URL */}
-                          <div className="space-y-2">
-                            <Label>Default Landing Page URL</Label>
-                            <Input
-                              value={defaults.default_landing_page_url || ""}
-                              onChange={(e) => updateDefault(account.id, "default_landing_page_url", e.target.value)}
-                              placeholder="https://example.com"
+                              onDeleteLocation={async (locationType) => {
+                                const fieldsToClear = getMetaLocationClearFields(locationType);
+                                for (const field of fieldsToClear) {
+                                  await updateDefault(account.id, field as any, null);
+                                }
+                              }}
+                              pages={pages.filter(p => p.page_id).map(p => ({ page_id: p.page_id!, page_name: p.page_name! }))}
+                              instagramAccounts={instagramAccounts.filter(i => i.instagram_account_id).map(i => ({ instagram_account_id: i.instagram_account_id!, username: i.username! }))}
+                              saving={saving}
                             />
-                            <p className="text-xs text-muted-foreground">
-                              Default destination URL for traffic campaigns
-                            </p>
                           </div>
 
                           {/* Attribution Windows */}
@@ -1870,351 +1671,36 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                             </div>
                           )}
 
-                          {/* Optimization Location */}
-                          <div className="space-y-2">
-                            <Label className="flex items-center gap-2">
+                          {/* Conversion Locations Section */}
+                          <div className="space-y-2 md:col-span-2">
+                            <Label className="text-base font-medium flex items-center gap-2">
                               <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
-                              Optimization Location
+                              Conversion Locations
                             </Label>
-                            <Select
-                              value={defaults.default_optimization_location || undefined}
-                              onValueChange={(value) => {
-                                updateDefault(account.id, "default_optimization_location", value);
-                                // Reset dependent fields when changing location
-                                if (value !== "App" && value !== "Website & App") {
-                                  updateDefault(account.id, "default_app_name", null);
-                                  updateDefault(account.id, "default_app_id", null);
-                                }
-                                if (value !== "Instant Messaging Apps") {
-                                  updateDefault(account.id, "default_messaging_app", null);
-                                  updateDefault(account.id, "default_facebook_page_id", null);
-                                  updateDefault(account.id, "default_message_event_set", null);
-                                  updateDefault(account.id, "default_whatsapp_number", null);
-                                  updateDefault(account.id, "default_zalo_account_id", null);
-                                  updateDefault(account.id, "default_line_business_id", null);
+                            <p className="text-xs text-muted-foreground mb-4">
+                              Configure destination locations. When a campaign objective requires a specific location, it will auto-fill from here.
+                            </p>
+                            <ConversionLocationsSection
+                              platform="tiktok"
+                              accountId={account.id}
+                              configuredLocations={extractTiktokLocations(defaults)}
+                              onSaveLocation={async (locationType, data) => {
+                                const updates = tiktokLocationToDefaults(locationType, data);
+                                for (const [key, value] of Object.entries(updates)) {
+                                  await updateDefault(account.id, key as any, value);
                                 }
                               }}
-                            >
-                              <SelectTrigger className="border-black/20 dark:border-white/20">
-                                <SelectValue placeholder="Select location" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {TIKTOK_OPTIMIZATION_LOCATIONS.map((loc) => (
-                                  <SelectItem key={loc.value} value={loc.value}>
-                                    {loc.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <p className="text-xs text-muted-foreground">
-                              Where optimizations will occur (Website, App, TikTok Shop, etc.)
-                            </p>
-                          </div>
-
-                          {/* App Fields - Only show when optimization location is App or Website & App */}
-                          {(defaults.default_optimization_location === 'App' || defaults.default_optimization_location === 'Website & App') && (
-                            <>
-                              <div className="space-y-2 md:col-span-2">
-                                <Label className="flex items-center gap-2">
-                                  <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
-                                  Select App
-                                </Label>
-                                {(() => {
-                                  const accountApps = tiktokApps.filter(app => app.advertiser_id === account.advertiser_id);
-                                  return accountApps.length > 0 ? (
-                                    <Select
-                                      value={defaults.default_app_id || undefined}
-                                      onValueChange={(value) => {
-                                        const selectedApp = accountApps.find(app => app.app_id === value);
-                                        updateDefault(account.id, "default_app_id", value);
-                                        updateDefault(account.id, "default_app_name", selectedApp?.app_name || null);
-                                      }}
-                                    >
-                                      <SelectTrigger className="border-black/20 dark:border-white/20">
-                                        <SelectValue placeholder="Select an app from your data source" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {accountApps.map((app) => (
-                                          <SelectItem key={app.id} value={app.app_id}>
-                                            {app.app_name} {app.app_type && `(${app.app_type})`}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                  ) : (
-                                    <div className="p-3 bg-muted/50 rounded-md border text-sm text-muted-foreground">
-                                      <p>No apps found in your TikTok data source.</p>
-                                      <p className="mt-1 text-xs">Apps must be created in TikTok Ads Manager first, then they will appear here after syncing.</p>
-                                      <Button 
-                                        variant="outline" 
-                                        size="sm" 
-                                        className="mt-2"
-                                        onClick={async () => {
-                                          try {
-                                            const { data: { session } } = await supabase.auth.getSession();
-                                            if (!session) return;
-                                            
-                                            toast.info("Syncing TikTok apps...");
-                                            const response = await supabase.functions.invoke("sync-tiktok-apps", {
-                                              body: { advertiserId: account.advertiser_id }
-                                            });
-                                            
-                                            if (response.data?.apps?.length > 0) {
-                                              setTiktokApps(prev => {
-                                                const otherApps = prev.filter(a => a.advertiser_id !== account.advertiser_id);
-                                                return [...otherApps, ...response.data.apps];
-                                              });
-                                              toast.success(`Found ${response.data.apps.length} app(s)`);
-                                            } else {
-                                              toast.info("No apps found for this advertiser");
-                                            }
-                                          } catch (error) {
-                                            console.error("Error syncing apps:", error);
-                                            toast.error("Failed to sync apps");
-                                          }
-                                        }}
-                                      >
-                                        Sync Apps from TikTok
-                                      </Button>
-                                    </div>
-                                  );
-                                })()}
-                                <p className="text-xs text-muted-foreground">
-                                  Apps created in TikTok Ads Manager data source
-                                </p>
-                              </div>
-                            </>
-                          )}
-
-                          {/* Instant Messaging Apps Configuration */}
-                          {defaults.default_optimization_location === 'Instant Messaging Apps' && (
-                            <>
-                              <div className="space-y-2">
-                                <Label className="flex items-center gap-2">
-                                  <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
-                                  Messaging App
-                                </Label>
-                                <Select
-                                  value={defaults.default_messaging_app || undefined}
-                                  onValueChange={(value) => {
-                                    updateDefault(account.id, "default_messaging_app", value);
-                                    // Reset other messaging fields when changing app
-                                    updateDefault(account.id, "default_facebook_page_id", null);
-                                    updateDefault(account.id, "default_message_event_set", null);
-                                    updateDefault(account.id, "default_whatsapp_number", null);
-                                    updateDefault(account.id, "default_zalo_account_id", null);
-                                    updateDefault(account.id, "default_line_business_id", null);
-                                  }}
-                                >
-                                  <SelectTrigger className="border-black/20 dark:border-white/20">
-                                    <SelectValue placeholder="Select messaging app" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {TIKTOK_MESSAGING_APPS.map((app) => (
-                                      <SelectItem key={app.value} value={app.value}>
-                                        {app.label}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                <p className="text-xs text-muted-foreground">
-                                  {TIKTOK_MESSAGING_APPS.find(a => a.value === defaults.default_messaging_app)?.description || "Select a messaging app destination"}
-                                </p>
-                              </div>
-
-                              {/* Messenger Fields */}
-                              {defaults.default_messaging_app === 'MESSENGER' && (
-                                <>
-                                  <div className="space-y-2">
-                                    <Label className="flex items-center gap-2">
-                                      <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
-                                      Facebook Page ID
-                                    </Label>
-                                    <Input
-                                      placeholder="Enter Facebook Page ID"
-                                      value={defaults.default_facebook_page_id || ""}
-                                      onChange={(e) => updateDefault(account.id, "default_facebook_page_id", e.target.value)}
-                                      className="border-black/20 dark:border-white/20"
-                                    />
-                                    <p className="text-xs text-muted-foreground">
-                                      Required for Messenger destination
-                                    </p>
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label className="flex items-center gap-2">
-                                      <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
-                                      Message Event Set
-                                    </Label>
-                                    {(() => {
-                                      // Fetch events if not already loaded
-                                      if (account.advertiser_id && !tiktokEvents[account.advertiser_id] && loadingTiktokEvents !== account.advertiser_id) {
-                                        fetchTiktokEvents(account.advertiser_id, defaults.default_pixel_id || undefined);
-                                      }
-                                      const events = tiktokEvents[account.advertiser_id] || [];
-                                      return (
-                                        <Select
-                                          value={defaults.default_message_event_set || undefined}
-                                          onValueChange={(value) => updateDefault(account.id, "default_message_event_set", value)}
-                                        >
-                                          <SelectTrigger className="border-black/20 dark:border-white/20">
-                                            <SelectValue placeholder={loadingTiktokEvents === account.advertiser_id ? "Loading events..." : "Select event"} />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            {events.map((event) => (
-                                              <SelectItem key={event.id} value={event.id}>
-                                                {event.name}
-                                              </SelectItem>
-                                            ))}
-                                          </SelectContent>
-                                        </Select>
-                                      );
-                                    })()}
-                                    <p className="text-xs text-muted-foreground">
-                                      Required if optimization goal is Conversations
-                                    </p>
-                                  </div>
-                                </>
-                              )}
-
-                              {/* WhatsApp Fields */}
-                              {defaults.default_messaging_app === 'WHATSAPP' && (
-                                <>
-                                  <div className="space-y-2">
-                                    <Label className="flex items-center gap-2">
-                                      <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
-                                      WhatsApp Number
-                                    </Label>
-                                    <Input
-                                      placeholder="+1234567890"
-                                      value={defaults.default_whatsapp_number || ""}
-                                      onChange={(e) => updateDefault(account.id, "default_whatsapp_number", e.target.value)}
-                                      className="border-black/20 dark:border-white/20"
-                                    />
-                                    <p className="text-xs text-muted-foreground">
-                                      WhatsApp Business number
-                                    </p>
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label className="flex items-center gap-2">
-                                      <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
-                                      Message Event Set
-                                    </Label>
-                                    {(() => {
-                                      // Fetch events if not already loaded
-                                      if (account.advertiser_id && !tiktokEvents[account.advertiser_id] && loadingTiktokEvents !== account.advertiser_id) {
-                                        fetchTiktokEvents(account.advertiser_id, defaults.default_pixel_id || undefined);
-                                      }
-                                      const events = tiktokEvents[account.advertiser_id] || [];
-                                      return (
-                                        <Select
-                                          value={defaults.default_message_event_set || undefined}
-                                          onValueChange={(value) => updateDefault(account.id, "default_message_event_set", value)}
-                                        >
-                                          <SelectTrigger className="border-black/20 dark:border-white/20">
-                                            <SelectValue placeholder={loadingTiktokEvents === account.advertiser_id ? "Loading events..." : "Select event"} />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            {events.map((event) => (
-                                              <SelectItem key={event.id} value={event.id}>
-                                                {event.name}
-                                              </SelectItem>
-                                            ))}
-                                          </SelectContent>
-                                        </Select>
-                                      );
-                                    })()}
-                                    <p className="text-xs text-muted-foreground">
-                                      Required if optimization goal is Conversations
-                                    </p>
-                                  </div>
-                                </>
-                              )}
-
-                              {/* Zalo Fields */}
-                              {defaults.default_messaging_app === 'ZALO' && (
-                                <div className="space-y-2">
-                                  <Label className="flex items-center gap-2">
-                                    <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
-                                    Zalo Official Account ID
-                                  </Label>
-                                  <Input
-                                    placeholder="Zalo OA ID or phone number"
-                                    value={defaults.default_zalo_account_id || ""}
-                                    onChange={(e) => updateDefault(account.id, "default_zalo_account_id", e.target.value)}
-                                    className="border-black/20 dark:border-white/20"
-                                  />
-                                  <p className="text-xs text-muted-foreground">
-                                    Zalo Official Account ID or phone number
-                                  </p>
-                                </div>
-                              )}
-
-                              {/* LINE Fields */}
-                              {defaults.default_messaging_app === 'LINE' && (
-                                <div className="space-y-2">
-                                  <Label className="flex items-center gap-2">
-                                    <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
-                                    LINE Business ID
-                                  </Label>
-                                  <Input
-                                    placeholder="Enter LINE Business ID"
-                                    value={defaults.default_line_business_id || ""}
-                                    onChange={(e) => updateDefault(account.id, "default_line_business_id", e.target.value)}
-                                    className="border-black/20 dark:border-white/20"
-                                  />
-                                  <p className="text-xs text-muted-foreground">
-                                    Your LINE Official Account Business ID
-                                  </p>
-                                </div>
-                              )}
-
-                              {/* URL - No additional fields needed */}
-                              {defaults.default_messaging_app === 'URL' && (
-                                <div className="space-y-2 md:col-span-2">
-                                  <p className="text-sm text-muted-foreground">
-                                    Instant Messaging URL requires no additional configuration. Users will be directed to the landing page URL.
-                                  </p>
-                                </div>
-                              )}
-                            </>
-                          )}
-
-                          {/* TikTok Direct Messages Configuration */}
-                          {defaults.default_optimization_location === 'TikTok Direct Messages' && (
-                            <div className="space-y-2">
-                              <Label className="flex items-center gap-2">
-                                <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
-                                Message Event Set
-                              </Label>
-                              {(() => {
-                                // Fetch events if not already loaded
-                                if (account.advertiser_id && !tiktokEvents[account.advertiser_id] && loadingTiktokEvents !== account.advertiser_id) {
-                                  fetchTiktokEvents(account.advertiser_id, defaults.default_pixel_id || undefined);
+                              onDeleteLocation={async (locationType) => {
+                                const fieldsToClear = getTiktokLocationClearFields(locationType);
+                                for (const field of fieldsToClear) {
+                                  await updateDefault(account.id, field as any, null);
                                 }
-                                const events = tiktokEvents[account.advertiser_id] || [];
-                                return (
-                                  <Select
-                                    value={defaults.default_message_event_set || undefined}
-                                    onValueChange={(value) => updateDefault(account.id, "default_message_event_set", value)}
-                                  >
-                                    <SelectTrigger className="border-black/20 dark:border-white/20">
-                                      <SelectValue placeholder={loadingTiktokEvents === account.advertiser_id ? "Loading events..." : "Select event"} />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {events.map((event) => (
-                                        <SelectItem key={event.id} value={event.id}>
-                                          {event.name}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                );
-                              })()}
-                              <p className="text-xs text-muted-foreground">
-                                Required for TikTok Direct Messages lead generation. Fetched from TikTok API.
-                              </p>
-                            </div>
-                          )}
+                              }}
+                              tiktokApps={tiktokApps.filter(app => app.advertiser_id === account.advertiser_id)}
+                              tiktokEvents={tiktokEvents[account.advertiser_id] || []}
+                              saving={saving}
+                            />
+                          </div>
 
                           {/* Attribution Windows */}
                           <div className="space-y-2">
