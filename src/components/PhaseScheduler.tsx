@@ -344,6 +344,85 @@ export function PhaseScheduler({
     }
   }, [startDate, endDate, strategy]);
 
+  // Auto-populate destination fields from defaults when phases have objectives that require destinations
+  // This handles the case where phases are auto-generated with objectives already set (e.g., auto-generate strategy)
+  useEffect(() => {
+    if (!adAccountDefaults || phases.length === 0) return;
+    
+    const isTikTok = platformName.toLowerCase().includes('tiktok');
+    const isMeta = platformName.toLowerCase().includes('meta');
+    const platformType = isTikTok ? "tiktok" : "meta";
+    
+    let hasUpdates = false;
+    const updatedPhases = phases.map(phase => {
+      if (!phase.objective) return phase;
+      
+      const validDestinations = getDestinationsForObjective(platformType, phase.objective);
+      if (validDestinations.length === 0) return phase;
+      
+      const updatedPhase = { ...phase };
+      
+      if (isMeta) {
+        // Auto-populate Meta destination if missing
+        if (!phase.metaOptimizationLocation && adAccountDefaults.metaOptimizationLocation) {
+          const defaultDest = adAccountDefaults.metaOptimizationLocation;
+          if (validDestinations.some(d => d.value === defaultDest)) {
+            hasUpdates = true;
+            updatedPhase.metaOptimizationLocation = defaultDest;
+            if (defaultDest === 'APP') {
+              updatedPhase.metaAppStore = phase.metaAppStore || adAccountDefaults.metaAppStore;
+              updatedPhase.metaAppId = phase.metaAppId || adAccountDefaults.metaAppId;
+            } else if (defaultDest === 'MESSAGING_APPS') {
+              updatedPhase.metaMessagingMode = phase.metaMessagingMode || adAccountDefaults.metaMessagingMode;
+              updatedPhase.metaMessengerEnabled = phase.metaMessengerEnabled !== undefined ? phase.metaMessengerEnabled : adAccountDefaults.metaMessengerEnabled;
+              updatedPhase.metaInstagramDmEnabled = phase.metaInstagramDmEnabled !== undefined ? phase.metaInstagramDmEnabled : adAccountDefaults.metaInstagramDmEnabled;
+              updatedPhase.metaWhatsappEnabled = phase.metaWhatsappEnabled !== undefined ? phase.metaWhatsappEnabled : adAccountDefaults.metaWhatsappEnabled;
+              updatedPhase.metaWhatsappNumber = phase.metaWhatsappNumber || adAccountDefaults.metaWhatsappNumber;
+              updatedPhase.metaPageId = phase.metaPageId || adAccountDefaults.metaPageId;
+              updatedPhase.metaInstagramAccountId = phase.metaInstagramAccountId || adAccountDefaults.metaInstagramAccountId;
+            }
+          }
+        }
+        // Always populate landing page URL if missing
+        if (!phase.metaLandingPageUrl && adAccountDefaults.metaLandingPageUrl) {
+          hasUpdates = true;
+          updatedPhase.metaLandingPageUrl = adAccountDefaults.metaLandingPageUrl;
+        }
+      } else if (isTikTok) {
+        // Auto-populate TikTok destination if missing
+        if (!phase.tiktokOptimizationLocation && adAccountDefaults.tiktokOptimizationLocation) {
+          const defaultDest = adAccountDefaults.tiktokOptimizationLocation;
+          if (validDestinations.some(d => d.value === defaultDest)) {
+            hasUpdates = true;
+            updatedPhase.tiktokOptimizationLocation = defaultDest;
+            if (defaultDest === 'App') {
+              updatedPhase.tiktokAppId = phase.tiktokAppId || adAccountDefaults.tiktokAppId;
+              updatedPhase.tiktokAppName = phase.tiktokAppName || adAccountDefaults.tiktokAppName;
+            } else if (defaultDest === 'Instant Messaging Apps') {
+              updatedPhase.tiktokMessagingApp = phase.tiktokMessagingApp || adAccountDefaults.tiktokMessagingApp;
+              updatedPhase.tiktokFacebookPageId = phase.tiktokFacebookPageId || adAccountDefaults.tiktokFacebookPageId;
+              updatedPhase.tiktokMessageEventSet = phase.tiktokMessageEventSet || adAccountDefaults.tiktokMessageEventSet;
+              updatedPhase.tiktokWhatsappNumber = phase.tiktokWhatsappNumber || adAccountDefaults.tiktokWhatsappNumber;
+              updatedPhase.tiktokZaloAccountId = phase.tiktokZaloAccountId || adAccountDefaults.tiktokZaloAccountId;
+              updatedPhase.tiktokLineBusinessId = phase.tiktokLineBusinessId || adAccountDefaults.tiktokLineBusinessId;
+            }
+          }
+        }
+        // Always populate landing page URL if missing
+        if (!phase.tiktokLandingPageUrl && adAccountDefaults.tiktokLandingPageUrl) {
+          hasUpdates = true;
+          updatedPhase.tiktokLandingPageUrl = adAccountDefaults.tiktokLandingPageUrl;
+        }
+      }
+      
+      return updatedPhase;
+    });
+    
+    if (hasUpdates) {
+      onPhasesChange(updatedPhases);
+    }
+  }, [phases, adAccountDefaults, platformName]);
+
   // Helper function to get default objective based on strategy focus and phase
   const getDefaultObjectiveForFocus = (focus: string, phaseName: string): string => {
     if (focus === "conversions") {
