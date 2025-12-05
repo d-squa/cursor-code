@@ -1533,7 +1533,11 @@ export function PhaseScheduler({
                                 } else {
                                   // Update destination and auto-populate related defaults
                                   const updates: Partial<Phase> = { metaOptimizationLocation: value };
-                                  if (value === 'APP' && adAccountDefaults) {
+                                  if (value === 'WEBSITE' && adAccountDefaults) {
+                                    if (!phase.metaLandingPageUrl && adAccountDefaults.metaLandingPageUrl) {
+                                      updates.metaLandingPageUrl = adAccountDefaults.metaLandingPageUrl;
+                                    }
+                                  } else if (value === 'APP' && adAccountDefaults) {
                                     if (!phase.metaAppStore && adAccountDefaults.metaAppStore) {
                                       updates.metaAppStore = adAccountDefaults.metaAppStore;
                                     }
@@ -1555,6 +1559,16 @@ export function PhaseScheduler({
                                     }
                                     if (!phase.metaWhatsappNumber && adAccountDefaults.metaWhatsappNumber) {
                                       updates.metaWhatsappNumber = adAccountDefaults.metaWhatsappNumber;
+                                    }
+                                    if (!phase.metaPageId && adAccountDefaults.metaPageId) {
+                                      updates.metaPageId = adAccountDefaults.metaPageId;
+                                    }
+                                    if (!phase.metaInstagramAccountId && adAccountDefaults.metaInstagramAccountId) {
+                                      updates.metaInstagramAccountId = adAccountDefaults.metaInstagramAccountId;
+                                    }
+                                  } else if (value === 'CALLS' && adAccountDefaults) {
+                                    if (!phase.metaPageId && adAccountDefaults.metaPageId) {
+                                      updates.metaPageId = adAccountDefaults.metaPageId;
                                     }
                                   }
                                   updatePhaseFields(phase.id, updates);
