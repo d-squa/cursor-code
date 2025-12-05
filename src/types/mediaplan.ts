@@ -148,7 +148,12 @@ export interface Phase {
   metaAppStore?: string; // Store for app destination
   metaAppId?: string; // App identifier from the selected store
   metaMessagingMode?: string; // AUTOMATIC or MANUAL
+  metaMessengerEnabled?: boolean; // Facebook Messenger enabled
+  metaInstagramDmEnabled?: boolean; // Instagram DM enabled
+  metaWhatsappEnabled?: boolean; // WhatsApp enabled
   metaWhatsappNumber?: string; // WhatsApp Business number
+  metaPageId?: string; // Facebook Page ID for Messenger
+  metaInstagramAccountId?: string; // Instagram Account ID for DM
   // Campaign-level overrides (inherits from market/generic if not set)
   publisherPlatforms?: string[];
   positions?: {

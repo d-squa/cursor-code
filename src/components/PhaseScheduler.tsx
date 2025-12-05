@@ -1441,13 +1441,56 @@ export function PhaseScheduler({
                                   </Select>
                                 </div>
                                 {phase.metaMessagingMode === 'MANUAL' && (
-                                  <div className="space-y-2">
-                                    <Label className="text-xs">WhatsApp Number (Optional)</Label>
-                                    <Input
-                                      placeholder="+1234567890"
-                                      value={phase.metaWhatsappNumber || ""}
-                                      onChange={(e) => updatePhaseField(phase.id, "metaWhatsappNumber", e.target.value)}
-                                    />
+                                  <div className="space-y-3">
+                                    <Label className="text-xs font-medium">Messaging Channels</Label>
+                                    
+                                    {/* Facebook Messenger */}
+                                    <div className="flex items-center space-x-2">
+                                      <Checkbox
+                                        id={`messenger-${phase.id}`}
+                                        checked={phase.metaMessengerEnabled || false}
+                                        onCheckedChange={(checked) => updatePhaseField(phase.id, "metaMessengerEnabled", checked)}
+                                      />
+                                      <label htmlFor={`messenger-${phase.id}`} className="text-xs cursor-pointer">
+                                        Facebook Messenger
+                                      </label>
+                                    </div>
+                                    
+                                    {/* Instagram DM */}
+                                    <div className="flex items-center space-x-2">
+                                      <Checkbox
+                                        id={`instagram-dm-${phase.id}`}
+                                        checked={phase.metaInstagramDmEnabled || false}
+                                        onCheckedChange={(checked) => updatePhaseField(phase.id, "metaInstagramDmEnabled", checked)}
+                                      />
+                                      <label htmlFor={`instagram-dm-${phase.id}`} className="text-xs cursor-pointer">
+                                        Instagram Direct Messages
+                                      </label>
+                                    </div>
+                                    
+                                    {/* WhatsApp */}
+                                    <div className="flex items-center space-x-2">
+                                      <Checkbox
+                                        id={`whatsapp-${phase.id}`}
+                                        checked={phase.metaWhatsappEnabled || false}
+                                        onCheckedChange={(checked) => updatePhaseField(phase.id, "metaWhatsappEnabled", checked)}
+                                      />
+                                      <label htmlFor={`whatsapp-${phase.id}`} className="text-xs cursor-pointer">
+                                        WhatsApp
+                                      </label>
+                                    </div>
+                                    
+                                    {/* WhatsApp Number - show only when WhatsApp is enabled */}
+                                    {phase.metaWhatsappEnabled && (
+                                      <div className="space-y-2 pl-6">
+                                        <Label className="text-xs">WhatsApp Business Number</Label>
+                                        <Input
+                                          placeholder="+1234567890"
+                                          value={phase.metaWhatsappNumber || ""}
+                                          onChange={(e) => updatePhaseField(phase.id, "metaWhatsappNumber", e.target.value)}
+                                        />
+                                      </div>
+                                    )}
                                   </div>
                                 )}
                               </div>
