@@ -14,12 +14,22 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Separator } from "@/components/ui/separator";
 import AccountTaxonomySection from "./AccountTaxonomySection";
 import MetaAppSearch from "./MetaAppSearch";
+import ConversionLocationsSection from "./ConversionLocationsSection";
 import { 
   META_APP_STORES, 
   META_MESSAGING_MODES, 
   TIKTOK_MESSAGING_APPS,
   TIKTOK_OPTIMIZATION_LOCATIONS 
 } from "@/utils/destinationOptions";
+import {
+  extractMetaLocations,
+  extractTiktokLocations,
+  metaLocationToDefaults,
+  tiktokLocationToDefaults,
+  getMetaLocationClearFields,
+  getTiktokLocationClearFields,
+  ConversionLocationData,
+} from "@/utils/conversionLocationUtils";
 
 interface AdAccount {
   id: string;
