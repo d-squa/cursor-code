@@ -1526,17 +1526,20 @@ export function PhaseScheduler({
                                 </div>
                                 <div className="space-y-2">
                                   <Label className="text-xs">App</Label>
-                                  {phase.metaAppStore && adAccountId ? (
-                                    <MetaAppSearch
-                                      appStore={phase.metaAppStore}
-                                      adAccountId={adAccountId}
-                                      value={phase.metaAppId || null}
-                                      onChange={(appId) => updatePhaseField(phase.id, "metaAppId", appId || "")}
-                                    />
-                                  ) : !phase.metaAppStore ? (
-                                    <div className="text-sm text-muted-foreground p-2 border rounded-md bg-muted/50">
-                                      Select an app store first
-                                    </div>
+                                  {adAccountDefaults?.metaAppId ? (
+                                    <Select
+                                      value={phase.metaAppId || ""}
+                                      onValueChange={(value) => updatePhaseField(phase.id, "metaAppId", value)}
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Select app" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value={adAccountDefaults.metaAppId}>
+                                          App ID: {adAccountDefaults.metaAppId}
+                                        </SelectItem>
+                                      </SelectContent>
+                                    </Select>
                                   ) : (
                                     <div className="flex items-center gap-2 p-2 border rounded-md bg-muted/50">
                                       <span className="text-sm text-muted-foreground">No app configured</span>
