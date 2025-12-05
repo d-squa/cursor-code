@@ -1875,24 +1875,6 @@ export function PlatformMarketBudgetSelector({
                                   </Select>
                                 </div>
 
-                                {/* Landing Page URL - Only show for optimization events that require it */}
-                                {market.tiktokOptimizationEvent && [
-                                  'ON_WEB_ORDER', 'ON_WEB_ADD_TO_CART', 'PAGE_VIEW', 
-                                  'ON_WEB_CART_PAGE_BROWSE', 'ON_WEB_DETAIL_PAGE_BROWSE',
-                                  'COMPLETE_PAYMENT', 'FORM_SUBMIT', 'DOWNLOAD', 
-                                  'REGISTRATION', 'SUBSCRIBE'
-                                ].includes(market.tiktokOptimizationEvent) && (
-                                  <div className="space-y-1">
-                                    <Label className="text-xs">Landing Page URL</Label>
-                                    <Input
-                                      type="url"
-                                      placeholder="https://example.com"
-                                      value={market.tiktokLandingPageUrl || ""}
-                                      onChange={(e) => updateMarketField(platformIndex, market.id, 'tiktokLandingPageUrl', e.target.value)}
-                                      className="h-7 text-xs"
-                                    />
-                                   </div>
-                                 )}
                                </div>
                              )}
 
