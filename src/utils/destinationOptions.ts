@@ -140,7 +140,7 @@ export const META_OPTIMIZATION_GOAL_DESTINATIONS: Record<string, string | null> 
   // Lead Generation
   "LEAD_GENERATION": null, // Instant Forms - no destination selection
   "LEAD_GENERATION_APP": "APP", // Leads via App
-  "OFFSITE_CONVERSIONS": "WEBSITE",
+  "OFFSITE_CONVERSIONS": null, // Shows all available destinations (Website, App, Messaging, Calls)
   "APP_EVENTS": "APP",
   "VALUE": null,
 };
