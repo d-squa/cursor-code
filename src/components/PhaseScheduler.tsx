@@ -6,7 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, X, GripVertical, Link2, ChevronDown, Copy, Trash2 } from "lucide-react";
+import { Plus, X, GripVertical, Link2, ChevronDown, Copy, Trash2, ExternalLink } from "lucide-react";
+import MetaAppSearch from "./MetaAppSearch";
 import { Phase } from "./PlatformConfiguration";
 import { format, addDays, differenceInDays, parseISO } from "date-fns";
 import { platformAdFormats } from "@/utils/adFormats";
@@ -1436,12 +1437,33 @@ export function PhaseScheduler({
                                   </Select>
                                 </div>
                                 <div className="space-y-2">
-                                  <Label className="text-xs">App ID</Label>
-                                  <Input
-                                    placeholder="App identifier"
-                                    value={phase.metaAppId || ""}
-                                    onChange={(e) => updatePhaseField(phase.id, "metaAppId", e.target.value)}
-                                  />
+                                  <Label className="text-xs">App</Label>
+                                  {phase.metaAppStore && adAccountId ? (
+                                    <MetaAppSearch
+                                      appStore={phase.metaAppStore}
+                                      adAccountId={adAccountId}
+                                      value={phase.metaAppId || null}
+                                      onChange={(appId) => updatePhaseField(phase.id, "metaAppId", appId || "")}
+                                    />
+                                  ) : !phase.metaAppStore ? (
+                                    <div className="text-sm text-muted-foreground p-2 border rounded-md bg-muted/50">
+                                      Select an app store first
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-2 p-2 border rounded-md bg-muted/50">
+                                      <span className="text-sm text-muted-foreground">No app configured</span>
+                                      <a 
+                                        href="/clients" 
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                                      >
+                                        <Plus className="h-3 w-3" />
+                                        Add in Client Defaults
+                                        <ExternalLink className="h-3 w-3" />
+                                      </a>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             )}
