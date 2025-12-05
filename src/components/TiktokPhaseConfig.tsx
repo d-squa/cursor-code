@@ -7,12 +7,33 @@ import { Info } from "lucide-react";
 import { Phase } from "@/types/mediaplan";
 import { useState, useEffect } from "react";
 
+interface AdAccountDefaults {
+  tiktokOptimizationLocation?: string;
+  tiktokAppId?: string;
+  tiktokAppName?: string;
+  tiktokLandingPageUrl?: string;
+  tiktokMessagingApp?: string;
+  tiktokFacebookPageId?: string;
+  tiktokMessageEventSet?: string;
+  tiktokWhatsappNumber?: string;
+  tiktokZaloAccountId?: string;
+  tiktokLineBusinessId?: string;
+  tiktokBidStrategy?: string;
+  tiktokBidAmount?: number;
+  tiktokClickWindow?: number;
+  tiktokViewWindow?: number;
+  tiktokPlacementType?: string;
+  tiktokPlacements?: string[];
+  [key: string]: any;
+}
+
 interface TiktokPhaseConfigProps {
   phase: Phase;
+  adAccountDefaults?: AdAccountDefaults;
   onUpdate: (field: keyof Phase, value: any) => void;
 }
 
-export function TiktokPhaseConfig({ phase, onUpdate }: TiktokPhaseConfigProps) {
+export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: TiktokPhaseConfigProps) {
   const [eventCountOptions] = useState<Array<{ value: string; label: string }>>([
     { value: "every_conversion", label: "Every Conversion" },
     { value: "once", label: "Once" }
@@ -25,6 +46,37 @@ export function TiktokPhaseConfig({ phase, onUpdate }: TiktokPhaseConfigProps) {
   useEffect(() => {
     setFrequencyCapInput(phase.tiktokFrequencySchedule?.toString() ?? "");
   }, [phase.tiktokFrequencySchedule]);
+
+  // Auto-populate from defaults when fields are empty
+  useEffect(() => {
+    if (!adAccountDefaults) return;
+    
+    // Only auto-populate if field is not already set
+    if (!phase.tiktokOptimizationLocation && adAccountDefaults.tiktokOptimizationLocation) {
+      onUpdate("tiktokOptimizationLocation", adAccountDefaults.tiktokOptimizationLocation);
+    }
+    if (!phase.tiktokBidStrategy && adAccountDefaults.tiktokBidStrategy) {
+      onUpdate("tiktokBidStrategy", adAccountDefaults.tiktokBidStrategy);
+    }
+    if (!phase.tiktokPlacementType && adAccountDefaults.tiktokPlacementType) {
+      onUpdate("tiktokPlacementType", adAccountDefaults.tiktokPlacementType);
+    }
+    if (!phase.tiktokPlacements && adAccountDefaults.tiktokPlacements) {
+      onUpdate("tiktokPlacements", adAccountDefaults.tiktokPlacements);
+    }
+    if (!phase.tiktokClickWindow && adAccountDefaults.tiktokClickWindow) {
+      onUpdate("tiktokClickWindow", adAccountDefaults.tiktokClickWindow);
+    }
+    if (!phase.tiktokViewWindow && adAccountDefaults.tiktokViewWindow) {
+      onUpdate("tiktokViewWindow", adAccountDefaults.tiktokViewWindow);
+    }
+    if (!phase.tiktokAppId && adAccountDefaults.tiktokAppId) {
+      onUpdate("tiktokAppId", adAccountDefaults.tiktokAppId);
+    }
+    if (!phase.tiktokAppName && adAccountDefaults.tiktokAppName) {
+      onUpdate("tiktokAppName", adAccountDefaults.tiktokAppName);
+    }
+  }, [adAccountDefaults]); // Only run when defaults change, not on every render
 
   // Get objective and optimization goal
   const objective = phase.objective || "";
