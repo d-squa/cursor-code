@@ -519,6 +519,59 @@ export function PlatformMarketBudgetSelector({
     }
   };
 
+  // Re-apply TikTok defaults to markets that were restored from draft but missing key fields
+  useEffect(() => {
+    if (Object.keys(tiktokAdAccountDefaults).length === 0) return;
+    
+    let hasUpdates = false;
+    const updatedPlatforms = platforms.map(platform => {
+      if (!platform.id?.toLowerCase().includes('tiktok')) return platform;
+      
+      const updatedMarkets = platform.markets.map(market => {
+        if (!market.adAccountId) return market;
+        
+        const defaults = tiktokAdAccountDefaults[market.adAccountId];
+        if (!defaults) return market;
+        
+        // Check if market is missing key defaults that we should apply
+        const needsOptLocation = !market.tiktokOptimizationLocation && defaults.optimizationLocation;
+        const needsBidStrategy = !market.tiktokBidStrategy && defaults.bidStrategy;
+        const needsLandingPage = !market.tiktokLandingPageUrl && defaults.landingPageUrl;
+        const needsPlacementType = !market.tiktokPlacementType && defaults.placementType;
+        
+        if (!needsOptLocation && !needsBidStrategy && !needsLandingPage && !needsPlacementType) {
+          return market;
+        }
+        
+        hasUpdates = true;
+        console.log('🔄 Re-applying TikTok defaults to market:', market.id, {
+          needsOptLocation,
+          needsBidStrategy,
+          defaults
+        });
+        
+        return {
+          ...market,
+          tiktokOptimizationLocation: needsOptLocation ? defaults.optimizationLocation : market.tiktokOptimizationLocation,
+          tiktokBidStrategy: needsBidStrategy ? defaults.bidStrategy : market.tiktokBidStrategy,
+          tiktokLandingPageUrl: needsLandingPage ? defaults.landingPageUrl : market.tiktokLandingPageUrl,
+          tiktokPlacementType: needsPlacementType ? defaults.placementType : market.tiktokPlacementType,
+          tiktokPlacements: !market.tiktokPlacements && defaults.placements ? defaults.placements : market.tiktokPlacements,
+          tiktokAppId: !market.tiktokAppId && defaults.appId ? defaults.appId : market.tiktokAppId,
+          tiktokAppName: !market.tiktokAppName && defaults.appName ? defaults.appName : market.tiktokAppName,
+          tiktokClickWindow: market.tiktokClickWindow === undefined && defaults.clickWindow !== undefined ? defaults.clickWindow : market.tiktokClickWindow,
+          tiktokViewWindow: market.tiktokViewWindow === undefined && defaults.viewWindow !== undefined ? defaults.viewWindow : market.tiktokViewWindow,
+        };
+      });
+      
+      return { ...platform, markets: updatedMarkets };
+    });
+    
+    if (hasUpdates) {
+      setPlatforms(updatedPlatforms);
+    }
+  }, [tiktokAdAccountDefaults, platforms]);
+
   // Fetch connected platforms and Meta resources on mount
   useEffect(() => {
     const fetchConnectedData = async () => {
