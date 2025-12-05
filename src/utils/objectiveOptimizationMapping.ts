@@ -44,11 +44,23 @@ export const META_OBJECTIVE_MAPPING: ObjectiveMapping[] = [
     value: "OUTCOME_ENGAGEMENT",
     label: "Engagement",
     optimizationGoals: [
+      // On Your Ad destination
+      { value: "THRUPLAY", label: "Video Views (ThruPlay)", billingEvent: "THRUPLAY" },
+      { value: "TWO_SECOND_CONTINUOUS_VIDEO_VIEWS", label: "Video Views (2-Second)", billingEvent: "IMPRESSIONS" },
       { value: "POST_ENGAGEMENT", label: "Post Engagement", billingEvent: "POST_ENGAGEMENT" },
-      { value: "PAGE_LIKES", label: "Page Likes", billingEvent: "PAGE_LIKES" },
-      { value: "THRUPLAY", label: "ThruPlay (Video)", billingEvent: "THRUPLAY" },
-      { value: "TWO_SECOND_CONTINUOUS_VIDEO_VIEWS", label: "2-Second Video Views", billingEvent: "IMPRESSIONS" },
       { value: "EVENT_RESPONSES", label: "Event Responses", billingEvent: "EVENT_RESPONSES" },
+      { value: "REMINDERS_SET", label: "Reminders Set", billingEvent: "IMPRESSIONS" },
+      // Message destinations
+      { value: "CONVERSATIONS", label: "Conversations (Messaging)", billingEvent: "IMPRESSIONS" },
+      // Calls destination
+      { value: "QUALITY_CALL", label: "Calls", billingEvent: "IMPRESSIONS" },
+      // Website destination
+      { value: "LANDING_PAGE_VIEWS", label: "Landing Page Views (Website)", billingEvent: "IMPRESSIONS" },
+      { value: "LINK_CLICKS", label: "Link Clicks (Website)", billingEvent: "LINK_CLICKS" },
+      // App destination
+      { value: "APP_INSTALLS", label: "App Installs", billingEvent: "IMPRESSIONS" },
+      // Instagram/Facebook page
+      { value: "PAGE_LIKES", label: "Page Likes", billingEvent: "PAGE_LIKES" },
     ]
   },
   {
