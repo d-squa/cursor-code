@@ -49,13 +49,26 @@ export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: Tiktok
 
   // Auto-populate from defaults when fields are empty
   useEffect(() => {
-    if (!adAccountDefaults) return;
+    console.log("🔍 TiktokPhaseConfig defaults check:", {
+      hasDefaults: !!adAccountDefaults,
+      defaultOptLocation: adAccountDefaults?.tiktokOptimizationLocation,
+      phaseOptLocation: phase.tiktokOptimizationLocation,
+      defaultBidStrategy: adAccountDefaults?.tiktokBidStrategy,
+      phaseBidStrategy: phase.tiktokBidStrategy,
+    });
+    
+    if (!adAccountDefaults) {
+      console.log("⚠️ TiktokPhaseConfig: No adAccountDefaults provided");
+      return;
+    }
     
     // Only auto-populate if field is not already set
     if (!phase.tiktokOptimizationLocation && adAccountDefaults.tiktokOptimizationLocation) {
+      console.log("✅ Setting tiktokOptimizationLocation from defaults:", adAccountDefaults.tiktokOptimizationLocation);
       onUpdate("tiktokOptimizationLocation", adAccountDefaults.tiktokOptimizationLocation);
     }
     if (!phase.tiktokBidStrategy && adAccountDefaults.tiktokBidStrategy) {
+      console.log("✅ Setting tiktokBidStrategy from defaults:", adAccountDefaults.tiktokBidStrategy);
       onUpdate("tiktokBidStrategy", adAccountDefaults.tiktokBidStrategy);
     }
     if (!phase.tiktokPlacementType && adAccountDefaults.tiktokPlacementType) {
@@ -76,7 +89,7 @@ export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: Tiktok
     if (!phase.tiktokAppName && adAccountDefaults.tiktokAppName) {
       onUpdate("tiktokAppName", adAccountDefaults.tiktokAppName);
     }
-  }, [adAccountDefaults]); // Only run when defaults change, not on every render
+  }, [adAccountDefaults, phase.id]); // Run on mount & when defaults or phase changes
 
   // Get objective and optimization goal
   const objective = phase.objective || "";
