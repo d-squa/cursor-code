@@ -132,10 +132,14 @@ export const META_OPTIMIZATION_GOAL_DESTINATIONS: Record<string, string | null> 
   "LANDING_PAGE_VIEWS": "WEBSITE",
   "LINK_CLICKS": "WEBSITE",
   "APP_INSTALLS": "APP",
-  "REACH": null,
-  "IMPRESSIONS": null,
+  // Traffic objective - these show optimization location
+  "REACH": "WEBSITE", // Reach (Daily Unique) requires destination
+  "IMPRESSIONS": "WEBSITE", // Impressions requires destination
+  // Awareness - no destination
   "AD_RECALL_LIFT": null,
-  "LEAD_GENERATION": null,
+  // Lead Generation
+  "LEAD_GENERATION": null, // Instant Forms - no destination selection
+  "LEAD_GENERATION_APP": "APP", // Leads via App
   "OFFSITE_CONVERSIONS": "WEBSITE",
   "APP_EVENTS": "APP",
   "VALUE": null,
