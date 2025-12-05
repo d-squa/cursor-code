@@ -221,7 +221,9 @@ export default function ConversionLocationsSection({
                   }}
                 />
               ) : (
-                <p className="text-sm text-muted-foreground">{currentData.appName || 'Not selected'}</p>
+                <p className="text-sm text-muted-foreground">
+                  {currentData.appName || (currentData.appId ? `App ID: ${currentData.appId}` : 'Not selected')}
+                </p>
               )}
             </div>
           )}

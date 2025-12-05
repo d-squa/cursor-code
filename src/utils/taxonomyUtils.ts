@@ -632,13 +632,12 @@ export function extractTaxonomyValues(
 }
 
 // Generate default campaign taxonomy params
-// Campaign: activation name, market, placements, platform budget, start date, end date, BO number, team name
+// Campaign: activation name, market, phase budget, start date, end date, BO number, team name
 export function getDefaultCampaignParams(platform: 'meta' | 'tiktok'): TaxonomyParam[] {
   return [
-    { id: 'activationName', key: 'ACT', label: 'Activation Name', type: 'text', system: true, required: true, description: 'Auto-filled from Activation Details → Activation Name field. The main identifier for this campaign activation.' },
+    { id: 'activationName', key: 'ACT', label: 'Activation Name', type: 'text', system: true, required: true, description: 'Auto-filled from Activation Details → Name field. The main identifier for this campaign activation.' },
     { id: 'country', key: 'MKT', label: 'Market', type: 'text', system: true, required: true, description: 'Auto-filled from Platform & Market Selection → Targeted Market (e.g., ES, MX, US). Country code for the market being targeted.' },
-    { id: 'placementType', key: 'PLC', label: 'Placement', type: 'options', options: ['AUT', 'MAN'], system: true, required: true, description: 'Auto-filled from Phase Config → Placement Type. AUT=Automatic (platform optimizes placements), MAN=Manual (user-selected placements).' },
-    { id: 'platformBudget', key: 'BDG', label: 'Platform Budget', type: 'text', system: true, required: true, description: 'Auto-filled from Platform & Market Selection → Platform Budget allocation. Shows budget in K/M format (e.g., 10K, 1M).' },
+    { id: 'phaseBudget', key: 'BDG', label: 'Phase Budget', type: 'text', system: true, required: true, description: 'Auto-filled from Phase Config → Phase Budget allocation. Shows budget in K/M format (e.g., 10K, 1M).' },
     { id: 'startDate', key: 'STR', label: 'Start Date', type: 'text', system: true, required: true, description: 'Auto-filled from Phase Config → Start Date in DDMM format (e.g., 0412 = December 4th).' },
     { id: 'endDate', key: 'END', label: 'End Date', type: 'text', system: true, required: true, description: 'Auto-filled from Phase Config → End Date in DDMM format (e.g., 1812 = December 18th).' },
     { id: 'boNumber', key: 'BO', label: 'BO Number', type: 'text', system: true, required: true, description: 'Auto-filled from Activation Details → BO Number field. Business Order or Purchase Order reference number.' },
@@ -647,7 +646,7 @@ export function getDefaultCampaignParams(platform: 'meta' | 'tiktok'): TaxonomyP
 }
 
 // Generate default ad set taxonomy params
-// AdSet: optimization goal, total phase budget, budget type, age, gender, location, device, placements, positions, targeting type
+// AdSet: optimization goal, budget type, age, gender, location, device, placements, positions, targeting type
 export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyParam[] {
   return [
     {
@@ -663,13 +662,14 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyPara
       description: 'Auto-filled from Phase Config → Optimization Goal. RCH=Reach, IMP=Impressions, CLK=Clicks, LPV=Landing Page Views, CVN=Conversions, VAL=Value, VV=Video Views.',
     },
     {
-      id: 'phaseBudget',
-      key: 'BDG',
-      label: 'Phase Budget',
-      type: 'number',
+      id: 'placementType',
+      key: 'PLC',
+      label: 'Placement',
+      type: 'options',
+      options: ['AUT', 'MAN'],
       system: true,
       required: true,
-      description: 'Auto-filled from Phase Config → Phase Budget allocation. Shows budget in K/M format based on phase percentage of total market budget.',
+      description: 'Auto-filled from Phase Config → Placement Type. AUT=Automatic (platform optimizes placements), MAN=Manual (user-selected placements).',
     },
     {
       id: 'budgetType',
