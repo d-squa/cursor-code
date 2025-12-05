@@ -1337,10 +1337,13 @@ export function PhaseScheduler({
                         </Select>
                       </div>
 
-                      {/* Destination Configuration - Show when objective requires it */}
+                      {/* Destination Configuration - Show only for Meta (TikTok handles this in TiktokPhaseConfig) */}
                       {(() => {
                         const isTikTok = platformName.toLowerCase().includes('tiktok');
-                        const platformType = isTikTok ? "tiktok" : "meta";
+                        // Skip destination config for TikTok - handled in TiktokPhaseConfig
+                        if (isTikTok) return null;
+                        
+                        const platformType = "meta";
                         const validDestinations = phase.objective ? getDestinationsForObjective(platformType, phase.objective) : [];
                         
                         if (validDestinations.length === 0) return null;
@@ -1450,136 +1453,6 @@ export function PhaseScheduler({
                               </div>
                             )}
                             
-                            {/* TikTok-specific destination fields */}
-                            {isTikTok && (currentDestination === 'Website' || currentDestination === 'TikTok Instant Page') && (
-                              <div className="space-y-2">
-                                <Label className="text-xs">Landing Page URL</Label>
-                                <Input
-                                  placeholder="https://example.com"
-                                  value={phase.tiktokLandingPageUrl || ""}
-                                  onChange={(e) => updatePhaseField(phase.id, "tiktokLandingPageUrl", e.target.value)}
-                                />
-                              </div>
-                            )}
-                            
-                            {isTikTok && currentDestination === 'App' && (
-                              <div className="space-y-3">
-                                <div className="space-y-2">
-                                  <Label className="text-xs">App Name</Label>
-                                  <Input
-                                    placeholder="App name"
-                                    value={phase.tiktokAppName || ""}
-                                    onChange={(e) => updatePhaseField(phase.id, "tiktokAppName", e.target.value)}
-                                  />
-                                </div>
-                                <div className="space-y-2">
-                                  <Label className="text-xs">App ID</Label>
-                                  <Input
-                                    placeholder="App identifier"
-                                    value={phase.tiktokAppId || ""}
-                                    onChange={(e) => updatePhaseField(phase.id, "tiktokAppId", e.target.value)}
-                                  />
-                                </div>
-                              </div>
-                            )}
-                            
-                            {isTikTok && currentDestination === 'TikTok Direct Messages' && (
-                              <div className="space-y-2">
-                                <Label className="text-xs">Message Event Set</Label>
-                                <Input
-                                  placeholder="Event set ID"
-                                  value={phase.tiktokMessageEventSet || ""}
-                                  onChange={(e) => updatePhaseField(phase.id, "tiktokMessageEventSet", e.target.value)}
-                                />
-                              </div>
-                            )}
-                            
-                            {isTikTok && currentDestination === 'Instant Messaging Apps' && (
-                              <div className="space-y-3">
-                                <div className="space-y-2">
-                                  <Label className="text-xs">Messaging App</Label>
-                                  <Select
-                                    value={phase.tiktokMessagingApp || ""}
-                                    onValueChange={(value) => updatePhaseField(phase.id, "tiktokMessagingApp", value)}
-                                  >
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Select messaging app" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {TIKTOK_MESSAGING_APPS.map((app) => (
-                                        <SelectItem key={app.value} value={app.value}>
-                                          {app.label}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                
-                                {phase.tiktokMessagingApp === 'MESSENGER' && (
-                                  <>
-                                    <div className="space-y-2">
-                                      <Label className="text-xs">Facebook Page ID</Label>
-                                      <Input
-                                        placeholder="Page ID"
-                                        value={phase.tiktokFacebookPageId || ""}
-                                        onChange={(e) => updatePhaseField(phase.id, "tiktokFacebookPageId", e.target.value)}
-                                      />
-                                    </div>
-                                    <div className="space-y-2">
-                                      <Label className="text-xs">Message Event Set (Optional)</Label>
-                                      <Input
-                                        placeholder="Event set ID"
-                                        value={phase.tiktokMessageEventSet || ""}
-                                        onChange={(e) => updatePhaseField(phase.id, "tiktokMessageEventSet", e.target.value)}
-                                      />
-                                    </div>
-                                  </>
-                                )}
-                                
-                                {phase.tiktokMessagingApp === 'WHATSAPP' && (
-                                  <>
-                                    <div className="space-y-2">
-                                      <Label className="text-xs">WhatsApp Number</Label>
-                                      <Input
-                                        placeholder="+1234567890"
-                                        value={phase.tiktokWhatsappNumber || ""}
-                                        onChange={(e) => updatePhaseField(phase.id, "tiktokWhatsappNumber", e.target.value)}
-                                      />
-                                    </div>
-                                    <div className="space-y-2">
-                                      <Label className="text-xs">Message Event Set (Optional)</Label>
-                                      <Input
-                                        placeholder="Event set ID"
-                                        value={phase.tiktokMessageEventSet || ""}
-                                        onChange={(e) => updatePhaseField(phase.id, "tiktokMessageEventSet", e.target.value)}
-                                      />
-                                    </div>
-                                  </>
-                                )}
-                                
-                                {phase.tiktokMessagingApp === 'ZALO' && (
-                                  <div className="space-y-2">
-                                    <Label className="text-xs">Zalo Account ID</Label>
-                                    <Input
-                                      placeholder="Zalo Official Account ID"
-                                      value={phase.tiktokZaloAccountId || ""}
-                                      onChange={(e) => updatePhaseField(phase.id, "tiktokZaloAccountId", e.target.value)}
-                                    />
-                                  </div>
-                                )}
-                                
-                                {phase.tiktokMessagingApp === 'LINE' && (
-                                  <div className="space-y-2">
-                                    <Label className="text-xs">LINE Business ID</Label>
-                                    <Input
-                                      placeholder="LINE Business ID"
-                                      value={phase.tiktokLineBusinessId || ""}
-                                      onChange={(e) => updatePhaseField(phase.id, "tiktokLineBusinessId", e.target.value)}
-                                    />
-                                  </div>
-                                )}
-                              </div>
-                            )}
                           </div>
                         );
                       })()}
@@ -1774,6 +1647,7 @@ export function PhaseScheduler({
                       {platformId?.toLowerCase() === 'tiktok' && (
                         <TiktokPhaseConfig
                           phase={phase}
+                          adAccountDefaults={adAccountDefaults}
                           onUpdate={(field, value) => {
                             console.log("🔄 PhaseScheduler onUpdate called:", { phaseId: phase.id, field, value });
                             updatePhaseField(phase.id, field as keyof Phase, value);
