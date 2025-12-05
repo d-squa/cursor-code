@@ -1361,7 +1361,33 @@ export function PhaseScheduler({
                                 if (isTikTok) {
                                   updatePhaseField(phase.id, "tiktokOptimizationLocation", value);
                                 } else {
-                                  updatePhaseField(phase.id, "metaOptimizationLocation", value);
+                                  // Update destination and auto-populate related defaults
+                                  const updates: Partial<Phase> = { metaOptimizationLocation: value };
+                                  if (value === 'APP' && adAccountDefaults) {
+                                    if (!phase.metaAppStore && adAccountDefaults.metaAppStore) {
+                                      updates.metaAppStore = adAccountDefaults.metaAppStore;
+                                    }
+                                    if (!phase.metaAppId && adAccountDefaults.metaAppId) {
+                                      updates.metaAppId = adAccountDefaults.metaAppId;
+                                    }
+                                  } else if (value === 'MESSAGING_APPS' && adAccountDefaults) {
+                                    if (phase.metaMessagingMode === undefined && adAccountDefaults.metaMessagingMode) {
+                                      updates.metaMessagingMode = adAccountDefaults.metaMessagingMode;
+                                    }
+                                    if (phase.metaMessengerEnabled === undefined) {
+                                      updates.metaMessengerEnabled = adAccountDefaults.metaMessengerEnabled;
+                                    }
+                                    if (phase.metaInstagramDmEnabled === undefined) {
+                                      updates.metaInstagramDmEnabled = adAccountDefaults.metaInstagramDmEnabled;
+                                    }
+                                    if (phase.metaWhatsappEnabled === undefined) {
+                                      updates.metaWhatsappEnabled = adAccountDefaults.metaWhatsappEnabled;
+                                    }
+                                    if (!phase.metaWhatsappNumber && adAccountDefaults.metaWhatsappNumber) {
+                                      updates.metaWhatsappNumber = adAccountDefaults.metaWhatsappNumber;
+                                    }
+                                  }
+                                  updatePhaseFields(phase.id, updates);
                                 }
                               }}
                             >
