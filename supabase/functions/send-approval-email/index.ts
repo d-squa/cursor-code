@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "npm:@supabase/supabase-js@2.76.1";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.76.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -21,6 +21,35 @@ serve(async (req: Request): Promise<Response> => {
   }
 
   try {
+    // Authenticate the user
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    
+    if (!supabaseUrl || !supabaseServiceKey) {
+      throw new Error("Server configuration error");
+    }
+
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    
+    // Verify the user's JWT token
+    const token = authHeader.replace("Bearer ", "");
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
+
     // Get request body
     const {
       recipientEmails,
@@ -31,14 +60,59 @@ serve(async (req: Request): Promise<Response> => {
     }: ApprovalEmailRequest = await req.json();
 
     if (!recipientEmails || recipientEmails.length === 0) {
-      throw new Error("No recipient emails provided");
+      return new Response(JSON.stringify({ error: "No recipient emails provided" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
+
+    // Verify the user has access to the campaign if campaignId is provided
+    if (planDetails?.campaignId) {
+      const { data: campaign, error: campaignError } = await supabase
+        .from("campaigns")
+        .select("id, user_id, team_id")
+        .eq("id", planDetails.campaignId)
+        .single();
+
+      if (campaignError || !campaign) {
+        return new Response(JSON.stringify({ error: "Campaign not found" }), {
+          status: 404,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        });
+      }
+
+      // Check if user owns the campaign or is part of the team
+      if (campaign.user_id !== user.id) {
+        if (campaign.team_id) {
+          const { data: userRole } = await supabase
+            .from("user_roles")
+            .select("id")
+            .eq("user_id", user.id)
+            .eq("team_id", campaign.team_id)
+            .single();
+          
+          if (!userRole) {
+            return new Response(JSON.stringify({ error: "Permission denied" }), {
+              status: 403,
+              headers: { "Content-Type": "application/json", ...corsHeaders },
+            });
+          }
+        } else {
+          return new Response(JSON.stringify({ error: "Permission denied" }), {
+            status: 403,
+            headers: { "Content-Type": "application/json", ...corsHeaders },
+          });
+        }
+      }
     }
 
     // Get RESEND_API_KEY from environment
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
     if (!resendApiKey) {
-      throw new Error("Email service not configured. Please add RESEND_API_KEY secret.");
+      throw new Error("Email service not configured");
     }
+
+    console.log("Sending approval emails for plan:", planName, "by user:", user.id);
 
     // Send email via Resend API
     const emailPromises = recipientEmails.map(async (email) => {
@@ -67,7 +141,7 @@ serve(async (req: Request): Promise<Response> => {
           ? [
               {
                 filename: `${planName.replace(/\s+/g, "-").toLowerCase()}-media-plan.pdf`,
-                content: pdfBase64.split(",")[1] || pdfBase64, // Remove data URL prefix if present
+                content: pdfBase64.split(",")[1] || pdfBase64,
                 type: "application/pdf",
               },
             ]
@@ -84,9 +158,8 @@ serve(async (req: Request): Promise<Response> => {
       });
 
       if (!response.ok) {
-        const error = await response.text();
-        console.error(`Failed to send email to ${email}:`, error);
-        throw new Error(`Failed to send email to ${email}`);
+        console.error(`Failed to send email to ${email}`);
+        throw new Error("Failed to send email");
       }
 
       return response.json();
@@ -100,7 +173,6 @@ serve(async (req: Request): Promise<Response> => {
       JSON.stringify({
         success: true,
         message: `Approval emails sent to ${recipientEmails.length} recipient(s)`,
-        results,
       }),
       {
         status: 200,
@@ -112,7 +184,7 @@ serve(async (req: Request): Promise<Response> => {
     );
   } catch (error: any) {
     console.error("Error in send-approval-email function:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: "Failed to send approval email" }), {
       status: 500,
       headers: { "Content-Type": "application/json", ...corsHeaders },
     });

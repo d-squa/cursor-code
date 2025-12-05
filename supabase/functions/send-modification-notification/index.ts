@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { createClient } from "npm:@supabase/supabase-js@2.76.1";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.76.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -25,10 +25,30 @@ const handler = async (req: Request): Promise<Response> => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
     if (!supabaseUrl || !supabaseKey) {
-      throw new Error("Supabase configuration missing");
+      throw new Error("Server configuration error");
+    }
+
+    // Authenticate the user
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
+    
+    // Verify the user's JWT token
+    const token = authHeader.replace("Bearer ", "");
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
 
     const {
       campaignId,
@@ -39,27 +59,64 @@ const handler = async (req: Request): Promise<Response> => {
       assignedTo = [],
     }: ModificationNotificationRequest = await req.json();
 
+    // Get campaign to verify access
+    const { data: campaign, error: campaignError } = await supabase
+      .from("campaigns")
+      .select("user_id, team_id")
+      .eq("id", campaignId)
+      .single();
+
+    if (campaignError || !campaign) {
+      return new Response(JSON.stringify({ error: "Campaign not found" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
+
+    // Verify the caller has permission (owner or team member)
+    if (campaign.user_id !== user.id) {
+      if (campaign.team_id) {
+        const { data: userRole } = await supabase
+          .from("user_roles")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("team_id", campaign.team_id)
+          .single();
+        
+        if (!userRole) {
+          return new Response(JSON.stringify({ error: "Permission denied" }), {
+            status: 403,
+            headers: { "Content-Type": "application/json", ...corsHeaders },
+          });
+        }
+      } else {
+        return new Response(JSON.stringify({ error: "Permission denied" }), {
+          status: 403,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        });
+      }
+    }
+
     let recipientEmails: string[] = [];
 
-    if (notifyAllTeam) {
-      // Get campaign creator's team
-      const { data: campaign } = await supabase.from("campaigns").select("user_id").eq("id", campaignId).single();
+    if (notifyAllTeam && campaign.team_id) {
+      // Get all team members
+      const { data: members } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("team_id", campaign.team_id);
 
-      if (campaign) {
-        // Get all teams the creator belongs to
-        const { data: userTeams } = await supabase.from("user_roles").select("team_id").eq("user_id", campaign.user_id);
+      if (members && members.length > 0) {
+        const userIds = members.map((m) => m.user_id).filter(id => id !== user.id);
+        
+        if (userIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from("profiles")
+            .select("email")
+            .in("id", userIds);
 
-        if (userTeams && userTeams.length > 0) {
-          const teamIds = userTeams.map((t) => t.team_id);
-
-          // Get all team members
-          const { data: members } = await supabase
-            .from("user_roles")
-            .select("profiles!inner(email)")
-            .in("team_id", teamIds);
-
-          if (members) {
-            recipientEmails = Array.from(new Set(members.map((m: any) => m.profiles.email)));
+          if (profiles) {
+            recipientEmails = profiles.map((p) => p.email);
           }
         }
       }
@@ -80,6 +137,13 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
+    const resendApiKey = Deno.env.get("RESEND_API_KEY");
+    if (!resendApiKey) {
+      throw new Error("Email service not configured");
+    }
+
+    console.log("Sending modification notification for campaign:", campaignId, "by user:", user.id);
+
     const emailData = {
       from: "ActiPlan <do-not-reply@actiplan.app>",
       to: recipientEmails,
@@ -97,17 +161,17 @@ const handler = async (req: Request): Promise<Response> => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${Deno.env.get("RESEND_API_KEY")}`,
+        Authorization: `Bearer ${resendApiKey}`,
       },
       body: JSON.stringify(emailData),
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Resend API error: ${errorText}`);
+      console.error("Resend API error");
+      throw new Error("Failed to send email");
     }
 
-    console.log(`Modification notification sent to ${recipientEmails.join(", ")} for campaign ${campaignId}`);
+    console.log(`Modification notification sent to ${recipientEmails.length} recipients for campaign ${campaignId}`);
 
     return new Response(JSON.stringify({ success: true }), {
       status: 200,
@@ -115,7 +179,7 @@ const handler = async (req: Request): Promise<Response> => {
     });
   } catch (error: any) {
     console.error("Error in send-modification-notification:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: "Failed to send notification" }), {
       status: 500,
       headers: { "Content-Type": "application/json", ...corsHeaders },
     });
