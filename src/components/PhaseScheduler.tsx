@@ -32,6 +32,7 @@ import {
 } from "@/utils/objectiveOptimizationMapping";
 import {
   getDestinationsForObjective,
+  getDestinationForOptimizationGoal,
   destinationRequiresApp,
   destinationRequiresMessaging,
   destinationRequiresWebsite,
@@ -1410,7 +1411,65 @@ export function PhaseScheduler({
                         <Label htmlFor={`optimization-${phase.id}`}>Optimization Goal</Label>
                         <Select
                           value={phase.optimizationGoal || ""}
-                          onValueChange={(value) => updatePhaseField(phase.id, "optimizationGoal", value)}
+                          onValueChange={(value) => {
+                            const isMeta = !platformName.toLowerCase().includes('tiktok');
+                            
+                            // Check if this optimization goal requires a specific destination
+                            const requiredDestination = isMeta ? getDestinationForOptimizationGoal(value) : null;
+                            
+                            if (requiredDestination && adAccountDefaults) {
+                              // Auto-set the destination and populate related defaults
+                              const updates: Partial<Phase> = { 
+                                optimizationGoal: value,
+                                metaOptimizationLocation: requiredDestination 
+                              };
+                              
+                              // Auto-populate related fields based on destination
+                              if (requiredDestination === 'APP') {
+                                if (!phase.metaAppStore && adAccountDefaults.metaAppStore) {
+                                  updates.metaAppStore = adAccountDefaults.metaAppStore;
+                                }
+                                if (!phase.metaAppId && adAccountDefaults.metaAppId) {
+                                  updates.metaAppId = adAccountDefaults.metaAppId;
+                                }
+                              } else if (requiredDestination === 'MESSAGING_APPS') {
+                                if (phase.metaMessagingMode === undefined && adAccountDefaults.metaMessagingMode) {
+                                  updates.metaMessagingMode = adAccountDefaults.metaMessagingMode;
+                                }
+                                if (phase.metaMessengerEnabled === undefined) {
+                                  updates.metaMessengerEnabled = adAccountDefaults.metaMessengerEnabled;
+                                }
+                                if (phase.metaInstagramDmEnabled === undefined) {
+                                  updates.metaInstagramDmEnabled = adAccountDefaults.metaInstagramDmEnabled;
+                                }
+                                if (phase.metaWhatsappEnabled === undefined) {
+                                  updates.metaWhatsappEnabled = adAccountDefaults.metaWhatsappEnabled;
+                                }
+                                if (!phase.metaWhatsappNumber && adAccountDefaults.metaWhatsappNumber) {
+                                  updates.metaWhatsappNumber = adAccountDefaults.metaWhatsappNumber;
+                                }
+                                if (!phase.metaPageId && adAccountDefaults.metaPageId) {
+                                  updates.metaPageId = adAccountDefaults.metaPageId;
+                                }
+                                if (!phase.metaInstagramAccountId && adAccountDefaults.metaInstagramAccountId) {
+                                  updates.metaInstagramAccountId = adAccountDefaults.metaInstagramAccountId;
+                                }
+                              } else if (requiredDestination === 'WEBSITE') {
+                                if (!phase.metaLandingPageUrl && adAccountDefaults.metaLandingPageUrl) {
+                                  updates.metaLandingPageUrl = adAccountDefaults.metaLandingPageUrl;
+                                }
+                              } else if (requiredDestination === 'CALLS') {
+                                if (!phase.metaPageId && adAccountDefaults.metaPageId) {
+                                  updates.metaPageId = adAccountDefaults.metaPageId;
+                                }
+                              }
+                              
+                              updatePhaseFields(phase.id, updates);
+                            } else {
+                              // No destination required, just update the goal
+                              updatePhaseField(phase.id, "optimizationGoal", value);
+                            }
+                          }}
                           disabled={!phase.objective}
                         >
                           <SelectTrigger id={`optimization-${phase.id}`} className={!phase.objective ? 'opacity-50' : ''}>
@@ -1435,17 +1494,39 @@ export function PhaseScheduler({
                         const platformType = "meta";
                         const validDestinations = phase.objective ? getDestinationsForObjective(platformType, phase.objective) : [];
                         
-                        if (validDestinations.length === 0) return null;
+                        // Check if current optimization goal requires a specific destination
+                        const goalRequiredDestination = phase.optimizationGoal ? getDestinationForOptimizationGoal(phase.optimizationGoal) : null;
                         
-                        const currentDestination = isTikTok ? phase.tiktokOptimizationLocation : phase.metaOptimizationLocation;
+                        // For Engagement objective, only show destination section if optimization goal specifically requires one
+                        // (On Your Ad goals like POST_ENGAGEMENT, THRUPLAY don't need destinations)
+                        if (phase.objective === 'OUTCOME_ENGAGEMENT') {
+                          if (!goalRequiredDestination) return null;
+                        } else {
+                          // For other objectives, use standard logic
+                          if (validDestinations.length === 0 && !goalRequiredDestination) return null;
+                        }
+                        
+                        const currentDestination = phase.metaOptimizationLocation;
+                        
+                        // If goal requires a destination, filter to show only that option
+                        const availableDestinations = goalRequiredDestination 
+                          ? validDestinations.filter(d => d.value === goalRequiredDestination)
+                          : validDestinations;
                         
                         return (
                           <div className="p-4 rounded-lg border bg-muted/30 space-y-4">
                             <Label className="font-medium">Optimization Location</Label>
                             
+                            {/* Show info if destination is auto-set by optimization goal */}
+                            {goalRequiredDestination && (
+                              <p className="text-xs text-muted-foreground">
+                                Auto-set based on optimization goal: {availableDestinations[0]?.label || goalRequiredDestination}
+                              </p>
+                            )}
+                            
                             {/* Destination Selection */}
                             <Select
-                              value={currentDestination || ""}
+                              value={currentDestination || goalRequiredDestination || ""}
                               onValueChange={(value) => {
                                 if (isTikTok) {
                                   updatePhaseField(phase.id, "tiktokOptimizationLocation", value);
@@ -1484,7 +1565,7 @@ export function PhaseScheduler({
                                 <SelectValue placeholder="Select destination" />
                               </SelectTrigger>
                               <SelectContent>
-                                {validDestinations.map((dest) => (
+                                {(availableDestinations.length > 0 ? availableDestinations : validDestinations).map((dest) => (
                                   <SelectItem key={dest.value} value={dest.value}>
                                     {dest.label}
                                   </SelectItem>
@@ -1493,7 +1574,7 @@ export function PhaseScheduler({
                             </Select>
                             
                             {/* Meta-specific destination fields */}
-                            {!isTikTok && currentDestination === 'WEBSITE' && (
+                            {(currentDestination === 'WEBSITE' || goalRequiredDestination === 'WEBSITE') && (
                               <div className="space-y-2">
                                 <Label className="text-xs">Landing Page URL</Label>
                                 <Input
@@ -1504,7 +1585,7 @@ export function PhaseScheduler({
                               </div>
                             )}
                             
-                            {!isTikTok && currentDestination === 'APP' && (
+                            {(currentDestination === 'APP' || goalRequiredDestination === 'APP') && (
                               <div className="space-y-3">
                                 <div className="space-y-2">
                                   <Label className="text-xs">App Store</Label>
@@ -1559,7 +1640,7 @@ export function PhaseScheduler({
                               </div>
                             )}
                             
-                            {!isTikTok && currentDestination === 'MESSAGING_APPS' && (
+                            {(currentDestination === 'MESSAGING_APPS' || goalRequiredDestination === 'MESSAGING_APPS') && (
                               <div className="space-y-3">
                                 <div className="space-y-2">
                                   <Label className="text-xs">Messaging Mode</Label>
@@ -1630,6 +1711,31 @@ export function PhaseScheduler({
                                         />
                                       </div>
                                     )}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            
+                            {(currentDestination === 'CALLS' || goalRequiredDestination === 'CALLS') && (
+                              <div className="space-y-2">
+                                <Label className="text-xs">Facebook Page (for Call Button)</Label>
+                                {adAccountDefaults?.metaPageId ? (
+                                  <div className="p-2 border rounded-md bg-muted/50">
+                                    <span className="text-sm">Page ID: {phase.metaPageId || adAccountDefaults.metaPageId}</span>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-2 p-2 border rounded-md bg-muted/50">
+                                    <span className="text-sm text-muted-foreground">No page configured</span>
+                                    <a 
+                                      href="/clients" 
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+                                    >
+                                      <Plus className="h-3 w-3" />
+                                      Add in Client Defaults
+                                      <ExternalLink className="h-3 w-3" />
+                                    </a>
                                   </div>
                                 )}
                               </div>

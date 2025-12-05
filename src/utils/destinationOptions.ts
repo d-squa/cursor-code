@@ -108,11 +108,45 @@ export const TIKTOK_MESSAGING_APPS: TikTokMessagingApp[] = [
 export const META_OBJECTIVE_DESTINATIONS: Record<string, string[]> = {
   "OUTCOME_AWARENESS": [], // No destination - awareness objectives use impressions/reach
   "OUTCOME_TRAFFIC": ["WEBSITE", "APP", "MESSAGING_APPS", "CALLS"],
-  "OUTCOME_ENGAGEMENT": [], // No destination - engagement objectives (post engagement, page likes, video)
+  "OUTCOME_ENGAGEMENT": ["WEBSITE", "APP", "MESSAGING_APPS", "CALLS"], // Destinations depend on optimization goal
   "OUTCOME_LEADS": ["WEBSITE", "APP", "MESSAGING_APPS", "CALLS"],
   "OUTCOME_APP_PROMOTION": ["APP"],
   "OUTCOME_SALES": ["WEBSITE", "APP", "MESSAGING_APPS"],
 };
+
+/**
+ * Maps Meta optimization goals to their required destination
+ * Some goals require a specific destination to be selected
+ */
+export const META_OPTIMIZATION_GOAL_DESTINATIONS: Record<string, string | null> = {
+  // On Your Ad - no destination required
+  "THRUPLAY": null,
+  "TWO_SECOND_CONTINUOUS_VIDEO_VIEWS": null,
+  "POST_ENGAGEMENT": null,
+  "EVENT_RESPONSES": null,
+  "REMINDERS_SET": null,
+  "PAGE_LIKES": null,
+  // Destination-specific goals
+  "CONVERSATIONS": "MESSAGING_APPS",
+  "QUALITY_CALL": "CALLS",
+  "LANDING_PAGE_VIEWS": "WEBSITE",
+  "LINK_CLICKS": "WEBSITE",
+  "APP_INSTALLS": "APP",
+  "REACH": null,
+  "IMPRESSIONS": null,
+  "AD_RECALL_LIFT": null,
+  "LEAD_GENERATION": null,
+  "OFFSITE_CONVERSIONS": "WEBSITE",
+  "APP_EVENTS": "APP",
+  "VALUE": null,
+};
+
+/**
+ * Get the required destination for a Meta optimization goal
+ */
+export function getDestinationForOptimizationGoal(optimizationGoal: string): string | null {
+  return META_OPTIMIZATION_GOAL_DESTINATIONS[optimizationGoal] ?? null;
+}
 
 /**
  * Maps objectives to their valid optimization locations for TikTok
