@@ -79,8 +79,6 @@ export interface Phase {
   // Taxonomy values for naming
   campaignTaxonomyValues?: Record<string, string>;
   adsetTaxonomyValues?: Record<string, string>;
-  // Targeting type for taxonomy (native, retargeting, expand, similar)
-  targetingType?: 'native' | 'retargeting' | 'expand' | 'similar' | 'broad' | 'lookalike' | 'custom';
   overrideTargeting?: boolean;
   targeting?: {
     adFormats?: string[];
