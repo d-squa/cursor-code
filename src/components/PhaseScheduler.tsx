@@ -1252,100 +1252,6 @@ export function PhaseScheduler({
                         </div>
                       )}
 
-                      {/* Broad Targeting Toggle - Works against Override */}
-                      <div className="border rounded-lg p-4 bg-muted/30">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">Use Broad Targeting</span>
-                            {phase.useBroadTargeting && (
-                              <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">Active</Badge>
-                            )}
-                          </div>
-                          <Switch
-                            checked={phase.useBroadTargeting === true}
-                            disabled={phase.overrideTargeting === true}
-                            onCheckedChange={(checked) => {
-                              if (checked) {
-                                // When enabling broad targeting, disable override and clear native targeting
-                                const broadTargeting: UnifiedTargetingConfig = {
-                                  selectedItems: [],
-                                  useBroadTargeting: true,
-                                  // Clear demographics for broad
-                                  ageMin: undefined,
-                                  ageMax: undefined,
-                                  genders: [],
-                                  devices: [],
-                                  os: [],
-                                  languages: [],
-                                };
-                                updatePhaseFields(phase.id, { 
-                                  useBroadTargeting: true, 
-                                  overrideTargeting: false,
-                                  targeting: broadTargeting 
-                                });
-                              } else {
-                                // When disabling broad targeting, restore inherited targeting
-                                const isTikTok = platformId === 'tiktok';
-                                const inheritedTargeting: UnifiedTargetingConfig | undefined = basicTargeting ? {
-                                  ageMin: basicTargeting.ageMin,
-                                  ageMax: basicTargeting.ageMax,
-                                  genders: basicTargeting.genders ? [...basicTargeting.genders] : [],
-                                  devices: basicTargeting.devices ? [...basicTargeting.devices] : [],
-                                  os: basicTargeting.os ? [...basicTargeting.os] : [],
-                                  languages: basicTargeting.languages ? [...basicTargeting.languages] : [],
-                                  selectedItems: basicTargeting.selectedItems ? 
-                                    basicTargeting.selectedItems.filter(item => 
-                                      isTikTok ? item.platforms.includes('tiktok') : item.platforms.includes('meta')
-                                    ) : [],
-                                  useBroadTargeting: false,
-                                } : undefined;
-                                updatePhaseFields(phase.id, { 
-                                  useBroadTargeting: false, 
-                                  targeting: inheritedTargeting 
-                                });
-                              }
-                            }}
-                          />
-                        </div>
-                        {phase.useBroadTargeting && (
-                          <p className="text-xs text-muted-foreground mt-2">
-                            Broad targeting removes all demographic, interest, and audience targeting. Only location targeting will be applied.
-                          </p>
-                        )}
-                        {phase.overrideTargeting && (
-                          <p className="text-xs text-muted-foreground mt-2">
-                            Disable "Override Campaign Targeting" to use broad targeting.
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Audience Selection - always shown */}
-                      {adAccountId && (
-                        <div className="space-y-3">
-                          <div className="flex items-center gap-2">
-                            <Label>Audience Selection</Label>
-                            {phase.objective && phase.optimizationGoal && (
-                              <Badge variant="secondary" className="text-xs">
-                                Based on {phase.objective} / {phase.optimizationGoal}
-                              </Badge>
-                            )}
-                          </div>
-                          <PhaseAudienceSelector
-                            phaseName={phase.name}
-                            phaseId={phase.id}
-                            phaseObjective={phase.objective || ''}
-                            phaseOptimizationGoal={phase.optimizationGoal || ''}
-                            adAccountId={adAccountId}
-                            platform={platformName}
-                            basicTargeting={undefined}
-                            overrideTargeting={phase.overrideTargeting}
-                            onAudiencesSelected={(audiences) => {
-                              updatePhaseField(phase.id, "audiences", audiences);
-                            }}
-                            initialSelection={phase.audiences || []}
-                          />
-                        </div>
-                      )}
 
                       {/* Phase-Level Targeting Override - Available for all objectives */}
                       {basicTargeting && !phase.useBroadTargeting && (
@@ -1438,7 +1344,100 @@ export function PhaseScheduler({
                         </div>
                       )}
 
-                      {/* Objective Selection */}
+                      {/* Broad Targeting Toggle - Works against Override */}
+                      <div className="border rounded-lg p-4 bg-muted/30">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">Use Broad Targeting</span>
+                            {phase.useBroadTargeting && (
+                              <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">Active</Badge>
+                            )}
+                          </div>
+                          <Switch
+                            checked={phase.useBroadTargeting === true}
+                            disabled={phase.overrideTargeting === true}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                // When enabling broad targeting, disable override and clear native targeting
+                                const broadTargeting: UnifiedTargetingConfig = {
+                                  selectedItems: [],
+                                  useBroadTargeting: true,
+                                  // Clear demographics for broad
+                                  ageMin: undefined,
+                                  ageMax: undefined,
+                                  genders: [],
+                                  devices: [],
+                                  os: [],
+                                  languages: [],
+                                };
+                                updatePhaseFields(phase.id, { 
+                                  useBroadTargeting: true, 
+                                  overrideTargeting: false,
+                                  targeting: broadTargeting 
+                                });
+                              } else {
+                                // When disabling broad targeting, restore inherited targeting
+                                const isTikTok = platformId === 'tiktok';
+                                const inheritedTargeting: UnifiedTargetingConfig | undefined = basicTargeting ? {
+                                  ageMin: basicTargeting.ageMin,
+                                  ageMax: basicTargeting.ageMax,
+                                  genders: basicTargeting.genders ? [...basicTargeting.genders] : [],
+                                  devices: basicTargeting.devices ? [...basicTargeting.devices] : [],
+                                  os: basicTargeting.os ? [...basicTargeting.os] : [],
+                                  languages: basicTargeting.languages ? [...basicTargeting.languages] : [],
+                                  selectedItems: basicTargeting.selectedItems ? 
+                                    basicTargeting.selectedItems.filter(item => 
+                                      isTikTok ? item.platforms.includes('tiktok') : item.platforms.includes('meta')
+                                    ) : [],
+                                  useBroadTargeting: false,
+                                } : undefined;
+                                updatePhaseFields(phase.id, { 
+                                  useBroadTargeting: false, 
+                                  targeting: inheritedTargeting 
+                                });
+                              }
+                            }}
+                          />
+                        </div>
+                        {phase.useBroadTargeting && (
+                          <p className="text-xs text-muted-foreground mt-2">
+                            Broad targeting removes all demographic, interest, and audience targeting. Only location targeting will be applied.
+                          </p>
+                        )}
+                        {phase.overrideTargeting && (
+                          <p className="text-xs text-muted-foreground mt-2">
+                            Disable "Override Campaign Targeting" to use broad targeting.
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Audience Selection - hidden when broad targeting is active */}
+                      {adAccountId && !phase.useBroadTargeting && (
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2">
+                            <Label>Audience Selection</Label>
+                            {phase.objective && phase.optimizationGoal && (
+                              <Badge variant="secondary" className="text-xs">
+                                Based on {phase.objective} / {phase.optimizationGoal}
+                              </Badge>
+                            )}
+                          </div>
+                          <PhaseAudienceSelector
+                            phaseName={phase.name}
+                            phaseId={phase.id}
+                            phaseObjective={phase.objective || ''}
+                            phaseOptimizationGoal={phase.optimizationGoal || ''}
+                            adAccountId={adAccountId}
+                            platform={platformName}
+                            basicTargeting={undefined}
+                            overrideTargeting={phase.overrideTargeting}
+                            onAudiencesSelected={(audiences) => {
+                              updatePhaseField(phase.id, "audiences", audiences);
+                            }}
+                            initialSelection={phase.audiences || []}
+                          />
+                        </div>
+                      )}
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
                           <Label htmlFor={`objective-${phase.id}`}>Campaign Objective</Label>
