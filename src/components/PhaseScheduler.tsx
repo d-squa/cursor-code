@@ -1060,14 +1060,34 @@ export function PhaseScheduler({
                             platform={platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta'}
                             context={{
                               platform: platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta',
+                              activationName: activationContext?.activationName,
+                              boNumber: activationContext?.boNumber,
+                              clientName: activationContext?.clientName,
+                              teamName: activationContext?.teamName,
+                              totalBudget: activationContext?.totalBudget,
+                              market: activationContext?.market,
+                              markets: activationContext?.markets,
+                              platformBudget: activationContext?.platformBudget,
                               objective: phase.objective,
                               optimizationGoal: phase.optimizationGoal,
                               funnelStage: phase.funnelStage,
                               bidStrategy: phase.metaBidStrategy || phase.tiktokBidStrategy,
+                              billingEvent: phase.metaBillingEvent || phase.tiktokBillingEvent,
                               budgetType: phase.budgetType,
+                              phaseBudget: marketBudget ? marketBudget * (phase.budgetPercentage / 100) : undefined,
                               advantagePlusPlacements: phase.advantagePlusPlacements,
                               placementType: phase.tiktokPlacementType,
+                              placements: phase.tiktokPlacements,
                               publisherPlatforms: phase.publisherPlatforms,
+                              positions: phase.positions,
+                              targetingType: phase.targetingType || (phase.targeting?.targetingExpansion ? 'expand' : 'native'),
+                              ageMin: phase.targeting?.ageMin ?? basicTargeting?.ageMin ?? marketTargeting?.ageMin,
+                              ageMax: phase.targeting?.ageMax ?? basicTargeting?.ageMax ?? marketTargeting?.ageMax,
+                              gender: phase.targeting?.genders?.[0] || basicTargeting?.genders?.[0] || marketTargeting?.gender,
+                              devices: phase.targeting?.devices || basicTargeting?.devices || marketTargeting?.devices,
+                              languages: phase.targeting?.languages || basicTargeting?.languages || marketTargeting?.languages,
+                              startDate: phase.startDate || startDate,
+                              endDate: phase.endDate || endDate,
                             }}
                             campaignCustomValues={phase.campaignTaxonomyValues}
                             adsetCustomValues={phase.adsetTaxonomyValues}
@@ -1121,7 +1141,7 @@ export function PhaseScheduler({
                               location: activationContext?.market,
                               devices: phase.targeting?.devices || basicTargeting?.devices || marketTargeting?.devices,
                               positions: phase.positions,
-                              targetingType: phase.targeting?.targetingExpansion ? 'expand' : 'native',
+                              targetingType: phase.targetingType || (phase.targeting?.targetingExpansion ? 'expand' : 'native'),
                             }}
                             customValues={phase.adsetTaxonomyValues}
                             onCustomValueChange={(paramId, value) => handleTaxonomyValueChange(phase.id, 'adset', paramId, value)}
@@ -1212,6 +1232,31 @@ export function PhaseScheduler({
                           </div>
                         </div>
                       )}
+
+                      {/* Targeting Type Selector - Controls taxonomy TGT parameter */}
+                      <div className="space-y-2">
+                        <Label htmlFor={`targetingType-${phase.id}`}>Targeting Type</Label>
+                        <Select
+                          value={phase.targetingType || "native"}
+                          onValueChange={(value) => updatePhaseField(phase.id, "targetingType", value)}
+                        >
+                          <SelectTrigger id={`targetingType-${phase.id}`}>
+                            <SelectValue placeholder="Select targeting type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="native">Native Audiences (NTV)</SelectItem>
+                            <SelectItem value="expand">Expand to New (EXP)</SelectItem>
+                            <SelectItem value="similar">New but Similar (SIM)</SelectItem>
+                            <SelectItem value="retargeting">Retargeting (RTG)</SelectItem>
+                            <SelectItem value="broad">Broad (BRD)</SelectItem>
+                            <SelectItem value="lookalike">Lookalike (LAL)</SelectItem>
+                            <SelectItem value="custom">Custom (CUS)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          Determines the TGT parameter in the taxonomy name
+                        </p>
+                      </div>
 
                       {/* Phase-Level Targeting Override - Available for all objectives */}
                       {basicTargeting && (

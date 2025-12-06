@@ -173,6 +173,26 @@ export interface Phase {
   ageMin?: number;
   ageMax?: number;
   detailedTargeting?: Array<{ id: string; type: string; name?: string }>;
+  // Targeting type for taxonomy (native, retargeting, expand, similar)
+  targetingType?: 'native' | 'retargeting' | 'expand' | 'similar' | 'broad' | 'lookalike' | 'custom';
+  // Override for campaign-level targeting
+  overrideTargeting?: boolean;
+  targeting?: {
+    adFormats?: string[];
+    ageMin?: number;
+    ageMax?: number;
+    genders?: string[];
+    devices?: string[];
+    targetingExpansion?: boolean;
+    os?: string[];
+    language?: string;
+    languages?: string[];
+    interests?: string;
+    websiteAudience?: string;
+    keywordList?: string;
+    customerList?: string;
+    lookalikeAudience?: string;
+  };
   audiences?: Array<{
     id: string;
     name: string;
