@@ -495,6 +495,8 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         'default_publisher_platforms',
         'default_positions',
         'default_advantage_plus_placements',
+        'default_advantage_plus_campaign',
+        'default_conversion_count',
         'main_markets',
         'default_devices',
         'default_languages',
@@ -535,6 +537,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         'default_search_enabled',
         'default_placement_type',
         'default_placements',
+        'default_conversion_count',
         'main_markets',
         'default_devices',
         'default_languages',
@@ -1077,6 +1080,46 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                 <SelectItem value="APP_INSTALLS">App Installs</SelectItem>
                               </SelectContent>
                             </Select>
+                          </div>
+
+                          {/* Conversion Count */}
+                          <div className="space-y-2">
+                            <Label>Conversion Count</Label>
+                            <Select
+                              value={(defaults as any).default_conversion_count || "all_conversions"}
+                              onValueChange={(value) => updateDefault(account.id, "default_conversion_count" as any, value)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select conversion count" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="all_conversions">All Conversions (Every Event)</SelectItem>
+                                <SelectItem value="one_per_click">One Per Click</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">
+                              Count all conversion events or just one per click
+                            </p>
+                          </div>
+
+                          {/* Advantage+ Campaign */}
+                          <div className="space-y-2">
+                            <Label>Advantage+ Campaign</Label>
+                            <Select
+                              value={(defaults as any).default_advantage_plus_campaign ? "enabled" : "disabled"}
+                              onValueChange={(value) => updateDefault(account.id, "default_advantage_plus_campaign" as any, value === "enabled")}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select Advantage+ setting" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="disabled">Disabled (Standard Campaign)</SelectItem>
+                                <SelectItem value="enabled">Enabled (Advantage+ Shopping)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">
+                              Advantage+ uses AI to optimize targeting and placements
+                            </p>
                           </div>
 
                           {/* Conversion Locations Section */}
@@ -1748,48 +1791,26 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                             />
                           </div>
 
-                          {/* Attribution Windows */}
+                          {/* TikTok Conversion Count */}
                           <div className="space-y-2">
                             <Label className="flex items-center gap-2">
                               <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
-                              Click-Through Window (days)
+                              Conversion Count
                             </Label>
                             <Select
-                              value={defaults.default_click_window?.toString() || undefined}
-                              onValueChange={(value) => updateDefault(account.id, "default_click_window", parseInt(value))}
+                              value={(defaults as any).default_conversion_count || "all_conversions"}
+                              onValueChange={(value) => updateDefault(account.id, "default_conversion_count" as any, value)}
                             >
                               <SelectTrigger className="border-black/20 dark:border-white/20">
-                                <SelectValue placeholder="Select click window" />
+                                <SelectValue placeholder="Select conversion count" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="7">7 days</SelectItem>
-                                <SelectItem value="28">28 days</SelectItem>
+                                <SelectItem value="all_conversions">All Conversions (Every Event)</SelectItem>
+                                <SelectItem value="one_per_click">One Per Click</SelectItem>
                               </SelectContent>
                             </Select>
                             <p className="text-xs text-muted-foreground">
-                              Attribution window for clicks
-                            </p>
-                          </div>
-
-                          <div className="space-y-2">
-                            <Label className="flex items-center gap-2">
-                              <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
-                              View-Through Window (days)
-                            </Label>
-                            <Select
-                              value={defaults.default_view_window?.toString() || undefined}
-                              onValueChange={(value) => updateDefault(account.id, "default_view_window", parseInt(value))}
-                            >
-                              <SelectTrigger className="border-black/20 dark:border-white/20">
-                                <SelectValue placeholder="Select view window" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="1">1 day</SelectItem>
-                                <SelectItem value="7">7 days</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <p className="text-xs text-muted-foreground">
-                              Attribution window for views
+                              Count all conversion events or just one per click
                             </p>
                           </div>
 
