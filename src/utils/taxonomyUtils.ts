@@ -479,19 +479,25 @@ export function extractTaxonomyValues(
         break;
       case 'placementType':
       case 'placement':
-        // Check for advantage plus placements first
+        // Check for advantage plus placements first (Meta)
         if (context.advantagePlusPlacements === true) {
           values[param.id] = 'AUTO';
         } else if (context.placementType) {
-          values[param.id] = shortenValue('placementType', context.placementType);
-        } else if (context.placements && context.placements.length > 0) {
-          // Use first placement as indicator
-          values[param.id] = 'MAN';
+          // TikTok placement type - check explicit value
+          const ptLower = context.placementType.toLowerCase();
+          if (ptLower === 'automatic' || ptLower.includes('automatic') || ptLower === 'placement_type_automatic') {
+            values[param.id] = 'AUTO';
+          } else {
+            values[param.id] = 'MAN';
+          }
         } else if (context.publisherPlatforms && context.publisherPlatforms.length > 0) {
-          // Multiple platforms = manual
-          values[param.id] = context.publisherPlatforms.length > 1 ? 'MIX' : 
-            shortenValue('publisherPlatform', context.publisherPlatforms[0]);
+          // If there are explicit publisher platforms selected, it's manual
+          values[param.id] = 'MAN';
+        } else if (context.placements && context.placements.length > 0) {
+          // If there are explicit placements, it's manual
+          values[param.id] = 'MAN';
         } else {
+          // Default to AUTO if nothing specified
           values[param.id] = 'AUTO';
         }
         break;
@@ -561,7 +567,9 @@ export function extractTaxonomyValues(
         values[param.id] = rawValue ? rawValue.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() : '';
         break;
       case 'phaseBudget':
-        values[param.id] = context.phaseBudget ? formatBudgetForTaxonomy(context.phaseBudget) : '';
+        // Use phaseBudget first, then platformBudget as fallback
+        const budgetValue = context.phaseBudget ?? context.platformBudget ?? context.budget;
+        values[param.id] = budgetValue ? formatBudgetForTaxonomy(budgetValue) : '';
         break;
       case 'platformBudget':
         values[param.id] = context.platformBudget ? formatBudgetForTaxonomy(context.platformBudget) : '';
@@ -595,15 +603,62 @@ export function extractTaxonomyValues(
         values[param.id] = rawValue ? shortenValue('country', rawValue) : '';
         break;
       case 'positions':
-        // Format positions summary
-        if (context.positions) {
-          const posKeys = Object.keys(context.positions).filter(k => context.positions?.[k]?.length);
-          if (posKeys.length === 0) {
+        // Format positions summary based on what types of positions are selected
+        if (context.advantagePlusPlacements === true) {
+          // Advantage+ = automatic
+          values[param.id] = 'AUTO';
+        } else if (context.positions) {
+          // Flatten all position values to analyze types
+          const allPositions: string[] = [];
+          Object.values(context.positions).forEach(posArr => {
+            if (Array.isArray(posArr)) {
+              allPositions.push(...posArr);
+            }
+          });
+          
+          if (allPositions.length === 0) {
             values[param.id] = 'AUTO';
-          } else if (posKeys.length === 1) {
-            values[param.id] = shortenValue('publisherPlatform', posKeys[0]);
           } else {
-            values[param.id] = 'MIX';
+            // Categorize positions by type
+            const feedPositions = allPositions.filter(p => 
+              p.toLowerCase().includes('feed') || 
+              p.toLowerCase().includes('marketplace') ||
+              p.toLowerCase().includes('home') ||
+              p.toLowerCase().includes('search') ||
+              p.toLowerCase().includes('profile') ||
+              p.toLowerCase().includes('instant_article') ||
+              p.toLowerCase().includes('right_hand_column')
+            );
+            const storyPositions = allPositions.filter(p => 
+              p.toLowerCase().includes('story') || 
+              p.toLowerCase().includes('stories') ||
+              p.toLowerCase().includes('reels')
+            );
+            const inStreamPositions = allPositions.filter(p => 
+              p.toLowerCase().includes('instream') || 
+              p.toLowerCase().includes('stream') ||
+              p.toLowerCase().includes('video_feeds')
+            );
+            
+            // Determine what to show
+            const hasFeed = feedPositions.length > 0;
+            const hasStory = storyPositions.length > 0;
+            const hasInStream = inStreamPositions.length > 0;
+            
+            const typeCount = [hasFeed, hasStory, hasInStream].filter(Boolean).length;
+            
+            if (typeCount === 0) {
+              // Unrecognized positions, show MIX if multiple or first position code if single
+              values[param.id] = allPositions.length > 1 ? 'MIX' : createShortCode(allPositions[0]);
+            } else if (typeCount === 1) {
+              // Only one type selected
+              if (hasFeed) values[param.id] = 'FEED';
+              else if (hasStory) values[param.id] = 'STORY';
+              else if (hasInStream) values[param.id] = 'STREAM';
+            } else {
+              // Multiple types = MIX
+              values[param.id] = 'MIX';
+            }
           }
         } else {
           values[param.id] = 'AUTO';
