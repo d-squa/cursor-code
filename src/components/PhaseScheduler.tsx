@@ -1322,26 +1322,32 @@ export function PhaseScheduler({
                         )}
                       </div>
 
-                      {/* Audience Selection - Retargeting & Lookalike (only shown when broad targeting is OFF) */}
-                      {!phase.useBroadTargeting && (
-                        <BroadTargetingAudiences
-                          adAccountId={adAccountId || ''}
-                          platform={platformId || 'meta'}
-                          retargetingAudiences={(phase.targeting as any)?.retargetingAudiences || []}
-                          lookalikeAudiences={(phase.targeting as any)?.lookalikeAudiences || []}
-                          onRetargetingChange={(audiences) => {
-                            updatePhaseField(phase.id, "targeting", {
-                              ...(phase.targeting || basicTargeting || { selectedItems: [] }),
-                              retargetingAudiences: audiences,
-                            });
-                          }}
-                          onLookalikeChange={(audiences) => {
-                            updatePhaseField(phase.id, "targeting", {
-                              ...(phase.targeting || basicTargeting || { selectedItems: [] }),
-                              lookalikeAudiences: audiences,
-                            });
-                          }}
-                        />
+                      {/* Audience Selection - shown only when broad targeting is OFF */}
+                      {!phase.useBroadTargeting && adAccountId && (
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2">
+                            <Label>Audience Selection</Label>
+                            {phase.objective && phase.optimizationGoal && (
+                              <Badge variant="secondary" className="text-xs">
+                                Based on {phase.objective} / {phase.optimizationGoal}
+                              </Badge>
+                            )}
+                          </div>
+                          <PhaseAudienceSelector
+                            phaseName={phase.name}
+                            phaseId={phase.id}
+                            phaseObjective={phase.objective || ''}
+                            phaseOptimizationGoal={phase.optimizationGoal || ''}
+                            adAccountId={adAccountId}
+                            platform={platformName}
+                            basicTargeting={undefined}
+                            overrideTargeting={phase.overrideTargeting}
+                            onAudiencesSelected={(audiences) => {
+                              updatePhaseField(phase.id, "audiences", audiences);
+                            }}
+                            initialSelection={phase.audiences || []}
+                          />
+                        </div>
                       )}
 
                       {/* Phase-Level Targeting Override - Available for all objectives */}
@@ -2028,31 +2034,6 @@ export function PhaseScheduler({
                         />
                       )}
 
-                      {/* Audience Selection */}
-                      {adAccountId && phase.objective && phase.optimizationGoal && (
-                        <div className="space-y-3 border-t pt-4 mt-4">
-                          <div className="flex items-center gap-2">
-                            <Label>Audience Selection</Label>
-                            <Badge variant="secondary" className="text-xs">
-                              Based on {phase.objective} / {phase.optimizationGoal}
-                            </Badge>
-                          </div>
-                          <PhaseAudienceSelector
-                            phaseName={phase.name}
-                            phaseId={phase.id}
-                            phaseObjective={phase.objective}
-                            phaseOptimizationGoal={phase.optimizationGoal}
-                            adAccountId={adAccountId}
-                            platform={platformName}
-                            basicTargeting={undefined}
-                            overrideTargeting={phase.overrideTargeting}
-                            onAudiencesSelected={(audiences) => {
-                              updatePhaseField(phase.id, "audiences", audiences);
-                            }}
-                            initialSelection={phase.audiences || []}
-                          />
-                        </div>
-                      )}
                     </div>
                   </CollapsibleContent>
                 </div>
