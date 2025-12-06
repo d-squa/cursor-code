@@ -584,8 +584,22 @@ export function extractTaxonomyValues(
         values[param.id] = context.endDate ? formatDateForTaxonomy(context.endDate) : '';
         break;
       case 'targetingType':
+        // Handle targeting type - could be a string like 'native', 'retargeting', etc.
         rawValue = context.targetingType;
-        values[param.id] = rawValue ? shortenValue('targetingType', rawValue) : '';
+        if (rawValue) {
+          // First check if it's already a code (NTV, RTG, etc.)
+          const upperRaw = rawValue.toUpperCase();
+          const validCodes = ['NTV', 'RTG', 'LAL', 'CUS', 'EXP', 'BRD', 'SIM'];
+          if (validCodes.includes(upperRaw)) {
+            values[param.id] = upperRaw;
+          } else {
+            // Try to map using shortenValue
+            const shortened = shortenValue('targetingType', rawValue);
+            values[param.id] = shortened || 'BRD';
+          }
+        } else {
+          values[param.id] = 'BRD';
+        }
         break;
       case 'devices':
         if (context.devices && context.devices.length > 0) {
@@ -607,7 +621,7 @@ export function extractTaxonomyValues(
         if (context.advantagePlusPlacements === true) {
           // Advantage+ = automatic
           values[param.id] = 'AUTO';
-        } else if (context.positions) {
+        } else if (context.positions && typeof context.positions === 'object') {
           // Flatten all position values to analyze types
           const allPositions: string[] = [];
           Object.values(context.positions).forEach(posArr => {
@@ -619,26 +633,41 @@ export function extractTaxonomyValues(
           if (allPositions.length === 0) {
             values[param.id] = 'AUTO';
           } else {
-            // Categorize positions by type
-            const feedPositions = allPositions.filter(p => 
-              p.toLowerCase().includes('feed') || 
-              p.toLowerCase().includes('marketplace') ||
-              p.toLowerCase().includes('home') ||
-              p.toLowerCase().includes('search') ||
-              p.toLowerCase().includes('profile') ||
-              p.toLowerCase().includes('instant_article') ||
-              p.toLowerCase().includes('right_hand_column')
-            );
-            const storyPositions = allPositions.filter(p => 
-              p.toLowerCase().includes('story') || 
-              p.toLowerCase().includes('stories') ||
-              p.toLowerCase().includes('reels')
-            );
-            const inStreamPositions = allPositions.filter(p => 
-              p.toLowerCase().includes('instream') || 
-              p.toLowerCase().includes('stream') ||
-              p.toLowerCase().includes('video_feeds')
-            );
+            // More precise categorization based on actual Meta position values
+            // Feed-type positions: feed, instant_article, marketplace, right_column, search, video_feeds, stream (IG feed), explore, explore_home, native_banner_interstitial, messenger_home
+            const feedPositions = allPositions.filter(p => {
+              const lower = p.toLowerCase();
+              return lower === 'feed' || 
+                     lower === 'instant_article' || 
+                     lower === 'marketplace' ||
+                     lower === 'right_column' ||
+                     lower === 'search' ||
+                     lower === 'video_feeds' ||
+                     lower === 'stream' || // Instagram's main feed
+                     lower === 'explore' ||
+                     lower === 'explore_home' ||
+                     lower === 'native_banner_interstitial' ||
+                     lower === 'messenger_home' ||
+                     lower === 'threads' ||
+                     lower.includes('home');
+            });
+            
+            // Story-type positions: story, stories, reels, sponsored_messages
+            const storyPositions = allPositions.filter(p => {
+              const lower = p.toLowerCase();
+              return lower === 'story' || 
+                     lower === 'stories' || 
+                     lower === 'reels' ||
+                     lower === 'sponsored_messages';
+            });
+            
+            // In-stream-type positions: instream_video, rewarded_video
+            const inStreamPositions = allPositions.filter(p => {
+              const lower = p.toLowerCase();
+              return lower === 'instream_video' || 
+                     lower === 'rewarded_video' ||
+                     lower.includes('instream');
+            });
             
             // Determine what to show
             const hasFeed = feedPositions.length > 0;
@@ -648,7 +677,7 @@ export function extractTaxonomyValues(
             const typeCount = [hasFeed, hasStory, hasInStream].filter(Boolean).length;
             
             if (typeCount === 0) {
-              // Unrecognized positions, show MIX if multiple or first position code if single
+              // Unrecognized positions, show MIX if multiple or abbreviate if single
               values[param.id] = allPositions.length > 1 ? 'MIX' : createShortCode(allPositions[0]);
             } else if (typeCount === 1) {
               // Only one type selected
