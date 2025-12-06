@@ -80,6 +80,7 @@ export interface Phase {
   campaignTaxonomyValues?: Record<string, string>;
   adsetTaxonomyValues?: Record<string, string>;
   overrideTargeting?: boolean;
+  useBroadTargeting?: boolean;
   targeting?: {
     adFormats?: string[];
     ageMin?: number;

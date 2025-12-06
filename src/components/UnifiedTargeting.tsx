@@ -30,6 +30,12 @@ export interface UnifiedTargetingConfig {
   os?: string[];
   languages?: string[];
   selectedItems: UnifiedTargetingItem[];
+  // Audience targeting mode
+  useBroadTargeting?: boolean;
+  // Custom/Lookalike audience selections
+  retargetingAudienceIds?: string[];
+  lookalikeAudienceIds?: string[];
+  customAudienceIds?: string[];
 }
 
 interface UnifiedTargetingProps {

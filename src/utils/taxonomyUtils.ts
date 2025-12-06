@@ -584,18 +584,29 @@ export function extractTaxonomyValues(
         values[param.id] = context.endDate ? formatDateForTaxonomy(context.endDate) : '';
         break;
       case 'targetingType':
-        // Handle targeting type - could be a string like 'native', 'retargeting', etc.
+        // Handle targeting type - could be a string like 'native', 'ca', 'lal', 'calal', etc.
         rawValue = context.targetingType;
         if (rawValue) {
-          // First check if it's already a code (NTV, RTG, etc.)
+          // First check if it's already a code (NTV, CA, LAL, CALAL, etc.)
           const upperRaw = rawValue.toUpperCase();
-          const validCodes = ['NTV', 'RTG', 'LAL', 'CUS', 'EXP', 'BRD', 'SIM'];
+          const validCodes = ['NTV', 'CA', 'LAL', 'CALAL', 'EXP', 'BRD', 'RTG', 'CUS', 'SIM'];
           if (validCodes.includes(upperRaw)) {
             values[param.id] = upperRaw;
           } else {
-            // Try to map using shortenValue
-            const shortened = shortenValue('targetingType', rawValue);
-            values[param.id] = shortened || 'BRD';
+            // Map lowercase types to codes
+            const typeToCode: Record<string, string> = {
+              'native': 'NTV',
+              'ca': 'CA',
+              'lal': 'LAL',
+              'calal': 'CALAL',
+              'broad': 'BRD',
+              'expand': 'EXP',
+              'retargeting': 'CA',
+              'lookalike': 'LAL',
+              'custom': 'CA',
+              'similar': 'EXP',
+            };
+            values[param.id] = typeToCode[rawValue.toLowerCase()] || 'BRD';
           }
         } else {
           values[param.id] = 'BRD';
