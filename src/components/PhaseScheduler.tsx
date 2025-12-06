@@ -26,6 +26,7 @@ import { MetaPhaseConfig } from "./MetaPhaseConfig";
 import { PhaseTaxonomyInputs } from "./PhaseTaxonomyInputs";
 import { PhaseTaxonomyPreview } from "./PhaseTaxonomyPreview";
 import { detectTargetingType } from "@/utils/detectTargetingType";
+import { getAudienceStrategyConfig, type AudienceStrategyConfig } from "@/utils/audienceStrategyMapping";
 import { 
   getObjectivesForPlatform, 
   getOptimizationGoalsForObjective, 
@@ -1048,6 +1049,11 @@ export function PhaseScheduler({
                       <div className="flex items-center gap-3 flex-wrap">
                         <div className={`w-3 h-3 rounded ${phase.isLoyaltyPhase ? 'bg-amber-500/40' : getPhaseColor(index).split(" ")[0]}`} />
                         <span className="font-medium">{phase.name}</span>
+                        {phase.objective && (
+                          <span className="text-xs text-muted-foreground">
+                            ({getAudienceStrategyConfig(platformName, phase.objective, phase.optimizationGoal).rationale})
+                          </span>
+                        )}
                         {phase.startDate && phase.endDate && (
                           <Badge variant="outline" className="text-xs">
                             {format(parseISO(phase.startDate), "MMM d")} - {format(parseISO(phase.endDate), "MMM d")} ({phaseDays} days)
@@ -1162,16 +1168,24 @@ export function PhaseScheduler({
                       )}
 
                       {/* Targeting Summary */}
-                      {marketTargeting && (
-                        <div className="p-3 bg-muted/50 rounded-lg space-y-2">
-                          <Label className="text-sm font-semibold">
-                            {phase.useBroadTargeting ? "Broad Targeting" : "Inherited Targeting"}
-                          </Label>
-                          {phase.useBroadTargeting ? (
-                            <div className="text-xs text-muted-foreground">
-                              <p>No demographic or interest targeting applied. Ads will be shown to the broadest possible audience.</p>
-                            </div>
-                          ) : (
+                      {(() => {
+                        const audienceStrategy = getAudienceStrategyConfig(platformName, phase.objective, phase.optimizationGoal);
+                        
+                        // Hide inherited targeting section if strategy doesn't support it
+                        if (!marketTargeting || (!audienceStrategy.showInheritedTargeting && !phase.useBroadTargeting)) {
+                          return null;
+                        }
+                        
+                        return (
+                          <div className="p-3 bg-muted/50 rounded-lg space-y-2">
+                            <Label className="text-sm font-semibold">
+                              {phase.useBroadTargeting ? "Broad Targeting" : "Inherited Targeting"}
+                            </Label>
+                            {phase.useBroadTargeting ? (
+                              <div className="text-xs text-muted-foreground">
+                                <p>No demographic or interest targeting applied. Ads will be shown to the broadest possible audience.</p>
+                              </div>
+                            ) : (
                             <div className="text-xs text-muted-foreground space-y-1">
                               {(marketTargeting.ageMin || marketTargeting.ageMax) && (
                                 <div className="flex justify-between">
@@ -1250,9 +1264,8 @@ export function PhaseScheduler({
                             </div>
                           )}
                         </div>
-                      )}
-
-
+                        );
+                      })()}
                       {/* Phase-Level Targeting Override - Available for all objectives */}
                       {basicTargeting && !phase.useBroadTargeting && (
                         basicTargeting.selectedItems && basicTargeting.selectedItems.length > 0 ||
@@ -1412,32 +1425,42 @@ export function PhaseScheduler({
                       </div>
 
                       {/* Audience Selection - hidden when broad targeting is active */}
-                      {adAccountId && !phase.useBroadTargeting && (
-                        <div className="space-y-3">
-                          <div className="flex items-center gap-2">
-                            <Label>Audience Selection</Label>
-                            {phase.objective && phase.optimizationGoal && (
-                              <Badge variant="secondary" className="text-xs">
-                                Based on {phase.objective} / {phase.optimizationGoal}
-                              </Badge>
-                            )}
+                      {(() => {
+                        const audienceStrategy = getAudienceStrategyConfig(platformName, phase.objective, phase.optimizationGoal);
+                        // Only show if at least one audience type is visible
+                        const hasVisibleAudiences = audienceStrategy.showRetargetingAudiences || audienceStrategy.showLookalikeAudiences;
+                        
+                        if (!adAccountId || phase.useBroadTargeting || !hasVisibleAudiences) return null;
+                        
+                        return (
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-2">
+                              <Label>Audience Selection</Label>
+                              {phase.objective && phase.optimizationGoal && (
+                                <Badge variant="secondary" className="text-xs">
+                                  Based on {phase.objective} / {phase.optimizationGoal}
+                                </Badge>
+                              )}
+                            </div>
+                            <PhaseAudienceSelector
+                              phaseName={phase.name}
+                              phaseId={phase.id}
+                              phaseObjective={phase.objective || ''}
+                              phaseOptimizationGoal={phase.optimizationGoal || ''}
+                              adAccountId={adAccountId}
+                              platform={platformName}
+                              basicTargeting={undefined}
+                              overrideTargeting={phase.overrideTargeting}
+                              showRetargetingAudiences={audienceStrategy.showRetargetingAudiences}
+                              showLookalikeAudiences={audienceStrategy.showLookalikeAudiences}
+                              onAudiencesSelected={(audiences) => {
+                                updatePhaseField(phase.id, "audiences", audiences);
+                              }}
+                              initialSelection={phase.audiences || []}
+                            />
                           </div>
-                          <PhaseAudienceSelector
-                            phaseName={phase.name}
-                            phaseId={phase.id}
-                            phaseObjective={phase.objective || ''}
-                            phaseOptimizationGoal={phase.optimizationGoal || ''}
-                            adAccountId={adAccountId}
-                            platform={platformName}
-                            basicTargeting={undefined}
-                            overrideTargeting={phase.overrideTargeting}
-                            onAudiencesSelected={(audiences) => {
-                              updatePhaseField(phase.id, "audiences", audiences);
-                            }}
-                            initialSelection={phase.audiences || []}
-                          />
-                        </div>
-                      )}
+                        );
+                      })()}
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
                           <Label htmlFor={`objective-${phase.id}`}>Campaign Objective</Label>
@@ -1470,11 +1493,18 @@ export function PhaseScheduler({
                                 // Auto-set optimization goal based on objective and platform
                                 const autoGoal = getAutoOptimizationGoal(adjustedObjective);
                                 
+                                // Get audience strategy config for this objective/goal
+                                const audienceStrategy = getAudienceStrategyConfig(platformName, adjustedObjective, autoGoal);
+                                
                                 // Build updated phase with destination defaults if applicable
                                 const updatedPhase: any = { 
                                   ...p, 
                                   objective: adjustedObjective, 
-                                  optimizationGoal: autoGoal 
+                                  optimizationGoal: autoGoal,
+                                  // Auto-enable/disable broad targeting based on strategy
+                                  useBroadTargeting: audienceStrategy.useBroadTargeting,
+                                  // Disable override if broad targeting is auto-enabled
+                                  overrideTargeting: audienceStrategy.useBroadTargeting ? false : p.overrideTargeting,
                                 };
                                 
                                 // Auto-populate destination from account defaults if objective requires destination

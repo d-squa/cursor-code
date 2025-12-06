@@ -49,6 +49,9 @@ interface PhaseAudienceSelectorProps {
     tiktokBehaviors?: Array<{ id: string; name: string; audienceSize?: number }>;
     tiktokDemographics?: Array<{ id: string; name: string; audienceSize?: number }>;
   };
+  // Visibility controls from audience strategy mapping
+  showRetargetingAudiences?: boolean;
+  showLookalikeAudiences?: boolean;
 }
 
 export interface SelectedAudience {
@@ -81,7 +84,9 @@ export function PhaseAudienceSelector({
   onAudiencesSelected,
   initialSelection = [],
   basicTargeting,
-  overrideTargeting = false
+  overrideTargeting = false,
+  showRetargetingAudiences = true,
+  showLookalikeAudiences = true,
 }: PhaseAudienceSelectorProps) {
   // Determine if this is a brand awareness campaign first (needed for state initialization)
   const isBrandAwareness = phaseObjective?.toLowerCase().includes('awareness') || 
@@ -128,7 +133,12 @@ export function PhaseAudienceSelector({
   }, [adAccountId, determinedPhase]);
 
   // Group audiences by strategy instead of type
+  // Filter based on visibility props
   const audiencesByStrategy = matrixEntries.reduce((acc, entry) => {
+    // Skip strategies based on visibility props
+    if (entry.strategy === 'Retarget' && !showRetargetingAudiences) return acc;
+    if (entry.strategy === 'Expand' && !showLookalikeAudiences) return acc;
+    
     const audiences = audiencesByType[entry.source] || [];
     if (!acc[entry.strategy]) {
       acc[entry.strategy] = [];
