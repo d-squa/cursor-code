@@ -1324,29 +1324,24 @@ export function PhaseScheduler({
 
                       {/* Audience Selection - Retargeting & Lookalike (only shown when broad targeting is OFF) */}
                       {!phase.useBroadTargeting && (
-                        <div className="border rounded-lg p-4 bg-muted/30">
-                          <p className="text-xs text-muted-foreground mb-3">
-                            Optionally select retargeting or lookalike audiences to refine your targeting.
-                          </p>
-                          <BroadTargetingAudiences
-                            adAccountId={adAccountId || ''}
-                            platform={platformId || 'meta'}
-                            retargetingAudiences={(phase.targeting as any)?.retargetingAudiences || []}
-                            lookalikeAudiences={(phase.targeting as any)?.lookalikeAudiences || []}
-                            onRetargetingChange={(audiences) => {
-                              updatePhaseField(phase.id, "targeting", {
-                                ...(phase.targeting || basicTargeting || { selectedItems: [] }),
-                                retargetingAudiences: audiences,
-                              });
-                            }}
-                            onLookalikeChange={(audiences) => {
-                              updatePhaseField(phase.id, "targeting", {
-                                ...(phase.targeting || basicTargeting || { selectedItems: [] }),
-                                lookalikeAudiences: audiences,
-                              });
-                            }}
-                          />
-                        </div>
+                        <BroadTargetingAudiences
+                          adAccountId={adAccountId || ''}
+                          platform={platformId || 'meta'}
+                          retargetingAudiences={(phase.targeting as any)?.retargetingAudiences || []}
+                          lookalikeAudiences={(phase.targeting as any)?.lookalikeAudiences || []}
+                          onRetargetingChange={(audiences) => {
+                            updatePhaseField(phase.id, "targeting", {
+                              ...(phase.targeting || basicTargeting || { selectedItems: [] }),
+                              retargetingAudiences: audiences,
+                            });
+                          }}
+                          onLookalikeChange={(audiences) => {
+                            updatePhaseField(phase.id, "targeting", {
+                              ...(phase.targeting || basicTargeting || { selectedItems: [] }),
+                              lookalikeAudiences: audiences,
+                            });
+                          }}
+                        />
                       )}
 
                       {/* Phase-Level Targeting Override - Available for all objectives */}
