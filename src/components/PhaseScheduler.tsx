@@ -1083,7 +1083,7 @@ export function PhaseScheduler({
                               placements: phase.tiktokPlacements,
                               publisherPlatforms: phase.publisherPlatforms,
                               positions: phase.positions,
-                              targetingType: phase.useBroadTargeting ? 'BRD' : detectTargetingType(phase.overrideTargeting ? phase.targeting : basicTargeting),
+                              targetingType: phase.useBroadTargeting ? 'BRD' : detectTargetingType(phase.overrideTargeting ? phase.targeting : basicTargeting, phase.audiences),
                               ageMin: phase.useBroadTargeting ? undefined : (phase.targeting?.ageMin ?? basicTargeting?.ageMin ?? marketTargeting?.ageMin),
                               ageMax: phase.useBroadTargeting ? undefined : (phase.targeting?.ageMax ?? basicTargeting?.ageMax ?? marketTargeting?.ageMax),
                               gender: phase.useBroadTargeting ? undefined : (phase.targeting?.genders?.[0] || basicTargeting?.genders?.[0] || marketTargeting?.gender),
@@ -1152,7 +1152,7 @@ export function PhaseScheduler({
                               placementType: phase.advantagePlusPlacements ? 'automatic' : (phase.tiktokPlacementType || 'manual'),
                               publisherPlatforms: phase.publisherPlatforms,
                               positions: phase.positions,
-                              targetingType: phase.useBroadTargeting ? 'BRD' : detectTargetingType(phase.overrideTargeting ? phase.targeting : basicTargeting),
+                              targetingType: phase.useBroadTargeting ? 'BRD' : detectTargetingType(phase.overrideTargeting ? phase.targeting : basicTargeting, phase.audiences),
                             }}
                             customValues={phase.adsetTaxonomyValues}
                             onCustomValueChange={(paramId, value) => handleTaxonomyValueChange(phase.id, 'adset', paramId, value)}
@@ -1319,8 +1319,8 @@ export function PhaseScheduler({
                         )}
                       </div>
 
-                      {/* Audience Selection - shown only when broad targeting is OFF */}
-                      {!phase.useBroadTargeting && adAccountId && (
+                      {/* Audience Selection - always shown */}
+                      {adAccountId && (
                         <div className="space-y-3">
                           <div className="flex items-center gap-2">
                             <Label>Audience Selection</Label>

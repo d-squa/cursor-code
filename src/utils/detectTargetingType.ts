@@ -8,6 +8,14 @@ interface TargetingItem {
   platforms?: string[];
 }
 
+interface SelectedAudience {
+  id: string;
+  name: string;
+  type: string;
+  source: string;
+  subtype?: string;
+}
+
 interface TargetingConfigShape {
   // Old format (TargetingConfig)
   selectedItems?: TargetingItem[];
@@ -43,34 +51,66 @@ interface TargetingConfigShape {
  * Auto-detects the targeting type based on the user's targeting selections
  * Returns the appropriate taxonomy code
  * 
- * Logic:
- * - If broad targeting toggle is ON -> BRD
- * - If both retargeting + lookalike -> CALAL
- * - If retargeting audiences selected -> CA
- * - If lookalike audiences selected -> LAL  
- * - If custom audiences selected -> CA
- * - If expand to new enabled -> EXP
+ * Logic (with audiences from PhaseAudienceSelector):
+ * - If useBroadTargeting is ON -> BRD
+ * - If multiple different audience types selected -> MIX
+ * - If retargeting audiences selected -> RTG
+ * - If lookalike/similar audiences selected -> EXP
  * - If interests/behaviors/demographics selected (native) -> NTV
- * - If no targeting at all -> BRD (broad)
+ * - If no targeting at all -> NTV (inherited from preset)
  */
-export function detectTargetingType(targeting?: unknown): string {
-  if (!targeting || typeof targeting !== 'object') return 'BRD';
+export function detectTargetingType(targeting?: unknown, audiences?: SelectedAudience[]): string {
+  // Check if broad targeting is explicitly enabled
+  if (targeting && typeof targeting === 'object' && (targeting as any).useBroadTargeting === true) {
+    return 'BRD';
+  }
+  
+  // Check audiences from PhaseAudienceSelector
+  const hasRetargetingAudience = audiences?.some(a => 
+    a.type === 'retargeting' || 
+    a.source === 'retargeting' ||
+    a.subtype?.toLowerCase().includes('custom') ||
+    a.subtype?.toLowerCase().includes('website') ||
+    a.subtype?.toLowerCase().includes('engagement') ||
+    a.subtype?.toLowerCase().includes('video') ||
+    a.subtype?.toLowerCase().includes('app')
+  ) || false;
+  
+  const hasLookalikeAudience = audiences?.some(a => 
+    a.type === 'lookalike' || 
+    a.type === 'similar' ||
+    a.source === 'lookalike' ||
+    a.subtype?.toLowerCase().includes('lookalike') ||
+    a.subtype?.toLowerCase().includes('similar')
+  ) || false;
+  
+  // Check for MIX - multiple different types selected
+  if (hasRetargetingAudience && hasLookalikeAudience) {
+    return 'MIX';
+  }
+  
+  // Single audience type
+  if (hasRetargetingAudience) {
+    return 'RTG';
+  }
+  
+  if (hasLookalikeAudience) {
+    return 'EXP';
+  }
+  
+  // If no audiences, check the targeting config
+  if (!targeting || typeof targeting !== 'object') return 'NTV';
   
   const config = targeting as TargetingConfigShape;
 
-  // Check if broad targeting is explicitly enabled
-  if ((config as any).useBroadTargeting === true) {
-    return 'broad';
-  }
-
-  // Check for retargeting audiences
+  // Check for retargeting audiences in config
   const hasRetargeting = 
     (config.retargetingAudiences && config.retargetingAudiences.length > 0) ||
     (config.retargetingAudienceIds && config.retargetingAudienceIds.length > 0) ||
     (config.websiteAudience && config.websiteAudience.trim().length > 0) ||
     config.useRetargeting === true;
   
-  // Check for lookalike audiences
+  // Check for lookalike audiences in config
   const hasLookalike = 
     (config.lookalikeAudiences && config.lookalikeAudiences.length > 0) ||
     (config.lookalikeAudienceIds && config.lookalikeAudienceIds.length > 0) ||
@@ -83,24 +123,24 @@ export function detectTargetingType(targeting?: unknown): string {
     (config.customAudienceIds && config.customAudienceIds.length > 0) ||
     config.useCustomAudience === true;
 
-  // If both retargeting/custom AND lookalike -> CALAL (combined audience strategy)
+  // If both retargeting/custom AND lookalike -> MIX (combined audience strategy)
   if ((hasRetargeting || hasCustomAudience) && hasLookalike) {
-    return 'calal';
+    return 'MIX';
   }
   
-  // If retargeting or custom audiences selected -> CA
+  // If retargeting or custom audiences selected -> RTG
   if (hasRetargeting || hasCustomAudience) {
-    return 'ca';
+    return 'RTG';
   }
 
-  // If lookalike audiences selected -> LAL
+  // If lookalike audiences selected -> EXP
   if (hasLookalike) {
-    return 'lal';
+    return 'EXP';
   }
 
   // Check if targeting expansion is enabled (Expand to New)
   if (config.targetingExpansion === true || config.expandToNew === true) {
-    return 'expand';
+    return 'EXP';
   }
 
   // Check for native interest/behavior/demographic targeting (BasicTargetingConfig format)
@@ -141,30 +181,30 @@ export function detectTargetingType(targeting?: unknown): string {
         n.includes('past purchaser') || n.includes('cart abandoner') || n.includes('engaged user')
       );
 
-    // If both types found -> CALAL
-    if (hasLookalikeItems && hasRetargetingItems) return 'calal';
-    if (hasLookalikeItems) return 'lal';
-    if (hasRetargetingItems) return 'ca';
+    // If both types found -> MIX
+    if (hasLookalikeItems && hasRetargetingItems) return 'MIX';
+    if (hasLookalikeItems) return 'EXP';
+    if (hasRetargetingItems) return 'RTG';
 
     // Check for similar/expand indicators
     const hasSimilar = itemTypes.some(t => t.includes('similar') || t.includes('expand')) ||
       itemCategories.some(c => c.includes('similar') || c.includes('expand'));
-    if (hasSimilar) return 'expand';
+    if (hasSimilar) return 'EXP';
 
     // If has interest/behavior targeting, it's native targeting
     const hasInterests = itemTypes.some(t => 
       t.includes('interest') || t.includes('behavior') || t.includes('demographic')
     );
-    if (hasInterests) return 'native';
+    if (hasInterests) return 'NTV';
   }
 
   // If any native targeting is set (interests, behaviors, demographics), it's native
   if (hasMetaTargeting || hasTiktokTargeting || hasInterestString) {
-    return 'native';
+    return 'NTV';
   }
 
-  // No targeting at all = broad
-  return 'broad';
+  // Default to native (inherited from preset)
+  return 'NTV';
 }
 
 /**
