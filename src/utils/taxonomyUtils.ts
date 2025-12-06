@@ -677,10 +677,22 @@ export function extractTaxonomyValues(
 }
 
 // Generate default campaign taxonomy params
-// Campaign: activation name, market, phase budget, start date, end date, BO number, team name
+// Campaign: activation name, objective, market, phase budget, start date, end date, BO number, team name
 export function getDefaultCampaignParams(platform: 'meta' | 'tiktok'): TaxonomyParam[] {
   return [
     { id: 'activationName', key: 'ACT', label: 'Activation Name', type: 'text', system: true, required: true, description: 'Auto-filled from Activation Details → Name field. The main identifier for this campaign activation.' },
+    { 
+      id: 'objective', 
+      key: 'OBJ', 
+      label: 'Campaign Objective', 
+      type: 'options', 
+      options: platform === 'meta' 
+        ? ['AWR', 'ENG', 'TRF', 'LED', 'APP', 'SAL']
+        : ['RCH', 'VV', 'TRF', 'CVN', 'API', 'LDG', 'PSL'],
+      system: true, 
+      required: true, 
+      description: 'Auto-filled from Phase Config → Campaign Objective. AWR=Awareness, ENG=Engagement, TRF=Traffic, LED=Leads, APP=App Promotion, SAL=Sales, RCH=Reach, VV=Video Views, CVN=Conversions.' 
+    },
     { id: 'country', key: 'MKT', label: 'Market', type: 'text', system: true, required: true, description: 'Auto-filled from Platform & Market Selection → Targeted Market (e.g., ES, MX, US). Country code for the market being targeted.' },
     { id: 'phaseBudget', key: 'BDG', label: 'Phase Budget', type: 'text', system: true, required: true, description: 'Auto-filled from Phase Config → Phase Budget allocation. Shows budget in K/M format (e.g., 10K, 1M).' },
     { id: 'startDate', key: 'STR', label: 'Start Date', type: 'text', system: true, required: true, description: 'Auto-filled from Phase Config → Start Date in DDMM format (e.g., 0412 = December 4th).' },

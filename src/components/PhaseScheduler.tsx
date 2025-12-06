@@ -1119,6 +1119,7 @@ export function PhaseScheduler({
                               markets: activationContext?.markets,
                               platformBudget: activationContext?.platformBudget,
                               phaseBudget: marketBudget ? marketBudget * (phase.budgetPercentage / 100) : undefined,
+                              objective: phase.objective,
                               placementType: phase.advantagePlusPlacements ? 'automatic' : (phase.tiktokPlacementType || 'manual'),
                               publisherPlatforms: phase.publisherPlatforms,
                               positions: phase.positions,
