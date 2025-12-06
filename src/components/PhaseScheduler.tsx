@@ -1118,8 +1118,10 @@ export function PhaseScheduler({
                               market: activationContext?.market,
                               markets: activationContext?.markets,
                               platformBudget: activationContext?.platformBudget,
+                              phaseBudget: marketBudget ? marketBudget * (phase.budgetPercentage / 100) : undefined,
                               placementType: phase.advantagePlusPlacements ? 'automatic' : (phase.tiktokPlacementType || 'manual'),
                               publisherPlatforms: phase.publisherPlatforms,
+                              positions: phase.positions,
                               startDate: phase.startDate || startDate,
                               endDate: phase.endDate || endDate,
                             }}
@@ -1142,6 +1144,9 @@ export function PhaseScheduler({
                               location: activationContext?.market,
                               devices: phase.targeting?.devices || basicTargeting?.devices || marketTargeting?.devices,
                               languages: phase.targeting?.languages || basicTargeting?.languages || marketTargeting?.languages,
+                              advantagePlusPlacements: phase.advantagePlusPlacements,
+                              placementType: phase.advantagePlusPlacements ? 'automatic' : (phase.tiktokPlacementType || 'manual'),
+                              publisherPlatforms: phase.publisherPlatforms,
                               positions: phase.positions,
                               targetingType: detectTargetingType(phase.overrideTargeting ? phase.targeting : basicTargeting),
                             }}
