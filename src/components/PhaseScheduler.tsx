@@ -19,6 +19,7 @@ import { TargetingConfigComponent } from "./TargetingConfig";
 import { getOptimizationGoalForFocus } from "@/utils/strategyFocusMapping";
 import { BudgetTypeApplyDialog } from "./BudgetTypeApplyDialog";
 import { PhaseAudienceSelector } from "./PhaseAudienceSelector";
+import { BroadTargetingAudiences } from "./BroadTargetingAudiences";
 import { UnifiedTargeting, UnifiedTargetingConfig } from "./UnifiedTargeting";
 import { TiktokPhaseConfig } from "./TiktokPhaseConfig";
 import { MetaPhaseConfig } from "./MetaPhaseConfig";
@@ -1321,53 +1322,32 @@ export function PhaseScheduler({
                         )}
                       </div>
 
-                      {/* Audience Selection for Broad Targeting (CA/LAL) */}
+                      {/* Audience Selection for Broad Targeting - Retargeting & Lookalike */}
                       {phase.useBroadTargeting && (
                         <div className="border rounded-lg p-4 bg-amber-50/50 border-amber-200">
-                          <Label className="text-sm font-semibold text-amber-800">Select Audiences (Required)</Label>
-                          <p className="text-xs text-amber-700 mb-3">
-                            With broad targeting enabled, you must select at least one Custom Audience (CA) or Lookalike Audience (LAL).
+                          <p className="text-xs text-muted-foreground mb-3">
+                            Broad targeting removes all inherited demographic and interest targeting. Select retargeting or lookalike audiences below.
                           </p>
-                          <div className="space-y-3">
-                            <div className="space-y-2">
-                              <Label className="text-xs">Custom Audiences (CA)</Label>
-                              <Input 
-                                placeholder="Enter custom audience IDs (comma separated)"
-                                value={(phase.targeting as any)?.customAudienceIds?.join(', ') || ''}
-                                onChange={(e) => {
-                                  const ids = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
-                                  updatePhaseField(phase.id, "targeting", {
-                                    ...(phase.targeting || { selectedItems: [] }),
-                                    customAudienceIds: ids,
-                                    useBroadTargeting: true,
-                                  });
-                                }}
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <Label className="text-xs">Lookalike Audiences (LAL)</Label>
-                              <Input 
-                                placeholder="Enter lookalike audience IDs (comma separated)"
-                                value={(phase.targeting as any)?.lookalikeAudienceIds?.join(', ') || ''}
-                                onChange={(e) => {
-                                  const ids = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
-                                  updatePhaseField(phase.id, "targeting", {
-                                    ...(phase.targeting || { selectedItems: [] }),
-                                    lookalikeAudienceIds: ids,
-                                    useBroadTargeting: true,
-                                  });
-                                }}
-                              />
-                            </div>
-                          </div>
-                          {/* Validation warning */}
-                          {phase.useBroadTargeting && 
-                            !((phase.targeting as any)?.customAudienceIds?.length > 0 || 
-                              (phase.targeting as any)?.lookalikeAudienceIds?.length > 0) && (
-                            <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">
-                              Please select at least one Custom Audience or Lookalike Audience to proceed.
-                            </div>
-                          )}
+                          <BroadTargetingAudiences
+                            adAccountId={adAccountId || ''}
+                            platform={platformId || 'meta'}
+                            retargetingAudiences={(phase.targeting as any)?.retargetingAudiences || []}
+                            lookalikeAudiences={(phase.targeting as any)?.lookalikeAudiences || []}
+                            onRetargetingChange={(audiences) => {
+                              updatePhaseField(phase.id, "targeting", {
+                                ...(phase.targeting || { selectedItems: [] }),
+                                retargetingAudiences: audiences,
+                                useBroadTargeting: true,
+                              });
+                            }}
+                            onLookalikeChange={(audiences) => {
+                              updatePhaseField(phase.id, "targeting", {
+                                ...(phase.targeting || { selectedItems: [] }),
+                                lookalikeAudiences: audiences,
+                                useBroadTargeting: true,
+                              });
+                            }}
+                          />
                         </div>
                       )}
 
