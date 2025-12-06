@@ -495,7 +495,6 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         'default_publisher_platforms',
         'default_positions',
         'default_advantage_plus_placements',
-        'default_advantage_plus_campaign',
         'default_conversion_count',
         'main_markets',
         'default_devices',
@@ -1099,26 +1098,6 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                             </Select>
                             <p className="text-xs text-muted-foreground">
                               Count all conversion events or just one per click
-                            </p>
-                          </div>
-
-                          {/* Advantage+ Campaign */}
-                          <div className="space-y-2">
-                            <Label>Advantage+ Campaign</Label>
-                            <Select
-                              value={(defaults as any).default_advantage_plus_campaign ? "enabled" : "disabled"}
-                              onValueChange={(value) => updateDefault(account.id, "default_advantage_plus_campaign" as any, value === "enabled")}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select Advantage+ setting" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="disabled">Disabled (Standard Campaign)</SelectItem>
-                                <SelectItem value="enabled">Enabled (Advantage+ Shopping)</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <p className="text-xs text-muted-foreground">
-                              Advantage+ uses AI to optimize targeting and placements
                             </p>
                           </div>
 
