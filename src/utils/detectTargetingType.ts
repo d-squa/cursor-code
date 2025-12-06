@@ -9,56 +9,119 @@ interface TargetingItem {
 }
 
 interface TargetingConfigShape {
+  // Old format (TargetingConfig)
   selectedItems?: TargetingItem[];
   targetingExpansion?: boolean;
   customAudiences?: string[];
   lookalikeAudiences?: string[];
   retargetingAudiences?: string[];
+  websiteAudience?: string; // Retargeting audiences as comma-separated string
+  lookalikeAudience?: string; // Lookalike audiences as comma-separated string
+  interests?: string; // Interest targeting as comma-separated string
+  
+  // New format (BasicTargetingConfig)
+  metaInterests?: TargetingItem[];
+  metaBehaviors?: TargetingItem[];
+  metaDemographics?: TargetingItem[];
+  tiktokInterests?: TargetingItem[];
+  tiktokBehaviors?: TargetingItem[];
+  tiktokDemographics?: TargetingItem[];
+  
+  // Audience expansion toggles
+  useRetargeting?: boolean;
+  useLookalike?: boolean;
+  useCustomAudience?: boolean;
+  expandToNew?: boolean;
+  
+  // Direct arrays for custom/lookalike/retargeting audience IDs
+  retargetingAudienceIds?: string[];
+  lookalikeAudienceIds?: string[];
+  customAudienceIds?: string[];
 }
 
 /**
  * Auto-detects the targeting type based on the user's targeting selections
  * Returns the appropriate taxonomy code
+ * 
+ * Logic:
+ * - If retargeting audiences selected -> RTG
+ * - If lookalike audiences selected -> LAL  
+ * - If custom audiences selected -> CUS
+ * - If both custom + lookalike -> LAL (lookalike takes priority)
+ * - If expand to new enabled -> EXP
+ * - If interests/behaviors/demographics selected (native) -> NTV
+ * - If no targeting at all -> BRD (broad)
  */
 export function detectTargetingType(targeting?: unknown): string {
-  if (!targeting || typeof targeting !== 'object') return 'native';
+  if (!targeting || typeof targeting !== 'object') return 'BRD';
   
   const config = targeting as TargetingConfigShape;
 
-  // Check for lookalike audiences first (highest priority)
-  if (config.lookalikeAudiences && config.lookalikeAudiences.length > 0) {
-    return 'lookalike';
-  }
-
-  // Check for retargeting audiences
-  if (config.retargetingAudiences && config.retargetingAudiences.length > 0) {
+  // Check for retargeting audiences (highest priority - user wants to reach past visitors)
+  const hasRetargeting = 
+    (config.retargetingAudiences && config.retargetingAudiences.length > 0) ||
+    (config.retargetingAudienceIds && config.retargetingAudienceIds.length > 0) ||
+    (config.websiteAudience && config.websiteAudience.trim().length > 0) ||
+    config.useRetargeting === true;
+  
+  if (hasRetargeting) {
     return 'retargeting';
   }
 
+  // Check for lookalike audiences (second priority - find similar users to existing audiences)
+  const hasLookalike = 
+    (config.lookalikeAudiences && config.lookalikeAudiences.length > 0) ||
+    (config.lookalikeAudienceIds && config.lookalikeAudienceIds.length > 0) ||
+    (config.lookalikeAudience && config.lookalikeAudience.trim().length > 0) ||
+    config.useLookalike === true;
+  
+  if (hasLookalike) {
+    return 'lookalike';
+  }
+
   // Check for custom audiences
-  if (config.customAudiences && config.customAudiences.length > 0) {
+  const hasCustomAudience = 
+    (config.customAudiences && config.customAudiences.length > 0) ||
+    (config.customAudienceIds && config.customAudienceIds.length > 0) ||
+    config.useCustomAudience === true;
+  
+  if (hasCustomAudience) {
     return 'custom';
   }
 
   // Check if targeting expansion is enabled (Expand to New)
-  if (config.targetingExpansion === true) {
+  if (config.targetingExpansion === true || config.expandToNew === true) {
     return 'expand';
   }
 
-  // Check selected items for audience type indicators
+  // Check for native interest/behavior/demographic targeting (BasicTargetingConfig format)
+  const hasMetaTargeting = 
+    (config.metaInterests && config.metaInterests.length > 0) ||
+    (config.metaBehaviors && config.metaBehaviors.length > 0) ||
+    (config.metaDemographics && config.metaDemographics.length > 0);
+    
+  const hasTiktokTargeting = 
+    (config.tiktokInterests && config.tiktokInterests.length > 0) ||
+    (config.tiktokBehaviors && config.tiktokBehaviors.length > 0) ||
+    (config.tiktokDemographics && config.tiktokDemographics.length > 0);
+
+  // Check for native interest targeting (old format - interests as comma-separated string)
+  const hasInterestString = config.interests && config.interests.trim().length > 0;
+
+  // Check selected items for audience type indicators (legacy format)
   if (config.selectedItems && config.selectedItems.length > 0) {
     const itemTypes = config.selectedItems.map(item => item.type?.toLowerCase() || '');
     const itemCategories = config.selectedItems.map(item => item.category?.toLowerCase() || '');
     const itemNames = config.selectedItems.map(item => item.name?.toLowerCase() || '');
 
     // Check for lookalike indicators
-    const hasLookalike = itemTypes.some(t => t.includes('lookalike')) ||
+    const hasLookalikeItems = itemTypes.some(t => t.includes('lookalike')) ||
       itemCategories.some(c => c.includes('lookalike')) ||
       itemNames.some(n => n.includes('lookalike') || n.includes('similar audience'));
-    if (hasLookalike) return 'lookalike';
+    if (hasLookalikeItems) return 'lookalike';
 
     // Check for retargeting indicators
-    const hasRetargeting = itemTypes.some(t => 
+    const hasRetargetingItems = itemTypes.some(t => 
       t.includes('retarget') || t.includes('remarketing') || t.includes('custom_audience')
     ) ||
       itemCategories.some(c => 
@@ -69,7 +132,7 @@ export function detectTargetingType(targeting?: unknown): string {
         n.includes('retarget') || n.includes('remarketing') || n.includes('website visitor') ||
         n.includes('past purchaser') || n.includes('cart abandoner') || n.includes('engaged user')
       );
-    if (hasRetargeting) return 'retargeting';
+    if (hasRetargetingItems) return 'retargeting';
 
     // Check for similar/expand indicators
     const hasSimilar = itemTypes.some(t => t.includes('similar') || t.includes('expand')) ||
@@ -83,14 +146,13 @@ export function detectTargetingType(targeting?: unknown): string {
     if (hasInterests) return 'native';
   }
 
-  // Check if no targeting at all (broad)
-  const hasNoDetailedTargeting = !config.selectedItems || config.selectedItems.length === 0;
-  if (hasNoDetailedTargeting && !config.targetingExpansion) {
-    return 'broad';
+  // If any native targeting is set (interests, behaviors, demographics), it's native
+  if (hasMetaTargeting || hasTiktokTargeting || hasInterestString) {
+    return 'native';
   }
 
-  // Default to native if nothing else matches
-  return 'native';
+  // No targeting at all = broad
+  return 'broad';
 }
 
 /**

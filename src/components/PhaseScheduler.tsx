@@ -1141,6 +1141,7 @@ export function PhaseScheduler({
                               gender: phase.targeting?.genders?.[0] || basicTargeting?.genders?.[0] || marketTargeting?.gender,
                               location: activationContext?.market,
                               devices: phase.targeting?.devices || basicTargeting?.devices || marketTargeting?.devices,
+                              languages: phase.targeting?.languages || basicTargeting?.languages || marketTargeting?.languages,
                               positions: phase.positions,
                               targetingType: detectTargetingType(phase.overrideTargeting ? phase.targeting : basicTargeting),
                             }}
