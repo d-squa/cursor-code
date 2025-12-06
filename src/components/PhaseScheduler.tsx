@@ -21,6 +21,7 @@ import { BudgetTypeApplyDialog } from "./BudgetTypeApplyDialog";
 import { PhaseAudienceSelector } from "./PhaseAudienceSelector";
 import { UnifiedTargeting, UnifiedTargetingConfig } from "./UnifiedTargeting";
 import { TiktokPhaseConfig } from "./TiktokPhaseConfig";
+import { MetaPhaseConfig } from "./MetaPhaseConfig";
 import { PhaseTaxonomyInputs } from "./PhaseTaxonomyInputs";
 import { PhaseTaxonomyPreview } from "./PhaseTaxonomyPreview";
 import { 
@@ -86,6 +87,12 @@ interface PhaseSchedulerProps {
     metaPageId?: string;
     metaInstagramAccountId?: string;
     metaLandingPageUrl?: string;
+    // Meta advanced settings defaults
+    metaBidStrategy?: string;
+    metaBidAmount?: number;
+    metaClickWindow?: number;
+    metaViewWindow?: number;
+    metaBillingEvent?: string;
     // TikTok destination defaults
     tiktokOptimizationLocation?: string;
     tiktokAppId?: string;
@@ -97,6 +104,12 @@ interface PhaseSchedulerProps {
     tiktokZaloAccountId?: string;
     tiktokLineBusinessId?: string;
     tiktokLandingPageUrl?: string;
+    // TikTok advanced settings defaults
+    tiktokBidStrategy?: string;
+    tiktokBidAmount?: number;
+    tiktokClickWindow?: number;
+    tiktokViewWindow?: number;
+    tiktokBillingEvent?: string;
   };
   onApplyBudgetTypeToAll?: (budgetType: "daily" | "lifetime") => void;
   onOpenCustomizeBudgetTypes?: () => void;
@@ -1864,6 +1877,18 @@ export function PhaseScheduler({
                           adAccountDefaults={adAccountDefaults}
                           onUpdate={(field, value) => {
                             console.log("🔄 PhaseScheduler onUpdate called:", { phaseId: phase.id, field, value });
+                            updatePhaseField(phase.id, field as keyof Phase, value);
+                          }}
+                        />
+                      )}
+
+                      {/* Meta Advanced Settings - Platform-specific */}
+                      {platformId?.toLowerCase() === 'meta' && (
+                        <MetaPhaseConfig
+                          phase={phase}
+                          adAccountDefaults={adAccountDefaults}
+                          onUpdate={(field, value) => {
+                            console.log("🔄 PhaseScheduler Meta onUpdate called:", { phaseId: phase.id, field, value });
                             updatePhaseField(phase.id, field as keyof Phase, value);
                           }}
                         />

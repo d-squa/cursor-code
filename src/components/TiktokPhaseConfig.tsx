@@ -22,6 +22,7 @@ interface AdAccountDefaults {
   tiktokBidAmount?: number;
   tiktokClickWindow?: number;
   tiktokViewWindow?: number;
+  tiktokBillingEvent?: string;
   tiktokPlacementType?: string;
   tiktokPlacements?: string[];
   [key: string]: any;
@@ -82,6 +83,9 @@ export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: Tiktok
     }
     if (!phase.tiktokViewWindow && adAccountDefaults.tiktokViewWindow) {
       onUpdate("tiktokViewWindow", adAccountDefaults.tiktokViewWindow);
+    }
+    if (!phase.tiktokBillingEvent && adAccountDefaults.tiktokBillingEvent) {
+      onUpdate("tiktokBillingEvent", adAccountDefaults.tiktokBillingEvent);
     }
     if (!phase.tiktokAppId && adAccountDefaults.tiktokAppId) {
       onUpdate("tiktokAppId", adAccountDefaults.tiktokAppId);
@@ -313,6 +317,28 @@ export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: Tiktok
             </div>
           </div>
         )}
+
+        {/* Billing Event */}
+        <div className="space-y-2">
+          <Label>Billing Event</Label>
+          <Select
+            value={phase.tiktokBillingEvent || undefined}
+            onValueChange={(value) => onUpdate("tiktokBillingEvent", value)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Inherit from defaults" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="OCPM">OCPM (Optimized Cost Per Mille)</SelectItem>
+              <SelectItem value="CPC">CPC (Cost Per Click)</SelectItem>
+              <SelectItem value="CPV">CPV (Cost Per View)</SelectItem>
+              <SelectItem value="CPM">CPM (Cost Per Mille)</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            OCPM for conversions, CPC for traffic/click goals, CPV for video views
+          </p>
+        </div>
 
         {/* Event Count */}
         {showEventCount && (

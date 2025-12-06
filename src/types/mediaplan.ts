@@ -136,6 +136,7 @@ export interface Phase {
   tiktokWhatsappNumber?: string; // WhatsApp number
   tiktokZaloAccountId?: string; // Zalo Official Account ID
   tiktokLineBusinessId?: string; // LINE Business ID
+  tiktokBillingEvent?: string; // TikTok billing event (OCPM, CPC, CPV, CPM)
   // Meta-specific fields at phase level
   metaBillingEvent?: string; // IMPRESSIONS, LINK_CLICKS, POST_ENGAGEMENT, etc.
   metaLandingPageUrl?: string; // Default landing page URL
@@ -144,6 +145,8 @@ export interface Phase {
   metaViewWindow?: number; // View-through attribution window in days (1, 7)
   metaBidStrategy?: string; // LOWEST_COST_WITHOUT_CAP, LOWEST_COST_WITH_BID_CAP, COST_CAP
   metaBidAmount?: number; // Bid amount when bid cap is required
+  metaAdvantagePlusCampaign?: boolean; // Advantage+ campaign mode (like TikTok Smart+)
+  metaConversionCount?: string; // all_conversions or one_per_click
   // Meta destination-specific fields
   metaAppStore?: string; // Store for app destination
   metaAppId?: string; // App identifier from the selected store
