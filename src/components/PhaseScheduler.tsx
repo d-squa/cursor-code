@@ -1071,6 +1071,7 @@ export function PhaseScheduler({
                               platformBudget: activationContext?.platformBudget,
                               objective: phase.objective,
                               optimizationGoal: phase.optimizationGoal,
+                              optimizationLocation: phase.metaOptimizationLocation || phase.tiktokOptimizationLocation,
                               funnelStage: phase.funnelStage,
                               bidStrategy: phase.metaBidStrategy || phase.tiktokBidStrategy,
                               billingEvent: phase.metaBillingEvent || phase.tiktokBillingEvent,
@@ -1137,6 +1138,7 @@ export function PhaseScheduler({
                             context={{
                               platform: platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta',
                               optimizationGoal: phase.optimizationGoal,
+                              optimizationLocation: phase.metaOptimizationLocation || phase.tiktokOptimizationLocation,
                               phaseBudget: marketBudget ? marketBudget * (phase.budgetPercentage / 100) : undefined,
                               budgetType: phase.budgetType,
                               ageMin: phase.targeting?.ageMin ?? basicTargeting?.ageMin ?? marketTargeting?.ageMin,

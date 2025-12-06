@@ -42,6 +42,7 @@ export interface TaxonomyContext {
   region?: string; // Auto-detected region
   // Phase/AdSet Level
   optimizationGoal?: string;
+  optimizationLocation?: string; // Where conversions happen: Website, App, OnAd, etc.
   conversionEvent?: string;
   bidStrategy?: string;
   billingEvent?: string;
@@ -262,6 +263,32 @@ const VALUE_MAPPINGS: Record<string, Record<string, string>> = {
     'CPM': 'CPM',
     'CPV': 'CPV',
   },
+  // Optimization locations / Conversion destinations
+  optimizationLocation: {
+    // Meta locations
+    'WEBSITE': 'WEB',
+    'APP': 'APP',
+    'MESSAGING_APPS': 'MSG',
+    'CALLS': 'CALL',
+    'ON_AD': 'ONAD',
+    'SHOP': 'SHOP',
+    'INSTANT_FORM': 'FORM',
+    'INSTAGRAM_PROFILE': 'IGPF',
+    'FACEBOOK_PAGE': 'FBPG',
+    // TikTok locations
+    'Website': 'WEB',
+    'App': 'APP',
+    'Instant Messaging': 'MSG',
+    'Instant Form': 'FORM',
+    'TikTok Shop': 'SHOP',
+    'TikTok Instant Page': 'TTIP',
+    // Generic
+    'on_ad': 'ONAD',
+    'website': 'WEB',
+    'app': 'APP',
+    'messaging': 'MSG',
+    'calls': 'CALL',
+  },
   // Audience types
   audienceType: {
     'broad': 'BRD',
@@ -455,6 +482,11 @@ export function extractTaxonomyValues(
       case 'optimizationGoal':
         rawValue = context.optimizationGoal;
         values[param.id] = rawValue ? shortenValue('optimizationGoal', rawValue) : '';
+        break;
+      case 'optimizationLocation':
+        rawValue = context.optimizationLocation;
+        // If no location specified, default to ONAD (On Ad) for objectives that don't require conversion location
+        values[param.id] = rawValue ? shortenValue('optimizationLocation', rawValue) : 'ONAD';
         break;
       case 'country':
       case 'market':
@@ -757,6 +789,18 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyPara
       system: true,
       required: true,
       description: 'Auto-filled from Phase Config → Optimization Goal. RCH=Reach, IMP=Impressions, CLK=Clicks, LPV=Landing Page Views, CVN=Conversions, VAL=Value, VV=Video Views.',
+    },
+    {
+      id: 'optimizationLocation',
+      key: 'LOC_T',
+      label: 'Optimization Location',
+      type: 'options',
+      options: platform === 'meta'
+        ? ['ONAD', 'WEB', 'APP', 'MSG', 'CALL', 'SHOP', 'FORM']
+        : ['ONAD', 'WEB', 'APP', 'MSG', 'FORM', 'SHOP', 'TTIP'],
+      system: true,
+      required: false,
+      description: 'Auto-filled from Phase Config → Optimization Location. ONAD=On Ad (no destination), WEB=Website, APP=App, MSG=Messaging, CALL=Calls, SHOP=Shop, FORM=Instant Form.',
     },
     {
       id: 'budgetType',
