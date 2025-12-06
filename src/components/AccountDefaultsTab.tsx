@@ -1573,6 +1573,52 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                             </p>
                           </div>
 
+                          {/* TikTok Click-Through Window */}
+                          <div className="space-y-2">
+                            <Label className="flex items-center gap-2">
+                              <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
+                              Click-Through Window (days)
+                            </Label>
+                            <Select
+                              value={String(defaults.default_click_window || 7)}
+                              onValueChange={(value) => updateDefault(account.id, "default_click_window", parseInt(value))}
+                            >
+                              <SelectTrigger className="border-black/20 dark:border-white/20">
+                                <SelectValue placeholder="Select click window" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="7">7 days</SelectItem>
+                                <SelectItem value="28">28 days</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">
+                              Attribution window for click-through conversions
+                            </p>
+                          </div>
+
+                          {/* TikTok View-Through Window */}
+                          <div className="space-y-2">
+                            <Label className="flex items-center gap-2">
+                              <span className="text-xs px-2 py-0.5 rounded bg-black/10 dark:bg-white/10">TikTok</span>
+                              View-Through Window (days)
+                            </Label>
+                            <Select
+                              value={String(defaults.default_view_window || 1)}
+                              onValueChange={(value) => updateDefault(account.id, "default_view_window", parseInt(value))}
+                            >
+                              <SelectTrigger className="border-black/20 dark:border-white/20">
+                                <SelectValue placeholder="Select view window" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="1">1 day</SelectItem>
+                                <SelectItem value="7">7 days</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">
+                              Attribution window for view-through conversions
+                            </p>
+                          </div>
+
                           {/* TikTok Optimization Event */}
                           <div className="space-y-2">
                             <Label className="flex items-center gap-2">
