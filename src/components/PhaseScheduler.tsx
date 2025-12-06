@@ -24,6 +24,7 @@ import { TiktokPhaseConfig } from "./TiktokPhaseConfig";
 import { MetaPhaseConfig } from "./MetaPhaseConfig";
 import { PhaseTaxonomyInputs } from "./PhaseTaxonomyInputs";
 import { PhaseTaxonomyPreview } from "./PhaseTaxonomyPreview";
+import { detectTargetingType } from "@/utils/detectTargetingType";
 import { 
   getObjectivesForPlatform, 
   getOptimizationGoalsForObjective, 
@@ -1080,7 +1081,7 @@ export function PhaseScheduler({
                               placements: phase.tiktokPlacements,
                               publisherPlatforms: phase.publisherPlatforms,
                               positions: phase.positions,
-                              targetingType: phase.targetingType || (phase.targeting?.targetingExpansion ? 'expand' : 'native'),
+                              targetingType: detectTargetingType(phase.overrideTargeting ? phase.targeting : basicTargeting),
                               ageMin: phase.targeting?.ageMin ?? basicTargeting?.ageMin ?? marketTargeting?.ageMin,
                               ageMax: phase.targeting?.ageMax ?? basicTargeting?.ageMax ?? marketTargeting?.ageMax,
                               gender: phase.targeting?.genders?.[0] || basicTargeting?.genders?.[0] || marketTargeting?.gender,
@@ -1141,7 +1142,7 @@ export function PhaseScheduler({
                               location: activationContext?.market,
                               devices: phase.targeting?.devices || basicTargeting?.devices || marketTargeting?.devices,
                               positions: phase.positions,
-                              targetingType: phase.targetingType || (phase.targeting?.targetingExpansion ? 'expand' : 'native'),
+                              targetingType: detectTargetingType(phase.overrideTargeting ? phase.targeting : basicTargeting),
                             }}
                             customValues={phase.adsetTaxonomyValues}
                             onCustomValueChange={(paramId, value) => handleTaxonomyValueChange(phase.id, 'adset', paramId, value)}
@@ -1232,31 +1233,6 @@ export function PhaseScheduler({
                           </div>
                         </div>
                       )}
-
-                      {/* Targeting Type Selector - Controls taxonomy TGT parameter */}
-                      <div className="space-y-2">
-                        <Label htmlFor={`targetingType-${phase.id}`}>Targeting Type</Label>
-                        <Select
-                          value={phase.targetingType || "native"}
-                          onValueChange={(value) => updatePhaseField(phase.id, "targetingType", value)}
-                        >
-                          <SelectTrigger id={`targetingType-${phase.id}`}>
-                            <SelectValue placeholder="Select targeting type" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="native">Native Audiences (NTV)</SelectItem>
-                            <SelectItem value="expand">Expand to New (EXP)</SelectItem>
-                            <SelectItem value="similar">New but Similar (SIM)</SelectItem>
-                            <SelectItem value="retargeting">Retargeting (RTG)</SelectItem>
-                            <SelectItem value="broad">Broad (BRD)</SelectItem>
-                            <SelectItem value="lookalike">Lookalike (LAL)</SelectItem>
-                            <SelectItem value="custom">Custom (CUS)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <p className="text-xs text-muted-foreground">
-                          Determines the TGT parameter in the taxonomy name
-                        </p>
-                      </div>
 
                       {/* Phase-Level Targeting Override - Available for all objectives */}
                       {basicTargeting && (
