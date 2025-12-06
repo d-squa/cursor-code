@@ -62,6 +62,10 @@ export interface Phase {
   tiktokAppId?: string;
   tiktokSmartPlusEnabled?: boolean;
   tiktokLandingPageUrl?: string;
+  tiktokBillingEvent?: string; // TikTok billing event (OCPM, CPC, CPV, CPM)
+  tiktokClickWindow?: number; // TikTok click attribution window
+  tiktokViewWindow?: number; // TikTok view attribution window
+  tiktokEventCount?: string; // Event count type
   // TikTok destination-specific fields
   tiktokMessagingApp?: string;
   tiktokFacebookPageId?: string;
@@ -69,9 +73,14 @@ export interface Phase {
   tiktokWhatsappNumber?: string;
   tiktokZaloAccountId?: string;
   tiktokLineBusinessId?: string;
+  // Meta advanced settings
+  metaAdvantagePlusCampaign?: boolean; // Advantage+ campaign mode
+  metaConversionCount?: string; // all_conversions or one_per_click
   // Taxonomy values for naming
   campaignTaxonomyValues?: Record<string, string>;
   adsetTaxonomyValues?: Record<string, string>;
+  // Targeting type for taxonomy (native, retargeting, expand, similar)
+  targetingType?: 'native' | 'retargeting' | 'expand' | 'similar' | 'broad' | 'lookalike' | 'custom';
   overrideTargeting?: boolean;
   targeting?: {
     adFormats?: string[];
@@ -82,6 +91,7 @@ export interface Phase {
     targetingExpansion?: boolean;
     os?: string[];
     language?: string;
+    languages?: string[];
     interests?: string;
     websiteAudience?: string;
     keywordList?: string;
