@@ -44,10 +44,11 @@ interface TargetingConfigShape {
  * Returns the appropriate taxonomy code
  * 
  * Logic:
- * - If retargeting audiences selected -> RTG
+ * - If broad targeting toggle is ON -> BRD
+ * - If both retargeting + lookalike -> CALAL
+ * - If retargeting audiences selected -> CA
  * - If lookalike audiences selected -> LAL  
- * - If custom audiences selected -> CUS
- * - If both custom + lookalike -> LAL (lookalike takes priority)
+ * - If custom audiences selected -> CA
  * - If expand to new enabled -> EXP
  * - If interests/behaviors/demographics selected (native) -> NTV
  * - If no targeting at all -> BRD (broad)
@@ -57,36 +58,44 @@ export function detectTargetingType(targeting?: unknown): string {
   
   const config = targeting as TargetingConfigShape;
 
-  // Check for retargeting audiences (highest priority - user wants to reach past visitors)
+  // Check if broad targeting is explicitly enabled
+  if ((config as any).useBroadTargeting === true) {
+    return 'broad';
+  }
+
+  // Check for retargeting audiences
   const hasRetargeting = 
     (config.retargetingAudiences && config.retargetingAudiences.length > 0) ||
     (config.retargetingAudienceIds && config.retargetingAudienceIds.length > 0) ||
     (config.websiteAudience && config.websiteAudience.trim().length > 0) ||
     config.useRetargeting === true;
   
-  if (hasRetargeting) {
-    return 'retargeting';
-  }
-
-  // Check for lookalike audiences (second priority - find similar users to existing audiences)
+  // Check for lookalike audiences
   const hasLookalike = 
     (config.lookalikeAudiences && config.lookalikeAudiences.length > 0) ||
     (config.lookalikeAudienceIds && config.lookalikeAudienceIds.length > 0) ||
     (config.lookalikeAudience && config.lookalikeAudience.trim().length > 0) ||
     config.useLookalike === true;
-  
-  if (hasLookalike) {
-    return 'lookalike';
-  }
 
   // Check for custom audiences
   const hasCustomAudience = 
     (config.customAudiences && config.customAudiences.length > 0) ||
     (config.customAudienceIds && config.customAudienceIds.length > 0) ||
     config.useCustomAudience === true;
+
+  // If both retargeting/custom AND lookalike -> CALAL (combined audience strategy)
+  if ((hasRetargeting || hasCustomAudience) && hasLookalike) {
+    return 'calal';
+  }
   
-  if (hasCustomAudience) {
-    return 'custom';
+  // If retargeting or custom audiences selected -> CA
+  if (hasRetargeting || hasCustomAudience) {
+    return 'ca';
+  }
+
+  // If lookalike audiences selected -> LAL
+  if (hasLookalike) {
+    return 'lal';
   }
 
   // Check if targeting expansion is enabled (Expand to New)
@@ -118,7 +127,6 @@ export function detectTargetingType(targeting?: unknown): string {
     const hasLookalikeItems = itemTypes.some(t => t.includes('lookalike')) ||
       itemCategories.some(c => c.includes('lookalike')) ||
       itemNames.some(n => n.includes('lookalike') || n.includes('similar audience'));
-    if (hasLookalikeItems) return 'lookalike';
 
     // Check for retargeting indicators
     const hasRetargetingItems = itemTypes.some(t => 
@@ -132,12 +140,16 @@ export function detectTargetingType(targeting?: unknown): string {
         n.includes('retarget') || n.includes('remarketing') || n.includes('website visitor') ||
         n.includes('past purchaser') || n.includes('cart abandoner') || n.includes('engaged user')
       );
-    if (hasRetargetingItems) return 'retargeting';
+
+    // If both types found -> CALAL
+    if (hasLookalikeItems && hasRetargetingItems) return 'calal';
+    if (hasLookalikeItems) return 'lal';
+    if (hasRetargetingItems) return 'ca';
 
     // Check for similar/expand indicators
     const hasSimilar = itemTypes.some(t => t.includes('similar') || t.includes('expand')) ||
       itemCategories.some(c => c.includes('similar') || c.includes('expand'));
-    if (hasSimilar) return 'similar';
+    if (hasSimilar) return 'expand';
 
     // If has interest/behavior targeting, it's native targeting
     const hasInterests = itemTypes.some(t => 
@@ -162,11 +174,15 @@ export function getTargetingTypeCode(targetingType: string): string {
   const codes: Record<string, string> = {
     'native': 'NTV',
     'expand': 'EXP',
-    'similar': 'SIM',
-    'retargeting': 'RTG',
+    'ca': 'CA',
+    'lal': 'LAL',
+    'calal': 'CALAL',
     'broad': 'BRD',
+    // Legacy codes for backward compatibility
+    'retargeting': 'CA',
     'lookalike': 'LAL',
-    'custom': 'CUS',
+    'custom': 'CA',
+    'similar': 'EXP',
   };
   return codes[targetingType] || 'NTV';
 }

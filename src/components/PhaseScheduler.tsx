@@ -1161,88 +1161,216 @@ export function PhaseScheduler({
                       {/* Targeting Summary */}
                       {marketTargeting && (
                         <div className="p-3 bg-muted/50 rounded-lg space-y-2">
-                          <Label className="text-sm font-semibold">Inherited Targeting</Label>
-                          <div className="text-xs text-muted-foreground space-y-1">
-                            {(marketTargeting.ageMin || marketTargeting.ageMax) && (
-                              <div className="flex justify-between">
-                                <span>Age Range:</span>
-                                <span className="font-medium text-foreground">
-                                  {marketTargeting.ageMin || 18} - {marketTargeting.ageMax || 65}
-                                </span>
-                              </div>
-                            )}
-                            {marketTargeting.gender && marketTargeting.gender !== 'all' && (
-                              <div className="flex justify-between">
-                                <span>Gender:</span>
-                                <span className="font-medium text-foreground">
-                                  {marketTargeting.gender === '1' ? 'Male' : marketTargeting.gender === '2' ? 'Female' : 'All'}
-                                </span>
-                              </div>
-                            )}
-                            {marketTargeting.languages && marketTargeting.languages.length > 0 && !marketTargeting.languages.includes('all') && (
-                              <div className="flex justify-between">
-                                <span>Languages:</span>
-                                <span className="font-medium text-foreground">
-                                  {marketTargeting.languages.length} selected
-                                </span>
-                              </div>
-                            )}
-                            {marketTargeting.devices && marketTargeting.devices.length > 0 && !marketTargeting.devices.includes('all') && (
-                              <div className="flex justify-between">
-                                <span>Devices:</span>
-                                <span className="font-medium text-foreground">
-                                  {marketTargeting.devices.length} selected
-                                </span>
-                              </div>
-                            )}
-                            {marketTargeting.os && marketTargeting.os.length > 0 && !marketTargeting.os.includes('all') && (
-                              <div className="flex justify-between">
-                                <span>Operating Systems:</span>
-                                <span className="font-medium text-foreground">
-                                  {marketTargeting.os.length} selected
-                                </span>
-                              </div>
-                            )}
-                            {/* Show detailed targeting counts for brand awareness phases */}
-                            {!phase.overrideTargeting &&
-                              (phase.objective?.toLowerCase().includes('awareness') || 
-                              phase.objective?.toLowerCase().includes('reach') ||
-                              phase.optimizationGoal?.toLowerCase().includes('awareness') ||
-                              phase.optimizationGoal?.toLowerCase().includes('reach')) &&
-                              basicTargeting?.selectedItems && basicTargeting.selectedItems.length > 0 && (
-                              <div className="flex justify-between pt-2 border-t">
-                                <span>Detailed Targeting:</span>
-                                <div className="flex flex-col gap-2">
-                                  {/* Unified Targeting */}
-                                  <div className="flex gap-2 items-center flex-wrap">
-                                    <Badge variant="outline" className="text-xs">
-                                      {basicTargeting.selectedItems.length} Selected
-                                    </Badge>
-                                    {basicTargeting.selectedItems.filter(item => item.platforms.length === 2).length > 0 && (
-                                      <Badge variant="secondary" className="text-xs">
-                                        {basicTargeting.selectedItems.filter(item => item.platforms.length === 2).length} Both Platforms
+                          <Label className="text-sm font-semibold">
+                            {phase.useBroadTargeting ? "Broad Targeting" : "Inherited Targeting"}
+                          </Label>
+                          {phase.useBroadTargeting ? (
+                            <div className="text-xs text-muted-foreground">
+                              <p>No demographic or interest targeting applied. Ads will be shown to the broadest possible audience.</p>
+                              <p className="text-amber-600 mt-2 font-medium">
+                                Select Custom Audiences (CA) or Lookalike Audiences (LAL) below to define your audience.
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="text-xs text-muted-foreground space-y-1">
+                              {(marketTargeting.ageMin || marketTargeting.ageMax) && (
+                                <div className="flex justify-between">
+                                  <span>Age Range:</span>
+                                  <span className="font-medium text-foreground">
+                                    {marketTargeting.ageMin || 18} - {marketTargeting.ageMax || 65}
+                                  </span>
+                                </div>
+                              )}
+                              {marketTargeting.gender && marketTargeting.gender !== 'all' && (
+                                <div className="flex justify-between">
+                                  <span>Gender:</span>
+                                  <span className="font-medium text-foreground">
+                                    {marketTargeting.gender === '1' ? 'Male' : marketTargeting.gender === '2' ? 'Female' : 'All'}
+                                  </span>
+                                </div>
+                              )}
+                              {marketTargeting.languages && marketTargeting.languages.length > 0 && !marketTargeting.languages.includes('all') && (
+                                <div className="flex justify-between">
+                                  <span>Languages:</span>
+                                  <span className="font-medium text-foreground">
+                                    {marketTargeting.languages.length} selected
+                                  </span>
+                                </div>
+                              )}
+                              {marketTargeting.devices && marketTargeting.devices.length > 0 && !marketTargeting.devices.includes('all') && (
+                                <div className="flex justify-between">
+                                  <span>Devices:</span>
+                                  <span className="font-medium text-foreground">
+                                    {marketTargeting.devices.length} selected
+                                  </span>
+                                </div>
+                              )}
+                              {marketTargeting.os && marketTargeting.os.length > 0 && !marketTargeting.os.includes('all') && (
+                                <div className="flex justify-between">
+                                  <span>Operating Systems:</span>
+                                  <span className="font-medium text-foreground">
+                                    {marketTargeting.os.length} selected
+                                  </span>
+                                </div>
+                              )}
+                              {/* Show detailed targeting counts for brand awareness phases */}
+                              {!phase.overrideTargeting &&
+                                (phase.objective?.toLowerCase().includes('awareness') || 
+                                phase.objective?.toLowerCase().includes('reach') ||
+                                phase.optimizationGoal?.toLowerCase().includes('awareness') ||
+                                phase.optimizationGoal?.toLowerCase().includes('reach')) &&
+                                basicTargeting?.selectedItems && basicTargeting.selectedItems.length > 0 && (
+                                <div className="flex justify-between pt-2 border-t">
+                                  <span>Detailed Targeting:</span>
+                                  <div className="flex flex-col gap-2">
+                                    {/* Unified Targeting */}
+                                    <div className="flex gap-2 items-center flex-wrap">
+                                      <Badge variant="outline" className="text-xs">
+                                        {basicTargeting.selectedItems.length} Selected
                                       </Badge>
-                                    )}
-                                    {basicTargeting.selectedItems.filter(item => item.platforms.includes('meta') && item.platforms.length === 1).length > 0 && (
-                                      <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
-                                        {basicTargeting.selectedItems.filter(item => item.platforms.includes('meta') && item.platforms.length === 1).length} Meta Only
-                                      </Badge>
-                                    )}
-                                    {basicTargeting.selectedItems.filter(item => item.platforms.includes('tiktok') && item.platforms.length === 1).length > 0 && (
-                                      <Badge variant="outline" className="text-xs bg-pink-50 text-pink-700 border-pink-200">
-                                        {basicTargeting.selectedItems.filter(item => item.platforms.includes('tiktok') && item.platforms.length === 1).length} TikTok Only
-                                      </Badge>
-                                    )}
+                                      {basicTargeting.selectedItems.filter(item => item.platforms.length === 2).length > 0 && (
+                                        <Badge variant="secondary" className="text-xs">
+                                          {basicTargeting.selectedItems.filter(item => item.platforms.length === 2).length} Both Platforms
+                                        </Badge>
+                                      )}
+                                      {basicTargeting.selectedItems.filter(item => item.platforms.includes('meta') && item.platforms.length === 1).length > 0 && (
+                                        <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                                          {basicTargeting.selectedItems.filter(item => item.platforms.includes('meta') && item.platforms.length === 1).length} Meta Only
+                                        </Badge>
+                                      )}
+                                      {basicTargeting.selectedItems.filter(item => item.platforms.includes('tiktok') && item.platforms.length === 1).length > 0 && (
+                                        <Badge variant="outline" className="text-xs bg-pink-50 text-pink-700 border-pink-200">
+                                          {basicTargeting.selectedItems.filter(item => item.platforms.includes('tiktok') && item.platforms.length === 1).length} TikTok Only
+                                        </Badge>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Broad Targeting Toggle - Works against Override */}
+                      <div className="border rounded-lg p-4 bg-muted/30">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">Use Broad Targeting</span>
+                            {phase.useBroadTargeting && (
+                              <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">Active</Badge>
                             )}
                           </div>
+                          <Switch
+                            checked={phase.useBroadTargeting === true}
+                            disabled={phase.overrideTargeting === true}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                // When enabling broad targeting, disable override and clear native targeting
+                                const broadTargeting: UnifiedTargetingConfig = {
+                                  selectedItems: [],
+                                  useBroadTargeting: true,
+                                  // Clear demographics for broad
+                                  ageMin: undefined,
+                                  ageMax: undefined,
+                                  genders: [],
+                                  devices: [],
+                                  os: [],
+                                  languages: [],
+                                };
+                                updatePhaseFields(phase.id, { 
+                                  useBroadTargeting: true, 
+                                  overrideTargeting: false,
+                                  targeting: broadTargeting 
+                                });
+                              } else {
+                                // When disabling broad targeting, restore inherited targeting
+                                const isTikTok = platformId === 'tiktok';
+                                const inheritedTargeting: UnifiedTargetingConfig | undefined = basicTargeting ? {
+                                  ageMin: basicTargeting.ageMin,
+                                  ageMax: basicTargeting.ageMax,
+                                  genders: basicTargeting.genders ? [...basicTargeting.genders] : [],
+                                  devices: basicTargeting.devices ? [...basicTargeting.devices] : [],
+                                  os: basicTargeting.os ? [...basicTargeting.os] : [],
+                                  languages: basicTargeting.languages ? [...basicTargeting.languages] : [],
+                                  selectedItems: basicTargeting.selectedItems ? 
+                                    basicTargeting.selectedItems.filter(item => 
+                                      isTikTok ? item.platforms.includes('tiktok') : item.platforms.includes('meta')
+                                    ) : [],
+                                  useBroadTargeting: false,
+                                } : undefined;
+                                updatePhaseFields(phase.id, { 
+                                  useBroadTargeting: false, 
+                                  targeting: inheritedTargeting 
+                                });
+                              }
+                            }}
+                          />
+                        </div>
+                        {phase.useBroadTargeting && (
+                          <p className="text-xs text-muted-foreground mt-2">
+                            Broad targeting disables demographic and interest targeting. You must select Custom Audiences (CA) or Lookalike Audiences (LAL) to proceed.
+                          </p>
+                        )}
+                        {phase.overrideTargeting && (
+                          <p className="text-xs text-muted-foreground mt-2">
+                            Disable "Override Campaign Targeting" to use broad targeting.
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Audience Selection for Broad Targeting (CA/LAL) */}
+                      {phase.useBroadTargeting && (
+                        <div className="border rounded-lg p-4 bg-amber-50/50 border-amber-200">
+                          <Label className="text-sm font-semibold text-amber-800">Select Audiences (Required)</Label>
+                          <p className="text-xs text-amber-700 mb-3">
+                            With broad targeting enabled, you must select at least one Custom Audience (CA) or Lookalike Audience (LAL).
+                          </p>
+                          <div className="space-y-3">
+                            <div className="space-y-2">
+                              <Label className="text-xs">Custom Audiences (CA)</Label>
+                              <Input 
+                                placeholder="Enter custom audience IDs (comma separated)"
+                                value={(phase.targeting as any)?.customAudienceIds?.join(', ') || ''}
+                                onChange={(e) => {
+                                  const ids = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
+                                  updatePhaseField(phase.id, "targeting", {
+                                    ...(phase.targeting || { selectedItems: [] }),
+                                    customAudienceIds: ids,
+                                    useBroadTargeting: true,
+                                  });
+                                }}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label className="text-xs">Lookalike Audiences (LAL)</Label>
+                              <Input 
+                                placeholder="Enter lookalike audience IDs (comma separated)"
+                                value={(phase.targeting as any)?.lookalikeAudienceIds?.join(', ') || ''}
+                                onChange={(e) => {
+                                  const ids = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
+                                  updatePhaseField(phase.id, "targeting", {
+                                    ...(phase.targeting || { selectedItems: [] }),
+                                    lookalikeAudienceIds: ids,
+                                    useBroadTargeting: true,
+                                  });
+                                }}
+                              />
+                            </div>
+                          </div>
+                          {/* Validation warning */}
+                          {phase.useBroadTargeting && 
+                            !((phase.targeting as any)?.customAudienceIds?.length > 0 || 
+                              (phase.targeting as any)?.lookalikeAudienceIds?.length > 0) && (
+                            <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">
+                              Please select at least one Custom Audience or Lookalike Audience to proceed.
+                            </div>
+                          )}
                         </div>
                       )}
 
                       {/* Phase-Level Targeting Override - Available for all objectives */}
-                      {basicTargeting && (
+                      {basicTargeting && !phase.useBroadTargeting && (
                         basicTargeting.selectedItems && basicTargeting.selectedItems.length > 0 ||
                         basicTargeting.ageMin !== undefined ||
                         basicTargeting.genders?.length ||
@@ -1264,6 +1392,7 @@ export function PhaseScheduler({
                                 
                                 if (checked) {
                                   // When enabling override, initialize with preset if not already customized
+                                  // Also turn off broad targeting
                                   if (!phase.targeting && basicTargeting) {
                                     const phaseTargeting: UnifiedTargetingConfig = {
                                       ageMin: basicTargeting.ageMin,
@@ -1275,13 +1404,14 @@ export function PhaseScheduler({
                                       selectedItems: basicTargeting.selectedItems ? 
                                         basicTargeting.selectedItems.filter(item => 
                                           isTikTok ? item.platforms.includes('tiktok') : item.platforms.includes('meta')
-                                        ) : []
+                                        ) : [],
+                                      useBroadTargeting: false,
                                     };
                                     console.log('🔄 Setting override ON with targeting:', phaseTargeting);
-                                    updatePhaseFields(phase.id, { overrideTargeting: true, targeting: phaseTargeting });
+                                    updatePhaseFields(phase.id, { overrideTargeting: true, useBroadTargeting: false, targeting: phaseTargeting });
                                   } else {
                                     console.log('🔄 Setting override ON (no targeting init needed)');
-                                    updatePhaseField(phase.id, "overrideTargeting", true);
+                                    updatePhaseFields(phase.id, { overrideTargeting: true, useBroadTargeting: false });
                                   }
                                 } else {
                                   // When disabling override, reset to preset
@@ -1295,7 +1425,8 @@ export function PhaseScheduler({
                                     selectedItems: basicTargeting.selectedItems ? 
                                       basicTargeting.selectedItems.filter(item => 
                                         isTikTok ? item.platforms.includes('tiktok') : item.platforms.includes('meta')
-                                      ) : []
+                                      ) : [],
+                                    useBroadTargeting: false,
                                   } : undefined;
                                   
                                   console.log('🔄 Setting override OFF, resetting to preset:', presetCopy);
