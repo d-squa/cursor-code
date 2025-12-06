@@ -589,8 +589,14 @@ export function extractTaxonomyValues(
         }
         break;
       case 'ageRange':
-        if (context.ageMin && context.ageMax) {
-          values[param.id] = `${context.ageMin}${context.ageMax}`;
+        if (context.ageMin !== undefined && context.ageMax !== undefined) {
+          values[param.id] = `${context.ageMin}-${context.ageMax}`;
+        } else if (context.ageMin !== undefined) {
+          values[param.id] = `${context.ageMin}+`;
+        } else if (context.ageMax !== undefined) {
+          values[param.id] = `18-${context.ageMax}`;
+        } else {
+          values[param.id] = '';
         }
         break;
       case 'activationName':

@@ -1170,9 +1170,6 @@ export function PhaseScheduler({
                           {phase.useBroadTargeting ? (
                             <div className="text-xs text-muted-foreground">
                               <p>No demographic or interest targeting applied. Ads will be shown to the broadest possible audience.</p>
-                              <p className="text-amber-600 mt-2 font-medium">
-                                Select Custom Audiences (CA) or Lookalike Audiences (LAL) below to define your audience.
-                              </p>
                             </div>
                           ) : (
                             <div className="text-xs text-muted-foreground space-y-1">
