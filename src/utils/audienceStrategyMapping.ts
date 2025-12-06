@@ -19,19 +19,33 @@ interface ObjectiveGoalKey {
 // Meta Audience Strategy Matrix
 const META_AUDIENCE_STRATEGY: Record<string, AudienceStrategyConfig> = {
   // Awareness objectives - Broad targeting
-  "OUTCOME_AWARENESS:Reach": {
+  "OUTCOME_AWARENESS:REACH": {
     useBroadTargeting: true,
     showInheritedTargeting: false,
     showRetargetingAudiences: false,
     showLookalikeAudiences: false,
     rationale: "Maximum reach for brand exposure",
   },
-  "OUTCOME_AWARENESS:Brand Awareness": {
+  "OUTCOME_AWARENESS:AD_RECALL_LIFT": {
     useBroadTargeting: true,
     showInheritedTargeting: false,
     showRetargetingAudiences: false,
     showLookalikeAudiences: false,
     rationale: "Maximum reach for brand awareness",
+  },
+  "OUTCOME_AWARENESS:IMPRESSIONS": {
+    useBroadTargeting: true,
+    showInheritedTargeting: false,
+    showRetargetingAudiences: false,
+    showLookalikeAudiences: false,
+    rationale: "Maximum impressions for awareness",
+  },
+  "OUTCOME_AWARENESS:THRUPLAY": {
+    useBroadTargeting: true,
+    showInheritedTargeting: false,
+    showRetargetingAudiences: false,
+    showLookalikeAudiences: false,
+    rationale: "Broad video views for awareness",
   },
   "OUTCOME_AWARENESS": {
     useBroadTargeting: true,
@@ -42,21 +56,21 @@ const META_AUDIENCE_STRATEGY: Record<string, AudienceStrategyConfig> = {
   },
   
   // Engagement objectives - Mixed strategy
-  "OUTCOME_ENGAGEMENT:Post Engagement": {
+  "OUTCOME_ENGAGEMENT:POST_ENGAGEMENT": {
     useBroadTargeting: false,
     showInheritedTargeting: true,
     showRetargetingAudiences: true,
     showLookalikeAudiences: true,
     rationale: "Engaged users + expansion",
   },
-  "OUTCOME_ENGAGEMENT:Video Views": {
+  "OUTCOME_ENGAGEMENT:THRUPLAY": {
     useBroadTargeting: false,
     showInheritedTargeting: true,
     showRetargetingAudiences: false,
     showLookalikeAudiences: true,
-    rationale: "New audiences for content",
+    rationale: "New audiences for video content",
   },
-  "OUTCOME_ENGAGEMENT:ThruPlay": {
+  "OUTCOME_ENGAGEMENT:TWO_SECOND_CONTINUOUS_VIDEO_VIEWS": {
     useBroadTargeting: false,
     showInheritedTargeting: true,
     showRetargetingAudiences: false,
@@ -72,14 +86,14 @@ const META_AUDIENCE_STRATEGY: Record<string, AudienceStrategyConfig> = {
   },
   
   // Traffic objectives - Mixed strategy
-  "OUTCOME_TRAFFIC:Link Clicks": {
+  "OUTCOME_TRAFFIC:LINK_CLICKS": {
     useBroadTargeting: false,
     showInheritedTargeting: true,
     showRetargetingAudiences: true,
     showLookalikeAudiences: true,
     rationale: "Mixed strategy for traffic",
   },
-  "OUTCOME_TRAFFIC:Landing Page Views": {
+  "OUTCOME_TRAFFIC:LANDING_PAGE_VIEWS": {
     useBroadTargeting: false,
     showInheritedTargeting: true,
     showRetargetingAudiences: true,
@@ -95,14 +109,14 @@ const META_AUDIENCE_STRATEGY: Record<string, AudienceStrategyConfig> = {
   },
   
   // Lead generation - Warm + lookalike
-  "OUTCOME_LEADS:Lead Generation": {
+  "OUTCOME_LEADS:LEADS": {
     useBroadTargeting: false,
     showInheritedTargeting: true,
     showRetargetingAudiences: true,
     showLookalikeAudiences: true,
     rationale: "Warm + similar audiences",
   },
-  "OUTCOME_LEADS:Conversions": {
+  "OUTCOME_LEADS:OFFSITE_CONVERSIONS": {
     useBroadTargeting: false,
     showInheritedTargeting: true,
     showRetargetingAudiences: true,
@@ -118,14 +132,14 @@ const META_AUDIENCE_STRATEGY: Record<string, AudienceStrategyConfig> = {
   },
   
   // App promotion - Depends on goal
-  "OUTCOME_APP_PROMOTION:App Installs": {
+  "OUTCOME_APP_PROMOTION:APP_INSTALLS": {
     useBroadTargeting: false,
     showInheritedTargeting: false,
     showRetargetingAudiences: false,
     showLookalikeAudiences: true,
     rationale: "New user acquisition",
   },
-  "OUTCOME_APP_PROMOTION:App Events": {
+  "OUTCOME_APP_PROMOTION:OFFSITE_CONVERSIONS": {
     useBroadTargeting: false,
     showInheritedTargeting: false,
     showRetargetingAudiences: true,
@@ -141,21 +155,14 @@ const META_AUDIENCE_STRATEGY: Record<string, AudienceStrategyConfig> = {
   },
   
   // Sales objectives - Full funnel
-  "OUTCOME_SALES:Conversions": {
+  "OUTCOME_SALES:OFFSITE_CONVERSIONS": {
     useBroadTargeting: false,
     showInheritedTargeting: true,
     showRetargetingAudiences: true,
     showLookalikeAudiences: true,
     rationale: "Full funnel approach",
   },
-  "OUTCOME_SALES:Catalog Sales": {
-    useBroadTargeting: false,
-    showInheritedTargeting: false,
-    showRetargetingAudiences: true,
-    showLookalikeAudiences: true,
-    rationale: "Product remarketing focus",
-  },
-  "OUTCOME_SALES:Value": {
+  "OUTCOME_SALES:VALUE": {
     useBroadTargeting: false,
     showInheritedTargeting: true,
     showRetargetingAudiences: true,
@@ -174,7 +181,7 @@ const META_AUDIENCE_STRATEGY: Record<string, AudienceStrategyConfig> = {
 // TikTok Audience Strategy Matrix
 const TIKTOK_AUDIENCE_STRATEGY: Record<string, AudienceStrategyConfig> = {
   // Reach objective - Broad
-  "REACH:Reach": {
+  "REACH:REACH": {
     useBroadTargeting: true,
     showInheritedTargeting: false,
     showRetargetingAudiences: false,
@@ -190,14 +197,14 @@ const TIKTOK_AUDIENCE_STRATEGY: Record<string, AudienceStrategyConfig> = {
   },
   
   // Traffic objective - Mixed
-  "TRAFFIC:Click": {
+  "TRAFFIC:CLICK": {
     useBroadTargeting: false,
     showInheritedTargeting: true,
     showRetargetingAudiences: true,
     showLookalikeAudiences: true,
     rationale: "Quality traffic drive",
   },
-  "TRAFFIC:Landing Page View": {
+  "TRAFFIC:LANDING_PAGE_VIEW": {
     useBroadTargeting: false,
     showInheritedTargeting: true,
     showRetargetingAudiences: true,
@@ -213,33 +220,19 @@ const TIKTOK_AUDIENCE_STRATEGY: Record<string, AudienceStrategyConfig> = {
   },
   
   // Video views - Broad for discovery
-  "VIDEO_VIEWS:Video View": {
+  "VIDEO_VIEWS:VIDEO_VIEW": {
     useBroadTargeting: true,
     showInheritedTargeting: false,
     showRetargetingAudiences: false,
     showLookalikeAudiences: false,
     rationale: "Broad video discovery",
   },
-  "VIDEO_VIEWS:6s Video View": {
+  "VIDEO_VIEWS:FOCUSED_VIEW": {
     useBroadTargeting: false,
     showInheritedTargeting: true,
     showRetargetingAudiences: false,
     showLookalikeAudiences: true,
     rationale: "Engaged viewers",
-  },
-  "VIDEO_VIEWS:15s Video View": {
-    useBroadTargeting: false,
-    showInheritedTargeting: true,
-    showRetargetingAudiences: false,
-    showLookalikeAudiences: true,
-    rationale: "High-engagement viewers",
-  },
-  "VIDEO_VIEWS:Focused View": {
-    useBroadTargeting: false,
-    showInheritedTargeting: true,
-    showRetargetingAudiences: false,
-    showLookalikeAudiences: true,
-    rationale: "Focused attention",
   },
   "VIDEO_VIEWS": {
     useBroadTargeting: true,
@@ -249,13 +242,50 @@ const TIKTOK_AUDIENCE_STRATEGY: Record<string, AudienceStrategyConfig> = {
     rationale: "Video reach strategy",
   },
   
+  // Community interaction
+  "COMMUNITY_INTERACTION:PROFILE_VISIT": {
+    useBroadTargeting: false,
+    showInheritedTargeting: true,
+    showRetargetingAudiences: false,
+    showLookalikeAudiences: true,
+    rationale: "Profile discovery",
+  },
+  "COMMUNITY_INTERACTION:FOLLOW": {
+    useBroadTargeting: false,
+    showInheritedTargeting: true,
+    showRetargetingAudiences: false,
+    showLookalikeAudiences: true,
+    rationale: "Follower growth",
+  },
+  "COMMUNITY_INTERACTION": {
+    useBroadTargeting: false,
+    showInheritedTargeting: true,
+    showRetargetingAudiences: false,
+    showLookalikeAudiences: true,
+    rationale: "Community engagement",
+  },
+  
   // Lead generation - Warm + similar
-  "LEAD_GENERATION:Lead": {
+  "LEAD_GENERATION:LEAD": {
     useBroadTargeting: false,
     showInheritedTargeting: true,
     showRetargetingAudiences: true,
     showLookalikeAudiences: true,
     rationale: "Warm + similar audiences",
+  },
+  "LEAD_GENERATION:FORM": {
+    useBroadTargeting: false,
+    showInheritedTargeting: true,
+    showRetargetingAudiences: true,
+    showLookalikeAudiences: true,
+    rationale: "Form submissions",
+  },
+  "LEAD_GENERATION:MESSAGING": {
+    useBroadTargeting: false,
+    showInheritedTargeting: true,
+    showRetargetingAudiences: true,
+    showLookalikeAudiences: true,
+    rationale: "Message leads",
   },
   "LEAD_GENERATION": {
     useBroadTargeting: false,
@@ -266,19 +296,26 @@ const TIKTOK_AUDIENCE_STRATEGY: Record<string, AudienceStrategyConfig> = {
   },
   
   // App promotion
-  "APP_PROMOTION:App Install": {
+  "APP_PROMOTION:APP_INSTALL": {
     useBroadTargeting: false,
     showInheritedTargeting: false,
     showRetargetingAudiences: false,
     showLookalikeAudiences: true,
     rationale: "New user acquisition",
   },
-  "APP_PROMOTION:App Event": {
+  "APP_PROMOTION:APP_EVENT": {
     useBroadTargeting: false,
     showInheritedTargeting: false,
     showRetargetingAudiences: true,
     showLookalikeAudiences: false,
     rationale: "Re-engage existing users",
+  },
+  "APP_PROMOTION:VALUE": {
+    useBroadTargeting: false,
+    showInheritedTargeting: false,
+    showRetargetingAudiences: true,
+    showLookalikeAudiences: true,
+    rationale: "App ROAS optimization",
   },
   "APP_PROMOTION": {
     useBroadTargeting: false,
@@ -289,33 +326,26 @@ const TIKTOK_AUDIENCE_STRATEGY: Record<string, AudienceStrategyConfig> = {
   },
   
   // Web conversions - Full funnel
-  "WEB_CONVERSIONS:Conversion": {
+  "CONVERSIONS:CONVERT": {
     useBroadTargeting: false,
     showInheritedTargeting: true,
     showRetargetingAudiences: true,
     showLookalikeAudiences: true,
     rationale: "Full funnel approach",
   },
-  "WEB_CONVERSIONS:Web Conversion": {
+  "CONVERSIONS:VALUE": {
     useBroadTargeting: false,
     showInheritedTargeting: true,
     showRetargetingAudiences: true,
     showLookalikeAudiences: true,
-    rationale: "Full funnel approach",
+    rationale: "Value optimization",
   },
-  "WEB_CONVERSIONS": {
+  "CONVERSIONS:CLICK": {
     useBroadTargeting: false,
     showInheritedTargeting: true,
     showRetargetingAudiences: true,
     showLookalikeAudiences: true,
-    rationale: "Conversion optimization",
-  },
-  "CONVERSIONS:Conversion": {
-    useBroadTargeting: false,
-    showInheritedTargeting: true,
-    showRetargetingAudiences: true,
-    showLookalikeAudiences: true,
-    rationale: "Full funnel approach",
+    rationale: "Click-based conversions",
   },
   "CONVERSIONS": {
     useBroadTargeting: false,
@@ -326,12 +356,19 @@ const TIKTOK_AUDIENCE_STRATEGY: Record<string, AudienceStrategyConfig> = {
   },
   
   // Product sales - Remarketing focus
-  "PRODUCT_SALES:Product Sales": {
+  "PRODUCT_SALES:CONVERT": {
     useBroadTargeting: false,
     showInheritedTargeting: false,
     showRetargetingAudiences: true,
     showLookalikeAudiences: true,
     rationale: "Product remarketing",
+  },
+  "PRODUCT_SALES:VALUE": {
+    useBroadTargeting: false,
+    showInheritedTargeting: false,
+    showRetargetingAudiences: true,
+    showLookalikeAudiences: true,
+    rationale: "Catalog value optimization",
   },
   "PRODUCT_SALES": {
     useBroadTargeting: false,
