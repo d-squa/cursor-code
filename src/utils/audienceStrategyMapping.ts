@@ -388,6 +388,67 @@ const DEFAULT_STRATEGY: AudienceStrategyConfig = {
   rationale: "Mixed targeting strategy",
 };
 
+// Map UI labels to API keys for objective lookup
+const META_LABEL_TO_KEY: Record<string, string> = {
+  "Brand Awareness": "OUTCOME_AWARENESS",
+  "Awareness": "OUTCOME_AWARENESS",
+  "Engagement": "OUTCOME_ENGAGEMENT",
+  "Traffic": "OUTCOME_TRAFFIC",
+  "App Installs": "OUTCOME_APP_PROMOTION",
+  "App Promotion": "OUTCOME_APP_PROMOTION",
+  "Leads": "OUTCOME_LEADS",
+  "Lead Generation": "OUTCOME_LEADS",
+  "Sales": "OUTCOME_SALES",
+  "Conversions": "OUTCOME_SALES",
+};
+
+const META_GOAL_LABEL_TO_KEY: Record<string, string> = {
+  "Reach": "REACH",
+  "Brand Awareness": "AD_RECALL_LIFT",
+  "Impressions": "IMPRESSIONS",
+  "Video Views": "THRUPLAY",
+  "ThruPlay": "THRUPLAY",
+  "Post Engagement": "POST_ENGAGEMENT",
+  "Link Clicks": "LINK_CLICKS",
+  "Landing Page Views": "LANDING_PAGE_VIEWS",
+  "Conversions": "OFFSITE_CONVERSIONS",
+  "Lead Generation": "LEADS",
+  "App Installs": "APP_INSTALLS",
+  "Value": "VALUE",
+};
+
+const TIKTOK_LABEL_TO_KEY: Record<string, string> = {
+  "Reach": "REACH",
+  "Traffic": "TRAFFIC",
+  "Video Views": "VIDEO_VIEWS",
+  "Community Interaction": "COMMUNITY_INTERACTION",
+  "Lead Generation": "LEAD_GENERATION",
+  "App Promotion": "APP_PROMOTION",
+  "App Installs": "APP_PROMOTION",
+  "Conversions": "CONVERSIONS",
+  "Web Conversions": "CONVERSIONS",
+  "Product Sales": "PRODUCT_SALES",
+  "Sales": "PRODUCT_SALES",
+};
+
+const TIKTOK_GOAL_LABEL_TO_KEY: Record<string, string> = {
+  "Reach": "REACH",
+  "Click": "CLICK",
+  "Landing Page View": "LANDING_PAGE_VIEW",
+  "Video View": "VIDEO_VIEW",
+  "Focused View": "FOCUSED_VIEW",
+  "Profile Visit": "PROFILE_VISIT",
+  "Follow": "FOLLOW",
+  "Lead": "LEAD",
+  "Form": "FORM",
+  "Messaging": "MESSAGING",
+  "App Install": "APP_INSTALL",
+  "App Event": "APP_EVENT",
+  "Convert": "CONVERT",
+  "Value": "VALUE",
+  "Web Conversion": "CONVERT",
+};
+
 /**
  * Get audience strategy configuration based on platform, objective, and optimization goal
  */
@@ -402,18 +463,24 @@ export function getAudienceStrategyConfig(
 
   const isTikTok = platform.toLowerCase().includes('tiktok');
   const strategyMap = isTikTok ? TIKTOK_AUDIENCE_STRATEGY : META_AUDIENCE_STRATEGY;
+  const labelToKey = isTikTok ? TIKTOK_LABEL_TO_KEY : META_LABEL_TO_KEY;
+  const goalLabelToKey = isTikTok ? TIKTOK_GOAL_LABEL_TO_KEY : META_GOAL_LABEL_TO_KEY;
+
+  // Normalize objective to API key (handle both API keys and UI labels)
+  const normalizedObjective = labelToKey[objective] || objective;
+  const normalizedGoal = optimizationGoal ? (goalLabelToKey[optimizationGoal] || optimizationGoal) : undefined;
 
   // Try exact match first (objective:optimizationGoal)
-  if (optimizationGoal) {
-    const exactKey = `${objective}:${optimizationGoal}`;
+  if (normalizedGoal) {
+    const exactKey = `${normalizedObjective}:${normalizedGoal}`;
     if (strategyMap[exactKey]) {
       return strategyMap[exactKey];
     }
   }
 
   // Try objective-only match
-  if (strategyMap[objective]) {
-    return strategyMap[objective];
+  if (strategyMap[normalizedObjective]) {
+    return strategyMap[normalizedObjective];
   }
 
   // Return default
