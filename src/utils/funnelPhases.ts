@@ -1,5 +1,5 @@
 import { getObjectiveFromPhaseName } from './phaseObjectiveMapping';
-
+import { getAudienceStrategyConfig } from './audienceStrategyMapping';
 // Funnel phase mapping based on Strategy Focus
 export interface PhaseTemplate {
   name: string;
@@ -113,6 +113,9 @@ export const getDefaultPhases = (
     // Auto-determine objective and optimization goal based on phase name and platform
     const { objective, optimizationGoal } = getObjectiveFromPhaseName(phase.name, strategyFocus, platform);
     
+    // Apply audience strategy based on objective/goal
+    const audienceStrategy = getAudienceStrategyConfig(platform, objective, optimizationGoal);
+    
     return {
       id: `phase-${index}-${Date.now()}`,
       name: phase.name,
@@ -121,6 +124,8 @@ export const getDefaultPhases = (
       budgetPercentage: budgetPerPhase,
       objective,
       optimizationGoal,
+      useBroadTargeting: audienceStrategy.useBroadTargeting,
+      overrideTargeting: audienceStrategy.useBroadTargeting ? false : undefined,
     };
   });
 };
