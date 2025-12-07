@@ -1041,71 +1041,105 @@ export function PhaseScheduler({
                 onOpenChange={() => togglePhaseExpansion(phase.id)}
               >
                 <div className="border rounded-lg bg-card">
-                  <CollapsibleTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      className="w-full flex items-center justify-between p-4 hover:bg-muted/50"
-                    >
-                      <div className="flex items-center gap-3 flex-wrap">
-                        <div className={`w-3 h-3 rounded ${phase.isLoyaltyPhase ? 'bg-amber-500/40' : getPhaseColor(index).split(" ")[0]}`} />
-                        <span className="font-medium">{phase.name}</span>
-                        {phase.objective && (
-                          <span className="text-xs text-muted-foreground">
-                            ({getAudienceStrategyConfig(platformName, phase.objective, phase.optimizationGoal).rationale})
-                          </span>
-                        )}
-                        {phase.startDate && phase.endDate && (
-                          <Badge variant="outline" className="text-xs">
-                            {format(parseISO(phase.startDate), "MMM d")} - {format(parseISO(phase.endDate), "MMM d")} ({phaseDays} days)
+                  <div className="flex items-center justify-between p-4">
+                    <CollapsibleTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        className="flex-1 flex items-center justify-start gap-3 p-0 hover:bg-transparent"
+                      >
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <div className={`w-3 h-3 rounded ${phase.isLoyaltyPhase ? 'bg-amber-500/40' : getPhaseColor(index).split(" ")[0]}`} />
+                          <span className="font-medium">{phase.name}</span>
+                          {phase.objective && (
+                            <span className="text-xs text-muted-foreground">
+                              ({getAudienceStrategyConfig(platformName, phase.objective, phase.optimizationGoal).rationale})
+                            </span>
+                          )}
+                          {phase.startDate && phase.endDate && (
+                            <Badge variant="outline" className="text-xs">
+                              {format(parseISO(phase.startDate), "MMM d")} - {format(parseISO(phase.endDate), "MMM d")} ({phaseDays} days)
+                            </Badge>
+                          )}
+                          <Badge variant="secondary" className="text-xs">
+                            {phase.budgetPercentage}% budget
                           </Badge>
-                        )}
-                        <Badge variant="secondary" className="text-xs">
-                          {phase.budgetPercentage}% budget
-                        </Badge>
-                        {adAccountId && (
-                          <PhaseTaxonomyPreview
-                            adAccountId={adAccountId}
-                            platform={platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta'}
-                            context={{
-                              platform: platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta',
-                              activationName: activationContext?.activationName,
-                              boNumber: activationContext?.boNumber,
-                              clientName: activationContext?.clientName,
-                              teamName: activationContext?.teamName,
-                              totalBudget: activationContext?.totalBudget,
-                              market: activationContext?.market,
-                              markets: activationContext?.markets,
-                              platformBudget: activationContext?.platformBudget,
-                              objective: phase.objective,
-                              optimizationGoal: phase.optimizationGoal,
-                              optimizationLocation: phase.metaOptimizationLocation || phase.tiktokOptimizationLocation,
-                              funnelStage: phase.funnelStage,
-                              bidStrategy: phase.metaBidStrategy || phase.tiktokBidStrategy,
-                              billingEvent: phase.metaBillingEvent || phase.tiktokBillingEvent,
-                              budgetType: phase.budgetType,
-                              phaseBudget: marketBudget ? marketBudget * (phase.budgetPercentage / 100) : undefined,
-                              advantagePlusPlacements: phase.advantagePlusPlacements,
-                              placementType: phase.tiktokPlacementType,
-                              placements: phase.tiktokPlacements,
-                              publisherPlatforms: phase.publisherPlatforms,
-                              positions: phase.positions,
-                              targetingType: phase.useBroadTargeting ? 'BRD' : detectTargetingType(phase.overrideTargeting ? phase.targeting : basicTargeting, phase.audiences),
-                              ageMin: phase.useBroadTargeting ? undefined : (phase.targeting?.ageMin ?? basicTargeting?.ageMin ?? marketTargeting?.ageMin),
-                              ageMax: phase.useBroadTargeting ? undefined : (phase.targeting?.ageMax ?? basicTargeting?.ageMax ?? marketTargeting?.ageMax),
-                              gender: phase.useBroadTargeting ? undefined : (phase.targeting?.genders?.[0] || basicTargeting?.genders?.[0] || marketTargeting?.gender),
-                              devices: phase.useBroadTargeting ? undefined : (phase.targeting?.devices || basicTargeting?.devices || marketTargeting?.devices),
-                              languages: phase.useBroadTargeting ? undefined : (phase.targeting?.languages || basicTargeting?.languages || marketTargeting?.languages),
-                              startDate: phase.startDate || startDate,
-                              endDate: phase.endDate || endDate,
-                            }}
-                            campaignCustomValues={phase.campaignTaxonomyValues}
-                            adsetCustomValues={phase.adsetTaxonomyValues}
-                          />
-                        )}
-                      </div>
-                      <ChevronDown className={`h-4 w-4 transition-transform ${expandedPhases[phase.id] ? 'rotate-180' : ''}`} />
-                    </Button>
-                  </CollapsibleTrigger>
+                          {adAccountId && (
+                            <PhaseTaxonomyPreview
+                              adAccountId={adAccountId}
+                              platform={platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta'}
+                              context={{
+                                platform: platformId?.toLowerCase() === 'tiktok' ? 'tiktok' : 'meta',
+                                activationName: activationContext?.activationName,
+                                boNumber: activationContext?.boNumber,
+                                clientName: activationContext?.clientName,
+                                teamName: activationContext?.teamName,
+                                totalBudget: activationContext?.totalBudget,
+                                market: activationContext?.market,
+                                markets: activationContext?.markets,
+                                platformBudget: activationContext?.platformBudget,
+                                objective: phase.objective,
+                                optimizationGoal: phase.optimizationGoal,
+                                optimizationLocation: phase.metaOptimizationLocation || phase.tiktokOptimizationLocation,
+                                funnelStage: phase.funnelStage,
+                                bidStrategy: phase.metaBidStrategy || phase.tiktokBidStrategy,
+                                billingEvent: phase.metaBillingEvent || phase.tiktokBillingEvent,
+                                budgetType: phase.budgetType,
+                                phaseBudget: marketBudget ? marketBudget * (phase.budgetPercentage / 100) : undefined,
+                                advantagePlusPlacements: phase.advantagePlusPlacements,
+                                placementType: phase.tiktokPlacementType,
+                                placements: phase.tiktokPlacements,
+                                publisherPlatforms: phase.publisherPlatforms,
+                                positions: phase.positions,
+                                targetingType: phase.useBroadTargeting ? 'BRD' : detectTargetingType(phase.overrideTargeting ? phase.targeting : basicTargeting, phase.audiences),
+                                ageMin: phase.useBroadTargeting ? undefined : (phase.targeting?.ageMin ?? basicTargeting?.ageMin ?? marketTargeting?.ageMin),
+                                ageMax: phase.useBroadTargeting ? undefined : (phase.targeting?.ageMax ?? basicTargeting?.ageMax ?? marketTargeting?.ageMax),
+                                gender: phase.useBroadTargeting ? undefined : (phase.targeting?.genders?.[0] || basicTargeting?.genders?.[0] || marketTargeting?.gender),
+                                devices: phase.useBroadTargeting ? undefined : (phase.targeting?.devices || basicTargeting?.devices || marketTargeting?.devices),
+                                languages: phase.useBroadTargeting ? undefined : (phase.targeting?.languages || basicTargeting?.languages || marketTargeting?.languages),
+                                startDate: phase.startDate || startDate,
+                                endDate: phase.endDate || endDate,
+                              }}
+                              campaignCustomValues={phase.campaignTaxonomyValues}
+                              adsetCustomValues={phase.adsetTaxonomyValues}
+                            />
+                          )}
+                        </div>
+                      </Button>
+                    </CollapsibleTrigger>
+                    <div className="flex items-center gap-1 ml-2">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 hover:bg-accent"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          duplicatePhase(phase.id);
+                        }}
+                        title="Duplicate phase"
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 hover:bg-destructive/20 hover:text-destructive"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removePhase(phase.id);
+                        }}
+                        title="Delete phase"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                      <CollapsibleTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                          <ChevronDown className={`h-4 w-4 transition-transform ${expandedPhases[phase.id] ? 'rotate-180' : ''}`} />
+                        </Button>
+                      </CollapsibleTrigger>
+                    </div>
+                  </div>
 
                   <CollapsibleContent>
                     <div className="p-4 pt-0 space-y-4 border-t">
