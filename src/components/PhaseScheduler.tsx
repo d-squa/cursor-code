@@ -853,7 +853,7 @@ export function PhaseScheduler({
                       onClick={() => duplicatePhase(phase.id)}
                       title="Duplicate phase"
                     >
-                      <Plus className="h-3 w-3" />
+                      <Copy className="h-3 w-3" />
                     </Button>
                     <Button
                       type="button"
@@ -995,7 +995,7 @@ export function PhaseScheduler({
                       onClick={() => duplicatePhase(phase.id)}
                       title="Duplicate phase"
                     >
-                      <Plus className="h-3 w-3" />
+                      <Copy className="h-3 w-3" />
                     </Button>
                     <Button
                       type="button"
