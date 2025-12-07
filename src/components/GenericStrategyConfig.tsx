@@ -11,6 +11,7 @@ import { AudienceCard } from "./AudienceCard";
 import { determineStrategyFocus } from "@/utils/strategyFocusMapping";
 import { getDefaultPhases, funnelTemplates } from "@/utils/funnelPhases";
 import { getObjectiveFromPhaseName } from "@/utils/phaseObjectiveMapping";
+import { getAudienceStrategyConfig } from "@/utils/audienceStrategyMapping";
 import { useEffect, useState } from "react";
 
 // Map strategy focus values to funnel template keys
@@ -172,10 +173,16 @@ export function GenericStrategyConfig({
           const defaultPhases = getDefaultPhases(templateKey, startDate, endDate);
           updatedConfig.phases = defaultPhases.map(phase => {
             const objectiveData = getObjectiveFromPhaseName(phase.name, focus);
+            const objective = objectiveToLabel(objectiveData.objective) || "Conversions";
+            const optimizationGoal = optimizationToLabel(objectiveData.optimizationGoal) || "Conversions";
+            // Apply audience strategy based on objective/goal
+            const audienceStrategy = getAudienceStrategyConfig(platformName || "meta", objective, optimizationGoal);
             return {
               ...phase,
-              objective: objectiveToLabel(objectiveData.objective) || "Conversions",
-              optimizationGoal: optimizationToLabel(objectiveData.optimizationGoal) || "Conversions",
+              objective,
+              optimizationGoal,
+              useBroadTargeting: audienceStrategy.useBroadTargeting,
+              overrideTargeting: audienceStrategy.useBroadTargeting ? false : undefined,
             };
           });
           updatedConfig.campaigns = [
@@ -199,10 +206,16 @@ export function GenericStrategyConfig({
             const defaultPhases = getDefaultPhases(templateKey, startDate, endDate);
             updatedConfig.phases = defaultPhases.map(phase => {
               const objectiveData = getObjectiveFromPhaseName(phase.name, focus === "auto" ? "conversions" : focus);
+              const objective = objectiveToLabel(objectiveData.objective) || "Conversions";
+              const optimizationGoal = optimizationToLabel(objectiveData.optimizationGoal) || "Conversions";
+              // Apply audience strategy based on objective/goal
+              const audienceStrategy = getAudienceStrategyConfig(platformName || "meta", objective, optimizationGoal);
               return {
                 ...phase,
-                objective: objectiveToLabel(objectiveData.objective) || "Conversions",
-                optimizationGoal: optimizationToLabel(objectiveData.optimizationGoal) || "Conversions",
+                objective,
+                optimizationGoal,
+                useBroadTargeting: audienceStrategy.useBroadTargeting,
+                overrideTargeting: audienceStrategy.useBroadTargeting ? false : undefined,
               };
             });
           } else {
