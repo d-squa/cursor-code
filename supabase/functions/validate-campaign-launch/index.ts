@@ -40,10 +40,11 @@ function calculateBudget(totalBudget: number, platformBudgetPct: number, marketB
 }
 
 // Validate Meta campaign configuration
-function validateMetaCampaign(campaign: any, market: any, phase: any, platform: any, calculatedBudget: number): ValidationError[] {
+function validateMetaCampaign(campaign: any, market: any, phase: any, platform: any, calculatedBudget: number, entityPhaseName: string): ValidationError[] {
   const errors: ValidationError[] = [];
   const marketName = market.name || market.id;
-  const phaseName = phase?.name;
+  // Use the consistent entityPhaseName for error matching
+  const phaseName = entityPhaseName;
   
   // Check ad account
   const adAccountId = market.adAccountId || market.ad_account_id;
@@ -154,10 +155,11 @@ function validateMetaCampaign(campaign: any, market: any, phase: any, platform: 
 }
 
 // Validate TikTok campaign configuration
-function validateTikTokCampaign(campaign: any, market: any, phase: any, platform: any, calculatedBudget: number): ValidationError[] {
+function validateTikTokCampaign(campaign: any, market: any, phase: any, platform: any, calculatedBudget: number, entityPhaseName: string): ValidationError[] {
   const errors: ValidationError[] = [];
   const marketName = market.name || market.id;
-  const phaseName = phase?.name;
+  // Use the consistent entityPhaseName for error matching
+  const phaseName = entityPhaseName;
   
   // Check advertiser ID
   const advertiserId = market.adAccountId || market.tiktokAdvertiserId || market.advertiser_id;
@@ -370,22 +372,32 @@ const handler = async (req: Request): Promise<Response> => {
           const phaseBudgetPct = phase.budgetPercentage || 100;
           const phaseBudget = (calculatedBudget * phaseBudgetPct) / 100;
           
+          // Create consistent entity phase name for matching
+          const entityPhaseName = phase.name || 'Default';
+          const entityMarketName = market.name || market.id;
+          
           let validationErrors: ValidationError[] = [];
           
           if (platformName.includes('Meta') || platformName.includes('Facebook')) {
-            validationErrors = validateMetaCampaign(campaign, market, phase, connectedPlatform, phaseBudget);
+            validationErrors = validateMetaCampaign(campaign, market, phase, connectedPlatform, phaseBudget, entityPhaseName);
           } else if (platformName.toLowerCase().includes('tiktok')) {
-            validationErrors = validateTikTokCampaign(campaign, market, phase, connectedPlatform, phaseBudget);
+            validationErrors = validateTikTokCampaign(campaign, market, phase, connectedPlatform, phaseBudget, entityPhaseName);
           } else {
             // Unsupported platform warning
             validationErrors.push({
               platform: platformName,
-              market: market.name,
-              phase: phase.name,
+              market: entityMarketName,
+              phase: entityPhaseName,
               entityType: 'campaign',
               message: `Platform ${platformName} push is not yet supported`,
               severity: 'warning'
             });
+          }
+          
+          // Log actual errors generated
+          if (validationErrors.length > 0) {
+            console.log(`Phase ${entityPhaseName} in market ${entityMarketName} generated ${validationErrors.length} validation issues:`, 
+              JSON.stringify(validationErrors.map(e => ({ message: e.message, field: e.field, severity: e.severity }))));
           }
           
           // Separate errors and warnings
@@ -399,10 +411,10 @@ const handler = async (req: Request): Promise<Response> => {
           // Add entity to list
           result.entities.push({
             platform: platformName,
-            market: market.name || market.id,
-            phase: phase.name || 'Default',
+            market: entityMarketName,
+            phase: entityPhaseName,
             entityType: 'campaign',
-            entityName: `${campaign.name} - ${market.name || market.id} - ${phase.name || 'Default'}`,
+            entityName: `${campaign.name} - ${entityMarketName} - ${entityPhaseName}`,
             plannedBudget: phaseBudget,
             plannedImpressions: platformForecast.impressions,
             plannedReach: platformForecast.reach,
