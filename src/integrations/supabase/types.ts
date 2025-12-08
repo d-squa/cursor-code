@@ -106,6 +106,83 @@ export type Database = {
           },
         ]
       }
+      campaign_launch_status: {
+        Row: {
+          campaign_id: string
+          created_at: string
+          dsp_entity_id: string | null
+          dsp_status: string | null
+          entity_name: string | null
+          entity_type: string
+          error_details: Json | null
+          error_message: string | null
+          id: string
+          last_checked_at: string | null
+          market: string
+          phase_name: string | null
+          planned_budget: number | null
+          planned_clicks: number | null
+          planned_conversions: number | null
+          planned_impressions: number | null
+          planned_reach: number | null
+          platform: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          campaign_id: string
+          created_at?: string
+          dsp_entity_id?: string | null
+          dsp_status?: string | null
+          entity_name?: string | null
+          entity_type: string
+          error_details?: Json | null
+          error_message?: string | null
+          id?: string
+          last_checked_at?: string | null
+          market: string
+          phase_name?: string | null
+          planned_budget?: number | null
+          planned_clicks?: number | null
+          planned_conversions?: number | null
+          planned_impressions?: number | null
+          planned_reach?: number | null
+          platform: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          campaign_id?: string
+          created_at?: string
+          dsp_entity_id?: string | null
+          dsp_status?: string | null
+          entity_name?: string | null
+          entity_type?: string
+          error_details?: Json | null
+          error_message?: string | null
+          id?: string
+          last_checked_at?: string | null
+          market?: string
+          phase_name?: string | null
+          planned_budget?: number | null
+          planned_clicks?: number | null
+          planned_conversions?: number | null
+          planned_impressions?: number | null
+          planned_reach?: number | null
+          platform?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_launch_status_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaign_performance_benchmarks: {
         Row: {
           avg_cost_per_result: number | null
