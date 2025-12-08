@@ -451,24 +451,26 @@ export function PhaseScheduler({
     const isMeta = platformName.toLowerCase().includes('meta');
     if (!isMeta) return;
     
+    // Check if any defaults are available
+    const hasDefaultPublishers = adAccountDefaults.publisherPlatforms && adAccountDefaults.publisherPlatforms.length > 0;
+    const hasDefaultPositions = adAccountDefaults.positions && Object.keys(adAccountDefaults.positions).length > 0;
+    const hasDefaultAdvantagePlus = adAccountDefaults.metaAdvantagePlusPlacements !== undefined;
+    
+    if (!hasDefaultPublishers && !hasDefaultPositions && !hasDefaultAdvantagePlus) return;
+    
     // Check if phases are missing placement defaults
     let hasUpdates = false;
     const updatedPhases = phases.map(phase => {
       // Only apply defaults if phase doesn't have custom placements set
-      const needsPublisherPlatforms = (!phase.publisherPlatforms || phase.publisherPlatforms.length === 0) && 
-                                       adAccountDefaults.publisherPlatforms && 
-                                       adAccountDefaults.publisherPlatforms.length > 0;
+      const needsPublisherPlatforms = (!phase.publisherPlatforms || phase.publisherPlatforms.length === 0) && hasDefaultPublishers;
       
       // Check if positions are empty OR if the object exists but has no actual position arrays
       const hasValidPositions = phase.positions && 
                                 Object.keys(phase.positions).length > 0 &&
                                 Object.values(phase.positions).some(arr => Array.isArray(arr) && arr.length > 0);
-      const needsPositions = !hasValidPositions && 
-                             adAccountDefaults.positions && 
-                             Object.keys(adAccountDefaults.positions).length > 0;
+      const needsPositions = !hasValidPositions && hasDefaultPositions;
       
-      const needsAdvantagePlus = phase.advantagePlusPlacements === undefined && 
-                                  adAccountDefaults.metaAdvantagePlusPlacements !== undefined;
+      const needsAdvantagePlus = phase.advantagePlusPlacements === undefined && hasDefaultAdvantagePlus;
       
       if (!needsPublisherPlatforms && !needsPositions && !needsAdvantagePlus) {
         return phase;
@@ -486,7 +488,7 @@ export function PhaseScheduler({
     if (hasUpdates) {
       onPhasesChange(updatedPhases);
     }
-  }, [adAccountDefaults?.publisherPlatforms, adAccountDefaults?.positions, adAccountDefaults?.metaAdvantagePlusPlacements, platformName]);
+  }, [phases, adAccountDefaults?.publisherPlatforms, adAccountDefaults?.positions, adAccountDefaults?.metaAdvantagePlusPlacements, platformName]);
 
   const getDefaultObjectiveForFocus = (focus: string, phaseName: string): string => {
     if (focus === "conversions") {
