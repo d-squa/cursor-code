@@ -2004,7 +2004,7 @@ export function PlatformMarketBudgetSelector({
                             {/* Phase Scheduler - Per Market */}
                             {startDate && endDate && (
                               <div className="mt-4 pt-4 border-t">
-                                <PhaseScheduler
+                              <PhaseScheduler
                                   phases={market.phases || []}
                                   onPhasesChange={(phases) => updateMarketField(platformIndex, market.id, 'phases', phases)}
                                   startDate={startDate}
@@ -2016,6 +2016,7 @@ export function PlatformMarketBudgetSelector({
                                     hasDefaults: true,
                                     publisherPlatforms: market.metaPublisherPlatforms || market.publisherPlatforms,
                                     positions: market.metaPositions || market.positions,
+                                    metaAdvantagePlusPlacements: market.metaAdvantagePlusPlacements,
                                     tiktokPlacementType: market.tiktokPlacementType,
                                     tiktokPlacements: market.tiktokPlacements,
                                   }}

@@ -75,6 +75,7 @@ interface PhaseSchedulerProps {
       messenger?: string[];
       threads?: string[];
     };
+    metaAdvantagePlusPlacements?: boolean;
     // TikTok placement defaults
     tiktokPlacementType?: string;
     tiktokPlacements?: string[];
@@ -246,7 +247,8 @@ export function PhaseScheduler({
         tiktokPlacementType: adAccountDefaults?.tiktokPlacementType || 'PLACEMENT_TYPE_AUTOMATIC',
         tiktokPlacements: adAccountDefaults?.tiktokPlacements || ['PLACEMENT_TIKTOK'],
         publisherPlatforms: [],
-        positions: {}
+        positions: {},
+        advantagePlusPlacements: undefined
       };
     }
     
@@ -256,7 +258,8 @@ export function PhaseScheduler({
       if (adAccountDefaults?.publisherPlatforms && adAccountDefaults.publisherPlatforms.length > 0) {
         return {
           publisherPlatforms: adAccountDefaults.publisherPlatforms,
-          positions: adAccountDefaults.positions || {}
+          positions: adAccountDefaults.positions || {},
+          advantagePlusPlacements: adAccountDefaults.metaAdvantagePlusPlacements ?? true
         };
       }
       
@@ -276,9 +279,9 @@ export function PhaseScheduler({
       publishers.forEach(pub => {
         if (placements[pub]) positions[pub] = placements[pub];
       });
-      return { publisherPlatforms: publishers, positions };
+      return { publisherPlatforms: publishers, positions, advantagePlusPlacements: true };
     }
-    return { publisherPlatforms: [], positions: {} };
+    return { publisherPlatforms: [], positions: {}, advantagePlusPlacements: undefined };
   };
 
   // Initialize default phases if empty
@@ -441,7 +444,44 @@ export function PhaseScheduler({
     }
   }, [phases, adAccountDefaults, platformName]);
 
-  // Helper function to get default objective based on strategy focus and phase
+  // Auto-populate placement defaults from adAccountDefaults when they become available
+  useEffect(() => {
+    if (!adAccountDefaults || phases.length === 0) return;
+    
+    const isMeta = platformName.toLowerCase().includes('meta');
+    if (!isMeta) return;
+    
+    // Check if phases are missing placement defaults
+    let hasUpdates = false;
+    const updatedPhases = phases.map(phase => {
+      // Only apply defaults if phase doesn't have custom placements set
+      const needsPublisherPlatforms = (!phase.publisherPlatforms || phase.publisherPlatforms.length === 0) && 
+                                       adAccountDefaults.publisherPlatforms && 
+                                       adAccountDefaults.publisherPlatforms.length > 0;
+      const needsPositions = (!phase.positions || Object.keys(phase.positions).length === 0) && 
+                             adAccountDefaults.positions && 
+                             Object.keys(adAccountDefaults.positions).length > 0;
+      const needsAdvantagePlus = phase.advantagePlusPlacements === undefined && 
+                                  adAccountDefaults.metaAdvantagePlusPlacements !== undefined;
+      
+      if (!needsPublisherPlatforms && !needsPositions && !needsAdvantagePlus) {
+        return phase;
+      }
+      
+      hasUpdates = true;
+      return {
+        ...phase,
+        publisherPlatforms: needsPublisherPlatforms ? adAccountDefaults.publisherPlatforms : phase.publisherPlatforms,
+        positions: needsPositions ? adAccountDefaults.positions : phase.positions,
+        advantagePlusPlacements: needsAdvantagePlus ? adAccountDefaults.metaAdvantagePlusPlacements : phase.advantagePlusPlacements,
+      };
+    });
+    
+    if (hasUpdates) {
+      onPhasesChange(updatedPhases);
+    }
+  }, [adAccountDefaults?.publisherPlatforms, adAccountDefaults?.positions, adAccountDefaults?.metaAdvantagePlusPlacements, platformName]);
+
   const getDefaultObjectiveForFocus = (focus: string, phaseName: string): string => {
     if (focus === "conversions") {
       return phaseName === "Awareness" ? "Brand Awareness" : phaseName === "Consideration" ? "Traffic" : "Conversions";
