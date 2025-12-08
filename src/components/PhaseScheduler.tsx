@@ -458,9 +458,15 @@ export function PhaseScheduler({
       const needsPublisherPlatforms = (!phase.publisherPlatforms || phase.publisherPlatforms.length === 0) && 
                                        adAccountDefaults.publisherPlatforms && 
                                        adAccountDefaults.publisherPlatforms.length > 0;
-      const needsPositions = (!phase.positions || Object.keys(phase.positions).length === 0) && 
+      
+      // Check if positions are empty OR if the object exists but has no actual position arrays
+      const hasValidPositions = phase.positions && 
+                                Object.keys(phase.positions).length > 0 &&
+                                Object.values(phase.positions).some(arr => Array.isArray(arr) && arr.length > 0);
+      const needsPositions = !hasValidPositions && 
                              adAccountDefaults.positions && 
                              Object.keys(adAccountDefaults.positions).length > 0;
+      
       const needsAdvantagePlus = phase.advantagePlusPlacements === undefined && 
                                   adAccountDefaults.metaAdvantagePlusPlacements !== undefined;
       
