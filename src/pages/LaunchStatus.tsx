@@ -3,12 +3,13 @@ import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { 
   Loader2, ArrowLeft, RefreshCw, CheckCircle2, XCircle, 
-  AlertTriangle, Clock, Rocket, Play, ChevronDown, ChevronRight 
+  AlertTriangle, Clock, Rocket, Play, ChevronDown, ChevronRight,
+  ExternalLink
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Progress } from "@/components/ui/progress";
@@ -217,6 +218,23 @@ export default function LaunchStatus() {
     }
   };
 
+  const handleFixIssue = (fieldPath?: string) => {
+    if (!campaignId) return;
+    
+    // Navigate to the appropriate step/page based on fieldPath
+    if (fieldPath === 'connections') {
+      navigate('/platform-connections');
+    } else if (fieldPath === 'step1') {
+      navigate(`/actiplans/${campaignId}?step=1`);
+    } else if (fieldPath === 'step2') {
+      navigate(`/actiplans/${campaignId}?step=2`);
+    } else if (fieldPath === 'step3') {
+      navigate(`/actiplans/${campaignId}?step=3`);
+    } else {
+      navigate(`/actiplans/${campaignId}`);
+    }
+  };
+
   const togglePlatform = (platform: string) => {
     const newExpanded = new Set(expandedPlatforms);
     if (newExpanded.has(platform)) {
@@ -349,6 +367,21 @@ export default function LaunchStatus() {
         </CardContent>
       </Card>
 
+      {/* No data yet - show validate button */}
+      {statuses.length === 0 && (
+        <Card>
+          <CardContent className="pt-6 text-center">
+            <AlertTriangle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <p className="text-lg font-medium mb-2">No validation data yet</p>
+            <p className="text-muted-foreground mb-4">Click Validate to check your campaign configuration</p>
+            <Button onClick={handleValidate} disabled={validating}>
+              {validating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <AlertTriangle className="h-4 w-4 mr-2" />}
+              Validate Campaign
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Status by Platform */}
       {Object.entries(groupedStatuses).map(([platform, markets]) => (
         <Collapsible 
@@ -401,22 +434,38 @@ export default function LaunchStatus() {
                     <div className="space-y-2">
                       {entries.map((entry) => {
                         const statusConfig = STATUS_CONFIG[entry.status as StatusType] || STATUS_CONFIG.pending_validation;
+                        const errorDetails = entry.error_details as any[] || [];
+                        const firstError = errorDetails[0] || null;
+                        
                         return (
                           <div 
                             key={entry.id}
                             className="flex items-center justify-between p-3 rounded-lg bg-muted/30"
                           >
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-3 flex-1">
                               <div className={`p-1.5 rounded-full ${statusConfig.color}`}>
                                 {statusConfig.icon}
                               </div>
-                              <div>
+                              <div className="flex-1">
                                 <p className="font-medium text-sm">
                                   {entry.phase_name || 'Campaign'} 
                                   <span className="text-muted-foreground font-normal"> · {entry.entity_type}</span>
                                 </p>
                                 {entry.error_message && (
-                                  <p className="text-xs text-destructive">{entry.error_message}</p>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <p className="text-xs text-destructive">{entry.error_message}</p>
+                                    {firstError?.fieldPath && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-auto py-0.5 px-2 text-xs text-primary hover:text-primary"
+                                        onClick={() => handleFixIssue(firstError.fieldPath)}
+                                      >
+                                        <ExternalLink className="h-3 w-3 mr-1" />
+                                        Fix Issue
+                                      </Button>
+                                    )}
+                                  </div>
                                 )}
                                 {entry.dsp_entity_id && (
                                   <p className="text-xs text-muted-foreground">DSP ID: {entry.dsp_entity_id}</p>
@@ -424,13 +473,13 @@ export default function LaunchStatus() {
                               </div>
                             </div>
                             <div className="flex items-center gap-4">
-                              {entry.planned_budget && (
+                              {entry.planned_budget && entry.planned_budget > 0 && (
                                 <div className="text-right">
                                   <p className="text-xs text-muted-foreground">Budget</p>
                                   <p className="text-sm font-medium">€{entry.planned_budget.toLocaleString()}</p>
                                 </div>
                               )}
-                              {entry.planned_reach && (
+                              {entry.planned_reach && entry.planned_reach > 0 && (
                                 <div className="text-right">
                                   <p className="text-xs text-muted-foreground">Est. Reach</p>
                                   <p className="text-sm font-medium">{(entry.planned_reach / 1000).toFixed(1)}K</p>
@@ -451,22 +500,6 @@ export default function LaunchStatus() {
           </Card>
         </Collapsible>
       ))}
-
-      {statuses.length === 0 && (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <AlertTriangle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <CardTitle className="mb-2">No Launch Data</CardTitle>
-            <CardDescription>
-              Click "Validate" to check your campaign configuration and prepare for launch.
-            </CardDescription>
-            <Button onClick={handleValidate} className="mt-4" disabled={validating}>
-              {validating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-              Run Validation
-            </Button>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }
