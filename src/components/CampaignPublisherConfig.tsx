@@ -71,30 +71,8 @@ export function CampaignPublisherConfig({
   
   const availablePlacements = getPlacements();
 
-  // Initialize with Advantage+ placements enabled by default for new configs
-  useEffect(() => {
-    const isUninitialized = (!publisherPlatforms || publisherPlatforms.length === 0) && 
-                           (!positions || Object.keys(positions).length === 0);
-    
-    if (availablePublisherPlatforms.length > 0 && isUninitialized) {
-      // Default to Advantage+ placements (recommended)
-      if (onAdvantagePlusPlacementsChange && advantagePlusPlacements === undefined) {
-        onAdvantagePlusPlacementsChange(true);
-      }
-      
-      // Set all publishers as fallback
-      onPublisherPlatformsChange(availablePublisherPlatforms);
-      
-      // Set all placements for each publisher
-      const defaultPositions: any = {};
-      availablePublisherPlatforms.forEach(publisher => {
-        if (availablePlacements[publisher]) {
-          defaultPositions[publisher] = availablePlacements[publisher];
-        }
-      });
-      onPositionsChange(defaultPositions);
-    }
-  }, [publisherPlatforms, positions, availablePublisherPlatforms.length]);
+  // Note: Auto-initialization removed - PhaseScheduler now handles applying account defaults
+  // This component should only display and update what it receives, not auto-initialize
 
   if (availablePublisherPlatforms.length === 0) {
     return null;
