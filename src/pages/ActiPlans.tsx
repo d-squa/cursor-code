@@ -591,11 +591,32 @@ export default function ActiPlans() {
                 {canPushToDSP(campaign) && (
                   <>
                     {canApprove(campaign) && <DropdownMenuSeparator />}
-                    <DropdownMenuItem onClick={() => handlePushToDSP(campaign)} disabled={actionLoading}>
+                    <DropdownMenuItem 
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handlePushToDSP(campaign);
+                      }} 
+                      disabled={actionLoading}
+                    >
                       {actionLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Play className="w-4 h-4 mr-2" />}
                       Launch Campaign
                     </DropdownMenuItem>
                   </>
+                )}
+                
+                {/* Always show View Launch Status for campaigns that have been pushed */}
+                {campaign.pushed_to_dsp && (
+                  <DropdownMenuItem 
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      navigate(`/actiplans/${campaign.id}/launch`);
+                    }}
+                  >
+                    <BarChart3 className="w-4 h-4 mr-2" />
+                    View Launch Status
+                  </DropdownMenuItem>
                 )}
 
                 {campaign.status === "live" && (
