@@ -1114,6 +1114,8 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                               configuredLocations={extractMetaLocations(defaults)}
                               onSaveLocation={async (locationType, data) => {
                                 const updates = metaLocationToDefaults(locationType, data);
+                                // Also set the optimization location to this type
+                                await updateDefault(account.id, 'default_optimization_location' as any, locationType);
                                 for (const [key, value] of Object.entries(updates)) {
                                   await updateDefault(account.id, key as any, value);
                                 }
@@ -1122,6 +1124,10 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                 const fieldsToClear = getMetaLocationClearFields(locationType);
                                 for (const field of fieldsToClear) {
                                   await updateDefault(account.id, field as any, null);
+                                }
+                                // Clear optimization location if it matches the deleted type
+                                if (defaults.default_optimization_location === locationType) {
+                                  await updateDefault(account.id, 'default_optimization_location' as any, null);
                                 }
                               }}
                               pages={pages.filter(p => p.page_id).map(p => ({ page_id: p.page_id!, page_name: p.page_name! }))}
@@ -1754,6 +1760,8 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                               configuredLocations={extractTiktokLocations(defaults)}
                               onSaveLocation={async (locationType, data) => {
                                 const updates = tiktokLocationToDefaults(locationType, data);
+                                // Also set the optimization location to this type
+                                await updateDefault(account.id, 'default_optimization_location' as any, locationType);
                                 for (const [key, value] of Object.entries(updates)) {
                                   await updateDefault(account.id, key as any, value);
                                 }
@@ -1762,6 +1770,10 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                 const fieldsToClear = getTiktokLocationClearFields(locationType);
                                 for (const field of fieldsToClear) {
                                   await updateDefault(account.id, field as any, null);
+                                }
+                                // Clear optimization location if it matches the deleted type
+                                if (defaults.default_optimization_location === locationType) {
+                                  await updateDefault(account.id, 'default_optimization_location' as any, null);
                                 }
                               }}
                               tiktokApps={tiktokApps.filter(app => app.advertiser_id === account.advertiser_id)}
