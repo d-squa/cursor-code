@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -6,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { PlatformWithMarkets } from "@/types/mediaplan";
 import { GenericConfig } from "./GenericStrategyConfig";
-import { Loader2, TrendingUp, Users, Eye, Target, DollarSign, Download, Mail, FileSpreadsheet, FileText, ChevronDown } from "lucide-react";
+import { Loader2, TrendingUp, Users, Eye, Target, DollarSign, Download, Mail, FileSpreadsheet, FileText, ChevronDown, Rocket } from "lucide-react";
 import { toast } from "sonner";
 import { getOptimizationGoalMetrics, getResultLabel, calculateResultFromImpressions } from "@/utils/optimizationGoals";
 import { getObjectiveFromPhaseName } from "@/utils/phaseObjectiveMapping";
@@ -129,13 +130,13 @@ export function CampaignForecast({
   onBack,
   onFinalize,
 }: CampaignForecastProps) {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [forecasts, setForecasts] = useState<Record<string, CampaignForecast[]>>({});
   const [actiplanForecast, setActiplanForecast] = useState<ActiplanForecast | null>(null);
   const [debugInfo, setDebugInfo] = useState<{startTimeUnix: number; endTimeUnix: number; startDateFormatted: string; endDateFormatted: string} | null>(null);
   const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
   const [pdfBase64Data, setPdfBase64Data] = useState<string>("");
-  const [pushingToDSP, setPushingToDSP] = useState(false);
   const [hasExistingForecast, setHasExistingForecast] = useState(false);
   const [expandedPlatforms, setExpandedPlatforms] = useState<Record<string, boolean>>({});
   const [expandedMarkets, setExpandedMarkets] = useState<Record<string, boolean>>({});
@@ -232,53 +233,12 @@ export function CampaignForecast({
     saveForecastData();
   }, [forecasts, actiplanForecast, campaignId]);
 
-  const handlePushToDSP = async () => {
+  const handleGoToLaunchStatus = () => {
     if (!campaignId) {
       toast.error("Please save the campaign first");
       return;
     }
-
-    // Check for TikTok conversion campaigns and warn user
-    const hasTikTokConversionCampaigns = platforms.some(platform => {
-      if (!platform.id.toLowerCase().includes('tiktok')) return false;
-      
-      return platform.markets?.some(market =>
-        market.phases?.some(phase => {
-          const objective = (phase.objective || '').toLowerCase();
-          const optimizationGoal = (phase.optimizationGoal || '').toLowerCase();
-          return objective.includes('conversion') || optimizationGoal.includes('convert');
-        })
-      );
-    });
-
-    if (hasTikTokConversionCampaigns) {
-      toast.warning(
-        "TikTok Conversion Adjustment: TikTok requires 90+ days of conversion data. Your conversion campaigns have been automatically switched to TRAFFIC objective (CLICK optimization) to ensure successful ad group creation.",
-        { 
-          duration: 8000,
-          description: "This fallback allows your campaigns to launch successfully without pixel data requirements."
-        }
-      );
-    }
-
-    setPushingToDSP(true);
-    try {
-      const { supabase } = await import("@/integrations/supabase/client");
-      
-      const { data, error } = await supabase.functions.invoke('push-campaign-to-dsp', {
-        body: { campaignId }
-      });
-
-      if (error) throw error;
-
-      toast.success("Campaign pushed to DSP successfully!");
-      console.log("DSP Push Results:", data);
-    } catch (error: any) {
-      console.error("Error pushing to DSP:", error);
-      toast.error(error.message || "Failed to push campaign to DSP");
-    } finally {
-      setPushingToDSP(false);
-    }
+    navigate(`/actiplans/${campaignId}/launch`);
   };
 
   const getPlanData = () => {
@@ -1491,20 +1451,11 @@ export function CampaignForecast({
             </Button>
             <Button 
               variant="gradient" 
-              onClick={handlePushToDSP} 
-              disabled={Object.keys(forecasts).length === 0 || !campaignId || pushingToDSP}
+              onClick={handleGoToLaunchStatus} 
+              disabled={Object.keys(forecasts).length === 0 || !campaignId}
             >
-              {pushingToDSP ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Pushing to DSP...
-                </>
-              ) : (
-                <>
-                  <Target className="h-4 w-4 mr-2" />
-                  Push to DSP
-                </>
-              )}
+              <Rocket className="h-4 w-4 mr-2" />
+              Launch Campaign
             </Button>
             <Button onClick={onFinalize} disabled={Object.keys(forecasts).length === 0}>
               Save Draft
