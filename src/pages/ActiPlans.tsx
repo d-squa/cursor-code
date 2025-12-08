@@ -261,45 +261,8 @@ export default function ActiPlans() {
   };
 
   const handlePushToDSP = async (campaign: Campaign) => {
-    setActionLoading(true);
-    try {
-      // Call edge function to push to DSP (budget type is already set per market)
-      const { data, error } = await supabase.functions.invoke("push-campaign-to-dsp", {
-        body: { 
-          campaignId: campaign.id
-        },
-      });
-
-      if (error) throw error;
-
-      // Update campaign status
-      await supabase
-        .from("campaigns")
-        .update({ 
-          pushed_to_dsp: true, 
-          pushed_at: new Date().toISOString(),
-          status: "live"
-        })
-        .eq("id", campaign.id);
-
-      await supabase.from("campaign_change_history").insert({
-        campaign_id: campaign.id,
-        user_id: user?.id,
-        action: "pushed_to_dsp",
-        change_type: "status_change",
-        description: `Campaign pushed to DSP and status changed to live`,
-      });
-
-      toast.success("Campaign pushed to DSP successfully! Please perform a manual quality check in the Ads Manager.", {
-        duration: 6000,
-      });
-      loadCampaigns();
-    } catch (error: any) {
-      console.error("Error pushing to DSP:", error);
-      toast.error("Failed to push campaign to DSP");
-    } finally {
-      setActionLoading(false);
-    }
+    // Navigate to the Launch Status View for validation and push workflow
+    navigate(`/actiplans/${campaign.id}/launch`);
   };
 
   const handleDelete = async () => {

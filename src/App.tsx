@@ -17,6 +17,7 @@ import AccountSettings from "./pages/settings/AccountSettings";
 import PlanManagement from "./pages/settings/PlanManagement";
 import BillingManagement from "./pages/settings/BillingManagement";
 import PlatformConnections from "./pages/PlatformConnections";
+import LaunchStatus from "./pages/LaunchStatus";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,6 +33,7 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/accept-invitation" element={<AcceptInvitation />} />
             <Route path="/actiplans" element={<ActiPlans />} />
+            <Route path="/actiplans/:campaignId/launch" element={<LaunchStatus />} />
             <Route path="/performance/:id" element={<Performance />} />
             <Route path="/performance" element={<Performance />} />
             <Route path="/clients" element={<Clients />} />
