@@ -434,61 +434,102 @@ export default function LaunchStatus() {
                     <div className="space-y-2">
                       {entries.map((entry) => {
                         const statusConfig = STATUS_CONFIG[entry.status as StatusType] || STATUS_CONFIG.pending_validation;
-                        const errorDetails = entry.error_details as any[] || [];
-                        const firstError = errorDetails[0] || null;
+                        const errorDetails: any[] = Array.isArray(entry.error_details) ? entry.error_details : [];
+                        const hasErrors = entry.status === 'validation_error' || entry.status === 'push_failed';
                         
                         return (
                           <div 
                             key={entry.id}
-                            className="flex items-center justify-between p-3 rounded-lg bg-muted/30"
+                            className="rounded-lg bg-muted/30 overflow-hidden"
                           >
-                            <div className="flex items-center gap-3 flex-1">
-                              <div className={`p-1.5 rounded-full ${statusConfig.color}`}>
-                                {statusConfig.icon}
+                            <div className="flex items-center justify-between p-3">
+                              <div className="flex items-center gap-3 flex-1">
+                                <div className={`p-1.5 rounded-full ${statusConfig.color}`}>
+                                  {statusConfig.icon}
+                                </div>
+                                <div className="flex-1">
+                                  <p className="font-medium text-sm">
+                                    {entry.phase_name || 'Campaign'} 
+                                    <span className="text-muted-foreground font-normal"> · {entry.entity_type}</span>
+                                  </p>
+                                  {entry.dsp_entity_id && (
+                                    <p className="text-xs text-muted-foreground">DSP ID: {entry.dsp_entity_id}</p>
+                                  )}
+                                </div>
                               </div>
-                              <div className="flex-1">
-                                <p className="font-medium text-sm">
-                                  {entry.phase_name || 'Campaign'} 
-                                  <span className="text-muted-foreground font-normal"> · {entry.entity_type}</span>
-                                </p>
-                                {entry.error_message && (
-                                  <div className="flex items-center gap-2 mt-1">
-                                    <p className="text-xs text-destructive">{entry.error_message}</p>
-                                    {firstError?.fieldPath && (
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-auto py-0.5 px-2 text-xs text-primary hover:text-primary"
-                                        onClick={() => handleFixIssue(firstError.fieldPath)}
-                                      >
-                                        <ExternalLink className="h-3 w-3 mr-1" />
-                                        Fix Issue
-                                      </Button>
-                                    )}
+                              <div className="flex items-center gap-4">
+                                {entry.planned_budget && entry.planned_budget > 0 && (
+                                  <div className="text-right">
+                                    <p className="text-xs text-muted-foreground">Budget</p>
+                                    <p className="text-sm font-medium">€{entry.planned_budget.toLocaleString()}</p>
                                   </div>
                                 )}
-                                {entry.dsp_entity_id && (
-                                  <p className="text-xs text-muted-foreground">DSP ID: {entry.dsp_entity_id}</p>
+                                {entry.planned_reach && entry.planned_reach > 0 && (
+                                  <div className="text-right">
+                                    <p className="text-xs text-muted-foreground">Est. Reach</p>
+                                    <p className="text-sm font-medium">{(entry.planned_reach / 1000).toFixed(1)}K</p>
+                                  </div>
                                 )}
+                                <Badge className={statusConfig.color}>
+                                  {statusConfig.label}
+                                </Badge>
                               </div>
                             </div>
-                            <div className="flex items-center gap-4">
-                              {entry.planned_budget && entry.planned_budget > 0 && (
-                                <div className="text-right">
-                                  <p className="text-xs text-muted-foreground">Budget</p>
-                                  <p className="text-sm font-medium">€{entry.planned_budget.toLocaleString()}</p>
-                                </div>
-                              )}
-                              {entry.planned_reach && entry.planned_reach > 0 && (
-                                <div className="text-right">
-                                  <p className="text-xs text-muted-foreground">Est. Reach</p>
-                                  <p className="text-sm font-medium">{(entry.planned_reach / 1000).toFixed(1)}K</p>
-                                </div>
-                              )}
-                              <Badge className={statusConfig.color}>
-                                {statusConfig.label}
-                              </Badge>
-                            </div>
+                            
+                            {/* Error Details Section */}
+                            {hasErrors && (
+                              <div className="border-t border-border/50 bg-destructive/5 p-3">
+                                {errorDetails.length > 0 ? (
+                                  <div className="space-y-2">
+                                    {errorDetails.map((error, idx) => (
+                                      <div key={idx} className="flex items-start justify-between gap-2">
+                                        <div className="flex items-start gap-2 flex-1">
+                                          <XCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+                                          <div>
+                                            <p className="text-sm text-destructive">{error.message}</p>
+                                            {error.field && (
+                                              <p className="text-xs text-muted-foreground">Field: {error.field}</p>
+                                            )}
+                                          </div>
+                                        </div>
+                                        {error.fieldPath && (
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-7 text-xs shrink-0"
+                                            onClick={() => handleFixIssue(error.fieldPath)}
+                                          >
+                                            <ExternalLink className="h-3 w-3 mr-1" />
+                                            Fix Issue
+                                          </Button>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : entry.error_message ? (
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="flex items-start gap-2 flex-1">
+                                      <XCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+                                      <p className="text-sm text-destructive">{entry.error_message}</p>
+                                    </div>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-7 text-xs shrink-0"
+                                      onClick={() => handleFixIssue('step1')}
+                                    >
+                                      <ExternalLink className="h-3 w-3 mr-1" />
+                                      Fix Issue
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-start gap-2">
+                                    <XCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+                                    <p className="text-sm text-destructive">Validation error - check campaign configuration</p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
                         );
                       })}
