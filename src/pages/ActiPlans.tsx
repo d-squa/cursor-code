@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, Play, Edit, CheckCircle, XCircle, MessageSquare, History, Trash2, Download, TrendingUp, MoreVertical, ArrowLeft, Search, BarChart3, FileText, FileSpreadsheet, ChevronDown } from "lucide-react";
+import { Loader2, Play, Edit, CheckCircle, XCircle, MessageSquare, History, Trash2, Download, TrendingUp, MoreVertical, ArrowLeft, Search, BarChart3, FileText, FileSpreadsheet, ChevronDown, Rocket } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
 import { ModificationRequestDialog } from "@/components/ModificationRequestDialog";
@@ -317,9 +317,19 @@ export default function ActiPlans() {
   const canPushToDSP = (campaign: Campaign) => {
     const isCreator = campaign.user_id === user?.id;
     const isTeamOwnerOrAdmin = campaign.is_admin_or_owner === true;
-    const isApproved = campaign.status === "approved" && !campaign.pushed_to_dsp;
+    // Allow launch for approved, live, or pushed_to_dsp campaigns
+    const isReady = ["approved", "live", "pushed_to_dsp"].includes(campaign.status || "");
     
-    return (isCreator || isTeamOwnerOrAdmin) && isApproved;
+    return (isCreator || isTeamOwnerOrAdmin) && isReady;
+  };
+  
+  const canViewLaunchStatus = (campaign: Campaign) => {
+    const isCreator = campaign.user_id === user?.id;
+    const isTeamOwnerOrAdmin = campaign.is_admin_or_owner === true;
+    // Show launch status for any campaign that's approved or beyond
+    const isReady = ["approved", "live", "pushed_to_dsp"].includes(campaign.status || "");
+    
+    return (isCreator || isTeamOwnerOrAdmin) && isReady;
   };
 
   const canDelete = (campaign: Campaign) => {
@@ -588,35 +598,20 @@ export default function ActiPlans() {
                   </>
                 )}
 
-                {canPushToDSP(campaign) && (
+                {canViewLaunchStatus(campaign) && (
                   <>
                     {canApprove(campaign) && <DropdownMenuSeparator />}
                     <DropdownMenuItem 
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        handlePushToDSP(campaign);
+                        navigate(`/actiplans/${campaign.id}/launch`);
                       }} 
-                      disabled={actionLoading}
                     >
-                      {actionLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Play className="w-4 h-4 mr-2" />}
+                      <Rocket className="w-4 h-4 mr-2" />
                       Launch Campaign
                     </DropdownMenuItem>
                   </>
-                )}
-                
-                {/* Always show View Launch Status for campaigns that have been pushed */}
-                {campaign.pushed_to_dsp && (
-                  <DropdownMenuItem 
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      navigate(`/actiplans/${campaign.id}/launch`);
-                    }}
-                  >
-                    <BarChart3 className="w-4 h-4 mr-2" />
-                    View Launch Status
-                  </DropdownMenuItem>
                 )}
 
                 {campaign.status === "live" && (
