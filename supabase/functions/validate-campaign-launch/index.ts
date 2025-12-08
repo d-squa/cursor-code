@@ -12,6 +12,7 @@ interface ValidationError {
   phase?: string;
   entityType: 'campaign' | 'adset' | 'ad_group';
   field?: string;
+  fieldPath?: string; // Path to navigate user to fix the issue
   message: string;
   severity: 'error' | 'warning';
 }
@@ -32,20 +33,29 @@ interface ValidationResult {
   }[];
 }
 
+// Calculate actual budget from percentage
+function calculateBudget(totalBudget: number, platformBudgetPct: number, marketBudgetPct: number): number {
+  const platformBudget = (totalBudget * platformBudgetPct) / 100;
+  return (platformBudget * marketBudgetPct) / 100;
+}
+
 // Validate Meta campaign configuration
-function validateMetaCampaign(campaign: any, market: any, phase: any, platform: any): ValidationError[] {
+function validateMetaCampaign(campaign: any, market: any, phase: any, platform: any, calculatedBudget: number): ValidationError[] {
   const errors: ValidationError[] = [];
+  const marketName = market.name || market.id;
+  const phaseName = phase?.name;
   
   // Check ad account
-  const adAccountId = market.adAccountId || market.ad_account_id || platform?.ad_account_id;
+  const adAccountId = market.adAccountId || market.ad_account_id;
   if (!adAccountId) {
     errors.push({
       platform: 'Meta',
-      market: market.name,
-      phase: phase?.name,
+      market: marketName,
+      phase: phaseName,
       entityType: 'campaign',
       field: 'adAccountId',
-      message: 'Missing Meta ad account ID',
+      fieldPath: 'step1', // Navigate to step 1 to select ad account
+      message: 'Missing Meta ad account ID. Select an ad account in Platform & Market Selection.',
       severity: 'error'
     });
   }
@@ -54,84 +64,88 @@ function validateMetaCampaign(campaign: any, market: any, phase: any, platform: 
   if (!platform?.access_token) {
     errors.push({
       platform: 'Meta',
-      market: market.name,
-      phase: phase?.name,
+      market: marketName,
+      phase: phaseName,
       entityType: 'campaign',
       field: 'access_token',
-      message: 'Meta platform not connected or access token expired',
+      fieldPath: 'connections', // Navigate to platform connections
+      message: 'Meta platform not connected or access token expired. Reconnect your Meta account.',
       severity: 'error'
     });
   }
   
   // Check objective
-  const validObjectives = ['OUTCOME_AWARENESS', 'OUTCOME_ENGAGEMENT', 'OUTCOME_LEADS', 
-    'OUTCOME_SALES', 'OUTCOME_TRAFFIC', 'OUTCOME_APP_PROMOTION'];
   const objective = phase?.objective || market?.objective || campaign.objective;
-  if (objective && !validObjectives.includes(objective) && !objective.startsWith('OUTCOME_')) {
+  if (!objective) {
     errors.push({
       platform: 'Meta',
-      market: market.name,
-      phase: phase?.name,
+      market: marketName,
+      phase: phaseName,
       entityType: 'campaign',
       field: 'objective',
-      message: `Invalid objective: ${objective}`,
-      severity: 'warning' // Warning because we can map it
+      fieldPath: 'step3', // Navigate to strategy section
+      message: 'No campaign objective set. Configure strategy in Step 3.',
+      severity: 'error'
     });
   }
   
   // Check conversion campaigns have pixel
   const isConversionCampaign = objective?.includes('SALES') || objective?.includes('LEADS') || 
-    phase?.name?.toLowerCase().includes('conversion');
+    objective?.includes('CONVERSION') || phase?.name?.toLowerCase().includes('conversion');
   if (isConversionCampaign) {
-    const pixelId = market.pixelId || phase?.pixelId;
+    // Check both possible field names for pixel
+    const pixelId = market.pixel || market.pixelId || phase?.pixel || phase?.pixelId;
     if (!pixelId) {
       errors.push({
         platform: 'Meta',
-        market: market.name,
-        phase: phase?.name,
+        market: marketName,
+        phase: phaseName,
         entityType: 'adset',
-        field: 'pixelId',
-        message: 'Conversion campaign requires a Meta Pixel',
+        field: 'pixel',
+        fieldPath: 'step1', // Navigate to step 1 platform config
+        message: 'Conversion campaign requires a Meta Pixel. Configure pixel in Platform & Market Selection.',
         severity: 'error'
       });
     }
   }
   
-  // Check budget
-  const budget = phase?.budget || market?.budget || 0;
-  if (budget <= 0) {
+  // Check budget - use calculated budget, not raw market.budget
+  if (calculatedBudget <= 0) {
     errors.push({
       platform: 'Meta',
-      market: market.name,
-      phase: phase?.name,
+      market: marketName,
+      phase: phaseName,
       entityType: 'adset',
       field: 'budget',
-      message: 'Budget must be greater than 0',
+      fieldPath: 'step1', // Navigate to step 1 for budget
+      message: `Budget is €${calculatedBudget.toFixed(2)}. Increase total budget or market budget percentage.`,
       severity: 'error'
     });
   }
   
   // Check dates
-  const startDate = phase?.startDate || campaign.start_date;
-  const endDate = phase?.endDate || campaign.end_date;
+  const startDate = campaign.start_date;
+  const endDate = campaign.end_date;
   if (!startDate || !endDate) {
     errors.push({
       platform: 'Meta',
-      market: market.name,
-      phase: phase?.name,
+      market: marketName,
+      phase: phaseName,
       entityType: 'adset',
       field: 'dates',
-      message: 'Start and end dates are required',
+      fieldPath: 'step1', // Navigate to step 1 for dates
+      message: 'Start and end dates are required. Set campaign dates in Step 1.',
       severity: 'error'
     });
   } else if (new Date(startDate) >= new Date(endDate)) {
     errors.push({
       platform: 'Meta',
-      market: market.name,
-      phase: phase?.name,
+      market: marketName,
+      phase: phaseName,
       entityType: 'adset',
       field: 'dates',
-      message: 'End date must be after start date',
+      fieldPath: 'step1',
+      message: 'End date must be after start date.',
       severity: 'error'
     });
   }
@@ -140,19 +154,22 @@ function validateMetaCampaign(campaign: any, market: any, phase: any, platform: 
 }
 
 // Validate TikTok campaign configuration
-function validateTikTokCampaign(campaign: any, market: any, phase: any, platform: any): ValidationError[] {
+function validateTikTokCampaign(campaign: any, market: any, phase: any, platform: any, calculatedBudget: number): ValidationError[] {
   const errors: ValidationError[] = [];
+  const marketName = market.name || market.id;
+  const phaseName = phase?.name;
   
   // Check advertiser ID
-  const advertiserId = market.tiktokAdvertiserId || market.advertiser_id;
+  const advertiserId = market.adAccountId || market.tiktokAdvertiserId || market.advertiser_id;
   if (!advertiserId) {
     errors.push({
       platform: 'TikTok',
-      market: market.name,
-      phase: phase?.name,
+      market: marketName,
+      phase: phaseName,
       entityType: 'campaign',
       field: 'advertiserId',
-      message: 'Missing TikTok advertiser ID',
+      fieldPath: 'step1',
+      message: 'Missing TikTok advertiser ID. Select an advertiser in Platform & Market Selection.',
       severity: 'error'
     });
   }
@@ -161,87 +178,87 @@ function validateTikTokCampaign(campaign: any, market: any, phase: any, platform
   if (!platform?.access_token) {
     errors.push({
       platform: 'TikTok',
-      market: market.name,
-      phase: phase?.name,
+      market: marketName,
+      phase: phaseName,
       entityType: 'campaign',
       field: 'access_token',
-      message: 'TikTok platform not connected or access token expired',
+      fieldPath: 'connections',
+      message: 'TikTok platform not connected or access token expired. Reconnect your TikTok account.',
       severity: 'error'
     });
   }
   
-  // Check objective mapping
+  // Check objective
   const objective = phase?.objective || market?.objective || campaign.objective;
-  const validTikTokObjectives = ['REACH', 'TRAFFIC', 'VIDEO_VIEWS', 'LEAD_GENERATION', 
-    'CONVERSIONS', 'APP_INSTALLS', 'CATALOG_SALES', 'WEB_CONVERSIONS', 'APP_PROMOTION', 'PRODUCT_SALES'];
-  
-  // TikTok requires specific objectives
-  if (objective && objective.startsWith('OUTCOME_')) {
-    // Will need mapping - this is a warning
+  if (!objective) {
     errors.push({
       platform: 'TikTok',
-      market: market.name,
-      phase: phase?.name,
+      market: marketName,
+      phase: phaseName,
       entityType: 'campaign',
       field: 'objective',
-      message: `Objective ${objective} will be mapped to TikTok equivalent`,
-      severity: 'warning'
+      fieldPath: 'step3',
+      message: 'No campaign objective set. Configure strategy in Step 3.',
+      severity: 'error'
     });
   }
   
   // Check conversion campaigns have pixel
   const isConversionCampaign = objective?.includes('CONVERSION') || objective?.includes('SALES') ||
-    phase?.name?.toLowerCase().includes('conversion');
+    objective?.includes('LEADS') || phase?.name?.toLowerCase().includes('conversion');
   if (isConversionCampaign) {
-    const pixelId = market.tiktokPixelId || phase?.tiktokPixelId;
+    const pixelId = market.pixel || market.tiktokPixelId || phase?.pixel || phase?.tiktokPixelId;
     if (!pixelId) {
       errors.push({
         platform: 'TikTok',
-        market: market.name,
-        phase: phase?.name,
+        market: marketName,
+        phase: phaseName,
         entityType: 'ad_group',
-        field: 'pixelId',
-        message: 'Conversion campaign requires a TikTok Pixel',
+        field: 'pixel',
+        fieldPath: 'step1',
+        message: 'Conversion campaign requires a TikTok Pixel. Configure pixel in Platform & Market Selection.',
         severity: 'error'
       });
     }
   }
   
-  // Check budget (TikTok has minimum budget requirements)
-  const budget = phase?.budget || market?.budget || 0;
-  if (budget <= 0) {
+  // Check budget - use calculated budget
+  if (calculatedBudget <= 0) {
     errors.push({
       platform: 'TikTok',
-      market: market.name,
-      phase: phase?.name,
+      market: marketName,
+      phase: phaseName,
       entityType: 'ad_group',
       field: 'budget',
-      message: 'Budget must be greater than 0',
+      fieldPath: 'step1',
+      message: `Budget is €${calculatedBudget.toFixed(2)}. Increase total budget or market budget percentage.`,
       severity: 'error'
     });
-  } else if (budget < 20) {
+  } else if (calculatedBudget < 20) {
     errors.push({
       platform: 'TikTok',
-      market: market.name,
-      phase: phase?.name,
+      market: marketName,
+      phase: phaseName,
       entityType: 'ad_group',
       field: 'budget',
-      message: 'TikTok requires minimum daily budget of $20',
+      fieldPath: 'step1',
+      message: `TikTok requires minimum daily budget of €20. Current: €${calculatedBudget.toFixed(2)}`,
       severity: 'warning'
     });
   }
   
   // Check dates
-  const startDate = phase?.startDate || campaign.start_date;
-  const endDate = phase?.endDate || campaign.end_date;
+  const startDate = campaign.start_date;
+  const endDate = campaign.end_date;
   if (!startDate || !endDate) {
     errors.push({
       platform: 'TikTok',
-      market: market.name,
-      phase: phase?.name,
+      market: marketName,
+      phase: phaseName,
       entityType: 'ad_group',
       field: 'dates',
-      message: 'Start and end dates are required',
+      fieldPath: 'step1',
+      message: 'Start and end dates are required. Set campaign dates in Step 1.',
       severity: 'error'
     });
   }
@@ -313,28 +330,52 @@ const handler = async (req: Request): Promise<Response> => {
     };
 
     const marketSplits = campaign.market_splits || {};
+    const campaignPlatforms = campaign.platforms || [];
+    const totalBudget = campaign.total_budget || 0;
+    
+    console.log('Validating campaign:', campaign.name);
+    console.log('Total budget:', totalBudget);
+    console.log('Market splits keys:', Object.keys(marketSplits));
     
     for (const [platformId, markets] of Object.entries(marketSplits)) {
-      const campaignPlatform = (campaign.platforms || []).find((p: any) => p.id === platformId);
-      if (!campaignPlatform) continue;
+      const campaignPlatform = campaignPlatforms.find((p: any) => p.id === platformId);
+      if (!campaignPlatform) {
+        console.log('Platform not found in campaign platforms:', platformId);
+        continue;
+      }
       
       const platformName = campaignPlatform.name;
+      const platformBudgetPct = campaignPlatform.budgetPercentage || 100;
+      
       const connectedPlatform = platforms?.find(p => 
         p.platform_type.toLowerCase() === platformName.toLowerCase() || 
         (platformName.includes('Meta') && p.platform_type === 'meta') ||
         (platformName.toLowerCase().includes('tiktok') && p.platform_type === 'tiktok')
       );
 
+      console.log(`Processing platform: ${platformName}, connected:`, !!connectedPlatform);
+
       for (const market of (markets as any[])) {
-        const phases = market.phases || [{ name: 'Default', budget: market.budget }];
+        const marketBudgetPct = market.budgetPercentage || 100;
+        const calculatedBudget = calculateBudget(totalBudget, platformBudgetPct, marketBudgetPct);
+        
+        console.log(`Market ${market.name}: budgetPct=${marketBudgetPct}, calculated budget=€${calculatedBudget.toFixed(2)}`);
+        
+        // Get phases from market, or create a default phase if none exist
+        const phases = (market.phases && market.phases.length > 0) 
+          ? market.phases 
+          : [{ name: 'Default', budgetPercentage: 100 }];
         
         for (const phase of phases) {
+          const phaseBudgetPct = phase.budgetPercentage || 100;
+          const phaseBudget = (calculatedBudget * phaseBudgetPct) / 100;
+          
           let validationErrors: ValidationError[] = [];
           
           if (platformName.includes('Meta') || platformName.includes('Facebook')) {
-            validationErrors = validateMetaCampaign(campaign, market, phase, connectedPlatform);
+            validationErrors = validateMetaCampaign(campaign, market, phase, connectedPlatform, phaseBudget);
           } else if (platformName.toLowerCase().includes('tiktok')) {
-            validationErrors = validateTikTokCampaign(campaign, market, phase, connectedPlatform);
+            validationErrors = validateTikTokCampaign(campaign, market, phase, connectedPlatform, phaseBudget);
           } else {
             // Unsupported platform warning
             validationErrors.push({
@@ -358,11 +399,11 @@ const handler = async (req: Request): Promise<Response> => {
           // Add entity to list
           result.entities.push({
             platform: platformName,
-            market: market.name,
+            market: market.name || market.id,
             phase: phase.name || 'Default',
             entityType: 'campaign',
-            entityName: `${campaign.name} - ${market.name} - ${phase.name || 'Default'}`,
-            plannedBudget: phase.budget || market.budget || 0,
+            entityName: `${campaign.name} - ${market.name || market.id} - ${phase.name || 'Default'}`,
+            plannedBudget: phaseBudget,
             plannedImpressions: platformForecast.impressions,
             plannedReach: platformForecast.reach,
           });
@@ -392,6 +433,11 @@ const handler = async (req: Request): Promise<Response> => {
         e.market === entity.market && 
         e.phase === entity.phase
       )?.message || null,
+      error_details: result.errors.filter(e => 
+        e.platform === entity.platform && 
+        e.market === entity.market && 
+        e.phase === entity.phase
+      ),
       planned_budget: entity.plannedBudget,
       planned_impressions: entity.plannedImpressions,
       planned_reach: entity.plannedReach,
