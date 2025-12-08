@@ -1888,13 +1888,14 @@ export function MediaPlanEditor() {
                         platformId={singlePlatform?.id || "meta"}
                         adAccountId={singleMarket.adAccountId}
                         basicTargeting={basicTargeting}
-                        adAccountDefaults={{
-                          hasDefaults: true,
-                          publisherPlatforms: singleMarket.metaPublisherPlatforms || singleMarket.publisherPlatforms,
-                          positions: singleMarket.metaPositions || singleMarket.positions,
-                          tiktokPlacementType: singleMarket.tiktokPlacementType,
-                          tiktokPlacements: singleMarket.tiktokPlacements,
-                          // Meta destination defaults
+                                  adAccountDefaults={{
+                                    hasDefaults: true,
+                                    publisherPlatforms: singleMarket.metaPublisherPlatforms || singleMarket.publisherPlatforms,
+                                    positions: singleMarket.metaPositions || singleMarket.positions,
+                                    metaAdvantagePlusPlacements: singleMarket.metaAdvantagePlusPlacements,
+                                    tiktokPlacementType: singleMarket.tiktokPlacementType,
+                                    tiktokPlacements: singleMarket.tiktokPlacements,
+                                    // Meta destination defaults
                           metaOptimizationLocation: (singleMarket as any).metaOptimizationLocation,
                           metaAppStore: (singleMarket as any).metaAppStore,
                           metaAppId: (singleMarket as any).metaAppId,
@@ -2182,6 +2183,7 @@ export function MediaPlanEditor() {
                                     hasDefaults: true,
                                     publisherPlatforms: market.metaPublisherPlatforms || market.publisherPlatforms,
                                     positions: market.metaPositions || market.positions,
+                                    metaAdvantagePlusPlacements: market.metaAdvantagePlusPlacements,
                                     tiktokPlacementType: market.tiktokPlacementType,
                                     tiktokPlacements: market.tiktokPlacements,
                                     // Meta destination defaults from market (loaded from account defaults)
