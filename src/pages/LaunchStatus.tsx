@@ -225,13 +225,13 @@ export default function LaunchStatus() {
     if (fieldPath === 'connections') {
       navigate('/platform-connections');
     } else if (fieldPath === 'step1') {
-      navigate(`/actiplans/${campaignId}?step=1`);
+      navigate(`/actiplans?edit=${campaignId}&step=1`);
     } else if (fieldPath === 'step2') {
-      navigate(`/actiplans/${campaignId}?step=2`);
+      navigate(`/actiplans?edit=${campaignId}&step=2`);
     } else if (fieldPath === 'step3') {
-      navigate(`/actiplans/${campaignId}?step=3`);
+      navigate(`/actiplans?edit=${campaignId}&step=3`);
     } else {
-      navigate(`/actiplans/${campaignId}`);
+      navigate(`/actiplans?edit=${campaignId}`);
     }
   };
 
