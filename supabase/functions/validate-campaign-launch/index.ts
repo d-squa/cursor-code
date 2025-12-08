@@ -420,28 +420,52 @@ const handler = async (req: Request): Promise<Response> => {
       .eq('campaign_id', campaignId);
 
     // Insert new status entries for each entity
-    const statusEntries = result.entities.map(entity => ({
-      campaign_id: campaignId,
-      platform: entity.platform,
-      market: entity.market,
-      phase_name: entity.phase,
-      entity_type: entity.entityType,
-      entity_name: entity.entityName,
-      status: result.valid ? 'ready_for_push' : 'validation_error',
-      error_message: result.errors.find(e => 
-        e.platform === entity.platform && 
-        e.market === entity.market && 
-        e.phase === entity.phase
-      )?.message || null,
-      error_details: result.errors.filter(e => 
-        e.platform === entity.platform && 
-        e.market === entity.market && 
-        e.phase === entity.phase
-      ),
-      planned_budget: entity.plannedBudget,
-      planned_impressions: entity.plannedImpressions,
-      planned_reach: entity.plannedReach,
-    }));
+    const statusEntries = result.entities.map(entity => {
+      // Match errors by platform, market, and phase (handle undefined/null phase)
+      const entityErrors = result.errors.filter(e => {
+        const platformMatch = e.platform === entity.platform;
+        const marketMatch = e.market === entity.market;
+        // Phase matching: handle undefined/null phases
+        const errorPhase = e.phase || 'Default';
+        const entPhase = entity.phase || 'Default';
+        const phaseMatch = errorPhase === entPhase;
+        return platformMatch && marketMatch && phaseMatch;
+      });
+      
+      console.log(`Entity ${entity.entityName}: Found ${entityErrors.length} matching errors`);
+      if (entityErrors.length > 0) {
+        console.log('Matching errors:', JSON.stringify(entityErrors));
+      }
+      
+      // Determine status based on whether THIS entity has errors
+      const hasErrors = entityErrors.length > 0;
+      
+      return {
+        campaign_id: campaignId,
+        platform: entity.platform,
+        market: entity.market,
+        phase_name: entity.phase,
+        entity_type: entity.entityType,
+        entity_name: entity.entityName,
+        status: hasErrors ? 'validation_error' : 'ready_for_push',
+        error_message: hasErrors ? entityErrors[0].message : null,
+        error_details: hasErrors ? entityErrors.map(e => ({
+          message: e.message,
+          field: e.field,
+          fieldPath: e.fieldPath,
+          severity: e.severity
+        })) : [],
+        planned_budget: entity.plannedBudget,
+        planned_impressions: entity.plannedImpressions,
+        planned_reach: entity.plannedReach,
+      };
+    });
+
+    console.log('Status entries to insert:', JSON.stringify(statusEntries.map(s => ({
+      name: s.entity_name,
+      status: s.status,
+      errorCount: s.error_details?.length || 0
+    }))));
 
     if (statusEntries.length > 0) {
       const { error: insertError } = await supabase
