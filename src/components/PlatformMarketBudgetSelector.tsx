@@ -2019,6 +2019,29 @@ export function PlatformMarketBudgetSelector({
                                     metaAdvantagePlusPlacements: market.metaAdvantagePlusPlacements,
                                     tiktokPlacementType: market.tiktokPlacementType,
                                     tiktokPlacements: market.tiktokPlacements,
+                                    // Meta destination defaults
+                                    metaOptimizationLocation: (market as any).metaOptimizationLocation,
+                                    metaAppStore: (market as any).metaAppStore,
+                                    metaAppId: (market as any).metaAppId,
+                                    metaMessagingMode: (market as any).metaMessagingMode,
+                                    metaMessengerEnabled: (market as any).metaMessengerEnabled,
+                                    metaInstagramDmEnabled: (market as any).metaInstagramDmEnabled,
+                                    metaWhatsappEnabled: (market as any).metaWhatsappEnabled,
+                                    metaWhatsappNumber: (market as any).metaWhatsappNumber,
+                                    metaPageId: market.pageId,
+                                    metaInstagramAccountId: (market as any).metaInstagramAccountId || market.instagramActorId,
+                                    metaLandingPageUrl: (market as any).metaLandingPageUrl,
+                                    // TikTok destination defaults
+                                    tiktokOptimizationLocation: (market as any).tiktokOptimizationLocation,
+                                    tiktokAppId: (market as any).tiktokAppId,
+                                    tiktokAppName: (market as any).tiktokAppName,
+                                    tiktokMessagingApp: (market as any).tiktokMessagingApp,
+                                    tiktokFacebookPageId: (market as any).tiktokFacebookPageId,
+                                    tiktokMessageEventSet: (market as any).tiktokMessageEventSet,
+                                    tiktokWhatsappNumber: (market as any).tiktokWhatsappNumber,
+                                    tiktokZaloAccountId: (market as any).tiktokZaloAccountId,
+                                    tiktokLineBusinessId: (market as any).tiktokLineBusinessId,
+                                    tiktokLandingPageUrl: (market as any).tiktokLandingPageUrl,
                                   }}
                                   marketBudget={marketBudget}
                                 />
