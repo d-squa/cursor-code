@@ -486,7 +486,7 @@ export default function LaunchStatus() {
                                         <div className="flex items-start gap-2 flex-1">
                                           <XCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
                                           <div>
-                                            <p className="text-sm text-destructive">{error.message}</p>
+                                            <p className="text-sm text-destructive">{error.message || 'Configuration error'}</p>
                                             {error.field && (
                                               <p className="text-xs text-muted-foreground">Field: {error.field}</p>
                                             )}
@@ -523,9 +523,20 @@ export default function LaunchStatus() {
                                     </Button>
                                   </div>
                                 ) : (
-                                  <div className="flex items-start gap-2">
-                                    <XCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
-                                    <p className="text-sm text-destructive">Validation error - check campaign configuration</p>
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="flex items-start gap-2 flex-1">
+                                      <XCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+                                      <p className="text-sm text-destructive">Validation error - check campaign configuration</p>
+                                    </div>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-7 text-xs shrink-0"
+                                      onClick={() => handleFixIssue('step1')}
+                                    >
+                                      <ExternalLink className="h-3 w-3 mr-1" />
+                                      Fix Issue
+                                    </Button>
                                   </div>
                                 )}
                               </div>
