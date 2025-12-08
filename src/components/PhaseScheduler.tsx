@@ -445,9 +445,6 @@ export function PhaseScheduler({
   }, [phases, adAccountDefaults, platformName]);
 
   // Auto-populate placement defaults from adAccountDefaults when they become available
-  // Use a ref to track which phase IDs have had defaults applied to avoid re-applying
-  const appliedDefaultsRef = useRef<Set<string>>(new Set());
-  
   useEffect(() => {
     if (!adAccountDefaults || phases.length === 0) return;
     
@@ -465,32 +462,26 @@ export function PhaseScheduler({
     const updatedPhases: typeof phases = [];
     let hasUpdates = false;
     
-    for (const phase of phases) {
+    for (let i = 0; i < phases.length; i++) {
+      const phase = phases[i];
+      
       // Check if positions are empty OR if the object exists but has no actual position arrays
       const hasValidPositions = phase.positions && 
                                 typeof phase.positions === 'object' &&
                                 Object.keys(phase.positions).length > 0 &&
                                 Object.values(phase.positions).some(arr => Array.isArray(arr) && arr.length > 0);
       
-      // Only apply defaults if phase doesn't have valid data AND hasn't been processed yet
+      // Only apply defaults if phase doesn't have valid data
       const needsPublisherPlatforms = (!phase.publisherPlatforms || phase.publisherPlatforms.length === 0) && hasDefaultPublishers;
       const needsPositions = !hasValidPositions && hasDefaultPositions;
       const needsAdvantagePlus = phase.advantagePlusPlacements === undefined && hasDefaultAdvantagePlus;
       
-      // Skip if already processed and has all needed data
-      if (appliedDefaultsRef.current.has(phase.id) && !needsPublisherPlatforms && !needsPositions && !needsAdvantagePlus) {
-        updatedPhases.push(phase);
-        continue;
-      }
-      
       if (!needsPublisherPlatforms && !needsPositions && !needsAdvantagePlus) {
-        appliedDefaultsRef.current.add(phase.id);
         updatedPhases.push(phase);
         continue;
       }
       
       hasUpdates = true;
-      appliedDefaultsRef.current.add(phase.id);
       updatedPhases.push({
         ...phase,
         publisherPlatforms: needsPublisherPlatforms ? [...adAccountDefaults.publisherPlatforms] : phase.publisherPlatforms,
@@ -502,7 +493,8 @@ export function PhaseScheduler({
     if (hasUpdates) {
       onPhasesChange(updatedPhases);
     }
-  }, [adAccountDefaults?.publisherPlatforms, adAccountDefaults?.positions, adAccountDefaults?.metaAdvantagePlusPlacements, platformName, phases]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adAccountDefaults?.publisherPlatforms, adAccountDefaults?.positions, adAccountDefaults?.metaAdvantagePlusPlacements, platformName, phases.length]);
 
   const getDefaultObjectiveForFocus = (focus: string, phaseName: string): string => {
     if (focus === "conversions") {
