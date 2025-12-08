@@ -445,6 +445,9 @@ export function PhaseScheduler({
   }, [phases, adAccountDefaults, platformName]);
 
   // Auto-populate placement defaults from adAccountDefaults when they become available
+  // Use a ref to track which phase IDs have had defaults applied to avoid re-applying
+  const appliedDefaultsRef = useRef<Set<string>>(new Set());
+  
   useEffect(() => {
     if (!adAccountDefaults || phases.length === 0) return;
     
@@ -463,28 +466,35 @@ export function PhaseScheduler({
     let hasUpdates = false;
     
     for (const phase of phases) {
-      // Only apply defaults if phase doesn't have custom placements set
-      const needsPublisherPlatforms = (!phase.publisherPlatforms || phase.publisherPlatforms.length === 0) && hasDefaultPublishers;
-      
       // Check if positions are empty OR if the object exists but has no actual position arrays
       const hasValidPositions = phase.positions && 
                                 typeof phase.positions === 'object' &&
                                 Object.keys(phase.positions).length > 0 &&
                                 Object.values(phase.positions).some(arr => Array.isArray(arr) && arr.length > 0);
-      const needsPositions = !hasValidPositions && hasDefaultPositions;
       
+      // Only apply defaults if phase doesn't have valid data AND hasn't been processed yet
+      const needsPublisherPlatforms = (!phase.publisherPlatforms || phase.publisherPlatforms.length === 0) && hasDefaultPublishers;
+      const needsPositions = !hasValidPositions && hasDefaultPositions;
       const needsAdvantagePlus = phase.advantagePlusPlacements === undefined && hasDefaultAdvantagePlus;
       
+      // Skip if already processed and has all needed data
+      if (appliedDefaultsRef.current.has(phase.id) && !needsPublisherPlatforms && !needsPositions && !needsAdvantagePlus) {
+        updatedPhases.push(phase);
+        continue;
+      }
+      
       if (!needsPublisherPlatforms && !needsPositions && !needsAdvantagePlus) {
+        appliedDefaultsRef.current.add(phase.id);
         updatedPhases.push(phase);
         continue;
       }
       
       hasUpdates = true;
+      appliedDefaultsRef.current.add(phase.id);
       updatedPhases.push({
         ...phase,
-        publisherPlatforms: needsPublisherPlatforms ? adAccountDefaults.publisherPlatforms : phase.publisherPlatforms,
-        positions: needsPositions ? { ...adAccountDefaults.positions } : phase.positions,
+        publisherPlatforms: needsPublisherPlatforms ? [...adAccountDefaults.publisherPlatforms] : phase.publisherPlatforms,
+        positions: needsPositions ? JSON.parse(JSON.stringify(adAccountDefaults.positions)) : phase.positions,
         advantagePlusPlacements: needsAdvantagePlus ? adAccountDefaults.metaAdvantagePlusPlacements : phase.advantagePlusPlacements,
       });
     }
@@ -492,7 +502,7 @@ export function PhaseScheduler({
     if (hasUpdates) {
       onPhasesChange(updatedPhases);
     }
-  }, [adAccountDefaults?.publisherPlatforms, adAccountDefaults?.positions, adAccountDefaults?.metaAdvantagePlusPlacements, platformName, phases.length]);
+  }, [adAccountDefaults?.publisherPlatforms, adAccountDefaults?.positions, adAccountDefaults?.metaAdvantagePlusPlacements, platformName, phases]);
 
   const getDefaultObjectiveForFocus = (focus: string, phaseName: string): string => {
     if (focus === "conversions") {
