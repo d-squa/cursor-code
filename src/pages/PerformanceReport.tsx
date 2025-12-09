@@ -22,6 +22,8 @@ import CoverageEvolutionChart from "@/components/dashboard/CoverageEvolutionChar
 import PerformanceTable from "@/components/dashboard/PerformanceTable";
 import PlatformComparisonSection from "@/components/dashboard/PlatformComparisonSection";
 import MarketComparisonSection from "@/components/dashboard/MarketComparisonSection";
+import DimensionBreakdownChart from "@/components/dashboard/DimensionBreakdownChart";
+import MetricComparisonChart from "@/components/dashboard/MetricComparisonChart";
 
 interface Campaign {
   id: string;
@@ -697,6 +699,28 @@ export default function PerformanceReport() {
               />
             </div>
           </div>
+
+          <Separator />
+
+          {/* Performance Breakdowns Section */}
+          <DimensionBreakdownChart data={timeSeriesData} />
+
+          <Separator />
+
+          {/* Cost & Rate Metrics Comparison */}
+          <MetricComparisonChart 
+            data={timeSeriesData} 
+            plannedMetrics={{
+              cpm: metrics.planned.impressions > 0 ? (metrics.planned.budget / metrics.planned.impressions) * 1000 : 0,
+              cpr: metrics.planned.reach > 0 ? (metrics.planned.budget / metrics.planned.reach) * 1000 : 0,
+              sov: 15, // Target 15% SOV
+              frequency: metrics.planned.reach > 0 ? metrics.planned.impressions / metrics.planned.reach : 0,
+              ctr: metrics.planned.impressions > 0 ? (metrics.planned.clicks / metrics.planned.impressions) * 100 : 0,
+              cpc: metrics.planned.clicks > 0 ? metrics.planned.budget / metrics.planned.clicks : 0,
+              costPerResult: metrics.planned.conversions > 0 ? metrics.planned.budget / metrics.planned.conversions : 0,
+              resultRate: metrics.planned.clicks > 0 ? (metrics.planned.conversions / metrics.planned.clicks) * 100 : 0,
+            }}
+          />
 
           <Separator />
 
