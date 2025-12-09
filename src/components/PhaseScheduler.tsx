@@ -1588,14 +1588,7 @@ export function PhaseScheduler({
                           onValueChange={(value) => {
                             const isTikTok = platformName.toLowerCase().includes('tiktok');
                             const isMeta = !isTikTok;
-                            let adjustedObjective = value;
-                            
-                            // TikTok conversion campaigns require 90+ days of pixel data
-                            // Automatically switch to Traffic objective for better success rate
-                            if (isTikTok && (value === "CONVERSIONS" || value === "PRODUCT_SALES")) {
-                              console.warn("⚠️ TikTok conversion objective auto-adjusted to Traffic");
-                              adjustedObjective = "TRAFFIC";
-                            }
+                            const adjustedObjective = value;
                             
                             // Get valid destinations for this objective
                             const platformType = isTikTok ? "tiktok" : "meta";
