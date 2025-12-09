@@ -7,7 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { 
-  Loader2, ArrowLeft, RefreshCw, BarChart3, Download
+  Loader2, ArrowLeft, RefreshCw, BarChart3, Download,
+  Wallet, Eye, Users, MousePointerClick, Target
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { format, startOfWeek, endOfWeek, eachWeekOfInterval, eachMonthOfInterval, startOfMonth, endOfMonth, differenceInDays } from "date-fns";
@@ -569,57 +570,70 @@ export default function PerformanceReport() {
           />
 
           {/* KPI Scorecards */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             <MetricScorecard
               title="Budget / Spend"
               planned={metrics.planned.budget}
               actual={metrics.actual.spend}
               prefix="€"
               invertVariance
+              icon={<Wallet className="h-4 w-4" />}
+              accentColor="green"
             />
             <MetricScorecard
               title="Impressions"
               planned={metrics.planned.impressions}
               actual={metrics.actual.impressions}
+              icon={<Eye className="h-4 w-4" />}
+              accentColor="blue"
             />
             <MetricScorecard
               title="Reach"
               planned={metrics.planned.reach}
               actual={metrics.actual.reach}
+              icon={<Users className="h-4 w-4" />}
+              accentColor="purple"
             />
             <MetricScorecard
               title="Clicks"
               planned={metrics.planned.clicks}
               actual={metrics.actual.clicks}
+              icon={<MousePointerClick className="h-4 w-4" />}
+              accentColor="orange"
             />
             <MetricScorecard
               title="Conversions"
               planned={metrics.planned.conversions}
               actual={metrics.actual.conversions}
+              icon={<Target className="h-4 w-4" />}
+              accentColor="pink"
             />
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex flex-col gap-2">
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Efficiency</span>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>
-                      <span className="text-muted-foreground">CTR</span>
-                      <p className="font-bold">{metrics.actual.ctr.toFixed(2)}%</p>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">CPM</span>
-                      <p className="font-bold">€{metrics.actual.cpm.toFixed(2)}</p>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">CPC</span>
-                      <p className="font-bold">€{metrics.actual.cpc.toFixed(2)}</p>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Freq</span>
-                      <p className="font-bold">{metrics.actual.frequency.toFixed(2)}</p>
-                    </div>
-                  </div>
-                </div>
+          </div>
+
+          {/* Efficiency Metrics Row */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Card className="bg-gradient-to-br from-background to-muted/20 border-none shadow-sm">
+              <CardContent className="p-4 text-center">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">CTR</p>
+                <p className="text-2xl font-bold text-blue-500">{metrics.actual.ctr.toFixed(2)}%</p>
+              </CardContent>
+            </Card>
+            <Card className="bg-gradient-to-br from-background to-muted/20 border-none shadow-sm">
+              <CardContent className="p-4 text-center">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">CPM</p>
+                <p className="text-2xl font-bold text-emerald-500">€{metrics.actual.cpm.toFixed(2)}</p>
+              </CardContent>
+            </Card>
+            <Card className="bg-gradient-to-br from-background to-muted/20 border-none shadow-sm">
+              <CardContent className="p-4 text-center">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">CPC</p>
+                <p className="text-2xl font-bold text-purple-500">€{metrics.actual.cpc.toFixed(2)}</p>
+              </CardContent>
+            </Card>
+            <Card className="bg-gradient-to-br from-background to-muted/20 border-none shadow-sm">
+              <CardContent className="p-4 text-center">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Frequency</p>
+                <p className="text-2xl font-bold text-orange-500">{metrics.actual.frequency.toFixed(2)}</p>
               </CardContent>
             </Card>
           </div>
