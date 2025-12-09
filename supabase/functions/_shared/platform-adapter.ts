@@ -568,8 +568,12 @@ class TikTokAdapter implements PlatformAdapter {
       // Current unified targeting IDs (e.g., "2010", "28101") are not recognized by TikTok API
       
       // Add optional TikTok fields from matrix
-      if (params.clickWindow) body.conversion_window = { click_window: params.clickWindow };
-      if (params.viewWindow) body.conversion_window = { ...body.conversion_window, view_window: params.viewWindow };
+      // TikTok conversion_window expects integer (number of days), not an object
+      // Use click_window as the primary value, defaults to 7 days
+      if (params.clickWindow || params.viewWindow) {
+        body.conversion_window = params.clickWindow || params.viewWindow || 7;
+        console.log(`✅ Conversion window configured: ${body.conversion_window} days`);
+      }
       
       // Frequency cap - always pass if value exists (required for REACH campaigns)
       if (params.frequencySchedule) {
