@@ -568,11 +568,28 @@ class TikTokAdapter implements PlatformAdapter {
       // Current unified targeting IDs (e.g., "2010", "28101") are not recognized by TikTok API
       
       // Add optional TikTok fields from matrix
-      // TikTok conversion_window expects integer (number of days), not an object
-      // Use click_window as the primary value, defaults to 7 days
+      // TikTok conversion_window expects specific enum values, not integers
+      // Valid values: SEVEN_DAY_CLICK_OR_ONE_DAY_VIEW, ONE_DAY_VIEW, ONE_DAY_CLICK, ONE_DAY_CLICK_OR_ONE_DAY_VIEW, SEVEN_DAY_CLICK
       if (params.clickWindow || params.viewWindow) {
-        body.conversion_window = params.clickWindow || params.viewWindow || 7;
-        console.log(`✅ Conversion window configured: ${body.conversion_window} days`);
+        const clickDays = params.clickWindow || 7;
+        const viewDays = params.viewWindow || 1;
+        
+        // Map to TikTok enum values
+        let conversionWindow = 'SEVEN_DAY_CLICK_OR_ONE_DAY_VIEW'; // Default
+        if (clickDays === 7 && viewDays === 1) {
+          conversionWindow = 'SEVEN_DAY_CLICK_OR_ONE_DAY_VIEW';
+        } else if (clickDays === 1 && viewDays === 1) {
+          conversionWindow = 'ONE_DAY_CLICK_OR_ONE_DAY_VIEW';
+        } else if (clickDays === 7 && !params.viewWindow) {
+          conversionWindow = 'SEVEN_DAY_CLICK';
+        } else if (clickDays === 1 && !params.viewWindow) {
+          conversionWindow = 'ONE_DAY_CLICK';
+        } else if (!params.clickWindow && viewDays === 1) {
+          conversionWindow = 'ONE_DAY_VIEW';
+        }
+        
+        body.conversion_window = conversionWindow;
+        console.log(`✅ Conversion window configured: ${conversionWindow} (click: ${clickDays}, view: ${viewDays})`);
       }
       
       // Frequency cap - always pass if value exists (required for REACH campaigns)
