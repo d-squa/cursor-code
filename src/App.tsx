@@ -10,6 +10,7 @@ import Teams from "./pages/Teams";
 import Settings from "./pages/Settings";
 import ActiPlans from "./pages/ActiPlans";
 import Performance from "./pages/Performance";
+import PerformanceReport from "./pages/PerformanceReport";
 import AcceptInvitation from "./pages/AcceptInvitation";
 import Clients from "./pages/Clients";
 import UserManagement from "./pages/settings/UserManagement";
@@ -34,6 +35,7 @@ const App = () => (
             <Route path="/accept-invitation" element={<AcceptInvitation />} />
             <Route path="/actiplans" element={<ActiPlans />} />
             <Route path="/actiplans/:campaignId/launch" element={<LaunchStatus />} />
+            <Route path="/actiplans/:campaignId/report" element={<PerformanceReport />} />
             <Route path="/performance/:id" element={<Performance />} />
             <Route path="/performance" element={<Performance />} />
             <Route path="/clients" element={<Clients />} />

@@ -614,15 +614,14 @@ export default function ActiPlans() {
                   </>
                 )}
 
-                {campaign.status === "live" && (
+                {["pushed_to_dsp", "live"].includes(campaign.status || "") && (
                   <>
                     {(canEdit(campaign) || canApprove(campaign) || canPushToDSP(campaign)) && <DropdownMenuSeparator />}
                     <DropdownMenuItem onClick={() => {
-                      const platform = campaign.platforms?.[0]?.type || campaign.platforms?.[0]?.name || "";
-                      window.location.href = `/performance?campaignId=${campaign.id}&platform=${platform}`;
+                      navigate(`/actiplans/${campaign.id}/report`);
                     }}>
-                      <TrendingUp className="w-4 h-4 mr-2" />
-                      View Dashboard
+                      <BarChart3 className="w-4 h-4 mr-2" />
+                      Performance Report
                     </DropdownMenuItem>
                   </>
                 )}
