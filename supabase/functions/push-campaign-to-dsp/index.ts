@@ -291,10 +291,13 @@ async function generateTaxonomyName(
 async function updateLaunchStatuses(
   supabase: any,
   campaignId: string,
-  platform: string,
+  platformInput: string,
   result: any,
   markets: any[]
 ): Promise<void> {
+  // Normalize platform name to match database storage (Tiktok, Meta)
+  const platform = platformInput.toLowerCase() === 'tiktok' ? 'Tiktok' : 
+                   platformInput.toLowerCase() === 'meta' ? 'Meta' : platformInput;
   try {
     const successResults = result.results || [];
     const errorResults = result.errors || [];
