@@ -268,8 +268,18 @@ async function generateTaxonomyName(
     const mergedValues = { ...extractedValues, ...customValues };
     const taxonomyString = generateTaxonomyString(template, mergedValues);
     
-    console.log(`📋 Generated ${entityType} taxonomy: ${taxonomyString}`);
-    return taxonomyString;
+    // Append unique timestamp suffix (YYMMDDHHMMSS) to ensure uniqueness
+    const now = new Date();
+    const uniqueSuffix = now.getFullYear().toString().slice(-2) +
+      String(now.getMonth() + 1).padStart(2, '0') +
+      String(now.getDate()).padStart(2, '0') +
+      String(now.getHours()).padStart(2, '0') +
+      String(now.getMinutes()).padStart(2, '0') +
+      String(now.getSeconds()).padStart(2, '0');
+    const finalTaxonomyString = `${taxonomyString}_${uniqueSuffix}`;
+    
+    console.log(`📋 Generated ${entityType} taxonomy: ${finalTaxonomyString}`);
+    return finalTaxonomyString;
   } catch (err) {
     console.error(`Error generating taxonomy name:`, err);
     return null;
