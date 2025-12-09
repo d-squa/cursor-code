@@ -132,6 +132,28 @@ export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: Tiktok
     if (!phase.tiktokAppName && adAccountDefaults.tiktokAppName) {
       onUpdate("tiktokAppName", adAccountDefaults.tiktokAppName);
     }
+    // Auto-populate optimization location sub-fields from defaults
+    if (!phase.tiktokLandingPageUrl && adAccountDefaults.tiktokLandingPageUrl) {
+      onUpdate("tiktokLandingPageUrl", adAccountDefaults.tiktokLandingPageUrl);
+    }
+    if (!phase.tiktokMessagingApp && adAccountDefaults.tiktokMessagingApp) {
+      onUpdate("tiktokMessagingApp", adAccountDefaults.tiktokMessagingApp);
+    }
+    if (!phase.tiktokFacebookPageId && adAccountDefaults.tiktokFacebookPageId) {
+      onUpdate("tiktokFacebookPageId", adAccountDefaults.tiktokFacebookPageId);
+    }
+    if (!phase.tiktokMessageEventSet && adAccountDefaults.tiktokMessageEventSet) {
+      onUpdate("tiktokMessageEventSet", adAccountDefaults.tiktokMessageEventSet);
+    }
+    if (!phase.tiktokWhatsappNumber && adAccountDefaults.tiktokWhatsappNumber) {
+      onUpdate("tiktokWhatsappNumber", adAccountDefaults.tiktokWhatsappNumber);
+    }
+    if (!phase.tiktokZaloAccountId && adAccountDefaults.tiktokZaloAccountId) {
+      onUpdate("tiktokZaloAccountId", adAccountDefaults.tiktokZaloAccountId);
+    }
+    if (!phase.tiktokLineBusinessId && adAccountDefaults.tiktokLineBusinessId) {
+      onUpdate("tiktokLineBusinessId", adAccountDefaults.tiktokLineBusinessId);
+    }
   }, [adAccountDefaults, phase.id, objective, optimizationGoal, showOptimizationLocation]);
 
   console.log("🎯 TikTok Phase Config - Objective:", objective, "OptGoal:", optimizationGoal);
@@ -223,26 +245,230 @@ export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: Tiktok
       <CardContent className="space-y-4">
         {/* Optimization Location */}
         {showOptimizationLocation && validLocations.length > 0 && (
-          <div className="space-y-2">
-            <Label>Optimization Location</Label>
-            <Select
-              value={phase.tiktokOptimizationLocation || undefined}
-              onValueChange={(value) => onUpdate("tiktokOptimizationLocation", value)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select location" />
-              </SelectTrigger>
-              <SelectContent>
-                {validLocations.map((loc) => (
-                  <SelectItem key={loc.value} value={loc.value}>
-                    {loc.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-muted-foreground">
-              Available locations depend on your objective and optimization goal
-            </p>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Optimization Location</Label>
+              <Select
+                value={phase.tiktokOptimizationLocation || undefined}
+                onValueChange={(value) => onUpdate("tiktokOptimizationLocation", value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select location" />
+                </SelectTrigger>
+                <SelectContent>
+                  {validLocations.map((loc) => (
+                    <SelectItem key={loc.value} value={loc.value}>
+                      {loc.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Available locations depend on your objective and optimization goal
+              </p>
+            </div>
+
+            {/* Website sub-fields */}
+            {phase.tiktokOptimizationLocation === "Website" && (
+              <div className="space-y-3 pl-4 border-l-2 border-muted">
+                <div className="space-y-2">
+                  <Label>Landing Page URL</Label>
+                  <Input
+                    placeholder="https://example.com/landing-page"
+                    value={phase.tiktokLandingPageUrl || ""}
+                    onChange={(e) => onUpdate("tiktokLandingPageUrl", e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* TikTok Instant Page sub-fields */}
+            {phase.tiktokOptimizationLocation === "TikTok Instant Page" && (
+              <div className="space-y-3 pl-4 border-l-2 border-muted">
+                <div className="space-y-2">
+                  <Label>TikTok Instant Page URL</Label>
+                  <Input
+                    placeholder="TikTok Instant Page URL"
+                    value={phase.tiktokLandingPageUrl || ""}
+                    onChange={(e) => onUpdate("tiktokLandingPageUrl", e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* TikTok Shop sub-fields */}
+            {phase.tiktokOptimizationLocation === "TikTok Shop" && (
+              <div className="space-y-3 pl-4 border-l-2 border-muted">
+                <Alert>
+                  <Info className="h-4 w-4" />
+                  <AlertDescription className="text-xs">
+                    TikTok Shop campaigns use your linked TikTok Shop account.
+                  </AlertDescription>
+                </Alert>
+              </div>
+            )}
+
+            {/* TikTok Direct Messages sub-fields */}
+            {phase.tiktokOptimizationLocation === "TikTok Direct Messages" && (
+              <div className="space-y-3 pl-4 border-l-2 border-muted">
+                <div className="space-y-2">
+                  <Label>TikTok Identity ID</Label>
+                  <Input
+                    placeholder="Identity ID for messaging"
+                    value={phase.tiktokIdentityId || ""}
+                    onChange={(e) => onUpdate("tiktokIdentityId", e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    The TikTok identity to receive direct messages
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Instant Messaging Apps sub-fields */}
+            {phase.tiktokOptimizationLocation === "Instant Messaging Apps" && (
+              <div className="space-y-3 pl-4 border-l-2 border-muted">
+                <div className="space-y-2">
+                  <Label>Messaging App</Label>
+                  <Select
+                    value={phase.tiktokMessagingApp || undefined}
+                    onValueChange={(value) => onUpdate("tiktokMessagingApp", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select messaging app" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="WHATSAPP">WhatsApp</SelectItem>
+                      <SelectItem value="MESSENGER">Facebook Messenger</SelectItem>
+                      <SelectItem value="LINE">LINE</SelectItem>
+                      <SelectItem value="ZALO">Zalo</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* WhatsApp fields */}
+                {phase.tiktokMessagingApp === "WHATSAPP" && (
+                  <div className="space-y-2">
+                    <Label>WhatsApp Business Number</Label>
+                    <Input
+                      placeholder="+1234567890"
+                      value={phase.tiktokWhatsappNumber || ""}
+                      onChange={(e) => onUpdate("tiktokWhatsappNumber", e.target.value)}
+                    />
+                  </div>
+                )}
+
+                {/* Messenger fields */}
+                {phase.tiktokMessagingApp === "MESSENGER" && (
+                  <div className="space-y-2">
+                    <Label>Facebook Page ID</Label>
+                    <Input
+                      placeholder="Facebook Page ID"
+                      value={phase.tiktokFacebookPageId || ""}
+                      onChange={(e) => onUpdate("tiktokFacebookPageId", e.target.value)}
+                    />
+                  </div>
+                )}
+
+                {/* LINE fields */}
+                {phase.tiktokMessagingApp === "LINE" && (
+                  <div className="space-y-2">
+                    <Label>LINE Business ID</Label>
+                    <Input
+                      placeholder="LINE Business Account ID"
+                      value={phase.tiktokLineBusinessId || ""}
+                      onChange={(e) => onUpdate("tiktokLineBusinessId", e.target.value)}
+                    />
+                  </div>
+                )}
+
+                {/* Zalo fields */}
+                {phase.tiktokMessagingApp === "ZALO" && (
+                  <div className="space-y-2">
+                    <Label>Zalo Account ID</Label>
+                    <Input
+                      placeholder="Zalo Account ID"
+                      value={phase.tiktokZaloAccountId || ""}
+                      onChange={(e) => onUpdate("tiktokZaloAccountId", e.target.value)}
+                    />
+                  </div>
+                )}
+
+                {/* Message Event Set - shown for all messaging apps */}
+                <div className="space-y-2">
+                  <Label>Message Event Set (Optional)</Label>
+                  <Input
+                    placeholder="Message Event Set ID"
+                    value={phase.tiktokMessageEventSet || ""}
+                    onChange={(e) => onUpdate("tiktokMessageEventSet", e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    For tracking messaging conversions
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Phone Call sub-fields */}
+            {phase.tiktokOptimizationLocation === "Phone Call" && (
+              <div className="space-y-3 pl-4 border-l-2 border-muted">
+                <div className="space-y-2">
+                  <Label>Phone Number</Label>
+                  <Input
+                    placeholder="+1234567890"
+                    value={phase.tiktokPhoneNumber || ""}
+                    onChange={(e) => onUpdate("tiktokPhoneNumber", e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    The phone number users will call
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Instant Form sub-fields */}
+            {phase.tiktokOptimizationLocation === "Instant Form" && (
+              <div className="space-y-3 pl-4 border-l-2 border-muted">
+                <Alert>
+                  <Info className="h-4 w-4" />
+                  <AlertDescription className="text-xs">
+                    Instant Forms are created and managed in TikTok Ads Manager. You'll select or create a form during ad creative setup.
+                  </AlertDescription>
+                </Alert>
+              </div>
+            )}
+
+            {/* Website & App sub-fields */}
+            {phase.tiktokOptimizationLocation === "Website & App" && (
+              <div className="space-y-3 pl-4 border-l-2 border-muted">
+                <div className="space-y-2">
+                  <Label>Landing Page URL</Label>
+                  <Input
+                    placeholder="https://example.com/landing-page"
+                    value={phase.tiktokLandingPageUrl || ""}
+                    onChange={(e) => onUpdate("tiktokLandingPageUrl", e.target.value)}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>App Name</Label>
+                    <Input
+                      placeholder="e.g., My App"
+                      value={phase.tiktokAppName || ""}
+                      onChange={(e) => onUpdate("tiktokAppName", e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>App ID</Label>
+                    <Input
+                      placeholder="App identifier"
+                      value={phase.tiktokAppId || ""}
+                      onChange={(e) => onUpdate("tiktokAppId", e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
         

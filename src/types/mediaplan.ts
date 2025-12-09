@@ -137,6 +137,9 @@ export interface Phase {
   tiktokZaloAccountId?: string; // Zalo Official Account ID
   tiktokLineBusinessId?: string; // LINE Business ID
   tiktokBillingEvent?: string; // TikTok billing event (OCPM, CPC, CPV, CPM)
+  tiktokLandingPageUrl?: string; // TikTok Landing Page URL for Website destination
+  tiktokIdentityId?: string; // TikTok Identity ID for Direct Messages
+  tiktokPhoneNumber?: string; // Phone number for Phone Call destination
   // Meta-specific fields at phase level
   metaBillingEvent?: string; // IMPRESSIONS, LINK_CLICKS, POST_ENGAGEMENT, etc.
   metaLandingPageUrl?: string; // Default landing page URL
