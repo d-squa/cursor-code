@@ -35,6 +35,12 @@ interface Platform {
 interface Market {
   id: string;
   name: string;
+  code?: string;
+}
+
+interface Phase {
+  id: string;
+  name: string;
 }
 
 export function ModificationRequestDialog({
@@ -54,7 +60,10 @@ export function ModificationRequestDialog({
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [platforms, setPlatforms] = useState<Platform[]>([]);
   const [selectedPlatform, setSelectedPlatform] = useState("");
-  const [selectedMarket, setSelectedMarket] = useState("");
+  const [selectedMarkets, setSelectedMarkets] = useState<string[]>([]);
+  const [selectedPhases, setSelectedPhases] = useState<string[]>([]);
+  const [availableMarkets, setAvailableMarkets] = useState<Market[]>([]);
+  const [availablePhases, setAvailablePhases] = useState<Phase[]>([]);
 
   useEffect(() => {
     if (open) {
@@ -72,12 +81,60 @@ export function ModificationRequestDialog({
         .single();
 
       if (campaign && Array.isArray(campaign.platforms)) {
-        setPlatforms(campaign.platforms as unknown as Platform[]);
+        const platformsData = campaign.platforms as unknown as Platform[];
+        setPlatforms(platformsData);
       }
     } catch (error) {
       console.error("Error loading campaign details:", error);
     }
   };
+
+  // Update available markets and phases when platform changes
+  useEffect(() => {
+    if (selectedPlatform && selectedPlatform !== "_none") {
+      const platform = platforms.find(
+        (p) => p.name === selectedPlatform || p.type === selectedPlatform
+      ) as any;
+      
+      if (platform) {
+        // Extract markets from platform
+        const markets: Market[] = [];
+        const phases: Phase[] = [];
+        
+        if (platform.markets && Array.isArray(platform.markets)) {
+          platform.markets.forEach((market: any) => {
+            markets.push({
+              id: market.id || market.code || market.name,
+              name: market.name || market.code,
+              code: market.code,
+            });
+            
+            // Extract phases from market
+            if (market.phases && Array.isArray(market.phases)) {
+              market.phases.forEach((phase: any) => {
+                // Avoid duplicates
+                if (!phases.find((p) => p.name === phase.name)) {
+                  phases.push({
+                    id: phase.id || phase.name,
+                    name: phase.name,
+                  });
+                }
+              });
+            }
+          });
+        }
+        
+        setAvailableMarkets(markets);
+        setAvailablePhases(phases);
+      }
+    } else {
+      setAvailableMarkets([]);
+      setAvailablePhases([]);
+    }
+    // Clear selections when platform changes
+    setSelectedMarkets([]);
+    setSelectedPhases([]);
+  }, [selectedPlatform, platforms]);
 
   const loadTeamMembers = async () => {
     setLoadingMembers(true);
@@ -158,8 +215,11 @@ export function ModificationRequestDialog({
       if (selectedPlatform && selectedPlatform !== "_none") {
         fullDescription = `Platform: ${selectedPlatform}\n${fullDescription}`;
       }
-      if (selectedMarket) {
-        fullDescription = `Market/Campaign: ${selectedMarket}\n${fullDescription}`;
+      if (selectedMarkets.length > 0) {
+        fullDescription = `Markets: ${selectedMarkets.join(", ")}\n${fullDescription}`;
+      }
+      if (selectedPhases.length > 0) {
+        fullDescription = `Phases: ${selectedPhases.join(", ")}\n${fullDescription}`;
       }
 
       // Create modification request
@@ -210,7 +270,8 @@ export function ModificationRequestDialog({
       setChangeType("");
       setDescription("");
       setSelectedPlatform("");
-      setSelectedMarket("");
+      setSelectedMarkets([]);
+      setSelectedPhases([]);
       setNotifyType("all");
       setSelectedMembers([]);
       onSuccess();
@@ -270,14 +331,59 @@ export function ModificationRequestDialog({
             </div>
           )}
 
-          <div className="space-y-2">
-            <Label>Market/Campaign (Optional)</Label>
-            <Input
-              placeholder="e.g., US Market, Brand Awareness Campaign"
-              value={selectedMarket}
-              onChange={(e) => setSelectedMarket(e.target.value)}
-            />
-          </div>
+          {/* Markets multi-select */}
+          {selectedPlatform && selectedPlatform !== "_none" && availableMarkets.length > 0 && (
+            <div className="space-y-2">
+              <Label>Markets (Optional)</Label>
+              <div className="border rounded-md p-3 max-h-32 overflow-y-auto bg-background">
+                {availableMarkets.map((market) => (
+                  <div key={market.id} className="flex items-center space-x-2 py-1">
+                    <Checkbox
+                      id={`market-${market.id}`}
+                      checked={selectedMarkets.includes(market.name)}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setSelectedMarkets((prev) => [...prev, market.name]);
+                        } else {
+                          setSelectedMarkets((prev) => prev.filter((m) => m !== market.name));
+                        }
+                      }}
+                    />
+                    <Label htmlFor={`market-${market.id}`} className="text-sm font-normal cursor-pointer">
+                      {market.name}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Phases multi-select */}
+          {selectedPlatform && selectedPlatform !== "_none" && availablePhases.length > 0 && (
+            <div className="space-y-2">
+              <Label>Phases (Optional)</Label>
+              <div className="border rounded-md p-3 max-h-32 overflow-y-auto bg-background">
+                {availablePhases.map((phase) => (
+                  <div key={phase.id} className="flex items-center space-x-2 py-1">
+                    <Checkbox
+                      id={`phase-${phase.id}`}
+                      checked={selectedPhases.includes(phase.name)}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setSelectedPhases((prev) => [...prev, phase.name]);
+                        } else {
+                          setSelectedPhases((prev) => prev.filter((p) => p !== phase.name));
+                        }
+                      }}
+                    />
+                    <Label htmlFor={`phase-${phase.id}`} className="text-sm font-normal cursor-pointer">
+                      {phase.name}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label>Description</Label>
