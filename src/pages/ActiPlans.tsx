@@ -567,7 +567,7 @@ export default function ActiPlans() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                {canEdit(campaign) && (
+                {canEdit(campaign) && campaign.status !== "pushed_to_dsp" && (
                   <DropdownMenuItem onClick={() => window.location.href = `/?campaignId=${campaign.id}`}>
                     <Edit className="w-4 h-4 mr-2" />
                     Edit ActiPlan
