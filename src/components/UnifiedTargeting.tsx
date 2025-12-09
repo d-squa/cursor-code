@@ -50,8 +50,11 @@ export function UnifiedTargeting({ targeting, onUpdate, metaAdAccountId, tiktokA
   const [searching, setSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<UnifiedTargetingItem[]>([]);
 
+  // Ensure selectedItems is always an array
+  const selectedItems = Array.isArray(targeting.selectedItems) ? targeting.selectedItems : [];
+
   const updateField = (field: keyof UnifiedTargetingConfig, value: any) => {
-    const updated = { ...targeting, [field]: value };
+    const updated = { ...targeting, selectedItems, [field]: value };
     onUpdate(updated);
     // Persist immediately to localStorage
     localStorage.setItem('basicTargeting', JSON.stringify(updated));
@@ -96,15 +99,16 @@ export function UnifiedTargeting({ targeting, onUpdate, metaAdAccountId, tiktokA
   };
 
   const handleAddItem = (item: UnifiedTargetingItem) => {
-    const alreadySelected = targeting.selectedItems.some(i => i.id === item.id);
+    const alreadySelected = selectedItems.some(i => i.id === item.id);
     if (alreadySelected) {
       toast.info('Already selected');
       return;
     }
 
+    const newSelectedItems = [...selectedItems, item];
     const updated = {
       ...targeting,
-      selectedItems: [...targeting.selectedItems, item]
+      selectedItems: newSelectedItems
     };
     onUpdate(updated);
     // Persist immediately to localStorage
@@ -112,10 +116,33 @@ export function UnifiedTargeting({ targeting, onUpdate, metaAdAccountId, tiktokA
     toast.success(`Added: ${item.name}`);
   };
 
-  const handleRemoveItem = (itemId: string) => {
+  const handleAddAll = () => {
+    // Filter out items that are already selected
+    const newItems = searchResults.filter(
+      result => !selectedItems.some(selected => selected.id === result.id)
+    );
+    
+    if (newItems.length === 0) {
+      toast.info('All items already selected');
+      return;
+    }
+
+    const newSelectedItems = [...selectedItems, ...newItems];
     const updated = {
       ...targeting,
-      selectedItems: targeting.selectedItems.filter(i => i.id !== itemId)
+      selectedItems: newSelectedItems
+    };
+    onUpdate(updated);
+    // Persist immediately to localStorage
+    localStorage.setItem('basicTargeting', JSON.stringify(updated));
+    toast.success(`Added ${newItems.length} targeting options`);
+  };
+
+  const handleRemoveItem = (itemId: string) => {
+    const newSelectedItems = selectedItems.filter(i => i.id !== itemId);
+    const updated = {
+      ...targeting,
+      selectedItems: newSelectedItems
     };
     onUpdate(updated);
     // Persist immediately to localStorage
@@ -227,47 +254,64 @@ export function UnifiedTargeting({ targeting, onUpdate, metaAdAccountId, tiktokA
           </div>
 
           {searchResults.length > 0 && (
-            <ScrollArea className="h-[300px] rounded-md border p-4">
-              <div className="space-y-2">
-                {searchResults.map((result) => (
-                  <div
-                    key={result.id}
-                    className="flex items-start justify-between p-3 rounded-lg border hover:bg-accent cursor-pointer transition-colors"
-                    onClick={() => handleAddItem(result)}
-                  >
-                    <div className="flex-1">
-                      <div className="flex items-center">
-                        <span className="font-medium">{result.name}</span>
-                        {getPlatformBadge(result.platforms)}
-                        <Badge variant="outline" className="ml-2 text-xs">
-                          {result.category}
-                        </Badge>
-                      </div>
-                      {result.description && (
-                        <p className="text-sm text-muted-foreground mt-1">{result.description}</p>
-                      )}
-                    </div>
-                    <Button variant="ghost" size="sm">Add</Button>
-                  </div>
-                ))}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">{searchResults.length} results found</span>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleAddAll}
+                >
+                  Add all ({searchResults.filter(r => !selectedItems.some(s => s.id === r.id)).length})
+                </Button>
               </div>
-            </ScrollArea>
+              <ScrollArea className="h-[300px] rounded-md border p-4">
+                <div className="space-y-2">
+                  {searchResults.map((result) => {
+                    const isSelected = selectedItems.some(s => s.id === result.id);
+                    return (
+                      <div
+                        key={result.id}
+                        className={`flex items-start justify-between p-3 rounded-lg border hover:bg-accent cursor-pointer transition-colors ${isSelected ? 'bg-accent/50 opacity-60' : ''}`}
+                        onClick={() => !isSelected && handleAddItem(result)}
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center">
+                            <span className="font-medium">{result.name}</span>
+                            {getPlatformBadge(result.platforms)}
+                            <Badge variant="outline" className="ml-2 text-xs">
+                              {result.category}
+                            </Badge>
+                          </div>
+                          {result.description && (
+                            <p className="text-sm text-muted-foreground mt-1">{result.description}</p>
+                          )}
+                        </div>
+                        <Button variant="ghost" size="sm" disabled={isSelected}>
+                          {isSelected ? 'Added' : 'Add'}
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+            </div>
           )}
         </CardContent>
       </Card>
 
       {/* Selected Items */}
-      {targeting.selectedItems.length > 0 && (
+      {selectedItems.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <CheckCircle2 className="h-5 w-5 text-green-600" />
-              Selected Targeting ({targeting.selectedItems.length})
+              Selected Targeting ({selectedItems.length})
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {targeting.selectedItems.map((item) => (
+              {selectedItems.map((item) => (
                 <div
                   key={item.id}
                   className="flex items-center justify-between p-3 rounded-lg border bg-accent/50"
