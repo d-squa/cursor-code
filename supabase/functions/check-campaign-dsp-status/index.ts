@@ -48,18 +48,51 @@ const handler = async (req: Request): Promise<Response> => {
 
     const { campaignId } = await req.json();
 
-    // Get launch status entries with DSP IDs
+    // Get launch status entries with DSP IDs OR stuck in pushing state
     const { data: launchStatuses, error: statusError } = await supabase
       .from('campaign_launch_status')
       .select('*')
-      .eq('campaign_id', campaignId)
-      .not('dsp_entity_id', 'is', null);
+      .eq('campaign_id', campaignId);
 
     if (statusError) throw statusError;
 
-    if (!launchStatuses || launchStatuses.length === 0) {
+    // Log all statuses for debugging
+    console.log(`All launch statuses for campaign ${campaignId}:`, launchStatuses?.map((s: any) => ({
+      platform: s.platform,
+      status: s.status,
+      dsp_entity_id: s.dsp_entity_id,
+      entity_type: s.entity_type
+    })));
+
+    // Filter to those with DSP IDs (can check status)
+    const statusesToCheck = launchStatuses?.filter((s: any) => s.dsp_entity_id != null) || [];
+    
+    // Check for stuck "pushing" statuses (indicates push didn't complete properly)
+    const stuckPushing = launchStatuses?.filter((s: any) => s.status === 'pushing' && s.dsp_entity_id == null) || [];
+    if (stuckPushing.length > 0) {
+      console.warn(`Found ${stuckPushing.length} entities stuck in 'pushing' state without dsp_entity_id - these may have failed silently`);
+      // Update stuck entities to push_failed so they can be retried
+      await supabase
+        .from('campaign_launch_status')
+        .update({
+          status: 'push_failed',
+          error_message: 'Push did not complete - status update may have failed. Please retry.',
+          updated_at: new Date().toISOString()
+        })
+        .eq('campaign_id', campaignId)
+        .eq('status', 'pushing')
+        .is('dsp_entity_id', null);
+    }
+
+    if (statusesToCheck.length === 0) {
       return new Response(
-        JSON.stringify({ message: 'No DSP entities to check', results: [] }),
+        JSON.stringify({ 
+          message: stuckPushing.length > 0 
+            ? `${stuckPushing.length} entities were stuck and marked for retry. No DSP entities to check.` 
+            : 'No DSP entities to check', 
+          results: [],
+          stuckFixed: stuckPushing.length
+        }),
         { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
@@ -88,9 +121,9 @@ const handler = async (req: Request): Promise<Response> => {
     const results: DspStatusResult[] = [];
     const updates: { id: string; status: string; dsp_status: string }[] = [];
 
-    // Group by platform to batch API calls
-    const metaEntities = launchStatuses.filter(s => s.platform.toLowerCase().includes('meta'));
-    const tiktokEntities = launchStatuses.filter(s => s.platform.toLowerCase().includes('tiktok'));
+    // Group by platform to batch API calls (use filtered list with DSP IDs)
+    const metaEntities = statusesToCheck.filter((s: any) => s.platform.toLowerCase().includes('meta'));
+    const tiktokEntities = statusesToCheck.filter((s: any) => s.platform.toLowerCase().includes('tiktok'));
 
     // Check Meta campaign statuses
     const metaPlatform = platforms?.find(p => p.platform_type === 'meta');
