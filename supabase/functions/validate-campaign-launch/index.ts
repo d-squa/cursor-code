@@ -460,14 +460,42 @@ const handler = async (req: Request): Promise<Response> => {
 
     result.valid = result.errors.length === 0;
 
-    // Clear any existing launch status and create new entries
+    // Get existing launch statuses to preserve pushed_to_dsp entities
+    const { data: existingStatuses } = await supabase
+      .from('campaign_launch_status')
+      .select('id, platform, market, phase_name, status, dsp_entity_id')
+      .eq('campaign_id', campaignId);
+    
+    // Create a map of already-pushed entities (entities with dsp_entity_id should be preserved)
+    const pushedEntitiesMap = new Map<string, { id: string; status: string; dsp_entity_id: string }>();
+    for (const status of (existingStatuses || [])) {
+      // Only preserve entities that are successfully pushed (have DSP ID)
+      if (status.dsp_entity_id && ['pushed_to_dsp', 'live'].includes(status.status)) {
+        const key = `${status.platform}|${status.market}|${status.phase_name || 'Default'}`;
+        pushedEntitiesMap.set(key, { 
+          id: status.id, 
+          status: status.status, 
+          dsp_entity_id: status.dsp_entity_id 
+        });
+      }
+    }
+    
+    console.log(`Preserving ${pushedEntitiesMap.size} already-pushed entities`);
+
+    // Only delete non-pushed entities (validation_error, ready_for_push, push_failed, pushing)
     await supabase
       .from('campaign_launch_status')
       .delete()
-      .eq('campaign_id', campaignId);
+      .eq('campaign_id', campaignId)
+      .not('status', 'in', '("pushed_to_dsp","live")');
 
-    // Insert new status entries for each entity
-    const statusEntries = result.entities.map(entity => {
+    // Insert new status entries only for entities NOT already pushed
+    const statusEntries = result.entities
+      .filter(entity => {
+        const key = `${entity.platform}|${entity.market}|${entity.phase || 'Default'}`;
+        return !pushedEntitiesMap.has(key);
+      })
+      .map(entity => {
       // Match errors by platform, market, and phase (handle undefined/null phase)
       const entityErrors = result.errors.filter(e => {
         const platformMatch = e.platform === entity.platform;
