@@ -28,8 +28,10 @@ interface ValidationResult {
     entityType: 'campaign' | 'adset' | 'ad_group';
     entityName: string;
     plannedBudget: number;
-    plannedImpressions?: number;
-    plannedReach?: number;
+    plannedImpressions?: number | null;
+    plannedReach?: number | null;
+    plannedClicks?: number | null;
+    plannedConversions?: number | null;
   }[];
 }
 
@@ -405,8 +407,35 @@ const handler = async (req: Request): Promise<Response> => {
           result.warnings.push(...validationErrors.filter(e => e.severity === 'warning'));
           
           // Calculate planned metrics from forecast if available
-          const forecastData = campaign.forecast_data?.actiplanForecast || {};
-          const platformForecast = forecastData[platformId] || {};
+          // Structure: forecast_data.actiplanForecast.platforms[].markets[].phases[]
+          const actiplanForecast = campaign.forecast_data?.actiplanForecast || {};
+          const platformForecasts = actiplanForecast.platforms || [];
+          
+          // Find the matching platform forecast
+          const platformForecast = platformForecasts.find((pf: any) => 
+            pf.platformName?.toLowerCase().includes(platformName.toLowerCase()) ||
+            pf.platformId === platformId
+          );
+          
+          // Find the matching market within the platform
+          const marketForecast = platformForecast?.markets?.find((mf: any) => 
+            mf.marketName === entityMarketName || mf.market === entityMarketName
+          );
+          
+          // Find the matching phase within the market
+          const phaseForecast = marketForecast?.phases?.find((pf: any) => 
+            pf.phaseName === entityPhaseName || pf.name === entityPhaseName
+          );
+          
+          // Get metrics from phase forecast, or fall back to market level
+          const plannedImpressions = phaseForecast?.impressions || 
+            (marketForecast?.impressions ? Math.round(marketForecast.impressions * (phaseBudgetPct / 100)) : null);
+          const plannedReach = phaseForecast?.reach || phaseForecast?.result || 
+            (marketForecast?.reach ? Math.round(marketForecast.reach * (phaseBudgetPct / 100)) : null);
+          const plannedClicks = phaseForecast?.clicks || 
+            (marketForecast?.impressions && phaseForecast?.resultRate ? 
+              Math.round(marketForecast.impressions * (phaseBudgetPct / 100) * (phaseForecast.resultRate / 100)) : null);
+          const plannedConversions = phaseForecast?.conversions || phaseForecast?.result || null;
           
           // Add entity to list
           result.entities.push({
@@ -416,8 +445,10 @@ const handler = async (req: Request): Promise<Response> => {
             entityType: 'campaign',
             entityName: `${campaign.name} - ${entityMarketName} - ${entityPhaseName}`,
             plannedBudget: phaseBudget,
-            plannedImpressions: platformForecast.impressions,
-            plannedReach: platformForecast.reach,
+            plannedImpressions,
+            plannedReach,
+            plannedClicks,
+            plannedConversions,
           });
         }
       }
@@ -470,6 +501,8 @@ const handler = async (req: Request): Promise<Response> => {
         planned_budget: entity.plannedBudget,
         planned_impressions: entity.plannedImpressions,
         planned_reach: entity.plannedReach,
+        planned_clicks: entity.plannedClicks,
+        planned_conversions: entity.plannedConversions,
       };
     });
 
