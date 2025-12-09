@@ -204,16 +204,21 @@ export default function LaunchStatus() {
         description: 'Check the error details below for more information'
       });
       
-      // Update failed statuses with detailed error message
-      await supabase
+      // Update ALL pushing statuses to push_failed with detailed error message
+      const { error: updateError } = await supabase
         .from('campaign_launch_status')
         .update({ 
           status: 'push_failed', 
           error_message: errorMsg,
-          error_details: [{ message: errorMsg, type: 'api_error' }]
+          error_details: [{ message: errorMsg, type: 'api_error', fieldPath: 'step1' }],
+          updated_at: new Date().toISOString()
         })
         .eq('campaign_id', campaignId)
         .eq('status', 'pushing');
+      
+      if (updateError) {
+        console.error('Failed to update statuses:', updateError);
+      }
       
       await loadData();
     } finally {
@@ -227,6 +232,7 @@ export default function LaunchStatus() {
     
     setCheckingStatus(true);
     try {
+      // Check status ONLY - do NOT call validate which resets statuses
       const { data, error } = await supabase.functions.invoke('check-campaign-dsp-status', {
         body: { campaignId }
       });
