@@ -1615,19 +1615,29 @@ export function MediaPlanEditor() {
                   setBasicTargeting(targeting);
                   // localStorage is already handled in UnifiedTargeting component
                   
-                  // Immediate database save (no debounce to avoid race conditions)
+                  // Immediate database save - fetch current config to avoid overwriting other fields
                   if (savedCampaignId && user) {
                     (async () => {
                       try {
-                        // Use genericConfig from state instead of fetching from DB
-                        // This prevents race conditions where stale data is merged
+                        // Fetch current config from DB to get latest state
+                        const { data: currentCampaign } = await supabase
+                          .from("campaigns")
+                          .select("generic_config")
+                          .eq("id", savedCampaignId)
+                          .single();
+                        
+                        const currentConfig = (currentCampaign?.generic_config && typeof currentCampaign.generic_config === 'object') 
+                          ? currentCampaign.generic_config as Record<string, unknown>
+                          : {};
+                        
+                        // Merge with the NEW targeting (not from state which might be stale)
                         await supabase.from("campaigns").update({
                           generic_config: {
-                            ...genericConfig,
-                            basicTargeting: targeting,
+                            ...currentConfig,
+                            basicTargeting: targeting, // Use the passed targeting directly
                           } as any,
                         }).eq("id", savedCampaignId);
-                        console.log('✅ Saved basicTargeting to database');
+                        console.log('✅ Saved basicTargeting to database:', targeting.selectedItems?.length, 'items');
                       } catch (error) {
                         console.error('❌ Error saving basicTargeting:', error);
                       }
