@@ -1,23 +1,24 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { 
-  Loader2, ArrowLeft, RefreshCw, TrendingUp, TrendingDown,
-  Target, DollarSign, Eye, Users, BarChart3
+  Loader2, ArrowLeft, RefreshCw, BarChart3, Download
 } from "lucide-react";
-import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { format } from "date-fns";
-import { 
-  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, 
-  Tooltip, Legend, ResponsiveContainer, Cell
-} from "recharts";
+import { format, startOfWeek, endOfWeek, eachWeekOfInterval, eachMonthOfInterval, isWithinInterval, startOfMonth, endOfMonth, differenceInDays } from "date-fns";
+import { DateRange } from "react-day-picker";
+
+import DashboardFilters from "@/components/dashboard/DashboardFilters";
+import MetricScorecard from "@/components/dashboard/MetricScorecard";
+import TimeSeriesChart from "@/components/dashboard/TimeSeriesChart";
+import BudgetPacingChart from "@/components/dashboard/BudgetPacingChart";
+import CoverageEvolutionChart from "@/components/dashboard/CoverageEvolutionChart";
+import PerformanceTable from "@/components/dashboard/PerformanceTable";
 
 interface Campaign {
   id: string;
@@ -26,6 +27,7 @@ interface Campaign {
   total_budget: number;
   start_date: string;
   end_date: string;
+  objective: string;
   forecast_data?: any;
   platforms?: any;
 }
@@ -53,15 +55,8 @@ interface CampaignInsight {
   ad_account_id: string | null;
   campaign_dsp_id: string | null;
   metrics: any;
-  weekly_metrics: any;
+  weekly_metrics: any[];
   fetched_at: string;
-}
-
-interface MetricSummary {
-  planned: number;
-  actual: number;
-  variance: number;
-  variancePercent: number;
 }
 
 export default function PerformanceReport() {
@@ -74,6 +69,14 @@ export default function PerformanceReport() {
   const [insights, setInsights] = useState<CampaignInsight[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Filter states
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
+  const [selectedMarkets, setSelectedMarkets] = useState<string[]>([]);
+  const [selectedObjective, setSelectedObjective] = useState<string>('all');
+  const [selectedOptimizationGoal, setSelectedOptimizationGoal] = useState<string>('all');
+  const [dateRange, setDateRange] = useState<DateRange | undefined>();
+  const [granularity, setGranularity] = useState<'weekly' | 'monthly'>('weekly');
 
   const loadData = useCallback(async () => {
     if (!campaignId || !user) return;
@@ -91,7 +94,7 @@ export default function PerformanceReport() {
       
       if (campaignData) setCampaign(campaignData);
       if (statusData) setLaunchStatuses(statusData);
-      if (insightsData) setInsights(insightsData);
+      if (insightsData) setInsights(insightsData as CampaignInsight[]);
     } catch (error) {
       console.error('Error loading data:', error);
       toast.error('Failed to load performance data');
@@ -125,166 +128,299 @@ export default function PerformanceReport() {
     }
   };
 
-  // Calculate totals from launch statuses (planned) and insights (actual)
-  const calculateMetrics = () => {
+  // Extract filter options from data
+  const filterOptions = useMemo(() => {
+    const platforms = [...new Set(launchStatuses.map(s => s.platform))];
+    const markets = [...new Set(launchStatuses.map(s => s.market))];
+    const objectives = campaign?.objective ? [campaign.objective] : [];
+    const optimizationGoals: string[] = [];
+    
+    return { platforms, markets, objectives, optimizationGoals };
+  }, [launchStatuses, campaign]);
+
+  // Apply filters to data
+  const filteredData = useMemo(() => {
+    let filteredStatuses = launchStatuses;
+    let filteredInsights = insights;
+
+    if (selectedPlatforms.length > 0) {
+      filteredStatuses = filteredStatuses.filter(s => selectedPlatforms.includes(s.platform));
+      filteredInsights = filteredInsights.filter(i => selectedPlatforms.includes(i.platform));
+    }
+
+    if (selectedMarkets.length > 0) {
+      filteredStatuses = filteredStatuses.filter(s => selectedMarkets.includes(s.market));
+    }
+
+    return { statuses: filteredStatuses, insights: filteredInsights };
+  }, [launchStatuses, insights, selectedPlatforms, selectedMarkets]);
+
+  // Calculate aggregated metrics
+  const metrics = useMemo(() => {
     const planned = {
-      budget: launchStatuses.reduce((sum, s) => sum + (s.planned_budget || 0), 0),
-      impressions: launchStatuses.reduce((sum, s) => sum + (s.planned_impressions || 0), 0),
-      reach: launchStatuses.reduce((sum, s) => sum + (s.planned_reach || 0), 0),
-      clicks: launchStatuses.reduce((sum, s) => sum + (s.planned_clicks || 0), 0),
-      conversions: launchStatuses.reduce((sum, s) => sum + (s.planned_conversions || 0), 0),
+      budget: filteredData.statuses.reduce((sum, s) => sum + (s.planned_budget || 0), 0),
+      impressions: filteredData.statuses.reduce((sum, s) => sum + (s.planned_impressions || 0), 0),
+      reach: filteredData.statuses.reduce((sum, s) => sum + (s.planned_reach || 0), 0),
+      clicks: filteredData.statuses.reduce((sum, s) => sum + (s.planned_clicks || 0), 0),
+      conversions: filteredData.statuses.reduce((sum, s) => sum + (s.planned_conversions || 0), 0),
     };
 
-    // Aggregate actual metrics from insights
-    const actual = insights.reduce((acc, insight) => {
-      const metrics = insight.metrics || {};
+    const actual = filteredData.insights.reduce((acc, insight) => {
+      const m = insight.metrics || {};
       return {
-        spend: acc.spend + (metrics.spend || 0),
-        impressions: acc.impressions + (metrics.impressions || 0),
-        reach: acc.reach + (metrics.reach || 0),
-        clicks: acc.clicks + (metrics.clicks || 0),
-        conversions: acc.conversions + (metrics.conversions || metrics.results || 0),
+        spend: acc.spend + (m.spend || 0),
+        impressions: acc.impressions + (m.impressions || 0),
+        reach: acc.reach + (m.reach || 0),
+        clicks: acc.clicks + (m.clicks || 0),
+        conversions: acc.conversions + (m.conversions || m.results || 0),
+        frequency: m.frequency || acc.frequency,
+        ctr: m.ctr || acc.ctr,
+        cpm: m.cpm || acc.cpm,
+        cpc: m.cpc || acc.cpc,
       };
-    }, { spend: 0, impressions: 0, reach: 0, clicks: 0, conversions: 0 });
+    }, { spend: 0, impressions: 0, reach: 0, clicks: 0, conversions: 0, frequency: 0, ctr: 0, cpm: 0, cpc: 0 });
+
+    // Calculate derived metrics
+    actual.ctr = actual.impressions > 0 ? (actual.clicks / actual.impressions) * 100 : 0;
+    actual.cpm = actual.impressions > 0 ? (actual.spend / actual.impressions) * 1000 : 0;
+    actual.cpc = actual.clicks > 0 ? actual.spend / actual.clicks : 0;
+    actual.frequency = actual.reach > 0 ? actual.impressions / actual.reach : 0;
 
     return { planned, actual };
-  };
+  }, [filteredData]);
 
-  const { planned, actual } = calculateMetrics();
+  // Generate time series data
+  const timeSeriesData = useMemo(() => {
+    if (!campaign?.start_date || !campaign?.end_date) return [];
 
-  const createMetricSummary = (plannedVal: number, actualVal: number): MetricSummary => {
-    const variance = actualVal - plannedVal;
-    const variancePercent = plannedVal > 0 ? ((actualVal - plannedVal) / plannedVal) * 100 : 0;
-    return { planned: plannedVal, actual: actualVal, variance, variancePercent };
-  };
+    const start = new Date(campaign.start_date);
+    const end = new Date(campaign.end_date);
+    const now = new Date();
+    const campaignDays = differenceInDays(end, start) + 1;
 
-  const metrics = {
-    budget: createMetricSummary(planned.budget, actual.spend),
-    impressions: createMetricSummary(planned.impressions, actual.impressions),
-    reach: createMetricSummary(planned.reach, actual.reach),
-    clicks: createMetricSummary(planned.clicks, actual.clicks),
-    conversions: createMetricSummary(planned.conversions, actual.conversions),
-  };
+    const intervals = granularity === 'weekly'
+      ? eachWeekOfInterval({ start, end: now < end ? now : end })
+      : eachMonthOfInterval({ start, end: now < end ? now : end });
 
-  // Group by platform for breakdown
-  const platformBreakdown = launchStatuses.reduce((acc, status) => {
-    if (!acc[status.platform]) {
-      acc[status.platform] = {
-        planned: { budget: 0, impressions: 0, reach: 0, clicks: 0, conversions: 0 },
-        actual: { spend: 0, impressions: 0, reach: 0, clicks: 0, conversions: 0 },
-        markets: new Set<string>(),
-        liveCount: 0,
-        totalCount: 0
+    // Get weekly metrics from insights
+    const allWeeklyMetrics: any[] = [];
+    filteredData.insights.forEach(insight => {
+      if (Array.isArray(insight.weekly_metrics)) {
+        insight.weekly_metrics.forEach(wm => {
+          allWeeklyMetrics.push({ ...wm, platform: insight.platform });
+        });
+      }
+    });
+
+    // Calculate planned per period
+    const periodsCount = intervals.length || 1;
+    const plannedPerPeriod = {
+      budget: metrics.planned.budget / periodsCount,
+      impressions: metrics.planned.impressions / periodsCount,
+      reach: metrics.planned.reach / periodsCount,
+      clicks: metrics.planned.clicks / periodsCount,
+    };
+
+    let cumulativePlanned = 0;
+    let cumulativeActual = 0;
+    let cumulativeReach = 0;
+
+    return intervals.map((periodStart, index) => {
+      const periodEnd = granularity === 'weekly' 
+        ? endOfWeek(periodStart, { weekStartsOn: 1 })
+        : endOfMonth(periodStart);
+      
+      const periodLabel = granularity === 'weekly'
+        ? format(periodStart, 'MMM d')
+        : format(periodStart, 'MMM yyyy');
+
+      // Aggregate actual metrics for this period
+      const periodMetrics = allWeeklyMetrics.filter(wm => {
+        if (!wm.date_start) return false;
+        const wmDate = new Date(wm.date_start);
+        return wmDate >= periodStart && wmDate <= periodEnd;
+      });
+
+      const periodActual = periodMetrics.reduce((acc, wm) => ({
+        spend: acc.spend + (wm.spend || 0),
+        impressions: acc.impressions + (wm.impressions || 0),
+        reach: acc.reach + (wm.reach || 0),
+        clicks: acc.clicks + (wm.clicks || 0),
+        conversions: acc.conversions + (wm.conversions || wm.results || 0),
+      }), { spend: 0, impressions: 0, reach: 0, clicks: 0, conversions: 0 });
+
+      // Use total metrics divided evenly if no weekly data
+      const hasWeeklyData = periodMetrics.length > 0;
+      const actualSpend = hasWeeklyData ? periodActual.spend : metrics.actual.spend / periodsCount;
+      const actualImpressions = hasWeeklyData ? periodActual.impressions : metrics.actual.impressions / periodsCount;
+      const actualReach = hasWeeklyData ? periodActual.reach : metrics.actual.reach / periodsCount;
+      const actualClicks = hasWeeklyData ? periodActual.clicks : metrics.actual.clicks / periodsCount;
+
+      cumulativePlanned += plannedPerPeriod.budget;
+      cumulativeActual += actualSpend;
+      cumulativeReach += actualReach;
+
+      // Time elapsed calculation
+      const periodDays = differenceInDays(periodEnd, start);
+      const pctTimeElapsed = Math.min(100, (periodDays / campaignDays) * 100);
+      const pctBudgetSpent = metrics.planned.budget > 0 ? (cumulativeActual / metrics.planned.budget) * 100 : 0;
+
+      // CPM and CPC for this period
+      const periodCpm = actualImpressions > 0 ? (actualSpend / actualImpressions) * 1000 : 0;
+      const periodCpc = actualClicks > 0 ? actualSpend / actualClicks : 0;
+      const periodCtr = actualImpressions > 0 ? (actualClicks / actualImpressions) * 100 : 0;
+
+      // Frequency
+      const periodFrequency = actualReach > 0 ? actualImpressions / actualReach : 0;
+
+      // Coverage / SOV estimates
+      const audienceSize = metrics.planned.reach * 1.5; // Estimate
+      const targetReach = metrics.planned.reach;
+      const targetSov = 0.15; // 15% target
+      const sov = audienceSize > 0 ? cumulativeReach / audienceSize : 0;
+
+      return {
+        period: periodLabel,
+        // Budget pacing
+        plannedBudget: plannedPerPeriod.budget,
+        actualSpend,
+        cumulativePlanned,
+        cumulativeActual,
+        pctTimeElapsed,
+        pctBudgetSpent,
+        // Reach metrics
+        plannedReach: plannedPerPeriod.reach,
+        actualReach,
+        reach: actualReach,
+        impressions: actualImpressions,
+        frequency: periodFrequency,
+        // Performance metrics
+        plannedImpressions: plannedPerPeriod.impressions,
+        actualImpressions,
+        plannedClicks: plannedPerPeriod.clicks,
+        actualClicks,
+        clicks: actualClicks,
+        ctr: periodCtr,
+        cpm: periodCpm,
+        cpc: periodCpc,
+        // Coverage
+        audienceSize,
+        cumulativeReach,
+        targetReach: targetReach / periodsCount * (index + 1),
+        sov,
+        targetSov,
+        cumulativeSov: sov,
+        // Results
+        results: hasWeeklyData ? periodActual.conversions : metrics.actual.conversions / periodsCount,
+        resultRate: actualClicks > 0 ? ((hasWeeklyData ? periodActual.conversions : metrics.actual.conversions / periodsCount) / actualClicks) * 100 : 0,
+        costPerResult: (hasWeeklyData ? periodActual.conversions : metrics.actual.conversions / periodsCount) > 0 
+          ? actualSpend / (hasWeeklyData ? periodActual.conversions : metrics.actual.conversions / periodsCount) 
+          : 0,
       };
-    }
-    
-    acc[status.platform].planned.budget += status.planned_budget || 0;
-    acc[status.platform].planned.impressions += status.planned_impressions || 0;
-    acc[status.platform].planned.reach += status.planned_reach || 0;
-    acc[status.platform].planned.clicks += status.planned_clicks || 0;
-    acc[status.platform].planned.conversions += status.planned_conversions || 0;
-    acc[status.platform].markets.add(status.market);
-    acc[status.platform].totalCount++;
-    if (status.status === 'live') acc[status.platform].liveCount++;
-    
-    return acc;
-  }, {} as Record<string, any>);
+    });
+  }, [campaign, filteredData, metrics, granularity]);
 
-  // Add actual metrics from insights to platform breakdown
-  insights.forEach(insight => {
-    if (platformBreakdown[insight.platform]) {
+  // Platform breakdown for table
+  const platformBreakdown = useMemo(() => {
+    const breakdown: Record<string, any> = {};
+    
+    filteredData.statuses.forEach(status => {
+      const key = `${status.platform}-${status.market}`;
+      if (!breakdown[key]) {
+        breakdown[key] = {
+          name: status.phase_name || status.entity_name || status.platform,
+          platform: status.platform,
+          market: status.market,
+          plannedBudget: 0,
+          actualSpend: 0,
+          plannedImpressions: 0,
+          actualImpressions: 0,
+          plannedReach: 0,
+          actualReach: 0,
+          plannedClicks: 0,
+          actualClicks: 0,
+        };
+      }
+      breakdown[key].plannedBudget += status.planned_budget || 0;
+      breakdown[key].plannedImpressions += status.planned_impressions || 0;
+      breakdown[key].plannedReach += status.planned_reach || 0;
+      breakdown[key].plannedClicks += status.planned_clicks || 0;
+    });
+
+    filteredData.insights.forEach(insight => {
       const m = insight.metrics || {};
-      platformBreakdown[insight.platform].actual.spend += m.spend || 0;
-      platformBreakdown[insight.platform].actual.impressions += m.impressions || 0;
-      platformBreakdown[insight.platform].actual.reach += m.reach || 0;
-      platformBreakdown[insight.platform].actual.clicks += m.clicks || 0;
-      platformBreakdown[insight.platform].actual.conversions += m.conversions || m.results || 0;
-    }
-  });
+      // Find matching breakdown entries for this platform
+      Object.keys(breakdown).forEach(key => {
+        if (breakdown[key].platform === insight.platform) {
+          breakdown[key].actualSpend += m.spend || 0;
+          breakdown[key].actualImpressions += m.impressions || 0;
+          breakdown[key].actualReach += m.reach || 0;
+          breakdown[key].actualClicks += m.clicks || 0;
+        }
+      });
+    });
 
-  // Chart data
-  const comparisonChartData = [
-    { name: 'Budget/Spend', planned: planned.budget, actual: actual.spend },
-    { name: 'Impressions', planned: planned.impressions / 1000, actual: actual.impressions / 1000 },
-    { name: 'Reach', planned: planned.reach / 1000, actual: actual.reach / 1000 },
-    { name: 'Clicks', planned: planned.clicks, actual: actual.clicks },
-  ];
+    // Calculate derived metrics
+    Object.values(breakdown).forEach((row: any) => {
+      row.ctr = row.actualImpressions > 0 ? (row.actualClicks / row.actualImpressions) * 100 : 0;
+      row.cpm = row.actualImpressions > 0 ? (row.actualSpend / row.actualImpressions) * 1000 : 0;
+      row.cpc = row.actualClicks > 0 ? row.actualSpend / row.actualClicks : 0;
+    });
 
-  const platformChartData = Object.entries(platformBreakdown).map(([platform, data]: [string, any]) => ({
-    platform,
-    plannedSpend: data.planned.budget,
-    actualSpend: data.actual.spend,
-    plannedImpressions: data.planned.impressions / 1000,
-    actualImpressions: data.actual.impressions / 1000,
-  }));
+    return Object.values(breakdown);
+  }, [filteredData]);
 
-  // Calculate overall pacing
-  const campaignProgress = campaign ? (() => {
-    const start = new Date(campaign.start_date).getTime();
-    const end = new Date(campaign.end_date).getTime();
-    const now = Date.now();
-    const elapsed = Math.min(100, Math.max(0, ((now - start) / (end - start)) * 100));
-    return elapsed;
-  })() : 0;
-
-  const spendPacing = planned.budget > 0 ? (actual.spend / planned.budget) * 100 : 0;
-  const isPacingAhead = spendPacing > campaignProgress;
-
-  const MetricCard = ({ 
-    title, 
-    icon: Icon, 
-    metric, 
-    prefix = "", 
-    suffix = "",
-    invertVariance = false 
-  }: { 
-    title: string; 
-    icon: any; 
-    metric: MetricSummary; 
-    prefix?: string; 
-    suffix?: string;
-    invertVariance?: boolean;
-  }) => {
-    const isPositive = invertVariance ? metric.variancePercent < 0 : metric.variancePercent >= 0;
-    
-    return (
-      <Card>
-        <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
-            <Icon className="h-4 w-4 text-muted-foreground" />
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-xs text-muted-foreground">Planned</p>
-                <p className="text-lg font-semibold">{prefix}{metric.planned.toLocaleString()}{suffix}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Actual</p>
-                <p className="text-lg font-semibold">{prefix}{metric.actual.toLocaleString()}{suffix}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              {isPositive ? (
-                <TrendingUp className="h-4 w-4 text-green-500" />
-              ) : (
-                <TrendingDown className="h-4 w-4 text-red-500" />
-              )}
-              <span className={`text-sm font-medium ${isPositive ? 'text-green-500' : 'text-red-500'}`}>
-                {metric.variancePercent >= 0 ? '+' : ''}{metric.variancePercent.toFixed(1)}%
-              </span>
-              <span className="text-xs text-muted-foreground">
-                ({prefix}{Math.abs(metric.variance).toLocaleString()}{suffix} {metric.variance >= 0 ? 'above' : 'below'})
-              </span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+  // Filter handlers
+  const handlePlatformToggle = (platform: string) => {
+    setSelectedPlatforms(prev => 
+      prev.includes(platform) ? prev.filter(p => p !== platform) : [...prev, platform]
     );
   };
+
+  const handleMarketToggle = (market: string) => {
+    setSelectedMarkets(prev => 
+      prev.includes(market) ? prev.filter(m => m !== market) : [...prev, market]
+    );
+  };
+
+  const handleClearFilters = () => {
+    setSelectedPlatforms([]);
+    setSelectedMarkets([]);
+    setSelectedObjective('all');
+    setSelectedOptimizationGoal('all');
+    setDateRange(undefined);
+  };
+
+  // Chart metric options
+  const actualVsPlannedReachMetrics = [
+    { key: 'plannedReach', label: 'Planned Reach', color: '#ef4444', type: 'line' as const },
+    { key: 'actualReach', label: 'Reach', color: '#f59e0b', type: 'bar' as const },
+    { key: 'cpm', label: 'CPM', color: '#3b82f6', type: 'line' as const, yAxisId: 'right' as const },
+  ];
+
+  const actualVsPlannedImpressionsMetrics = [
+    { key: 'plannedImpressions', label: 'Planned Impressions', color: '#ef4444', type: 'line' as const },
+    { key: 'actualImpressions', label: 'Impressions', color: '#f59e0b', type: 'bar' as const },
+    { key: 'cpm', label: 'CPM', color: '#3b82f6', type: 'line' as const, yAxisId: 'right' as const },
+  ];
+
+  const performanceMetrics1 = [
+    { key: 'reach', label: 'Reach', color: '#ef4444', type: 'bar' as const },
+    { key: 'impressions', label: 'Impressions', color: '#f59e0b', type: 'bar' as const },
+    { key: 'frequency', label: 'Frequency', color: '#3b82f6', type: 'line' as const, yAxisId: 'right' as const },
+  ];
+
+  const performanceMetrics2 = [
+    { key: 'clicks', label: 'Clicks', color: '#f59e0b', type: 'bar' as const },
+    { key: 'ctr', label: 'CTR', color: '#ef4444', type: 'line' as const, yAxisId: 'right' as const },
+    { key: 'cpc', label: 'CPC', color: '#3b82f6', type: 'line' as const, yAxisId: 'right' as const },
+  ];
+
+  const performanceMetrics3 = [
+    { key: 'results', label: 'Results', color: '#22c55e', type: 'bar' as const },
+    { key: 'resultRate', label: 'Result Rate', color: '#ef4444', type: 'line' as const, yAxisId: 'right' as const },
+    { key: 'costPerResult', label: 'Cost Per Result', color: '#3b82f6', type: 'line' as const, yAxisId: 'right' as const },
+  ];
 
   if (loading) {
     return (
@@ -307,11 +443,10 @@ export default function PerformanceReport() {
   }
 
   const hasData = launchStatuses.length > 0;
-  const hasInsights = insights.length > 0;
   const lastFetched = insights[0]?.fetched_at;
 
   return (
-    <div className="container mx-auto p-6 max-w-7xl">
+    <div className="container mx-auto p-6 max-w-[1600px]">
       {/* Header */}
       <div className="flex items-center gap-4 mb-6">
         <Button variant="ghost" size="icon" onClick={() => navigate('/actiplans')}>
@@ -320,13 +455,18 @@ export default function PerformanceReport() {
         <div className="flex-1">
           <h1 className="text-2xl font-bold">{campaign.name}</h1>
           <p className="text-sm text-muted-foreground">
-            Performance Report · {format(new Date(campaign.start_date), 'MMM dd')} - {format(new Date(campaign.end_date), 'MMM dd, yyyy')}
+            Performance Dashboard · {format(new Date(campaign.start_date), 'MMM dd')} - {format(new Date(campaign.end_date), 'MMM dd, yyyy')}
+            {lastFetched && ` · Last updated: ${format(new Date(lastFetched), 'MMM dd, HH:mm')}`}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant={campaign.status === 'live' ? 'default' : 'secondary'}>
-            {campaign.status}
+          <Badge variant={campaign.status === 'live' ? 'default' : 'secondary'} className="capitalize">
+            {campaign.status?.replace(/_/g, ' ')}
           </Badge>
+          <Button variant="outline" size="sm">
+            <Download className="h-4 w-4 mr-2" />
+            Export
+          </Button>
           <Button variant="outline" onClick={handleRefresh} disabled={refreshing}>
             {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
             <span className="ml-2">Refresh</span>
@@ -348,187 +488,152 @@ export default function PerformanceReport() {
           </CardContent>
         </Card>
       ) : (
-        <>
-          {/* Pacing Overview */}
-          <Card className="mb-6">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Campaign Pacing</CardTitle>
-                  <CardDescription>
-                    {lastFetched && `Last updated: ${format(new Date(lastFetched), 'MMM dd, yyyy HH:mm')}`}
-                  </CardDescription>
-                </div>
-                <Badge variant={isPacingAhead ? 'destructive' : 'default'}>
-                  {isPacingAhead ? 'Over Pacing' : 'On Track'}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span>Campaign Timeline</span>
-                    <span>{campaignProgress.toFixed(0)}% elapsed</span>
-                  </div>
-                  <Progress value={campaignProgress} className="h-2" />
-                </div>
-                <div>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span>Budget Spend</span>
-                    <span>{spendPacing.toFixed(0)}% spent (€{actual.spend.toLocaleString()} / €{planned.budget.toLocaleString()})</span>
-                  </div>
-                  <Progress value={Math.min(100, spendPacing)} className="h-2" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="space-y-6">
+          {/* Filters */}
+          <DashboardFilters
+            platforms={filterOptions.platforms}
+            markets={filterOptions.markets}
+            objectives={filterOptions.objectives}
+            optimizationGoals={filterOptions.optimizationGoals}
+            selectedPlatforms={selectedPlatforms}
+            selectedMarkets={selectedMarkets}
+            selectedObjective={selectedObjective}
+            selectedOptimizationGoal={selectedOptimizationGoal}
+            dateRange={dateRange}
+            granularity={granularity}
+            onPlatformToggle={handlePlatformToggle}
+            onMarketToggle={handleMarketToggle}
+            onObjectiveChange={setSelectedObjective}
+            onOptimizationGoalChange={setSelectedOptimizationGoal}
+            onDateRangeChange={setDateRange}
+            onGranularityChange={setGranularity}
+            onClearFilters={handleClearFilters}
+          />
 
-          {/* KPI Summary */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-            <MetricCard 
-              title="Budget / Spend" 
-              icon={DollarSign} 
-              metric={metrics.budget} 
+          {/* KPI Scorecards */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            <MetricScorecard
+              title="Budget / Spend"
+              planned={metrics.planned.budget}
+              actual={metrics.actual.spend}
               prefix="€"
-              invertVariance={true}
+              invertVariance
             />
-            <MetricCard 
-              title="Impressions" 
-              icon={Eye} 
-              metric={metrics.impressions} 
+            <MetricScorecard
+              title="Impressions"
+              planned={metrics.planned.impressions}
+              actual={metrics.actual.impressions}
             />
-            <MetricCard 
-              title="Reach" 
-              icon={Users} 
-              metric={metrics.reach} 
+            <MetricScorecard
+              title="Reach"
+              planned={metrics.planned.reach}
+              actual={metrics.actual.reach}
             />
-            <MetricCard 
-              title="Clicks" 
-              icon={Target} 
-              metric={metrics.clicks} 
+            <MetricScorecard
+              title="Clicks"
+              planned={metrics.planned.clicks}
+              actual={metrics.actual.clicks}
             />
-            <MetricCard 
-              title="Conversions" 
-              icon={TrendingUp} 
-              metric={metrics.conversions} 
+            <MetricScorecard
+              title="Conversions"
+              planned={metrics.planned.conversions}
+              actual={metrics.actual.conversions}
             />
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex flex-col gap-2">
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Efficiency</span>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">CTR</span>
+                      <p className="font-bold">{metrics.actual.ctr.toFixed(2)}%</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">CPM</span>
+                      <p className="font-bold">€{metrics.actual.cpm.toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">CPC</span>
+                      <p className="font-bold">€{metrics.actual.cpc.toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Freq</span>
+                      <p className="font-bold">{metrics.actual.frequency.toFixed(2)}</p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
-          {/* Charts */}
-          <Tabs defaultValue="comparison" className="mb-6">
-            <TabsList>
-              <TabsTrigger value="comparison">Planned vs Actual</TabsTrigger>
-              <TabsTrigger value="platform">Platform Breakdown</TabsTrigger>
-            </TabsList>
+          <Separator />
 
-            <TabsContent value="comparison">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Planned vs Actual Performance</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-80">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={comparisonChartData}>
-                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                        <XAxis dataKey="name" className="text-xs" />
-                        <YAxis className="text-xs" />
-                        <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: 'hsl(var(--popover))', 
-                            border: '1px solid hsl(var(--border))',
-                            borderRadius: '8px'
-                          }}
-                        />
-                        <Legend />
-                        <Bar dataKey="planned" name="Planned" fill="hsl(var(--muted-foreground))" radius={[4, 4, 0, 0]} />
-                        <Bar dataKey="actual" name="Actual" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
+          {/* Actual vs Planned Section */}
+          <div>
+            <h2 className="text-lg font-semibold mb-4">Actual vs Planned</h2>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <TimeSeriesChart
+                title="Reach & CPR"
+                data={timeSeriesData}
+                metricOptions={actualVsPlannedReachMetrics}
+                defaultMetrics={['actualReach', 'plannedReach', 'cpm']}
+              />
+              <TimeSeriesChart
+                title="Impressions & CPM"
+                data={timeSeriesData}
+                metricOptions={actualVsPlannedImpressionsMetrics}
+                defaultMetrics={['actualImpressions', 'plannedImpressions', 'cpm']}
+              />
+              <BudgetPacingChart
+                data={timeSeriesData}
+                totalPlannedBudget={metrics.planned.budget}
+              />
+            </div>
+          </div>
 
-            <TabsContent value="platform">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Platform Performance</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-80">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={platformChartData} layout="vertical">
-                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                        <XAxis type="number" className="text-xs" />
-                        <YAxis type="category" dataKey="platform" className="text-xs" width={80} />
-                        <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: 'hsl(var(--popover))', 
-                            border: '1px solid hsl(var(--border))',
-                            borderRadius: '8px'
-                          }}
-                        />
-                        <Legend />
-                        <Bar dataKey="plannedSpend" name="Planned Spend (€)" fill="hsl(var(--muted-foreground))" radius={[0, 4, 4, 0]} />
-                        <Bar dataKey="actualSpend" name="Actual Spend (€)" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+          <Separator />
 
-          {/* Platform Details */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Platform Details</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {Object.entries(platformBreakdown).map(([platform, data]: [string, any]) => (
-                  <div key={platform} className="border rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-4">
-                      <div>
-                        <h4 className="font-semibold">{platform}</h4>
-                        <p className="text-sm text-muted-foreground">
-                          {data.markets.size} market(s) · {data.liveCount}/{data.totalCount} live
-                        </p>
-                      </div>
-                      <Badge variant={data.liveCount === data.totalCount ? 'default' : 'secondary'}>
-                        {data.liveCount === data.totalCount ? 'All Live' : `${data.liveCount} Live`}
-                      </Badge>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
-                      <div>
-                        <p className="text-muted-foreground">Spend</p>
-                        <p className="font-medium">€{data.actual.spend.toLocaleString()} / €{data.planned.budget.toLocaleString()}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">Impressions</p>
-                        <p className="font-medium">{data.actual.impressions.toLocaleString()} / {data.planned.impressions.toLocaleString()}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">Reach</p>
-                        <p className="font-medium">{data.actual.reach.toLocaleString()} / {data.planned.reach.toLocaleString()}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">Clicks</p>
-                        <p className="font-medium">{data.actual.clicks.toLocaleString()} / {data.planned.clicks.toLocaleString()}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">Conversions</p>
-                        <p className="font-medium">{data.actual.conversions.toLocaleString()} / {data.planned.conversions.toLocaleString()}</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </>
+          {/* Coverage Evolution Section */}
+          <div>
+            <h2 className="text-lg font-semibold mb-4">Coverage Evolution</h2>
+            <CoverageEvolutionChart data={timeSeriesData} />
+          </div>
+
+          <Separator />
+
+          {/* Performance Evolution Section */}
+          <div>
+            <h2 className="text-lg font-semibold mb-4">Performance Evolution</h2>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <TimeSeriesChart
+                title="Reach, Frequency & Impressions"
+                data={timeSeriesData}
+                metricOptions={performanceMetrics1}
+                defaultMetrics={['reach', 'impressions', 'frequency']}
+              />
+              <TimeSeriesChart
+                title="CTR, CPC & Clicks"
+                data={timeSeriesData}
+                metricOptions={performanceMetrics2}
+                defaultMetrics={['clicks', 'ctr', 'cpc']}
+              />
+              <TimeSeriesChart
+                title="Results & Cost Per Result"
+                data={timeSeriesData}
+                metricOptions={performanceMetrics3}
+                defaultMetrics={['results', 'resultRate', 'costPerResult']}
+              />
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Detailed Table */}
+          <PerformanceTable
+            data={platformBreakdown}
+            title="Performance by Platform & Market"
+          />
+        </div>
       )}
     </div>
   );
