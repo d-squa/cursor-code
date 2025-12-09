@@ -165,13 +165,14 @@ export default function LaunchStatus() {
       
       if (error) throw error;
       
-      // Update campaign status
-      await supabase
-        .from('campaigns')
-        .update({ status: 'pushed_to_dsp' })
-        .eq('id', campaignId);
+      // The edge function now updates statuses and campaign status
+      if (data?.hasErrors) {
+        toast.warning('Campaign pushed with some errors. Check status for details.');
+      } else {
+        toast.success('Campaign pushed to DSP successfully!');
+      }
       
-      toast.success('Campaign pushed to DSP successfully!');
+      // Refresh data to show updated statuses
       await loadData();
       
     } catch (error: any) {
