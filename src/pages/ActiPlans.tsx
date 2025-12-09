@@ -601,21 +601,43 @@ export default function ActiPlans() {
                   </>
                 )}
 
-                {canViewLaunchStatus(campaign) && (
-                  <>
-                    {canApprove(campaign) && <DropdownMenuSeparator />}
-                    <DropdownMenuItem 
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        navigate(`/actiplans/${campaign.id}/launch`);
-                      }} 
-                    >
-                      <Rocket className="w-4 h-4 mr-2" />
-                      Launch Campaign
-                    </DropdownMenuItem>
-                  </>
-                )}
+                {/* Launch/Push menu item - conditional based on status */}
+                {(() => {
+                  const status = campaign.status || "";
+                  // Don't show for pushed_to_dsp (already fully pushed)
+                  if (status === "pushed_to_dsp") return null;
+                  
+                  // Show for draft, approved, partially_pushed, live
+                  if (["draft", "approved", "partially_pushed", "live"].includes(status)) {
+                    const isCreator = campaign.user_id === user?.id;
+                    const isTeamOwnerOrAdmin = campaign.is_admin_or_owner === true;
+                    if (!isCreator && !isTeamOwnerOrAdmin) return null;
+                    
+                    let menuLabel = "Launch Campaign";
+                    if (status === "draft") {
+                      menuLabel = "Push Campaign to DSP";
+                    } else if (status === "partially_pushed") {
+                      menuLabel = "Retry Pushing to DSP";
+                    }
+                    
+                    return (
+                      <>
+                        {canApprove(campaign) && <DropdownMenuSeparator />}
+                        <DropdownMenuItem 
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            navigate(`/actiplans/${campaign.id}/launch`);
+                          }} 
+                        >
+                          <Rocket className="w-4 h-4 mr-2" />
+                          {menuLabel}
+                        </DropdownMenuItem>
+                      </>
+                    );
+                  }
+                  return null;
+                })()}
 
                 {["ready_for_push", "pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
                   <>
