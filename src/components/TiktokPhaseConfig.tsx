@@ -282,6 +282,47 @@ export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: Tiktok
               </div>
             )}
 
+            {/* App sub-fields */}
+            {phase.tiktokOptimizationLocation === "App" && (
+              <div className="space-y-3 pl-4 border-l-2 border-muted">
+                <div className="space-y-2">
+                  <Label>App</Label>
+                  {adAccountDefaults?.tiktokAppId ? (
+                    <Select
+                      value={phase.tiktokAppId || adAccountDefaults.tiktokAppId || undefined}
+                      onValueChange={(value) => {
+                        onUpdate("tiktokAppId", value);
+                        // Also set the app name if available from defaults
+                        if (value === adAccountDefaults.tiktokAppId && adAccountDefaults.tiktokAppName) {
+                          onUpdate("tiktokAppName", adAccountDefaults.tiktokAppName);
+                        }
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select app" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={adAccountDefaults.tiktokAppId}>
+                          {adAccountDefaults.tiktokAppName || adAccountDefaults.tiktokAppId}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        placeholder="No app configured"
+                        disabled
+                        className="bg-muted"
+                      />
+                      <p className="text-xs text-muted-foreground whitespace-nowrap">
+                        Configure in Client Defaults
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* TikTok Instant Page sub-fields */}
             {phase.tiktokOptimizationLocation === "TikTok Instant Page" && (
               <div className="space-y-3 pl-4 border-l-2 border-muted">
@@ -449,23 +490,39 @@ export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: Tiktok
                     onChange={(e) => onUpdate("tiktokLandingPageUrl", e.target.value)}
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>App Name</Label>
-                    <Input
-                      placeholder="e.g., My App"
-                      value={phase.tiktokAppName || ""}
-                      onChange={(e) => onUpdate("tiktokAppName", e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>App ID</Label>
-                    <Input
-                      placeholder="App identifier"
-                      value={phase.tiktokAppId || ""}
-                      onChange={(e) => onUpdate("tiktokAppId", e.target.value)}
-                    />
-                  </div>
+                <div className="space-y-2">
+                  <Label>App</Label>
+                  {adAccountDefaults?.tiktokAppId ? (
+                    <Select
+                      value={phase.tiktokAppId || adAccountDefaults.tiktokAppId || undefined}
+                      onValueChange={(value) => {
+                        onUpdate("tiktokAppId", value);
+                        if (value === adAccountDefaults.tiktokAppId && adAccountDefaults.tiktokAppName) {
+                          onUpdate("tiktokAppName", adAccountDefaults.tiktokAppName);
+                        }
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select app" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={adAccountDefaults.tiktokAppId}>
+                          {adAccountDefaults.tiktokAppName || adAccountDefaults.tiktokAppId}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        placeholder="No app configured"
+                        disabled
+                        className="bg-muted"
+                      />
+                      <p className="text-xs text-muted-foreground whitespace-nowrap">
+                        Configure in Client Defaults
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -482,26 +539,41 @@ export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: Tiktok
           </Alert>
         )}
 
-        {/* App Fields */}
+        {/* App Fields - for APP_PROMOTION objective */}
         {showAppFields && (
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>App Name</Label>
-              <Input
-                placeholder="e.g., Android, iOS, WhatsApp"
-                value={phase.tiktokAppName || ""}
-                onChange={(e) => onUpdate("tiktokAppName", e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>App ID</Label>
-              <Input
-                placeholder="App identifier"
-                value={phase.tiktokAppId || ""}
-                onChange={(e) => onUpdate("tiktokAppId", e.target.value)}
-              />
-            </div>
+          <div className="space-y-2">
+            <Label>App</Label>
+            {adAccountDefaults?.tiktokAppId ? (
+              <Select
+                value={phase.tiktokAppId || adAccountDefaults.tiktokAppId || undefined}
+                onValueChange={(value) => {
+                  onUpdate("tiktokAppId", value);
+                  if (value === adAccountDefaults.tiktokAppId && adAccountDefaults.tiktokAppName) {
+                    onUpdate("tiktokAppName", adAccountDefaults.tiktokAppName);
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select app" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={adAccountDefaults.tiktokAppId}>
+                    {adAccountDefaults.tiktokAppName || adAccountDefaults.tiktokAppId}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Input
+                  placeholder="No app configured"
+                  disabled
+                  className="bg-muted"
+                />
+                <p className="text-xs text-muted-foreground whitespace-nowrap">
+                  Configure in Client Defaults
+                </p>
+              </div>
+            )}
           </div>
         )}
 
