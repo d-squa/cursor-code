@@ -678,11 +678,19 @@ class TikTokAdapter implements PlatformAdapter {
       console.log(`Landing page URL: ${body.landing_page_url}`);
       
       // Only add conversion tracking for CONVERT optimization goal (not for CLICK/REACH/etc)
-      if (params.optimizationGoal === 'CONVERT' && params.pixelId) {
+      // IMPORTANT: Use finalOptimizationGoal (after fallback) not params.optimizationGoal (original)
+      // TikTok rejects optimization_event for non-conversion objectives like TRAFFIC, REACH, VIDEO_VIEWS
+      const conversionGoals = ['CONVERT', 'VALUE', 'APP_INSTALL', 'FORM_SUBMIT'];
+      const isConversionGoal = conversionGoals.includes(finalOptimizationGoal.toUpperCase());
+      
+      if (isConversionGoal && params.pixelId) {
         body.pixel_code = params.pixelId;
         body.optimization_event = "ON_WEB_ORDER"; // Default conversion event
         body.deep_external_action = "ON_WEB_ORDER";
         console.log(`✅ Conversion tracking configured: pixel=${params.pixelId}, event=ON_WEB_ORDER`);
+      } else if (params.pixelId) {
+        // Log why we're skipping conversion tracking even though pixel was provided
+        console.log(`⚠️ Skipping conversion tracking - ${finalOptimizationGoal} is not a conversion goal (original: ${params.optimizationGoal})`);
       }
       
       const endpoint = `${this.API_BASE}/adgroup/create/`;
