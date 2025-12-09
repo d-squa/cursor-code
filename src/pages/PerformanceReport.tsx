@@ -78,6 +78,7 @@ export default function PerformanceReport() {
   // Filter states
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [selectedMarkets, setSelectedMarkets] = useState<string[]>([]);
+  const [selectedPhases, setSelectedPhases] = useState<string[]>([]);
   const [selectedObjective, setSelectedObjective] = useState<string>('all');
   const [selectedOptimizationGoal, setSelectedOptimizationGoal] = useState<string>('all');
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
@@ -147,10 +148,11 @@ export default function PerformanceReport() {
   const filterOptions = useMemo(() => {
     const platforms = [...new Set(launchStatuses.map(s => s.platform))];
     const markets = [...new Set(launchStatuses.map(s => s.market))];
+    const phases = [...new Set(launchStatuses.map(s => s.phase_name).filter(Boolean))] as string[];
     const objectives = campaign?.objective ? [campaign.objective] : [];
     const optimizationGoals: string[] = [];
     
-    return { platforms, markets, objectives, optimizationGoals };
+    return { platforms, markets, phases, objectives, optimizationGoals };
   }, [launchStatuses, campaign]);
 
   // Apply filters to data
@@ -167,8 +169,12 @@ export default function PerformanceReport() {
       filteredStatuses = filteredStatuses.filter(s => selectedMarkets.includes(s.market));
     }
 
+    if (selectedPhases.length > 0) {
+      filteredStatuses = filteredStatuses.filter(s => s.phase_name && selectedPhases.includes(s.phase_name));
+    }
+
     return { statuses: filteredStatuses, insights: filteredInsights };
-  }, [launchStatuses, insights, selectedPlatforms, selectedMarkets]);
+  }, [launchStatuses, insights, selectedPlatforms, selectedMarkets, selectedPhases]);
 
   // Calculate aggregated metrics
   const metrics = useMemo(() => {
@@ -447,9 +453,16 @@ export default function PerformanceReport() {
     );
   };
 
+  const handlePhaseToggle = (phase: string) => {
+    setSelectedPhases(prev => 
+      prev.includes(phase) ? prev.filter(p => p !== phase) : [...prev, phase]
+    );
+  };
+
   const handleClearFilters = () => {
     setSelectedPlatforms([]);
     setSelectedMarkets([]);
+    setSelectedPhases([]);
     setSelectedObjective('all');
     setSelectedOptimizationGoal('all');
     setDateRange(undefined);
@@ -557,16 +570,19 @@ export default function PerformanceReport() {
           <DashboardFilters
             platforms={filterOptions.platforms}
             markets={filterOptions.markets}
+            phases={filterOptions.phases}
             objectives={filterOptions.objectives}
             optimizationGoals={filterOptions.optimizationGoals}
             selectedPlatforms={selectedPlatforms}
             selectedMarkets={selectedMarkets}
+            selectedPhases={selectedPhases}
             selectedObjective={selectedObjective}
             selectedOptimizationGoal={selectedOptimizationGoal}
             dateRange={dateRange}
             granularity={granularity}
             onPlatformToggle={handlePlatformToggle}
             onMarketToggle={handleMarketToggle}
+            onPhaseToggle={handlePhaseToggle}
             onObjectiveChange={setSelectedObjective}
             onOptimizationGoalChange={setSelectedOptimizationGoal}
             onDateRangeChange={setDateRange}

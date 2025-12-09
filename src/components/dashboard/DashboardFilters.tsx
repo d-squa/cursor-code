@@ -10,16 +10,19 @@ import { DateRange } from "react-day-picker";
 interface DashboardFiltersProps {
   platforms: string[];
   markets: string[];
+  phases?: string[];
   objectives: string[];
   optimizationGoals: string[];
   selectedPlatforms: string[];
   selectedMarkets: string[];
+  selectedPhases?: string[];
   selectedObjective: string;
   selectedOptimizationGoal: string;
   dateRange: DateRange | undefined;
   granularity: 'weekly' | 'monthly';
   onPlatformToggle: (platform: string) => void;
   onMarketToggle: (market: string) => void;
+  onPhaseToggle?: (phase: string) => void;
   onObjectiveChange: (value: string) => void;
   onOptimizationGoalChange: (value: string) => void;
   onDateRangeChange: (range: DateRange | undefined) => void;
@@ -30,16 +33,19 @@ interface DashboardFiltersProps {
 export default function DashboardFilters({
   platforms,
   markets,
+  phases = [],
   objectives,
   optimizationGoals,
   selectedPlatforms,
   selectedMarkets,
+  selectedPhases = [],
   selectedObjective,
   selectedOptimizationGoal,
   dateRange,
   granularity,
   onPlatformToggle,
   onMarketToggle,
+  onPhaseToggle,
   onObjectiveChange,
   onOptimizationGoalChange,
   onDateRangeChange,
@@ -49,6 +55,7 @@ export default function DashboardFilters({
   const hasActiveFilters = 
     selectedPlatforms.length > 0 || 
     selectedMarkets.length > 0 || 
+    selectedPhases.length > 0 ||
     selectedObjective !== 'all' || 
     selectedOptimizationGoal !== 'all' ||
     dateRange !== undefined;
@@ -85,6 +92,25 @@ export default function DashboardFilters({
                 onClick={() => onMarketToggle(market)}
               >
                 {market}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Phases */}
+      {phases.length > 0 && onPhaseToggle && (
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-muted-foreground">Phases:</span>
+          <div className="flex gap-1 flex-wrap">
+            {phases.map((phase) => (
+              <Badge
+                key={phase}
+                variant={selectedPhases.includes(phase) ? "default" : "outline"}
+                className="cursor-pointer capitalize"
+                onClick={() => onPhaseToggle(phase)}
+              >
+                {phase}
               </Badge>
             ))}
           </div>
