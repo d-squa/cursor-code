@@ -384,24 +384,38 @@ export function PhaseScheduler({
       const updatedPhase = { ...phase };
       
       if (isMeta) {
+        // Check if optimization goal requires a specific destination
+        const goalRequiredDestination = phase.optimizationGoal ? getDestinationForOptimizationGoal(phase.optimizationGoal) : null;
+        
         // Auto-populate Meta destination if missing
-        if (!phase.metaOptimizationLocation && adAccountDefaults.metaOptimizationLocation) {
-          const defaultDest = adAccountDefaults.metaOptimizationLocation;
-          if (validDestinations.some(d => d.value === defaultDest)) {
+        if (!phase.metaOptimizationLocation) {
+          // First priority: use destination required by optimization goal
+          if (goalRequiredDestination && validDestinations.some(d => d.value === goalRequiredDestination)) {
             hasUpdates = true;
-            updatedPhase.metaOptimizationLocation = defaultDest;
-            if (defaultDest === 'APP') {
-              updatedPhase.metaAppStore = phase.metaAppStore || adAccountDefaults.metaAppStore;
-              updatedPhase.metaAppId = phase.metaAppId || adAccountDefaults.metaAppId;
-            } else if (defaultDest === 'MESSAGING_APPS') {
-              updatedPhase.metaMessagingMode = phase.metaMessagingMode || adAccountDefaults.metaMessagingMode;
-              updatedPhase.metaMessengerEnabled = phase.metaMessengerEnabled !== undefined ? phase.metaMessengerEnabled : adAccountDefaults.metaMessengerEnabled;
-              updatedPhase.metaInstagramDmEnabled = phase.metaInstagramDmEnabled !== undefined ? phase.metaInstagramDmEnabled : adAccountDefaults.metaInstagramDmEnabled;
-              updatedPhase.metaWhatsappEnabled = phase.metaWhatsappEnabled !== undefined ? phase.metaWhatsappEnabled : adAccountDefaults.metaWhatsappEnabled;
-              updatedPhase.metaWhatsappNumber = phase.metaWhatsappNumber || adAccountDefaults.metaWhatsappNumber;
-              updatedPhase.metaPageId = phase.metaPageId || adAccountDefaults.metaPageId;
-              updatedPhase.metaInstagramAccountId = phase.metaInstagramAccountId || adAccountDefaults.metaInstagramAccountId;
+            updatedPhase.metaOptimizationLocation = goalRequiredDestination;
+          }
+          // Second priority: use account default destination
+          else if (adAccountDefaults.metaOptimizationLocation) {
+            const defaultDest = adAccountDefaults.metaOptimizationLocation;
+            if (validDestinations.some(d => d.value === defaultDest)) {
+              hasUpdates = true;
+              updatedPhase.metaOptimizationLocation = defaultDest;
             }
+          }
+          
+          // Auto-populate related fields based on the set destination
+          const setDest = updatedPhase.metaOptimizationLocation;
+          if (setDest === 'APP') {
+            updatedPhase.metaAppStore = phase.metaAppStore || adAccountDefaults.metaAppStore;
+            updatedPhase.metaAppId = phase.metaAppId || adAccountDefaults.metaAppId;
+          } else if (setDest === 'MESSAGING_APPS') {
+            updatedPhase.metaMessagingMode = phase.metaMessagingMode || adAccountDefaults.metaMessagingMode;
+            updatedPhase.metaMessengerEnabled = phase.metaMessengerEnabled !== undefined ? phase.metaMessengerEnabled : adAccountDefaults.metaMessengerEnabled;
+            updatedPhase.metaInstagramDmEnabled = phase.metaInstagramDmEnabled !== undefined ? phase.metaInstagramDmEnabled : adAccountDefaults.metaInstagramDmEnabled;
+            updatedPhase.metaWhatsappEnabled = phase.metaWhatsappEnabled !== undefined ? phase.metaWhatsappEnabled : adAccountDefaults.metaWhatsappEnabled;
+            updatedPhase.metaWhatsappNumber = phase.metaWhatsappNumber || adAccountDefaults.metaWhatsappNumber;
+            updatedPhase.metaPageId = phase.metaPageId || adAccountDefaults.metaPageId;
+            updatedPhase.metaInstagramAccountId = phase.metaInstagramAccountId || adAccountDefaults.metaInstagramAccountId;
           }
         }
         // Always populate landing page URL if missing
