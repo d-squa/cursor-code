@@ -1,13 +1,12 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer, Area
 } from "recharts";
-import { Download } from "lucide-react";
 import ChartDataTable from "./ChartDataTable";
+import { cn } from "@/lib/utils";
 
 interface MetricOption {
   key: string;
@@ -55,16 +54,19 @@ export default function TimeSeriesChart({
   ];
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
+    <Card className="overflow-hidden group hover:shadow-lg transition-all duration-300">
+      <CardHeader className="pb-2 bg-gradient-to-r from-muted/30 to-transparent">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base">{title}</CardTitle>
+          <CardTitle className="text-base font-semibold">{title}</CardTitle>
           <div className="flex flex-wrap gap-1">
             {metricOptions.map((metric) => (
               <Badge
                 key={metric.key}
                 variant={selectedMetrics.includes(metric.key) ? "default" : "outline"}
-                className="cursor-pointer text-xs"
+                className={cn(
+                  "cursor-pointer text-xs transition-all duration-200 hover:scale-105",
+                  selectedMetrics.includes(metric.key) && "shadow-sm"
+                )}
                 style={{
                   backgroundColor: selectedMetrics.includes(metric.key) ? metric.color : undefined,
                   borderColor: metric.color,
@@ -78,20 +80,32 @@ export default function TimeSeriesChart({
           </div>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="pt-4">
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={data}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+              <defs>
+                {metricOptions.map(metric => (
+                  <linearGradient key={`gradient-${metric.key}`} id={`gradient-${metric.key}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={metric.color} stopOpacity={0.8} />
+                    <stop offset="100%" stopColor={metric.color} stopOpacity={0.1} />
+                  </linearGradient>
+                ))}
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" className="stroke-muted/50" vertical={false} />
               <XAxis 
                 dataKey={xAxisKey} 
                 className="text-xs"
-                tick={{ fontSize: 10 }}
+                tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                axisLine={{ stroke: 'hsl(var(--border))' }}
+                tickLine={{ stroke: 'hsl(var(--border))' }}
               />
               <YAxis 
                 yAxisId="left"
                 className="text-xs"
-                tick={{ fontSize: 10 }}
+                tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                axisLine={{ stroke: 'hsl(var(--border))' }}
+                tickLine={{ stroke: 'hsl(var(--border))' }}
                 tickFormatter={(v) => v >= 1000000 ? `${(v/1000000).toFixed(1)}M` : v >= 1000 ? `${(v/1000).toFixed(0)}K` : v}
               />
               {hasRightAxis && (
@@ -99,7 +113,9 @@ export default function TimeSeriesChart({
                   yAxisId="right"
                   orientation="right"
                   className="text-xs"
-                  tick={{ fontSize: 10 }}
+                  tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
+                  axisLine={{ stroke: 'hsl(var(--border))' }}
+                  tickLine={{ stroke: 'hsl(var(--border))' }}
                   tickFormatter={(v) => typeof v === 'number' && v < 100 ? v.toFixed(2) : v}
                 />
               )}
@@ -107,8 +123,9 @@ export default function TimeSeriesChart({
                 contentStyle={{ 
                   backgroundColor: 'hsl(var(--popover))', 
                   border: '1px solid hsl(var(--border))',
-                  borderRadius: '8px',
-                  fontSize: '12px'
+                  borderRadius: '12px',
+                  fontSize: '12px',
+                  boxShadow: '0 10px 40px rgba(0,0,0,0.15)'
                 }}
                 formatter={(value: number, name: string) => {
                   const metric = metricOptions.find(m => m.key === name);
@@ -116,8 +133,12 @@ export default function TimeSeriesChart({
                   if (value >= 1000) return [`${(value / 1000).toFixed(2)}K`, metric?.label || name];
                   return [value.toFixed(2), metric?.label || name];
                 }}
+                cursor={{ fill: 'hsl(var(--muted))', opacity: 0.3 }}
               />
-              <Legend />
+              <Legend 
+                wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }}
+                iconType="circle"
+              />
               
               {activeMetrics.map((metric) => {
                 const commonProps = {
@@ -131,9 +152,10 @@ export default function TimeSeriesChart({
                   return (
                     <Bar
                       {...commonProps}
-                      fill={metric.color}
-                      radius={[4, 4, 0, 0]}
-                      opacity={0.8}
+                      fill={`url(#gradient-${metric.key})`}
+                      radius={[6, 6, 0, 0]}
+                      animationDuration={1000}
+                      animationBegin={200}
                     />
                   );
                 }
@@ -141,9 +163,10 @@ export default function TimeSeriesChart({
                   return (
                     <Area
                       {...commonProps}
-                      fill={metric.color}
+                      fill={`url(#gradient-${metric.key})`}
                       stroke={metric.color}
-                      fillOpacity={0.3}
+                      strokeWidth={2}
+                      animationDuration={1000}
                     />
                   );
                 }
@@ -151,9 +174,10 @@ export default function TimeSeriesChart({
                   <Line
                     {...commonProps}
                     stroke={metric.color}
-                    strokeWidth={2}
-                    dot={{ fill: metric.color, r: 4 }}
-                    activeDot={{ r: 6 }}
+                    strokeWidth={3}
+                    dot={{ fill: metric.color, r: 4, strokeWidth: 2, stroke: 'hsl(var(--background))' }}
+                    activeDot={{ r: 7, strokeWidth: 3, stroke: 'hsl(var(--background))' }}
+                    animationDuration={1000}
                   />
                 );
               })}
