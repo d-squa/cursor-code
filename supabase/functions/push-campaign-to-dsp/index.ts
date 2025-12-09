@@ -343,16 +343,28 @@ async function updateLaunchStatuses(
       }
     }
     
-    // Update failed entities
+    // Update failed entities with detailed API response
     for (const errorItem of errorResults) {
-      const { market, phase, error, type } = errorItem;
+      const { market, phase, error, type, apiResponse } = errorItem;
+      
+      // Build detailed error message
+      const errorMessage = typeof error === 'string' ? error : (error?.message || 'Push failed');
+      const errorDetails = [
+        { 
+          message: errorMessage, 
+          type: type || 'api_error',
+          apiResponse: apiResponse || error,
+          field: errorItem.field,
+          fieldPath: errorItem.fieldPath || 'step1'
+        }
+      ];
       
       await supabase
         .from('campaign_launch_status')
         .update({
           status: 'push_failed',
-          error_message: error || 'Push failed',
-          error_details: { type, error },
+          error_message: errorMessage,
+          error_details: errorDetails,
           updated_at: new Date().toISOString()
         })
         .eq('campaign_id', campaignId)
@@ -803,11 +815,14 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
         
         if (campaignData.error) {
           console.error("Meta Campaign Creation Error:", campaignData.error);
+          const errorMsg = campaignData.error.message || JSON.stringify(campaignData.error);
           errors.push({
             market: market.name,
             phase: phase.name,
-            error: campaignData.error.message,
-            type: 'campaign_creation'
+            error: errorMsg,
+            type: 'campaign_creation',
+            apiResponse: campaignData.error,
+            fieldPath: 'step3'
           });
           continue;
         }
@@ -1456,12 +1471,15 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
         
         if (adSetData.error) {
           console.error("Meta Ad Set Creation Error:", adSetData.error);
+          const errorMsg = adSetData.error.message || JSON.stringify(adSetData.error);
           errors.push({
             market: market.name,
             phase: phase.name,
-            error: adSetData.error.message,
+            error: errorMsg,
             type: 'adset_creation',
-            campaignId: campaignData.id
+            campaignId: campaignData.id,
+            apiResponse: adSetData.error,
+            fieldPath: 'step3'
           });
           continue;
         }
@@ -1482,8 +1500,10 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
         errors.push({
           market: market.name,
           phase: phase.name,
-          error: error.message,
-          type: 'processing_error'
+          error: error.message || 'Unexpected error during Meta campaign creation',
+          type: 'processing_error',
+          apiResponse: error.stack || error.toString(),
+          fieldPath: 'step3'
         });
       }
     }
@@ -1633,11 +1653,17 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
         });
         
         if (!campaignResult.success) {
+          const errData = (campaignResult as any).error;
+          const errorMsg = typeof errData === 'string' 
+            ? errData 
+            : (errData?.message || JSON.stringify(errData));
           errors.push({
             market: market.name,
             phase: phase.name,
-            error: campaignResult.error,
-            type: 'campaign_creation'
+            error: errorMsg,
+            type: 'campaign_creation',
+            apiResponse: errData,
+            fieldPath: 'step3'
           });
           continue;
         }
@@ -1973,11 +1999,17 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
         });
 
         if (!adGroupResult.success) {
+          const errData = (adGroupResult as any).error;
+          const errorMsg = typeof errData === 'string' 
+            ? errData 
+            : (errData?.message || JSON.stringify(errData));
           errors.push({
             market: market.name,
             phase: phase.name,
-            error: adGroupResult.error,
-            type: 'adgroup_creation'
+            error: errorMsg,
+            type: 'adgroup_creation',
+            apiResponse: errData,
+            fieldPath: 'step3'
           });
           continue;
         }
@@ -2013,8 +2045,10 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
         errors.push({
           market: market.name,
           phase: phase.name,
-          error: error.message,
-          type: 'unexpected_error'
+          error: error.message || 'Unexpected error during TikTok campaign creation',
+          type: 'unexpected_error',
+          apiResponse: error.stack || error.toString(),
+          fieldPath: 'step3'
         });
       }
     }

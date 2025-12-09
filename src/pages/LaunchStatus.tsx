@@ -151,11 +151,12 @@ export default function LaunchStatus() {
       setValidating(false);
       setPushing(true);
       
-      // Update statuses to "pushing"
+      // Update ONLY non-pushed statuses to "pushing" (skip already pushed_to_dsp entities)
       await supabase
         .from('campaign_launch_status')
         .update({ status: 'pushing' })
-        .eq('campaign_id', campaignId);
+        .eq('campaign_id', campaignId)
+        .in('status', ['ready_for_push', 'push_failed', 'validation_error']);
       
       await loadData();
       
@@ -164,11 +165,28 @@ export default function LaunchStatus() {
         body: { campaignId }
       });
       
-      if (error) throw error;
+      if (error) {
+        // Try to parse the error for more details
+        let errorMessage = error.message;
+        try {
+          const parsed = JSON.parse(error.message);
+          errorMessage = parsed.error || parsed.message || error.message;
+        } catch (e) {
+          // Use original message
+        }
+        throw new Error(errorMessage);
+      }
+      
+      // Check if the response indicates failure
+      if (!data?.success && data?.error) {
+        throw new Error(data.error);
+      }
       
       // The edge function now updates statuses and campaign status
       if (data?.hasErrors) {
-        toast.warning('Campaign pushed with some errors. Check status for details.');
+        // Show detailed error info from results
+        const errorCount = data.results?.filter((r: any) => r.error || r.errors?.length > 0).length || 0;
+        toast.warning(`Campaign pushed with ${errorCount} error(s). Check status for details.`);
       } else {
         toast.success('Campaign pushed to DSP successfully!');
       }
@@ -178,12 +196,22 @@ export default function LaunchStatus() {
       
     } catch (error: any) {
       console.error('Push error:', error);
-      toast.error('Push failed: ' + error.message);
       
-      // Update failed statuses
+      // Show detailed error toast
+      const errorMsg = error.message || 'Unknown error occurred';
+      toast.error(`Push failed: ${errorMsg}`, {
+        duration: 10000, // Keep visible longer
+        description: 'Check the error details below for more information'
+      });
+      
+      // Update failed statuses with detailed error message
       await supabase
         .from('campaign_launch_status')
-        .update({ status: 'push_failed', error_message: error.message })
+        .update({ 
+          status: 'push_failed', 
+          error_message: errorMsg,
+          error_details: [{ message: errorMsg, type: 'api_error' }]
+        })
         .eq('campaign_id', campaignId)
         .eq('status', 'pushing');
       
@@ -266,13 +294,16 @@ export default function LaunchStatus() {
   const errorEntities = statuses.filter(s => ['validation_error', 'push_failed'].includes(s.status)).length;
   const progressPercent = totalEntities > 0 ? (pushedEntities / totalEntities) * 100 : 0;
 
-  // Determine if we can push
-  const canPush = statuses.length > 0 && 
-    statuses.every(s => s.status === 'ready_for_push') &&
-    !pushing && !validating;
+  // Determine if we can push - allow push if there are any ready_for_push, push_failed, or validation_error entities
+  const pendingEntities = statuses.filter(s => ['ready_for_push', 'push_failed', 'validation_error'].includes(s.status));
+  const canPush = pendingEntities.length > 0 && !pushing && !validating;
+  
+  // Check if this is a retry (some already pushed)
+  const isRetry = pushedEntities > 0 && pendingEntities.length > 0;
   
   const hasErrors = errorEntities > 0;
   const allLive = totalEntities > 0 && liveEntities === totalEntities;
+  const allPushed = totalEntities > 0 && pushedEntities === totalEntities;
 
   if (loading) {
     return (
@@ -340,10 +371,10 @@ export default function LaunchStatus() {
               </Button>
               <Button 
                 onClick={handlePush}
-                disabled={!canPush}
+                disabled={!canPush || allPushed}
               >
                 {pushing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Rocket className="h-4 w-4 mr-2" />}
-                Push to DSP
+                {isRetry ? `Retry Failed (${pendingEntities.length})` : 'Push to DSP'}
               </Button>
             </div>
           </div>
