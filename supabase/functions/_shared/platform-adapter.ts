@@ -205,10 +205,18 @@ class TikTokAdapter implements PlatformAdapter {
 
   async createCampaign(params: CreateCampaignParams): Promise<CreateCampaignResult> {
     try {
+      // AUTOMATIC FALLBACK: TikTok requires 90+ days of conversion data for CONVERSIONS objective
+      // Fall back to TRAFFIC to prevent campaign creation issues
+      let finalObjective = params.objective;
+      if (finalObjective === 'CONVERSIONS') {
+        console.warn("⚠️ CONVERSIONS objective detected - Falling back to TRAFFIC (TikTok requires 90+ days conversion data)");
+        finalObjective = 'TRAFFIC';
+      }
+      
       const body: any = {
         advertiser_id: params.accountId,
         campaign_name: params.campaignName,
-        objective_type: params.objective,
+        objective_type: finalObjective,
         budget_mode: params.budgetMode === 'daily' ? 'BUDGET_MODE_DAY' : 'BUDGET_MODE_TOTAL',
         budget: Math.round(params.budget * 100) / 100, // Round to 2 decimal places for currency precision
         operation_status: params.status === 'PAUSED' ? 'DISABLE' : 'ENABLE',
@@ -251,7 +259,7 @@ class TikTokAdapter implements PlatformAdapter {
         success: true,
         campaignId: data.data.campaign_id,
         platform: "tiktok",
-        metadata: data.data,
+        metadata: { ...data.data, actual_objective: finalObjective },
       };
     } catch (error: any) {
       return {
