@@ -620,8 +620,8 @@ export default function ActiPlans() {
                     <DropdownMenuItem onClick={() => {
                       navigate(`/actiplans/${campaign.id}/report`);
                     }}>
-                      <BarChart3 className="w-4 h-4 mr-2" />
-                      Performance Report
+                      <TrendingUp className="w-4 h-4 mr-2" />
+                      Check Performance
                     </DropdownMenuItem>
                   </>
                 )}
