@@ -209,9 +209,13 @@ function validateTikTokCampaign(campaign: any, market: any, phase: any, platform
   
   // Check conversion campaigns have pixel
   const isConversionCampaign = objective?.includes('CONVERSION') || objective?.includes('SALES') ||
-    objective?.includes('LEADS') || phase?.name?.toLowerCase().includes('conversion');
+    objective?.includes('LEADS') || phase?.name?.toLowerCase().includes('conversion') ||
+    phase?.name?.toLowerCase().includes('intent');
   if (isConversionCampaign) {
-    const pixelId = market.pixel || market.tiktokPixelId || phase?.pixel || phase?.tiktokPixelId;
+    // Check all possible field names for TikTok pixel
+    const pixelId = market.tiktokPixel || market.pixel || market.tiktokPixelId || 
+                    phase?.tiktokPixel || phase?.pixel || phase?.tiktokPixelId;
+    console.log(`TikTok pixel check for ${marketName}/${phaseName}: tiktokPixel=${market.tiktokPixel}, pixel=${market.pixel}, found=${!!pixelId}`);
     if (!pixelId) {
       errors.push({
         platform: 'TikTok',
