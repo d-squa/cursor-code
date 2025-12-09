@@ -647,10 +647,10 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
   const results = [];
   const errors = [];
   
-  // Extract markets from the correct structure
-  const markets = platformConfig.markets || [];
+  // Extract markets from the correct structure (it's an object, not array)
+  const marketsObj = platformConfig.markets || {};
   
-  for (const market of markets) {
+  for (const [marketCode, market] of Object.entries(marketsObj) as [string, any][]) {
     // Validate required fields for conversion campaigns
     const requiresConversionEvent = market.phases && market.phases.some((phase: any) => {
       const phaseName = phase.name?.toLowerCase() || "";
@@ -1499,7 +1499,8 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
   console.log("Pushing to TikTok...");
   
   // Check for conversion campaigns and log automatic fallback warning
-  const hasConversionCampaigns = platformConfig.markets?.some((market: any) =>
+  const marketsObj = platformConfig.markets || {};
+  const hasConversionCampaigns = Object.values(marketsObj).some((market: any) =>
     market.phases?.some((phase: any) => {
       const objective = (phase.objective || '').toLowerCase();
       const optimizationGoal = (phase.optimizationGoal || '').toLowerCase();
@@ -1528,9 +1529,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
   const mapper = new ObjectiveMapper(supabaseUrl, supabaseKey);
   const tiktokAdapter = getPlatformAdapter("tiktok");
   
-  const markets = platformConfig.markets || [];
-  
-  for (const market of markets) {
+  for (const [marketCode, market] of Object.entries(marketsObj) as [string, any][]) {
     // Get TikTok advertiser ID from market config
     const advertiserId = market.adAccountId || platform.metadata?.advertiser_ids?.[0];
     
