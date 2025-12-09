@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { 
   Loader2, ArrowLeft, RefreshCw, CheckCircle2, XCircle, 
-  AlertTriangle, Clock, Rocket, Play, ChevronDown, ChevronRight,
+  AlertTriangle, AlertCircle, Clock, Rocket, Play, ChevronDown, ChevronRight,
   ExternalLink
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -48,7 +48,7 @@ interface Campaign {
   end_date: string;
 }
 
-type StatusType = 'pending_validation' | 'validation_error' | 'ready_for_push' | 'pushing' | 'pushed_to_dsp' | 'push_failed' | 'live' | 'paused';
+type StatusType = 'pending_validation' | 'validation_error' | 'ready_for_push' | 'pushing' | 'pushed_to_dsp' | 'partially_pushed' | 'push_failed' | 'live' | 'paused';
 
 const STATUS_CONFIG: Record<StatusType, { label: string; color: string; icon: React.ReactNode }> = {
   pending_validation: { label: 'Pending Validation', color: 'bg-muted text-muted-foreground', icon: <Clock className="h-4 w-4" /> },
@@ -56,6 +56,7 @@ const STATUS_CONFIG: Record<StatusType, { label: string; color: string; icon: Re
   ready_for_push: { label: 'Ready for Push', color: 'bg-primary/10 text-primary', icon: <Rocket className="h-4 w-4" /> },
   pushing: { label: 'Pushing...', color: 'bg-warning/10 text-warning', icon: <Loader2 className="h-4 w-4 animate-spin" /> },
   pushed_to_dsp: { label: 'Pushed to DSP', color: 'bg-blue-500/10 text-blue-600', icon: <CheckCircle2 className="h-4 w-4" /> },
+  partially_pushed: { label: 'Partially Pushed', color: 'bg-amber-500/10 text-amber-600', icon: <AlertCircle className="h-4 w-4" /> },
   push_failed: { label: 'Push Failed', color: 'bg-destructive/10 text-destructive', icon: <XCircle className="h-4 w-4" /> },
   live: { label: 'Live', color: 'bg-green-500/10 text-green-600', icon: <Play className="h-4 w-4" /> },
   paused: { label: 'Paused', color: 'bg-muted text-muted-foreground', icon: <Clock className="h-4 w-4" /> },

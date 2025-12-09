@@ -295,6 +295,9 @@ export default function ActiPlans() {
       awaiting_approval: { variant: "outline", label: "Awaiting Approval" },
       approved: { variant: "default", label: "Approved" },
       live: { variant: "default", label: "Live" },
+      pushed_to_dsp: { variant: "default", label: "Pushed to DSP" },
+      partially_pushed: { variant: "outline", label: "Partially Pushed" },
+      push_failed: { variant: "destructive", label: "Push Failed" },
       under_modification: { variant: "outline", label: "Under Modification" },
       rejected: { variant: "destructive", label: "Rejected" },
     };
@@ -317,8 +320,8 @@ export default function ActiPlans() {
   const canPushToDSP = (campaign: Campaign) => {
     const isCreator = campaign.user_id === user?.id;
     const isTeamOwnerOrAdmin = campaign.is_admin_or_owner === true;
-    // Allow launch for approved, live, or pushed_to_dsp campaigns
-    const isReady = ["approved", "live", "pushed_to_dsp"].includes(campaign.status || "");
+    // Allow launch for approved, live, pushed_to_dsp, or partially_pushed campaigns
+    const isReady = ["approved", "live", "pushed_to_dsp", "partially_pushed"].includes(campaign.status || "");
     
     return (isCreator || isTeamOwnerOrAdmin) && isReady;
   };
@@ -327,7 +330,7 @@ export default function ActiPlans() {
     const isCreator = campaign.user_id === user?.id;
     const isTeamOwnerOrAdmin = campaign.is_admin_or_owner === true;
     // Show launch status for any campaign that's approved or beyond
-    const isReady = ["approved", "live", "pushed_to_dsp"].includes(campaign.status || "");
+    const isReady = ["approved", "live", "pushed_to_dsp", "partially_pushed"].includes(campaign.status || "");
     
     return (isCreator || isTeamOwnerOrAdmin) && isReady;
   };
@@ -614,7 +617,7 @@ export default function ActiPlans() {
                   </>
                 )}
 
-                {["ready_for_push", "pushed_to_dsp", "live"].includes(campaign.status || "") && (
+                {["ready_for_push", "pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
                   <>
                     {(canEdit(campaign) || canApprove(campaign) || canPushToDSP(campaign)) && <DropdownMenuSeparator />}
                     <DropdownMenuItem onClick={() => {

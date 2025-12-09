@@ -422,6 +422,23 @@ const handler = async (req: Request): Promise<Response> => {
 
     if (platformsError) throw platformsError;
 
+    // Fetch existing launch statuses to skip already-pushed entities
+    const { data: existingStatuses } = await supabase
+      .from('campaign_launch_status')
+      .select('platform, market, phase_name, entity_type, status, dsp_entity_id')
+      .eq('campaign_id', campaignId);
+    
+    // Create a set of already-pushed entities (market+phase combinations)
+    const alreadyPushedSet = new Set<string>();
+    for (const status of (existingStatuses || [])) {
+      if (status.status === 'pushed_to_dsp' && status.dsp_entity_id) {
+        // Key format: platform|market|phase_name
+        const key = `${status.platform?.toLowerCase()}|${status.market}|${status.phase_name || ''}`;
+        alreadyPushedSet.add(key);
+      }
+    }
+    console.log(`📋 Found ${alreadyPushedSet.size} already-pushed entities to skip`);
+
     const results = [];
 
     // Process each platform in the campaign
@@ -456,12 +473,51 @@ const handler = async (req: Request): Promise<Response> => {
         continue;
       }
 
-      // Create platform config structure
+      // Create platform config structure - filter out already-pushed markets
+      const filteredMarkets: Record<string, any> = {};
+      const platformKey = platformName.toLowerCase().includes('meta') ? 'meta' : 
+                          platformName.toLowerCase().includes('tiktok') ? 'tiktok' : platformName.toLowerCase();
+      
+      let skippedCount = 0;
+      for (const [marketCode, marketData] of Object.entries(markets as Record<string, any>)) {
+        // Check each phase in the market
+        const phases = marketData.phases || [];
+        const filteredPhases: any[] = [];
+        
+        for (const phase of phases) {
+          const checkKey = `${platformKey}|${marketCode}|${phase.name || ''}`;
+          if (alreadyPushedSet.has(checkKey)) {
+            console.log(`⏭️ Skipping already-pushed: ${platformName}/${marketCode}/${phase.name}`);
+            skippedCount++;
+          } else {
+            filteredPhases.push(phase);
+          }
+        }
+        
+        if (filteredPhases.length > 0) {
+          filteredMarkets[marketCode] = { ...marketData, phases: filteredPhases };
+        }
+      }
+      
+      if (Object.keys(filteredMarkets).length === 0) {
+        console.log(`⏭️ All ${skippedCount} entities for ${platformName} already pushed, skipping platform`);
+        results.push({
+          platform: platformName,
+          success: true,
+          skipped: true,
+          message: 'All entities already pushed',
+          results: []
+        });
+        continue;
+      }
+      
+      console.log(`📤 Pushing ${Object.keys(filteredMarkets).length} markets for ${platformName} (skipped ${skippedCount} already-pushed)`);
+
       const platformConfig = {
         id: platformId,
         name: platformName,
         budgetPercentage: platformBudgetPercentage,
-        markets: markets
+        markets: filteredMarkets
       };
 
       if (platformName.includes('Meta') || platformName.includes('Facebook')) {
@@ -469,7 +525,7 @@ const handler = async (req: Request): Promise<Response> => {
         results.push(result);
         
         // Update campaign_launch_status for each pushed entity
-        await updateLaunchStatuses(supabase, campaignId, platformName, result, markets as any[]);
+        await updateLaunchStatuses(supabase, campaignId, platformName, result, Object.values(filteredMarkets) as any[]);
         
       } else if (platformName.includes('Google')) {
         const result = await pushToGoogleAds(campaign, platformConfig, platform);
@@ -479,26 +535,52 @@ const handler = async (req: Request): Promise<Response> => {
         results.push(result);
         
         // Update campaign_launch_status for each pushed entity
-        await updateLaunchStatuses(supabase, campaignId, 'TikTok', result, markets as any[]);
+        await updateLaunchStatuses(supabase, campaignId, 'TikTok', result, Object.values(filteredMarkets) as any[]);
       }
     }
 
-    // Update campaign status to pushed_to_dsp
-    const hasErrors = results.some((r: any) => r.errors && r.errors.length > 0);
-    const allSuccess = results.every((r: any) => r.success !== false && (!r.errors || r.errors.length === 0));
+    // Fetch final launch statuses to determine campaign status
+    const { data: finalStatuses } = await supabase
+      .from('campaign_launch_status')
+      .select('status')
+      .eq('campaign_id', campaignId);
+    
+    const statusCounts = {
+      pushed: 0,
+      failed: 0,
+      pending: 0
+    };
+    
+    for (const s of (finalStatuses || [])) {
+      if (s.status === 'pushed_to_dsp') statusCounts.pushed++;
+      else if (s.status === 'push_failed' || s.status === 'validation_error') statusCounts.failed++;
+      else statusCounts.pending++;
+    }
+    
+    // Determine final campaign status
+    let finalStatus = 'pushed_to_dsp';
+    if (statusCounts.pushed > 0 && (statusCounts.failed > 0 || statusCounts.pending > 0)) {
+      finalStatus = 'partially_pushed';
+    } else if (statusCounts.pushed === 0 && statusCounts.failed > 0) {
+      finalStatus = 'push_failed';
+    } else if (statusCounts.pushed === 0 && statusCounts.pending > 0) {
+      finalStatus = 'pending';
+    }
+    
+    console.log(`📊 Launch status summary: pushed=${statusCounts.pushed}, failed=${statusCounts.failed}, pending=${statusCounts.pending} → ${finalStatus}`);
     
     await supabase
       .from('campaigns')
       .update({ 
-        status: hasErrors ? 'push_failed' : 'pushed_to_dsp',
+        status: finalStatus,
         updated_at: new Date().toISOString()
       })
       .eq('id', campaignId);
     
-    console.log(`Campaign push completed. Success: ${allSuccess}, Has errors: ${hasErrors}`);
+    console.log(`Campaign push completed. Final status: ${finalStatus}`);
 
     return new Response(
-      JSON.stringify({ success: allSuccess, results, hasErrors }),
+      JSON.stringify({ success: statusCounts.failed === 0, results, hasErrors: statusCounts.failed > 0, finalStatus }),
       {
         status: 200,
         headers: { "Content-Type": "application/json", ...corsHeaders },

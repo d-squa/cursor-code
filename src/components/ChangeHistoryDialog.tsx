@@ -92,6 +92,7 @@ export function ChangeHistoryDialog({
       modification_accepted: "Modification Accepted",
       modification_completed: "Modification Completed",
       pushed_to_dsp: "Pushed to DSP",
+      partially_pushed: "Partially Pushed",
       created: "Created",
       updated: "Updated",
     };
