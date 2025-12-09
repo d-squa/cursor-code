@@ -335,17 +335,20 @@ export default function PerformanceReport() {
     });
   }, [campaign, filteredData, metrics, granularity]);
 
-  // Platform breakdown for table
+  // Platform breakdown for table - show each phase separately
   const platformBreakdown = useMemo(() => {
     const breakdown: Record<string, any> = {};
     
     filteredData.statuses.forEach(status => {
-      const key = `${status.platform}-${status.market}`;
+      // Include phase_name in key to show each phase separately
+      const phaseName = status.phase_name || 'Unknown';
+      const key = `${status.platform}-${status.market}-${phaseName}`;
       if (!breakdown[key]) {
         breakdown[key] = {
           name: status.phase_name || status.entity_name || status.platform,
           platform: status.platform,
           market: status.market,
+          phase: phaseName,
           plannedBudget: 0,
           actualSpend: 0,
           plannedImpressions: 0,
