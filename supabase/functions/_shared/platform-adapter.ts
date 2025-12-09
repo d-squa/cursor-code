@@ -395,16 +395,42 @@ class TikTokAdapter implements PlatformAdapter {
       // STEP 6: Validate and map promotion_type based on objective/optimization goal matrix
       // Some objectives don't support optimization location
       const objectivesWithoutLocation = ['REACH', 'VIDEO_VIEWS', 'VIDEO_VIEW', 'FOCUSED_VIEW', '6S_VIDEO_VIEW', '15S_VIDEO_VIEW', 'COMMUNITY_INTERACTION', 'PROFILE_VISIT', 'FOLLOW'];
+      // TRAFFIC/CLICK objectives only support Website/App destinations, not Lead Gen types
+      const trafficObjectives = ['TRAFFIC', 'CLICK', 'LANDING_PAGE'];
+      const isTrafficObjective = trafficObjectives.includes(finalOptimizationGoal.toUpperCase()) ||
+                                  trafficObjectives.includes(params.optimizationGoal?.toUpperCase() || '');
       const skipPromotionType = objectivesWithoutLocation.includes(finalOptimizationGoal.toUpperCase()) ||
                                  objectivesWithoutLocation.includes(params.optimizationGoal?.toUpperCase() || '');
       
-      console.log(`📍 Optimization location check: objective=${finalOptimizationGoal}, location=${params.optimizationLocation}, skip=${skipPromotionType}`);
+      console.log(`📍 Optimization location check: objective=${finalOptimizationGoal}, location=${params.optimizationLocation}, skip=${skipPromotionType}, isTraffic=${isTrafficObjective}`);
       
       const mapPromotionType = (location?: string, appName?: string): string | null => {
         // If objective doesn't support location, return null to skip promotion_type
         if (skipPromotionType) {
           console.log(`⚠️ Skipping promotion_type - ${finalOptimizationGoal} doesn't support optimization location`);
           return null;
+        }
+        
+        // TRAFFIC objective only supports WEBSITE, APP, TIKTOK_SHOP - not Lead Gen types
+        if (isTrafficObjective) {
+          // Map only traffic-compatible locations
+          if (location === 'App' && appName) {
+            if (appName.toLowerCase().includes('ios') || appName.toLowerCase().includes('iphone')) {
+              return 'APP_IOS';
+            }
+            return 'APP_ANDROID';
+          }
+          // For Traffic, force WEBSITE for any incompatible location (Lead Gen types)
+          const trafficMapping: Record<string, string> = {
+            'Website': 'WEBSITE',
+            'App': 'APP_ANDROID',
+            'TikTok Shop': 'TIKTOK_SHOP',
+          };
+          const mappedType = trafficMapping[location || ''] || 'WEBSITE';
+          if (!trafficMapping[location || '']) {
+            console.warn(`⚠️ Traffic objective doesn't support "${location}" - falling back to WEBSITE`);
+          }
+          return mappedType;
         }
         
         // Handle App promotion with specific app types
