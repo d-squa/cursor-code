@@ -10,7 +10,7 @@ import {
   Loader2, ArrowLeft, RefreshCw, BarChart3, Download
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
-import { format, startOfWeek, endOfWeek, eachWeekOfInterval, eachMonthOfInterval, isWithinInterval, startOfMonth, endOfMonth, differenceInDays } from "date-fns";
+import { format, startOfWeek, endOfWeek, eachWeekOfInterval, eachMonthOfInterval, startOfMonth, endOfMonth, differenceInDays } from "date-fns";
 import { DateRange } from "react-day-picker";
 
 import DashboardFilters from "@/components/dashboard/DashboardFilters";
@@ -19,6 +19,8 @@ import TimeSeriesChart from "@/components/dashboard/TimeSeriesChart";
 import BudgetPacingChart from "@/components/dashboard/BudgetPacingChart";
 import CoverageEvolutionChart from "@/components/dashboard/CoverageEvolutionChart";
 import PerformanceTable from "@/components/dashboard/PerformanceTable";
+import PlatformComparisonSection from "@/components/dashboard/PlatformComparisonSection";
+import MarketComparisonSection from "@/components/dashboard/MarketComparisonSection";
 
 interface Campaign {
   id: string;
@@ -106,6 +108,16 @@ export default function PerformanceReport() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Set default date range from campaign start to now
+  useEffect(() => {
+    if (campaign?.start_date && !dateRange) {
+      setDateRange({
+        from: new Date(campaign.start_date),
+        to: new Date()
+      });
+    }
+  }, [campaign?.start_date]);
 
   const handleRefresh = async () => {
     if (!campaignId) return;
@@ -349,7 +361,6 @@ export default function PerformanceReport() {
 
     filteredData.insights.forEach(insight => {
       const m = insight.metrics || {};
-      // Find matching breakdown entries for this platform
       Object.keys(breakdown).forEach(key => {
         if (breakdown[key].platform === insight.platform) {
           breakdown[key].actualSpend += m.spend || 0;
@@ -360,7 +371,6 @@ export default function PerformanceReport() {
       });
     });
 
-    // Calculate derived metrics
     Object.values(breakdown).forEach((row: any) => {
       row.ctr = row.actualImpressions > 0 ? (row.actualClicks / row.actualImpressions) * 100 : 0;
       row.cpm = row.actualImpressions > 0 ? (row.actualSpend / row.actualImpressions) * 1000 : 0;
@@ -369,6 +379,54 @@ export default function PerformanceReport() {
 
     return Object.values(breakdown);
   }, [filteredData]);
+
+  // Platform aggregated data
+  const platformData = useMemo(() => {
+    const byPlatform: Record<string, any> = {};
+    platformBreakdown.forEach((row: any) => {
+      if (!byPlatform[row.platform]) {
+        byPlatform[row.platform] = { platform: row.platform, plannedBudget: 0, actualSpend: 0, plannedImpressions: 0, actualImpressions: 0, plannedReach: 0, actualReach: 0, plannedClicks: 0, actualClicks: 0 };
+      }
+      byPlatform[row.platform].plannedBudget += row.plannedBudget;
+      byPlatform[row.platform].actualSpend += row.actualSpend;
+      byPlatform[row.platform].plannedImpressions += row.plannedImpressions;
+      byPlatform[row.platform].actualImpressions += row.actualImpressions;
+      byPlatform[row.platform].plannedReach += row.plannedReach;
+      byPlatform[row.platform].actualReach += row.actualReach;
+      byPlatform[row.platform].plannedClicks += row.plannedClicks;
+      byPlatform[row.platform].actualClicks += row.actualClicks;
+    });
+    return Object.values(byPlatform).map((p: any) => ({
+      ...p,
+      ctr: p.actualImpressions > 0 ? (p.actualClicks / p.actualImpressions) * 100 : 0,
+      cpm: p.actualImpressions > 0 ? (p.actualSpend / p.actualImpressions) * 1000 : 0,
+      cpc: p.actualClicks > 0 ? p.actualSpend / p.actualClicks : 0,
+    }));
+  }, [platformBreakdown]);
+
+  // Market aggregated data
+  const marketData = useMemo(() => {
+    const byMarket: Record<string, any> = {};
+    platformBreakdown.forEach((row: any) => {
+      if (!byMarket[row.market]) {
+        byMarket[row.market] = { market: row.market, plannedBudget: 0, actualSpend: 0, plannedImpressions: 0, actualImpressions: 0, plannedReach: 0, actualReach: 0, plannedClicks: 0, actualClicks: 0 };
+      }
+      byMarket[row.market].plannedBudget += row.plannedBudget;
+      byMarket[row.market].actualSpend += row.actualSpend;
+      byMarket[row.market].plannedImpressions += row.plannedImpressions;
+      byMarket[row.market].actualImpressions += row.actualImpressions;
+      byMarket[row.market].plannedReach += row.plannedReach;
+      byMarket[row.market].actualReach += row.actualReach;
+      byMarket[row.market].plannedClicks += row.plannedClicks;
+      byMarket[row.market].actualClicks += row.actualClicks;
+    });
+    return Object.values(byMarket).map((m: any) => ({
+      ...m,
+      ctr: m.actualImpressions > 0 ? (m.actualClicks / m.actualImpressions) * 100 : 0,
+      cpm: m.actualImpressions > 0 ? (m.actualSpend / m.actualImpressions) * 1000 : 0,
+      cpc: m.actualClicks > 0 ? m.actualSpend / m.actualClicks : 0,
+    }));
+  }, [platformBreakdown]);
 
   // Filter handlers
   const handlePlatformToggle = (platform: string) => {
@@ -625,6 +683,16 @@ export default function PerformanceReport() {
               />
             </div>
           </div>
+
+          <Separator />
+
+          {/* Platform Comparison */}
+          <PlatformComparisonSection data={platformData} />
+
+          <Separator />
+
+          {/* Market Comparison */}
+          <MarketComparisonSection data={marketData} />
 
           <Separator />
 

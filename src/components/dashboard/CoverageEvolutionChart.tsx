@@ -3,6 +3,7 @@ import {
   ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer
 } from "recharts";
+import ChartDataTable from "./ChartDataTable";
 
 interface CoverageEvolutionChartProps {
   data: {
@@ -17,6 +18,20 @@ interface CoverageEvolutionChartProps {
 }
 
 export default function CoverageEvolutionChart({ data }: CoverageEvolutionChartProps) {
+  const reachColumns = [
+    { key: 'period', label: 'Period' },
+    { key: 'audienceSize', label: 'Audience Size' },
+    { key: 'cumulativeReach', label: 'Cumulative Reach' },
+    { key: 'targetReach', label: 'Target Reach' }
+  ];
+
+  const sovColumns = [
+    { key: 'period', label: 'Period' },
+    { key: 'sov', label: 'SOV' },
+    { key: 'cumulativeSov', label: 'Cumulative SOV' },
+    { key: 'targetSov', label: 'Target SOV' }
+  ];
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       {/* Reach Evolution */}
@@ -74,6 +89,11 @@ export default function CoverageEvolutionChart({ data }: CoverageEvolutionChartP
               </ComposedChart>
             </ResponsiveContainer>
           </div>
+          <ChartDataTable 
+            data={data} 
+            columns={reachColumns} 
+            filename="reach-evolution" 
+          />
         </CardContent>
       </Card>
 
@@ -133,6 +153,11 @@ export default function CoverageEvolutionChart({ data }: CoverageEvolutionChartP
               </ComposedChart>
             </ResponsiveContainer>
           </div>
+          <ChartDataTable 
+            data={data} 
+            columns={sovColumns} 
+            filename="sov-evolution" 
+          />
         </CardContent>
       </Card>
     </div>

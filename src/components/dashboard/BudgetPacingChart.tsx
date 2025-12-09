@@ -1,8 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend, ResponsiveContainer, ReferenceLine
+  Tooltip, Legend, ResponsiveContainer
 } from "recharts";
+import ChartDataTable from "./ChartDataTable";
 
 interface BudgetPacingChartProps {
   data: {
@@ -19,6 +20,16 @@ interface BudgetPacingChartProps {
 
 export default function BudgetPacingChart({ data, totalPlannedBudget }: BudgetPacingChartProps) {
   const latestPct = data.length > 0 ? data[data.length - 1] : null;
+
+  const tableColumns = [
+    { key: 'period', label: 'Period' },
+    { key: 'plannedBudget', label: 'Planned Budget' },
+    { key: 'actualSpend', label: 'Actual Spend' },
+    { key: 'cumulativePlanned', label: 'Cumulative Planned' },
+    { key: 'cumulativeActual', label: 'Cumulative Actual' },
+    { key: 'pctTimeElapsed', label: '% Time Elapsed' },
+    { key: 'pctBudgetSpent', label: '% Budget Spent' }
+  ];
 
   return (
     <Card>
@@ -112,6 +123,11 @@ export default function BudgetPacingChart({ data, totalPlannedBudget }: BudgetPa
             </ComposedChart>
           </ResponsiveContainer>
         </div>
+        <ChartDataTable 
+          data={data} 
+          columns={tableColumns} 
+          filename="budget-pacing" 
+        />
       </CardContent>
     </Card>
   );

@@ -6,6 +6,8 @@ import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer, Area
 } from "recharts";
+import { Download } from "lucide-react";
+import ChartDataTable from "./ChartDataTable";
 
 interface MetricOption {
   key: string;
@@ -21,6 +23,7 @@ interface TimeSeriesChartProps {
   metricOptions: MetricOption[];
   defaultMetrics?: string[];
   xAxisKey?: string;
+  filename?: string;
 }
 
 export default function TimeSeriesChart({
@@ -29,6 +32,7 @@ export default function TimeSeriesChart({
   metricOptions,
   defaultMetrics,
   xAxisKey = 'period',
+  filename,
 }: TimeSeriesChartProps) {
   const [selectedMetrics, setSelectedMetrics] = useState<string[]>(
     defaultMetrics || metricOptions.slice(0, 3).map(m => m.key)
@@ -44,6 +48,11 @@ export default function TimeSeriesChart({
 
   const activeMetrics = metricOptions.filter(m => selectedMetrics.includes(m.key));
   const hasRightAxis = activeMetrics.some(m => m.yAxisId === 'right');
+
+  const tableColumns = [
+    { key: xAxisKey, label: 'Period' },
+    ...metricOptions.map(m => ({ key: m.key, label: m.label }))
+  ];
 
   return (
     <Card>
@@ -151,6 +160,11 @@ export default function TimeSeriesChart({
             </ComposedChart>
           </ResponsiveContainer>
         </div>
+        <ChartDataTable 
+          data={data} 
+          columns={tableColumns} 
+          filename={filename || title.toLowerCase().replace(/\s+/g, '-')} 
+        />
       </CardContent>
     </Card>
   );
