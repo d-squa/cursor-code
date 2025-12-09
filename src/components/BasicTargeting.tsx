@@ -142,8 +142,11 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
     loadTargetingOptions();
   }, []);
 
-  // Initialize recommendations from saved targeting data
+  // Initialize recommendations from saved targeting data - ONLY on mount
   useEffect(() => {
+    // Skip if already initialized
+    if (hasInitialized.current) return;
+    
     // Check if we have saved data
     const hasSavedData = (
       (targeting.metaInterests?.length || 0) > 0 ||
@@ -155,20 +158,8 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
     );
     
     if (!hasSavedData) {
-      // Reset if no data and we were previously initialized
-      if (hasInitialized.current) {
-        hasInitialized.current = false;
-        setAiRecommendations({
-          meta: { interests: [], behaviors: [], demographics: [] },
-          tiktok: { interests: [], behaviors: [], demographics: [] },
-          matches: []
-        });
-      }
       return;
     }
-    
-    // Skip if already initialized to prevent flickering
-    if (hasInitialized.current) return;
     
     // Mark as initialized
     hasInitialized.current = true;
@@ -198,35 +189,19 @@ export function BasicTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdv
                           restoredRecommendations.tiktok.behaviors.length > 0 || 
                           restoredRecommendations.tiktok.demographics.length > 0;
     
-    console.log('[BasicTargeting useEffect] Data check:', { hasMetaData, hasTikTokData });
-    console.log('[BasicTargeting useEffect] Platform context:', { metaAdAccountId, tiktokAdvertiserId });
-    
     // Priority 1: If only one platform account is available, show that platform
     if (tiktokAdvertiserId && !metaAdAccountId) {
-      console.log('[BasicTargeting useEffect] Switching to TikTok (platform context)');
       setActiveRecommendationTab("tiktok");
     } else if (metaAdAccountId && !tiktokAdvertiserId) {
-      console.log('[BasicTargeting useEffect] Switching to Meta (platform context)');
       setActiveRecommendationTab("meta");
     }
     // Priority 2: If both accounts available, switch to the platform that has data
     else if (hasTikTokData && !hasMetaData) {
-      console.log('[BasicTargeting useEffect] Switching to TikTok (data available)');
       setActiveRecommendationTab("tiktok");
     } else if (hasMetaData && !hasTikTokData) {
-      console.log('[BasicTargeting useEffect] Switching to Meta (data available)');
       setActiveRecommendationTab("meta");
     }
-    console.log('[BasicTargeting useEffect] Final tab state should be based on priority logic');
-    // Priority 3: If both have data or neither has data, respect the initial state based on platform context
-  }, [
-    targeting.metaInterests, 
-    targeting.tiktokInterests, 
-    targeting.metaBehaviors, 
-    targeting.tiktokBehaviors,
-    targeting.metaDemographics,
-    targeting.tiktokDemographics
-  ]);
+  }, []); // Empty dependency - only run on mount
 
   const loadTargetingOptions = async () => {
     setLoading(true);
