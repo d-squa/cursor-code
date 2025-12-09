@@ -5,7 +5,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Info } from "lucide-react";
 import { Phase } from "@/types/mediaplan";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { 
+  getValidTikTokLocations, 
+  objectiveRequiresLocation,
+  autoCorrectTikTokLocation,
+  TikTokLocationConfig
+} from "@/utils/tiktokOptimizationLocationMapping";
 
 interface AdAccountDefaults {
   tiktokOptimizationLocation?: string;
@@ -48,7 +54,21 @@ export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: Tiktok
     setFrequencyCapInput(phase.tiktokFrequencySchedule?.toString() ?? "");
   }, [phase.tiktokFrequencySchedule]);
 
-  // Auto-populate from defaults when fields are empty
+  // Get objective and optimization goal
+  const objective = phase.objective || "";
+  const optimizationGoal = phase.optimizationGoal || "";
+  
+  // Calculate valid locations based on objective/optimization goal
+  const validLocations = useMemo(() => {
+    return getValidTikTokLocations(objective, optimizationGoal);
+  }, [objective, optimizationGoal]);
+  
+  // Determine if optimization location is needed
+  const showOptimizationLocation = useMemo(() => {
+    return objectiveRequiresLocation(objective) && validLocations.length > 0;
+  }, [objective, validLocations]);
+
+  // Auto-populate from defaults when fields are empty, respecting location validity
   useEffect(() => {
     console.log("🔍 TiktokPhaseConfig defaults check:", {
       hasDefaults: !!adAccountDefaults,
@@ -56,6 +76,8 @@ export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: Tiktok
       phaseOptLocation: phase.tiktokOptimizationLocation,
       defaultBidStrategy: adAccountDefaults?.tiktokBidStrategy,
       phaseBidStrategy: phase.tiktokBidStrategy,
+      showOptimizationLocation,
+      validLocations: validLocations.map(l => l.value),
     });
     
     if (!adAccountDefaults) {
@@ -63,11 +85,28 @@ export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: Tiktok
       return;
     }
     
-    // Only auto-populate if field is not already set
-    if (!phase.tiktokOptimizationLocation && adAccountDefaults.tiktokOptimizationLocation) {
-      console.log("✅ Setting tiktokOptimizationLocation from defaults:", adAccountDefaults.tiktokOptimizationLocation);
-      onUpdate("tiktokOptimizationLocation", adAccountDefaults.tiktokOptimizationLocation);
+    // Only auto-populate optimization location if:
+    // 1. Field is not already set
+    // 2. Location is required for this objective
+    // 3. The default location is valid for this objective/goal combination
+    if (!phase.tiktokOptimizationLocation && adAccountDefaults.tiktokOptimizationLocation && showOptimizationLocation) {
+      const correctedLocation = autoCorrectTikTokLocation(
+        objective,
+        optimizationGoal,
+        adAccountDefaults.tiktokOptimizationLocation
+      );
+      if (correctedLocation) {
+        console.log("✅ Setting tiktokOptimizationLocation from defaults (corrected):", correctedLocation);
+        onUpdate("tiktokOptimizationLocation", correctedLocation);
+      }
     }
+    
+    // Clear optimization location if objective doesn't support it
+    if (phase.tiktokOptimizationLocation && !showOptimizationLocation) {
+      console.log("🧹 Clearing tiktokOptimizationLocation - not supported for this objective");
+      onUpdate("tiktokOptimizationLocation", undefined);
+    }
+    
     if (!phase.tiktokBidStrategy && adAccountDefaults.tiktokBidStrategy) {
       console.log("✅ Setting tiktokBidStrategy from defaults:", adAccountDefaults.tiktokBidStrategy);
       onUpdate("tiktokBidStrategy", adAccountDefaults.tiktokBidStrategy);
@@ -93,20 +132,11 @@ export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: Tiktok
     if (!phase.tiktokAppName && adAccountDefaults.tiktokAppName) {
       onUpdate("tiktokAppName", adAccountDefaults.tiktokAppName);
     }
-  }, [adAccountDefaults, phase.id]); // Run on mount & when defaults or phase changes
+  }, [adAccountDefaults, phase.id, objective, optimizationGoal, showOptimizationLocation]);
 
-  // Get objective and optimization goal
-  const objective = phase.objective || "";
-  const optimizationGoal = phase.optimizationGoal || "";
-  
-  console.log("🎯 TikTok Phase Config - Objective:", objective, "Upper:", objective.toUpperCase());
-  console.log("🎯 Current frequency schedule value:", phase.tiktokFrequencySchedule);
-  console.log("🎯 Is REACH?", objective.toUpperCase() === "REACH");
-
-  // Determine field visibility based on matrix
-  const showOptimizationLocation = ![
-    "REACH", "VIDEO_VIEWS", "COMMUNITY_INTERACTION"
-  ].includes(objective.toUpperCase());
+  console.log("🎯 TikTok Phase Config - Objective:", objective, "OptGoal:", optimizationGoal);
+  console.log("🎯 Valid locations for this combo:", validLocations.map(l => l.value));
+  console.log("🎯 Show optimization location:", showOptimizationLocation);
 
   const showAppFields = (
     (objective === "TRAFFIC" && optimizationGoal === "CLICK" && phase.tiktokOptimizationLocation === "App") ||
@@ -192,7 +222,7 @@ export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: Tiktok
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Optimization Location */}
-        {showOptimizationLocation && (
+        {showOptimizationLocation && validLocations.length > 0 && (
           <div className="space-y-2">
             <Label>Optimization Location</Label>
             <Select
@@ -203,21 +233,27 @@ export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: Tiktok
                 <SelectValue placeholder="Select location" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="Website">Website</SelectItem>
-                <SelectItem value="App">App</SelectItem>
-                <SelectItem value="TikTok Shop">TikTok Shop</SelectItem>
-                <SelectItem value="Instant Form">Instant Form</SelectItem>
-                <SelectItem value="TikTok Direct Messages">TikTok Direct Messages</SelectItem>
-                <SelectItem value="Instant Messaging Apps">Instant Messaging Apps</SelectItem>
-                <SelectItem value="Phone Call">Phone Call</SelectItem>
-                <SelectItem value="TikTok Instant Page">TikTok Instant Page</SelectItem>
-                <SelectItem value="Website & App">Website & App</SelectItem>
+                {validLocations.map((loc) => (
+                  <SelectItem key={loc.value} value={loc.value}>
+                    {loc.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              Where optimizations occur (Website, App, TikTok Shop, etc.)
+              Available locations depend on your objective and optimization goal
             </p>
           </div>
+        )}
+        
+        {/* Show message when no location is needed */}
+        {!showOptimizationLocation && objective && (
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription className="text-xs">
+              <strong>Optimization Location:</strong> Not applicable for {objective} objective. Optimizations occur on the ad itself.
+            </AlertDescription>
+          </Alert>
         )}
 
         {/* App Fields */}
