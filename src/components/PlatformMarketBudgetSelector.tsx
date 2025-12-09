@@ -412,9 +412,13 @@ export function PlatformMarketBudgetSelector({
           catalogId: acc.default_catalog_id,
           productSetId: acc.default_product_set_id,
           optimizationEvent: acc.default_optimization_event,
+          optimizationLocation: acc.default_optimization_location,
           mainMarkets: acc.main_markets,
           placementType: acc.default_placement_type,
           placements: acc.default_placements,
+          appName: acc.default_app_name,
+          appId: acc.default_app_id,
+          bidStrategy: acc.default_bid_strategy,
         });
         defaults[acc.advertiser_id] = {
           pixelId: acc.default_pixel_id,
