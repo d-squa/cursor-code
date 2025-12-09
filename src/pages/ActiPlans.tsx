@@ -589,17 +589,19 @@ export default function ActiPlans() {
                       Reject Campaign
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onClick={() => {
-                        setSelectedCampaign(campaign);
-                        setModificationDialogOpen(true);
-                      }}
-                    >
-                      <MessageSquare className="w-4 h-4 mr-2" />
-                      Request Changes
-                    </DropdownMenuItem>
                   </>
                 )}
+                
+                {/* Request Changes - available for all statuses including pushed_to_dsp */}
+                <DropdownMenuItem
+                  onClick={() => {
+                    setSelectedCampaign(campaign);
+                    setModificationDialogOpen(true);
+                  }}
+                >
+                  <MessageSquare className="w-4 h-4 mr-2" />
+                  Request Changes
+                </DropdownMenuItem>
 
                 {/* Launch/Push menu item - conditional based on status */}
                 {(() => {
