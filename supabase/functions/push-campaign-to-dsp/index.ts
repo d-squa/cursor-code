@@ -277,6 +277,87 @@ async function generateTaxonomyName(
 }
 // ============= END TAXONOMY HELPERS =============
 
+// ============= UPDATE LAUNCH STATUS HELPER =============
+async function updateLaunchStatuses(
+  supabase: any,
+  campaignId: string,
+  platform: string,
+  result: any,
+  markets: any[]
+): Promise<void> {
+  try {
+    const successResults = result.results || [];
+    const errorResults = result.errors || [];
+    
+    // Update successful entities
+    for (const successItem of successResults) {
+      const { market, phase, campaignId: dspCampaignId, adSetId, adGroupId } = successItem;
+      
+      // Update campaign entry
+      if (dspCampaignId) {
+        await supabase
+          .from('campaign_launch_status')
+          .update({
+            status: 'pushed_to_dsp',
+            dsp_entity_id: dspCampaignId,
+            dsp_status: 'PAUSED',
+            error_message: null,
+            error_details: null,
+            updated_at: new Date().toISOString()
+          })
+          .eq('campaign_id', campaignId)
+          .eq('platform', platform)
+          .eq('market', market)
+          .ilike('phase_name', phase || '%')
+          .eq('entity_type', 'campaign');
+      }
+      
+      // Update ad set/ad group entry
+      const adEntityId = adSetId || adGroupId;
+      if (adEntityId) {
+        await supabase
+          .from('campaign_launch_status')
+          .update({
+            status: 'pushed_to_dsp',
+            dsp_entity_id: adEntityId,
+            dsp_status: 'PAUSED',
+            error_message: null,
+            error_details: null,
+            updated_at: new Date().toISOString()
+          })
+          .eq('campaign_id', campaignId)
+          .eq('platform', platform)
+          .eq('market', market)
+          .ilike('phase_name', phase || '%')
+          .eq('entity_type', 'adset');
+      }
+    }
+    
+    // Update failed entities
+    for (const errorItem of errorResults) {
+      const { market, phase, error, type } = errorItem;
+      
+      await supabase
+        .from('campaign_launch_status')
+        .update({
+          status: 'push_failed',
+          error_message: error || 'Push failed',
+          error_details: { type, error },
+          updated_at: new Date().toISOString()
+        })
+        .eq('campaign_id', campaignId)
+        .eq('platform', platform)
+        .eq('market', market)
+        .ilike('phase_name', phase || '%');
+    }
+    
+    console.log(`Updated launch statuses for ${platform}: ${successResults.length} success, ${errorResults.length} errors`);
+  } catch (err) {
+    console.error('Error updating launch statuses:', err);
+  }
+}
+// ============= END UPDATE LAUNCH STATUS HELPER =============
+
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -386,17 +467,38 @@ const handler = async (req: Request): Promise<Response> => {
       if (platformName.includes('Meta') || platformName.includes('Facebook')) {
         const result = await pushToMeta(campaign, platformConfig, platform, supabase);
         results.push(result);
+        
+        // Update campaign_launch_status for each pushed entity
+        await updateLaunchStatuses(supabase, campaignId, platformName, result, markets as any[]);
+        
       } else if (platformName.includes('Google')) {
         const result = await pushToGoogleAds(campaign, platformConfig, platform);
         results.push(result);
       } else if (platformName.toLowerCase().includes('tiktok')) {
         const result = await pushToTikTok(campaign, platformConfig, platform);
         results.push(result);
+        
+        // Update campaign_launch_status for each pushed entity
+        await updateLaunchStatuses(supabase, campaignId, 'TikTok', result, markets as any[]);
       }
     }
 
+    // Update campaign status to pushed_to_dsp
+    const hasErrors = results.some((r: any) => r.errors && r.errors.length > 0);
+    const allSuccess = results.every((r: any) => r.success !== false && (!r.errors || r.errors.length === 0));
+    
+    await supabase
+      .from('campaigns')
+      .update({ 
+        status: hasErrors ? 'push_failed' : 'pushed_to_dsp',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', campaignId);
+    
+    console.log(`Campaign push completed. Success: ${allSuccess}, Has errors: ${hasErrors}`);
+
     return new Response(
-      JSON.stringify({ success: true, results }),
+      JSON.stringify({ success: allSuccess, results, hasErrors }),
       {
         status: 200,
         headers: { "Content-Type": "application/json", ...corsHeaders },
