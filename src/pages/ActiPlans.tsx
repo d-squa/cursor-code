@@ -614,7 +614,7 @@ export default function ActiPlans() {
                   </>
                 )}
 
-                {["pushed_to_dsp", "live"].includes(campaign.status || "") && (
+                {["ready_for_push", "pushed_to_dsp", "live"].includes(campaign.status || "") && (
                   <>
                     {(canEdit(campaign) || canApprove(campaign) || canPushToDSP(campaign)) && <DropdownMenuSeparator />}
                     <DropdownMenuItem onClick={() => {
