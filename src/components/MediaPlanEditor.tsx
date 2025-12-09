@@ -1615,32 +1615,23 @@ export function MediaPlanEditor() {
                   setBasicTargeting(targeting);
                   // localStorage is already handled in UnifiedTargeting component
                   
-                  // Debounced database save
+                  // Immediate database save (no debounce to avoid race conditions)
                   if (savedCampaignId && user) {
-                    const timer = setTimeout(async () => {
+                    (async () => {
                       try {
-                        const { data: currentCampaign } = await supabase
-                          .from("campaigns")
-                          .select("generic_config")
-                          .eq("id", savedCampaignId)
-                          .single();
-                        
-                        const currentConfig = (currentCampaign?.generic_config && typeof currentCampaign.generic_config === 'object') 
-                          ? currentCampaign.generic_config 
-                          : genericConfig;
-                        
+                        // Use genericConfig from state instead of fetching from DB
+                        // This prevents race conditions where stale data is merged
                         await supabase.from("campaigns").update({
                           generic_config: {
-                            ...currentConfig,
+                            ...genericConfig,
                             basicTargeting: targeting,
                           } as any,
                         }).eq("id", savedCampaignId);
-                        console.log('✅ Saved basicTargeting to database:', targeting);
+                        console.log('✅ Saved basicTargeting to database');
                       } catch (error) {
                         console.error('❌ Error saving basicTargeting:', error);
                       }
-                    }, 500);
-                    return () => clearTimeout(timer);
+                    })();
                   }
                 }}
                 metaAdAccountId={firstAdAccountId || undefined}
