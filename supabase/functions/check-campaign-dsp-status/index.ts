@@ -129,11 +129,20 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Check TikTok campaign statuses
     const tiktokPlatform = platforms?.find(p => p.platform_type === 'tiktok');
+    console.log(`TikTok platform found: ${!!tiktokPlatform}, entities to check: ${tiktokEntities.length}`);
+    
     if (tiktokPlatform?.access_token && tiktokEntities.length > 0) {
       for (const entity of tiktokEntities) {
         try {
-          // Get advertiser ID from market config or use default
+          // Get advertiser ID from error_details (where it was stored during push) or fallback
           const advertiserId = entity.error_details?.advertiserId || tiktokPlatform.ad_account_id;
+          
+          if (!advertiserId) {
+            console.error(`No advertiser ID found for TikTok entity ${entity.id}`);
+            continue;
+          }
+          
+          console.log(`Checking TikTok entity ${entity.dsp_entity_id} with advertiser ${advertiserId}`);
           
           const response = await fetch(
             `https://business-api.tiktok.com/open_api/v1.3/campaign/get/?advertiser_id=${advertiserId}&campaign_ids=["${entity.dsp_entity_id}"]`,
@@ -145,6 +154,7 @@ const handler = async (req: Request): Promise<Response> => {
             }
           );
           const data = await response.json();
+          console.log(`TikTok API response for ${entity.dsp_entity_id}:`, JSON.stringify(data));
           
           if (data.code === 0 && data.data?.list?.[0]) {
             const campaignData = data.data.list[0];
@@ -164,11 +174,24 @@ const handler = async (req: Request): Promise<Response> => {
               status: newStatus,
               dsp_status: campaignData.operation_status
             });
+          } else {
+            console.log(`TikTok entity ${entity.dsp_entity_id} not found or error: code=${data.code}, message=${data.message}`);
+            // Keep as pushed_to_dsp if we can't verify status
+            results.push({
+              entityId: entity.id,
+              dspEntityId: entity.dsp_entity_id,
+              platform: 'TikTok',
+              dspStatus: 'UNKNOWN',
+              isLive: false
+            });
           }
         } catch (e) {
           console.error(`Error checking TikTok entity ${entity.dsp_entity_id}:`, e);
+          // Don't let one entity failure block others
         }
       }
+    } else {
+      console.log(`Skipping TikTok status check: no platform or no entities`);
     }
 
     // Update statuses in database
