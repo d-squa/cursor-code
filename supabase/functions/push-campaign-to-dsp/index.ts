@@ -577,19 +577,26 @@ const handler = async (req: Request): Promise<Response> => {
     };
     
     for (const s of (finalStatuses || [])) {
-      if (s.status === 'pushed_to_dsp') statusCounts.pushed++;
+      if (s.status === 'pushed_to_dsp' || s.status === 'live') statusCounts.pushed++;
       else if (s.status === 'push_failed' || s.status === 'validation_error') statusCounts.failed++;
+      else if (s.status === 'pushing') statusCounts.pending++; // Still processing
       else statusCounts.pending++;
     }
     
     // Determine final campaign status
-    let finalStatus = 'pushed_to_dsp';
-    if (statusCounts.pushed > 0 && (statusCounts.failed > 0 || statusCounts.pending > 0)) {
-      finalStatus = 'partially_pushed';
-    } else if (statusCounts.pushed === 0 && statusCounts.failed > 0) {
-      finalStatus = 'push_failed';
-    } else if (statusCounts.pushed === 0 && statusCounts.pending > 0) {
-      finalStatus = 'pending';
+    // - pushed_to_dsp: ALL entities are pushed (no failures, no pending)
+    // - partially_pushed: SOME pushed, but some failed or still pending
+    // - push_failed: ALL failed (none pushed)
+    // - ready_for_push: none pushed yet, still pending
+    let finalStatus = 'ready_for_push';
+    const totalEntities = (finalStatuses || []).length;
+    
+    if (statusCounts.pushed === totalEntities && totalEntities > 0) {
+      finalStatus = 'pushed_to_dsp'; // All entities pushed successfully
+    } else if (statusCounts.pushed > 0 && (statusCounts.failed > 0 || statusCounts.pending > 0)) {
+      finalStatus = 'partially_pushed'; // Some pushed, some not
+    } else if (statusCounts.failed > 0 && statusCounts.pushed === 0) {
+      finalStatus = 'push_failed'; // All failed
     }
     
     console.log(`📊 Launch status summary: pushed=${statusCounts.pushed}, failed=${statusCounts.failed}, pending=${statusCounts.pending} → ${finalStatus}`);
