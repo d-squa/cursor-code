@@ -392,8 +392,21 @@ class TikTokAdapter implements PlatformAdapter {
       const bidType = mapBidStrategy(params.bidStrategy);
       console.log(`Bid strategy: ${params.bidStrategy} → ${bidType}`);
       
-      // STEP 6: Map promotion_type from UI values to TikTok API values
-      const mapPromotionType = (location?: string, appName?: string): string => {
+      // STEP 6: Validate and map promotion_type based on objective/optimization goal matrix
+      // Some objectives don't support optimization location
+      const objectivesWithoutLocation = ['REACH', 'VIDEO_VIEWS', 'VIDEO_VIEW', 'FOCUSED_VIEW', '6S_VIDEO_VIEW', '15S_VIDEO_VIEW', 'COMMUNITY_INTERACTION', 'PROFILE_VISIT', 'FOLLOW'];
+      const skipPromotionType = objectivesWithoutLocation.includes(finalOptimizationGoal.toUpperCase()) ||
+                                 objectivesWithoutLocation.includes(params.optimizationGoal?.toUpperCase() || '');
+      
+      console.log(`📍 Optimization location check: objective=${finalOptimizationGoal}, location=${params.optimizationLocation}, skip=${skipPromotionType}`);
+      
+      const mapPromotionType = (location?: string, appName?: string): string | null => {
+        // If objective doesn't support location, return null to skip promotion_type
+        if (skipPromotionType) {
+          console.log(`⚠️ Skipping promotion_type - ${finalOptimizationGoal} doesn't support optimization location`);
+          return null;
+        }
+        
         // Handle App promotion with specific app types
         if (location === 'App' && appName) {
           if (appName.toLowerCase().includes('ios') || appName.toLowerCase().includes('iphone')) {
@@ -417,7 +430,7 @@ class TikTokAdapter implements PlatformAdapter {
       };
       
       const promotionType = mapPromotionType(params.optimizationLocation, params.appName);
-      console.log(`Promotion type: ${params.optimizationLocation} → ${promotionType}`);
+      console.log(`Promotion type: ${params.optimizationLocation} → ${promotionType || '(not set - skipped)'}`);
       
       // STEP 7: Build ad group body with all TikTok matrix fields
       
@@ -474,7 +487,6 @@ class TikTokAdapter implements PlatformAdapter {
         advertiser_id: params.accountId,
         campaign_id: params.campaignId,
         adgroup_name: params.adGroupName,
-        promotion_type: promotionType,
         placement_type: finalPlacementType,
         placements: finalPlacements,
         gender: this.mapGender(normalizedGenders),
@@ -485,6 +497,14 @@ class TikTokAdapter implements PlatformAdapter {
         operation_status: params.status === 'PAUSED' ? 'DISABLE' : 'ENABLE',
         pacing: "PACING_MODE_SMOOTH", // Standard delivery (not accelerated)
       };
+      
+      // Only add promotion_type when objective supports optimization location
+      if (promotionType) {
+        body.promotion_type = promotionType;
+        console.log(`✅ Including promotion_type: ${promotionType}`);
+      } else {
+        console.log(`⚠️ Skipping promotion_type - not applicable for ${finalOptimizationGoal} objective`);
+      }
       
       // Only add bid when bid_type requires it (not for BID_TYPE_NO_BID)
       if (bidType !== "BID_TYPE_NO_BID") {
