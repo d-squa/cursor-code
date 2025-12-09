@@ -1283,7 +1283,25 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
         const metaBidAmount = phase.metaBidAmount || market.metaBidAmount;
         const metaBillingEvent = phase.metaBillingEvent || (market as any).metaBillingEvent || "IMPRESSIONS";
         const metaLandingPageUrl = phase.metaLandingPageUrl || (market as any).metaLandingPageUrl;
-        const metaOptimizationLocation = phase.metaOptimizationLocation || (market as any).metaOptimizationLocation || "WEBSITE";
+        const rawMetaOptimizationLocation = phase.metaOptimizationLocation || (market as any).metaOptimizationLocation || "WEBSITE";
+        
+        // Map internal destination values to Meta's exact API enum values
+        const metaDestinationTypeMap: Record<string, string> = {
+          'WEBSITE': 'WEBSITE',
+          'website': 'WEBSITE',
+          'Website': 'WEBSITE',
+          'APP': 'APP',
+          'app': 'APP',
+          'App': 'APP',
+          'MESSAGING_APPS': 'MESSENGER',
+          'Messaging Apps': 'MESSENGER',
+          'MESSENGER': 'MESSENGER',
+          'CALLS': 'ON_AD',
+          'Calls': 'ON_AD',
+          'SHOP': 'SHOP_AUTOMATIC',
+          'Shop': 'SHOP_AUTOMATIC',
+        };
+        const metaOptimizationLocation = metaDestinationTypeMap[rawMetaOptimizationLocation] || rawMetaOptimizationLocation.toUpperCase();
         
         // Attribution window validation - certain objectives only support specific combinations
         // LINK_CLICKS/LANDING_PAGE_VIEWS only support (1, 0) - 1 day click, 0 day view-through
