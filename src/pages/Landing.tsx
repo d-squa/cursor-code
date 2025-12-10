@@ -303,7 +303,7 @@ const Landing = () => {
         <div className="max-w-4xl mx-auto text-center">
           <Badge variant="secondary" className="mb-6">
             <Sparkles className="h-3 w-3 mr-1" />
-            AI-Powered Cross-Platform Paid Madia Campaigns Manager
+            AI-Powered Cross-Platform Paid Media Campaign Manager
           </Badge>
           <h1 className="text-4xl md:text-6xl font-bold mb-6 leading-tight">
             Plan & Launch
