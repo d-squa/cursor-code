@@ -374,7 +374,7 @@ const Landing = () => {
       <section id="capabilities" className="py-20">
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">The Future of Paid Media Is</p>
+            <p className="text-3xl md:text-4xl text-muted-foreground max-w-2xl mx-auto">The Future of Paid Media Is</p>
             <h2 className="text-3xl md:text-4xl font-bold mb-4">Intelligence, Consolidation & Efficiency</h2>
           </div>
 
