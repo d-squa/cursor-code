@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { getTierFromProductId, SubscriptionTier } from "@/config/subscriptionTiers";
 
 interface SubscriptionStatus {
   subscribed: boolean;
@@ -58,12 +59,26 @@ export function useSubscription() {
     return () => authSub.unsubscribe();
   }, [checkSubscription]);
 
+  // Derive the subscription tier from the product ID
+  const tier: SubscriptionTier = useMemo(() => {
+    if (!subscription) return 'trial';
+    if (subscription.onTrial) {
+      return getTierFromProductId(subscription.productId);
+    }
+    if (!subscription.subscribed) return 'trial';
+    return getTierFromProductId(subscription.productId);
+  }, [subscription]);
+
   return {
     subscription,
     loading,
     error,
     isSubscribed: subscription?.subscribed ?? false,
     isOnTrial: subscription?.onTrial ?? false,
+    tier,
+    productId: subscription?.productId ?? null,
+    subscriptionEnd: subscription?.subscriptionEnd ?? null,
+    trialEnd: subscription?.trialEnd ?? null,
     refetch: checkSubscription,
   };
 }
