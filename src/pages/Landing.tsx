@@ -306,10 +306,11 @@ const Landing = () => {
             AI-Powered Cross-Platform Paid Madia Campaigns Manager
           </Badge>
           <h1 className="text-4xl md:text-6xl font-bold mb-6 leading-tight">
-            Plan & Launch Cross-Platform{" "}
+            Plan & Launch{" "}
             <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              Activations in Minutes
-            </span>
+              Cross-Platform Activations
+            </span>{" "}
+            in Minutes
           </h1>
           <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
             ActiPlan is an AI-powered media planning and buying platform designed to help you efficiently manage
