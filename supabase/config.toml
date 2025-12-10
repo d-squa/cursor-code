@@ -1,5 +1,12 @@
 project_id = "tewjsubccoizrjroaydy"
 
+[auth.hook.send_email]
+enabled = true
+uri = "https://tewjsubccoizrjroaydy.supabase.co/functions/v1/send-auth-email"
+
+[functions.send-auth-email]
+verify_jwt = false
+
 [functions.parse-targeting-brief]
 verify_jwt = true
 
