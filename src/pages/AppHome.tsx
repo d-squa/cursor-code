@@ -3,11 +3,14 @@ import { useNavigate } from "react-router-dom";
 import { MediaPlanEditor } from "@/components/MediaPlanEditor";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { Target, TrendingUp, Zap, LogOut, Loader2, Settings } from "lucide-react";
+import { Target, TrendingUp, Zap, LogOut, Loader2, Settings, Bug } from "lucide-react";
+import { BugReportDialog } from "@/components/BugReportDialog";
+import { useState } from "react";
 
-const Index = () => {
+const AppHome = () => {
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
+  const [bugDialogOpen, setBugDialogOpen] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -39,7 +42,7 @@ const Index = () => {
               </div>
               <div>
                 <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-                  CampaignHub
+                  ActiPlan
                 </h1>
                 <p className="text-xs text-muted-foreground">Multi-Platform Campaign Manager</p>
               </div>
@@ -57,6 +60,15 @@ const Index = () => {
               >
                 ActiPlans
               </button>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => setBugDialogOpen(true)}
+                className="gap-2"
+                title="Report a Bug"
+              >
+                <Bug className="h-4 w-4" />
+              </Button>
               <Button 
                 variant="ghost" 
                 size="sm" 
@@ -125,8 +137,11 @@ const Index = () => {
       <section className="container mx-auto px-4 pb-16">
         <MediaPlanEditor />
       </section>
+
+      {/* Bug Report Dialog */}
+      <BugReportDialog open={bugDialogOpen} onOpenChange={setBugDialogOpen} />
     </div>
   );
 };
 
-export default Index;
+export default AppHome;

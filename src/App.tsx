@@ -3,7 +3,8 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import Index from "./pages/Index";
+import Landing from "./pages/Landing";
+import AppHome from "./pages/AppHome";
 import Auth from "./pages/Auth";
 import ManageClientAccounts from "./pages/ManageClientAccounts";
 import Teams from "./pages/Teams";
@@ -20,6 +21,7 @@ import BillingManagement from "./pages/settings/BillingManagement";
 import PlatformConnections from "./pages/PlatformConnections";
 import LaunchStatus from "./pages/LaunchStatus";
 import NotFound from "./pages/NotFound";
+import { BugReportButton } from "./components/BugReportButton";
 
 const queryClient = new QueryClient();
 
@@ -30,9 +32,13 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Index />} />
+            {/* Public landing page */}
+            <Route path="/" element={<Landing />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/accept-invitation" element={<AcceptInvitation />} />
+            
+            {/* Authenticated app routes */}
+            <Route path="/app" element={<AppHome />} />
             <Route path="/actiplans" element={<ActiPlans />} />
             <Route path="/actiplans/:campaignId/launch" element={<LaunchStatus />} />
             <Route path="/actiplans/:campaignId/report" element={<PerformanceReport />} />
@@ -54,6 +60,9 @@ const App = () => (
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
+          
+          {/* Global floating bug report button */}
+          <BugReportButton />
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

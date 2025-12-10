@@ -74,3 +74,6 @@ verify_jwt = true
 
 [functions.send-modification-notification]
 verify_jwt = true
+
+[functions.send-bug-report]
+verify_jwt = true
