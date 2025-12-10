@@ -2,11 +2,9 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { 
   Target, 
   TrendingUp, 
@@ -14,15 +12,12 @@ import {
   CheckCircle2, 
   ArrowRight, 
   BarChart3, 
-  Users, 
-  Clock,
   Shield,
   Layers,
   Globe,
   Sparkles,
-  ChevronDown
+  X
 } from "lucide-react";
-import { toast } from "sonner";
 
 const capabilities = [
   {
@@ -67,90 +62,145 @@ const capabilities = [
   }
 ];
 
+// Stripe Price IDs
+const PRICE_IDS = {
+  basic: {
+    monthly: "price_1ScnObKrTGU4P754AAJ9Q5NU",
+    yearly: "price_1ScnL9KrTGU4P754QirsF0Sd"
+  },
+  freelancer: {
+    monthly: "price_1ScnOcKrTGU4P754y5pmh5jf",
+    yearly: "price_1ScnNYKrTGU4P754hbyoSjdc"
+  },
+  enterprise: {
+    monthly: "price_1ScnOdKrTGU4P7542mtt9uyC",
+    yearly: "price_1ScnOOKrTGU4P754r7bdJ94j"
+  },
+  agency: {
+    monthly: "price_1ScnOeKrTGU4P75446dvndr3",
+    yearly: "price_1ScnOPKrTGU4P754sNgouHiL"
+  }
+};
+
 const pricingTiers = [
   {
+    key: "trial",
     name: "Trial",
-    price: "Free",
-    period: "30 days",
+    monthlyPrice: 0,
+    yearlyPrice: 0,
+    yearlyMonthly: 0,
+    yearlyTotal: 0,
+    period: "30 days free",
     description: "Perfect for exploring ActiPlan capabilities",
     features: [
-      "1 ActiPlan/Day",
-      "1 Owner",
       "Guided Media Plan Creation",
-      "AI-Powered Plan Generation",
-      "Excel & Sheets Import",
+      "ActiPlan Creation (Media Cost, Deliverables & Benchmark)",
       "Topline Performance Report",
-      "Cross-Platform Activation"
+      "Cross-Platform Campaign Activation",
+      "Live Insights & Recommendations"
     ],
-    limitations: ["No Visual Dashboard", "No Team Features"],
+    limitations: ["Visual Performance Dashboard", "Approval Workflow", "HawkView Reports", "AI Knowledge Base", "Team Management"],
+    operationalLimits: "1 ActiPlan/Day & 1 Owner",
     cta: "Start Free Trial",
     popular: false,
-    note: "Credit card required. No auto-renew."
+    note: "No credit card required"
   },
   {
+    key: "basic",
     name: "Basic",
-    price: "$49",
+    monthlyPrice: 39,
+    yearlyPrice: 397.8,
+    yearlyMonthly: 33.15,
+    yearlyTotal: 397.8,
     period: "/month",
     description: "For individual media buyers getting started",
     features: [
-      "1 ActiPlan/Day",
-      "1 Owner",
-      "All Trial Features",
-      "Live Insights & Recommendations"
+      "Guided Media Plan Creation",
+      "ActiPlan Creation (Media Cost, Deliverables & Benchmark)",
+      "Topline Performance Report",
+      "Cross-Platform Campaign Activation",
+      "Live Insights & Recommendations",
+      "Visual Performance Dashboard"
     ],
-    limitations: ["No Visual Dashboard", "No Team Features"],
+    limitations: ["Approval Workflow", "HawkView Reports", "AI Knowledge Base", "Team Management"],
+    operationalLimits: "1 ActiPlan/Day & 1 Owner",
     cta: "Get Started",
     popular: false
   },
   {
+    key: "freelancer",
     name: "Freelancer",
-    price: "$99",
+    monthlyPrice: 89,
+    yearlyPrice: 907.8,
+    yearlyMonthly: 75.65,
+    yearlyTotal: 907.8,
     period: "/month",
     description: "For professional media planners",
     features: [
-      "2 ActiPlans/Day",
-      "1 Owner",
-      "Visual Performance Dashboard",
-      "AI Campaign Commands",
-      "All Basic Features"
+      "Guided Media Plan Creation",
+      "ActiPlan Creation (Media Cost, Deliverables & Benchmark)",
+      "Topline Performance Report",
+      "Cross-Platform Campaign Activation",
+      "Live Insights & Recommendations",
+      "Visual Performance Dashboard"
     ],
-    limitations: ["No Team Features"],
+    limitations: ["Approval Workflow", "HawkView Reports", "AI Knowledge Base", "Team Management"],
+    operationalLimits: "2 ActiPlans/Day & 1 Owner",
     cta: "Get Started",
     popular: true
   },
   {
+    key: "enterprise",
     name: "Enterprise",
-    price: "$345",
+    monthlyPrice: 189,
+    yearlyPrice: 1927.8,
+    yearlyMonthly: 160.65,
+    yearlyTotal: 1927.8,
     period: "/month",
     description: "For teams and growing agencies",
     features: [
-      "5 ActiPlans/Day",
-      "1 Owner + 4 Team Members",
+      "Guided Media Plan Creation",
+      "ActiPlan Creation (Media Cost, Deliverables & Benchmark)",
+      "Topline Performance Report",
+      "Cross-Platform Campaign Activation",
+      "Live Insights & Recommendations",
+      "Visual Performance Dashboard",
       "Approval Workflow",
-      "Task Management & Log History",
-      "HawkView Performance Report",
-      "AI Knowledge Base",
-      "User Permissions",
-      "All Freelancer Features"
+      "HawkView Intuitive Performance Report",
+      "AI-based Knowledge Base",
+      "Users, Accesses & Permissions"
     ],
-    limitations: [],
+    limitations: ["Team Management", "Account Manager Support"],
+    operationalLimits: "5 ActiPlans/Day, 1 Owner & 4 Team Members",
     cta: "Get Started",
     popular: false
   },
   {
+    key: "agency",
     name: "Agency",
-    price: "Custom",
-    period: "",
+    monthlyPrice: 999,
+    yearlyPrice: 10189.8,
+    yearlyMonthly: 849.15,
+    yearlyTotal: 10189.8,
+    period: "/month",
     description: "For large agencies with dedicated support",
     features: [
-      "Unlimited ActiPlans",
-      "1 Owner, 1 Admin & 8 Team Members",
-      "Dedicated Account Manager",
-      "Working Hours Support",
-      "All Enterprise Features"
+      "Guided Media Plan Creation",
+      "ActiPlan Creation (Media Cost, Deliverables & Benchmark)",
+      "Topline Performance Report",
+      "Cross-Platform Campaign Activation",
+      "Live Insights & Recommendations",
+      "Visual Performance Dashboard",
+      "Approval Workflow",
+      "HawkView Intuitive Performance Report",
+      "AI-based Knowledge Base",
+      "Users, Accesses & Permissions",
+      "Team Management",
+      "Account Manager + Working Hours Support"
     ],
     limitations: [],
-    cta: "Contact Sales",
+    operationalLimits: "Unlimited ActiPlans, 1 Owner, 1 Admin & 8 Team Members",
+    cta: "Get Started",
     popular: false
   }
 ];
@@ -176,45 +226,26 @@ const advantages = [
 
 const Landing = () => {
   const navigate = useNavigate();
-  const [formData, setFormData] = useState({
-    email: "",
-    fullName: "",
-    company: "",
-    source: "",
-    role: "",
-    teamSize: "",
-    experience: "",
-    acceptTerms: false
-  });
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.acceptTerms) {
-      toast.error("Please accept the terms and conditions");
-      return;
-    }
-    setIsSubmitting(true);
-    
-    // Store survey data in localStorage for now, can be sent to backend later
-    localStorage.setItem("actiplan_survey", JSON.stringify(formData));
-    
-    toast.success("Welcome to ActiPlan! Redirecting to sign up...");
-    setTimeout(() => {
-      navigate("/auth?mode=signup&email=" + encodeURIComponent(formData.email));
-    }, 1000);
-    
-    setIsSubmitting(false);
-  };
+  const [isYearly, setIsYearly] = useState(true);
 
   const scrollToSection = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
   };
 
+  const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2
+    }).format(price);
+  };
+
+  const getSavingsPercentage = (monthly: number, yearlyMonthly: number) => {
+    if (monthly === 0) return 0;
+    return Math.round(((monthly - yearlyMonthly) / monthly) * 100);
+  };
+
   return (
     <div className="min-h-screen bg-background">
-      {/* SEO Meta - handled in index.html */}
-      
       {/* Navigation */}
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <nav className="container mx-auto px-4 py-4 flex items-center justify-between">
@@ -231,13 +262,15 @@ const Landing = () => {
             <button onClick={() => scrollToSection("pricing")} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
               Pricing
             </button>
-            <button onClick={() => scrollToSection("signup")} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              Get Started
-            </button>
           </div>
-          <Button onClick={() => navigate("/auth")} variant="outline">
-            Sign In
-          </Button>
+          <div className="flex items-center gap-3">
+            <Button onClick={() => navigate("/auth")} variant="outline">
+              Sign In
+            </Button>
+            <Button onClick={() => navigate("/auth?mode=signup")}>
+              Start Free Trial
+            </Button>
+          </div>
         </nav>
       </header>
 
@@ -259,7 +292,7 @@ const Landing = () => {
             campaigns across Meta, Google, TikTok, LinkedIn, Snapchat, and Pinterest from a single interface.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" onClick={() => scrollToSection("signup")} className="gap-2">
+            <Button size="lg" onClick={() => navigate("/auth?mode=signup")} className="gap-2">
               Start Free Trial <ArrowRight className="h-4 w-4" />
             </Button>
             <Button size="lg" variant="outline" onClick={() => scrollToSection("capabilities")}>
@@ -343,36 +376,100 @@ const Landing = () => {
       {/* Pricing Section */}
       <section id="pricing" className="py-20 bg-muted/50">
         <div className="container mx-auto px-4">
-          <div className="text-center mb-16">
+          <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">
               Simple, Transparent Pricing
             </h2>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Choose the plan that fits your needs. Save 15% with yearly billing.
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-8">
+              Choose the plan that fits your needs.
             </p>
+            
+            {/* Billing Toggle */}
+            <div className="flex items-center justify-center gap-4 mb-4">
+              <span className={`text-sm font-medium ${!isYearly ? "text-foreground" : "text-muted-foreground"}`}>
+                Monthly
+              </span>
+              <div className="relative">
+                <Switch
+                  checked={isYearly}
+                  onCheckedChange={setIsYearly}
+                  className="data-[state=checked]:bg-primary"
+                />
+              </div>
+              <span className={`text-sm font-medium ${isYearly ? "text-foreground" : "text-muted-foreground"}`}>
+                Yearly
+              </span>
+            </div>
+            
+            {/* Savings Banner */}
+            <div className="inline-flex items-center gap-2 bg-primary/10 text-primary px-4 py-2 rounded-full">
+              <Sparkles className="h-4 w-4" />
+              <span className="font-semibold">Save 15% with yearly billing!</span>
+            </div>
           </div>
           
           <div className="grid md:grid-cols-3 lg:grid-cols-5 gap-6 max-w-7xl mx-auto">
             {pricingTiers.map((tier) => (
               <Card 
                 key={tier.name} 
-                className={`relative ${tier.popular ? "border-primary shadow-lg scale-105" : ""}`}
+                className={`relative flex flex-col ${tier.popular ? "border-primary shadow-lg lg:scale-105" : ""}`}
               >
                 {tier.popular && (
-                  <Badge className="absolute -top-3 left-1/2 -translate-x-1/2">
+                  <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary">
                     Most Popular
                   </Badge>
                 )}
-                <CardHeader>
+                <CardHeader className="pb-4">
                   <CardTitle>{tier.name}</CardTitle>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-3xl font-bold">{tier.price}</span>
-                    <span className="text-muted-foreground">{tier.period}</span>
+                  
+                  {/* Pricing Display */}
+                  <div className="mt-2">
+                    {tier.monthlyPrice === 0 ? (
+                      <div>
+                        <span className="text-3xl font-bold">Free</span>
+                        <span className="text-muted-foreground ml-1">{tier.period}</span>
+                      </div>
+                    ) : isYearly ? (
+                      <div className="space-y-1">
+                        {/* Strikethrough monthly price */}
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg text-muted-foreground line-through">
+                            ${formatPrice(tier.monthlyPrice)}
+                          </span>
+                          <Badge variant="secondary" className="text-xs bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
+                            -{getSavingsPercentage(tier.monthlyPrice, tier.yearlyMonthly)}%
+                          </Badge>
+                        </div>
+                        {/* Yearly equivalent monthly price */}
+                        <div>
+                          <span className="text-3xl font-bold">${formatPrice(tier.yearlyMonthly)}</span>
+                          <span className="text-muted-foreground">/month</span>
+                        </div>
+                        {/* Total yearly commitment */}
+                        <div className="text-sm text-muted-foreground pt-1 border-t mt-2">
+                          <span className="font-medium text-foreground">${formatPrice(tier.yearlyTotal)}</span>
+                          <span> billed yearly</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <span className="text-3xl font-bold">${formatPrice(tier.monthlyPrice)}</span>
+                        <span className="text-muted-foreground">/month</span>
+                      </div>
+                    )}
                   </div>
-                  <CardDescription>{tier.description}</CardDescription>
+                  
+                  <CardDescription className="mt-2">{tier.description}</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2 mb-6">
+                
+                <CardContent className="flex-1 flex flex-col">
+                  {/* Operational Limits */}
+                  <div className="bg-muted/50 rounded-lg p-3 mb-4 text-sm">
+                    <span className="font-medium">{tier.operationalLimits}</span>
+                  </div>
+                  
+                  {/* Features */}
+                  <ul className="space-y-2 mb-4 flex-1">
                     {tier.features.map((feature) => (
                       <li key={feature} className="flex items-start gap-2 text-sm">
                         <CheckCircle2 className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
@@ -381,18 +478,20 @@ const Landing = () => {
                     ))}
                     {tier.limitations.map((limit) => (
                       <li key={limit} className="flex items-start gap-2 text-sm text-muted-foreground">
-                        <span className="h-4 w-4 flex-shrink-0" />
+                        <X className="h-4 w-4 flex-shrink-0 mt-0.5 opacity-50" />
                         <span>{limit}</span>
                       </li>
                     ))}
                   </ul>
+                  
                   {tier.note && (
                     <p className="text-xs text-muted-foreground mb-4">{tier.note}</p>
                   )}
+                  
                   <Button 
-                    className="w-full" 
+                    className="w-full mt-auto" 
                     variant={tier.popular ? "default" : "outline"}
-                    onClick={() => scrollToSection("signup")}
+                    onClick={() => navigate("/auth?mode=signup")}
                   >
                     {tier.cta}
                   </Button>
@@ -402,165 +501,27 @@ const Landing = () => {
           </div>
           
           <p className="text-center text-sm text-muted-foreground mt-8">
-            All plans available for individuals and corporates. Corporate clients (5+ users) receive additional benefits.
+            All plans include a 30-day free trial. No credit card required to start.
           </p>
         </div>
       </section>
 
-      {/* Survey & Signup Section */}
-      <section id="signup" className="py-20">
+      {/* CTA Section */}
+      <section className="py-20">
         <div className="container mx-auto px-4">
-          <div className="max-w-2xl mx-auto">
-            <Card>
-              <CardHeader className="text-center">
-                <CardTitle className="text-2xl">Start Your 30-Day Free Trial</CardTitle>
-                <CardDescription>
-                  Tell us a bit about yourself so we can personalize your experience
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleSubmit} className="space-y-6">
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="fullName">Full Name *</Label>
-                      <Input
-                        id="fullName"
-                        required
-                        value={formData.fullName}
-                        onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                        placeholder="John Doe"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="email">Work Email *</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        required
-                        value={formData.email}
-                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        placeholder="john@company.com"
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="company">Company / Organization</Label>
-                    <Input
-                      id="company"
-                      value={formData.company}
-                      onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-                      placeholder="Your company name"
-                    />
-                  </div>
-                  
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="source">How did you hear about us? *</Label>
-                      <Select
-                        required
-                        value={formData.source}
-                        onValueChange={(value) => setFormData({ ...formData, source: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select an option" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="google">Google Search</SelectItem>
-                          <SelectItem value="linkedin">LinkedIn</SelectItem>
-                          <SelectItem value="referral">Referral / Word of Mouth</SelectItem>
-                          <SelectItem value="social">Social Media</SelectItem>
-                          <SelectItem value="event">Event / Conference</SelectItem>
-                          <SelectItem value="blog">Blog / Article</SelectItem>
-                          <SelectItem value="other">Other</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="role">Your Role *</Label>
-                      <Select
-                        required
-                        value={formData.role}
-                        onValueChange={(value) => setFormData({ ...formData, role: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select your role" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="media-buyer">Media Buyer</SelectItem>
-                          <SelectItem value="media-planner">Media Planner</SelectItem>
-                          <SelectItem value="account-manager">Account Manager</SelectItem>
-                          <SelectItem value="marketing-manager">Marketing Manager</SelectItem>
-                          <SelectItem value="agency-owner">Agency Owner</SelectItem>
-                          <SelectItem value="freelancer">Freelancer</SelectItem>
-                          <SelectItem value="other">Other</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="teamSize">Team Size *</Label>
-                      <Select
-                        required
-                        value={formData.teamSize}
-                        onValueChange={(value) => setFormData({ ...formData, teamSize: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select team size" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="solo">Just me</SelectItem>
-                          <SelectItem value="2-5">2-5 people</SelectItem>
-                          <SelectItem value="6-10">6-10 people</SelectItem>
-                          <SelectItem value="11-25">11-25 people</SelectItem>
-                          <SelectItem value="26-50">26-50 people</SelectItem>
-                          <SelectItem value="50+">50+ people</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="experience">Paid Media Experience *</Label>
-                      <Select
-                        required
-                        value={formData.experience}
-                        onValueChange={(value) => setFormData({ ...formData, experience: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select experience" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="beginner">Beginner (less than 1 year)</SelectItem>
-                          <SelectItem value="intermediate">Intermediate (1-3 years)</SelectItem>
-                          <SelectItem value="advanced">Advanced (3-5 years)</SelectItem>
-                          <SelectItem value="expert">Expert (5+ years)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-start gap-3">
-                    <Checkbox
-                      id="terms"
-                      checked={formData.acceptTerms}
-                      onCheckedChange={(checked) => setFormData({ ...formData, acceptTerms: checked as boolean })}
-                    />
-                    <Label htmlFor="terms" className="text-sm text-muted-foreground leading-relaxed">
-                      I agree to the Terms of Service and Privacy Policy. I understand this is a 30-day trial 
-                      that requires a credit card and does not auto-renew.
-                    </Label>
-                  </div>
-                  
-                  <Button type="submit" className="w-full" size="lg" disabled={isSubmitting}>
-                    {isSubmitting ? "Processing..." : "Start Free Trial"}
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          </div>
+          <Card className="max-w-3xl mx-auto bg-gradient-to-br from-primary/10 to-accent/10 border-primary/20">
+            <CardContent className="p-8 md:p-12 text-center">
+              <h2 className="text-2xl md:text-3xl font-bold mb-4">
+                Ready to Transform Your Media Operations?
+              </h2>
+              <p className="text-muted-foreground mb-8 max-w-xl mx-auto">
+                Start your 30-day free trial today and experience the power of automated campaign management.
+              </p>
+              <Button size="lg" onClick={() => navigate("/auth?mode=signup")} className="gap-2">
+                Start Free Trial <ArrowRight className="h-4 w-4" />
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       </section>
 
