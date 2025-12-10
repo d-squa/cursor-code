@@ -1,62 +1,24 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { MediaPlanEditor } from "@/components/MediaPlanEditor";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Target, TrendingUp, Zap, LogOut, Loader2, Settings, Bug } from "lucide-react";
 import { BugReportDialog } from "@/components/BugReportDialog";
-import { supabase } from "@/integrations/supabase/client";
+import { useState } from "react";
 
 const AppHome = () => {
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
   const [bugDialogOpen, setBugDialogOpen] = useState(false);
-  const [checkingSubscription, setCheckingSubscription] = useState(true);
 
   useEffect(() => {
-    const checkAccess = async () => {
-      if (loading) return;
-      
-      if (!user) {
-        navigate("/auth");
-        return;
-      }
-
-      // Check onboarding
-      const onboardingData = localStorage.getItem("actiplan_onboarding");
-      const onboardingComplete = onboardingData && JSON.parse(onboardingData).completedAt;
-      
-      if (!onboardingComplete) {
-        navigate("/onboarding");
-        return;
-      }
-
-      // Check subscription
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-          const { data: subData } = await supabase.functions.invoke("check-subscription", {
-            headers: {
-              Authorization: `Bearer ${session.access_token}`,
-            },
-          });
-          
-          if (!subData?.subscribed) {
-            navigate("/settings/plans");
-            return;
-          }
-        }
-      } catch (error) {
-        console.error("Error checking subscription:", error);
-      }
-      
-      setCheckingSubscription(false);
-    };
-
-    checkAccess();
+    if (!loading && !user) {
+      navigate("/auth");
+    }
   }, [user, loading, navigate]);
 
-  if (loading || checkingSubscription) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -127,42 +89,8 @@ const AppHome = () => {
             <span className="text-sm font-medium text-primary">Unified Campaign Management</span>
           </div>
           <h2 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-foreground via-primary to-accent bg-clip-text text-transparent">
-            Plan & Launch Cross-Platform Campaigns in Minutes
+            Plan & Launch A New ActiPlan
           </h2>
-          <p className="text-xl text-muted-foreground mb-8 max-w-2xl">
-            Build, optimize, and launch paid advertising campaigns across Meta, Google Ads, LinkedIn, TikTok, Snapchat,
-            and Pinterest from a single interface.
-          </p>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
-            <div className="flex items-start gap-3 p-4 rounded-lg bg-card border border-border shadow-sm">
-              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <Target className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <h3 className="font-semibold mb-1">Unified Planning</h3>
-                <p className="text-sm text-muted-foreground">One media plan across all platforms</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3 p-4 rounded-lg bg-card border border-border shadow-sm">
-              <div className="h-10 w-10 rounded-lg bg-accent/10 flex items-center justify-center flex-shrink-0">
-                <TrendingUp className="h-5 w-5 text-accent" />
-              </div>
-              <div>
-                <h3 className="font-semibold mb-1">Smart Optimization</h3>
-                <p className="text-sm text-muted-foreground">Auto-translate objectives to platform goals</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3 p-4 rounded-lg bg-card border border-border shadow-sm">
-              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <Zap className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <h3 className="font-semibold mb-1">Instant Launch</h3>
-                <p className="text-sm text-muted-foreground">Deploy to all platforms at once</p>
-              </div>
-            </div>
-          </div>
         </div>
       </section>
 
