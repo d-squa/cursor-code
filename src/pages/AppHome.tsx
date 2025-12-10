@@ -48,33 +48,28 @@ const AppHome = () => {
               </div>
             </div>
             <nav className="flex items-center gap-2">
-              <button 
+              <button
                 onClick={() => navigate("/performance")}
                 className="px-4 py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
               >
                 Dashboard
               </button>
-              <button 
+              <button
                 onClick={() => navigate("/actiplans")}
                 className="px-4 py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
               >
                 ActiPlans
               </button>
-              <Button 
-                variant="ghost" 
-                size="sm" 
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => setBugDialogOpen(true)}
                 className="gap-2"
                 title="Report a Bug"
               >
                 <Bug className="h-4 w-4" />
               </Button>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => navigate("/settings")}
-                className="gap-2"
-              >
+              <Button variant="ghost" size="sm" onClick={() => navigate("/settings")} className="gap-2">
                 <Settings className="h-4 w-4" />
               </Button>
               <Button variant="outline" size="sm" onClick={signOut} className="gap-2">
@@ -97,10 +92,10 @@ const AppHome = () => {
             Create Cross-Platform Campaigns in Minutes
           </h2>
           <p className="text-xl text-muted-foreground mb-8 max-w-2xl">
-            Build, optimize, and launch paid advertising campaigns across Meta, Google Ads, LinkedIn, TikTok, 
-            Snapchat, and Pinterest from a single interface.
+            Build, optimize, and launch paid advertising campaigns across Meta, Google Ads, LinkedIn, TikTok, Snapchat,
+            and Pinterest from a single interface.
           </p>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
             <div className="flex items-start gap-3 p-4 rounded-lg bg-card border border-border shadow-sm">
               <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">

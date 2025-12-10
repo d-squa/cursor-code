@@ -5,104 +5,112 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { 
-  Target, 
-  TrendingUp, 
-  Zap, 
+import {
+  Target,
+  TrendingUp,
+  Zap,
   CheckCircle2,
-  ArrowRight, 
-  BarChart3, 
+  ArrowRight,
+  BarChart3,
   Shield,
   Layers,
   Globe,
   Sparkles,
-  X
+  X,
 } from "lucide-react";
 
 const benefits = [
   {
     icon: Zap,
     title: "Faster Execution",
-    description: "From plan to launch in half the time."
+    description: "From plan to launch in half the time.",
   },
   {
     icon: Layers,
     title: "Centralized Clarity",
-    description: "One dashboard. Zero chaos."
+    description: "One dashboard. Zero chaos.",
   },
   {
     icon: Target,
     title: "Standardized Creation",
-    description: "Consistent flow for every team."
+    description: "Consistent flow for every team.",
   },
   {
     icon: TrendingUp,
     title: "Scale Easily",
-    description: "ActiPlan flexes with your team."
-  }
+    description: "ActiPlan flexes with your team.",
+  },
 ];
 
 const features = [
   {
     icon: Sparkles,
     title: "Ready-To-Run Planning",
-    description: "Create AI-assisted, ready-to-run media plans with clear deliverables, cost breakdowns, KPIs, and benchmarks — all in minutes."
+    description:
+      "Create AI-assisted, ready-to-run media plans with clear deliverables, cost breakdowns, KPIs, and benchmarks — all in minutes.",
   },
   {
     icon: Globe,
     title: "Bulk Cross-Platform Activation",
-    description: "Plan, launch and monitor your paid media campaigns across all major ad platforms — from one centralized activation tool."
+    description:
+      "Plan, launch and monitor your paid media campaigns across all major ad platforms — from one centralized activation tool.",
   },
   {
     icon: Zap,
     title: "Live Insights & Recommendations",
-    description: "Get on-the-go campaign insights and AI-driven recommendations to boost performance without switching between tools."
+    description:
+      "Get on-the-go campaign insights and AI-driven recommendations to boost performance without switching between tools.",
   },
   {
     icon: BarChart3,
     title: "Real-time Performance Dashboard",
-    description: "Visualize cross-platform ad performance in real time with dedicated campaign dashboards that combine planned and actual results."
+    description:
+      "Visualize cross-platform ad performance in real time with dedicated campaign dashboards that combine planned and actual results.",
   },
   {
     icon: Shield,
     title: "Media Plan Approval",
-    description: "Streamline your media planning process from brainstorming to execution with built-in approval workflows that keep everyone in the loop."
+    description:
+      "Streamline your media planning process from brainstorming to execution with built-in approval workflows that keep everyone in the loop.",
   },
   {
     icon: TrendingUp,
     title: "HawkView Performance",
-    description: "Monitor real-time, multi-channel performance from a single view that combines the planner's perspective with the performance executive's view."
+    description:
+      "Monitor real-time, multi-channel performance from a single view that combines the planner's perspective with the performance executive's view.",
   },
   {
     icon: Layers,
     title: "AI-Powered Knowledge",
-    description: "Ask ActiPlan's AI Knowledge Base anything — from digital marketing concepts to optimization tips — and get instant, expert answers."
+    description:
+      "Ask ActiPlan's AI Knowledge Base anything — from digital marketing concepts to optimization tips — and get instant, expert answers.",
   },
   {
     icon: Target,
     title: "Team Management",
-    description: "Structure your campaign workflow to match your team's hierarchy, and collaborate seamlessly across activation stakeholders."
-  }
+    description:
+      "Structure your campaign workflow to match your team's hierarchy, and collaborate seamlessly across activation stakeholders.",
+  },
 ];
 
 // Stripe Price IDs
 const PRICE_IDS = {
   basic: {
     monthly: "price_1ScnObKrTGU4P754AAJ9Q5NU",
-    yearly: "price_1ScnL9KrTGU4P754QirsF0Sd"
+    yearly: "price_1ScnL9KrTGU4P754QirsF0Sd",
   },
   freelancer: {
     monthly: "price_1ScnOcKrTGU4P754y5pmh5jf",
-    yearly: "price_1ScnNYKrTGU4P754hbyoSjdc"
+    yearly: "price_1ScnNYKrTGU4P754hbyoSjdc",
   },
   enterprise: {
     monthly: "price_1ScnOdKrTGU4P7542mtt9uyC",
-    yearly: "price_1ScnOOKrTGU4P754r7bdJ94j"
+    yearly: "price_1ScnOOKrTGU4P754r7bdJ94j",
   },
   agency: {
     monthly: "price_1ScnOeKrTGU4P75446dvndr3",
-    yearly: "price_1ScnOPKrTGU4P754sNgouHiL"
-  }
+    yearly: "price_1ScnOPKrTGU4P754sNgouHiL",
+  },
 };
 
 const pricingTiers = [
@@ -120,13 +128,19 @@ const pricingTiers = [
       "ActiPlan Creation (Media Cost, Deliverables & Benchmark)",
       "Topline Performance Report",
       "Cross-Platform Campaign Activation",
-      "Live Insights & Recommendations"
+      "Live Insights & Recommendations",
     ],
-    limitations: ["Visual Performance Dashboard", "Approval Workflow", "HawkView Reports", "AI Knowledge Base", "Team Management"],
+    limitations: [
+      "Visual Performance Dashboard",
+      "Approval Workflow",
+      "HawkView Reports",
+      "AI Knowledge Base",
+      "Team Management",
+    ],
     operationalLimits: "1 ActiPlan/Day & 1 Owner",
     cta: "Start Free Trial",
     popular: false,
-    note: "No credit card required"
+    note: "No credit card required",
   },
   {
     key: "basic",
@@ -143,12 +157,12 @@ const pricingTiers = [
       "Topline Performance Report",
       "Cross-Platform Campaign Activation",
       "Live Insights & Recommendations",
-      "Visual Performance Dashboard"
+      "Visual Performance Dashboard",
     ],
     limitations: ["Approval Workflow", "HawkView Reports", "AI Knowledge Base", "Team Management"],
     operationalLimits: "1 ActiPlan/Day & 1 Owner",
     cta: "Get Started",
-    popular: false
+    popular: false,
   },
   {
     key: "freelancer",
@@ -165,12 +179,12 @@ const pricingTiers = [
       "Topline Performance Report",
       "Cross-Platform Campaign Activation",
       "Live Insights & Recommendations",
-      "Visual Performance Dashboard"
+      "Visual Performance Dashboard",
     ],
     limitations: ["Approval Workflow", "HawkView Reports", "AI Knowledge Base", "Team Management"],
     operationalLimits: "2 ActiPlans/Day & 1 Owner",
     cta: "Get Started",
-    popular: true
+    popular: true,
   },
   {
     key: "enterprise",
@@ -191,12 +205,12 @@ const pricingTiers = [
       "Approval Workflow",
       "HawkView Intuitive Performance Report",
       "AI-based Knowledge Base",
-      "Users, Accesses & Permissions"
+      "Users, Accesses & Permissions",
     ],
     limitations: ["Team Management", "Account Manager Support"],
     operationalLimits: "5 ActiPlans/Day, 1 Owner & 4 Team Members",
     cta: "Get Started",
-    popular: false
+    popular: false,
   },
   {
     key: "agency",
@@ -219,13 +233,13 @@ const pricingTiers = [
       "AI-based Knowledge Base",
       "Users, Accesses & Permissions",
       "Team Management",
-      "Account Manager + Working Hours Support"
+      "Account Manager + Working Hours Support",
     ],
     limitations: [],
     operationalLimits: "Unlimited ActiPlans, 1 Owner, 1 Admin & 8 Team Members",
     cta: "Get Started",
-    popular: false
-  }
+    popular: false,
+  },
 ];
 
 // Removed - using benefits array instead
@@ -239,9 +253,9 @@ const Landing = () => {
   };
 
   const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat("en-US", {
       minimumFractionDigits: 0,
-      maximumFractionDigits: 2
+      maximumFractionDigits: 2,
     }).format(price);
   };
 
@@ -262,10 +276,16 @@ const Landing = () => {
             <span className="text-xl font-bold">ActiPlan</span>
           </div>
           <div className="hidden md:flex items-center gap-6">
-            <button onClick={() => scrollToSection("capabilities")} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+            <button
+              onClick={() => scrollToSection("capabilities")}
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
               Capabilities
             </button>
-            <button onClick={() => scrollToSection("pricing")} className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+            <button
+              onClick={() => scrollToSection("pricing")}
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
               Pricing
             </button>
           </div>
@@ -273,9 +293,7 @@ const Landing = () => {
             <Button onClick={() => navigate("/auth")} variant="outline">
               Sign In
             </Button>
-            <Button onClick={() => navigate("/auth?mode=signup")}>
-              Start Free Trial
-            </Button>
+            <Button onClick={() => navigate("/auth?mode=signup")}>Start Free Trial</Button>
           </div>
         </nav>
       </header>
@@ -285,7 +303,7 @@ const Landing = () => {
         <div className="max-w-4xl mx-auto text-center">
           <Badge variant="secondary" className="mb-6">
             <Sparkles className="h-3 w-3 mr-1" />
-            AI-Powered Campaign Management
+            AI-Powered Cross-Platform Media Buing
           </Badge>
           <h1 className="text-4xl md:text-6xl font-bold mb-6 leading-tight">
             Launch Cross-Platform{" "}
@@ -294,8 +312,9 @@ const Landing = () => {
             </span>
           </h1>
           <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-            ActiPlan transforms your media planning workflow. Create, optimize, and launch paid advertising 
-            campaigns across Meta, Google, TikTok, LinkedIn, Snapchat, and Pinterest from a single interface.
+            ActiPlan is an AI-powered media planning tool & media buying platform that helps you manage cross-platform
+            paid media campaigns in bulk and grow your client portfolio by unifying planning, activation, optimization,
+            and reporting across different DSPs in one streamlined solution
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button size="lg" onClick={() => navigate("/auth?mode=signup")} className="gap-2">
@@ -306,14 +325,14 @@ const Landing = () => {
             </Button>
           </div>
         </div>
-        
+
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mt-20 max-w-4xl mx-auto">
           {[
             { value: "40%", label: "Cost Reduction" },
             { value: "5x", label: "Faster Launches" },
             { value: "6+", label: "Platforms" },
-            { value: "99.9%", label: "Uptime" }
+            { value: "99.9%", label: "Uptime" },
           ].map((stat) => (
             <div key={stat.label} className="text-center">
               <div className="text-3xl md:text-4xl font-bold text-primary">{stat.value}</div>
@@ -327,14 +346,12 @@ const Landing = () => {
       <section id="benefits" className="py-20 bg-muted/50">
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              Why Choose ActiPlan?
-            </h2>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">Why Choose ActiPlan?</h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
               Join leading agencies and brands who have transformed their media operations.
             </p>
           </div>
-          
+
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl mx-auto">
             {benefits.map((benefit) => (
               <Card key={benefit.title} className="bg-card hover:shadow-lg transition-shadow text-center">
@@ -357,14 +374,12 @@ const Landing = () => {
       <section id="capabilities" className="py-20">
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              Everything You Need to Scale Your Media Operations
-            </h2>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">Everything You Need to Scale Your Media Operations</h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
               From planning to execution, ActiPlan streamlines every step of your campaign workflow.
             </p>
           </div>
-          
+
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             {features.map((feature) => (
               <Card key={feature.title} className="bg-card hover:shadow-lg transition-shadow">
@@ -383,56 +398,47 @@ const Landing = () => {
         </div>
       </section>
 
-
       {/* Pricing Section */}
       <section id="pricing" className="py-20 bg-muted/50">
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              Simple, Transparent Pricing
-            </h2>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">Simple, Transparent Pricing</h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-8">
               Choose the plan that fits your needs.
             </p>
-            
+
             {/* Billing Toggle */}
             <div className="flex items-center justify-center gap-4 mb-4">
               <span className={`text-sm font-medium ${!isYearly ? "text-foreground" : "text-muted-foreground"}`}>
                 Monthly
               </span>
               <div className="relative">
-                <Switch
-                  checked={isYearly}
-                  onCheckedChange={setIsYearly}
-                  className="data-[state=checked]:bg-primary"
-                />
+                <Switch checked={isYearly} onCheckedChange={setIsYearly} className="data-[state=checked]:bg-primary" />
               </div>
               <span className={`text-sm font-medium ${isYearly ? "text-foreground" : "text-muted-foreground"}`}>
                 Yearly
               </span>
             </div>
-            
+
             {/* Savings Banner */}
             <div className="inline-flex items-center gap-2 bg-primary/10 text-primary px-4 py-2 rounded-full">
               <Sparkles className="h-4 w-4" />
               <span className="font-semibold">Save 15% with yearly billing!</span>
             </div>
           </div>
-          
+
           <div className="grid md:grid-cols-3 lg:grid-cols-5 gap-6 max-w-7xl mx-auto">
             {pricingTiers.map((tier) => (
-              <Card 
-                key={tier.name} 
+              <Card
+                key={tier.name}
                 className={`relative flex flex-col ${tier.popular ? "border-primary shadow-lg lg:scale-105" : ""}`}
               >
                 {tier.popular && (
-                  <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary">
-                    Most Popular
-                  </Badge>
+                  <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary">Most Popular</Badge>
                 )}
                 <CardHeader className="pb-4">
                   <CardTitle>{tier.name}</CardTitle>
-                  
+
                   {/* Pricing Display */}
                   <div className="mt-2">
                     {tier.monthlyPrice === 0 ? (
@@ -447,7 +453,10 @@ const Landing = () => {
                           <span className="text-lg text-muted-foreground line-through">
                             ${formatPrice(tier.monthlyPrice)}
                           </span>
-                          <Badge variant="secondary" className="text-xs bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">
+                          <Badge
+                            variant="secondary"
+                            className="text-xs bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
+                          >
                             -{getSavingsPercentage(tier.monthlyPrice, tier.yearlyMonthly)}%
                           </Badge>
                         </div>
@@ -469,16 +478,16 @@ const Landing = () => {
                       </div>
                     )}
                   </div>
-                  
+
                   <CardDescription className="mt-2">{tier.description}</CardDescription>
                 </CardHeader>
-                
+
                 <CardContent className="flex-1 flex flex-col">
                   {/* Operational Limits */}
                   <div className="bg-muted/50 rounded-lg p-3 mb-4 text-sm">
                     <span className="font-medium">{tier.operationalLimits}</span>
                   </div>
-                  
+
                   {/* Features */}
                   <ul className="space-y-2 mb-4 flex-1">
                     {tier.features.map((feature) => (
@@ -494,13 +503,11 @@ const Landing = () => {
                       </li>
                     ))}
                   </ul>
-                  
-                  {tier.note && (
-                    <p className="text-xs text-muted-foreground mb-4">{tier.note}</p>
-                  )}
-                  
-                  <Button 
-                    className="w-full mt-auto" 
+
+                  {tier.note && <p className="text-xs text-muted-foreground mb-4">{tier.note}</p>}
+
+                  <Button
+                    className="w-full mt-auto"
                     variant={tier.popular ? "default" : "outline"}
                     onClick={() => navigate("/auth?mode=signup")}
                   >
@@ -510,7 +517,7 @@ const Landing = () => {
               </Card>
             ))}
           </div>
-          
+
           <p className="text-center text-sm text-muted-foreground mt-8">
             All plans include a 30-day free trial. No credit card required to start.
           </p>
@@ -522,9 +529,7 @@ const Landing = () => {
         <div className="container mx-auto px-4">
           <Card className="max-w-3xl mx-auto bg-gradient-to-br from-primary/10 to-accent/10 border-primary/20">
             <CardContent className="p-8 md:p-12 text-center">
-              <h2 className="text-2xl md:text-3xl font-bold mb-4">
-                Ready to Transform Your Media Operations?
-              </h2>
+              <h2 className="text-2xl md:text-3xl font-bold mb-4">Ready to Transform Your Media Operations?</h2>
               <p className="text-muted-foreground mb-8 max-w-xl mx-auto">
                 Start your 30-day free trial today and experience the power of automated campaign management.
               </p>
