@@ -140,7 +140,7 @@ const pricingTiers = [
     operationalLimits: "1 ActiPlan/Day & 1 Owner",
     cta: "Start Free Trial",
     popular: false,
-    note: "No credit card required",
+    note: "Credit card required. Cancel anytime!",
   },
   {
     key: "basic",
@@ -404,8 +404,8 @@ const Landing = () => {
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">Simple, Transparent Pricing</h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-8">
-              Choose the plan that best fits your needs. All plans include a 30-day free trial.Credit card required.
-              Cancel anytime.
+              Choose the plan that best fits your needs. All plans include a 30-day free trial. Credit card required.
+              Cancel anytime! Cancel anytime.
             </p>
 
             {/* Billing Toggle */}
@@ -520,7 +520,7 @@ const Landing = () => {
           </div>
 
           <p className="text-center text-sm text-muted-foreground mt-8">
-            All plans include a 30-day free trial. No credit card required to start.
+            All plans include a 30-day free trial. Credit card required. Cancel anytime!
           </p>
         </div>
       </section>
