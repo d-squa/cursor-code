@@ -192,26 +192,26 @@ export default function ChoosePlan() {
         </div>
 
         {/* Billing Toggle */}
-        <div className="flex items-center justify-center gap-4 mb-8">
-          <span className={!isYearly ? "font-semibold" : "text-muted-foreground"}>Monthly</span>
+        <div className="flex items-center justify-center gap-3 mb-8">
+          <span className={`text-sm ${!isYearly ? "font-semibold" : "text-muted-foreground"}`}>Monthly</span>
           <button
             onClick={() => setIsYearly(!isYearly)}
-            className={`relative w-14 h-7 rounded-full transition-colors ${
+            className={`relative w-12 h-6 rounded-full transition-colors flex-shrink-0 ${
               isYearly ? "bg-primary" : "bg-muted"
             }`}
           >
             <span
-              className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-transform ${
-                isYearly ? "translate-x-8" : "translate-x-1"
+              className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform ${
+                isYearly ? "translate-x-6" : "translate-x-0"
               }`}
             />
           </button>
-          <span className={isYearly ? "font-semibold" : "text-muted-foreground"}>
+          <span className={`text-sm ${isYearly ? "font-semibold" : "text-muted-foreground"}`}>
             Yearly
-            <Badge variant="secondary" className="ml-2 bg-green-100 text-green-800">
-              Save 15%
-            </Badge>
           </span>
+          <Badge variant="secondary" className="bg-green-100 text-green-800 text-xs">
+            Save 15%
+          </Badge>
         </div>
 
         {/* Plans Grid */}
