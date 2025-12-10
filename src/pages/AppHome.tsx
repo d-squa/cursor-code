@@ -1,24 +1,62 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { MediaPlanEditor } from "@/components/MediaPlanEditor";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Target, TrendingUp, Zap, LogOut, Loader2, Settings, Bug } from "lucide-react";
 import { BugReportDialog } from "@/components/BugReportDialog";
-import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 const AppHome = () => {
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
   const [bugDialogOpen, setBugDialogOpen] = useState(false);
+  const [checkingSubscription, setCheckingSubscription] = useState(true);
 
   useEffect(() => {
-    if (!loading && !user) {
-      navigate("/auth");
-    }
+    const checkAccess = async () => {
+      if (loading) return;
+      
+      if (!user) {
+        navigate("/auth");
+        return;
+      }
+
+      // Check onboarding
+      const onboardingData = localStorage.getItem("actiplan_onboarding");
+      const onboardingComplete = onboardingData && JSON.parse(onboardingData).completedAt;
+      
+      if (!onboardingComplete) {
+        navigate("/onboarding");
+        return;
+      }
+
+      // Check subscription
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          const { data: subData } = await supabase.functions.invoke("check-subscription", {
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+            },
+          });
+          
+          if (!subData?.subscribed) {
+            navigate("/settings/plans");
+            return;
+          }
+        }
+      } catch (error) {
+        console.error("Error checking subscription:", error);
+      }
+      
+      setCheckingSubscription(false);
+    };
+
+    checkAccess();
   }, [user, loading, navigate]);
 
-  if (loading) {
+  if (loading || checkingSubscription) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
