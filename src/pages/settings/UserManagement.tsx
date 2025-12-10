@@ -216,7 +216,7 @@ export default function UserManagement() {
   if (loadingUsers) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-muted-foreground">Loading users...</div>
+        <div className="text-muted-foreground">Loading activators...</div>
       </div>
     );
   }
@@ -225,9 +225,9 @@ export default function UserManagement() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">User Management</h1>
+          <h1 className="text-3xl font-bold">Activator Management</h1>
           <p className="text-muted-foreground mt-1">
-            Invite users, manage permissions, and assign teams
+            Invite activators, manage permissions, and assign teams
           </p>
         </div>
         
@@ -235,12 +235,12 @@ export default function UserManagement() {
           <DialogTrigger asChild>
             <Button>
               <UserPlus className="mr-2 h-4 w-4" />
-              Invite User
+              Invite Activator
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Invite New User</DialogTitle>
+              <DialogTitle>Invite New Activator</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 mt-4">
               <div>
@@ -248,7 +248,7 @@ export default function UserManagement() {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="user@example.com"
+                  placeholder="activator@example.com"
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
                 />
@@ -362,9 +362,9 @@ export default function UserManagement() {
         </div>
       )}
 
-      {/* Active Users */}
+      {/* Active Activators */}
       <div className="space-y-4">
-        <h2 className="text-xl font-semibold">Active Users</h2>
+        <h2 className="text-xl font-semibold">Active Activators</h2>
         <Table>
           <TableHeader>
             <TableRow>
