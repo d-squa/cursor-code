@@ -60,6 +60,7 @@ export function ModificationRequestDialog({
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [platforms, setPlatforms] = useState<Platform[]>([]);
+  const [marketSplits, setMarketSplits] = useState<Record<string, any>>({});
   const [selectedPlatform, setSelectedPlatform] = useState("");
   const [selectedMarkets, setSelectedMarkets] = useState<string[]>([]);
   const [selectedPhases, setSelectedPhases] = useState<string[]>([]);
@@ -83,16 +84,23 @@ export function ModificationRequestDialog({
 
       console.log("Campaign data for modification dialog:", campaign);
 
-      if (campaign && Array.isArray(campaign.platforms)) {
-        // Parse platforms - they may have nested markets with phases
-        const platformsData = campaign.platforms.map((p: any, idx: number) => ({
-          id: p.id || `platform-${idx}`,
-          name: p.name || p.type || p.platform,
-          type: p.type || p.platform || p.name,
-          markets: p.markets || [],
-        }));
-        console.log("Parsed platforms:", platformsData);
-        setPlatforms(platformsData);
+      if (campaign) {
+        // Parse platforms
+        if (Array.isArray(campaign.platforms)) {
+          const platformsData = campaign.platforms.map((p: any, idx: number) => ({
+            id: p.id || `platform-${idx}`,
+            name: p.name || p.type || p.platform,
+            type: p.type || p.platform || p.name,
+          }));
+          console.log("Parsed platforms:", platformsData);
+          setPlatforms(platformsData);
+        }
+
+        // Store market_splits for later use
+        if (campaign.market_splits && typeof campaign.market_splits === 'object') {
+          console.log("Market splits:", campaign.market_splits);
+          setMarketSplits(campaign.market_splits as Record<string, any>);
+        }
       }
     } catch (error) {
       console.error("Error loading campaign details:", error);
@@ -102,31 +110,37 @@ export function ModificationRequestDialog({
   // Update available markets and phases when platform changes
   useEffect(() => {
     if (selectedPlatform && selectedPlatform !== "_none") {
-      const platform = platforms.find(
-        (p) => p.name === selectedPlatform || p.type === selectedPlatform
-      );
+      console.log("Looking for market splits for platform:", selectedPlatform);
+      console.log("Available marketSplits:", marketSplits);
       
-      console.log("Selected platform data:", platform);
+      // Market splits are typically keyed by platform name
+      const platformMarketData = marketSplits[selectedPlatform] || marketSplits[selectedPlatform.toLowerCase()];
+      console.log("Platform market data:", platformMarketData);
       
-      if (platform) {
-        // Extract markets from platform
-        const markets: Market[] = [];
-        const phases: Phase[] = [];
+      const markets: Market[] = [];
+      const phases: Phase[] = [];
+      
+      if (platformMarketData) {
+        // Could be an array of markets or an object with markets property
+        const marketsList = Array.isArray(platformMarketData) 
+          ? platformMarketData 
+          : (platformMarketData.markets || []);
         
-        const platformMarkets = platform.markets || [];
-        console.log("Platform markets:", platformMarkets);
+        console.log("Markets list:", marketsList);
         
-        platformMarkets.forEach((market: any) => {
-          markets.push({
-            id: market.id || market.code || market.name || String(Math.random()),
-            name: market.name || market.code || market.market,
-            code: market.code,
-          });
+        marketsList.forEach((market: any) => {
+          const marketName = market.name || market.market || market.code;
+          if (marketName) {
+            markets.push({
+              id: market.id || market.code || marketName,
+              name: marketName,
+              code: market.code,
+            });
+          }
           
           // Extract phases from market
           const marketPhases = market.phases || [];
           marketPhases.forEach((phase: any) => {
-            // Avoid duplicates by checking name
             const phaseName = phase.name || phase.phaseName;
             if (phaseName && !phases.find((p) => p.name === phaseName)) {
               phases.push({
@@ -136,13 +150,13 @@ export function ModificationRequestDialog({
             }
           });
         });
-        
-        console.log("Extracted markets:", markets);
-        console.log("Extracted phases:", phases);
-        
-        setAvailableMarkets(markets);
-        setAvailablePhases(phases);
       }
+      
+      console.log("Final extracted markets:", markets);
+      console.log("Final extracted phases:", phases);
+      
+      setAvailableMarkets(markets);
+      setAvailablePhases(phases);
     } else {
       setAvailableMarkets([]);
       setAvailablePhases([]);
@@ -150,7 +164,7 @@ export function ModificationRequestDialog({
     // Clear selections when platform changes
     setSelectedMarkets([]);
     setSelectedPhases([]);
-  }, [selectedPlatform, platforms]);
+  }, [selectedPlatform, marketSplits]);
 
   const loadTeamMembers = async () => {
     setLoadingMembers(true);
