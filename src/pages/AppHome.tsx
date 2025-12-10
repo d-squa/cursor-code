@@ -1,34 +1,17 @@
-import { useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { MediaPlanEditor } from "@/components/MediaPlanEditor";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { Target, TrendingUp, Zap, LogOut, Loader2, Settings, Bug } from "lucide-react";
+import { Target, Zap, LogOut, Settings, Bug } from "lucide-react";
 import { BugReportDialog } from "@/components/BugReportDialog";
-import { useState } from "react";
 
 const AppHome = () => {
-  const { user, loading, signOut } = useAuth();
+  const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [bugDialogOpen, setBugDialogOpen] = useState(false);
 
-  useEffect(() => {
-    if (!loading && !user) {
-      navigate("/auth");
-    }
-  }, [user, loading, navigate]);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (!user) {
-    return null;
-  }
+  // SubscriptionGuard handles all auth and subscription checks
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/20">

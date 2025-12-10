@@ -66,13 +66,13 @@ export default function Auth() {
             // Has subscription, go to app
             navigate("/app");
           } else {
-            // No subscription, go to plans page
-            navigate("/settings/plans");
+            // No subscription, go to choose plan page
+            navigate("/choose-plan");
           }
         } catch (error) {
           console.error("Error checking subscription:", error);
-          // On error, go to plans to be safe
-          navigate("/settings/plans");
+          // On error, go to choose plan to be safe
+          navigate("/choose-plan");
         }
       }
     });
