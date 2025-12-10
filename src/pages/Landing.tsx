@@ -374,8 +374,14 @@ const Landing = () => {
       <section id="capabilities" className="py-20">
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
-            <p className="text-3xl md:text-4xl text-muted-foreground max-w-2xl mx-auto">The Future of Paid Media Is</p>
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">Intelligence, Consolidation & Efficiency</h2>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+              The Future of Paid Media Is Intelligence, Consolidation & Efficiency
+            </h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              ActiPlan is an AI-powered media planning and buying platform that lets you create ready-to-run media
+              plans, launch cross-platform campaigns, track real-time performance, get actionable insights, manage
+              approvals, and collaborate with your team — all in one centralized dashboard.
+            </p>
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
