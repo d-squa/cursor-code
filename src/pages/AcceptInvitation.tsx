@@ -7,7 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Users, User, ArrowRight } from "lucide-react";
+
+type SubscriptionChoice = "personal" | "team" | null;
 
 export default function AcceptInvitation() {
   const [searchParams] = useSearchParams();
@@ -22,6 +24,12 @@ export default function AcceptInvitation() {
   const [displayName, setDisplayName] = useState("");
   const [accepting, setAccepting] = useState(false);
   const [createAccount, setCreateAccount] = useState(false);
+  
+  // Subscription choice state
+  const [hasExistingSubscription, setHasExistingSubscription] = useState(false);
+  const [checkingSubscription, setCheckingSubscription] = useState(false);
+  const [showSubscriptionChoice, setShowSubscriptionChoice] = useState(false);
+  const [subscriptionChoice, setSubscriptionChoice] = useState<SubscriptionChoice>(null);
 
   const token = searchParams.get("token");
 
@@ -34,6 +42,13 @@ export default function AcceptInvitation() {
 
     loadInvitation();
   }, [token]);
+
+  // Check subscription when user is logged in
+  useEffect(() => {
+    if (user && invitation) {
+      checkUserSubscription();
+    }
+  }, [user, invitation]);
 
   const loadInvitation = async () => {
     try {
@@ -64,8 +79,43 @@ export default function AcceptInvitation() {
     }
   };
 
+  const checkUserSubscription = async () => {
+    if (!user) return;
+    
+    setCheckingSubscription(true);
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      if (!session?.session?.access_token) return;
+
+      const { data, error } = await supabase.functions.invoke("check-subscription", {
+        headers: {
+          Authorization: `Bearer ${session.session.access_token}`,
+        },
+      });
+
+      if (error) throw error;
+
+      // If user has an active subscription, show choice
+      if (data?.subscribed) {
+        setHasExistingSubscription(true);
+        setShowSubscriptionChoice(true);
+      }
+    } catch (err) {
+      console.error("Error checking subscription:", err);
+      // If we can't check, assume no subscription and proceed normally
+    } finally {
+      setCheckingSubscription(false);
+    }
+  };
+
   const handleAcceptInvitation = async () => {
     if (!invitation) return;
+
+    // If user has subscription and hasn't made a choice yet, show choice first
+    if (hasExistingSubscription && !subscriptionChoice) {
+      setShowSubscriptionChoice(true);
+      return;
+    }
 
     setAccepting(true);
 
@@ -119,7 +169,18 @@ export default function AcceptInvitation() {
 
       if (updateError) throw updateError;
 
-      toast.success("Invitation accepted! Welcome to the team.");
+      // Handle subscription choice
+      if (subscriptionChoice === "team") {
+        // User chose to use team subscription - redirect to manage/cancel their personal subscription
+        toast.success("Invitation accepted! You can manage your personal subscription in settings.");
+      } else {
+        toast.success("Invitation accepted! Welcome to the team.");
+      }
+      
+      // Store the choice for reference
+      if (subscriptionChoice) {
+        localStorage.setItem("actiplan_subscription_mode", subscriptionChoice);
+      }
       
       // Redirect to dashboard
       setTimeout(() => {
@@ -131,6 +192,11 @@ export default function AcceptInvitation() {
     } finally {
       setAccepting(false);
     }
+  };
+
+  const handleSubscriptionChoice = (choice: SubscriptionChoice) => {
+    setSubscriptionChoice(choice);
+    setShowSubscriptionChoice(false);
   };
 
   if (loading) {
@@ -162,6 +228,77 @@ export default function AcceptInvitation() {
     );
   }
 
+  // Show subscription choice screen
+  if (showSubscriptionChoice && hasExistingSubscription) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="max-w-lg w-full">
+          <CardHeader>
+            <CardTitle>Choose Your Workspace</CardTitle>
+            <CardDescription>
+              You already have an ActiPlan subscription. How would you like to proceed when joining{" "}
+              <strong>{invitation?.teams?.name}</strong>?
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Option 1: Keep personal subscription */}
+            <button
+              onClick={() => handleSubscriptionChoice("personal")}
+              className="w-full p-4 rounded-lg border-2 border-border hover:border-primary transition-colors text-left group"
+            >
+              <div className="flex items-start gap-4">
+                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                  <User className="h-5 w-5 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold flex items-center gap-2">
+                    Keep Both Workspaces
+                    <ArrowRight className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Keep your personal subscription and also join the team. You'll have access to both workspaces
+                    and can switch between them.
+                  </p>
+                </div>
+              </div>
+            </button>
+
+            {/* Option 2: Use team subscription */}
+            <button
+              onClick={() => handleSubscriptionChoice("team")}
+              className="w-full p-4 rounded-lg border-2 border-border hover:border-primary transition-colors text-left group"
+            >
+              <div className="flex items-start gap-4">
+                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                  <Users className="h-5 w-5 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold flex items-center gap-2">
+                    Use Team Subscription
+                    <ArrowRight className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Join the team using their subscription. You can cancel your personal subscription from settings
+                    to avoid duplicate billing.
+                  </p>
+                </div>
+              </div>
+            </button>
+
+            <div className="pt-4 border-t">
+              <button
+                onClick={() => setShowSubscriptionChoice(false)}
+                className="text-sm text-muted-foreground hover:text-foreground"
+              >
+                ← Back
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="max-w-md w-full">
@@ -176,6 +313,31 @@ export default function AcceptInvitation() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {checkingSubscription && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Checking your account...
+              </div>
+            )}
+
+            {/* Show subscription choice indicator if already made */}
+            {subscriptionChoice && (
+              <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
+                <p className="text-sm">
+                  <strong>Workspace choice:</strong>{" "}
+                  {subscriptionChoice === "personal" 
+                    ? "Keep both workspaces" 
+                    : "Use team subscription"}
+                </p>
+                <button
+                  onClick={() => setShowSubscriptionChoice(true)}
+                  className="text-xs text-primary hover:underline mt-1"
+                >
+                  Change
+                </button>
+              </div>
+            )}
+
             {!user ? (
               <>
                 <p className="text-sm text-muted-foreground">
@@ -251,11 +413,17 @@ export default function AcceptInvitation() {
 
           <Button
             onClick={user ? handleAcceptInvitation : (createAccount ? handleAcceptInvitation : () => navigate("/auth"))}
-            disabled={accepting || (createAccount && (!password || !confirmPassword))}
+            disabled={accepting || checkingSubscription || (createAccount && (!password || !confirmPassword)) || (hasExistingSubscription && !subscriptionChoice)}
             className="w-full"
           >
             {accepting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {user ? "Accept & Join Team" : createAccount ? "Create ActiPlan Account & Join" : "Sign in to Accept"}
+            {user 
+              ? (hasExistingSubscription && !subscriptionChoice 
+                  ? "Choose Workspace First" 
+                  : "Accept & Join Team")
+              : createAccount 
+                ? "Create ActiPlan Account & Join" 
+                : "Sign in to Accept"}
           </Button>
 
           {!user && (
