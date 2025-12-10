@@ -66,6 +66,7 @@ export function ModificationRequestDialog({
   const [selectedPhases, setSelectedPhases] = useState<string[]>([]);
   const [availableMarkets, setAvailableMarkets] = useState<Market[]>([]);
   const [availablePhases, setAvailablePhases] = useState<Phase[]>([]);
+  const [campaignStatus, setCampaignStatus] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -78,13 +79,16 @@ export function ModificationRequestDialog({
     try {
       const { data: campaign } = await supabase
         .from("campaigns")
-        .select("platforms, market_splits")
+        .select("platforms, market_splits, status")
         .eq("id", campaignId)
         .single();
 
       console.log("Campaign data for modification dialog:", campaign);
 
       if (campaign) {
+        // Store campaign status
+        setCampaignStatus(campaign.status || null);
+        
         // Parse platforms
         if (Array.isArray(campaign.platforms)) {
           const platformsData = campaign.platforms.map((p: any, idx: number) => ({
@@ -254,13 +258,17 @@ export function ModificationRequestDialog({
 
       if (requestError) throw requestError;
 
-      // Update campaign status
-      const { error: updateError } = await supabase
-        .from("campaigns")
-        .update({ status: "under_modification" })
-        .eq("id", campaignId);
+      // Only update campaign status to under_modification if not already pushed to DSP
+      // Campaigns that are pushed_to_dsp, partially_pushed, or live should retain their status
+      const dspStatuses = ["pushed_to_dsp", "partially_pushed", "live"];
+      if (!dspStatuses.includes(campaignStatus || "")) {
+        const { error: updateError } = await supabase
+          .from("campaigns")
+          .update({ status: "under_modification" })
+          .eq("id", campaignId);
 
-      if (updateError) throw updateError;
+        if (updateError) throw updateError;
+      }
 
       // Log to history
       await supabase.from("campaign_change_history").insert({
