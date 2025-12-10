@@ -30,6 +30,7 @@ interface Platform {
   id: string;
   name: string;
   type: string;
+  markets?: any[];
 }
 
 interface Market {
@@ -80,8 +81,17 @@ export function ModificationRequestDialog({
         .eq("id", campaignId)
         .single();
 
+      console.log("Campaign data for modification dialog:", campaign);
+
       if (campaign && Array.isArray(campaign.platforms)) {
-        const platformsData = campaign.platforms as unknown as Platform[];
+        // Parse platforms - they may have nested markets with phases
+        const platformsData = campaign.platforms.map((p: any, idx: number) => ({
+          id: p.id || `platform-${idx}`,
+          name: p.name || p.type || p.platform,
+          type: p.type || p.platform || p.name,
+          markets: p.markets || [],
+        }));
+        console.log("Parsed platforms:", platformsData);
         setPlatforms(platformsData);
       }
     } catch (error) {
@@ -94,35 +104,41 @@ export function ModificationRequestDialog({
     if (selectedPlatform && selectedPlatform !== "_none") {
       const platform = platforms.find(
         (p) => p.name === selectedPlatform || p.type === selectedPlatform
-      ) as any;
+      );
+      
+      console.log("Selected platform data:", platform);
       
       if (platform) {
         // Extract markets from platform
         const markets: Market[] = [];
         const phases: Phase[] = [];
         
-        if (platform.markets && Array.isArray(platform.markets)) {
-          platform.markets.forEach((market: any) => {
-            markets.push({
-              id: market.id || market.code || market.name,
-              name: market.name || market.code,
-              code: market.code,
-            });
-            
-            // Extract phases from market
-            if (market.phases && Array.isArray(market.phases)) {
-              market.phases.forEach((phase: any) => {
-                // Avoid duplicates
-                if (!phases.find((p) => p.name === phase.name)) {
-                  phases.push({
-                    id: phase.id || phase.name,
-                    name: phase.name,
-                  });
-                }
+        const platformMarkets = platform.markets || [];
+        console.log("Platform markets:", platformMarkets);
+        
+        platformMarkets.forEach((market: any) => {
+          markets.push({
+            id: market.id || market.code || market.name || String(Math.random()),
+            name: market.name || market.code || market.market,
+            code: market.code,
+          });
+          
+          // Extract phases from market
+          const marketPhases = market.phases || [];
+          marketPhases.forEach((phase: any) => {
+            // Avoid duplicates by checking name
+            const phaseName = phase.name || phase.phaseName;
+            if (phaseName && !phases.find((p) => p.name === phaseName)) {
+              phases.push({
+                id: phase.id || phaseName,
+                name: phaseName,
               });
             }
           });
-        }
+        });
+        
+        console.log("Extracted markets:", markets);
+        console.log("Extracted phases:", phases);
         
         setAvailableMarkets(markets);
         setAvailablePhases(phases);
