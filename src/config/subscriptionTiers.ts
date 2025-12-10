@@ -7,24 +7,36 @@ export const PRICE_IDS = {
   basic: {
     monthly: "price_1ScnObKrTGU4P754AAJ9Q5NU",
     yearly: "price_1ScnL9KrTGU4P754QirsF0Sd",
-    productId: "prod_SRSZVEmv4Oy12a"
+    productId: "prod_SSWF7TKJNNXtqD"
   },
   freelancer: {
     monthly: "price_1ScnOcKrTGU4P754y5pmh5jf",
     yearly: "price_1ScnNYKrTGU4P754hbyoSjdc",
-    productId: "prod_SRSZZHAXHbQlN7"
+    productId: "prod_SSWRPgpWgLnZJb"
   },
   enterprise: {
     monthly: "price_1ScnOdKrTGU4P7542mtt9uyC",
     yearly: "price_1ScnOOKrTGU4P754r7bdJ94j",
-    productId: "prod_SRSZNEVj3M0cxq"
+    productId: "prod_SSWVDHzEQ8w2WJ"
   },
   agency: {
     monthly: "price_1ScnOeKrTGU4P75446dvndr3",
     yearly: "price_1ScnOPKrTGU4P754sNgouHiL",
-    productId: "prod_SRSZNtqZg7bUMG"
+    productId: "prod_SSWVFLkGsMC0W6"
   }
 } as const;
+
+// Get billing period from price ID
+export function getBillingPeriodFromPriceId(priceId: string | null): 'monthly' | 'yearly' | null {
+  if (!priceId) return null;
+  
+  for (const config of Object.values(PRICE_IDS)) {
+    if (config.monthly === priceId) return 'monthly';
+    if (config.yearly === priceId) return 'yearly';
+  }
+  
+  return null;
+}
 
 // Map product IDs to tiers
 export function getTierFromProductId(productId: string | null): SubscriptionTier {

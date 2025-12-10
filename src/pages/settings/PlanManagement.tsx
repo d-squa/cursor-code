@@ -1,41 +1,17 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Check, Zap, Loader2, ExternalLink, Clock } from "lucide-react";
+import { Check, Zap, Loader2, ExternalLink, Clock, Calendar } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useSearchParams } from "react-router-dom";
 import { useSubscription } from "@/hooks/useSubscription";
-
-// Stripe price IDs from your Stripe account
-const PRICE_IDS = {
-  basic: {
-    monthly: "price_1ScnObKrTGU4P754AAJ9Q5NU",
-    yearly: "price_1ScnL9KrTGU4P754QirsF0Sd",
-    productId: "prod_SSWF7TKJNNXtqD"
-  },
-  freelancer: {
-    monthly: "price_1ScnOcKrTGU4P754y5pmh5jf",
-    yearly: "price_1ScnNYKrTGU4P754hbyoSjdc",
-    productId: "prod_SSWRPgpWgLnZJb"
-  },
-  enterprise: {
-    monthly: "price_1ScnOdKrTGU4P7542mtt9uyC",
-    yearly: "price_1ScnOOKrTGU4P754r7bdJ94j",
-    productId: "prod_SSWVDHzEQ8w2WJ"
-  },
-  agency: {
-    monthly: "price_1ScnOeKrTGU4P75446dvndr3",
-    yearly: "price_1ScnOPKrTGU4P754sNgouHiL",
-    productId: "prod_SSWVFLkGsMC0W6"
-  }
-};
+import { PRICE_IDS, TIER_DISPLAY_NAMES, SubscriptionTier } from "@/config/subscriptionTiers";
 
 const plans = [
   {
-    id: "basic",
+    id: "basic" as const,
     name: "Basic",
     monthlyPrice: 39,
     yearlyPrice: 397.80,
@@ -49,7 +25,7 @@ const plans = [
     ],
   },
   {
-    id: "freelancer",
+    id: "freelancer" as const,
     name: "Freelancer",
     monthlyPrice: 89,
     yearlyPrice: 907.80,
@@ -62,7 +38,7 @@ const plans = [
     ],
   },
   {
-    id: "enterprise",
+    id: "enterprise" as const,
     name: "Enterprise",
     monthlyPrice: 189,
     yearlyPrice: 1927.80,
@@ -77,7 +53,7 @@ const plans = [
     recommended: true,
   },
   {
-    id: "agency",
+    id: "agency" as const,
     name: "Agency",
     monthlyPrice: 999,
     yearlyPrice: 10189.80,
@@ -92,23 +68,22 @@ const plans = [
   },
 ];
 
-interface SubscriptionStatus {
-  subscribed: boolean;
-  onTrial: boolean;
-  productId: string | null;
-  subscriptionEnd: string | null;
-  trialEnd: string | null;
-  status?: string;
-}
-
 export default function PlanManagement() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { isSubscribed, loading: hookLoading, refetch } = useSubscription();
+  const { 
+    isSubscribed, 
+    isOnTrial,
+    loading: hookLoading, 
+    refetch,
+    tier,
+    tierDisplayName,
+    billingPeriod,
+    subscriptionEnd,
+    trialEnd
+  } = useSubscription();
   const [isYearly, setIsYearly] = useState(true);
   const [loading, setLoading] = useState<string | null>(null);
-  const [subscription, setSubscription] = useState<SubscriptionStatus | null>(null);
-  const [checkingSubscription, setCheckingSubscription] = useState(true);
 
   useEffect(() => {
     // Redirect unsubscribed users to choose plan page
@@ -120,48 +95,19 @@ export default function PlanManagement() {
   useEffect(() => {
     // Check for success/canceled from Stripe redirect
     if (searchParams.get("success") === "true") {
-      toast.success("Successfully subscribed! Your 30-day trial has started.");
-      checkSubscription();
+      toast.success("Successfully subscribed!");
       refetch();
     } else if (searchParams.get("canceled") === "true") {
       toast.info("Checkout was canceled.");
     }
   }, [searchParams, refetch]);
 
+  // Set initial yearly toggle based on current billing period
   useEffect(() => {
-    checkSubscription();
-  }, []);
-
-  const checkSubscription = async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
-      const { data, error } = await supabase.functions.invoke("check-subscription", {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
-
-      if (error) throw error;
-      setSubscription(data);
-    } catch (error) {
-      console.error("Error checking subscription:", error);
-    } finally {
-      setCheckingSubscription(false);
+    if (billingPeriod) {
+      setIsYearly(billingPeriod === 'yearly');
     }
-  };
-
-  const getCurrentPlanId = (): string | null => {
-    if (!subscription?.productId) return null;
-    
-    for (const [planId, priceInfo] of Object.entries(PRICE_IDS)) {
-      if (priceInfo.productId === subscription.productId) {
-        return planId;
-      }
-    }
-    return null;
-  };
+  }, [billingPeriod]);
 
   const handleSubscribe = async (planId: string) => {
     setLoading(planId);
@@ -227,7 +173,6 @@ export default function PlanManagement() {
     }
   };
 
-  const currentPlanId = getCurrentPlanId();
   const formatDate = (dateStr: string) => {
     return new Date(dateStr).toLocaleDateString("en-US", {
       year: "numeric",
@@ -236,12 +181,37 @@ export default function PlanManagement() {
     });
   };
 
+  const isCurrentPlan = (planId: string): boolean => {
+    return tier === planId;
+  };
+
+  const getPlanTierIndex = (planId: string): number => {
+    const tierOrder: SubscriptionTier[] = ['trial', 'basic', 'freelancer', 'enterprise', 'agency'];
+    return tierOrder.indexOf(planId as SubscriptionTier);
+  };
+
+  const isUpgrade = (planId: string): boolean => {
+    return getPlanTierIndex(planId) > getPlanTierIndex(tier);
+  };
+
+  const isDowngrade = (planId: string): boolean => {
+    return getPlanTierIndex(planId) < getPlanTierIndex(tier);
+  };
+
+  if (hookLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-3xl font-bold">Plan Management</h2>
         <p className="text-muted-foreground mt-2">
-          Choose the plan that best fits your needs. All plans include a 30-day free trial.
+          Manage your subscription and billing preferences.
         </p>
       </div>
 
@@ -254,58 +224,50 @@ export default function PlanManagement() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {checkingSubscription ? (
-            <div className="flex items-center gap-2">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span>Checking subscription...</span>
-            </div>
-          ) : subscription?.subscribed ? (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-2xl font-bold capitalize">
-                    {currentPlanId || "Active"} Plan
-                    {subscription.onTrial && (
-                      <Badge variant="secondary" className="ml-2">
-                        <Clock className="h-3 w-3 mr-1" />
-                        Trial
-                      </Badge>
-                    )}
-                  </p>
-                  {subscription.onTrial && subscription.trialEnd && (
-                    <p className="text-muted-foreground">
-                      Trial ends: {formatDate(subscription.trialEnd)}
-                    </p>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              <div>
+                <div className="flex items-center gap-3 mb-2">
+                  <p className="text-2xl font-bold">{tierDisplayName} Plan</p>
+                  {isOnTrial && (
+                    <Badge variant="secondary" className="bg-amber-100 text-amber-800">
+                      <Clock className="h-3 w-3 mr-1" />
+                      Trial
+                    </Badge>
                   )}
-                  {!subscription.onTrial && subscription.subscriptionEnd && (
-                    <p className="text-muted-foreground">
-                      Next billing: {formatDate(subscription.subscriptionEnd)}
-                    </p>
+                  {billingPeriod && !isOnTrial && (
+                    <Badge variant="outline" className="capitalize">
+                      <Calendar className="h-3 w-3 mr-1" />
+                      {billingPeriod}
+                    </Badge>
                   )}
                 </div>
-                <Button 
-                  variant="outline" 
-                  onClick={handleManageSubscription}
-                  disabled={loading === "manage"}
-                >
-                  {loading === "manage" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  Manage Subscription
-                </Button>
+                {isOnTrial && trialEnd && (
+                  <p className="text-muted-foreground">
+                    Trial ends: {formatDate(trialEnd)}
+                  </p>
+                )}
+                {!isOnTrial && subscriptionEnd && (
+                  <p className="text-muted-foreground">
+                    Next billing: {formatDate(subscriptionEnd)}
+                  </p>
+                )}
               </div>
-              <p className="text-sm text-muted-foreground">
-                You can upgrade, downgrade, or cancel your subscription anytime. 
-                Changes are prorated based on your remaining billing period.
-              </p>
+              <Button 
+                variant="outline" 
+                onClick={handleManageSubscription}
+                disabled={loading === "manage"}
+              >
+                {loading === "manage" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Manage Subscription
+              </Button>
             </div>
-          ) : (
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-2xl font-bold">Free Plan</p>
-                <p className="text-muted-foreground">Start your 30-day trial with any plan below</p>
-              </div>
-            </div>
-          )}
+            <p className="text-sm text-muted-foreground">
+              You can upgrade, downgrade, or cancel your subscription anytime. 
+              Changes are prorated based on your remaining billing period.
+            </p>
+          </div>
         </CardContent>
       </Card>
 
@@ -335,7 +297,7 @@ export default function PlanManagement() {
       {/* Available Plans */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {plans.map((plan) => {
-          const isCurrentPlan = currentPlanId === plan.id;
+          const isCurrent = isCurrentPlan(plan.id);
           const monthlyEquivalent = isYearly 
             ? (plan.yearlyPrice / 12).toFixed(2) 
             : plan.monthlyPrice.toFixed(2);
@@ -344,20 +306,25 @@ export default function PlanManagement() {
             <Card 
               key={plan.id}
               className={`${plan.recommended ? "border-primary shadow-lg ring-2 ring-primary/20" : ""} ${
-                isCurrentPlan ? "bg-primary/5" : ""
+                isCurrent ? "bg-primary/5 border-primary" : ""
               }`}
             >
               <CardHeader>
                 <div className="flex items-center justify-between mb-2">
                   <CardTitle>{plan.name}</CardTitle>
-                  {plan.recommended && (
-                    <Badge variant="default" className="bg-primary">
-                      Recommended
-                    </Badge>
-                  )}
-                  {isCurrentPlan && (
-                    <Badge variant="secondary">Your Plan</Badge>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {plan.recommended && !isCurrent && (
+                      <Badge variant="default" className="bg-primary">
+                        Recommended
+                      </Badge>
+                    )}
+                    {isCurrent && (
+                      <Badge className="bg-green-600 text-white">
+                        <Check className="h-3 w-3 mr-1" />
+                        Current Plan
+                      </Badge>
+                    )}
+                  </div>
                 </div>
                 <CardDescription>{plan.description}</CardDescription>
                 <div className="mt-4">
@@ -390,19 +357,27 @@ export default function PlanManagement() {
                   ))}
                 </ul>
 
-                {!isCurrentPlan && (
+                {!isCurrent && (
                   <Button 
                     className="w-full" 
-                    variant={plan.recommended ? "default" : "outline"}
+                    variant={isUpgrade(plan.id) ? "default" : "outline"}
                     onClick={() => handleSubscribe(plan.id)}
                     disabled={loading === plan.id}
                   >
                     {loading === plan.id && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {subscription?.subscribed 
-                      ? `Switch to ${plan.name}`
-                      : `Start 30-Day Trial`
+                    {isUpgrade(plan.id) 
+                      ? `Upgrade to ${plan.name}`
+                      : isDowngrade(plan.id)
+                        ? `Downgrade to ${plan.name}`
+                        : `Switch to ${plan.name}`
                     }
                   </Button>
+                )}
+                
+                {isCurrent && (
+                  <div className="text-center py-2 text-sm text-muted-foreground">
+                    This is your current plan
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -414,9 +389,9 @@ export default function PlanManagement() {
       <Card>
         <CardContent className="pt-6">
           <p className="text-sm text-muted-foreground">
-            <strong>30-Day Free Trial:</strong> All plans start with a 30-day free trial. 
-            Your card will be charged at the end of the trial period. You can cancel anytime 
-            during the trial at no cost. Upgrades and downgrades are prorated automatically.
+            <strong>Note:</strong> Basic plan includes a 30-day free trial. 
+            Freelancer, Enterprise, and Agency plans start billing immediately. 
+            Upgrades and downgrades are prorated automatically.
           </p>
         </CardContent>
       </Card>

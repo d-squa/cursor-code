@@ -3,43 +3,21 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Check, Loader2, Target, ArrowLeft } from "lucide-react";
+import { Check, Loader2, Target } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
-
-// Stripe price IDs
-const PRICE_IDS = {
-  basic: {
-    monthly: "price_1ScnObKrTGU4P754AAJ9Q5NU",
-    yearly: "price_1ScnL9KrTGU4P754QirsF0Sd",
-    productId: "prod_SSWF7TKJNNXtqD"
-  },
-  freelancer: {
-    monthly: "price_1ScnOcKrTGU4P754y5pmh5jf",
-    yearly: "price_1ScnNYKrTGU4P754hbyoSjdc",
-    productId: "prod_SSWRPgpWgLnZJb"
-  },
-  enterprise: {
-    monthly: "price_1ScnOdKrTGU4P7542mtt9uyC",
-    yearly: "price_1ScnOOKrTGU4P754r7bdJ94j",
-    productId: "prod_SSWVDHzEQ8w2WJ"
-  },
-  agency: {
-    monthly: "price_1ScnOeKrTGU4P75446dvndr3",
-    yearly: "price_1ScnOPKrTGU4P754sNgouHiL",
-    productId: "prod_SSWVFLkGsMC0W6"
-  }
-};
+import { PRICE_IDS } from "@/config/subscriptionTiers";
 
 const plans = [
   {
-    id: "basic",
+    id: "basic" as const,
     name: "Basic",
     monthlyPrice: 39,
     yearlyPrice: 397.80,
     description: "For individuals getting started",
+    hasTrial: true,
     features: [
       "1 ActiPlan per day",
       "Visual Dashboard",
@@ -49,11 +27,12 @@ const plans = [
     ],
   },
   {
-    id: "freelancer",
+    id: "freelancer" as const,
     name: "Freelancer",
     monthlyPrice: 89,
     yearlyPrice: 907.80,
     description: "For growing professionals",
+    hasTrial: false,
     features: [
       "2 ActiPlans per day",
       "Everything in Basic",
@@ -62,11 +41,12 @@ const plans = [
     ],
   },
   {
-    id: "enterprise",
+    id: "enterprise" as const,
     name: "Enterprise",
     monthlyPrice: 189,
     yearlyPrice: 1927.80,
     description: "For teams and agencies",
+    hasTrial: false,
     features: [
       "5 ActiPlans per day",
       "Everything in Freelancer",
@@ -77,11 +57,12 @@ const plans = [
     recommended: true,
   },
   {
-    id: "agency",
+    id: "agency" as const,
     name: "Agency",
     monthlyPrice: 999,
     yearlyPrice: 10189.80,
     description: "For large agencies",
+    hasTrial: false,
     features: [
       "Unlimited ActiPlans",
       "Everything in Enterprise",
@@ -290,7 +271,7 @@ export default function ChoosePlan() {
                     disabled={loading === plan.id}
                   >
                     {loading === plan.id && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Start Free Trial
+                    {plan.hasTrial ? "Start 30-Day Free Trial" : "Subscribe Now"}
                   </Button>
                 </CardContent>
               </Card>
@@ -302,9 +283,11 @@ export default function ChoosePlan() {
         <Card className="max-w-2xl mx-auto">
           <CardContent className="pt-6 text-center">
             <p className="text-sm text-muted-foreground">
-              <strong>30-Day Free Trial:</strong> All plans include a 30-day free trial. 
-              Your card will be charged at the end of the trial period. 
-              Cancel anytime during the trial at no cost.
+              <strong>Basic Plan:</strong> Includes a 30-day free trial. Your card won't be charged until the trial ends.
+              <br />
+              <strong>Freelancer, Enterprise & Agency:</strong> Billing starts immediately upon subscription.
+              <br />
+              You can cancel or change your plan anytime.
             </p>
           </CardContent>
         </Card>

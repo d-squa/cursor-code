@@ -12,6 +12,12 @@ const logStep = (step: string, details?: any) => {
   console.log(`[CREATE-CHECKOUT] ${step}${detailsStr}`);
 };
 
+// Basic plan price IDs - these get 30-day trial
+const BASIC_PRICE_IDS = [
+  "price_1ScnObKrTGU4P754AAJ9Q5NU", // monthly
+  "price_1ScnL9KrTGU4P754QirsF0Sd"  // yearly
+];
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -50,8 +56,17 @@ serve(async (req) => {
 
     const origin = req.headers.get("origin") || "https://lovable.dev";
 
-    // Create checkout session with 30-day trial
-    // payment_method_collection: 'always' ensures card is collected upfront
+    // Only Basic plan gets 30-day trial, Freelance+ starts immediately
+    const isBasicPlan = BASIC_PRICE_IDS.includes(priceId);
+    
+    // Build subscription_data based on plan
+    const subscriptionData: Stripe.Checkout.SessionCreateParams.SubscriptionData = isBasicPlan 
+      ? { trial_period_days: 30 }
+      : {}; // No trial for Freelance+
+
+    logStep("Plan type determined", { isBasicPlan, hasTrialPeriod: isBasicPlan });
+
+    // Create checkout session
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       customer_email: customerId ? undefined : user.email,
@@ -63,14 +78,12 @@ serve(async (req) => {
       ],
       mode: "subscription",
       payment_method_collection: "always",
-      subscription_data: {
-        trial_period_days: 30,
-      },
+      subscription_data: subscriptionData,
       success_url: `${origin}/settings/plans?success=true`,
       cancel_url: `${origin}/settings/plans?canceled=true`,
     });
 
-    logStep("Checkout session created", { sessionId: session.id, url: session.url });
+    logStep("Checkout session created", { sessionId: session.id, url: session.url, hasTrialPeriod: isBasicPlan });
 
     return new Response(JSON.stringify({ url: session.url }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

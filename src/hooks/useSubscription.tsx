@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { getTierFromProductId, SubscriptionTier } from "@/config/subscriptionTiers";
+import { getTierFromProductId, SubscriptionTier, TIER_DISPLAY_NAMES } from "@/config/subscriptionTiers";
 
 interface SubscriptionStatus {
   subscribed: boolean;
   onTrial: boolean;
   productId: string | null;
+  priceId: string | null;
+  billingPeriod: 'monthly' | 'yearly' | null;
   subscriptionEnd: string | null;
   trialEnd: string | null;
   status?: string;
@@ -69,6 +71,11 @@ export function useSubscription() {
     return getTierFromProductId(subscription.productId);
   }, [subscription]);
 
+  // Get display name for the tier
+  const tierDisplayName = useMemo(() => {
+    return TIER_DISPLAY_NAMES[tier];
+  }, [tier]);
+
   return {
     subscription,
     loading,
@@ -76,7 +83,10 @@ export function useSubscription() {
     isSubscribed: subscription?.subscribed ?? false,
     isOnTrial: subscription?.onTrial ?? false,
     tier,
+    tierDisplayName,
     productId: subscription?.productId ?? null,
+    priceId: subscription?.priceId ?? null,
+    billingPeriod: subscription?.billingPeriod ?? null,
     subscriptionEnd: subscription?.subscriptionEnd ?? null,
     trialEnd: subscription?.trialEnd ?? null,
     refetch: checkSubscription,
