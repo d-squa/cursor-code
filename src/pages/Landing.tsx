@@ -9,7 +9,7 @@ import {
   Target, 
   TrendingUp, 
   Zap, 
-  CheckCircle2, 
+  CheckCircle2,
   ArrowRight, 
   BarChart3, 
   Shield,
@@ -19,46 +19,69 @@ import {
   X
 } from "lucide-react";
 
-const capabilities = [
+const benefits = [
   {
-    icon: Target,
-    title: "Guided Media Plan Creation",
-    description: "Build comprehensive media plans with step-by-step guidance that ensures no detail is missed."
-  },
-  {
-    icon: Sparkles,
-    title: "AI-Powered Plan Generation",
-    description: "Create base plans from high-level text prompts using advanced AI that understands your marketing goals."
+    icon: Zap,
+    title: "Faster Execution",
+    description: "From plan to launch in half the time."
   },
   {
     icon: Layers,
-    title: "Excel & Sheets Import",
-    description: "Seamlessly import existing media plans from Microsoft Excel or Google Sheets."
+    title: "Centralized Clarity",
+    description: "One dashboard. Zero chaos."
   },
   {
-    icon: BarChart3,
-    title: "Media Cost & Benchmarks",
-    description: "Get accurate cost estimates and industry benchmarks for informed decision-making."
+    icon: Target,
+    title: "Standardized Creation",
+    description: "Consistent flow for every team."
   },
   {
     icon: TrendingUp,
-    title: "Performance Reports",
-    description: "Track actual vs planned performance with comprehensive topline reports."
+    title: "Scale Easily",
+    description: "ActiPlan flexes with your team."
+  }
+];
+
+const features = [
+  {
+    icon: Sparkles,
+    title: "Ready-To-Run Planning",
+    description: "Create AI-assisted, ready-to-run media plans with clear deliverables, cost breakdowns, KPIs, and benchmarks — all in minutes."
   },
   {
     icon: Globe,
-    title: "Cross-Platform Activation",
-    description: "Launch campaigns across Meta, Google, TikTok, LinkedIn, Snapchat & Pinterest simultaneously."
+    title: "Bulk Cross-Platform Activation",
+    description: "Plan, launch and monitor your paid media campaigns across all major ad platforms — from one centralized activation tool."
   },
   {
     icon: Zap,
     title: "Live Insights & Recommendations",
-    description: "Real-time campaign insights with AI-powered optimization recommendations."
+    description: "Get on-the-go campaign insights and AI-driven recommendations to boost performance without switching between tools."
+  },
+  {
+    icon: BarChart3,
+    title: "Real-time Performance Dashboard",
+    description: "Visualize cross-platform ad performance in real time with dedicated campaign dashboards that combine planned and actual results."
   },
   {
     icon: Shield,
-    title: "Approval Workflows",
-    description: "Enterprise-grade approval processes for campaign launches and modifications."
+    title: "Media Plan Approval",
+    description: "Streamline your media planning process from brainstorming to execution with built-in approval workflows that keep everyone in the loop."
+  },
+  {
+    icon: TrendingUp,
+    title: "HawkView Performance",
+    description: "Monitor real-time, multi-channel performance from a single view that combines the planner's perspective with the performance executive's view."
+  },
+  {
+    icon: Layers,
+    title: "AI-Powered Knowledge",
+    description: "Ask ActiPlan's AI Knowledge Base anything — from digital marketing concepts to optimization tips — and get instant, expert answers."
+  },
+  {
+    icon: Target,
+    title: "Team Management",
+    description: "Structure your campaign workflow to match your team's hierarchy, and collaborate seamlessly across activation stakeholders."
   }
 ];
 
@@ -205,24 +228,7 @@ const pricingTiers = [
   }
 ];
 
-const advantages = [
-  {
-    title: "Reduce Operational Costs by 40%",
-    description: "Eliminate manual work and human errors with automated campaign creation and management."
-  },
-  {
-    title: "Scale Without Hiring",
-    description: "Handle 3x more campaigns with the same team using intelligent automation."
-  },
-  {
-    title: "Launch Campaigns 5x Faster",
-    description: "From media plan to live campaign in minutes, not hours."
-  },
-  {
-    title: "Zero Learning Curve",
-    description: "Intuitive interface designed for media buyers, by media buyers."
-  }
-];
+// Removed - using benefits array instead
 
 const Landing = () => {
   const navigate = useNavigate();
@@ -317,8 +323,38 @@ const Landing = () => {
         </div>
       </section>
 
-      {/* Capabilities Section */}
-      <section id="capabilities" className="py-20 bg-muted/50">
+      {/* Benefits Section */}
+      <section id="benefits" className="py-20 bg-muted/50">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+              Why Choose ActiPlan?
+            </h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Join leading agencies and brands who have transformed their media operations.
+            </p>
+          </div>
+          
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl mx-auto">
+            {benefits.map((benefit) => (
+              <Card key={benefit.title} className="bg-card hover:shadow-lg transition-shadow text-center">
+                <CardHeader>
+                  <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4 mx-auto">
+                    <benefit.icon className="h-6 w-6 text-primary" />
+                  </div>
+                  <CardTitle className="text-lg">{benefit.title}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <CardDescription>{benefit.description}</CardDescription>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Features Section */}
+      <section id="capabilities" className="py-20">
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">
@@ -330,16 +366,16 @@ const Landing = () => {
           </div>
           
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {capabilities.map((cap) => (
-              <Card key={cap.title} className="bg-card hover:shadow-lg transition-shadow">
+            {features.map((feature) => (
+              <Card key={feature.title} className="bg-card hover:shadow-lg transition-shadow">
                 <CardHeader>
                   <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
-                    <cap.icon className="h-6 w-6 text-primary" />
+                    <feature.icon className="h-6 w-6 text-primary" />
                   </div>
-                  <CardTitle className="text-lg">{cap.title}</CardTitle>
+                  <CardTitle className="text-lg">{feature.title}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <CardDescription>{cap.description}</CardDescription>
+                  <CardDescription>{feature.description}</CardDescription>
                 </CardContent>
               </Card>
             ))}
@@ -347,31 +383,6 @@ const Landing = () => {
         </div>
       </section>
 
-      {/* Advantages Section */}
-      <section className="py-20">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              Why Choose ActiPlan?
-            </h2>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Join leading agencies and brands who have transformed their media operations.
-            </p>
-          </div>
-          
-          <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-            {advantages.map((adv, idx) => (
-              <div key={idx} className="flex gap-4 p-6 rounded-lg border bg-card">
-                <CheckCircle2 className="h-6 w-6 text-primary flex-shrink-0 mt-1" />
-                <div>
-                  <h3 className="font-semibold text-lg mb-2">{adv.title}</h3>
-                  <p className="text-muted-foreground">{adv.description}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
 
       {/* Pricing Section */}
       <section id="pricing" className="py-20 bg-muted/50">
