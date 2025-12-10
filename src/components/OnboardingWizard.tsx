@@ -84,19 +84,36 @@ export const OnboardingWizard = () => {
       }));
       
       // Try to update profile with company name if user has session
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user && formData.company) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user && formData.company) {
         await supabase
           .from("profiles")
           .update({ company_name: formData.company })
-          .eq("id", user.id);
+          .eq("id", session.user.id);
       }
 
-      if (hasSession) {
-        // User already confirmed email - go to app
-        toast.success("Welcome to ActiPlan! Let's get started.");
+      if (hasSession && session) {
+        // User already confirmed email - check subscription and redirect
         localStorage.removeItem("actiplan_pending_signup_email");
-        navigate("/app");
+        
+        try {
+          const { data: subData } = await supabase.functions.invoke("check-subscription", {
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+            },
+          });
+          
+          if (subData?.subscribed) {
+            toast.success("Welcome to ActiPlan! Let's get started.");
+            navigate("/app");
+          } else {
+            toast.success("Almost there! Choose a plan to start your free trial.");
+            navigate("/settings/plans");
+          }
+        } catch (error) {
+          console.error("Error checking subscription:", error);
+          navigate("/settings/plans");
+        }
       } else {
         // User needs to confirm email - show confirmation screen
         setShowEmailConfirmation(true);
@@ -317,16 +334,36 @@ export const OnboardingWizard = () => {
           </div>
 
           <button
-            onClick={() => {
+            onClick={async () => {
+              // Store partial onboarding data and mark as complete
+              localStorage.setItem("actiplan_onboarding", JSON.stringify({
+                ...formData,
+                skipped: true,
+                completedAt: new Date().toISOString()
+              }));
+              
               if (hasSession) {
-                navigate("/app");
+                const { data: { session } } = await supabase.auth.getSession();
+                if (session) {
+                  try {
+                    const { data: subData } = await supabase.functions.invoke("check-subscription", {
+                      headers: {
+                        Authorization: `Bearer ${session.access_token}`,
+                      },
+                    });
+                    
+                    if (subData?.subscribed) {
+                      navigate("/app");
+                    } else {
+                      navigate("/settings/plans");
+                    }
+                  } catch (error) {
+                    navigate("/settings/plans");
+                  }
+                } else {
+                  setShowEmailConfirmation(true);
+                }
               } else {
-                // Store partial onboarding data and show email confirmation
-                localStorage.setItem("actiplan_onboarding", JSON.stringify({
-                  ...formData,
-                  skipped: true,
-                  completedAt: new Date().toISOString()
-                }));
                 setShowEmailConfirmation(true);
               }
             }}

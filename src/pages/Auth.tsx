@@ -38,23 +38,42 @@ export default function Auth() {
     };
     checkUser();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session) {
         // Clear pending signup email when user confirms
         localStorage.removeItem("actiplan_pending_signup_email");
         setShowEmailConfirmation(false);
         
-        // Check if onboarding is complete
+        // Check if onboarding is complete first
         const onboardingData = localStorage.getItem("actiplan_onboarding");
-        if (onboardingData) {
-          const parsed = JSON.parse(onboardingData);
-          if (parsed.completedAt) {
-            navigate("/app");
-            return;
-          }
+        const onboardingComplete = onboardingData && JSON.parse(onboardingData).completedAt;
+        
+        if (!onboardingComplete) {
+          // If onboarding not complete, go to onboarding
+          navigate("/onboarding");
+          return;
         }
-        // If onboarding not complete but user has session (confirmed email or Google), go to onboarding
-        navigate("/onboarding");
+        
+        // Onboarding complete - check subscription status
+        try {
+          const { data: subData } = await supabase.functions.invoke("check-subscription", {
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+            },
+          });
+          
+          if (subData?.subscribed) {
+            // Has subscription, go to app
+            navigate("/app");
+          } else {
+            // No subscription, go to plans page
+            navigate("/settings/plans");
+          }
+        } catch (error) {
+          console.error("Error checking subscription:", error);
+          // On error, go to plans to be safe
+          navigate("/settings/plans");
+        }
       }
     });
 
