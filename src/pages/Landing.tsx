@@ -534,9 +534,9 @@ const Landing = () => {
         <div className="container mx-auto px-4">
           <Card className="max-w-3xl mx-auto bg-gradient-to-br from-primary/10 to-accent/10 border-primary/20">
             <CardContent className="p-8 md:p-12 text-center">
-              <h2 className="text-2xl md:text-3xl font-bold mb-4">Ready to Transform Your Media Operations?</h2>
+              <h2 className="text-2xl md:text-3xl font-bold mb-4">Ready to Transform Your Media Team To Activators?</h2>
               <p className="text-muted-foreground mb-8 max-w-xl mx-auto">
-                Start your 30-day free trial today and experience the power of automated campaign management.
+                Start your 30-day free trial today and experience the power of cross-platform activation management.
               </p>
               <Button size="lg" onClick={() => navigate("/auth?mode=signup")} className="gap-2">
                 Start Free Trial <ArrowRight className="h-4 w-4" />
