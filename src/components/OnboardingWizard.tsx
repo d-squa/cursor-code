@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, ArrowRight, CheckCircle2, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Sparkles, Mail } from "lucide-react";
 
 interface OnboardingData {
   fullName: string;
@@ -23,6 +23,9 @@ export const OnboardingWizard = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showEmailConfirmation, setShowEmailConfirmation] = useState(false);
+  const [hasSession, setHasSession] = useState(false);
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
   const [formData, setFormData] = useState<OnboardingData>({
     fullName: "",
     company: "",
@@ -31,6 +34,17 @@ export const OnboardingWizard = () => {
     teamSize: "",
     experience: "",
   });
+
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setHasSession(!!session);
+      
+      const email = localStorage.getItem("actiplan_pending_signup_email");
+      setPendingEmail(email);
+    };
+    checkSession();
+  }, []);
 
   const totalSteps = 3;
   const progress = (step / totalSteps) * 100;
@@ -69,7 +83,7 @@ export const OnboardingWizard = () => {
         completedAt: new Date().toISOString()
       }));
       
-      // Update profile with company name if provided
+      // Try to update profile with company name if user has session
       const { data: { user } } = await supabase.auth.getUser();
       if (user && formData.company) {
         await supabase
@@ -78,8 +92,15 @@ export const OnboardingWizard = () => {
           .eq("id", user.id);
       }
 
-      toast.success("Welcome to ActiPlan! Let's get started.");
-      navigate("/app");
+      if (hasSession) {
+        // User already confirmed email - go to app
+        toast.success("Welcome to ActiPlan! Let's get started.");
+        localStorage.removeItem("actiplan_pending_signup_email");
+        navigate("/app");
+      } else {
+        // User needs to confirm email - show confirmation screen
+        setShowEmailConfirmation(true);
+      }
     } catch (error) {
       console.error("Error completing onboarding:", error);
       toast.error("Something went wrong. Please try again.");
@@ -87,6 +108,54 @@ export const OnboardingWizard = () => {
       setIsSubmitting(false);
     }
   };
+
+  // Email confirmation screen
+  if (showEmailConfirmation) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
+        <Card className="w-full max-w-lg text-center">
+          <CardHeader>
+            <div className="flex items-center justify-center mb-4">
+              <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
+                <Mail className="h-8 w-8 text-primary" />
+              </div>
+            </div>
+            <CardTitle className="text-2xl">Check your email</CardTitle>
+            <CardDescription className="text-base mt-2">
+              We've sent a confirmation link to{" "}
+              <span className="font-medium text-foreground">{pendingEmail}</span>
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-muted-foreground">
+              Click the link in your email to confirm your account and start using ActiPlan.
+            </p>
+            <div className="pt-4 space-y-2">
+              <Button 
+                variant="outline" 
+                className="w-full"
+                onClick={() => navigate("/auth")}
+              >
+                Back to Sign In
+              </Button>
+              <p className="text-sm text-muted-foreground">
+                Didn't receive the email? Check your spam folder or{" "}
+                <button 
+                  className="text-primary hover:underline"
+                  onClick={() => {
+                    toast.info("Please try signing up again if you didn't receive the email.");
+                    navigate("/auth?mode=signup");
+                  }}
+                >
+                  try again
+                </button>
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
@@ -248,7 +317,19 @@ export const OnboardingWizard = () => {
           </div>
 
           <button
-            onClick={() => navigate("/app")}
+            onClick={() => {
+              if (hasSession) {
+                navigate("/app");
+              } else {
+                // Store partial onboarding data and show email confirmation
+                localStorage.setItem("actiplan_onboarding", JSON.stringify({
+                  ...formData,
+                  skipped: true,
+                  completedAt: new Date().toISOString()
+                }));
+                setShowEmailConfirmation(true);
+              }
+            }}
             className="w-full mt-4 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             Skip for now
