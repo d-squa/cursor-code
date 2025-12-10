@@ -325,21 +325,6 @@ const Landing = () => {
             </Button>
           </div>
         </div>
-
-        {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mt-20 max-w-4xl mx-auto">
-          {[
-            { value: "40%", label: "Cost Reduction" },
-            { value: "5x", label: "Faster Launches" },
-            { value: "6+", label: "Platforms" },
-            { value: "99.9%", label: "Uptime" },
-          ].map((stat) => (
-            <div key={stat.label} className="text-center">
-              <div className="text-3xl md:text-4xl font-bold text-primary">{stat.value}</div>
-              <div className="text-sm text-muted-foreground">{stat.label}</div>
-            </div>
-          ))}
-        </div>
       </section>
 
       {/* Benefits Section */}
@@ -351,7 +336,20 @@ const Landing = () => {
               Join leading agencies and brands who have transformed their media operations.
             </p>
           </div>
-
+          {/* Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mt-20 max-w-4xl mx-auto">
+            {[
+              { value: "60%", label: "Cost Reduction" },
+              { value: "5x", label: "Faster Launches" },
+              { value: "80%", label: "Incident Reduction" },
+              { value: "5+", label: "Platforms" },
+            ].map((stat) => (
+              <div key={stat.label} className="text-center">
+                <div className="text-3xl md:text-4xl font-bold text-primary">{stat.value}</div>
+                <div className="text-sm text-muted-foreground">{stat.label}</div>
+              </div>
+            ))}
+          </div>
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-5xl mx-auto">
             {benefits.map((benefit) => (
               <Card key={benefit.title} className="bg-card hover:shadow-lg transition-shadow text-center">
