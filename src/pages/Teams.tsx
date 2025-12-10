@@ -145,7 +145,7 @@ export default function Teams() {
         .eq("email", data.email)
         .maybeSingle();
       
-      if (profileError || !profile) throw new Error("User not found");
+      if (profileError || !profile) throw new Error("Activator not found");
       
       // Add user to team with role
       const { error } = await supabase
@@ -162,10 +162,10 @@ export default function Teams() {
       queryClient.invalidateQueries({ queryKey: ["team-members"] });
       setIsInviteDialogOpen(false);
       setInviteData({ email: "", role: "member" });
-      toast.success("User invited successfully");
+      toast.success("Activator invited successfully");
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to invite user");
+      toast.error(error.message || "Failed to invite activator");
     },
   });
 
@@ -324,7 +324,7 @@ export default function Teams() {
                   </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
-                      <DialogTitle>Invite User to Team</DialogTitle>
+                      <DialogTitle>Invite Activator to Team</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4 mt-4">
                       <div>
@@ -334,7 +334,7 @@ export default function Teams() {
                           type="email"
                           value={inviteData.email}
                           onChange={(e) => setInviteData({ ...inviteData, email: e.target.value })}
-                          placeholder="user@example.com"
+                          placeholder="activator@example.com"
                         />
                       </div>
                       <div>
@@ -361,7 +361,7 @@ export default function Teams() {
                         disabled={!inviteData.email}
                         className="w-full"
                       >
-                        Invite User
+                        Invite Activator
                       </Button>
                     </div>
                   </DialogContent>
