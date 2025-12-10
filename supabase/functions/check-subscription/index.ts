@@ -52,6 +52,8 @@ serve(async (req) => {
         subscribed: false,
         onTrial: false,
         productId: null,
+        priceId: null,
+        billingPeriod: null,
         subscriptionEnd: null,
         trialEnd: null
       }), {
@@ -81,6 +83,8 @@ serve(async (req) => {
         subscribed: false,
         onTrial: false,
         productId: null,
+        priceId: null,
+        billingPeriod: null,
         subscriptionEnd: null,
         trialEnd: null
       }), {
@@ -101,14 +105,21 @@ serve(async (req) => {
       trialEnd = new Date(activeSub.trial_end * 1000).toISOString();
     }
     
-    const productId = activeSub.items.data[0]?.price?.product as string;
+    const priceItem = activeSub.items.data[0]?.price;
+    const productId = priceItem?.product as string;
+    const priceId = priceItem?.id as string;
     const onTrial = activeSub.status === "trialing";
+    
+    // Determine billing period from price interval
+    const billingPeriod = priceItem?.recurring?.interval === 'year' ? 'yearly' : 'monthly';
 
     logStep("Active subscription found", { 
       subscriptionId: activeSub.id, 
       status: activeSub.status,
       onTrial,
       productId,
+      priceId,
+      billingPeriod,
       subscriptionEnd,
       trialEnd
     });
@@ -117,6 +128,8 @@ serve(async (req) => {
       subscribed: true,
       onTrial,
       productId,
+      priceId,
+      billingPeriod,
       subscriptionEnd,
       trialEnd,
       status: activeSub.status
