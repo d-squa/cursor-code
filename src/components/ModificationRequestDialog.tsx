@@ -109,26 +109,16 @@ export function ModificationRequestDialog({
 
   // Update available markets and phases when platform changes
   useEffect(() => {
-    if (selectedPlatform && selectedPlatform !== "_none") {
-      console.log("Looking for market splits for platform:", selectedPlatform);
-      console.log("Available marketSplits:", marketSplits);
-      
-      // Market splits are typically keyed by platform name
-      const platformMarketData = marketSplits[selectedPlatform] || marketSplits[selectedPlatform.toLowerCase()];
-      console.log("Platform market data:", platformMarketData);
+    if (selectedPlatform && selectedPlatform !== "_none" && Object.keys(marketSplits).length > 0) {
+      // Market splits are keyed by lowercase platform name
+      const platformKey = selectedPlatform.toLowerCase();
+      const platformMarketData = marketSplits[platformKey];
       
       const markets: Market[] = [];
       const phases: Phase[] = [];
       
-      if (platformMarketData) {
-        // Could be an array of markets or an object with markets property
-        const marketsList = Array.isArray(platformMarketData) 
-          ? platformMarketData 
-          : (platformMarketData.markets || []);
-        
-        console.log("Markets list:", marketsList);
-        
-        marketsList.forEach((market: any) => {
+      if (Array.isArray(platformMarketData)) {
+        platformMarketData.forEach((market: any) => {
           const marketName = market.name || market.market || market.code;
           if (marketName) {
             markets.push({
@@ -151,9 +141,6 @@ export function ModificationRequestDialog({
           });
         });
       }
-      
-      console.log("Final extracted markets:", markets);
-      console.log("Final extracted phases:", phases);
       
       setAvailableMarkets(markets);
       setAvailablePhases(phases);
