@@ -711,7 +711,7 @@ export default function ActiPlans() {
     <div className="container mx-auto py-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/")} aria-label="Back to create ActiPlan">
+          <Button variant="ghost" size="icon" onClick={() => navigate("/app")} aria-label="Back to create ActiPlan">
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <h1 className="text-3xl font-bold">ActiPlans</h1>

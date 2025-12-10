@@ -461,7 +461,7 @@ export default function PlatformConnections() {
               Link your advertising platforms to enable campaign management and forecasting
             </p>
           </div>
-          <Button onClick={() => navigate("/")}>Back to Dashboard</Button>
+          <Button onClick={() => navigate("/app")}>Back to Dashboard</Button>
         </div>
 
         <Alert>
