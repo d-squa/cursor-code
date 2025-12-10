@@ -123,7 +123,7 @@ export default function AcceptInvitation() {
       
       // Redirect to dashboard
       setTimeout(() => {
-        navigate("/");
+        navigate("/app");
       }, 2000);
     } catch (err: any) {
       console.error("Error accepting invitation:", err);
@@ -153,7 +153,7 @@ export default function AcceptInvitation() {
             <CardDescription>{error}</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={() => navigate("/")} className="w-full">
+            <Button onClick={() => navigate("/app")} className="w-full">
               Go to Dashboard
             </Button>
           </CardContent>

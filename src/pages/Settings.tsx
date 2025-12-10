@@ -101,7 +101,7 @@ export default function Settings() {
             <Button 
               variant="ghost" 
               size="sm" 
-              onClick={() => navigate("/")}
+              onClick={() => navigate("/app")}
               className="gap-2"
             >
               <ArrowLeft className="h-4 w-4" />
