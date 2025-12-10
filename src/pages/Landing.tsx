@@ -303,18 +303,19 @@ const Landing = () => {
         <div className="max-w-4xl mx-auto text-center">
           <Badge variant="secondary" className="mb-6">
             <Sparkles className="h-3 w-3 mr-1" />
-            AI-Powered Cross-Platform Media Buing
+            AI-Powered Cross-Platform Paid Madia Campaigns Manager
           </Badge>
           <h1 className="text-4xl md:text-6xl font-bold mb-6 leading-tight">
-            Launch Cross-Platform{" "}
+            Plan & Launch Cross-Platform{" "}
             <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              Campaigns in Minutes
+              Activations in Minutes
             </span>
           </h1>
           <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-            ActiPlan is an AI-powered media planning tool & media buying platform that helps you manage cross-platform
-            paid media campaigns in bulk and grow your client portfolio by unifying planning, activation, optimization,
-            and reporting across different DSPs in one streamlined solution
+            ActiPlan is an AI-powered media planning and buying platform designed to help you efficiently manage
+            cross-platform paid media campaigns at scale. It streamlines planning, activation, optimization, and
+            reporting by unifying workflows across multiple DSPs into one integrated solution—empowering you to grow
+            your client portfolio with ease.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button size="lg" onClick={() => navigate("/auth?mode=signup")} className="gap-2">
