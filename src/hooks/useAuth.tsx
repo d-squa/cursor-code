@@ -30,5 +30,8 @@ export function useAuth() {
     navigate("/auth");
   };
 
-  return { user, session, loading, signOut };
+  // Check if user's email is confirmed
+  const isEmailConfirmed = Boolean(user?.email_confirmed_at);
+
+  return { user, session, loading, signOut, isEmailConfirmed };
 }

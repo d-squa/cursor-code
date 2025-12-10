@@ -11,27 +11,30 @@ const Onboarding = () => {
     const checkAccess = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       
-      // Check if user just signed up (pending email confirmation)
-      const pendingSignupEmail = localStorage.getItem("actiplan_pending_signup_email");
-      
-      if (session) {
-        // User is authenticated - check if onboarding is complete
-        const onboardingData = localStorage.getItem("actiplan_onboarding");
-        if (onboardingData) {
-          const parsed = JSON.parse(onboardingData);
-          if (parsed.completedAt) {
-            navigate("/app");
-            return;
-          }
-        }
-        setCanAccess(true);
-      } else if (pendingSignupEmail) {
-        // User just signed up but hasn't confirmed email yet - allow onboarding
-        setCanAccess(true);
-      } else {
-        // No session and no pending signup - redirect to auth
+      if (!session) {
+        // No session - redirect to auth
         navigate("/auth");
+        return;
       }
+      
+      // Check if email is confirmed
+      if (!session.user.email_confirmed_at) {
+        // Email not confirmed - redirect to auth with message
+        navigate("/auth?confirm_email=true");
+        return;
+      }
+      
+      // Check if onboarding is already complete
+      const onboardingData = localStorage.getItem("actiplan_onboarding");
+      if (onboardingData) {
+        const parsed = JSON.parse(onboardingData);
+        if (parsed.completedAt) {
+          navigate("/app");
+          return;
+        }
+      }
+      
+      setCanAccess(true);
     };
 
     checkAccess();

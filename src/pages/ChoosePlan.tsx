@@ -94,7 +94,7 @@ const plans = [
 
 export default function ChoosePlan() {
   const navigate = useNavigate();
-  const { user, loading: authLoading, signOut } = useAuth();
+  const { user, loading: authLoading, signOut, isEmailConfirmed } = useAuth();
   const { isSubscribed, loading: subLoading } = useSubscription();
   const [isYearly, setIsYearly] = useState(true);
   const [loading, setLoading] = useState<string | null>(null);
@@ -106,11 +106,28 @@ export default function ChoosePlan() {
       return;
     }
     
+    // Redirect to auth if email not confirmed
+    if (!authLoading && user && !isEmailConfirmed) {
+      navigate("/auth?confirm_email=true");
+      return;
+    }
+    
+    // Check onboarding status
+    if (!authLoading && user && isEmailConfirmed) {
+      const onboardingData = localStorage.getItem("actiplan_onboarding");
+      const onboardingComplete = onboardingData && JSON.parse(onboardingData).completedAt;
+      
+      if (!onboardingComplete) {
+        navigate("/onboarding");
+        return;
+      }
+    }
+    
     // Redirect to app if already subscribed
     if (!subLoading && isSubscribed) {
       navigate("/app");
     }
-  }, [user, authLoading, isSubscribed, subLoading, navigate]);
+  }, [user, authLoading, isSubscribed, subLoading, navigate, isEmailConfirmed]);
 
   const handleSubscribe = async (planId: string) => {
     setLoading(planId);
