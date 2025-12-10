@@ -568,7 +568,7 @@ export default function ActiPlans() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 {canEdit(campaign) && campaign.status !== "pushed_to_dsp" && (
-                  <DropdownMenuItem onClick={() => window.location.href = `/?campaignId=${campaign.id}`}>
+                  <DropdownMenuItem onClick={() => navigate(`/app?campaignId=${campaign.id}`)}>
                     <Edit className="w-4 h-4 mr-2" />
                     Edit ActiPlan
                   </DropdownMenuItem>
@@ -736,7 +736,7 @@ export default function ActiPlans() {
           )}
           <Button onClick={() => {
             localStorage.removeItem('draftCampaignId');
-            window.location.href = "/?new=true";
+            navigate("/app?new=true");
           }}>
             New ActiPlan
           </Button>
