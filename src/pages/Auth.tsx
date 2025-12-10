@@ -38,18 +38,20 @@ export default function Auth() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (session) {
-        // Check if this is a new signup or existing user
-        if (event === "SIGNED_IN") {
-          const onboardingData = localStorage.getItem("actiplan_onboarding");
-          if (onboardingData) {
-            const parsed = JSON.parse(onboardingData);
-            if (parsed.completedAt) {
-              navigate("/app");
-              return;
-            }
+        // Clear pending signup email when user confirms
+        localStorage.removeItem("actiplan_pending_signup_email");
+        
+        // Check if onboarding is complete
+        const onboardingData = localStorage.getItem("actiplan_onboarding");
+        if (onboardingData) {
+          const parsed = JSON.parse(onboardingData);
+          if (parsed.completedAt) {
+            navigate("/app");
+            return;
           }
-          navigate("/onboarding");
         }
+        // If onboarding not complete but user has session (confirmed email), go to onboarding
+        navigate("/onboarding");
       }
     });
 
@@ -70,11 +72,11 @@ export default function Auth() {
         if (error) throw error;
         toast.success("Welcome back!");
       } else {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/onboarding`,
+            emailRedirectTo: `${window.location.origin}/auth`,
             data: {
               company_name: companyName,
             },
@@ -82,7 +84,12 @@ export default function Auth() {
         });
 
         if (error) throw error;
-        toast.success("Account created! Welcome to ActiPlan.");
+        
+        // Store email for onboarding flow (user needs to confirm email)
+        localStorage.setItem("actiplan_pending_signup_email", email);
+        
+        toast.success("Account created! Complete your profile setup.");
+        navigate("/onboarding");
       }
     } catch (error: any) {
       toast.error(error.message || "An error occurred");
