@@ -78,6 +78,7 @@ export type Feature =
   | 'team_creation'
   | 'member_invitations'
   | 'role_assignment'
+  | 'user_management'
   // User Permissions (Enterprise+)
   | 'user_permissions'
   | 'role_based_access'
@@ -97,7 +98,7 @@ const FEATURE_TIERS: Record<Feature, SubscriptionTier> = {
   campaign_edit: 'trial',
   campaign_delete: 'trial',
   campaign_status: 'trial',
-  client_management: 'trial',
+  client_management: 'enterprise',
   bo_number: 'trial',
   
   // Multi-Platform Support - Trial+
@@ -181,6 +182,7 @@ const FEATURE_TIERS: Record<Feature, SubscriptionTier> = {
   team_creation: 'enterprise',
   member_invitations: 'enterprise',
   role_assignment: 'enterprise',
+  user_management: 'enterprise',
   
   // User Permissions - Enterprise+
   user_permissions: 'enterprise',

@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, UserPlus } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { FeatureGate } from "@/components/FeatureGate";
 import type { Tables, Enums } from "@/integrations/supabase/types";
 
 type Team = Tables<"teams">;
@@ -212,6 +213,7 @@ export default function Teams() {
   }
 
   return (
+    <FeatureGate feature="team_management">
     <div className="container mx-auto p-8 max-w-7xl">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-4xl font-bold">Teams Management</h1>
@@ -462,5 +464,6 @@ export default function Teams() {
         </DialogContent>
       </Dialog>
     </div>
+    </FeatureGate>
   );
 }

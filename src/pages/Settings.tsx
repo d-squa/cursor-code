@@ -1,6 +1,8 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useNavigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
+import { Feature } from "@/config/featureAccess";
 import { Button } from "@/components/ui/button";
 import { 
   Settings as SettingsIcon, 
@@ -15,18 +17,28 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const settingsMenuItems = [
+interface SettingsMenuItem {
+  title: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  description: string;
+  feature?: Feature;
+}
+
+const allSettingsMenuItems: SettingsMenuItem[] = [
   {
     title: "Users",
     href: "/settings/users",
     icon: Users,
-    description: "Invite and manage users"
+    description: "Invite and manage users",
+    feature: "user_management"
   },
   {
     title: "Manage Your Team",
     href: "/settings/teams",
     icon: Users,
-    description: "Add and manage team members"
+    description: "Add and manage team members",
+    feature: "team_management"
   },
   {
     title: "Platform Connections",
@@ -38,7 +50,8 @@ const settingsMenuItems = [
     title: "Manage Client Accounts",
     href: "/settings/accounts",
     icon: LinkIcon,
-    description: "Manage client accounts, sync ad accounts, and configure defaults"
+    description: "Manage client accounts, sync ad accounts, and configure defaults",
+    feature: "client_management"
   },
   {
     title: "Account Settings",
@@ -62,8 +75,22 @@ const settingsMenuItems = [
 
 export default function Settings() {
   const { user, loading } = useAuth();
+  const { hasAccess, loading: featureLoading } = useFeatureAccess();
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Filter menu items based on feature access
+  const settingsMenuItems = useMemo(() => {
+    return allSettingsMenuItems.filter(item => {
+      if (!item.feature) return true;
+      return hasAccess(item.feature);
+    });
+  }, [hasAccess]);
+
+  // Get first accessible route
+  const firstAccessibleRoute = useMemo(() => {
+    return settingsMenuItems[0]?.href || "/settings/account";
+  }, [settingsMenuItems]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -72,13 +99,13 @@ export default function Settings() {
   }, [user, loading, navigate]);
 
   useEffect(() => {
-    // Redirect to first settings page if on base /settings route
+    // Redirect to first accessible settings page if on base /settings route
     if (location.pathname === "/settings") {
-      navigate("/settings/users");
+      navigate(firstAccessibleRoute);
     }
-  }, [location.pathname, navigate]);
+  }, [location.pathname, navigate, firstAccessibleRoute]);
 
-  if (loading) {
+  if (loading || featureLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />

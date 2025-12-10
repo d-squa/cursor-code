@@ -30,6 +30,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { UserPlus, Trash2, Mail, Send, Copy } from "lucide-react";
+import { FeatureGate } from "@/components/FeatureGate";
 
 export default function UserManagement() {
   const { user } = useAuth();
@@ -222,6 +223,7 @@ export default function UserManagement() {
   }
 
   return (
+    <FeatureGate feature="user_management">
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -387,5 +389,6 @@ export default function UserManagement() {
         </Table>
       </div>
     </div>
+    </FeatureGate>
   );
 }
