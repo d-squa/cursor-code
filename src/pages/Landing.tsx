@@ -348,7 +348,7 @@ const Landing = () => {
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">Why Choose ActiPlan?</h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Join leading agencies and brands who have transformed their media operations.
+              Join leading agencies and brands who have transformed their media planners & executives to Activators.
             </p>
           </div>
 
@@ -374,10 +374,8 @@ const Landing = () => {
       <section id="capabilities" className="py-20">
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">Everything You Need to Scale Your Media Operations</h2>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              From planning to execution, ActiPlan streamlines every step of your campaign workflow.
-            </p>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">The Future of Paid Media Is</p>
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">Intelligence, Consolidation & Efficiency</h2>
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
