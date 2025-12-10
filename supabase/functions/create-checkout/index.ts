@@ -65,8 +65,6 @@ serve(async (req) => {
       payment_method_collection: "always",
       subscription_data: {
         trial_period_days: 30,
-        // Allow proration for upgrades/downgrades
-        proration_behavior: "create_prorations",
       },
       success_url: `${origin}/settings/plans?success=true`,
       cancel_url: `${origin}/settings/plans?canceled=true`,
