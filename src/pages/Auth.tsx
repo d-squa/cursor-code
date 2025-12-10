@@ -16,6 +16,7 @@ export default function Auth() {
   const [password, setPassword] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showEmailConfirmation, setShowEmailConfirmation] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -41,6 +42,7 @@ export default function Auth() {
       if (session) {
         // Clear pending signup email when user confirms
         localStorage.removeItem("actiplan_pending_signup_email");
+        setShowEmailConfirmation(false);
         
         // Check if onboarding is complete
         const onboardingData = localStorage.getItem("actiplan_onboarding");
@@ -51,7 +53,7 @@ export default function Auth() {
             return;
           }
         }
-        // If onboarding not complete but user has session (confirmed email), go to onboarding
+        // If onboarding not complete but user has session (confirmed email or Google), go to onboarding
         navigate("/onboarding");
       }
     });
@@ -86,11 +88,12 @@ export default function Auth() {
 
         if (error) throw error;
         
-        // Store email for onboarding flow (user needs to confirm email)
+        // Store email for reference
         localStorage.setItem("actiplan_pending_signup_email", email);
         
-        toast.success("Account created! Complete your profile setup.");
-        navigate("/onboarding");
+        // Show email confirmation message - don't redirect to onboarding yet
+        setShowEmailConfirmation(true);
+        toast.success("Check your email to confirm your account!");
       }
     } catch (error: any) {
       toast.error(error.message || "An error occurred");
@@ -112,6 +115,56 @@ export default function Auth() {
       toast.error(error.message || "Failed to sign in with Google");
     }
   };
+
+  // Show email confirmation screen after signup
+  if (showEmailConfirmation) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="flex items-center justify-center gap-2 mb-4">
+              <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
+                <svg className="h-8 w-8 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+              </div>
+            </div>
+            <CardTitle className="text-2xl">Check Your Email</CardTitle>
+            <CardDescription className="mt-2">
+              We've sent a confirmation link to <span className="font-medium text-foreground">{email}</span>
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-center space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Click the link in the email to confirm your account and start your free trial.
+            </p>
+            <div className="pt-4 border-t">
+              <p className="text-sm text-muted-foreground mb-2">Didn't receive the email?</p>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => {
+                  setShowEmailConfirmation(false);
+                  setIsLogin(false);
+                }}
+              >
+                Try again
+              </Button>
+            </div>
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={() => navigate("/")}
+                className="text-sm text-muted-foreground hover:text-foreground"
+              >
+                ← Back to home
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
