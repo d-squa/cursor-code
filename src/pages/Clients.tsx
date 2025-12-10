@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import ClientForm from "@/components/ClientForm";
+import { FeatureGate } from "@/components/FeatureGate";
 
 interface Client {
   id: string;
@@ -175,142 +176,144 @@ export default function Clients() {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">Client Portfolio</h1>
-          <p className="text-muted-foreground mt-1">
-            Manage your client information and onboarding
-          </p>
+    <FeatureGate feature="client_management">
+      <div className="container mx-auto p-6 space-y-6">
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold">Client Portfolio</h1>
+            <p className="text-muted-foreground mt-1">
+              Manage your client information and onboarding
+            </p>
+          </div>
+          <Button onClick={openCreateDialog}>
+            <Plus className="mr-2 h-4 w-4" />
+            New Client
+          </Button>
         </div>
-        <Button onClick={openCreateDialog}>
-          <Plus className="mr-2 h-4 w-4" />
-          New Client
-        </Button>
+
+        {clients.length === 0 ? (
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <p className="text-muted-foreground mb-4">No clients yet</p>
+              <Button onClick={openCreateDialog}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Your First Client
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {clients.map((client) => (
+              <Card key={client.id}>
+                <CardHeader>
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <CardTitle className="text-lg">{client.name}</CardTitle>
+                      <CardDescription className="mt-1">
+                        {client.industry}
+                      </CardDescription>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => openEditDialog(client)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          setClientToDelete(client);
+                          setDeleteDialogOpen(true);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-2 text-sm">
+                  <div>
+                    <span className="font-medium">Objective:</span>{" "}
+                    <span className="text-muted-foreground">{client.business_objective}</span>
+                  </div>
+                  {client.website && (
+                    <div>
+                      <span className="font-medium">Website:</span>{" "}
+                      <a
+                        href={client.website}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline"
+                      >
+                        {client.website}
+                      </a>
+                    </div>
+                  )}
+                  {client.app_name && (
+                    <div>
+                      <span className="font-medium">App:</span>{" "}
+                      <span className="text-muted-foreground">{client.app_name}</span>
+                    </div>
+                  )}
+                  {client.platforms && client.platforms.length > 0 && (
+                    <div>
+                      <span className="font-medium">Platforms:</span>{" "}
+                      <span className="text-muted-foreground">{client.platforms.join(", ")}</span>
+                    </div>
+                  )}
+                  {client.markets && client.markets.length > 0 && (
+                    <div>
+                      <span className="font-medium">Markets:</span>{" "}
+                      <span className="text-muted-foreground">{client.markets.join(", ")}</span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        <Dialog open={dialogOpen} onOpenChange={closeDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>{editingClient ? "Edit Client" : "New Client"}</DialogTitle>
+              <DialogDescription>
+                {editingClient
+                  ? "Update client information"
+                  : "Add a new client to your portfolio"}
+              </DialogDescription>
+            </DialogHeader>
+            <ClientForm
+              initialData={editingClient || undefined}
+              onSubmit={editingClient ? handleUpdateClient : handleCreateClient}
+              onCancel={closeDialog}
+              submitLabel={editingClient ? "Update Client" : "Create Client"}
+            />
+          </DialogContent>
+        </Dialog>
+
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Client</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete {clientToDelete?.name}? This action cannot be
+                undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDeleteClient} disabled={deleting}>
+                {deleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
-
-      {clients.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <p className="text-muted-foreground mb-4">No clients yet</p>
-            <Button onClick={openCreateDialog}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Your First Client
-            </Button>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {clients.map((client) => (
-            <Card key={client.id}>
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <CardTitle className="text-lg">{client.name}</CardTitle>
-                    <CardDescription className="mt-1">
-                      {client.industry}
-                    </CardDescription>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => openEditDialog(client)}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => {
-                        setClientToDelete(client);
-                        setDeleteDialogOpen(true);
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <div>
-                  <span className="font-medium">Objective:</span>{" "}
-                  <span className="text-muted-foreground">{client.business_objective}</span>
-                </div>
-                {client.website && (
-                  <div>
-                    <span className="font-medium">Website:</span>{" "}
-                    <a
-                      href={client.website}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline"
-                    >
-                      {client.website}
-                    </a>
-                  </div>
-                )}
-                {client.app_name && (
-                  <div>
-                    <span className="font-medium">App:</span>{" "}
-                    <span className="text-muted-foreground">{client.app_name}</span>
-                  </div>
-                )}
-                {client.platforms && client.platforms.length > 0 && (
-                  <div>
-                    <span className="font-medium">Platforms:</span>{" "}
-                    <span className="text-muted-foreground">{client.platforms.join(", ")}</span>
-                  </div>
-                )}
-                {client.markets && client.markets.length > 0 && (
-                  <div>
-                    <span className="font-medium">Markets:</span>{" "}
-                    <span className="text-muted-foreground">{client.markets.join(", ")}</span>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      <Dialog open={dialogOpen} onOpenChange={closeDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{editingClient ? "Edit Client" : "New Client"}</DialogTitle>
-            <DialogDescription>
-              {editingClient
-                ? "Update client information"
-                : "Add a new client to your portfolio"}
-            </DialogDescription>
-          </DialogHeader>
-          <ClientForm
-            initialData={editingClient || undefined}
-            onSubmit={editingClient ? handleUpdateClient : handleCreateClient}
-            onCancel={closeDialog}
-            submitLabel={editingClient ? "Update Client" : "Create Client"}
-          />
-        </DialogContent>
-      </Dialog>
-
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Client</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete {clientToDelete?.name}? This action cannot be
-              undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteClient} disabled={deleting}>
-              {deleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
+    </FeatureGate>
   );
 }
