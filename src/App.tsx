@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Landing from "./pages/Landing";
 import AppHome from "./pages/AppHome";
 import Auth from "./pages/Auth";
+import Onboarding from "./pages/Onboarding";
 import ManageClientAccounts from "./pages/ManageClientAccounts";
 import Teams from "./pages/Teams";
 import Settings from "./pages/Settings";
@@ -35,6 +36,7 @@ const App = () => (
             {/* Public landing page */}
             <Route path="/" element={<Landing />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/accept-invitation" element={<AcceptInvitation />} />
             
             {/* Authenticated app routes */}
