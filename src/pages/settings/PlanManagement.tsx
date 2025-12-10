@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -6,6 +7,7 @@ import { Check, Zap, Loader2, ExternalLink, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useSearchParams } from "react-router-dom";
+import { useSubscription } from "@/hooks/useSubscription";
 
 // Stripe price IDs from your Stripe account
 const PRICE_IDS = {
@@ -100,21 +102,31 @@ interface SubscriptionStatus {
 }
 
 export default function PlanManagement() {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { isSubscribed, loading: hookLoading, refetch } = useSubscription();
   const [isYearly, setIsYearly] = useState(true);
   const [loading, setLoading] = useState<string | null>(null);
   const [subscription, setSubscription] = useState<SubscriptionStatus | null>(null);
   const [checkingSubscription, setCheckingSubscription] = useState(true);
 
   useEffect(() => {
+    // Redirect unsubscribed users to choose plan page
+    if (!hookLoading && !isSubscribed) {
+      navigate("/choose-plan");
+    }
+  }, [hookLoading, isSubscribed, navigate]);
+
+  useEffect(() => {
     // Check for success/canceled from Stripe redirect
     if (searchParams.get("success") === "true") {
       toast.success("Successfully subscribed! Your 30-day trial has started.");
       checkSubscription();
+      refetch();
     } else if (searchParams.get("canceled") === "true") {
       toast.info("Checkout was canceled.");
     }
-  }, [searchParams]);
+  }, [searchParams, refetch]);
 
   useEffect(() => {
     checkSubscription();

@@ -7,6 +7,7 @@ import Landing from "./pages/Landing";
 import AppHome from "./pages/AppHome";
 import Auth from "./pages/Auth";
 import Onboarding from "./pages/Onboarding";
+import ChoosePlan from "./pages/ChoosePlan";
 import ManageClientAccounts from "./pages/ManageClientAccounts";
 import Teams from "./pages/Teams";
 import Settings from "./pages/Settings";
@@ -23,6 +24,7 @@ import PlatformConnections from "./pages/PlatformConnections";
 import LaunchStatus from "./pages/LaunchStatus";
 import NotFound from "./pages/NotFound";
 import { BugReportButton } from "./components/BugReportButton";
+import { SubscriptionGuard } from "./components/SubscriptionGuard";
 
 const queryClient = new QueryClient();
 
@@ -33,23 +35,24 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
           <Routes>
-            {/* Public landing page */}
+            {/* Public routes */}
             <Route path="/" element={<Landing />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/accept-invitation" element={<AcceptInvitation />} />
+            <Route path="/choose-plan" element={<ChoosePlan />} />
             
-            {/* Authenticated app routes */}
-            <Route path="/app" element={<AppHome />} />
-            <Route path="/actiplans" element={<ActiPlans />} />
-            <Route path="/actiplans/:campaignId/launch" element={<LaunchStatus />} />
-            <Route path="/actiplans/:campaignId/report" element={<PerformanceReport />} />
-            <Route path="/performance/:id" element={<Performance />} />
-            <Route path="/performance" element={<Performance />} />
-            <Route path="/clients" element={<Clients />} />
-            <Route path="/manage-accounts" element={<ManageClientAccounts />} />
-            <Route path="/teams" element={<Teams />} />
-            <Route path="/settings" element={<Settings />}>
+            {/* Protected app routes - require subscription */}
+            <Route path="/app" element={<SubscriptionGuard><AppHome /></SubscriptionGuard>} />
+            <Route path="/actiplans" element={<SubscriptionGuard><ActiPlans /></SubscriptionGuard>} />
+            <Route path="/actiplans/:campaignId/launch" element={<SubscriptionGuard><LaunchStatus /></SubscriptionGuard>} />
+            <Route path="/actiplans/:campaignId/report" element={<SubscriptionGuard><PerformanceReport /></SubscriptionGuard>} />
+            <Route path="/performance/:id" element={<SubscriptionGuard><Performance /></SubscriptionGuard>} />
+            <Route path="/performance" element={<SubscriptionGuard><Performance /></SubscriptionGuard>} />
+            <Route path="/clients" element={<SubscriptionGuard><Clients /></SubscriptionGuard>} />
+            <Route path="/manage-accounts" element={<SubscriptionGuard><ManageClientAccounts /></SubscriptionGuard>} />
+            <Route path="/teams" element={<SubscriptionGuard><Teams /></SubscriptionGuard>} />
+            <Route path="/settings" element={<SubscriptionGuard><Settings /></SubscriptionGuard>}>
               <Route index element={<Navigate to="/settings/users" replace />} />
               <Route path="users" element={<UserManagement />} />
               <Route path="accounts" element={<ManageClientAccounts />} />
