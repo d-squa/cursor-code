@@ -89,12 +89,20 @@ serve(async (req) => {
       });
     }
 
-    const subscriptionEnd = new Date(activeSub.current_period_end * 1000).toISOString();
+    let subscriptionEnd: string | null = null;
+    let trialEnd: string | null = null;
+    
+    // Safely convert timestamps to ISO strings
+    if (activeSub.current_period_end && typeof activeSub.current_period_end === 'number') {
+      subscriptionEnd = new Date(activeSub.current_period_end * 1000).toISOString();
+    }
+    
+    if (activeSub.trial_end && typeof activeSub.trial_end === 'number') {
+      trialEnd = new Date(activeSub.trial_end * 1000).toISOString();
+    }
+    
     const productId = activeSub.items.data[0]?.price?.product as string;
     const onTrial = activeSub.status === "trialing";
-    const trialEnd = activeSub.trial_end 
-      ? new Date(activeSub.trial_end * 1000).toISOString() 
-      : null;
 
     logStep("Active subscription found", { 
       subscriptionId: activeSub.id, 
