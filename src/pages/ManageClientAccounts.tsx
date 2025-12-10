@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import ClientForm from "@/components/ClientForm";
 import AccountDefaultsTab from "@/components/AccountDefaultsTab";
+import { FeatureGate } from "@/components/FeatureGate";
 
 interface Client {
   id: string;
@@ -113,6 +114,7 @@ export default function ManageClientAccounts() {
   const clientMarkets = selectedClientData?.markets || [];
 
   return (
+    <FeatureGate feature="client_management">
     <div className="container mx-auto py-8 space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Client Management</h1>
@@ -228,5 +230,6 @@ export default function ManageClientAccounts() {
       </Dialog>
 
     </div>
+    </FeatureGate>
   );
 }
