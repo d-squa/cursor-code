@@ -23,7 +23,7 @@ const benefits = [
   {
     icon: Zap,
     title: "Faster Execution",
-    description: "From plan to launch in half the time.",
+    description: "From plan to launch in just a few minutes",
   },
   {
     icon: Layers,
@@ -33,7 +33,7 @@ const benefits = [
   {
     icon: Target,
     title: "Standardized Creation",
-    description: "Consistent flow for every team.",
+    description: "Consistent workflow for every team.",
   },
   {
     icon: TrendingUp,
@@ -53,7 +53,7 @@ const features = [
     icon: Globe,
     title: "Bulk Cross-Platform Activation",
     description:
-      "Plan, launch and monitor your paid media campaigns across all major ad platforms — from one centralized activation tool.",
+      "Plan, launch and monitor your paid media campaigns across all major ad platforms from one centralized activation tool.",
   },
   {
     icon: Zap,
@@ -83,7 +83,7 @@ const features = [
     icon: Layers,
     title: "AI-Powered Knowledge",
     description:
-      "Ask ActiPlan's AI Knowledge Base anything — from digital marketing concepts to optimization tips — and get instant, expert answers.",
+      "Ask ActiPlan's AI Knowledge Base anything from digital marketing concepts to optimization tips and get instant, expert answers.",
   },
   {
     icon: Target,
