@@ -44,7 +44,7 @@ const AppHome = () => {
                 <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
                   ActiPlan
                 </h1>
-                <p className="text-xs text-muted-foreground">Multi-Platform Campaign Manager</p>
+                <p className="text-xs text-muted-foreground">Cross-Platform Activation Manager</p>
               </div>
             </div>
             <nav className="flex items-center gap-2">
@@ -89,7 +89,7 @@ const AppHome = () => {
             <span className="text-sm font-medium text-primary">Unified Campaign Management</span>
           </div>
           <h2 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-foreground via-primary to-accent bg-clip-text text-transparent">
-            Create Cross-Platform Campaigns in Minutes
+            Plan & Launch Cross-Platform Campaigns in Minutes
           </h2>
           <p className="text-xl text-muted-foreground mb-8 max-w-2xl">
             Build, optimize, and launch paid advertising campaigns across Meta, Google Ads, LinkedIn, TikTok, Snapchat,
