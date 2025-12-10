@@ -19,10 +19,21 @@ export default function Auth() {
   const [showEmailConfirmation, setShowEmailConfirmation] = useState(false);
   const navigate = useNavigate();
 
+  // Check if user was redirected here because email not confirmed
+  const needsEmailConfirmation = searchParams.get("confirm_email") === "true";
+
   useEffect(() => {
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
+        // Check if email is confirmed
+        if (!session.user.email_confirmed_at) {
+          // User needs to confirm email - show confirmation screen
+          setShowEmailConfirmation(true);
+          setEmail(session.user.email || "");
+          return;
+        }
+        
         // Check if onboarding is complete
         const onboardingData = localStorage.getItem("actiplan_onboarding");
         if (onboardingData) {
@@ -40,6 +51,14 @@ export default function Auth() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session) {
+        // Check if email is confirmed
+        if (!session.user.email_confirmed_at) {
+          // Show email confirmation screen
+          setShowEmailConfirmation(true);
+          setEmail(session.user.email || "");
+          return;
+        }
+        
         // Clear pending signup email when user confirms
         localStorage.removeItem("actiplan_pending_signup_email");
         setShowEmailConfirmation(false);
@@ -55,25 +74,27 @@ export default function Auth() {
         }
         
         // Onboarding complete - check subscription status
-        try {
-          const { data: subData } = await supabase.functions.invoke("check-subscription", {
-            headers: {
-              Authorization: `Bearer ${session.access_token}`,
-            },
-          });
-          
-          if (subData?.subscribed) {
-            // Has subscription, go to app
-            navigate("/app");
-          } else {
-            // No subscription, go to choose plan page
+        setTimeout(async () => {
+          try {
+            const { data: subData } = await supabase.functions.invoke("check-subscription", {
+              headers: {
+                Authorization: `Bearer ${session.access_token}`,
+              },
+            });
+            
+            if (subData?.subscribed) {
+              // Has subscription, go to app
+              navigate("/app");
+            } else {
+              // No subscription, go to choose plan page
+              navigate("/choose-plan");
+            }
+          } catch (error) {
+            console.error("Error checking subscription:", error);
+            // On error, go to choose plan to be safe
             navigate("/choose-plan");
           }
-        } catch (error) {
-          console.error("Error checking subscription:", error);
-          // On error, go to choose plan to be safe
-          navigate("/choose-plan");
-        }
+        }, 0);
       }
     });
 

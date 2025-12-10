@@ -10,7 +10,7 @@ interface SubscriptionGuardProps {
 
 export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
   const navigate = useNavigate();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, isEmailConfirmed } = useAuth();
   const { isSubscribed, loading: subLoading } = useSubscription();
 
   useEffect(() => {
@@ -20,6 +20,12 @@ export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
     // Not logged in - redirect to auth
     if (!user) {
       navigate("/auth");
+      return;
+    }
+
+    // Email not confirmed - redirect to auth with message
+    if (!isEmailConfirmed) {
+      navigate("/auth?confirm_email=true");
       return;
     }
 
@@ -37,7 +43,7 @@ export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
       navigate("/choose-plan");
       return;
     }
-  }, [user, authLoading, isSubscribed, subLoading, navigate]);
+  }, [user, authLoading, isSubscribed, subLoading, navigate, isEmailConfirmed]);
 
   // Show loading while checking auth and subscription
   if (authLoading || subLoading) {
@@ -48,8 +54,8 @@ export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
     );
   }
 
-  // Don't render children if not authenticated or not subscribed
-  if (!user || !isSubscribed) {
+  // Don't render children if not authenticated, email not confirmed, or not subscribed
+  if (!user || !isEmailConfirmed || !isSubscribed) {
     return null;
   }
 
