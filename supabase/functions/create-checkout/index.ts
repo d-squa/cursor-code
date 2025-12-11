@@ -206,24 +206,35 @@ serve(async (req) => {
           });
 
         } else {
-          // For upgrades: Use proration (charge the difference)
-          logStep("Processing upgrade with proration");
+          // For upgrades: Cancel current subscription and redirect to checkout
+          // This ensures user confirms the new price before being charged
+          logStep("Processing upgrade - redirecting to checkout");
           
+          // Cancel the current subscription at period end (will be replaced by new one)
           await stripe.subscriptions.update(activeSub.id, {
-            items: [{
-              id: subscriptionItemId,
-              price: priceId,
-            }],
-            proration_behavior: 'create_prorations',
+            cancel_at_period_end: true,
           });
           
-          logStep("Subscription upgraded successfully");
+          logStep("Current subscription marked for cancellation, creating checkout for upgrade");
           
-          return new Response(JSON.stringify({ 
-            success: true,
-            message: "Plan upgraded successfully. You'll be charged the prorated difference.",
-            redirectUrl: `${origin}/settings/plans?success=true`
-          }), {
+          // Create checkout session for the new plan
+          const session = await stripe.checkout.sessions.create({
+            customer: customerId,
+            line_items: [
+              {
+                price: priceId,
+                quantity: 1,
+              },
+            ],
+            mode: "subscription",
+            payment_method_collection: "always",
+            success_url: `${origin}/settings/plans?success=true&upgraded=true`,
+            cancel_url: `${origin}/settings/plans?canceled=true`,
+          });
+
+          logStep("Upgrade checkout session created", { sessionId: session.id });
+
+          return new Response(JSON.stringify({ url: session.url }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
             status: 200,
           });
