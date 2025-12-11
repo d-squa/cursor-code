@@ -8,7 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, ArrowRight, CheckCircle2, Sparkles, Mail } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Sparkles, Mail, Loader2 } from "lucide-react";
+import { useTrialCheckout } from "@/hooks/useTrialCheckout";
 
 interface OnboardingData {
   fullName: string;
@@ -21,6 +22,7 @@ interface OnboardingData {
 
 export const OnboardingWizard = () => {
   const navigate = useNavigate();
+  const { startBasicTrial, isProcessing } = useTrialCheckout();
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showEmailConfirmation, setShowEmailConfirmation] = useState(false);
@@ -93,7 +95,7 @@ export const OnboardingWizard = () => {
       }
 
       if (hasSession && session) {
-        // User already confirmed email - check subscription and redirect
+        // User already confirmed email - check subscription and redirect to payment
         localStorage.removeItem("actiplan_pending_signup_email");
         
         try {
@@ -107,12 +109,14 @@ export const OnboardingWizard = () => {
             toast.success("Welcome to ActiPlan! Let's get started.");
             navigate("/app");
           } else {
-            toast.success("Almost there! Choose a plan to start your free trial.");
-            navigate("/settings/plans");
+            // Not subscribed - automatically start Basic Monthly trial checkout
+            toast.success("Almost there! Complete your free trial setup.");
+            await startBasicTrial();
           }
         } catch (error) {
           console.error("Error checking subscription:", error);
-          navigate("/settings/plans");
+          // On error, still try to start trial checkout
+          await startBasicTrial();
         }
       } else {
         // User needs to confirm email - show confirmation screen
@@ -325,10 +329,14 @@ export const OnboardingWizard = () => {
             ) : (
               <Button
                 onClick={handleComplete}
-                disabled={!canProceed() || isSubmitting}
+                disabled={!canProceed() || isSubmitting || isProcessing}
                 className="gap-2"
               >
-                {isSubmitting ? "Setting up..." : <>Complete <CheckCircle2 className="h-4 w-4" /></>}
+                {isSubmitting || isProcessing ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" /> Setting up...</>
+                ) : (
+                  <>Complete <CheckCircle2 className="h-4 w-4" /></>
+                )}
               </Button>
             )}
           </div>
@@ -355,10 +363,11 @@ export const OnboardingWizard = () => {
                     if (subData?.subscribed) {
                       navigate("/app");
                     } else {
-                      navigate("/settings/plans");
+                      // Not subscribed - automatically start Basic Monthly trial checkout
+                      await startBasicTrial();
                     }
                   } catch (error) {
-                    navigate("/settings/plans");
+                    await startBasicTrial();
                   }
                 } else {
                   setShowEmailConfirmation(true);

@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { toast } from "sonner";
 import { Loader2, Target } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import { PRICE_IDS } from "@/config/subscriptionTiers";
 
 export default function Auth() {
   const [searchParams] = useSearchParams();
@@ -73,7 +74,7 @@ export default function Auth() {
           return;
         }
         
-        // Onboarding complete - check subscription status
+        // Onboarding complete - check subscription status and auto-start Basic trial
         setTimeout(async () => {
           try {
             const { data: subData } = await supabase.functions.invoke("check-subscription", {
@@ -86,8 +87,21 @@ export default function Auth() {
               // Has subscription, go to app
               navigate("/app");
             } else {
-              // No subscription, go to choose plan page
-              navigate("/choose-plan");
+              // No subscription - automatically start Basic Monthly trial checkout
+              const priceId = PRICE_IDS.basic.monthly;
+              const { data, error } = await supabase.functions.invoke("create-checkout", {
+                body: { priceId },
+                headers: {
+                  Authorization: `Bearer ${session.access_token}`,
+                },
+              });
+              
+              if (data?.url) {
+                window.location.href = data.url;
+              } else {
+                // Fallback to choose plan page if checkout fails
+                navigate("/choose-plan");
+              }
             }
           } catch (error) {
             console.error("Error checking subscription:", error);
