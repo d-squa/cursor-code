@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
+import { storePlatformToken } from "../_shared/vault-helper.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -177,7 +178,6 @@ const handler = async (req: Request): Promise<Response> => {
       const { error: updateError } = await supabase
         .from("connected_platforms")
         .update({
-          access_token: access_token,
           updated_at: new Date().toISOString(),
           is_active: true,
           metadata: { 
@@ -190,6 +190,9 @@ const handler = async (req: Request): Promise<Response> => {
         .eq("user_id", user.id);
 
       if (updateError) throw updateError;
+
+      // Store token securely in Vault
+      await storePlatformToken(supabase, platformId, access_token, 'access');
 
       console.log("Updated existing TikTok platform connection");
       console.log("Returning accounts for selection:", accounts);
@@ -216,7 +219,6 @@ const handler = async (req: Request): Promise<Response> => {
         user_id: user.id,
         platform_type: "tiktok",
         platform_name: "TikTok Ads",
-        access_token: access_token,
         is_active: true,
         metadata: { 
           advertiser_ids, 
@@ -228,6 +230,9 @@ const handler = async (req: Request): Promise<Response> => {
       .single();
 
     if (insertError) throw insertError;
+
+    // Store token securely in Vault
+    await storePlatformToken(supabase, newPlatform.id, access_token, 'access');
 
     console.log("TikTok OAuth callback completed successfully");
 

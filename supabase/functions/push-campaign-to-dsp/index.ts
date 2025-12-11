@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
+import { getAccessToken } from "../_shared/vault-helper.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -498,6 +499,21 @@ const handler = async (req: Request): Promise<Response> => {
         continue;
       }
 
+      // Get access token from Vault
+      const accessToken = await getAccessToken(supabase, platform.id, platform.access_token);
+      if (!accessToken) {
+        console.error(`No access token found for platform ${platformName}`);
+        results.push({
+          platform: platformName,
+          error: "Platform access token not found",
+          markets: markets
+        });
+        continue;
+      }
+      
+      // Add access token to platform object for adapter use
+      const platformWithToken = { ...platform, access_token: accessToken };
+
       // Create platform config structure - filter out already-pushed markets
       const filteredMarkets: Record<string, any> = {};
       const platformKey = platformName.toLowerCase().includes('meta') ? 'meta' : 
@@ -546,17 +562,17 @@ const handler = async (req: Request): Promise<Response> => {
       };
 
       if (platformName.includes('Meta') || platformName.includes('Facebook')) {
-        const result = await pushToMeta(campaign, platformConfig, platform, supabase);
+        const result = await pushToMeta(campaign, platformConfig, platformWithToken, supabase);
         results.push(result);
         
         // Update campaign_launch_status for each pushed entity
         await updateLaunchStatuses(supabase, campaignId, platformName, result, Object.values(filteredMarkets) as any[]);
         
       } else if (platformName.includes('Google')) {
-        const result = await pushToGoogleAds(campaign, platformConfig, platform);
+        const result = await pushToGoogleAds(campaign, platformConfig, platformWithToken);
         results.push(result);
       } else if (platformName.toLowerCase().includes('tiktok')) {
-        const result = await pushToTikTok(campaign, platformConfig, platform);
+        const result = await pushToTikTok(campaign, platformConfig, platformWithToken);
         results.push(result);
         
         // Update campaign_launch_status for each pushed entity
