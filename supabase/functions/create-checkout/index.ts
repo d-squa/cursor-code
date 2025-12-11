@@ -141,51 +141,61 @@ serve(async (req) => {
         let refundAmount = 0;
         if (isDowngrade && !isTrialing) {
           try {
-            // Get the subscription's billing period from the subscription itself
-            // For canceled subs, we still have the original period info
-            const periodStart = activeSub.current_period_start;
-            const periodEnd = activeSub.current_period_end;
             const now = Math.floor(Date.now() / 1000);
             
-            // Get the amount paid from the latest invoice
+            // Get the latest paid invoice - the line items contain the actual billing period
             const invoices = await stripe.invoices.list({
               subscription: activeSub.id,
               limit: 1,
               status: 'paid',
             });
             
-            const paidAmount = invoices.data.length > 0 
-              ? invoices.data[0].amount_paid 
-              : (activeSub.items.data[0]?.price?.unit_amount || 0);
-            
-            const totalPeriodSeconds = periodEnd - periodStart;
-            const unusedSeconds = periodEnd - now;
-            
-            logStep("Subscription-based refund calculation", { 
-              subscriptionId: activeSub.id,
-              periodStart,
-              periodEnd,
-              now,
-              paidAmount,
-              totalPeriodSeconds,
-              unusedSeconds
-            });
-            
-            if (unusedSeconds > 0 && totalPeriodSeconds > 0 && paidAmount > 0) {
-              const unusedRatio = unusedSeconds / totalPeriodSeconds;
-              refundAmount = Math.floor(paidAmount * unusedRatio);
+            if (invoices.data.length > 0) {
+              const latestInvoice = invoices.data[0];
+              const paidAmount = latestInvoice.amount_paid;
               
-              logStep("Calculated prorated refund", { 
-                unusedRatio: unusedRatio.toFixed(4),
+              // Get period from invoice line items (more reliable for canceled subs)
+              const lineItem = latestInvoice.lines?.data?.[0];
+              const periodStart = lineItem?.period?.start || activeSub.current_period_start;
+              const periodEnd = lineItem?.period?.end || activeSub.current_period_end;
+              
+              logStep("Invoice-based refund calculation", { 
+                invoiceId: latestInvoice.id,
+                subscriptionId: activeSub.id,
+                periodStart,
+                periodEnd,
+                now,
                 paidAmount,
-                refundAmount
+                lineItemPeriod: lineItem?.period
               });
+              
+              if (periodStart && periodEnd) {
+                const totalPeriodSeconds = periodEnd - periodStart;
+                const unusedSeconds = periodEnd - now;
+                
+                if (unusedSeconds > 0 && totalPeriodSeconds > 0 && paidAmount > 0) {
+                  const unusedRatio = unusedSeconds / totalPeriodSeconds;
+                  refundAmount = Math.floor(paidAmount * unusedRatio);
+                  
+                  logStep("Calculated prorated refund", { 
+                    totalPeriodSeconds,
+                    unusedSeconds,
+                    unusedRatio: unusedRatio.toFixed(4),
+                    paidAmount,
+                    refundAmount
+                  });
+                } else {
+                  logStep("Refund conditions not met", { 
+                    unusedSeconds,
+                    totalPeriodSeconds,
+                    paidAmount
+                  });
+                }
+              } else {
+                logStep("Could not determine billing period", { periodStart, periodEnd });
+              }
             } else {
-              logStep("Refund conditions not met", { 
-                unusedSeconds,
-                totalPeriodSeconds,
-                paidAmount
-              });
+              logStep("No paid invoice found for subscription");
             }
           } catch (refundCalcError) {
             logStep("Error calculating refund", { 
