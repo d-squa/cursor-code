@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Check, Zap, Loader2, ExternalLink, Clock, Calendar } from "lucide-react";
+import { Check, Zap, Loader2, ExternalLink, Clock, Calendar, ArrowDown, ArrowUp } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -132,14 +132,7 @@ export default function PlanManagement() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
-      // Handle direct subscription update (for existing subscribers)
-      if (data?.success) {
-        toast.success("Plan updated successfully!");
-        refetch(); // Refresh subscription data
-        return;
-      }
-
-      // Handle new checkout session (for new subscribers)
+      // Always redirect to Stripe checkout for payment
       if (data?.url) {
         window.open(data.url, "_blank");
       }
@@ -223,7 +216,7 @@ export default function PlanManagement() {
       </div>
 
       {/* Current Plan Card */}
-      <Card className="border-primary">
+      <Card className="border-primary border-2 bg-primary/5">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Zap className="h-5 w-5 text-primary" />
@@ -308,27 +301,37 @@ export default function PlanManagement() {
           const monthlyEquivalent = isYearly 
             ? (plan.yearlyPrice / 12).toFixed(2) 
             : plan.monthlyPrice.toFixed(2);
+          const upgrading = isUpgrade(plan.id);
+          const downgrading = isDowngrade(plan.id);
 
           return (
             <Card 
               key={plan.id}
-              className={`${plan.recommended ? "border-primary shadow-lg ring-2 ring-primary/20" : ""} ${
-                isCurrent ? "bg-primary/5 border-primary" : ""
+              className={`relative transition-all ${
+                isCurrent 
+                  ? "border-primary border-2 ring-4 ring-primary/20 shadow-lg" 
+                  : plan.recommended 
+                    ? "border-primary/50 shadow-md" 
+                    : ""
               }`}
             >
-              <CardHeader>
+              {/* Current Plan Indicator */}
+              {isCurrent && (
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                  <Badge className="bg-primary text-primary-foreground shadow-md">
+                    <Check className="h-3 w-3 mr-1" />
+                    Your Plan
+                  </Badge>
+                </div>
+              )}
+              
+              <CardHeader className={isCurrent ? "pt-6" : ""}>
                 <div className="flex items-center justify-between mb-2">
-                  <CardTitle>{plan.name}</CardTitle>
+                  <CardTitle className={isCurrent ? "text-primary" : ""}>{plan.name}</CardTitle>
                   <div className="flex items-center gap-2">
                     {plan.recommended && !isCurrent && (
                       <Badge variant="default" className="bg-primary">
                         Recommended
-                      </Badge>
-                    )}
-                    {isCurrent && (
-                      <Badge className="bg-green-600 text-white">
-                        <Check className="h-3 w-3 mr-1" />
-                        Current Plan
                       </Badge>
                     )}
                   </div>
@@ -340,7 +343,9 @@ export default function PlanManagement() {
                       <span className="text-lg line-through text-muted-foreground">
                         ${plan.monthlyPrice}
                       </span>
-                      <span className="text-4xl font-bold ml-2">${monthlyEquivalent}</span>
+                      <span className={`text-4xl font-bold ml-2 ${isCurrent ? "text-primary" : ""}`}>
+                        ${monthlyEquivalent}
+                      </span>
                       <span className="text-muted-foreground">/month</span>
                       <p className="text-sm text-muted-foreground mt-1">
                         ${plan.yearlyPrice.toFixed(2)} billed yearly
@@ -348,7 +353,9 @@ export default function PlanManagement() {
                     </>
                   ) : (
                     <>
-                      <span className="text-4xl font-bold">${plan.monthlyPrice}</span>
+                      <span className={`text-4xl font-bold ${isCurrent ? "text-primary" : ""}`}>
+                        ${plan.monthlyPrice}
+                      </span>
                       <span className="text-muted-foreground">/month</span>
                     </>
                   )}
@@ -358,7 +365,7 @@ export default function PlanManagement() {
                 <ul className="space-y-3">
                   {plan.features.map((feature) => (
                     <li key={feature} className="flex items-start gap-2">
-                      <Check className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
+                      <Check className={`h-5 w-5 flex-shrink-0 mt-0.5 ${isCurrent ? "text-primary" : "text-green-600"}`} />
                       <span className="text-sm">{feature}</span>
                     </li>
                   ))}
@@ -367,23 +374,30 @@ export default function PlanManagement() {
                 {!isCurrent && (
                   <Button 
                     className="w-full" 
-                    variant={isUpgrade(plan.id) ? "default" : "outline"}
+                    variant={upgrading ? "default" : "outline"}
                     onClick={() => handleSubscribe(plan.id)}
                     disabled={loading === plan.id}
                   >
                     {loading === plan.id && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {isUpgrade(plan.id) 
-                      ? `Upgrade to ${plan.name}`
-                      : isDowngrade(plan.id)
-                        ? `Downgrade to ${plan.name}`
-                        : `Switch to ${plan.name}`
-                    }
+                    {upgrading ? (
+                      <>
+                        <ArrowUp className="mr-2 h-4 w-4" />
+                        Upgrade to {plan.name}
+                      </>
+                    ) : downgrading ? (
+                      <>
+                        <ArrowDown className="mr-2 h-4 w-4" />
+                        Downgrade to {plan.name}
+                      </>
+                    ) : (
+                      `Switch to ${plan.name}`
+                    )}
                   </Button>
                 )}
                 
                 {isCurrent && (
-                  <div className="text-center py-2 text-sm text-muted-foreground">
-                    This is your current plan
+                  <div className="text-center py-3 rounded-md bg-primary/10 text-primary font-medium">
+                    ✓ This is your current plan
                   </div>
                 )}
               </CardContent>
@@ -396,7 +410,7 @@ export default function PlanManagement() {
       <Card>
         <CardContent className="pt-6">
           <p className="text-sm text-muted-foreground">
-            <strong>Note:</strong> Basic plan includes a 30-day free trial. 
+            <strong>Note:</strong> Basic plan includes a 30-day free trial for new subscribers only. 
             Freelancer, Enterprise, and Agency plans start billing immediately. 
             Upgrades and downgrades are prorated automatically.
           </p>
