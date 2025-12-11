@@ -12,7 +12,7 @@ const logStep = (step: string, details?: any) => {
   console.log(`[CREATE-CHECKOUT] ${step}${detailsStr}`);
 };
 
-// Basic plan price IDs - these get 30-day trial
+// Basic plan price IDs - these get 30-day trial for NEW subscriptions
 const BASIC_PRICE_IDS = [
   "price_1ScnObKrTGU4P754AAJ9Q5NU", // monthly
   "price_1ScnL9KrTGU4P754QirsF0Sd"  // yearly
@@ -55,11 +55,82 @@ serve(async (req) => {
     }
 
     const origin = req.headers.get("origin") || "https://lovable.dev";
-
-    // Only Basic plan gets 30-day trial, Freelance+ starts immediately
     const isBasicPlan = BASIC_PRICE_IDS.includes(priceId);
-    
-    // Build subscription_data based on plan
+
+    // Check if user has an existing subscription
+    if (customerId) {
+      const subscriptions = await stripe.subscriptions.list({
+        customer: customerId,
+        status: "all",
+        limit: 10,
+      });
+
+      const activeSub = subscriptions.data.find(
+        (s: { status: string }) => s.status === "active" || s.status === "trialing"
+      );
+
+      if (activeSub) {
+        logStep("Existing subscription found", { 
+          subscriptionId: activeSub.id, 
+          status: activeSub.status,
+          currentPriceId: activeSub.items.data[0]?.price?.id 
+        });
+
+        // Check if already on the same price
+        const currentPriceId = activeSub.items.data[0]?.price?.id;
+        if (currentPriceId === priceId) {
+          return new Response(JSON.stringify({ 
+            error: "You are already subscribed to this plan" 
+          }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 400,
+          });
+        }
+
+        // Update the existing subscription to the new price
+        const subscriptionItemId = activeSub.items.data[0]?.id;
+        
+        // Build update params
+        const updateParams: Stripe.SubscriptionUpdateParams = {
+          items: [{
+            id: subscriptionItemId,
+            price: priceId,
+          }],
+          proration_behavior: 'create_prorations',
+        };
+
+        // If upgrading from trial to a non-Basic plan, end the trial immediately
+        if (activeSub.status === "trialing" && !isBasicPlan) {
+          updateParams.trial_end = 'now';
+          logStep("Ending trial immediately for upgrade to non-Basic plan");
+        }
+
+        // Update the subscription
+        const updatedSub = await stripe.subscriptions.update(activeSub.id, updateParams);
+        
+        logStep("Subscription updated successfully", { 
+          subscriptionId: updatedSub.id,
+          newStatus: updatedSub.status,
+          newPriceId: updatedSub.items.data[0]?.price?.id
+        });
+
+        // Return success - no redirect needed, subscription updated directly
+        return new Response(JSON.stringify({ 
+          success: true,
+          message: "Subscription updated successfully",
+          subscriptionId: updatedSub.id,
+          status: updatedSub.status
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 200,
+        });
+      }
+    }
+
+    // No existing subscription - create new checkout session
+    logStep("No existing subscription, creating checkout session");
+
+    // Only Basic plan gets 30-day trial for new subscriptions
     const subscriptionData: Stripe.Checkout.SessionCreateParams.SubscriptionData = isBasicPlan 
       ? { trial_period_days: 30 }
       : {}; // No trial for Freelance+
