@@ -87,27 +87,42 @@ serve(async (req) => {
           });
         }
 
-        // Cancel existing subscription and create new checkout for the new plan
-        // This ensures user goes through Stripe checkout for payment confirmation
-        logStep("Canceling existing subscription to create new checkout", { 
-          subscriptionId: activeSub.id 
+        // Instead of cancelling subscription (which causes issues if user abandons checkout),
+        // update the existing subscription directly with proration
+        logStep("Updating existing subscription with new price", { 
+          subscriptionId: activeSub.id,
+          newPriceId: priceId
         });
         
-        // Cancel at period end to avoid immediate cancellation, 
-        // but new subscription will override this
-        await stripe.subscriptions.cancel(activeSub.id, {
-          prorate: true,
+        const subscriptionItemId = activeSub.items.data[0]?.id;
+        
+        // Update subscription with proration - this is immediate and safe
+        await stripe.subscriptions.update(activeSub.id, {
+          items: [{
+            id: subscriptionItemId,
+            price: priceId,
+          }],
+          proration_behavior: 'create_prorations',
         });
         
-        logStep("Existing subscription canceled, creating new checkout session");
+        logStep("Subscription updated successfully");
+        
+        // Return success with redirect to plans page
+        return new Response(JSON.stringify({ 
+          success: true,
+          message: "Plan updated successfully",
+          redirectUrl: `${origin}/settings/plans?success=true`
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 200,
+        });
       }
     }
 
-    // Create new checkout session for the plan
-    logStep("Creating checkout session");
+    // No existing subscription - create new checkout session
+    logStep("Creating checkout session for new subscription");
 
     // Only Basic plan gets 30-day trial for brand new customers (no prior subscription)
-    // Users upgrading/downgrading don't get trial
     const hadPriorSubscription = customerId ? true : false;
     const shouldHaveTrial = isBasicPlan && !hadPriorSubscription;
     
