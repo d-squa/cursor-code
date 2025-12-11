@@ -18,6 +18,18 @@ const BASIC_PRICE_IDS = [
   "price_1ScnL9KrTGU4P754QirsF0Sd"  // yearly
 ];
 
+// Price amounts in cents for comparison (to detect upgrade vs downgrade)
+const PRICE_AMOUNTS: Record<string, number> = {
+  "price_1ScnObKrTGU4P754AAJ9Q5NU": 3900,    // Basic Monthly $39
+  "price_1ScnL9KrTGU4P754QirsF0Sd": 39780,   // Basic Yearly $397.80
+  "price_1ScnOcKrTGU4P754y5pmh5jf": 8900,    // Freelancer Monthly $89
+  "price_1ScnNYKrTGU4P754hbyoSjdc": 90780,   // Freelancer Yearly $907.80
+  "price_1ScnOdKrTGU4P7542mtt9uyC": 18900,   // Enterprise Monthly $189
+  "price_1ScnOOKrTGU4P754r7bdJ94j": 192780,  // Enterprise Yearly $1927.80
+  "price_1ScnOeKrTGU4P75446dvndr3": 99900,   // Agency Monthly $999
+  "price_1ScnOPKrTGU4P754sNgouHiL": 1018980, // Agency Yearly $10189.80
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -91,16 +103,51 @@ serve(async (req) => {
           });
         }
 
-        // PLAN CHANGE: Create a new checkout session for the upgrade/downgrade
-        // This ensures user sees and confirms the payment
-        logStep("Creating checkout for plan change", { 
+        // Determine if this is a downgrade
+        const currentAmount = PRICE_AMOUNTS[currentPriceId || ''] || 0;
+        const newAmount = PRICE_AMOUNTS[priceId] || 0;
+        const isDowngrade = newAmount < currentAmount;
+        const isTrialing = activeSub.status === "trialing";
+
+        logStep("Plan change detected", { 
           oldPriceId: currentPriceId, 
           newPriceId: priceId,
-          isTrialing: activeSub.status === "trialing"
+          currentAmount,
+          newAmount,
+          isDowngrade,
+          isTrialing
         });
 
+        // Calculate prorated refund for downgrades (non-trial)
+        let refundAmount = 0;
+        if (isDowngrade && !isTrialing) {
+          // Calculate unused time value
+          const periodStart = activeSub.current_period_start;
+          const periodEnd = activeSub.current_period_end;
+          const now = Math.floor(Date.now() / 1000);
+          
+          const totalPeriodSeconds = periodEnd - periodStart;
+          const usedSeconds = now - periodStart;
+          const unusedSeconds = periodEnd - now;
+          
+          if (unusedSeconds > 0 && totalPeriodSeconds > 0) {
+            const unusedRatio = unusedSeconds / totalPeriodSeconds;
+            const currentPlanAmount = activeSub.items.data[0]?.price?.unit_amount || 0;
+            refundAmount = Math.floor(currentPlanAmount * unusedRatio);
+            
+            logStep("Calculated prorated refund", { 
+              periodStart,
+              periodEnd,
+              now,
+              unusedRatio: unusedRatio.toFixed(4),
+              currentPlanAmount,
+              refundAmount
+            });
+          }
+        }
+
         // Create checkout session for the new plan
-        // Store previous subscription ID in metadata to cancel it after success
+        // Store previous subscription ID and refund info in metadata
         const session = await stripe.checkout.sessions.create({
           customer: customerId,
           line_items: [
@@ -114,6 +161,8 @@ serve(async (req) => {
           subscription_data: {
             metadata: {
               previous_subscription_id: activeSub.id,
+              refund_amount: refundAmount.toString(),
+              is_downgrade: isDowngrade.toString(),
             },
           },
           success_url: `${origin}/settings/plans?success=true&session_id={CHECKOUT_SESSION_ID}`,
@@ -123,7 +172,9 @@ serve(async (req) => {
         logStep("Plan change checkout session created", { 
           sessionId: session.id, 
           url: session.url,
-          previousSubscriptionId: activeSub.id
+          previousSubscriptionId: activeSub.id,
+          refundAmount,
+          isDowngrade
         });
 
         return new Response(JSON.stringify({ 

@@ -48,7 +48,7 @@ serve(async (req) => {
     logStep("Checkout session retrieved", { 
       status: session.status,
       paymentStatus: session.payment_status,
-      subscriptionId: session.subscription
+      subscriptionId: typeof session.subscription === 'string' ? session.subscription : session.subscription?.id
     });
 
     if (session.status !== 'complete') {
@@ -71,82 +71,110 @@ serve(async (req) => {
       });
     }
 
-    // Check if there was a previous subscription to cancel
+    // Check metadata for previous subscription and refund info
     const previousSubscriptionId = newSubscription.metadata?.previous_subscription_id;
+    const refundAmountFromMetadata = parseInt(newSubscription.metadata?.refund_amount || '0', 10);
+    const isDowngrade = newSubscription.metadata?.is_downgrade === 'true';
     
+    logStep("Subscription metadata", { 
+      previousSubscriptionId, 
+      refundAmountFromMetadata,
+      isDowngrade 
+    });
+
+    // Cancel the previous subscription if it exists
     if (previousSubscriptionId) {
       logStep("Canceling previous subscription", { previousSubscriptionId });
       
       try {
-        // Cancel the old subscription immediately
         await stripe.subscriptions.cancel(previousSubscriptionId, {
-          prorate: true, // Issue prorated refund for unused time
+          prorate: false, // We handle refund manually
         });
-        logStep("Previous subscription canceled with prorated refund");
+        logStep("Previous subscription canceled");
       } catch (cancelError) {
-        // Log but don't fail - the old subscription might already be canceled
         logStep("Warning: Could not cancel previous subscription", { 
           error: cancelError instanceof Error ? cancelError.message : String(cancelError)
         });
       }
     }
 
-    // Check if customer has credit balance and refund it
+    // Issue refund for downgrade
     let refundedAmount = 0;
-    if (previousSubscriptionId) {
+    if (isDowngrade && refundAmountFromMetadata > 0) {
+      logStep("Processing downgrade refund", { refundAmountFromMetadata });
+      
       try {
-        // Get customer ID from subscription
         const customerId = typeof newSubscription.customer === 'string' 
           ? newSubscription.customer 
           : newSubscription.customer.id;
         
-        // Check customer balance (negative = credit)
-        const customer = await stripe.customers.retrieve(customerId) as Stripe.Customer;
-        const creditBalance = customer.balance; // Negative value = credit
+        // Find a charge to refund against
+        const charges = await stripe.charges.list({
+          customer: customerId,
+          limit: 10
+        });
         
-        if (creditBalance < 0) {
-          const refundAmount = Math.abs(creditBalance);
-          logStep("Customer has credit balance, issuing refund", { 
-            customerId, 
-            creditBalance, 
-            refundAmount 
+        logStep("Found charges", { count: charges.data.length });
+        
+        // Find a charge that can cover the refund amount
+        const refundableCharge = charges.data.find((c: Stripe.Charge) => 
+          c.status === 'succeeded' && 
+          c.amount >= refundAmountFromMetadata &&
+          (c.amount_refunded || 0) + refundAmountFromMetadata <= c.amount
+        );
+        
+        if (refundableCharge) {
+          logStep("Found refundable charge", { 
+            chargeId: refundableCharge.id, 
+            chargeAmount: refundableCharge.amount,
+            alreadyRefunded: refundableCharge.amount_refunded
           });
           
-          // Create a refund by adjusting customer balance to zero
-          // and issuing a payout/refund for the credit amount
-          await stripe.customers.update(customerId, {
-            balance: 0
+          const refund = await stripe.refunds.create({
+            charge: refundableCharge.id,
+            amount: refundAmountFromMetadata,
+            reason: 'requested_by_customer'
           });
           
-          // Find the most recent charge to refund against
-          const charges = await stripe.charges.list({
-            customer: customerId,
-            limit: 5
+          refundedAmount = refundAmountFromMetadata / 100; // Convert to dollars
+          logStep("Refund issued successfully", { 
+            refundId: refund.id,
+            chargeId: refundableCharge.id, 
+            refundAmount: refundedAmount 
           });
+        } else {
+          logStep("No suitable charge found for refund, checking for partial refund options");
           
-          const refundableCharge = charges.data.find((c: Stripe.Charge) => 
-            c.status === 'succeeded' && 
-            !c.refunded && 
-            c.amount >= refundAmount
-          );
+          // Try to find any charge we can partially refund
+          for (const charge of charges.data) {
+            if (charge.status !== 'succeeded') continue;
+            
+            const availableForRefund = charge.amount - (charge.amount_refunded || 0);
+            if (availableForRefund > 0) {
+              const refundThisAmount = Math.min(availableForRefund, refundAmountFromMetadata);
+              
+              const refund = await stripe.refunds.create({
+                charge: charge.id,
+                amount: refundThisAmount,
+                reason: 'requested_by_customer'
+              });
+              
+              refundedAmount = refundThisAmount / 100;
+              logStep("Partial refund issued", { 
+                refundId: refund.id,
+                chargeId: charge.id, 
+                refundAmount: refundedAmount 
+              });
+              break;
+            }
+          }
           
-          if (refundableCharge) {
-            await stripe.refunds.create({
-              charge: refundableCharge.id,
-              amount: refundAmount,
-              reason: 'requested_by_customer'
-            });
-            refundedAmount = refundAmount / 100; // Convert to dollars
-            logStep("Refund issued successfully", { 
-              chargeId: refundableCharge.id, 
-              refundAmount: refundedAmount 
-            });
-          } else {
-            logStep("No refundable charge found, credit applied to account balance");
+          if (refundedAmount === 0) {
+            logStep("No refundable charges found");
           }
         }
       } catch (refundError) {
-        logStep("Warning: Could not process refund", { 
+        logStep("Error processing refund", { 
           error: refundError instanceof Error ? refundError.message : String(refundError)
         });
       }
@@ -155,12 +183,14 @@ serve(async (req) => {
     logStep("Plan change finalized successfully", {
       newSubscriptionId: newSubscription.id,
       previousSubscriptionCanceled: !!previousSubscriptionId,
-      refundedAmount
+      refundedAmount,
+      isDowngrade
     });
 
     return new Response(JSON.stringify({ 
       success: true,
       refundedAmount,
+      isDowngrade,
       message: refundedAmount > 0
         ? `Plan changed successfully! $${refundedAmount.toFixed(2)} has been refunded to your card.`
         : previousSubscriptionId 
