@@ -58,8 +58,6 @@ serve(async (req) => {
     const isBasicPlan = BASIC_PRICE_IDS.includes(priceId);
 
     // Check if user has an existing active/trialing subscription
-    let existingSubscription: Stripe.Subscription | null = null;
-
     if (customerId) {
       const subscriptions = await stripe.subscriptions.list({
         customer: customerId,
@@ -72,13 +70,14 @@ serve(async (req) => {
       );
 
       if (activeSub) {
-        existingSubscription = activeSub;
         const currentPriceId = activeSub.items.data[0]?.price?.id;
+        const subscriptionItemId = activeSub.items.data[0]?.id;
         
         logStep("Existing subscription found", { 
           subscriptionId: activeSub.id, 
           status: activeSub.status,
-          currentPriceId
+          currentPriceId,
+          subscriptionItemId
         });
 
         // Check if already on the same price
@@ -91,17 +90,46 @@ serve(async (req) => {
           });
         }
 
-        // PLAN CHANGE: Use Customer Portal for proper proration display
-        logStep("Redirecting to Customer Portal for plan change");
-        
-        const portalSession = await stripe.billingPortal.sessions.create({
-          customer: customerId,
-          return_url: `${origin}/settings/plans?portal_return=true`,
+        // PLAN CHANGE: Update subscription directly with proration
+        logStep("Updating subscription to new plan", { 
+          oldPriceId: currentPriceId, 
+          newPriceId: priceId,
+          isTrialing: activeSub.status === "trialing"
+        });
+
+        // Build update params
+        const updateParams: Stripe.SubscriptionUpdateParams = {
+          items: [
+            {
+              id: subscriptionItemId,
+              price: priceId,
+            },
+          ],
+          proration_behavior: "create_prorations",
+        };
+
+        // If on trial and upgrading to higher tier, end trial immediately
+        if (activeSub.status === "trialing" && !isBasicPlan) {
+          updateParams.trial_end = "now";
+          logStep("Ending trial immediately for upgrade to higher tier");
+        }
+
+        // Update the subscription
+        const updatedSubscription = await stripe.subscriptions.update(
+          activeSub.id,
+          updateParams
+        );
+
+        logStep("Subscription updated successfully", { 
+          subscriptionId: updatedSubscription.id,
+          status: updatedSubscription.status,
+          newPriceId: updatedSubscription.items.data[0]?.price?.id
         });
 
         return new Response(JSON.stringify({ 
-          url: portalSession.url,
-          type: 'portal'
+          success: true,
+          message: "Plan updated successfully",
+          type: 'updated'
         }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
           status: 200,
@@ -111,7 +139,7 @@ serve(async (req) => {
 
     // NEW SUBSCRIPTION: Use Stripe Checkout
     // Trial only for Basic plan with no existing subscription
-    const shouldHaveTrial = isBasicPlan && !existingSubscription;
+    const shouldHaveTrial = isBasicPlan;
     
     logStep("Creating checkout for new subscription", { 
       isBasicPlan, 
