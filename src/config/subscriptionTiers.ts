@@ -38,7 +38,21 @@ export function getBillingPeriodFromPriceId(priceId: string | null): 'monthly' |
   return null;
 }
 
-// Map product IDs to tiers
+// Map price IDs to tiers (more reliable than product IDs)
+export function getTierFromPriceId(priceId: string | null): SubscriptionTier {
+  if (!priceId) return 'trial';
+  
+  for (const [tier, config] of Object.entries(PRICE_IDS)) {
+    if (config.monthly === priceId || config.yearly === priceId) {
+      return tier as SubscriptionTier;
+    }
+  }
+  
+  // Default to trial if price ID not recognized
+  return 'trial';
+}
+
+// Map product IDs to tiers (fallback)
 export function getTierFromProductId(productId: string | null): SubscriptionTier {
   if (!productId) return 'trial';
   

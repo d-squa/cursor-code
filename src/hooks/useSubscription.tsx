@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { getTierFromProductId, SubscriptionTier, TIER_DISPLAY_NAMES } from "@/config/subscriptionTiers";
+import { getTierFromPriceId, SubscriptionTier, TIER_DISPLAY_NAMES } from "@/config/subscriptionTiers";
 
 interface SubscriptionStatus {
   subscribed: boolean;
@@ -61,14 +61,17 @@ export function useSubscription() {
     return () => authSub.unsubscribe();
   }, [checkSubscription]);
 
-  // Derive the subscription tier from the product ID
+  // Derive the subscription tier from the price ID (more reliable than product ID)
   const tier: SubscriptionTier = useMemo(() => {
     if (!subscription) return 'trial';
-    if (subscription.onTrial) {
-      return getTierFromProductId(subscription.productId);
-    }
     if (!subscription.subscribed) return 'trial';
-    return getTierFromProductId(subscription.productId);
+    
+    // Use priceId for tier detection - it's more reliable
+    const detectedTier = getTierFromPriceId(subscription.priceId);
+    
+    // If on trial and tier is detected, show that tier
+    // If not on trial, show the detected tier
+    return detectedTier;
   }, [subscription]);
 
   // Get display name for the tier

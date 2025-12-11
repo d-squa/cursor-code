@@ -12,7 +12,7 @@ const logStep = (step: string, details?: any) => {
   console.log(`[CREATE-CHECKOUT] ${step}${detailsStr}`);
 };
 
-// Basic plan price IDs - these get 30-day trial for NEW subscriptions
+// Basic plan price IDs - these get 30-day trial for NEW subscriptions only
 const BASIC_PRICE_IDS = [
   "price_1ScnObKrTGU4P754AAJ9Q5NU", // monthly
   "price_1ScnL9KrTGU4P754QirsF0Sd"  // yearly
@@ -57,7 +57,7 @@ serve(async (req) => {
     const origin = req.headers.get("origin") || "https://lovable.dev";
     const isBasicPlan = BASIC_PRICE_IDS.includes(priceId);
 
-    // Check if user has an existing subscription
+    // Check if user has an existing active/trialing subscription
     if (customerId) {
       const subscriptions = await stripe.subscriptions.list({
         customer: customerId,
@@ -87,61 +87,39 @@ serve(async (req) => {
           });
         }
 
-        // Update the existing subscription to the new price
-        // Must delete old item and add new item to properly replace the plan
-        const subscriptionItemId = activeSub.items.data[0]?.id;
-        
-        // Build update params - delete old item, add new price
-        const updateParams: Stripe.SubscriptionUpdateParams = {
-          items: [
-            {
-              id: subscriptionItemId,
-              deleted: true,
-            },
-            {
-              price: priceId,
-            }
-          ],
-          proration_behavior: 'create_prorations',
-        };
-
-        // If upgrading from trial to a non-Basic plan, end the trial immediately
-        if (activeSub.status === "trialing" && !isBasicPlan) {
-          updateParams.trial_end = 'now';
-          logStep("Ending trial immediately for upgrade to non-Basic plan");
-        }
-
-        // Update the subscription
-        const updatedSub = await stripe.subscriptions.update(activeSub.id, updateParams);
-        
-        logStep("Subscription updated successfully", { 
-          subscriptionId: updatedSub.id,
-          newStatus: updatedSub.status,
-          newPriceId: updatedSub.items.data[0]?.price?.id
+        // Cancel existing subscription and create new checkout for the new plan
+        // This ensures user goes through Stripe checkout for payment confirmation
+        logStep("Canceling existing subscription to create new checkout", { 
+          subscriptionId: activeSub.id 
         });
-
-        // Return success - no redirect needed, subscription updated directly
-        return new Response(JSON.stringify({ 
-          success: true,
-          message: "Subscription updated successfully",
-          subscriptionId: updatedSub.id,
-          status: updatedSub.status
-        }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-          status: 200,
+        
+        // Cancel at period end to avoid immediate cancellation, 
+        // but new subscription will override this
+        await stripe.subscriptions.cancel(activeSub.id, {
+          prorate: true,
         });
+        
+        logStep("Existing subscription canceled, creating new checkout session");
       }
     }
 
-    // No existing subscription - create new checkout session
-    logStep("No existing subscription, creating checkout session");
+    // Create new checkout session for the plan
+    logStep("Creating checkout session");
 
-    // Only Basic plan gets 30-day trial for new subscriptions
-    const subscriptionData: Stripe.Checkout.SessionCreateParams.SubscriptionData = isBasicPlan 
+    // Only Basic plan gets 30-day trial for brand new customers (no prior subscription)
+    // Users upgrading/downgrading don't get trial
+    const hadPriorSubscription = customerId ? true : false;
+    const shouldHaveTrial = isBasicPlan && !hadPriorSubscription;
+    
+    const subscriptionData: Stripe.Checkout.SessionCreateParams.SubscriptionData = shouldHaveTrial 
       ? { trial_period_days: 30 }
-      : {}; // No trial for Freelance+
+      : {};
 
-    logStep("Plan type determined", { isBasicPlan, hasTrialPeriod: isBasicPlan });
+    logStep("Plan type determined", { 
+      isBasicPlan, 
+      hadPriorSubscription,
+      hasTrialPeriod: shouldHaveTrial 
+    });
 
     // Create checkout session
     const session = await stripe.checkout.sessions.create({
@@ -160,7 +138,11 @@ serve(async (req) => {
       cancel_url: `${origin}/settings/plans?canceled=true`,
     });
 
-    logStep("Checkout session created", { sessionId: session.id, url: session.url, hasTrialPeriod: isBasicPlan });
+    logStep("Checkout session created", { 
+      sessionId: session.id, 
+      url: session.url, 
+      hasTrialPeriod: shouldHaveTrial 
+    });
 
     return new Response(JSON.stringify({ url: session.url }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
