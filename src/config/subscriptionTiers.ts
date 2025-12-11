@@ -7,22 +7,22 @@ export const PRICE_IDS = {
   basic: {
     monthly: "price_1ScnObKrTGU4P754AAJ9Q5NU",
     yearly: "price_1ScnL9KrTGU4P754QirsF0Sd",
-    productId: "prod_SSWF7TKJNNXtqD"
+    productId: "prod_TZxJsj5K3hZ8Ku" // ActiPlan Basic Monthly
   },
   freelancer: {
     monthly: "price_1ScnOcKrTGU4P754y5pmh5jf",
     yearly: "price_1ScnNYKrTGU4P754hbyoSjdc",
-    productId: "prod_SSWRPgpWgLnZJb"
+    productId: "prod_TZxJ4XAvny2Nnl" // ActiPlan Freelancer Monthly
   },
   enterprise: {
     monthly: "price_1ScnOdKrTGU4P7542mtt9uyC",
     yearly: "price_1ScnOOKrTGU4P754r7bdJ94j",
-    productId: "prod_SSWVDHzEQ8w2WJ"
+    productId: "prod_TZxJTdbXy2Rlhb" // ActiPlan Enterprise Monthly
   },
   agency: {
     monthly: "price_1ScnOeKrTGU4P75446dvndr3",
     yearly: "price_1ScnOPKrTGU4P754sNgouHiL",
-    productId: "prod_SSWVFLkGsMC0W6"
+    productId: "prod_TZxJAdnaSLNRsJ" // ActiPlan Agency Monthly
   }
 } as const;
 
