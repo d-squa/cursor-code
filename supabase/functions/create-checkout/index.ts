@@ -140,57 +140,56 @@ serve(async (req) => {
         // Calculate prorated refund for downgrades (non-trial)
         let refundAmount = 0;
         if (isDowngrade && !isTrialing) {
-          // For canceled subscriptions, period_end might be in the past
-          // We need to find the most recent invoice to get actual paid amount and period
           try {
+            // Get the subscription's billing period from the subscription itself
+            // For canceled subs, we still have the original period info
+            const periodStart = activeSub.current_period_start;
+            const periodEnd = activeSub.current_period_end;
+            const now = Math.floor(Date.now() / 1000);
+            
+            // Get the amount paid from the latest invoice
             const invoices = await stripe.invoices.list({
               subscription: activeSub.id,
               limit: 1,
               status: 'paid',
             });
             
-            if (invoices.data.length > 0) {
-              const latestInvoice = invoices.data[0];
-              const periodStart = latestInvoice.period_start;
-              const periodEnd = latestInvoice.period_end;
-              const paidAmount = latestInvoice.amount_paid; // Amount actually paid in cents
-              const now = Math.floor(Date.now() / 1000);
+            const paidAmount = invoices.data.length > 0 
+              ? invoices.data[0].amount_paid 
+              : (activeSub.items.data[0]?.price?.unit_amount || 0);
+            
+            const totalPeriodSeconds = periodEnd - periodStart;
+            const unusedSeconds = periodEnd - now;
+            
+            logStep("Subscription-based refund calculation", { 
+              subscriptionId: activeSub.id,
+              periodStart,
+              periodEnd,
+              now,
+              paidAmount,
+              totalPeriodSeconds,
+              unusedSeconds
+            });
+            
+            if (unusedSeconds > 0 && totalPeriodSeconds > 0 && paidAmount > 0) {
+              const unusedRatio = unusedSeconds / totalPeriodSeconds;
+              refundAmount = Math.floor(paidAmount * unusedRatio);
               
-              const totalPeriodSeconds = periodEnd - periodStart;
-              const unusedSeconds = periodEnd - now;
-              
-              logStep("Invoice-based refund calculation", { 
-                invoiceId: latestInvoice.id,
-                periodStart,
-                periodEnd,
-                now,
+              logStep("Calculated prorated refund", { 
+                unusedRatio: unusedRatio.toFixed(4),
                 paidAmount,
-                totalPeriodSeconds,
-                unusedSeconds
+                refundAmount
               });
-              
-              if (unusedSeconds > 0 && totalPeriodSeconds > 0 && paidAmount > 0) {
-                const unusedRatio = unusedSeconds / totalPeriodSeconds;
-                refundAmount = Math.floor(paidAmount * unusedRatio);
-                
-                logStep("Calculated prorated refund from invoice", { 
-                  unusedRatio: unusedRatio.toFixed(4),
-                  paidAmount,
-                  refundAmount
-                });
-              } else {
-                logStep("Refund conditions not met", { 
-                  unusedSeconds,
-                  totalPeriodSeconds,
-                  paidAmount
-                });
-              }
             } else {
-              logStep("No paid invoice found for subscription");
+              logStep("Refund conditions not met", { 
+                unusedSeconds,
+                totalPeriodSeconds,
+                paidAmount
+              });
             }
-          } catch (invoiceError) {
-            logStep("Error fetching invoices for refund calculation", { 
-              error: invoiceError instanceof Error ? invoiceError.message : String(invoiceError) 
+          } catch (refundCalcError) {
+            logStep("Error calculating refund", { 
+              error: refundCalcError instanceof Error ? refundCalcError.message : String(refundCalcError) 
             });
           }
         }
