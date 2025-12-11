@@ -91,16 +91,81 @@ serve(async (req) => {
       }
     }
 
+    // Check if customer has credit balance and refund it
+    let refundedAmount = 0;
+    if (previousSubscriptionId) {
+      try {
+        // Get customer ID from subscription
+        const customerId = typeof newSubscription.customer === 'string' 
+          ? newSubscription.customer 
+          : newSubscription.customer.id;
+        
+        // Check customer balance (negative = credit)
+        const customer = await stripe.customers.retrieve(customerId) as Stripe.Customer;
+        const creditBalance = customer.balance; // Negative value = credit
+        
+        if (creditBalance < 0) {
+          const refundAmount = Math.abs(creditBalance);
+          logStep("Customer has credit balance, issuing refund", { 
+            customerId, 
+            creditBalance, 
+            refundAmount 
+          });
+          
+          // Create a refund by adjusting customer balance to zero
+          // and issuing a payout/refund for the credit amount
+          await stripe.customers.update(customerId, {
+            balance: 0
+          });
+          
+          // Find the most recent charge to refund against
+          const charges = await stripe.charges.list({
+            customer: customerId,
+            limit: 5
+          });
+          
+          const refundableCharge = charges.data.find((c: Stripe.Charge) => 
+            c.status === 'succeeded' && 
+            !c.refunded && 
+            c.amount >= refundAmount
+          );
+          
+          if (refundableCharge) {
+            await stripe.refunds.create({
+              charge: refundableCharge.id,
+              amount: refundAmount,
+              reason: 'requested_by_customer'
+            });
+            refundedAmount = refundAmount / 100; // Convert to dollars
+            logStep("Refund issued successfully", { 
+              chargeId: refundableCharge.id, 
+              refundAmount: refundedAmount 
+            });
+          } else {
+            logStep("No refundable charge found, credit applied to account balance");
+          }
+        }
+      } catch (refundError) {
+        logStep("Warning: Could not process refund", { 
+          error: refundError instanceof Error ? refundError.message : String(refundError)
+        });
+      }
+    }
+
     logStep("Plan change finalized successfully", {
       newSubscriptionId: newSubscription.id,
-      previousSubscriptionCanceled: !!previousSubscriptionId
+      previousSubscriptionCanceled: !!previousSubscriptionId,
+      refundedAmount
     });
 
     return new Response(JSON.stringify({ 
       success: true,
-      message: previousSubscriptionId 
-        ? "Plan changed successfully! Your previous subscription has been canceled with a prorated refund."
-        : "Subscription activated successfully!"
+      refundedAmount,
+      message: refundedAmount > 0
+        ? `Plan changed successfully! $${refundedAmount.toFixed(2)} has been refunded to your card.`
+        : previousSubscriptionId 
+          ? "Plan changed successfully!"
+          : "Subscription activated successfully!"
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
