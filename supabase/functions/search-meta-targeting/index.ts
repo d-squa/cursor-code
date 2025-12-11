@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
+import { getAccessToken } from "../_shared/vault-helper.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -20,10 +21,9 @@ serve(async (req) => {
       );
     }
 
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
-    );
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    const supabaseClient = createClient(supabaseUrl, supabaseServiceKey);
 
     const jwt = authHeader.replace('Bearer ', '');
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser(jwt);
@@ -47,20 +47,25 @@ serve(async (req) => {
 
     console.log('Searching Meta targeting:', { query, type, adAccountId });
 
-    // Get user's Meta access token
+    // Get user's Meta connection and retrieve token from Vault
     const { data: platformData, error: platformError } = await supabaseClient
       .from('connected_platforms')
-      .select('*')
+      .select('id, access_token')
       .eq('user_id', user.id)
       .eq('platform_type', 'meta')
       .eq('is_active', true)
       .single();
 
-    if (platformError || !platformData?.access_token) {
+    if (platformError || !platformData) {
       throw new Error('Meta platform not connected');
     }
 
-    const accessToken = platformData.access_token;
+    // Get token from Vault with fallback to database column
+    const accessToken = await getAccessToken(supabaseClient, platformData.id, platformData.access_token);
+    if (!accessToken) {
+      throw new Error('Meta access token not found');
+    }
+
     const apiVersion = 'v21.0';
     const cleanAccountId = adAccountId.startsWith('act_') ? adAccountId : `act_${adAccountId}`;
 

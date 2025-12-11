@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
+import { getAccessToken } from "../_shared/vault-helper.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -67,7 +68,7 @@ serve(async (req) => {
     // Get connected platforms for this campaign
     const { data: connectedPlatforms } = await supabase
       .from("connected_platforms")
-      .select("*")
+      .select("id, platform_type, access_token, ad_account_id")
       .eq("user_id", campaign.user_id)
       .eq("is_active", true);
 
@@ -156,7 +157,8 @@ async function fetchMetaInsights(
   supabase: any
 ): Promise<any | null> {
   try {
-    const accessToken = connectedPlatform.access_token;
+    // Get token from Vault with fallback to database column
+    const accessToken = await getAccessToken(supabase, connectedPlatform.id, connectedPlatform.access_token);
     const adAccountId = connectedPlatform.ad_account_id;
 
     if (!accessToken || !adAccountId) {
