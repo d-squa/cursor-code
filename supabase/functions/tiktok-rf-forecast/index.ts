@@ -1,4 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "npm:@supabase/supabase-js@2.76.1";
+import { getAccessToken } from "../_shared/vault-helper.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -23,10 +25,12 @@ serve(async (req) => {
     // Initialize Supabase for auth verification
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const { createClient } = await import("npm:@supabase/supabase-js@2.76.1");
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    
     const supabase = createClient(supabaseUrl, supabaseKey, {
       global: { headers: { Authorization: authHeader } }
     });
+    const supabaseService = createClient(supabaseUrl, supabaseServiceKey);
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
@@ -45,14 +49,10 @@ serve(async (req) => {
       throw new Error("connectedPlatformId is required");
     }
 
-    // Initialize Supabase service client for accessing connected_platforms
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabaseService = createClient(supabaseUrl, supabaseServiceKey);
-
     // Fetch platform credentials
     const { data: platform, error: platformError } = await supabaseService
       .from("connected_platforms")
-      .select("access_token, ad_account_id")
+      .select("id, access_token, ad_account_id")
       .eq("id", connectedPlatformId)
       .eq("platform_type", "tiktok")
       .single();
@@ -62,7 +62,8 @@ serve(async (req) => {
       throw new Error("TikTok platform connection not found. Please connect your TikTok account.");
     }
 
-    const accessToken = platform.access_token as string;
+    // Get token from Vault with fallback to database column
+    const accessToken = await getAccessToken(supabaseService, platform.id, platform.access_token);
     const advertiserId = platform.ad_account_id as string;
 
     if (!accessToken || !advertiserId) {

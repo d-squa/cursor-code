@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getAccessToken } from "../_shared/vault-helper.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -36,20 +37,25 @@ serve(async (req) => {
 
     console.log('Fetching TikTok events for advertiser:', advertiserId, 'pixel:', pixelId);
 
-    // Get TikTok access token from connected_platforms
+    // Get TikTok connection and retrieve token from Vault
     const { data: connection, error: connectionError } = await supabase
       .from('connected_platforms')
-      .select('access_token')
+      .select('id, access_token')
       .eq('user_id', user.id)
       .eq('platform_type', 'tiktok')
       .eq('is_active', true)
       .single();
 
-    if (connectionError || !connection?.access_token) {
+    if (connectionError || !connection) {
       throw new Error('TikTok connection not found or inactive');
     }
 
-    const accessToken = connection.access_token;
+    // Get token from Vault with fallback to database column
+    const accessToken = await getAccessToken(supabase, connection.id, connection.access_token);
+    if (!accessToken) {
+      throw new Error('TikTok access token not found');
+    }
+
     const baseUrl = 'https://business-api.tiktok.com/open_api/v1.3';
 
     // Standard TikTok messaging/conversion events for message event sets

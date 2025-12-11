@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
+import { getAccessToken } from "../_shared/vault-helper.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -39,7 +40,7 @@ const handler = async (req: Request): Promise<Response> => {
     // Get connected platforms with TikTok access tokens
     const { data: platforms, error: platformsError } = await supabase
       .from("connected_platforms")
-      .select("*")
+      .select("id, user_id, access_token, metadata")
       .eq("platform_type", "tiktok")
       .eq("is_active", true);
 
@@ -70,6 +71,13 @@ const handler = async (req: Request): Promise<Response> => {
     const tiktokAdapter = getPlatformAdapter("tiktok");
 
     for (const platform of platforms) {
+      // Get token from Vault with fallback to database column
+      const accessToken = await getAccessToken(supabase, platform.id, platform.access_token);
+      if (!accessToken) {
+        console.error(`No access token found for platform ${platform.id}`);
+        continue;
+      }
+
       const advertiserIds = platform.metadata?.advertiser_ids || [];
 
       for (const advertiserId of advertiserIds) {
@@ -77,7 +85,7 @@ const handler = async (req: Request): Promise<Response> => {
           // Fetch campaign metrics
           const campaignMetrics = await tiktokAdapter.fetchMetrics({
             accountId: advertiserId,
-            accessToken: platform.access_token,
+            accessToken: accessToken,
             entityIds: [],
             entityType: "campaign",
             startDate: startDateStr,
@@ -123,7 +131,7 @@ const handler = async (req: Request): Promise<Response> => {
           // Fetch ad group metrics
           const adGroupMetrics = await tiktokAdapter.fetchMetrics({
             accountId: advertiserId,
-            accessToken: platform.access_token,
+            accessToken: accessToken,
             entityIds: [],
             entityType: "adgroup",
             startDate: startDateStr,
