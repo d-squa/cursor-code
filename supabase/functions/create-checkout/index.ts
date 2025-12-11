@@ -256,9 +256,7 @@ serve(async (req) => {
               ],
               mode: "subscription",
               payment_method_collection: "always",
-              subscription_data: {
-                trial_period_days: 0, // Explicitly no trial for upgrades
-              },
+              // No subscription_data means no trial - Stripe doesn't allow trial_period_days: 0
               success_url: `${origin}/settings/plans?success=true&upgraded=true`,
               cancel_url: `${origin}/settings/plans?canceled=true`,
             });
