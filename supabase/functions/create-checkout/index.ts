@@ -48,7 +48,7 @@ serve(async (req) => {
 
     // Check if a Stripe customer already exists
     const customers = await stripe.customers.list({ email: user.email, limit: 1 });
-    let customerId;
+    let customerId: string | undefined;
     if (customers.data.length > 0) {
       customerId = customers.data[0].id;
       logStep("Existing customer found", { customerId });
@@ -59,7 +59,6 @@ serve(async (req) => {
 
     // Check if user has an existing active/trialing subscription
     let existingSubscription: Stripe.Subscription | null = null;
-    let isOnTrial = false;
 
     if (customerId) {
       const subscriptions = await stripe.subscriptions.list({
@@ -69,19 +68,17 @@ serve(async (req) => {
       });
 
       const activeSub = subscriptions.data.find(
-        (s: { status: string }) => s.status === "active" || s.status === "trialing"
+        (s: Stripe.Subscription) => s.status === "active" || s.status === "trialing"
       );
 
       if (activeSub) {
         existingSubscription = activeSub;
-        isOnTrial = activeSub.status === 'trialing';
         const currentPriceId = activeSub.items.data[0]?.price?.id;
         
         logStep("Existing subscription found", { 
           subscriptionId: activeSub.id, 
           status: activeSub.status,
-          currentPriceId,
-          isOnTrial
+          currentPriceId
         });
 
         // Check if already on the same price
@@ -93,40 +90,42 @@ serve(async (req) => {
             status: 400,
           });
         }
+
+        // PLAN CHANGE: Use Customer Portal for proper proration display
+        logStep("Redirecting to Customer Portal for plan change");
+        
+        const portalSession = await stripe.billingPortal.sessions.create({
+          customer: customerId,
+          return_url: `${origin}/settings/plans?portal_return=true`,
+        });
+
+        return new Response(JSON.stringify({ 
+          url: portalSession.url,
+          type: 'portal'
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 200,
+        });
       }
     }
 
-    // Determine if this is a new subscription or a plan change
-    const isPlanChange = existingSubscription !== null;
+    // NEW SUBSCRIPTION: Use Stripe Checkout
+    // Trial only for Basic plan with no existing subscription
+    const shouldHaveTrial = isBasicPlan && !existingSubscription;
     
-    // For new subscriptions: Only Basic plan gets 30-day trial
-    // For plan changes: No trial, but we need to cancel old subscription after checkout
-    const shouldHaveTrial = isBasicPlan && !customerId;
-    
-    logStep("Checkout type determined", { 
-      isPlanChange,
+    logStep("Creating checkout for new subscription", { 
       isBasicPlan, 
       hasExistingCustomer: !!customerId,
-      hasTrialPeriod: shouldHaveTrial,
-      existingSubscriptionId: existingSubscription?.id
+      hasTrialPeriod: shouldHaveTrial
     });
 
-    // Build subscription_data based on scenario
     const subscriptionData: Stripe.Checkout.SessionCreateParams.SubscriptionData = {};
     
     if (shouldHaveTrial) {
       subscriptionData.trial_period_days = 30;
-    }
-    
-    // Store existing subscription ID in metadata so we can cancel it after checkout success
-    if (existingSubscription) {
-      subscriptionData.metadata = {
-        previous_subscription_id: existingSubscription.id,
-        was_on_trial: isOnTrial ? 'true' : 'false'
-      };
+      logStep("Adding 30-day trial period");
     }
 
-    // Create checkout session - ALL plan changes and new subscriptions go through checkout
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       customer_email: customerId ? undefined : user.email,
@@ -146,12 +145,13 @@ serve(async (req) => {
     logStep("Checkout session created", { 
       sessionId: session.id, 
       url: session.url, 
-      hasTrialPeriod: shouldHaveTrial,
-      isPlanChange,
-      previousSubscriptionId: existingSubscription?.id
+      hasTrialPeriod: shouldHaveTrial
     });
 
-    return new Response(JSON.stringify({ url: session.url }), {
+    return new Response(JSON.stringify({ 
+      url: session.url,
+      type: 'checkout'
+    }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });
