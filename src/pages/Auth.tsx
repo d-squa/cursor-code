@@ -142,6 +142,9 @@ export default function Auth() {
 
         if (error) throw error;
         
+        // Clear any stale onboarding data from previous sessions
+        localStorage.removeItem("actiplan_onboarding");
+        
         // Store email for reference
         localStorage.setItem("actiplan_pending_signup_email", email);
         
@@ -158,6 +161,9 @@ export default function Auth() {
 
   const handleGoogleSignIn = async () => {
     try {
+      // Clear any stale onboarding data from previous sessions
+      localStorage.removeItem("actiplan_onboarding");
+      
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
