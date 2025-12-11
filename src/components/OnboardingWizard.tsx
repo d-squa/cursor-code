@@ -85,13 +85,25 @@ export const OnboardingWizard = () => {
         completedAt: new Date().toISOString()
       }));
       
-      // Try to update profile with company name if user has session
+      // Save to database if user has session
       const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user && formData.company) {
-        await supabase
+      if (session?.user) {
+        const { error } = await supabase
           .from("profiles")
-          .update({ company_name: formData.company })
+          .update({ 
+            full_name: formData.fullName,
+            company_name: formData.company || null,
+            role: formData.role,
+            team_size: formData.teamSize,
+            discovery_source: formData.source,
+            paid_media_experience: formData.experience,
+            onboarding_completed_at: new Date().toISOString()
+          })
           .eq("id", session.user.id);
+        
+        if (error) {
+          console.error("Error saving onboarding data:", error);
+        }
       }
 
       if (hasSession && session) {
@@ -350,27 +362,38 @@ export const OnboardingWizard = () => {
                 completedAt: new Date().toISOString()
               }));
               
-              if (hasSession) {
-                const { data: { session } } = await supabase.auth.getSession();
-                if (session) {
-                  try {
-                    const { data: subData } = await supabase.functions.invoke("check-subscription", {
-                      headers: {
-                        Authorization: `Bearer ${session.access_token}`,
-                      },
-                    });
-                    
-                    if (subData?.subscribed) {
-                      navigate("/app");
-                    } else {
-                      // Not subscribed - automatically start Basic Monthly trial checkout
-                      await startBasicTrial();
-                    }
-                  } catch (error) {
+              // Save partial data to database
+              const { data: { session } } = await supabase.auth.getSession();
+              if (session?.user) {
+                await supabase
+                  .from("profiles")
+                  .update({ 
+                    full_name: formData.fullName || null,
+                    company_name: formData.company || null,
+                    role: formData.role || null,
+                    team_size: formData.teamSize || null,
+                    discovery_source: formData.source || null,
+                    paid_media_experience: formData.experience || null,
+                    onboarding_completed_at: new Date().toISOString()
+                  })
+                  .eq("id", session.user.id);
+              }
+              
+              if (hasSession && session) {
+                try {
+                  const { data: subData } = await supabase.functions.invoke("check-subscription", {
+                    headers: {
+                      Authorization: `Bearer ${session.access_token}`,
+                    },
+                  });
+                  
+                  if (subData?.subscribed) {
+                    navigate("/app");
+                  } else {
                     await startBasicTrial();
                   }
-                } else {
-                  setShowEmailConfirmation(true);
+                } catch (error) {
+                  await startBasicTrial();
                 }
               } else {
                 setShowEmailConfirmation(true);
