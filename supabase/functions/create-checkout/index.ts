@@ -117,91 +117,46 @@ serve(async (req) => {
         const subscriptionItemId = activeSub.items.data[0]?.id;
 
         if (isDowngrade) {
-          // For downgrades: Calculate prorated refund and issue it to the card
-          logStep("Processing downgrade with refund");
+          // For downgrades: Update subscription with proration (Stripe issues credit automatically)
+          logStep("Processing downgrade");
 
-          // Calculate remaining value on current subscription
-          const currentPeriodStart = activeSub.current_period_start;
-          const currentPeriodEnd = activeSub.current_period_end;
-          const now = Math.floor(Date.now() / 1000);
-          
-          const totalPeriodSeconds = currentPeriodEnd - currentPeriodStart;
-          const remainingSeconds = currentPeriodEnd - now;
-          const remainingRatio = remainingSeconds / totalPeriodSeconds;
-          
-          // Get the actual amount paid for current period
-          const currentPeriodAmount = currentPrice.unit_amount || 0;
-          const unusedAmount = Math.floor(currentPeriodAmount * remainingRatio);
-          
-          // Calculate what the new plan would cost for the remaining period
-          const newPlanRemainingCost = Math.floor((newPrice.unit_amount || 0) * remainingRatio);
-          
-          // Refund amount is the difference (unused current - cost of new for remaining period)
-          const refundAmount = unusedAmount - newPlanRemainingCost;
+          // For trials, just update the plan and end trial
+          if (isOnTrial) {
+            await stripe.subscriptions.update(activeSub.id, {
+              items: [{
+                id: subscriptionItemId,
+                price: priceId,
+              }],
+              trial_end: 'now', // End trial, start billing at new (lower) price
+              proration_behavior: 'none',
+            });
+            
+            logStep("Subscription downgraded from trial - now billing at new rate");
+            
+            return new Response(JSON.stringify({ 
+              success: true,
+              message: "Plan changed successfully! Your subscription is now active at the new rate.",
+              redirectUrl: `${origin}/settings/plans?success=true`
+            }), {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+              status: 200,
+            });
+          }
 
-          logStep("Refund calculation", {
-            currentPeriodAmount: currentPeriodAmount / 100,
-            unusedAmount: unusedAmount / 100,
-            newPlanRemainingCost: newPlanRemainingCost / 100,
-            refundAmount: refundAmount / 100,
-            remainingRatio: (remainingRatio * 100).toFixed(1) + '%'
-          });
-
-          // Update subscription (end trial if on trial)
+          // For paid subscriptions, use Stripe's proration to handle credits
           await stripe.subscriptions.update(activeSub.id, {
             items: [{
               id: subscriptionItemId,
               price: priceId,
             }],
-            trial_end: isOnTrial ? 'now' : undefined, // End trial if on trial
-            proration_behavior: 'none', // We'll handle refund manually
+            proration_behavior: 'create_prorations', // Stripe creates credit for unused time
           });
 
-          logStep("Subscription downgraded");
-
-          // Issue refund if there's a positive amount to refund (only for paid subscriptions)
-          if (refundAmount > 0 && !isOnTrial) {
-            // Find the most recent successful payment for this subscription
-            const invoices = await stripe.invoices.list({
-              subscription: activeSub.id,
-              status: 'paid',
-              limit: 1,
-            });
-
-            if (invoices.data.length > 0 && invoices.data[0].payment_intent) {
-              const paymentIntentId = typeof invoices.data[0].payment_intent === 'string' 
-                ? invoices.data[0].payment_intent 
-                : invoices.data[0].payment_intent.id;
-
-              try {
-                const refund = await stripe.refunds.create({
-                  payment_intent: paymentIntentId,
-                  amount: refundAmount,
-                  reason: 'requested_by_customer',
-                });
-
-                logStep("Refund issued", { 
-                  refundId: refund.id, 
-                  amount: refundAmount / 100,
-                  currency: refund.currency
-                });
-              } catch (refundError) {
-                // Log but don't fail the operation if refund fails
-                logStep("Refund failed (subscription still downgraded)", { 
-                  error: refundError instanceof Error ? refundError.message : String(refundError)
-                });
-              }
-            } else {
-              logStep("No payment found to refund (subscription still downgraded)");
-            }
-          }
+          logStep("Subscription downgraded with proration credit");
 
           return new Response(JSON.stringify({ 
             success: true,
-            message: refundAmount > 0 && !isOnTrial
-              ? `Plan downgraded. A refund of $${(refundAmount / 100).toFixed(2)} will be issued to your card.`
-              : "Plan downgraded successfully.",
-            refundAmount: refundAmount > 0 && !isOnTrial ? refundAmount / 100 : 0,
+            message: "Plan downgraded successfully. Credit for unused time has been applied to your account.",
             redirectUrl: `${origin}/settings/plans?success=true`
           }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -209,10 +164,11 @@ serve(async (req) => {
           });
 
         } else {
-          // For upgrades: Different handling based on whether currently on trial or paid
+          // For upgrades: Update existing subscription in-place (no new subscription)
+          logStep("Processing upgrade", { isOnTrial });
+          
           if (isOnTrial) {
-            // Upgrading from trial: Update subscription directly and END trial immediately
-            // This starts billing right away for the new plan
+            // Upgrading from trial: End trial immediately and start billing for new plan
             logStep("Processing upgrade from trial - ending trial and starting billing");
             
             await stripe.subscriptions.update(activeSub.id, {
@@ -235,35 +191,25 @@ serve(async (req) => {
               status: 200,
             });
           } else {
-            // Upgrading from paid subscription: Redirect to checkout for confirmation
-            logStep("Processing upgrade from paid - redirecting to checkout");
+            // Upgrading from paid subscription: Update in-place with proration
+            // Stripe will automatically charge the prorated difference
+            logStep("Processing upgrade from paid - updating subscription with proration");
             
-            // Cancel the current subscription at period end (will be replaced by new one)
             await stripe.subscriptions.update(activeSub.id, {
-              cancel_at_period_end: true,
+              items: [{
+                id: subscriptionItemId,
+                price: priceId,
+              }],
+              proration_behavior: 'create_prorations', // Stripe handles proration automatically
             });
             
-            logStep("Current subscription marked for cancellation, creating checkout for upgrade");
+            logStep("Subscription upgraded from paid - proration applied");
             
-            // Create checkout session for the new plan (no trial for upgrades)
-            const session = await stripe.checkout.sessions.create({
-              customer: customerId,
-              line_items: [
-                {
-                  price: priceId,
-                  quantity: 1,
-                },
-              ],
-              mode: "subscription",
-              payment_method_collection: "always",
-              // No subscription_data means no trial - Stripe doesn't allow trial_period_days: 0
-              success_url: `${origin}/settings/plans?success=true&upgraded=true`,
-              cancel_url: `${origin}/settings/plans?canceled=true`,
-            });
-
-            logStep("Upgrade checkout session created", { sessionId: session.id });
-
-            return new Response(JSON.stringify({ url: session.url }), {
+            return new Response(JSON.stringify({ 
+              success: true,
+              message: "Plan upgraded successfully! A prorated charge has been applied.",
+              redirectUrl: `${origin}/settings/plans?success=true`
+            }), {
               headers: { ...corsHeaders, "Content-Type": "application/json" },
               status: 200,
             });
