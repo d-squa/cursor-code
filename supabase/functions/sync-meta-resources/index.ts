@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
+import { getAccessToken, storePageToken } from "../_shared/vault-helper.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -37,7 +38,7 @@ serve(async (req) => {
     // Get active Meta platform connection
     const { data: metaPlatform, error: platformError } = await supabase
       .from("connected_platforms")
-      .select("id, access_token, business_manager_id")
+      .select("id, business_manager_id")
       .eq("user_id", user.id)
       .eq("platform_type", "meta")
       .eq("is_active", true)
@@ -72,7 +73,15 @@ serve(async (req) => {
 
     console.log("Found active Meta platform:", metaPlatform.id);
 
-    const accessToken = metaPlatform.access_token;
+    // Get access token from Vault
+    const accessToken = await getAccessToken(supabase, metaPlatform.id);
+    if (!accessToken) {
+      return new Response(
+        JSON.stringify({ error: "Platform access token not found" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 401 }
+      );
+    }
+    
     const businessManagerId = metaPlatform.business_manager_id;
     let syncResults = {
       adAccounts: 0,

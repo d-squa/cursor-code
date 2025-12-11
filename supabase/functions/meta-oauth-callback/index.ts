@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.76.1";
+import { storePlatformToken } from "../_shared/vault-helper.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -148,7 +149,6 @@ serve(async (req) => {
       const { data: updatedPlatform, error: updateError } = await supabase
         .from("connected_platforms")
         .update({
-          access_token: access_token,
           is_active: true,
           business_manager_id: selectedBmId,
           metadata: businessesMeta.length > 0 ? { businesses: businessesMeta } : null,
@@ -164,6 +164,9 @@ serve(async (req) => {
         throw new Error("Failed to reconnect platform");
       }
       platformData = updatedPlatform;
+      
+      // Store token securely in Vault
+      await storePlatformToken(supabase, platformData.id, access_token, 'access');
       console.log("Platform reconnected, ID:", platformData.id);
     } else {
       // Create new platform connection (allow multiple connections)
@@ -178,7 +181,6 @@ serve(async (req) => {
           user_id: user.id,
           platform_type: "meta",
           platform_name: platformName,
-          access_token: access_token,
           is_active: true,
           business_manager_id: selectedBmId,
           metadata: businessesMeta.length > 0 ? { businesses: businessesMeta } : null,
@@ -191,6 +193,9 @@ serve(async (req) => {
         throw new Error("Failed to save platform connection");
       }
       platformData = newPlatform;
+      
+      // Store token securely in Vault
+      await storePlatformToken(supabase, platformData.id, access_token, 'access');
       console.log("Platform connected, ID:", platformData.id);
     }
 
