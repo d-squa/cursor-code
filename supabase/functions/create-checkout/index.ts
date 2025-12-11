@@ -88,14 +88,20 @@ serve(async (req) => {
         }
 
         // Update the existing subscription to the new price
+        // Must delete old item and add new item to properly replace the plan
         const subscriptionItemId = activeSub.items.data[0]?.id;
         
-        // Build update params
+        // Build update params - delete old item, add new price
         const updateParams: Stripe.SubscriptionUpdateParams = {
-          items: [{
-            id: subscriptionItemId,
-            price: priceId,
-          }],
+          items: [
+            {
+              id: subscriptionItemId,
+              deleted: true,
+            },
+            {
+              price: priceId,
+            }
+          ],
           proration_behavior: 'create_prorations',
         };
 
