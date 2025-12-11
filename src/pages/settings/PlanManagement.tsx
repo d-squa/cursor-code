@@ -96,31 +96,15 @@ export default function PlanManagement() {
     // Check for success/canceled from Stripe redirect
     const handlePostCheckout = async () => {
       const success = searchParams.get("success");
-      const sessionId = searchParams.get("session_id");
       const canceled = searchParams.get("canceled");
+      const portalReturn = searchParams.get("portal_return");
 
-      if (success === "true" && sessionId) {
-        // Finalize plan change - cancel old subscription if there was one
-        try {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session) {
-            const { data, error } = await supabase.functions.invoke("finalize-plan-change", {
-              body: { sessionId },
-              headers: {
-                Authorization: `Bearer ${session.access_token}`,
-              },
-            });
-            
-            if (error) {
-              console.error("Finalize error:", error);
-            }
-            
-            toast.success(data?.message || "Plan updated successfully!");
-          }
-        } catch (err) {
-          console.error("Error finalizing plan change:", err);
-          toast.success("Subscription updated!");
-        }
+      if (success === "true") {
+        toast.success("Subscription activated successfully!");
+        refetch();
+      } else if (portalReturn === "true") {
+        // Returning from Customer Portal - refresh subscription status
+        toast.success("Subscription updated!");
         refetch();
       } else if (canceled === "true") {
         toast.info("Checkout was canceled.");
