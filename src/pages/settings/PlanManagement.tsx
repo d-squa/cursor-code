@@ -94,12 +94,40 @@ export default function PlanManagement() {
 
   useEffect(() => {
     // Check for success/canceled from Stripe redirect
-    if (searchParams.get("success") === "true") {
-      toast.success("Successfully subscribed!");
-      refetch();
-    } else if (searchParams.get("canceled") === "true") {
-      toast.info("Checkout was canceled.");
-    }
+    const handlePostCheckout = async () => {
+      const success = searchParams.get("success");
+      const sessionId = searchParams.get("session_id");
+      const canceled = searchParams.get("canceled");
+
+      if (success === "true" && sessionId) {
+        // Finalize plan change - cancel old subscription if there was one
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session) {
+            const { data, error } = await supabase.functions.invoke("finalize-plan-change", {
+              body: { sessionId },
+              headers: {
+                Authorization: `Bearer ${session.access_token}`,
+              },
+            });
+            
+            if (error) {
+              console.error("Finalize error:", error);
+            }
+            
+            toast.success(data?.message || "Plan updated successfully!");
+          }
+        } catch (err) {
+          console.error("Error finalizing plan change:", err);
+          toast.success("Subscription updated!");
+        }
+        refetch();
+      } else if (canceled === "true") {
+        toast.info("Checkout was canceled.");
+      }
+    };
+
+    handlePostCheckout();
   }, [searchParams, refetch]);
 
   // Set initial yearly toggle based on current billing period
@@ -132,14 +160,7 @@ export default function PlanManagement() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
-      // Handle direct plan update (for existing subscribers)
-      if (data?.success) {
-        toast.success(data.message || "Plan updated successfully!");
-        refetch();
-        return;
-      }
-
-      // Redirect to Stripe checkout for new subscriptions
+      // Always redirect to Stripe checkout for payment confirmation
       if (data?.url) {
         window.open(data.url, "_blank");
       }
