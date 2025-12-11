@@ -134,24 +134,37 @@ export default function PlanManagement() {
         ? PRICE_IDS[planId as keyof typeof PRICE_IDS].yearly 
         : PRICE_IDS[planId as keyof typeof PRICE_IDS].monthly;
 
-      const { data, error } = await supabase.functions.invoke("create-checkout", {
+      const response = await supabase.functions.invoke("create-checkout", {
         body: { priceId },
         headers: {
           Authorization: `Bearer ${session.access_token}`,
         },
       });
 
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      console.log("Create-checkout response:", response);
+
+      if (response.error) {
+        throw new Error(response.error.message || "Failed to process request");
+      }
+      
+      const data = response.data;
+      
+      if (data?.error) {
+        throw new Error(data.error);
+      }
 
       // Handle different response types
-      if (data?.type === 'updated') {
+      if (data?.type === 'updated' || data?.success) {
         // Subscription was updated directly via API
-        toast.success("Plan updated successfully!");
-        refetch();
+        toast.success("Plan updated successfully! Refreshing...");
+        await refetch();
+        toast.success("Your plan has been upgraded!");
       } else if (data?.url) {
         // Redirect to Stripe checkout for new subscriptions
         window.open(data.url, "_blank");
+      } else {
+        console.error("Unexpected response:", data);
+        toast.error("Unexpected response from server");
       }
     } catch (error: any) {
       console.error("Checkout error:", error);
