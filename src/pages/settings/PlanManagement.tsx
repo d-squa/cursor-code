@@ -144,8 +144,13 @@ export default function PlanManagement() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
-      // Always redirect to Stripe checkout for payment confirmation
-      if (data?.url) {
+      // Handle different response types
+      if (data?.type === 'updated') {
+        // Subscription was updated directly via API
+        toast.success("Plan updated successfully!");
+        refetch();
+      } else if (data?.url) {
+        // Redirect to Stripe checkout for new subscriptions
         window.open(data.url, "_blank");
       }
     } catch (error: any) {
