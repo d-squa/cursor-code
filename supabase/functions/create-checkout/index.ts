@@ -79,9 +79,28 @@ serve(async (req) => {
         limit: 10,
       });
 
-      const activeSub = subscriptions.data.find(
+      // First try to find active/trialing subscription
+      let activeSub = subscriptions.data.find(
         (s: Stripe.Subscription) => s.status === "active" || s.status === "trialing"
       );
+
+      // If no active sub, check for very recently cancelled one (within last 5 mins) 
+      // This handles race condition where subscription was just cancelled
+      if (!activeSub) {
+        const fiveMinutesAgo = Math.floor(Date.now() / 1000) - 300;
+        activeSub = subscriptions.data.find(
+          (s: Stripe.Subscription) => 
+            s.status === "canceled" && 
+            s.canceled_at && 
+            s.canceled_at > fiveMinutesAgo
+        );
+        if (activeSub) {
+          logStep("Found recently cancelled subscription for comparison", { 
+            subscriptionId: activeSub.id,
+            cancelledAt: activeSub.canceled_at
+          });
+        }
+      }
 
       if (activeSub) {
         existingSubscription = activeSub;
