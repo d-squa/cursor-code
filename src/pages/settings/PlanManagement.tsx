@@ -132,7 +132,14 @@ export default function PlanManagement() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
-      // Redirect to Stripe Checkout in a new tab
+      // Handle direct subscription update (for existing subscribers)
+      if (data?.success) {
+        toast.success("Plan updated successfully!");
+        refetch(); // Refresh subscription data
+        return;
+      }
+
+      // Handle new checkout session (for new subscribers)
       if (data?.url) {
         window.open(data.url, "_blank");
       }
