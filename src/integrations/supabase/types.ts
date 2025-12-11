@@ -1036,22 +1036,40 @@ export type Database = {
         Row: {
           company_name: string | null
           created_at: string
+          discovery_source: string | null
           email: string
+          full_name: string | null
           id: string
+          onboarding_completed_at: string | null
+          paid_media_experience: string | null
+          role: string | null
+          team_size: string | null
           updated_at: string
         }
         Insert: {
           company_name?: string | null
           created_at?: string
+          discovery_source?: string | null
           email: string
+          full_name?: string | null
           id: string
+          onboarding_completed_at?: string | null
+          paid_media_experience?: string | null
+          role?: string | null
+          team_size?: string | null
           updated_at?: string
         }
         Update: {
           company_name?: string | null
           created_at?: string
+          discovery_source?: string | null
           email?: string
+          full_name?: string | null
           id?: string
+          onboarding_completed_at?: string | null
+          paid_media_experience?: string | null
+          role?: string | null
+          team_size?: string | null
           updated_at?: string
         }
         Relationships: []
