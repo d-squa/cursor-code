@@ -60,11 +60,23 @@ export default function Auth() {
           return;
         }
         
-        // Clear pending signup email when user confirms
-        localStorage.removeItem("actiplan_pending_signup_email");
+        // Check if this is a fresh email confirmation (pending signup email exists)
+        const pendingEmail = localStorage.getItem("actiplan_pending_signup_email");
+        const isFreshConfirmation = pendingEmail !== null;
+        
+        if (isFreshConfirmation) {
+          // Fresh confirmation - clear ALL onboarding data and pending email
+          localStorage.removeItem("actiplan_pending_signup_email");
+          localStorage.removeItem("actiplan_onboarding");
+          setShowEmailConfirmation(false);
+          // ALWAYS redirect to onboarding for fresh confirmations
+          navigate("/onboarding");
+          return;
+        }
+        
         setShowEmailConfirmation(false);
         
-        // Check if onboarding is complete first
+        // For returning users (no pending email), check onboarding status
         const onboardingData = localStorage.getItem("actiplan_onboarding");
         const onboardingComplete = onboardingData && JSON.parse(onboardingData).completedAt;
         
