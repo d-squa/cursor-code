@@ -132,13 +132,20 @@ export default function PlanManagement() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
-      // Always redirect to Stripe checkout for payment
+      // Handle direct plan update (for existing subscribers)
+      if (data?.success) {
+        toast.success("Plan updated successfully!");
+        refetch();
+        return;
+      }
+
+      // Redirect to Stripe checkout for new subscriptions
       if (data?.url) {
         window.open(data.url, "_blank");
       }
     } catch (error: any) {
       console.error("Checkout error:", error);
-      toast.error(error.message || "Failed to start checkout");
+      toast.error(error.message || "Failed to update plan");
     } finally {
       setLoading(null);
     }
