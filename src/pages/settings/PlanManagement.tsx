@@ -134,7 +134,7 @@ export default function PlanManagement() {
 
       // Handle direct plan update (for existing subscribers)
       if (data?.success) {
-        toast.success("Plan updated successfully!");
+        toast.success(data.message || "Plan updated successfully!");
         refetch();
         return;
       }

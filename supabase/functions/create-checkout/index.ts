@@ -70,14 +70,14 @@ serve(async (req) => {
       );
 
       if (activeSub) {
+        const currentPriceId = activeSub.items.data[0]?.price?.id;
         logStep("Existing subscription found", { 
           subscriptionId: activeSub.id, 
           status: activeSub.status,
-          currentPriceId: activeSub.items.data[0]?.price?.id 
+          currentPriceId
         });
 
         // Check if already on the same price
-        const currentPriceId = activeSub.items.data[0]?.price?.id;
         if (currentPriceId === priceId) {
           return new Response(JSON.stringify({ 
             error: "You are already subscribed to this plan" 
@@ -87,35 +87,147 @@ serve(async (req) => {
           });
         }
 
-        // Instead of cancelling subscription (which causes issues if user abandons checkout),
-        // update the existing subscription directly with proration
-        logStep("Updating existing subscription with new price", { 
-          subscriptionId: activeSub.id,
-          newPriceId: priceId
+        // Fetch both current and new price details to determine upgrade vs downgrade
+        const [currentPrice, newPrice] = await Promise.all([
+          stripe.prices.retrieve(currentPriceId),
+          stripe.prices.retrieve(priceId)
+        ]);
+
+        // Normalize prices to monthly equivalent for comparison
+        const getCurrentMonthlyAmount = (price: Stripe.Price) => {
+          const amount = price.unit_amount || 0;
+          if (price.recurring?.interval === 'year') {
+            return amount / 12;
+          }
+          return amount;
+        };
+
+        const currentMonthly = getCurrentMonthlyAmount(currentPrice);
+        const newMonthly = getCurrentMonthlyAmount(newPrice);
+        const isDowngrade = newMonthly < currentMonthly;
+
+        logStep("Price comparison", { 
+          currentMonthly: currentMonthly / 100,
+          newMonthly: newMonthly / 100,
+          isDowngrade
         });
-        
+
         const subscriptionItemId = activeSub.items.data[0]?.id;
-        
-        // Update subscription with proration - this is immediate and safe
-        await stripe.subscriptions.update(activeSub.id, {
-          items: [{
-            id: subscriptionItemId,
-            price: priceId,
-          }],
-          proration_behavior: 'create_prorations',
-        });
-        
-        logStep("Subscription updated successfully");
-        
-        // Return success with redirect to plans page
-        return new Response(JSON.stringify({ 
-          success: true,
-          message: "Plan updated successfully",
-          redirectUrl: `${origin}/settings/plans?success=true`
-        }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-          status: 200,
-        });
+
+        if (isDowngrade) {
+          // For downgrades: Calculate prorated refund and issue it to the card
+          logStep("Processing downgrade with refund");
+
+          // Calculate remaining value on current subscription
+          const currentPeriodStart = activeSub.current_period_start;
+          const currentPeriodEnd = activeSub.current_period_end;
+          const now = Math.floor(Date.now() / 1000);
+          
+          const totalPeriodSeconds = currentPeriodEnd - currentPeriodStart;
+          const remainingSeconds = currentPeriodEnd - now;
+          const remainingRatio = remainingSeconds / totalPeriodSeconds;
+          
+          // Get the actual amount paid for current period
+          const currentPeriodAmount = currentPrice.unit_amount || 0;
+          const unusedAmount = Math.floor(currentPeriodAmount * remainingRatio);
+          
+          // Calculate what the new plan would cost for the remaining period
+          const newPlanRemainingCost = Math.floor((newPrice.unit_amount || 0) * remainingRatio);
+          
+          // Refund amount is the difference (unused current - cost of new for remaining period)
+          const refundAmount = unusedAmount - newPlanRemainingCost;
+
+          logStep("Refund calculation", {
+            currentPeriodAmount: currentPeriodAmount / 100,
+            unusedAmount: unusedAmount / 100,
+            newPlanRemainingCost: newPlanRemainingCost / 100,
+            refundAmount: refundAmount / 100,
+            remainingRatio: (remainingRatio * 100).toFixed(1) + '%'
+          });
+
+          // Update subscription first (this will create proration items)
+          await stripe.subscriptions.update(activeSub.id, {
+            items: [{
+              id: subscriptionItemId,
+              price: priceId,
+            }],
+            proration_behavior: 'none', // We'll handle refund manually
+          });
+
+          logStep("Subscription downgraded");
+
+          // Issue refund if there's a positive amount to refund
+          if (refundAmount > 0) {
+            // Find the most recent successful payment for this subscription
+            const invoices = await stripe.invoices.list({
+              subscription: activeSub.id,
+              status: 'paid',
+              limit: 1,
+            });
+
+            if (invoices.data.length > 0 && invoices.data[0].payment_intent) {
+              const paymentIntentId = typeof invoices.data[0].payment_intent === 'string' 
+                ? invoices.data[0].payment_intent 
+                : invoices.data[0].payment_intent.id;
+
+              try {
+                const refund = await stripe.refunds.create({
+                  payment_intent: paymentIntentId,
+                  amount: refundAmount,
+                  reason: 'requested_by_customer',
+                });
+
+                logStep("Refund issued", { 
+                  refundId: refund.id, 
+                  amount: refundAmount / 100,
+                  currency: refund.currency
+                });
+              } catch (refundError) {
+                // Log but don't fail the operation if refund fails
+                logStep("Refund failed (subscription still downgraded)", { 
+                  error: refundError instanceof Error ? refundError.message : String(refundError)
+                });
+              }
+            } else {
+              logStep("No payment found to refund (subscription still downgraded)");
+            }
+          }
+
+          return new Response(JSON.stringify({ 
+            success: true,
+            message: refundAmount > 0 
+              ? `Plan downgraded. A refund of $${(refundAmount / 100).toFixed(2)} will be issued to your card.`
+              : "Plan downgraded successfully.",
+            refundAmount: refundAmount > 0 ? refundAmount / 100 : 0,
+            redirectUrl: `${origin}/settings/plans?success=true`
+          }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 200,
+          });
+
+        } else {
+          // For upgrades: Use proration (charge the difference)
+          logStep("Processing upgrade with proration");
+          
+          await stripe.subscriptions.update(activeSub.id, {
+            items: [{
+              id: subscriptionItemId,
+              price: priceId,
+            }],
+            proration_behavior: 'create_prorations',
+          });
+          
+          logStep("Subscription upgraded successfully");
+          
+          return new Response(JSON.stringify({ 
+            success: true,
+            message: "Plan upgraded successfully. You'll be charged the prorated difference.",
+            redirectUrl: `${origin}/settings/plans?success=true`
+          }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 200,
+          });
+        }
       }
     }
 
