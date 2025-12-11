@@ -58,6 +58,9 @@ serve(async (req) => {
     const isBasicPlan = BASIC_PRICE_IDS.includes(priceId);
 
     // Check if user has an existing active/trialing subscription
+    let existingSubscription: Stripe.Subscription | null = null;
+    let isOnTrial = false;
+
     if (customerId) {
       const subscriptions = await stripe.subscriptions.list({
         customer: customerId,
@@ -70,11 +73,15 @@ serve(async (req) => {
       );
 
       if (activeSub) {
+        existingSubscription = activeSub;
+        isOnTrial = activeSub.status === 'trialing';
         const currentPriceId = activeSub.items.data[0]?.price?.id;
+        
         logStep("Existing subscription found", { 
           subscriptionId: activeSub.id, 
           status: activeSub.status,
-          currentPriceId
+          currentPriceId,
+          isOnTrial
         });
 
         // Check if already on the same price
@@ -86,156 +93,40 @@ serve(async (req) => {
             status: 400,
           });
         }
-
-        // Fetch both current and new price details to determine upgrade vs downgrade
-        const [currentPrice, newPrice] = await Promise.all([
-          stripe.prices.retrieve(currentPriceId),
-          stripe.prices.retrieve(priceId)
-        ]);
-
-        // Normalize prices to monthly equivalent for comparison
-        const getCurrentMonthlyAmount = (price: Stripe.Price) => {
-          const amount = price.unit_amount || 0;
-          if (price.recurring?.interval === 'year') {
-            return amount / 12;
-          }
-          return amount;
-        };
-
-        const currentMonthly = getCurrentMonthlyAmount(currentPrice);
-        const newMonthly = getCurrentMonthlyAmount(newPrice);
-        const isDowngrade = newMonthly < currentMonthly;
-        const isOnTrial = activeSub.status === 'trialing';
-
-        logStep("Price comparison", { 
-          currentMonthly: currentMonthly / 100,
-          newMonthly: newMonthly / 100,
-          isDowngrade,
-          isOnTrial
-        });
-
-        const subscriptionItemId = activeSub.items.data[0]?.id;
-
-        if (isDowngrade) {
-          // For downgrades: Update subscription with proration (Stripe issues credit automatically)
-          logStep("Processing downgrade");
-
-          // For trials, just update the plan and end trial
-          if (isOnTrial) {
-            await stripe.subscriptions.update(activeSub.id, {
-              items: [{
-                id: subscriptionItemId,
-                price: priceId,
-              }],
-              trial_end: 'now', // End trial, start billing at new (lower) price
-              proration_behavior: 'none',
-            });
-            
-            logStep("Subscription downgraded from trial - now billing at new rate");
-            
-            return new Response(JSON.stringify({ 
-              success: true,
-              message: "Plan changed successfully! Your subscription is now active at the new rate.",
-              redirectUrl: `${origin}/settings/plans?success=true`
-            }), {
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-              status: 200,
-            });
-          }
-
-          // For paid subscriptions, use Stripe's proration to handle credits
-          await stripe.subscriptions.update(activeSub.id, {
-            items: [{
-              id: subscriptionItemId,
-              price: priceId,
-            }],
-            proration_behavior: 'create_prorations', // Stripe creates credit for unused time
-          });
-
-          logStep("Subscription downgraded with proration credit");
-
-          return new Response(JSON.stringify({ 
-            success: true,
-            message: "Plan downgraded successfully. Credit for unused time has been applied to your account.",
-            redirectUrl: `${origin}/settings/plans?success=true`
-          }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-            status: 200,
-          });
-
-        } else {
-          // For upgrades: Update existing subscription in-place (no new subscription)
-          logStep("Processing upgrade", { isOnTrial });
-          
-          if (isOnTrial) {
-            // Upgrading from trial: End trial immediately and start billing for new plan
-            logStep("Processing upgrade from trial - ending trial and starting billing");
-            
-            await stripe.subscriptions.update(activeSub.id, {
-              items: [{
-                id: subscriptionItemId,
-                price: priceId,
-              }],
-              trial_end: 'now', // End trial immediately, start billing
-              proration_behavior: 'none', // No proration needed since trial was free
-            });
-            
-            logStep("Subscription upgraded from trial - billing started");
-            
-            return new Response(JSON.stringify({ 
-              success: true,
-              message: "Plan upgraded successfully! Your subscription is now active and billing has started.",
-              redirectUrl: `${origin}/settings/plans?success=true`
-            }), {
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-              status: 200,
-            });
-          } else {
-            // Upgrading from paid subscription: Update in-place with proration
-            // Stripe will automatically charge the prorated difference
-            logStep("Processing upgrade from paid - updating subscription with proration");
-            
-            await stripe.subscriptions.update(activeSub.id, {
-              items: [{
-                id: subscriptionItemId,
-                price: priceId,
-              }],
-              proration_behavior: 'create_prorations', // Stripe handles proration automatically
-            });
-            
-            logStep("Subscription upgraded from paid - proration applied");
-            
-            return new Response(JSON.stringify({ 
-              success: true,
-              message: "Plan upgraded successfully! A prorated charge has been applied.",
-              redirectUrl: `${origin}/settings/plans?success=true`
-            }), {
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-              status: 200,
-            });
-          }
-        }
       }
     }
 
-    // No existing subscription - create new checkout session
-    logStep("Creating checkout session for new subscription");
-
-    // Only Basic plan gets 30-day trial for brand new customers (no prior subscription)
-    const hadPriorSubscription = customerId ? true : false;
-    const shouldHaveTrial = isBasicPlan && !hadPriorSubscription;
+    // Determine if this is a new subscription or a plan change
+    const isPlanChange = existingSubscription !== null;
     
-    const subscriptionData: Stripe.Checkout.SessionCreateParams.SubscriptionData = shouldHaveTrial 
-      ? { trial_period_days: 30 }
-      : {};
-
-    logStep("Plan type determined", { 
+    // For new subscriptions: Only Basic plan gets 30-day trial
+    // For plan changes: No trial, but we need to cancel old subscription after checkout
+    const shouldHaveTrial = isBasicPlan && !customerId;
+    
+    logStep("Checkout type determined", { 
+      isPlanChange,
       isBasicPlan, 
-      hadPriorSubscription,
-      hasTrialPeriod: shouldHaveTrial 
+      hasExistingCustomer: !!customerId,
+      hasTrialPeriod: shouldHaveTrial,
+      existingSubscriptionId: existingSubscription?.id
     });
 
-    // Create checkout session
+    // Build subscription_data based on scenario
+    const subscriptionData: Stripe.Checkout.SessionCreateParams.SubscriptionData = {};
+    
+    if (shouldHaveTrial) {
+      subscriptionData.trial_period_days = 30;
+    }
+    
+    // Store existing subscription ID in metadata so we can cancel it after checkout success
+    if (existingSubscription) {
+      subscriptionData.metadata = {
+        previous_subscription_id: existingSubscription.id,
+        was_on_trial: isOnTrial ? 'true' : 'false'
+      };
+    }
+
+    // Create checkout session - ALL plan changes and new subscriptions go through checkout
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       customer_email: customerId ? undefined : user.email,
@@ -247,15 +138,17 @@ serve(async (req) => {
       ],
       mode: "subscription",
       payment_method_collection: "always",
-      subscription_data: subscriptionData,
-      success_url: `${origin}/settings/plans?success=true`,
+      subscription_data: Object.keys(subscriptionData).length > 0 ? subscriptionData : undefined,
+      success_url: `${origin}/settings/plans?success=true&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/settings/plans?canceled=true`,
     });
 
     logStep("Checkout session created", { 
       sessionId: session.id, 
       url: session.url, 
-      hasTrialPeriod: shouldHaveTrial 
+      hasTrialPeriod: shouldHaveTrial,
+      isPlanChange,
+      previousSubscriptionId: existingSubscription?.id
     });
 
     return new Response(JSON.stringify({ url: session.url }), {

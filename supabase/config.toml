@@ -84,3 +84,6 @@ verify_jwt = true
 
 [functions.send-bug-report]
 verify_jwt = true
+
+[functions.finalize-plan-change]
+verify_jwt = true
