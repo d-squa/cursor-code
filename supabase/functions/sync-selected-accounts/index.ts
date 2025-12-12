@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.76.1";
+import { getAccessToken } from "../_shared/vault-helper.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -56,6 +57,15 @@ serve(async (req) => {
     }
 
     console.log(`Platform type: ${platform.platform_type}`);
+
+    // Get access token from Vault (with fallback to database column)
+    const accessToken = await getAccessToken(supabase, platformId, platform.access_token);
+    
+    if (!accessToken) {
+      throw new Error("Failed to retrieve access token for platform");
+    }
+    
+    console.log(`Access token retrieved successfully for platform ${platformId}`);
 
     if (platform.platform_type === "tiktok") {
       // Handle TikTok account syncing
@@ -168,7 +178,7 @@ serve(async (req) => {
               `${baseUrl}/bc/asset/get/?bc_id=${bcId}&asset_type=TT_ACCOUNT`,
               {
                 headers: {
-                  'Access-Token': platform.access_token!,
+                  'Access-Token': accessToken,
                   'Content-Type': 'application/json',
                 },
               }
@@ -213,7 +223,7 @@ serve(async (req) => {
               `${baseUrl}/bc/asset/get/?bc_id=${bcId}&asset_type=CATALOG`,
               {
                 headers: {
-                  'Access-Token': platform.access_token!,
+                  'Access-Token': accessToken,
                   'Content-Type': 'application/json',
                 },
               }
@@ -264,7 +274,7 @@ serve(async (req) => {
             `${baseUrl}/pixel/list/?advertiser_id=${advertiserId}`,
             {
               headers: {
-                'Access-Token': platform.access_token!,
+                'Access-Token': accessToken,
                 'Content-Type': 'application/json',
               },
             }
@@ -360,7 +370,7 @@ serve(async (req) => {
             `${baseUrl}/bc/asset/get/?bc_id=${bcId}&asset_type=CATALOG`,
             {
               headers: {
-                'Access-Token': platform.access_token,
+                'Access-Token': accessToken,
                 'Content-Type': 'application/json',
               },
             }
@@ -377,7 +387,7 @@ serve(async (req) => {
                 `${baseUrl}/dpa/assets/get/?advertiser_id=${advertiserId}&catalog_id=${catalogId}&asset_type=PRODUCT_SET`,
                 {
                   headers: {
-                    'Access-Token': platform.access_token,
+                    'Access-Token': accessToken,
                     'Content-Type': 'application/json',
                   },
                 }
@@ -444,8 +454,6 @@ serve(async (req) => {
     if (platform.platform_type !== "meta") {
       throw new Error("Unsupported platform type");
     }
-
-    const accessToken = platform.access_token;
     const accountsToInsert: any[] = [];
     const allPixels: any[] = [];
     const allPages: any[] = [];
