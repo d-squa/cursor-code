@@ -46,14 +46,22 @@ export async function getPlatformToken(
   platformId: string,
   tokenType: 'access' | 'refresh' = 'access'
 ): Promise<string | null> {
+  console.log(`Attempting to retrieve ${tokenType} token from Vault for platform ${platformId}`);
+  
   const { data, error } = await supabase.rpc('get_platform_token', {
     platform_id: platformId,
     token_type: tokenType
   });
 
   if (error) {
-    console.error(`Failed to retrieve ${tokenType} token from Vault:`, error.message);
+    console.error(`Failed to retrieve ${tokenType} token from Vault:`, error.message, error.code, error.details);
     return null;
+  }
+
+  if (data) {
+    console.log(`Successfully retrieved ${tokenType} token from Vault for platform ${platformId}`);
+  } else {
+    console.log(`No ${tokenType} token found in Vault for platform ${platformId}`);
   }
 
   return data as string | null;
