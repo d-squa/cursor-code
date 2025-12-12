@@ -11,6 +11,7 @@ import { useNavigate } from "react-router-dom";
 import { PLATFORM_CONFIG } from "@/config/platforms";
 import PlatformAdAccountSelector from "@/components/PlatformAdAccountSelector";
 import ClientSelectionDialog from "@/components/ClientSelectionDialog";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 
 interface MetaAdAccount {
   id: string;
@@ -61,6 +62,8 @@ const PLATFORM_TYPES = [
 export default function PlatformConnections() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const { hasAccess } = useFeatureAccess();
+  const canManageClients = hasAccess('client_management');
   const [platforms, setPlatforms] = useState<ConnectedPlatform[]>([]);
   const [metaAdAccounts, setMetaAdAccounts] = useState<MetaAdAccount[]>([]);
   const [tiktokAdAccounts, setTikTokAdAccounts] = useState<TikTokAdAccount[]>([]);
@@ -594,27 +597,29 @@ export default function PlatformConnections() {
                       )}
                     </div>
                     <div className="flex gap-2">
-                      {account.client_id ? (
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleUnlinkAccount(account.id, 'meta')}
-                        >
-                          <Unlink className="h-4 w-4 mr-2" />
-                          Unlink
-                        </Button>
-                      ) : (
-                        <Button 
-                          variant="default" 
-                          size="sm"
-                          onClick={() => {
-                            setSelectedAdAccountForLinking(account.id);
-                            setClientSelectorOpen(true);
-                          }}
-                        >
-                          <Link2 className="h-4 w-4 mr-2" />
-                          Link to Client
-                        </Button>
+                      {canManageClients && (
+                        account.client_id ? (
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleUnlinkAccount(account.id, 'meta')}
+                          >
+                            <Unlink className="h-4 w-4 mr-2" />
+                            Unlink
+                          </Button>
+                        ) : (
+                          <Button 
+                            variant="default" 
+                            size="sm"
+                            onClick={() => {
+                              setSelectedAdAccountForLinking(account.id);
+                              setClientSelectorOpen(true);
+                            }}
+                          >
+                            <Link2 className="h-4 w-4 mr-2" />
+                            Link to Client
+                          </Button>
+                        )
                       )}
                       <Button 
                         variant="destructive" 
@@ -672,28 +677,30 @@ export default function PlatformConnections() {
                       )}
                     </div>
                     <div className="flex gap-2">
-                      {account.client_id ? (
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleUnlinkAccount(account.id, 'tiktok')}
-                          className="border-black/20 dark:border-white/20"
-                        >
-                          <Unlink className="h-4 w-4 mr-2" />
-                          Unlink
-                        </Button>
-                      ) : (
-                        <Button 
-                          variant="default" 
-                          size="sm"
-                          onClick={() => {
-                            setSelectedAdAccountForLinking('tiktok_' + account.id);
-                            setClientSelectorOpen(true);
-                          }}
-                        >
-                          <Link2 className="h-4 w-4 mr-2" />
-                          Link to Client
-                        </Button>
+                      {canManageClients && (
+                        account.client_id ? (
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleUnlinkAccount(account.id, 'tiktok')}
+                            className="border-black/20 dark:border-white/20"
+                          >
+                            <Unlink className="h-4 w-4 mr-2" />
+                            Unlink
+                          </Button>
+                        ) : (
+                          <Button 
+                            variant="default" 
+                            size="sm"
+                            onClick={() => {
+                              setSelectedAdAccountForLinking('tiktok_' + account.id);
+                              setClientSelectorOpen(true);
+                            }}
+                          >
+                            <Link2 className="h-4 w-4 mr-2" />
+                            Link to Client
+                          </Button>
+                        )
                       )}
                       <Button 
                         variant="destructive" 
