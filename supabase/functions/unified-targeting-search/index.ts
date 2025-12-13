@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
+import { getAccessToken } from "../_shared/vault-helper.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -73,17 +74,24 @@ serve(async (req) => {
         .eq('is_active', true)
         .single();
 
-      if (metaPlatform?.access_token) {
-        // Search all Meta categories in parallel
-        const [interests, behaviors, demographics] = await Promise.all([
-          searchMetaCategory(metaPlatform.access_token, metaAdAccountId, 'interests', query),
-          searchMetaCategory(metaPlatform.access_token, metaAdAccountId, 'behaviors', query),
-          searchMetaCategory(metaPlatform.access_token, metaAdAccountId, 'demographics', query)
-        ]);
+      if (metaPlatform) {
+        // Get access token from Vault with fallback to database column
+        const accessToken = await getAccessToken(supabaseClient, metaPlatform.id, metaPlatform.access_token);
+        
+        if (accessToken) {
+          // Search all Meta categories in parallel
+          const [interests, behaviors, demographics] = await Promise.all([
+            searchMetaCategory(accessToken, metaAdAccountId, 'interests', query),
+            searchMetaCategory(accessToken, metaAdAccountId, 'behaviors', query),
+            searchMetaCategory(accessToken, metaAdAccountId, 'demographics', query)
+          ]);
 
-        interests.forEach((item: any) => metaResults.set(item.name.toLowerCase(), { ...item, category: 'interest' }));
-        behaviors.forEach((item: any) => metaResults.set(item.name.toLowerCase(), { ...item, category: 'behavior' }));
-        demographics.forEach((item: any) => metaResults.set(item.name.toLowerCase(), { ...item, category: 'demographic' }));
+          interests.forEach((item: any) => metaResults.set(item.name.toLowerCase(), { ...item, category: 'interest' }));
+          behaviors.forEach((item: any) => metaResults.set(item.name.toLowerCase(), { ...item, category: 'behavior' }));
+          demographics.forEach((item: any) => metaResults.set(item.name.toLowerCase(), { ...item, category: 'demographic' }));
+        } else {
+          console.error('No Meta access token available');
+        }
       }
     }
 
@@ -100,17 +108,24 @@ serve(async (req) => {
         .eq('is_active', true)
         .single();
 
-      if (tiktokPlatform?.access_token) {
-        // Search both interests and actions/behaviors in parallel
-        const [interests, actions] = await Promise.all([
-          searchTikTokInterests(tiktokPlatform.access_token, tiktokAdvertiserId, query),
-          searchTikTokActions(tiktokPlatform.access_token, tiktokAdvertiserId, query)
-        ]);
+      if (tiktokPlatform) {
+        // Get access token from Vault with fallback to database column
+        const accessToken = await getAccessToken(supabaseClient, tiktokPlatform.id, tiktokPlatform.access_token);
+        
+        if (accessToken) {
+          // Search both interests and actions/behaviors in parallel
+          const [interests, actions] = await Promise.all([
+            searchTikTokInterests(accessToken, tiktokAdvertiserId, query),
+            searchTikTokActions(accessToken, tiktokAdvertiserId, query)
+          ]);
 
-        console.log(`TikTok found ${interests.length} interests and ${actions.length} actions`);
+          console.log(`TikTok found ${interests.length} interests and ${actions.length} actions`);
 
-        interests.forEach((item: any) => tiktokResults.set(item.name.toLowerCase(), { ...item, category: 'interest' }));
-        actions.forEach((item: any) => tiktokResults.set(item.name.toLowerCase(), { ...item, category: 'behavior' }));
+          interests.forEach((item: any) => tiktokResults.set(item.name.toLowerCase(), { ...item, category: 'interest' }));
+          actions.forEach((item: any) => tiktokResults.set(item.name.toLowerCase(), { ...item, category: 'behavior' }));
+        } else {
+          console.error('No TikTok access token available');
+        }
       }
     }
 
