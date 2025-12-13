@@ -306,48 +306,33 @@ serve(async (req) => {
         }
       }
 
-      // Sync TikTok pixels
+      // Sync TikTok pixels using upsert
       if (allTiktokPixels.length > 0) {
-        const pixelIdsToSync = allTiktokPixels.map(p => p.pixel_id);
-        await supabase
+        const { error: pixelsError } = await supabase
           .from("tiktok_pixels")
-          .delete()
-          .eq("user_id", user.id)
-          .in("pixel_id", pixelIdsToSync);
-        
-        const { error: pixelsError } = await supabase.from("tiktok_pixels").insert(allTiktokPixels);
+          .upsert(allTiktokPixels, { onConflict: 'pixel_id,advertiser_id' });
         if (pixelsError) {
-          console.error("Error inserting TikTok pixels:", pixelsError);
+          console.error("Error upserting TikTok pixels:", pixelsError);
         }
       }
 
-      // Sync TikTok identities
+      // Sync TikTok identities using upsert
       if (allTiktokIdentities.length > 0) {
-        const identityIdsToSync = allTiktokIdentities.map(i => i.identity_id);
-        await supabase
+        const { error: identitiesError } = await supabase
           .from("tiktok_identities")
-          .delete()
-          .eq("user_id", user.id)
-          .in("identity_id", identityIdsToSync);
-        
-        const { error: identitiesError } = await supabase.from("tiktok_identities").insert(allTiktokIdentities);
+          .upsert(allTiktokIdentities, { onConflict: 'identity_id,advertiser_id' });
         if (identitiesError) {
-          console.error("Error inserting TikTok identities:", identitiesError);
+          console.error("Error upserting TikTok identities:", identitiesError);
         }
       }
 
-      // Sync TikTok catalogs
+      // Sync TikTok catalogs using upsert
       if (allTiktokCatalogs.length > 0) {
-        const catalogIdsToSync = allTiktokCatalogs.map(c => c.catalog_id);
-        await supabase
+        const { error: catalogsError } = await supabase
           .from("tiktok_catalogs")
-          .delete()
-          .eq("user_id", user.id)
-          .in("catalog_id", catalogIdsToSync);
-        
-        const { error: catalogsError } = await supabase.from("tiktok_catalogs").insert(allTiktokCatalogs);
+          .upsert(allTiktokCatalogs, { onConflict: 'catalog_id,advertiser_id' });
         if (catalogsError) {
-          console.error("Error inserting TikTok catalogs:", catalogsError);
+          console.error("Error upserting TikTok catalogs:", catalogsError);
         }
       }
 
