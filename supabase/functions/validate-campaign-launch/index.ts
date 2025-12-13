@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
+import { getAccessToken } from "../_shared/vault-helper.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -42,7 +43,7 @@ function calculateBudget(totalBudget: number, platformBudgetPct: number, marketB
 }
 
 // Validate Meta campaign configuration
-function validateMetaCampaign(campaign: any, market: any, phase: any, platform: any, calculatedBudget: number, entityPhaseName: string): ValidationError[] {
+function validateMetaCampaign(campaign: any, market: any, phase: any, hasAccessToken: boolean, calculatedBudget: number, entityPhaseName: string): ValidationError[] {
   const errors: ValidationError[] = [];
   const marketName = market.name || market.id;
   // Use the consistent entityPhaseName for error matching
@@ -63,8 +64,8 @@ function validateMetaCampaign(campaign: any, market: any, phase: any, platform: 
     });
   }
   
-  // Check access token
-  if (!platform?.access_token) {
+  // Check access token (now checking boolean from Vault lookup)
+  if (!hasAccessToken) {
     errors.push({
       platform: 'Meta',
       market: marketName,
@@ -157,7 +158,7 @@ function validateMetaCampaign(campaign: any, market: any, phase: any, platform: 
 }
 
 // Validate TikTok campaign configuration
-function validateTikTokCampaign(campaign: any, market: any, phase: any, platform: any, calculatedBudget: number, entityPhaseName: string): ValidationError[] {
+function validateTikTokCampaign(campaign: any, market: any, phase: any, hasAccessToken: boolean, calculatedBudget: number, entityPhaseName: string): ValidationError[] {
   const errors: ValidationError[] = [];
   const marketName = market.name || market.id;
   // Use the consistent entityPhaseName for error matching
@@ -178,8 +179,8 @@ function validateTikTokCampaign(campaign: any, market: any, phase: any, platform
     });
   }
   
-  // Check access token
-  if (!platform?.access_token) {
+  // Check access token (now checking boolean from Vault lookup)
+  if (!hasAccessToken) {
     errors.push({
       platform: 'TikTok',
       market: marketName,
@@ -361,7 +362,15 @@ const handler = async (req: Request): Promise<Response> => {
         (platformName.toLowerCase().includes('tiktok') && p.platform_type === 'tiktok')
       );
 
-      console.log(`Processing platform: ${platformName}, connected:`, !!connectedPlatform);
+      // Check access token from Vault (with fallback to database column)
+      let hasAccessToken = false;
+      if (connectedPlatform) {
+        const vaultToken = await getAccessToken(supabase, connectedPlatform.id, connectedPlatform.access_token);
+        hasAccessToken = !!vaultToken;
+        console.log(`Processing platform: ${platformName}, connected: true, hasAccessToken: ${hasAccessToken}`);
+      } else {
+        console.log(`Processing platform: ${platformName}, connected: false`);
+      }
 
       for (const market of (markets as any[])) {
         const marketBudgetPct = market.budgetPercentage || 100;
@@ -385,9 +394,9 @@ const handler = async (req: Request): Promise<Response> => {
           let validationErrors: ValidationError[] = [];
           
           if (platformName.includes('Meta') || platformName.includes('Facebook')) {
-            validationErrors = validateMetaCampaign(campaign, market, phase, connectedPlatform, phaseBudget, entityPhaseName);
+            validationErrors = validateMetaCampaign(campaign, market, phase, hasAccessToken, phaseBudget, entityPhaseName);
           } else if (platformName.toLowerCase().includes('tiktok')) {
-            validationErrors = validateTikTokCampaign(campaign, market, phase, connectedPlatform, phaseBudget, entityPhaseName);
+            validationErrors = validateTikTokCampaign(campaign, market, phase, hasAccessToken, phaseBudget, entityPhaseName);
           } else {
             // Unsupported platform warning
             validationErrors.push({
