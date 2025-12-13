@@ -6,6 +6,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2, Plus, Trash2, CheckCircle2, AlertCircle, Facebook, Link2, Unlink, Video } from "lucide-react";
+import { LockedFeatureButton } from "@/components/ui/locked-feature-button";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { PLATFORM_CONFIG } from "@/config/platforms";
@@ -597,7 +598,7 @@ export default function PlatformConnections() {
                       )}
                     </div>
                     <div className="flex gap-2">
-                      {canManageClients && (
+                      {canManageClients ? (
                         account.client_id ? (
                           <Button 
                             variant="outline" 
@@ -620,6 +621,16 @@ export default function PlatformConnections() {
                             Link to Client
                           </Button>
                         )
+                      ) : (
+                        <LockedFeatureButton feature="client_management">
+                          <Button 
+                            variant="default" 
+                            size="sm"
+                          >
+                            <Link2 className="h-4 w-4 mr-2" />
+                            Link to Client
+                          </Button>
+                        </LockedFeatureButton>
                       )}
                       <Button 
                         variant="destructive" 
@@ -677,7 +688,7 @@ export default function PlatformConnections() {
                       )}
                     </div>
                     <div className="flex gap-2">
-                      {canManageClients && (
+                      {canManageClients ? (
                         account.client_id ? (
                           <Button 
                             variant="outline" 
@@ -701,6 +712,16 @@ export default function PlatformConnections() {
                             Link to Client
                           </Button>
                         )
+                      ) : (
+                        <LockedFeatureButton feature="client_management">
+                          <Button 
+                            variant="default" 
+                            size="sm"
+                          >
+                            <Link2 className="h-4 w-4 mr-2" />
+                            Link to Client
+                          </Button>
+                        </LockedFeatureButton>
                       )}
                       <Button 
                         variant="destructive" 
