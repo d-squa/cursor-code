@@ -48,7 +48,7 @@ export function UpgradeBanner({
         <Button 
           variant="default" 
           size="sm"
-          onClick={() => navigate('/settings/plan')}
+          onClick={() => navigate('/settings/plans')}
         >
           Upgrade Now
         </Button>
