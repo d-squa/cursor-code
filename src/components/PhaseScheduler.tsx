@@ -2061,8 +2061,8 @@ export function PhaseScheduler({
                               const bt = value === "none" ? null : (value as "daily" | "lifetime");
                               onPhasesChange(phases.map(p => p.id === phase.id ? { ...p, budgetType: bt } : p));
                               
-                              // If no defaults are set, ask if user wants to apply to all
-                              if (!adAccountDefaults?.hasDefaults && onApplyBudgetTypeToAll && bt) {
+                              // Ask if user wants to apply budget type to all phases
+                              if (onApplyBudgetTypeToAll && bt) {
                                 setPendingBudgetType(bt);
                                 setBudgetTypeDialogOpen(true);
                               }
