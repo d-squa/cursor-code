@@ -6,6 +6,7 @@ import { Download, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 import { downloadCSV } from "@/utils/downloadUtils";
 import { cn } from "@/lib/utils";
+import { LockedFeatureButton } from "@/components/ui/locked-feature-button";
 
 interface MarketData {
   market: string;
@@ -90,10 +91,12 @@ export default function MarketComparisonSection({ data }: MarketComparisonSectio
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Market Performance Comparison</h2>
-        <Button variant="outline" size="sm" onClick={handleDownload}>
-          <Download className="h-4 w-4 mr-2" />
-          Download CSV
-        </Button>
+        <LockedFeatureButton feature="download_charts_csv">
+          <Button variant="outline" size="sm" onClick={handleDownload}>
+            <Download className="h-4 w-4 mr-2" />
+            Download CSV
+          </Button>
+        </LockedFeatureButton>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

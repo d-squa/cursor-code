@@ -4,6 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ChevronDown, ChevronUp, Download } from "lucide-react";
 import { downloadCSV } from "@/utils/downloadUtils";
 import { cn } from "@/lib/utils";
+import { LockedFeatureButton } from "@/components/ui/locked-feature-button";
 
 interface Column {
   key: string;
@@ -61,15 +62,17 @@ export default function ChartDataTable({
             </>
           )}
         </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleDownload}
-          className="text-xs text-muted-foreground hover:text-foreground"
-        >
-          <Download className="h-3 w-3 mr-1" />
-          Download CSV
-        </Button>
+        <LockedFeatureButton feature="download_charts_csv">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleDownload}
+            className="text-xs text-muted-foreground hover:text-foreground"
+          >
+            <Download className="h-3 w-3 mr-1" />
+            Download CSV
+          </Button>
+        </LockedFeatureButton>
       </div>
       
       {expanded && (

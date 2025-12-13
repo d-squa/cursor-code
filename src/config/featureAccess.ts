@@ -158,7 +158,7 @@ const FEATURE_TIERS: Record<Feature, SubscriptionTier> = {
   delete_actiplans: 'trial',
   duplicate_actiplans: 'freelancer',
   campaign_status_tracking: 'trial',
-  change_history_dialog: 'trial',
+  change_history_dialog: 'freelancer',
   
   // Media Plan Creation
   guided_media_plan_wizard: 'freelancer',

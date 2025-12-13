@@ -671,15 +671,26 @@ export default function ActiPlans() {
 
                 {(canEdit(campaign) || canApprove(campaign) || canPushToDSP(campaign) || campaign.status === "live") && <DropdownMenuSeparator />}
                 
-                <DropdownMenuItem
-                  onClick={() => {
-                    setSelectedCampaign(campaign);
-                    setHistoryDialogOpen(true);
-                  }}
-                >
-                  <History className="w-4 h-4 mr-2" />
-                  View History
-                </DropdownMenuItem>
+                {hasAccess('change_history_dialog') ? (
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setSelectedCampaign(campaign);
+                      setHistoryDialogOpen(true);
+                    }}
+                  >
+                    <History className="w-4 h-4 mr-2" />
+                    View History
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem
+                    disabled
+                    className="opacity-50 cursor-pointer"
+                    onClick={() => navigate('/settings/plan')}
+                  >
+                    <Lock className="w-4 h-4 mr-2" />
+                    View History
+                  </DropdownMenuItem>
+                )}
 
                 {hasAccess('modification_status_tracking') ? (
                   <DropdownMenuItem

@@ -2,8 +2,10 @@ import { useEffect, useMemo } from "react";
 import { useNavigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
-import { Feature } from "@/config/featureAccess";
+import { Feature, getRequiredTier } from "@/config/featureAccess";
+import { TIER_DISPLAY_NAMES } from "@/config/subscriptionTiers";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { 
   Settings as SettingsIcon, 
   Link as LinkIcon, 
@@ -13,7 +15,8 @@ import {
   Receipt,
   ArrowLeft,
   Loader2,
-  Plug
+  Plug,
+  Lock
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -79,8 +82,8 @@ export default function Settings() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Filter menu items based on feature access
-  const settingsMenuItems = useMemo(() => {
+  // Get accessible menu items for determining default route
+  const accessibleMenuItems = useMemo(() => {
     return allSettingsMenuItems.filter(item => {
       if (!item.feature) return true;
       return hasAccess(item.feature);
@@ -89,8 +92,8 @@ export default function Settings() {
 
   // Get first accessible route
   const firstAccessibleRoute = useMemo(() => {
-    return settingsMenuItems[0]?.href || "/settings/account";
-  }, [settingsMenuItems]);
+    return accessibleMenuItems[0]?.href || "/settings/account";
+  }, [accessibleMenuItems]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -152,38 +155,74 @@ export default function Settings() {
           {/* Sidebar Navigation */}
           <aside className="lg:col-span-1">
             <nav className="space-y-2 sticky top-24">
-              {settingsMenuItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = isActiveRoute(item.href);
-                
-                return (
-                  <button
-                    key={item.href}
-                    onClick={() => navigate(item.href)}
-                    className={cn(
-                      "w-full flex items-start gap-3 p-4 rounded-lg transition-all",
-                      "hover:bg-accent/50 text-left",
-                      isActive && "bg-primary/10 border-l-4 border-primary"
-                    )}
-                  >
-                    <Icon className={cn(
-                      "h-5 w-5 mt-0.5",
-                      isActive ? "text-primary" : "text-muted-foreground"
-                    )} />
-                    <div className="flex-1 min-w-0">
-                      <p className={cn(
-                        "font-medium text-sm",
-                        isActive ? "text-primary" : "text-foreground"
-                      )}>
-                        {item.title}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {item.description}
-                      </p>
-                    </div>
-                  </button>
-                );
-              })}
+              <TooltipProvider>
+                {allSettingsMenuItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = isActiveRoute(item.href);
+                  const isLocked = item.feature && !hasAccess(item.feature);
+                  const requiredTier = item.feature ? getRequiredTier(item.feature) : null;
+                  
+                  if (isLocked) {
+                    return (
+                      <Tooltip key={item.href} delayDuration={0}>
+                        <TooltipTrigger asChild>
+                          <button
+                            onClick={() => navigate('/settings/plan')}
+                            className={cn(
+                              "w-full flex items-start gap-3 p-4 rounded-lg transition-all",
+                              "hover:bg-accent/50 text-left opacity-50 cursor-pointer"
+                            )}
+                          >
+                            <Lock className="h-5 w-5 mt-0.5 text-muted-foreground" />
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-sm text-foreground">
+                                {item.title}
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                {item.description}
+                              </p>
+                            </div>
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="right" className="flex items-center gap-2 bg-background border border-border shadow-lg">
+                          <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+                          <span className="text-sm">
+                            Upgrade to <span className="font-semibold text-primary">{requiredTier ? TIER_DISPLAY_NAMES[requiredTier] : 'higher plan'}</span> to unlock
+                          </span>
+                        </TooltipContent>
+                      </Tooltip>
+                    );
+                  }
+                  
+                  return (
+                    <button
+                      key={item.href}
+                      onClick={() => navigate(item.href)}
+                      className={cn(
+                        "w-full flex items-start gap-3 p-4 rounded-lg transition-all",
+                        "hover:bg-accent/50 text-left",
+                        isActive && "bg-primary/10 border-l-4 border-primary"
+                      )}
+                    >
+                      <Icon className={cn(
+                        "h-5 w-5 mt-0.5",
+                        isActive ? "text-primary" : "text-muted-foreground"
+                      )} />
+                      <div className="flex-1 min-w-0">
+                        <p className={cn(
+                          "font-medium text-sm",
+                          isActive ? "text-primary" : "text-foreground"
+                        )}>
+                          {item.title}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {item.description}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </TooltipProvider>
             </nav>
           </aside>
 
