@@ -16,6 +16,7 @@ import { downloadMediaPlanExcel } from "@/utils/excelGenerator";
 import { ApprovalDialog } from "./ApprovalDialog";
 import { ActiplanDeliverablesView } from "./ActiplanDeliverablesView";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { LockedFeatureButton } from "@/components/ui/locked-feature-button";
 import { getAllBenchmarks, BenchmarkData } from "@/utils/benchmarkData";
 import { DataSourceBadge } from "@/components/ui/data-source-badge";
 
@@ -1419,36 +1420,40 @@ export function CampaignForecast({
             Back
           </Button>
           <div className="flex gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button 
-                  variant="outline" 
-                  disabled={Object.keys(forecasts).length === 0}
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Download
-                  <ChevronDown className="h-4 w-4 ml-2" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={handleDownloadPDF}>
-                  <FileText className="h-4 w-4 mr-2" />
-                  Download as PDF
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleDownloadExcel}>
-                  <FileSpreadsheet className="h-4 w-4 mr-2" />
-                  Download as Excel
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Button 
-              variant="outline" 
-              onClick={() => setApprovalDialogOpen(true)} 
-              disabled={Object.keys(forecasts).length === 0}
-            >
-              <Mail className="h-4 w-4 mr-2" />
-              Send for Approval
-            </Button>
+            <LockedFeatureButton feature="pdf_export">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    disabled={Object.keys(forecasts).length === 0}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Download
+                    <ChevronDown className="h-4 w-4 ml-2" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleDownloadPDF}>
+                    <FileText className="h-4 w-4 mr-2" />
+                    Download as PDF
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleDownloadExcel}>
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />
+                    Download as Excel
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </LockedFeatureButton>
+            <LockedFeatureButton feature="request_modifications">
+              <Button 
+                variant="outline" 
+                onClick={() => setApprovalDialogOpen(true)} 
+                disabled={Object.keys(forecasts).length === 0}
+              >
+                <Mail className="h-4 w-4 mr-2" />
+                Send for Approval
+              </Button>
+            </LockedFeatureButton>
             <Button 
               variant="gradient" 
               onClick={handleGoToLaunchStatus} 
