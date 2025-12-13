@@ -612,7 +612,7 @@ export default function ActiPlans() {
                   <DropdownMenuItem
                     disabled
                     className="opacity-50 cursor-pointer"
-                    onClick={() => navigate('/settings/plan')}
+                    onClick={() => navigate('/settings/plans')}
                   >
                     <Lock className="w-4 h-4 mr-2" />
                     Request Changes
@@ -685,7 +685,7 @@ export default function ActiPlans() {
                   <DropdownMenuItem
                     disabled
                     className="opacity-50 cursor-pointer"
-                    onClick={() => navigate('/settings/plan')}
+                    onClick={() => navigate('/settings/plans')}
                   >
                     <Lock className="w-4 h-4 mr-2" />
                     View History
@@ -706,7 +706,7 @@ export default function ActiPlans() {
                   <DropdownMenuItem
                     disabled
                     className="opacity-50 cursor-pointer"
-                    onClick={() => navigate('/settings/plan')}
+                    onClick={() => navigate('/settings/plans')}
                   >
                     <Lock className="w-4 h-4 mr-2" />
                     Check Modification Requests

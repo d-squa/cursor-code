@@ -167,7 +167,7 @@ export default function Settings() {
                       <Tooltip key={item.href} delayDuration={0}>
                         <TooltipTrigger asChild>
                           <button
-                            onClick={() => navigate('/settings/plan')}
+                            onClick={() => navigate('/settings/plans')}
                             className={cn(
                               "w-full flex items-start gap-3 p-4 rounded-lg transition-all",
                               "hover:bg-accent/50 text-left opacity-50 cursor-pointer"
