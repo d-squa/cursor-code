@@ -35,7 +35,7 @@ export function LockedFeatureButton({ feature, children, className }: LockedFeat
         <TooltipTrigger asChild>
           <span 
             className={`inline-flex cursor-pointer ${className || ''}`}
-            onClick={() => navigate('/settings/plan')}
+            onClick={() => navigate('/settings/plans')}
           >
             <span className="opacity-50 pointer-events-none">
               {children}
