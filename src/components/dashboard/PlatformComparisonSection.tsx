@@ -6,6 +6,7 @@ import { Download, TrendingUp, TrendingDown, Minus, Zap } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, RadialBarChart, RadialBar } from "recharts";
 import { downloadCSV } from "@/utils/downloadUtils";
 import { cn } from "@/lib/utils";
+import { LockedFeatureButton } from "@/components/ui/locked-feature-button";
 
 interface PlatformData {
   platform: string;
@@ -117,10 +118,12 @@ export default function PlatformComparisonSection({ data }: PlatformComparisonSe
           </div>
           <h2 className="text-lg font-semibold">Platform Performance Comparison</h2>
         </div>
-        <Button variant="outline" size="sm" onClick={handleDownload} className="gap-2">
-          <Download className="h-4 w-4" />
-          Download CSV
-        </Button>
+        <LockedFeatureButton feature="download_charts_csv">
+          <Button variant="outline" size="sm" onClick={handleDownload} className="gap-2">
+            <Download className="h-4 w-4" />
+            Download CSV
+          </Button>
+        </LockedFeatureButton>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
