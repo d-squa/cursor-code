@@ -361,6 +361,18 @@ serve(async (req) => {
             }
           );
           
+          // Check response before parsing JSON
+          if (!catalogsResponse.ok) {
+            console.log(`Catalogs fetch returned ${catalogsResponse.status} for advertiser ${advertiserId}`);
+            continue;
+          }
+          
+          const catalogsContentType = catalogsResponse.headers.get('content-type');
+          if (!catalogsContentType?.includes('application/json')) {
+            console.log(`Catalogs response is not JSON for advertiser ${advertiserId}`);
+            continue;
+          }
+          
           const catalogsData = await catalogsResponse.json();
           if (catalogsData.code === 0 && catalogsData.data?.list) {
             const catalogIds = catalogsData.data.list.map((cat: any) => cat.asset_id || cat.catalog_id);
@@ -368,30 +380,46 @@ serve(async (req) => {
             
             // Fetch product sets for each catalog using DPA endpoint
             for (const catalogId of catalogIds) {
-              const productSetsResponse = await fetch(
-                `${baseUrl}/dpa/assets/get/?advertiser_id=${advertiserId}&catalog_id=${catalogId}&asset_type=PRODUCT_SET`,
-                {
-                  headers: {
-                    'Access-Token': accessToken,
-                    'Content-Type': 'application/json',
-                  },
+              try {
+                const productSetsResponse = await fetch(
+                  `${baseUrl}/dpa/assets/get/?advertiser_id=${advertiserId}&catalog_id=${catalogId}&asset_type=PRODUCT_SET`,
+                  {
+                    headers: {
+                      'Access-Token': accessToken,
+                      'Content-Type': 'application/json',
+                    },
+                  }
+                );
+
+                // Check response before parsing JSON
+                if (!productSetsResponse.ok) {
+                  console.log(`Product sets fetch returned ${productSetsResponse.status} for catalog ${catalogId}`);
+                  continue;
                 }
-              );
+                
+                const productSetsContentType = productSetsResponse.headers.get('content-type');
+                if (!productSetsContentType?.includes('application/json')) {
+                  console.log(`Product sets response is not JSON for catalog ${catalogId}`);
+                  continue;
+                }
 
-              const productSetsData = await productSetsResponse.json();
-              console.log(`Product sets response for advertiser ${advertiserId}, catalog ${catalogId}:`, productSetsData);
+                const productSetsData = await productSetsResponse.json();
+                console.log(`Product sets response for advertiser ${advertiserId}, catalog ${catalogId}:`, productSetsData);
 
-              if (productSetsData.code === 0 && productSetsData.data?.list) {
-                productSetsData.data.list.forEach((productSet: any) => {
-                  allTiktokProductSets.push({
-                    user_id: user.id,
-                    advertiser_id: advertiserId,
-                    catalog_id: catalogId,
-                    product_set_id: productSet.asset_id || productSet.product_set_id,
-                    product_set_name: productSet.asset_name || productSet.name || `Product Set ${productSet.asset_id}`,
-                    synced_at: new Date().toISOString(),
+                if (productSetsData.code === 0 && productSetsData.data?.list) {
+                  productSetsData.data.list.forEach((productSet: any) => {
+                    allTiktokProductSets.push({
+                      user_id: user.id,
+                      advertiser_id: advertiserId,
+                      catalog_id: catalogId,
+                      product_set_id: productSet.asset_id || productSet.product_set_id,
+                      product_set_name: productSet.asset_name || productSet.name || `Product Set ${productSet.asset_id}`,
+                      synced_at: new Date().toISOString(),
+                    });
                   });
-                });
+                }
+              } catch (productSetError) {
+                console.error(`Error fetching product sets for catalog ${catalogId}:`, productSetError);
               }
             }
           }
