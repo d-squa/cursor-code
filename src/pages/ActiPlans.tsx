@@ -7,7 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, Play, Edit, CheckCircle, XCircle, MessageSquare, History, Trash2, Download, TrendingUp, MoreVertical, ArrowLeft, Search, BarChart3, FileText, FileSpreadsheet, ChevronDown, Rocket } from "lucide-react";
+import { Loader2, Play, Edit, CheckCircle, XCircle, MessageSquare, History, Trash2, Download, TrendingUp, MoreVertical, ArrowLeft, Search, BarChart3, FileText, FileSpreadsheet, ChevronDown, Rocket, Lock } from "lucide-react";
+import { LockedFeatureButton } from "@/components/ui/locked-feature-button";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
 import { ModificationRequestDialog } from "@/components/ModificationRequestDialog";
@@ -55,6 +57,7 @@ interface Campaign {
 export default function ActiPlans() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { hasAccess } = useFeatureAccess();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
@@ -497,67 +500,69 @@ export default function ActiPlans() {
           </div>
           <div className="flex items-center gap-2 pt-2">
             {(campaign.pdf_url || campaign.forecast_data) && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button size="sm" variant="outline">
-                    <Download className="w-3 h-3 mr-1" />
-                    Download
-                    <ChevronDown className="w-3 h-3 ml-1" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                  <DropdownMenuItem 
-                    onClick={async () => {
-                      try {
-                        if (campaign.pdf_url) {
-                          const { data } = await supabase.storage
-                            .from('campaign-pdfs')
-                            .download(campaign.pdf_url);
-                          if (data) {
-                            const url = URL.createObjectURL(data);
-                            const a = document.createElement('a');
-                            a.href = url;
-                            a.download = `${campaign.name}-media-plan.pdf`;
-                            a.click();
-                            URL.revokeObjectURL(url);
+              <LockedFeatureButton feature="pdf_export">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="sm" variant="outline">
+                      <Download className="w-3 h-3 mr-1" />
+                      Download
+                      <ChevronDown className="w-3 h-3 ml-1" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start">
+                    <DropdownMenuItem 
+                      onClick={async () => {
+                        try {
+                          if (campaign.pdf_url) {
+                            const { data } = await supabase.storage
+                              .from('campaign-pdfs')
+                              .download(campaign.pdf_url);
+                            if (data) {
+                              const url = URL.createObjectURL(data);
+                              const a = document.createElement('a');
+                              a.href = url;
+                              a.download = `${campaign.name}-media-plan.pdf`;
+                              a.click();
+                              URL.revokeObjectURL(url);
+                            }
+                          } else {
+                            toast.error("No PDF available");
                           }
-                        } else {
-                          toast.error("No PDF available");
+                        } catch (error) {
+                          toast.error("Failed to download PDF");
                         }
-                      } catch (error) {
-                        toast.error("Failed to download PDF");
-                      }
-                    }}
-                  >
-                    <FileText className="w-4 h-4 mr-2" />
-                    Download as PDF
-                  </DropdownMenuItem>
-                  <DropdownMenuItem 
-                    onClick={() => {
-                      try {
-                        const planData = {
-                          name: campaign.name,
-                          totalBudget: campaign.total_budget,
-                          startDate: campaign.start_date,
-                          endDate: campaign.end_date,
-                          platforms: campaign.platforms || [],
-                          genericConfig: (campaign as any).generic_config || {},
-                          forecasts: campaign.forecast_data,
-                          actiplanForecast: campaign.forecast_data?.actiplanForecast,
-                        };
-                        downloadMediaPlanExcel(planData);
-                        toast.success("Excel file downloaded successfully!");
-                      } catch (error) {
-                        console.error("Error generating Excel:", error);
-                        toast.error("Failed to generate Excel file");
-                      }
-                    }}
-                  >
-                    <FileSpreadsheet className="w-4 h-4 mr-2" />
-                    Download as Excel
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                      }}
+                    >
+                      <FileText className="w-4 h-4 mr-2" />
+                      Download as PDF
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onClick={() => {
+                        try {
+                          const planData = {
+                            name: campaign.name,
+                            totalBudget: campaign.total_budget,
+                            startDate: campaign.start_date,
+                            endDate: campaign.end_date,
+                            platforms: campaign.platforms || [],
+                            genericConfig: (campaign as any).generic_config || {},
+                            forecasts: campaign.forecast_data,
+                            actiplanForecast: campaign.forecast_data?.actiplanForecast,
+                          };
+                          downloadMediaPlanExcel(planData);
+                          toast.success("Excel file downloaded successfully!");
+                        } catch (error) {
+                          console.error("Error generating Excel:", error);
+                          toast.error("Failed to generate Excel file");
+                        }
+                      }}
+                    >
+                      <FileSpreadsheet className="w-4 h-4 mr-2" />
+                      Download as Excel
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </LockedFeatureButton>
             )}
 
             <DropdownMenu>
@@ -593,15 +598,26 @@ export default function ActiPlans() {
                 )}
                 
                 {/* Request Changes - available for all statuses including pushed_to_dsp */}
-                <DropdownMenuItem
-                  onClick={() => {
-                    setSelectedCampaign(campaign);
-                    setModificationDialogOpen(true);
-                  }}
-                >
-                  <MessageSquare className="w-4 h-4 mr-2" />
-                  Request Changes
-                </DropdownMenuItem>
+                {hasAccess('request_modifications') ? (
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setSelectedCampaign(campaign);
+                      setModificationDialogOpen(true);
+                    }}
+                  >
+                    <MessageSquare className="w-4 h-4 mr-2" />
+                    Request Changes
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem
+                    disabled
+                    className="opacity-50 cursor-pointer"
+                    onClick={() => navigate('/settings/plan')}
+                  >
+                    <Lock className="w-4 h-4 mr-2" />
+                    Request Changes
+                  </DropdownMenuItem>
+                )}
 
                 {/* Launch/Push menu item - conditional based on status */}
                 {(() => {
@@ -665,15 +681,26 @@ export default function ActiPlans() {
                   View History
                 </DropdownMenuItem>
 
-                <DropdownMenuItem
-                  onClick={() => {
-                    setSelectedCampaign(campaign);
-                    setModificationRequestsViewOpen(true);
-                  }}
-                >
-                  <MessageSquare className="w-4 h-4 mr-2" />
-                  Check Modification Requests
-                </DropdownMenuItem>
+                {hasAccess('modification_status_tracking') ? (
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setSelectedCampaign(campaign);
+                      setModificationRequestsViewOpen(true);
+                    }}
+                  >
+                    <MessageSquare className="w-4 h-4 mr-2" />
+                    Check Modification Requests
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem
+                    disabled
+                    className="opacity-50 cursor-pointer"
+                    onClick={() => navigate('/settings/plan')}
+                  >
+                    <Lock className="w-4 h-4 mr-2" />
+                    Check Modification Requests
+                  </DropdownMenuItem>
+                )}
 
                 {canDelete(campaign) && (
                   <>
