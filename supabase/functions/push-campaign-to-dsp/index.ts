@@ -1330,23 +1330,25 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
         const metaOptimizationLocation = metaDestinationTypeMap[rawMetaOptimizationLocation] || rawMetaOptimizationLocation.toUpperCase();
         
         // Attribution window validation - certain objectives only support specific combinations
-        // LINK_CLICKS/LANDING_PAGE_VIEWS only support (1, 0) - 1 day click, 0 day view-through
-        // OFFSITE_CONVERSIONS/VALUE support longer windows
-        const objectivesWithLimitedAttribution = ['LINK_CLICKS', 'LANDING_PAGE_VIEWS', 'REACH', 'POST_ENGAGEMENT'];
-        const hasLimitedAttribution = objectivesWithLimitedAttribution.includes(optimizationGoal);
+        // Meta enforces strict attribution window rules based on optimization goal:
+        // - OFFSITE_CONVERSIONS/VALUE: support (7,1), (7,0), (1,1), (1,0), (28,1), (28,0)
+        // - Most other goals: only support (1,0) - 1 day click, 0 day view-through
+        const objectivesWithFullAttribution = ['OFFSITE_CONVERSIONS', 'VALUE', 'APP_INSTALLS', 'LEAD_GENERATION'];
+        const hasFullAttribution = objectivesWithFullAttribution.includes(optimizationGoal);
         
         let metaClickWindow: number;
         let metaViewWindow: number;
         
-        if (hasLimitedAttribution) {
-          // Force (1, 0) for objectives with limited attribution support
-          metaClickWindow = 1;
-          metaViewWindow = 0;
-          console.log(`⚠️ ${optimizationGoal} only supports limited attribution. Forcing click=${metaClickWindow}d, view=${metaViewWindow}d`);
-        } else {
-          // Use configured values or defaults for other objectives
+        if (hasFullAttribution) {
+          // Use configured values or defaults for conversion-type objectives
           metaClickWindow = phase.metaClickWindow || (market as any).metaClickWindow || 7;
           metaViewWindow = phase.metaViewWindow || (market as any).metaViewWindow || 1;
+          console.log(`✅ ${optimizationGoal} supports full attribution windows: click=${metaClickWindow}d, view=${metaViewWindow}d`);
+        } else {
+          // Force (1, 0) for all other objectives - Meta only supports this combination
+          metaClickWindow = 1;
+          metaViewWindow = 0;
+          console.log(`⚠️ ${optimizationGoal} only supports limited attribution (1,0). Forcing click=${metaClickWindow}d, view=${metaViewWindow}d`);
         }
         
         const requiresBidCap = requestedBidStrategy === 'COST_CAP' || requestedBidStrategy === 'LOWEST_COST_WITH_BID_CAP';
