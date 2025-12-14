@@ -296,54 +296,80 @@ async function updateLaunchStatuses(
   result: any,
   markets: any[]
 ): Promise<void> {
-  // Normalize platform name to match database storage (Tiktok, Meta)
-  const platform = platformInput.toLowerCase() === 'tiktok' ? 'Tiktok' : 
-                   platformInput.toLowerCase() === 'meta' ? 'Meta' : platformInput;
+  // Normalize platform name - try both TikTok and Tiktok casing for compatibility
+  const platformVariants = platformInput.toLowerCase() === 'tiktok' 
+    ? ['TikTok', 'Tiktok', 'tiktok'] 
+    : platformInput.toLowerCase() === 'meta' 
+      ? ['Meta', 'meta'] 
+      : [platformInput];
+  
   try {
     const successResults = result.results || [];
     const errorResults = result.errors || [];
+    
+    console.log(`📝 updateLaunchStatuses called for ${platformInput}: ${successResults.length} successes, ${errorResults.length} errors`);
     
     // Update successful entities
     for (const successItem of successResults) {
       const { market, phase, campaignId: dspCampaignId, adSetId, adGroupId } = successItem;
       
-      // Update campaign entry
+      console.log(`📝 Processing success: market=${market}, phase=${phase}, dspCampaignId=${dspCampaignId}, adGroupId=${adGroupId}`);
+      
+      // Update campaign entry - try each platform variant until one works
       if (dspCampaignId) {
-        await supabase
-          .from('campaign_launch_status')
-          .update({
-            status: 'pushed_to_dsp',
-            dsp_entity_id: dspCampaignId,
-            dsp_status: 'PAUSED',
-            error_message: null,
-            error_details: null,
-            updated_at: new Date().toISOString()
-          })
-          .eq('campaign_id', campaignId)
-          .eq('platform', platform)
-          .eq('market', market)
-          .ilike('phase_name', phase || '%')
-          .eq('entity_type', 'campaign');
+        for (const platformName of platformVariants) {
+          const { data: campaignUpdateResult, error: campaignUpdateError } = await supabase
+            .from('campaign_launch_status')
+            .update({
+              status: 'pushed_to_dsp',
+              dsp_entity_id: dspCampaignId,
+              dsp_status: 'PAUSED',
+              error_message: null,
+              error_details: null,
+              updated_at: new Date().toISOString()
+            })
+            .eq('campaign_id', campaignId)
+            .eq('platform', platformName)
+            .eq('market', market)
+            .eq('entity_type', 'campaign')
+            .select();
+          
+          if (campaignUpdateResult && campaignUpdateResult.length > 0) {
+            console.log(`✅ Updated campaign status for ${market}/${phase} with platform=${platformName}: ${campaignUpdateResult.length} rows`);
+            break; // Found matching rows, stop trying variants
+          } else if (campaignUpdateError) {
+            console.error(`❌ Error updating campaign status: ${campaignUpdateError.message}`);
+          }
+        }
       }
       
       // Update ad set/ad group entry
       const adEntityId = adSetId || adGroupId;
       if (adEntityId) {
-        await supabase
-          .from('campaign_launch_status')
-          .update({
-            status: 'pushed_to_dsp',
-            dsp_entity_id: adEntityId,
-            dsp_status: 'PAUSED',
-            error_message: null,
-            error_details: null,
-            updated_at: new Date().toISOString()
-          })
-          .eq('campaign_id', campaignId)
-          .eq('platform', platform)
-          .eq('market', market)
-          .ilike('phase_name', phase || '%')
-          .eq('entity_type', 'adset');
+        for (const platformName of platformVariants) {
+          const { data: adsetUpdateResult, error: adsetUpdateError } = await supabase
+            .from('campaign_launch_status')
+            .update({
+              status: 'pushed_to_dsp',
+              dsp_entity_id: adEntityId,
+              dsp_status: 'PAUSED',
+              error_message: null,
+              error_details: null,
+              updated_at: new Date().toISOString()
+            })
+            .eq('campaign_id', campaignId)
+            .eq('platform', platformName)
+            .eq('market', market)
+            .eq('entity_type', 'adset')
+            .select();
+          
+          if (adsetUpdateResult && adsetUpdateResult.length > 0) {
+            console.log(`✅ Updated adset status for ${market}/${phase} with platform=${platformName}: ${adsetUpdateResult.length} rows`);
+            break;
+          } else if (adsetUpdateError) {
+            console.error(`❌ Error updating adset status: ${adsetUpdateError.message}`);
+          }
+        }
       }
     }
     
@@ -363,21 +389,28 @@ async function updateLaunchStatuses(
         }
       ];
       
-      await supabase
-        .from('campaign_launch_status')
-        .update({
-          status: 'push_failed',
-          error_message: errorMessage,
-          error_details: errorDetails,
-          updated_at: new Date().toISOString()
-        })
-        .eq('campaign_id', campaignId)
-        .eq('platform', platform)
-        .eq('market', market)
-        .ilike('phase_name', phase || '%');
+      for (const platformName of platformVariants) {
+        const { data: failUpdateResult } = await supabase
+          .from('campaign_launch_status')
+          .update({
+            status: 'push_failed',
+            error_message: errorMessage,
+            error_details: errorDetails,
+            updated_at: new Date().toISOString()
+          })
+          .eq('campaign_id', campaignId)
+          .eq('platform', platformName)
+          .eq('market', market)
+          .select();
+        
+        if (failUpdateResult && failUpdateResult.length > 0) {
+          console.log(`⚠️ Marked as failed for ${market}/${phase}: ${failUpdateResult.length} rows`);
+          break;
+        }
+      }
     }
     
-    console.log(`Updated launch statuses for ${platform}: ${successResults.length} success, ${errorResults.length} errors`);
+    console.log(`Updated launch statuses for ${platformInput}: ${successResults.length} success, ${errorResults.length} errors`);
   } catch (err) {
     console.error('Error updating launch statuses:', err);
   }
