@@ -90,3 +90,6 @@ verify_jwt = true
 
 [functions.insights-recommendations]
 verify_jwt = true
+
+[functions.send-insights-email]
+verify_jwt = true
