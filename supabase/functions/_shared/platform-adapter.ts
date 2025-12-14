@@ -646,11 +646,20 @@ class TikTokAdapter implements PlatformAdapter {
         console.log(`✅ Conversion window configured: ${conversionWindow} (click: ${clickDays}, view: ${viewDays})`);
       }
       
-      // Frequency cap - always pass if value exists (required for REACH campaigns)
+      // Frequency cap - required for REACH campaigns
+      // Apply default (3 impressions per 7 days) for REACH if no frequency cap is configured
+      const isReachCampaign = finalOptimizationGoal.toUpperCase() === 'REACH' || 
+                               params.optimizationGoal?.toUpperCase() === 'REACH';
+      
       if (params.frequencySchedule) {
         body.frequency = params.frequencySchedule;
         body.frequency_schedule = 7; // Per 7 days as per TikTok API
         console.log(`✅ Frequency cap configured: ${params.frequencySchedule} impressions per 7 days`);
+      } else if (isReachCampaign) {
+        // REACH campaigns require frequency cap - use default if not provided
+        body.frequency = 3; // Default: 3 impressions
+        body.frequency_schedule = 7; // Per 7 days
+        console.log(`✅ Frequency cap defaulted for REACH campaign: 3 impressions per 7 days`);
       }
       
       if (params.appId) body.app_id = params.appId;
