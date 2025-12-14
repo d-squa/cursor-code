@@ -148,7 +148,11 @@ export type Feature =
   
   // ActiPlan Deliverables
   | 'pdf_export'
-  | 'excel_export';
+  | 'excel_export'
+  
+  // Insights & Recommendations
+  | 'insights_recommendations'
+  | 'cross_platform_insights';
 
 // Minimum tier required for each feature
 const FEATURE_TIERS: Record<Feature, SubscriptionTier> = {
@@ -298,6 +302,10 @@ const FEATURE_TIERS: Record<Feature, SubscriptionTier> = {
   // ActiPlan Deliverables
   pdf_export: 'enterprise',
   excel_export: 'enterprise',
+  
+  // Insights & Recommendations
+  insights_recommendations: 'trial',
+  cross_platform_insights: 'enterprise',
 };
 
 // Check if a user has access to a feature

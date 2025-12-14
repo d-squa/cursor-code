@@ -87,3 +87,6 @@ verify_jwt = true
 
 [functions.finalize-plan-change]
 verify_jwt = true
+
+[functions.insights-recommendations]
+verify_jwt = true

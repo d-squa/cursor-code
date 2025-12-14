@@ -22,6 +22,7 @@ import PlanManagement from "./pages/settings/PlanManagement";
 import BillingManagement from "./pages/settings/BillingManagement";
 import PlatformConnections from "./pages/PlatformConnections";
 import LaunchStatus from "./pages/LaunchStatus";
+import InsightsRecommendations from "./pages/InsightsRecommendations";
 import NotFound from "./pages/NotFound";
 import { BugReportButton } from "./components/BugReportButton";
 import { SubscriptionGuard } from "./components/SubscriptionGuard";
@@ -47,6 +48,8 @@ const App = () => (
             <Route path="/actiplans" element={<SubscriptionGuard><ActiPlans /></SubscriptionGuard>} />
             <Route path="/actiplans/:campaignId/launch" element={<SubscriptionGuard><LaunchStatus /></SubscriptionGuard>} />
             <Route path="/actiplans/:campaignId/report" element={<SubscriptionGuard><PerformanceReport /></SubscriptionGuard>} />
+            <Route path="/actiplans/:campaignId/insights" element={<SubscriptionGuard><InsightsRecommendations /></SubscriptionGuard>} />
+            <Route path="/insights" element={<SubscriptionGuard><InsightsRecommendations /></SubscriptionGuard>} />
             <Route path="/performance/:id" element={<SubscriptionGuard><Performance /></SubscriptionGuard>} />
             <Route path="/performance" element={<SubscriptionGuard><Performance /></SubscriptionGuard>} />
             <Route path="/clients" element={<SubscriptionGuard><Clients /></SubscriptionGuard>} />
