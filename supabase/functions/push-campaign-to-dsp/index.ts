@@ -1424,6 +1424,14 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           console.log(`✅ Destination type: ${metaOptimizationLocation}, Landing page: ${metaLandingPageUrl}`);
         }
 
+        // DSA (Digital Services Act) compliance fields - required for EU ads
+        // Use ad account name or campaign name as beneficiary/payor
+        const dsaBeneficiary = campaign.name || "Advertiser";
+        const dsaPayor = campaign.name || "Advertiser";
+        adSetPayload.dsa_beneficiary = dsaBeneficiary;
+        adSetPayload.dsa_payor = dsaPayor;
+        console.log(`✅ DSA compliance: beneficiary="${dsaBeneficiary}", payor="${dsaPayor}"`);
+
         console.log(`✅ Bid strategy validated: ${finalBidStrategy} (requested: ${requestedBidStrategy}, compatible: ${isCompatible})`);
         console.log(`✅ Billing event: ${metaBillingEvent}`);
         
