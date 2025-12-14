@@ -1074,6 +1074,53 @@ export type Database = {
         }
         Relationships: []
       }
+      saved_insights_analyses: {
+        Row: {
+          analysis_result: string
+          breakdowns: string[]
+          campaign_id: string | null
+          campaign_name: string
+          created_at: string
+          id: string
+          platforms: string[]
+          raw_data: Json | null
+          time_comparison: string
+          user_id: string
+        }
+        Insert: {
+          analysis_result: string
+          breakdowns?: string[]
+          campaign_id?: string | null
+          campaign_name: string
+          created_at?: string
+          id?: string
+          platforms?: string[]
+          raw_data?: Json | null
+          time_comparison: string
+          user_id: string
+        }
+        Update: {
+          analysis_result?: string
+          breakdowns?: string[]
+          campaign_id?: string | null
+          campaign_name?: string
+          created_at?: string
+          id?: string
+          platforms?: string[]
+          raw_data?: Json | null
+          time_comparison?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_insights_analyses_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       taxonomy_templates: {
         Row: {
           ad_account_id: string
