@@ -6,6 +6,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Info } from "lucide-react";
 import { Phase } from "@/types/mediaplan";
 import { useEffect } from "react";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 
 interface AdAccountDefaults {
   metaBidStrategy?: string;
@@ -24,9 +25,12 @@ interface MetaPhaseConfigProps {
 }
 
 export function MetaPhaseConfig({ phase, adAccountDefaults, onUpdate }: MetaPhaseConfigProps) {
-  // Auto-populate from defaults when fields are empty
+  const { hasAccess } = useFeatureAccess();
+  const canInheritDefaults = hasAccess('bid_strategy_defaults');
+  
+  // Auto-populate from defaults when fields are empty - only for enterprise+ users
   useEffect(() => {
-    if (!adAccountDefaults) return;
+    if (!adAccountDefaults || !canInheritDefaults) return;
     
     // Only auto-populate if field is not already set
     if (!phase.metaBidStrategy && adAccountDefaults.metaBidStrategy) {
@@ -41,7 +45,9 @@ export function MetaPhaseConfig({ phase, adAccountDefaults, onUpdate }: MetaPhas
     if (!phase.metaBillingEvent && adAccountDefaults.metaBillingEvent) {
       onUpdate("metaBillingEvent", adAccountDefaults.metaBillingEvent);
     }
-  }, [adAccountDefaults, phase.id]);
+  }, [adAccountDefaults, phase.id, canInheritDefaults]);
+  
+  const selectPlaceholder = canInheritDefaults ? "Inherit from defaults" : "Select...";
 
   const objective = phase.objective || "";
   const optimizationGoal = phase.optimizationGoal || "";
@@ -124,7 +130,7 @@ export function MetaPhaseConfig({ phase, adAccountDefaults, onUpdate }: MetaPhas
             onValueChange={(value) => onUpdate("metaBidStrategy", value)}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Inherit from defaults" />
+              <SelectValue placeholder={selectPlaceholder} />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="LOWEST_COST_WITHOUT_CAP">Lowest Cost (Automatic)</SelectItem>
@@ -162,7 +168,7 @@ export function MetaPhaseConfig({ phase, adAccountDefaults, onUpdate }: MetaPhas
                 onValueChange={(value) => onUpdate("metaClickWindow", parseInt(value))}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Inherit from defaults" />
+                  <SelectValue placeholder={selectPlaceholder} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="1">1 day</SelectItem>
@@ -179,7 +185,7 @@ export function MetaPhaseConfig({ phase, adAccountDefaults, onUpdate }: MetaPhas
                 onValueChange={(value) => onUpdate("metaViewWindow", parseInt(value))}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Inherit from defaults" />
+                  <SelectValue placeholder={selectPlaceholder} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="1">1 day</SelectItem>
@@ -220,7 +226,7 @@ export function MetaPhaseConfig({ phase, adAccountDefaults, onUpdate }: MetaPhas
             onValueChange={(value) => onUpdate("metaBillingEvent", value)}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Inherit from defaults" />
+              <SelectValue placeholder={selectPlaceholder} />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="IMPRESSIONS">Impressions (CPM)</SelectItem>
