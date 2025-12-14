@@ -1331,12 +1331,12 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
         
         // Attribution window validation - certain objectives only support specific combinations
         // Meta enforces strict attribution window rules based on optimization goal:
-        // - OFFSITE_CONVERSIONS/VALUE: support (7,1), (7,0), (1,1), (1,0), (28,1), (28,0)
-        // - Most other goals: only support (1,0) - 1 day click, 0 day view-through
-        // Check both the optimization goal and objective for better coverage
-        const conversionOptimizationGoals = ['OFFSITE_CONVERSIONS', 'VALUE', 'APP_INSTALLS', 'LEAD_GENERATION'];
-        const conversionObjectives = ['OUTCOME_SALES', 'CONVERSIONS', 'OUTCOME_APP_PROMOTION', 'OUTCOME_LEADS', 'LEAD_GENERATION'];
-        const hasFullAttribution = conversionOptimizationGoals.includes(optimizationGoal) || conversionObjectives.includes(objective);
+        // - Only OUTCOME_SALES/OFFSITE_CONVERSIONS with VALUE optimization truly support extended attribution
+        // - All other objectives (including LEAD_GENERATION, APP_INSTALLS) only support (1,0) in practice
+        // Being restrictive to avoid API errors - only true purchase/conversion tracking gets extended windows
+        const trueConversionObjectives = ['OUTCOME_SALES', 'CONVERSIONS'];
+        const trueConversionGoals = ['OFFSITE_CONVERSIONS', 'VALUE'];
+        const hasFullAttribution = trueConversionObjectives.includes(objective) && trueConversionGoals.includes(optimizationGoal);
         
         let metaClickWindow: number;
         let metaViewWindow: number;
