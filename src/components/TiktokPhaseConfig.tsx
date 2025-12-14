@@ -12,6 +12,7 @@ import {
   autoCorrectTikTokLocation,
   TikTokLocationConfig
 } from "@/utils/tiktokOptimizationLocationMapping";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 
 interface AdAccountDefaults {
   tiktokOptimizationLocation?: string;
@@ -41,6 +42,10 @@ interface TiktokPhaseConfigProps {
 }
 
 export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: TiktokPhaseConfigProps) {
+  const { hasAccess } = useFeatureAccess();
+  const canInheritDefaults = hasAccess('bid_strategy_defaults');
+  const selectPlaceholder = canInheritDefaults ? "Inherit from defaults" : "Select...";
+  
   const [eventCountOptions] = useState<Array<{ value: string; label: string }>>([
     { value: "every_conversion", label: "Every Conversion" },
     { value: "once", label: "Once" }
@@ -68,10 +73,11 @@ export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: Tiktok
     return objectiveRequiresLocation(objective) && validLocations.length > 0;
   }, [objective, validLocations]);
 
-  // Auto-populate from defaults when fields are empty, respecting location validity
+  // Auto-populate from defaults when fields are empty, respecting location validity - only for enterprise+ users
   useEffect(() => {
     console.log("🔍 TiktokPhaseConfig defaults check:", {
       hasDefaults: !!adAccountDefaults,
+      canInheritDefaults,
       defaultOptLocation: adAccountDefaults?.tiktokOptimizationLocation,
       phaseOptLocation: phase.tiktokOptimizationLocation,
       defaultBidStrategy: adAccountDefaults?.tiktokBidStrategy,
@@ -82,6 +88,12 @@ export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: Tiktok
     
     if (!adAccountDefaults) {
       console.log("⚠️ TiktokPhaseConfig: No adAccountDefaults provided");
+      return;
+    }
+    
+    // Skip auto-population for non-enterprise users
+    if (!canInheritDefaults) {
+      console.log("⚠️ TiktokPhaseConfig: User doesn't have access to inherit defaults");
       return;
     }
     
@@ -154,7 +166,7 @@ export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: Tiktok
     if (!phase.tiktokLineBusinessId && adAccountDefaults.tiktokLineBusinessId) {
       onUpdate("tiktokLineBusinessId", adAccountDefaults.tiktokLineBusinessId);
     }
-  }, [adAccountDefaults, phase.id, objective, optimizationGoal, showOptimizationLocation]);
+  }, [adAccountDefaults, phase.id, objective, optimizationGoal, showOptimizationLocation, canInheritDefaults]);
 
   console.log("🎯 TikTok Phase Config - Objective:", objective, "OptGoal:", optimizationGoal);
   console.log("🎯 Valid locations for this combo:", validLocations.map(l => l.value));
@@ -586,7 +598,7 @@ export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: Tiktok
               onValueChange={(value) => onUpdate("tiktokBidStrategy", value)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Inherit from defaults" />
+                <SelectValue placeholder={selectPlaceholder} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="LOWEST_COST">Maximum Delivery (Automatic)</SelectItem>
@@ -625,7 +637,7 @@ export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: Tiktok
                 onValueChange={(value) => onUpdate("tiktokClickWindow", parseInt(value))}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Inherit from defaults" />
+                  <SelectValue placeholder={selectPlaceholder} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="7">7 days</SelectItem>
@@ -641,7 +653,7 @@ export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: Tiktok
                 onValueChange={(value) => onUpdate("tiktokViewWindow", parseInt(value))}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Inherit from defaults" />
+                  <SelectValue placeholder={selectPlaceholder} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="1">1 day</SelectItem>
@@ -660,7 +672,7 @@ export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: Tiktok
             onValueChange={(value) => onUpdate("tiktokBillingEvent", value)}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Inherit from defaults" />
+              <SelectValue placeholder={selectPlaceholder} />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="OCPM">OCPM (Optimized Cost Per Mille)</SelectItem>
