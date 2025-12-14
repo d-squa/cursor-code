@@ -239,16 +239,58 @@ const handler = async (req: Request): Promise<Response> => {
         .eq('id', update.id);
     }
 
-    // Check if all entities are live and update campaign status
-    const allLive = results.length > 0 && results.every(r => r.isLive);
-    if (allLive) {
-      await supabase
-        .from('campaigns')
-        .update({ status: 'live' })
-        .eq('id', campaignId);
+    // Re-fetch ALL launch statuses to recalculate overall campaign status
+    const { data: allStatuses } = await supabase
+      .from('campaign_launch_status')
+      .select('status')
+      .eq('campaign_id', campaignId);
+    
+    // Determine overall campaign status based on all entities
+    const statusCounts = {
+      pushed_to_dsp: 0,
+      live: 0,
+      push_failed: 0,
+      ready_for_push: 0,
+      pushing: 0,
+      other: 0
+    };
+    
+    for (const s of (allStatuses || [])) {
+      if (s.status === 'pushed_to_dsp') statusCounts.pushed_to_dsp++;
+      else if (s.status === 'live') statusCounts.live++;
+      else if (s.status === 'push_failed') statusCounts.push_failed++;
+      else if (s.status === 'ready_for_push') statusCounts.ready_for_push++;
+      else if (s.status === 'pushing') statusCounts.pushing++;
+      else statusCounts.other++;
     }
+    
+    const totalEntities = allStatuses?.length || 0;
+    const successfullyPushed = statusCounts.pushed_to_dsp + statusCounts.live;
+    const allLive = totalEntities > 0 && statusCounts.live === totalEntities;
+    const allPushed = totalEntities > 0 && successfullyPushed === totalEntities;
+    const hasFailed = statusCounts.push_failed > 0;
+    const hasPending = statusCounts.ready_for_push > 0 || statusCounts.pushing > 0;
+    
+    let newCampaignStatus = 'draft';
+    if (allLive) {
+      newCampaignStatus = 'live';
+    } else if (allPushed) {
+      newCampaignStatus = 'pushed_to_dsp';
+    } else if (successfullyPushed > 0 && (hasFailed || hasPending)) {
+      newCampaignStatus = 'partially_pushed';
+    } else if (hasFailed && successfullyPushed === 0) {
+      newCampaignStatus = 'push_failed';
+    }
+    
+    console.log(`Status recalculation: total=${totalEntities}, pushed=${successfullyPushed}, failed=${statusCounts.push_failed}, pending=${statusCounts.ready_for_push + statusCounts.pushing} => ${newCampaignStatus}`);
+    
+    // Update campaign status
+    await supabase
+      .from('campaigns')
+      .update({ status: newCampaignStatus })
+      .eq('id', campaignId);
 
-    console.log(`Status check complete for campaign ${campaignId}: ${results.length} entities checked`);
+    console.log(`Status check complete for campaign ${campaignId}: ${results.length} entities checked, campaign status: ${newCampaignStatus}`);
 
     return new Response(
       JSON.stringify({ results, allLive }),
