@@ -101,13 +101,18 @@ export default function PerformanceReport() {
     }
   }, [user]);
 
-  const generateSampleInsights = useCallback((statusData: LaunchStatusEntry[]): CampaignInsight[] => {
+  const generateSampleInsights = useCallback((statusData: LaunchStatusEntry[], campaignData: Campaign | null): CampaignInsight[] => {
     // Generate sample insights based on planned data with variance
     const platformInsights: Record<string, CampaignInsight> = {};
     
+    // Calculate weekly intervals based on campaign dates
+    const startDate = campaignData?.start_date ? new Date(campaignData.start_date) : new Date();
+    const endDate = campaignData?.end_date ? new Date(campaignData.end_date) : new Date();
+    const weeks = eachWeekOfInterval({ start: startDate, end: endDate }, { weekStartsOn: 1 });
+    const weekCount = Math.max(weeks.length, 1);
+    
     statusData.forEach(status => {
       if (!platformInsights[status.platform]) {
-        const variance = () => 0.8 + Math.random() * 0.4;
         platformInsights[status.platform] = {
           id: `sample-${status.platform}`,
           platform: status.platform,
@@ -131,6 +136,32 @@ export default function PerformanceReport() {
       platformInsights[status.platform].metrics.reach += (status.planned_reach || 0) * variance();
       platformInsights[status.platform].metrics.clicks += (status.planned_clicks || 0) * variance();
       platformInsights[status.platform].metrics.conversions += (status.planned_conversions || 0) * variance();
+    });
+
+    // Generate weekly metrics for each platform
+    Object.values(platformInsights).forEach(insight => {
+      const weeklyBudget = insight.metrics.spend / weekCount;
+      const weeklyImpressions = insight.metrics.impressions / weekCount;
+      const weeklyReach = insight.metrics.reach / weekCount;
+      const weeklyClicks = insight.metrics.clicks / weekCount;
+      const weeklyConversions = insight.metrics.conversions / weekCount;
+      
+      insight.weekly_metrics = weeks.map((weekStart, idx) => {
+        const variance = () => 0.7 + Math.random() * 0.6; // Variance between 70% and 130%
+        const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
+        
+        return {
+          date_start: format(weekStart, 'yyyy-MM-dd'),
+          date_end: format(weekEnd, 'yyyy-MM-dd'),
+          week: `Week ${idx + 1}`,
+          spend: weeklyBudget * variance(),
+          impressions: Math.round(weeklyImpressions * variance()),
+          reach: Math.round(weeklyReach * variance()),
+          clicks: Math.round(weeklyClicks * variance()),
+          conversions: Math.round(weeklyConversions * variance()),
+          results: Math.round(weeklyConversions * variance()),
+        };
+      });
     });
 
     return Object.values(platformInsights);
@@ -157,7 +188,7 @@ export default function PerformanceReport() {
         setLaunchStatuses(statusData);
         // Use sample data if dataSource is sample or no live insights
         if (dataSource === 'sample' || !insightsData || insightsData.length === 0) {
-          setInsights(generateSampleInsights(statusData));
+          setInsights(generateSampleInsights(statusData, campaignData));
         } else {
           setInsights(insightsData as CampaignInsight[]);
         }
