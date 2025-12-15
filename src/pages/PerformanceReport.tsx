@@ -74,6 +74,8 @@ export default function PerformanceReport() {
   const [insights, setInsights] = useState<CampaignInsight[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [dataSource, setDataSource] = useState<'sample' | 'live'>('sample');
+  const [hasLiveDataAccess, setHasLiveDataAccess] = useState(false);
 
   // Filter states
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
@@ -83,6 +85,56 @@ export default function PerformanceReport() {
   const [selectedOptimizationGoal, setSelectedOptimizationGoal] = useState<string>('all');
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [granularity, setGranularity] = useState<'weekly' | 'monthly'>('weekly');
+
+  const checkLiveDataAccess = useCallback(async () => {
+    if (!user) return;
+    try {
+      const { data } = await supabase
+        .from("connected_platforms")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("is_active", true)
+        .limit(1);
+      setHasLiveDataAccess((data && data.length > 0) || false);
+    } catch (error) {
+      console.error("Error checking live data access:", error);
+    }
+  }, [user]);
+
+  const generateSampleInsights = useCallback((statusData: LaunchStatusEntry[]): CampaignInsight[] => {
+    // Generate sample insights based on planned data with variance
+    const platformInsights: Record<string, CampaignInsight> = {};
+    
+    statusData.forEach(status => {
+      if (!platformInsights[status.platform]) {
+        const variance = () => 0.8 + Math.random() * 0.4;
+        platformInsights[status.platform] = {
+          id: `sample-${status.platform}`,
+          platform: status.platform,
+          ad_account_id: null,
+          campaign_dsp_id: null,
+          metrics: {
+            spend: 0,
+            impressions: 0,
+            reach: 0,
+            clicks: 0,
+            conversions: 0,
+          },
+          weekly_metrics: [],
+          fetched_at: new Date().toISOString(),
+        };
+      }
+      
+      const variance = () => 0.8 + Math.random() * 0.4;
+      platformInsights[status.platform].metrics.spend += (status.planned_budget || 0) * variance();
+      platformInsights[status.platform].metrics.impressions += (status.planned_impressions || 0) * variance();
+      platformInsights[status.platform].metrics.reach += (status.planned_reach || 0) * variance();
+      platformInsights[status.platform].metrics.clicks += (status.planned_clicks || 0) * variance();
+      platformInsights[status.platform].metrics.conversions += (status.planned_conversions || 0) * variance();
+    });
+
+    return Object.values(platformInsights);
+  }, []);
 
   const loadData = useCallback(async () => {
     if (!campaignId || !user) return;
@@ -95,19 +147,32 @@ export default function PerformanceReport() {
       ] = await Promise.all([
         supabase.from('campaigns').select('*').eq('id', campaignId).single(),
         supabase.from('campaign_launch_status').select('*').eq('campaign_id', campaignId),
-        supabase.from('campaign_insights').select('*').eq('campaign_id', campaignId).order('fetched_at', { ascending: false })
+        dataSource === 'live' 
+          ? supabase.from('campaign_insights').select('*').eq('campaign_id', campaignId).order('fetched_at', { ascending: false })
+          : Promise.resolve({ data: null })
       ]);
       
       if (campaignData) setCampaign(campaignData);
-      if (statusData) setLaunchStatuses(statusData);
-      if (insightsData) setInsights(insightsData as CampaignInsight[]);
+      if (statusData) {
+        setLaunchStatuses(statusData);
+        // Use sample data if dataSource is sample or no live insights
+        if (dataSource === 'sample' || !insightsData || insightsData.length === 0) {
+          setInsights(generateSampleInsights(statusData));
+        } else {
+          setInsights(insightsData as CampaignInsight[]);
+        }
+      }
     } catch (error) {
       console.error('Error loading data:', error);
       toast.error('Failed to load performance data');
     } finally {
       setLoading(false);
     }
-  }, [campaignId, user]);
+  }, [campaignId, user, dataSource, generateSampleInsights]);
+
+  useEffect(() => {
+    checkLiveDataAccess();
+  }, [checkLiveDataAccess]);
 
   useEffect(() => {
     loadData();
@@ -580,6 +645,8 @@ export default function PerformanceReport() {
             selectedOptimizationGoal={selectedOptimizationGoal}
             dateRange={dateRange}
             granularity={granularity}
+            dataSource={dataSource}
+            hasLiveDataAccess={hasLiveDataAccess}
             onPlatformToggle={handlePlatformToggle}
             onMarketToggle={handleMarketToggle}
             onPhaseToggle={handlePhaseToggle}
@@ -587,6 +654,7 @@ export default function PerformanceReport() {
             onOptimizationGoalChange={setSelectedOptimizationGoal}
             onDateRangeChange={setDateRange}
             onGranularityChange={setGranularity}
+            onDataSourceChange={setDataSource}
             onClearFilters={handleClearFilters}
           />
 

@@ -54,6 +54,8 @@ export default function Performance() {
   const [actualMetrics, setActualMetrics] = useState<PerformanceMetrics | null>(null);
   const [weeklyData, setWeeklyData] = useState<WeeklyData[]>([]);
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
+  const [dataSource, setDataSource] = useState<'sample' | 'live'>('sample');
+  const [hasLiveDataAccess, setHasLiveDataAccess] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -65,8 +67,23 @@ export default function Performance() {
     if (user) {
       checkUserAccess();
       loadCampaigns();
+      checkLiveDataAccess();
     }
   }, [user]);
+
+  const checkLiveDataAccess = async () => {
+    try {
+      const { data } = await supabase
+        .from("connected_platforms")
+        .select("id")
+        .eq("user_id", user?.id)
+        .eq("is_active", true)
+        .limit(1);
+      setHasLiveDataAccess((data && data.length > 0) || false);
+    } catch (error) {
+      console.error("Error checking live data access:", error);
+    }
+  };
 
   const checkUserAccess = async () => {
     try {
@@ -108,9 +125,13 @@ export default function Performance() {
 
   useEffect(() => {
     if (selectedCampaign && selectedCampaign.status === "live") {
-      loadActualMetrics();
+      if (dataSource === 'sample') {
+        useForecastData();
+      } else {
+        loadActualMetrics();
+      }
     }
-  }, [selectedCampaign, selectedPlatform, selectedAdSet]);
+  }, [selectedCampaign, selectedPlatform, selectedAdSet, dataSource]);
 
   const loadCampaigns = async () => {
     try {
@@ -399,7 +420,22 @@ export default function Performance() {
             <CardDescription>Select campaign, platform, and ad set to view performance</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <label className="text-sm font-medium mb-2 block">Data Source</label>
+                <Select value={dataSource} onValueChange={(value: 'sample' | 'live') => setDataSource(value)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sample">Sample Data</SelectItem>
+                    <SelectItem value="live" disabled={!hasLiveDataAccess}>
+                      Live Data {!hasLiveDataAccess && "(No platforms connected)"}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div>
                 <label className="text-sm font-medium mb-2 block">ActiPlan</label>
                 <Select
