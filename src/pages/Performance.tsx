@@ -263,13 +263,22 @@ export default function Performance() {
   const generateWeeklyData = () => {
     if (!selectedCampaign) return;
 
+    const startDate = new Date(selectedCampaign.start_date);
+    // For sample data, always generate 12 weeks regardless of campaign dates
+    const minWeeks = dataSource === 'sample' ? 12 : 1;
+    const sampleEndDate = new Date(startDate);
+    sampleEndDate.setDate(sampleEndDate.getDate() + (minWeeks * 7));
+    
+    const endDate = new Date(selectedCampaign.end_date);
+    const effectiveEnd = dataSource === 'sample' ? (sampleEndDate > endDate ? sampleEndDate : endDate) : endDate;
+
     const weeks = eachWeekOfInterval({
-      start: new Date(selectedCampaign.start_date),
-      end: new Date(selectedCampaign.end_date),
+      start: startDate,
+      end: effectiveEnd,
     });
 
     const plannedMetrics = selectedCampaign.forecast_data?.totalMetrics || {};
-    const weekCount = weeks.length;
+    const weekCount = Math.max(weeks.length, minWeeks);
     
     const weeklyPlanned = {
       reach: Math.round((plannedMetrics.reach || 0) / weekCount),
