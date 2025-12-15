@@ -20,6 +20,8 @@ interface DashboardFiltersProps {
   selectedOptimizationGoal: string;
   dateRange: DateRange | undefined;
   granularity: 'weekly' | 'monthly';
+  dataSource?: 'sample' | 'live';
+  hasLiveDataAccess?: boolean;
   onPlatformToggle: (platform: string) => void;
   onMarketToggle: (market: string) => void;
   onPhaseToggle?: (phase: string) => void;
@@ -27,6 +29,7 @@ interface DashboardFiltersProps {
   onOptimizationGoalChange: (value: string) => void;
   onDateRangeChange: (range: DateRange | undefined) => void;
   onGranularityChange: (value: 'weekly' | 'monthly') => void;
+  onDataSourceChange?: (value: 'sample' | 'live') => void;
   onClearFilters: () => void;
 }
 
@@ -43,6 +46,8 @@ export default function DashboardFilters({
   selectedOptimizationGoal,
   dateRange,
   granularity,
+  dataSource = 'sample',
+  hasLiveDataAccess = false,
   onPlatformToggle,
   onMarketToggle,
   onPhaseToggle,
@@ -50,6 +55,7 @@ export default function DashboardFilters({
   onOptimizationGoalChange,
   onDateRangeChange,
   onGranularityChange,
+  onDataSourceChange,
   onClearFilters,
 }: DashboardFiltersProps) {
   const hasActiveFilters = 
@@ -62,6 +68,21 @@ export default function DashboardFilters({
 
   return (
     <div className="flex flex-wrap items-center gap-3 p-4 bg-card rounded-lg border">
+      {/* Data Source */}
+      {onDataSourceChange && (
+        <Select value={dataSource} onValueChange={(v) => onDataSourceChange(v as 'sample' | 'live')}>
+          <SelectTrigger className="w-[160px] h-8">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="sample">Sample Data</SelectItem>
+            <SelectItem value="live" disabled={!hasLiveDataAccess}>
+              Live Data {!hasLiveDataAccess && "(Not available)"}
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      )}
+
       {/* Platforms */}
       <div className="flex items-center gap-2">
         <span className="text-sm font-medium text-muted-foreground">Platforms:</span>
