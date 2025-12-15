@@ -135,10 +135,11 @@ export default function Performance() {
 
   const loadCampaigns = async () => {
     try {
+      // Load campaigns with ready_for_push, pushed_to_dsp, or live status
       const { data, error } = await supabase
         .from("campaigns")
         .select("*")
-        .eq("status", "live")
+        .in("status", ["ready_for_push", "pushed_to_dsp", "partially_pushed", "live"])
         .order("created_at", { ascending: false });
 
       if (error) throw error;

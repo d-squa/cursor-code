@@ -616,23 +616,9 @@ export default function PerformanceReport() {
         </div>
       </div>
 
-      {!hasData ? (
-        <Card>
-          <CardContent className="pt-6 text-center">
-            <BarChart3 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <p className="text-lg font-medium mb-2">No performance data yet</p>
-            <p className="text-muted-foreground mb-4">
-              Push your campaign to DSP first to see performance metrics
-            </p>
-            <Button onClick={() => navigate(`/actiplans/${campaignId}/launch`)}>
-              Go to Launch Status
-            </Button>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-6">
-          {/* Filters */}
-          <DashboardFilters
+      <div className="space-y-6">
+        {/* Filters - Always show data source dropdown */}
+        <DashboardFilters
             platforms={filterOptions.platforms}
             markets={filterOptions.markets}
             phases={filterOptions.phases}
@@ -658,8 +644,23 @@ export default function PerformanceReport() {
             onClearFilters={handleClearFilters}
           />
 
-          {/* KPI Scorecards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          {!hasData ? (
+            <Card>
+              <CardContent className="pt-6 text-center">
+                <BarChart3 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-lg font-medium mb-2">No performance data yet</p>
+                <p className="text-muted-foreground mb-4">
+                  Push your campaign to DSP first to see performance metrics
+                </p>
+                <Button onClick={() => navigate(`/actiplans/${campaignId}/launch`)}>
+                  Go to Launch Status
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              {/* KPI Scorecards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             <MetricScorecard
               title="Budget / Spend"
               planned={metrics.planned.budget}
@@ -826,8 +827,9 @@ export default function PerformanceReport() {
             data={platformBreakdown}
             title="Performance by Platform & Market"
           />
+            </>
+          )}
         </div>
-      )}
     </div>
   );
 }
