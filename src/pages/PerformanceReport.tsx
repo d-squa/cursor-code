@@ -105,11 +105,14 @@ export default function PerformanceReport() {
     // Generate sample insights based on planned data with variance
     const platformInsights: Record<string, CampaignInsight> = {};
     
-    // Calculate weekly intervals based on campaign dates
+    // For sample data, always generate 12 weeks of data regardless of campaign dates
+    // This ensures proper visualization in weekly/monthly views
+    const sampleWeekCount = 12;
     const startDate = campaignData?.start_date ? new Date(campaignData.start_date) : new Date();
-    const endDate = campaignData?.end_date ? new Date(campaignData.end_date) : new Date();
-    const weeks = eachWeekOfInterval({ start: startDate, end: endDate }, { weekStartsOn: 1 });
-    const weekCount = Math.max(weeks.length, 1);
+    const sampleEndDate = new Date(startDate);
+    sampleEndDate.setDate(sampleEndDate.getDate() + (sampleWeekCount * 7));
+    const weeks = eachWeekOfInterval({ start: startDate, end: sampleEndDate }, { weekStartsOn: 1 });
+    const weekCount = Math.max(weeks.length, sampleWeekCount);
     
     statusData.forEach(status => {
       if (!platformInsights[status.platform]) {
@@ -138,7 +141,7 @@ export default function PerformanceReport() {
       platformInsights[status.platform].metrics.conversions += (status.planned_conversions || 0) * variance();
     });
 
-    // Generate weekly metrics for each platform
+    // Generate weekly metrics for each platform with 12 weeks of sample data
     Object.values(platformInsights).forEach(insight => {
       const weeklyBudget = insight.metrics.spend / weekCount;
       const weeklyImpressions = insight.metrics.impressions / weekCount;
@@ -308,16 +311,28 @@ export default function PerformanceReport() {
 
   // Generate time series data
   const timeSeriesData = useMemo(() => {
-    if (!campaign?.start_date || !campaign?.end_date) return [];
+    if (!campaign?.start_date) return [];
 
     const start = new Date(campaign.start_date);
-    const end = new Date(campaign.end_date);
+    // For sample data, ensure we have enough periods for visualization
+    const minWeeks = dataSource === 'sample' ? 12 : 1;
+    const minMonths = dataSource === 'sample' ? 6 : 1;
+    
+    const sampleEndDate = new Date(start);
+    if (granularity === 'weekly') {
+      sampleEndDate.setDate(sampleEndDate.getDate() + (minWeeks * 7));
+    } else {
+      sampleEndDate.setMonth(sampleEndDate.getMonth() + minMonths);
+    }
+    
+    const end = campaign.end_date ? new Date(campaign.end_date) : sampleEndDate;
+    const effectiveEnd = dataSource === 'sample' ? (sampleEndDate > end ? sampleEndDate : end) : end;
     const now = new Date();
-    const campaignDays = differenceInDays(end, start) + 1;
+    const campaignDays = differenceInDays(effectiveEnd, start) + 1;
 
     const intervals = granularity === 'weekly'
-      ? eachWeekOfInterval({ start, end: now < end ? now : end })
-      : eachMonthOfInterval({ start, end: now < end ? now : end });
+      ? eachWeekOfInterval({ start, end: dataSource === 'sample' ? effectiveEnd : (now < effectiveEnd ? now : effectiveEnd) })
+      : eachMonthOfInterval({ start, end: dataSource === 'sample' ? effectiveEnd : (now < effectiveEnd ? now : effectiveEnd) });
 
     // Get weekly metrics from insights
     const allWeeklyMetrics: any[] = [];
