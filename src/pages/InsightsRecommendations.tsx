@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { 
   Loader2, ArrowLeft, Sparkles, BarChart3, TrendingUp, 
   Target, Lightbulb, AlertCircle, ChevronDown, Play,
-  Save, Mail, History, Trash2, Lock, Users
+  Save, Mail, History, Trash2, Lock, Users, Database
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
@@ -95,6 +95,9 @@ export default function InsightsRecommendations() {
   const [analyzing, setAnalyzing] = useState(false);
   const [saving, setSaving] = useState(false);
   
+  // Data source selection
+  const [dataSource, setDataSource] = useState<'sample' | 'live'>('sample');
+  
   // Selection states
   const [selectedCampaignIds, setSelectedCampaignIds] = useState<string[]>([]);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
@@ -111,6 +114,7 @@ export default function InsightsRecommendations() {
   const [loadingSaved, setLoadingSaved] = useState(false);
   const [activeTab, setActiveTab] = useState('new');
   const [todaySaveCount, setTodaySaveCount] = useState(0);
+  const [usedSegments, setUsedSegments] = useState<Set<string>>(new Set());
   
   // Email dialog
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
@@ -125,10 +129,15 @@ export default function InsightsRecommendations() {
     tier === 'enterprise' || tier === 'agency';
   const canShareEmail = hasAccess('share_insights_email' as any) || 
     tier === 'enterprise' || tier === 'agency';
+  const canUseUnlimitedSegments = hasAccess('unlimited_segment_usage' as any) ||
+    tier === 'enterprise' || tier === 'agency';
   
   // Daily save limit for basic/freelancer
   const dailySaveLimit = canSaveUnlimited ? Infinity : 1;
   const canSaveMore = canSaveUnlimited || todaySaveCount < dailySaveLimit;
+  
+  // Check if user has connected platforms with data
+  const hasLiveDataAccess = connectedPlatforms.length > 0;
 
   useEffect(() => {
     loadData();
@@ -183,10 +192,18 @@ export default function InsightsRecommendations() {
         // Count today's saves
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        const todayCount = savedRes.data.filter(s => 
+        const todayAnalyses = savedRes.data.filter(s => 
           new Date(s.created_at) >= today
-        ).length;
-        setTodaySaveCount(todayCount);
+        );
+        setTodaySaveCount(todayAnalyses.length);
+        
+        // Track used segments for today (breakdown combinations)
+        const usedSegs = new Set<string>();
+        todayAnalyses.forEach(analysis => {
+          const segmentKey = [...analysis.breakdowns].sort().join(',');
+          usedSegs.add(segmentKey);
+        });
+        setUsedSegments(usedSegs);
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -291,6 +308,16 @@ export default function InsightsRecommendations() {
       return;
     }
 
+    // Check segment usage for non-enterprise users
+    const currentSegmentKey = [...selectedBreakdowns].sort().join(',');
+    if (!canUseUnlimitedSegments && usedSegments.has(currentSegmentKey)) {
+      toast.error(
+        'You have already analyzed this segment combination today. Upgrade to Enterprise for unlimited segment analysis.',
+        { duration: 5000 }
+      );
+      return;
+    }
+
     setAnalyzing(true);
     setAnalysisResult(null);
     setConfigOpen(false);
@@ -303,7 +330,7 @@ export default function InsightsRecommendations() {
           timeComparison,
           breakdowns: selectedBreakdowns,
           crossPlatformEnabled: canAccessCrossPlatform,
-          useSampleData: true // Always use sample data for now
+          useSampleData: dataSource === 'sample'
         }
       });
 
@@ -350,6 +377,10 @@ export default function InsightsRecommendations() {
 
       toast.success('Analysis saved successfully!');
       setTodaySaveCount(prev => prev + 1);
+      
+      // Track used segment
+      const segmentKey = [...selectedBreakdowns].sort().join(',');
+      setUsedSegments(prev => new Set([...prev, segmentKey]));
       
       // Reload saved analyses
       const { data: savedRes } = await supabase
@@ -583,6 +614,33 @@ export default function InsightsRecommendations() {
                     </CardHeader>
                     <CollapsibleContent>
                       <CardContent className="space-y-6">
+                        {/* Data Source Selection */}
+                        <div className="space-y-3">
+                          <Label className="text-sm font-medium flex items-center gap-2">
+                            <Database className="h-4 w-4" />
+                            Data Source
+                          </Label>
+                          <Select value={dataSource} onValueChange={(v) => setDataSource(v as 'sample' | 'live')}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="sample">Sample Data</SelectItem>
+                              <SelectItem value="live" disabled={!hasLiveDataAccess}>
+                                Live Data {!hasLiveDataAccess && '(Connect accounts first)'}
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                          {dataSource === 'live' && !hasLiveDataAccess && (
+                            <p className="text-xs text-amber-600 flex items-center gap-1">
+                              <AlertCircle className="h-3 w-3" />
+                              Connect platform accounts to access live data
+                            </p>
+                          )}
+                        </div>
+
+                        <Separator />
+
                         {/* Platform Selection */}
                         <div className="space-y-3">
                           <Label className="text-sm font-medium">Platforms</Label>
@@ -695,6 +753,21 @@ export default function InsightsRecommendations() {
                               </div>
                             ))}
                           </div>
+                          {!canUseUnlimitedSegments && (
+                            <>
+                              {usedSegments.has([...selectedBreakdowns].sort().join(',')) ? (
+                                <p className="text-xs text-destructive flex items-center gap-1">
+                                  <Lock className="h-3 w-3" />
+                                  This segment combination already used today. Upgrade to Enterprise for unlimited.
+                                </p>
+                              ) : (
+                                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                  <AlertCircle className="h-3 w-3" />
+                                  Each segment combination can only be used once per day.
+                                </p>
+                              )}
+                            </>
+                          )}
                         </div>
 
                         <Separator />
