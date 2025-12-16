@@ -102,17 +102,19 @@ export default function PerformanceReport() {
   }, [user]);
 
   const generateSampleInsights = useCallback((statusData: LaunchStatusEntry[], campaignData: Campaign | null): CampaignInsight[] => {
-    // Generate sample insights based on planned data with variance
+    // Generate sample insights based on planned data with realistic fluctuations
     const platformInsights: Record<string, CampaignInsight> = {};
     
     // For sample data, always generate 12 weeks of data regardless of campaign dates
-    // This ensures proper visualization in weekly/monthly views
     const sampleWeekCount = 12;
     const startDate = campaignData?.start_date ? new Date(campaignData.start_date) : new Date();
     const sampleEndDate = new Date(startDate);
     sampleEndDate.setDate(sampleEndDate.getDate() + (sampleWeekCount * 7));
     const weeks = eachWeekOfInterval({ start: startDate, end: sampleEndDate }, { weekStartsOn: 1 });
     const weekCount = Math.max(weeks.length, sampleWeekCount);
+    
+    // Only populate data for the first half of weeks (mid-campaign simulation)
+    const weeksWithData = Math.ceil(weekCount / 2);
     
     statusData.forEach(status => {
       if (!platformInsights[status.platform]) {
@@ -133,36 +135,67 @@ export default function PerformanceReport() {
         };
       }
       
-      const variance = () => 0.8 + Math.random() * 0.4;
-      platformInsights[status.platform].metrics.spend += (status.planned_budget || 0) * variance();
-      platformInsights[status.platform].metrics.impressions += (status.planned_impressions || 0) * variance();
-      platformInsights[status.platform].metrics.reach += (status.planned_reach || 0) * variance();
-      platformInsights[status.platform].metrics.clicks += (status.planned_clicks || 0) * variance();
-      platformInsights[status.platform].metrics.conversions += (status.planned_conversions || 0) * variance();
+      // Scale variance for mid-campaign (only ~50% of planned spent)
+      const midCampaignScale = weeksWithData / weekCount;
+      const variance = () => 0.85 + Math.random() * 0.3; // 85%-115% variance
+      platformInsights[status.platform].metrics.spend += (status.planned_budget || 0) * midCampaignScale * variance();
+      platformInsights[status.platform].metrics.impressions += (status.planned_impressions || 0) * midCampaignScale * variance();
+      platformInsights[status.platform].metrics.reach += (status.planned_reach || 0) * midCampaignScale * variance();
+      platformInsights[status.platform].metrics.clicks += (status.planned_clicks || 0) * midCampaignScale * variance();
+      platformInsights[status.platform].metrics.conversions += (status.planned_conversions || 0) * midCampaignScale * variance();
     });
 
-    // Generate weekly metrics for each platform with 12 weeks of sample data
+    // Generate weekly metrics with realistic fluctuations
     Object.values(platformInsights).forEach(insight => {
-      const weeklyBudget = insight.metrics.spend / weekCount;
-      const weeklyImpressions = insight.metrics.impressions / weekCount;
-      const weeklyReach = insight.metrics.reach / weekCount;
-      const weeklyClicks = insight.metrics.clicks / weekCount;
-      const weeklyConversions = insight.metrics.conversions / weekCount;
+      const weeklyBudget = insight.metrics.spend / weeksWithData;
+      const weeklyImpressions = insight.metrics.impressions / weeksWithData;
+      const weeklyReach = insight.metrics.reach / weeksWithData;
+      const weeklyClicks = insight.metrics.clicks / weeksWithData;
+      const weeklyConversions = insight.metrics.conversions / weeksWithData;
+      
+      // Create a seed for consistent but varied patterns
+      let trendFactor = 1;
       
       insight.weekly_metrics = weeks.map((weekStart, idx) => {
-        const variance = () => 0.7 + Math.random() * 0.6; // Variance between 70% and 130%
         const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
+        const isFutureWeek = idx >= weeksWithData;
+        
+        if (isFutureWeek) {
+          // Future weeks have null/zero actual values
+          return {
+            date_start: format(weekStart, 'yyyy-MM-dd'),
+            date_end: format(weekEnd, 'yyyy-MM-dd'),
+            week: `Week ${idx + 1}`,
+            spend: null,
+            impressions: null,
+            reach: null,
+            clicks: null,
+            conversions: null,
+            results: null,
+          };
+        }
+        
+        // Create realistic fluctuations with patterns
+        // Simulate: ramp-up in first weeks, some weekly patterns, random noise
+        const rampUp = Math.min(1, (idx + 1) / 3); // Ramp up over first 3 weeks
+        const weeklyPattern = 1 + Math.sin(idx * 0.8) * 0.15; // Subtle wave pattern
+        const randomNoise = 0.85 + Math.random() * 0.3; // 85%-115% noise
+        
+        // Gradual trend (slight improvement over time)
+        trendFactor = 1 + (idx * 0.02);
+        
+        const fluctuation = rampUp * weeklyPattern * randomNoise * Math.min(trendFactor, 1.15);
         
         return {
           date_start: format(weekStart, 'yyyy-MM-dd'),
           date_end: format(weekEnd, 'yyyy-MM-dd'),
           week: `Week ${idx + 1}`,
-          spend: weeklyBudget * variance(),
-          impressions: Math.round(weeklyImpressions * variance()),
-          reach: Math.round(weeklyReach * variance()),
-          clicks: Math.round(weeklyClicks * variance()),
-          conversions: Math.round(weeklyConversions * variance()),
-          results: Math.round(weeklyConversions * variance()),
+          spend: Math.round(weeklyBudget * fluctuation * 100) / 100,
+          impressions: Math.round(weeklyImpressions * fluctuation),
+          reach: Math.round(weeklyReach * fluctuation * (0.9 + Math.random() * 0.2)),
+          clicks: Math.round(weeklyClicks * fluctuation * (0.85 + Math.random() * 0.3)),
+          conversions: Math.round(weeklyConversions * fluctuation * (0.8 + Math.random() * 0.4)),
+          results: Math.round(weeklyConversions * fluctuation * (0.8 + Math.random() * 0.4)),
         };
       });
     });
@@ -373,6 +406,9 @@ export default function PerformanceReport() {
         return wmDate >= periodStart && wmDate <= periodEnd;
       });
 
+      // Check if this period has actual data (not null/future weeks)
+      const hasActualData = periodMetrics.length > 0 && periodMetrics.some(wm => wm.spend !== null && wm.spend !== undefined);
+
       const periodActual = periodMetrics.reduce((acc, wm) => ({
         spend: acc.spend + (wm.spend || 0),
         impressions: acc.impressions + (wm.impressions || 0),
@@ -381,16 +417,16 @@ export default function PerformanceReport() {
         conversions: acc.conversions + (wm.conversions || wm.results || 0),
       }), { spend: 0, impressions: 0, reach: 0, clicks: 0, conversions: 0 });
 
-      // Use total metrics divided evenly if no weekly data
-      const hasWeeklyData = periodMetrics.length > 0;
-      const actualSpend = hasWeeklyData ? periodActual.spend : metrics.actual.spend / periodsCount;
-      const actualImpressions = hasWeeklyData ? periodActual.impressions : metrics.actual.impressions / periodsCount;
-      const actualReach = hasWeeklyData ? periodActual.reach : metrics.actual.reach / periodsCount;
-      const actualClicks = hasWeeklyData ? periodActual.clicks : metrics.actual.clicks / periodsCount;
+      // For future weeks (no actual data), use null to show empty bars
+      const isFutureWeek = !hasActualData && dataSource === 'sample';
+      const actualSpend = isFutureWeek ? null : (hasActualData ? periodActual.spend : metrics.actual.spend / periodsCount);
+      const actualImpressions = isFutureWeek ? null : (hasActualData ? periodActual.impressions : metrics.actual.impressions / periodsCount);
+      const actualReach = isFutureWeek ? null : (hasActualData ? periodActual.reach : metrics.actual.reach / periodsCount);
+      const actualClicks = isFutureWeek ? null : (hasActualData ? periodActual.clicks : metrics.actual.clicks / periodsCount);
 
       cumulativePlanned += plannedPerPeriod.budget;
-      cumulativeActual += actualSpend;
-      cumulativeReach += actualReach;
+      cumulativeActual += actualSpend || 0;
+      cumulativeReach += actualReach || 0;
 
       // Time elapsed calculation
       const periodDays = differenceInDays(periodEnd, start);
@@ -398,12 +434,12 @@ export default function PerformanceReport() {
       const pctBudgetSpent = metrics.planned.budget > 0 ? (cumulativeActual / metrics.planned.budget) * 100 : 0;
 
       // CPM and CPC for this period
-      const periodCpm = actualImpressions > 0 ? (actualSpend / actualImpressions) * 1000 : 0;
-      const periodCpc = actualClicks > 0 ? actualSpend / actualClicks : 0;
-      const periodCtr = actualImpressions > 0 ? (actualClicks / actualImpressions) * 100 : 0;
+      const periodCpm = actualImpressions && actualImpressions > 0 ? ((actualSpend || 0) / actualImpressions) * 1000 : 0;
+      const periodCpc = actualClicks && actualClicks > 0 ? (actualSpend || 0) / actualClicks : 0;
+      const periodCtr = actualImpressions && actualImpressions > 0 ? ((actualClicks || 0) / actualImpressions) * 100 : 0;
 
       // Frequency
-      const periodFrequency = actualReach > 0 ? actualImpressions / actualReach : 0;
+      const periodFrequency = actualReach && actualReach > 0 ? (actualImpressions || 0) / actualReach : 0;
 
       // Coverage / SOV estimates
       const audienceSize = metrics.planned.reach * 1.5; // Estimate
@@ -443,10 +479,10 @@ export default function PerformanceReport() {
         targetSov,
         cumulativeSov: sov,
         // Results
-        results: hasWeeklyData ? periodActual.conversions : metrics.actual.conversions / periodsCount,
-        resultRate: actualClicks > 0 ? ((hasWeeklyData ? periodActual.conversions : metrics.actual.conversions / periodsCount) / actualClicks) * 100 : 0,
-        costPerResult: (hasWeeklyData ? periodActual.conversions : metrics.actual.conversions / periodsCount) > 0 
-          ? actualSpend / (hasWeeklyData ? periodActual.conversions : metrics.actual.conversions / periodsCount) 
+        results: isFutureWeek ? null : (hasActualData ? periodActual.conversions : metrics.actual.conversions / periodsCount),
+        resultRate: actualClicks && actualClicks > 0 ? ((hasActualData ? periodActual.conversions : metrics.actual.conversions / periodsCount) / actualClicks) * 100 : 0,
+        costPerResult: (hasActualData ? periodActual.conversions : metrics.actual.conversions / periodsCount) > 0 
+          ? (actualSpend || 0) / (hasActualData ? periodActual.conversions : metrics.actual.conversions / periodsCount) 
           : 0,
       };
     });
