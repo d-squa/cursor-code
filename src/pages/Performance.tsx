@@ -280,24 +280,50 @@ export default function Performance() {
     const plannedMetrics = selectedCampaign.forecast_data?.totalMetrics || {};
     const weekCount = Math.max(weeks.length, minWeeks);
     
+    // Only populate data for the first half of weeks (mid-campaign simulation)
+    const weeksWithData = Math.ceil(weekCount / 2);
+    
     const weeklyPlanned = {
       reach: Math.round((plannedMetrics.reach || 0) / weekCount),
       impressions: Math.round((plannedMetrics.impressions || 0) / weekCount),
       spend: Math.round((selectedCampaign.total_budget || 0) / weekCount * 100) / 100,
     };
 
+    let trendFactor = 1;
+
     const data: WeeklyData[] = weeks.map((weekStart, idx) => {
-      const variance = () => 0.8 + Math.random() * 0.4;
       const weekEnd = endOfWeek(weekStart);
+      const isFutureWeek = idx >= weeksWithData;
+      
+      if (isFutureWeek) {
+        // Future weeks have null actual values but keep planned
+        return {
+          week: `Week ${idx + 1}\n${format(weekStart, "MMM d")}`,
+          plannedReach: weeklyPlanned.reach,
+          actualReach: 0,
+          plannedImpressions: weeklyPlanned.impressions,
+          actualImpressions: 0,
+          plannedSpend: weeklyPlanned.spend,
+          actualSpend: 0,
+        };
+      }
+      
+      // Create realistic fluctuations with patterns
+      const rampUp = Math.min(1, (idx + 1) / 3); // Ramp up over first 3 weeks
+      const weeklyPattern = 1 + Math.sin(idx * 0.8) * 0.15; // Subtle wave pattern
+      const randomNoise = 0.85 + Math.random() * 0.3; // 85%-115% noise
+      trendFactor = 1 + (idx * 0.02); // Gradual improvement
+      
+      const fluctuation = rampUp * weeklyPattern * randomNoise * Math.min(trendFactor, 1.15);
       
       return {
         week: `Week ${idx + 1}\n${format(weekStart, "MMM d")}`,
         plannedReach: weeklyPlanned.reach,
-        actualReach: Math.round(weeklyPlanned.reach * variance()),
+        actualReach: Math.round(weeklyPlanned.reach * fluctuation * (0.9 + Math.random() * 0.2)),
         plannedImpressions: weeklyPlanned.impressions,
-        actualImpressions: Math.round(weeklyPlanned.impressions * variance()),
+        actualImpressions: Math.round(weeklyPlanned.impressions * fluctuation),
         plannedSpend: weeklyPlanned.spend,
-        actualSpend: Math.round(weeklyPlanned.spend * variance() * 100) / 100,
+        actualSpend: Math.round(weeklyPlanned.spend * fluctuation * 100) / 100,
       };
     });
 
