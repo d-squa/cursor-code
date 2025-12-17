@@ -268,43 +268,62 @@ export function CampaignOverviewCard({
             </Collapsible>
           )}
 
-          {/* Stats Row */}
-          <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-muted-foreground mt-auto mb-2">
-            <div className="flex items-center gap-1">
-              <MessageSquare className="h-3 w-3" />
-              <span>{modificationRequests.total}</span>
-              {modificationRequests.pending > 0 && (
-                <Badge variant="secondary" className="h-3.5 px-1 text-[8px]">
-                  {modificationRequests.pending}
-                </Badge>
-              )}
-            </div>
-            {completedByCategory.optimization > 0 && (
-              <div className="flex items-center gap-0.5">
-                <Target className="h-3 w-3 text-green-500" />
-                <span>{completedByCategory.optimization}</span>
-              </div>
-            )}
-            {completedByCategory.budget > 0 && (
-              <div className="flex items-center gap-0.5">
-                <DollarSign className="h-3 w-3 text-green-500" />
-                <span>{completedByCategory.budget}</span>
-              </div>
-            )}
-            {completedByCategory.notesLast7Days > 0 && (
-              <div className="flex items-center gap-0.5">
-                <StickyNote className="h-3 w-3 text-blue-500" />
-                <span>{completedByCategory.notesLast7Days}</span>
-              </div>
-            )}
-            <div className="flex items-center gap-0.5">
-              <BarChart3 className="h-3 w-3" />
-              {hasRecentAnalysis ? (
-                <Check className="h-3 w-3 text-green-500" />
-              ) : (
-                <span className="text-[10px]">-</span>
-              )}
-            </div>
+          {/* Stats Grid */}
+          <div className="grid grid-cols-4 gap-1 text-center mt-auto mb-2 border-t pt-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex flex-col items-center cursor-help">
+                  <span className="text-[8px] text-muted-foreground uppercase tracking-tight">Changes</span>
+                  <span className="text-sm font-semibold">{modificationRequests.total}</span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs">Total modification requests</TooltipContent>
+            </Tooltip>
+            
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex flex-col items-center cursor-help">
+                  <span className="text-[8px] text-muted-foreground uppercase tracking-tight">Pending</span>
+                  <span className={cn(
+                    "text-sm font-semibold",
+                    modificationRequests.pending > 0 && "text-amber-600"
+                  )}>
+                    {modificationRequests.pending}
+                  </span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs">Pending requests awaiting action</TooltipContent>
+            </Tooltip>
+            
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex flex-col items-center cursor-help">
+                  <span className="text-[8px] text-muted-foreground uppercase tracking-tight">Optimized</span>
+                  <span className={cn(
+                    "text-sm font-semibold",
+                    completedByCategory.optimization > 0 && "text-green-600"
+                  )}>
+                    {completedByCategory.optimization}
+                  </span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs">Completed optimization requests</TooltipContent>
+            </Tooltip>
+            
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex flex-col items-center cursor-help">
+                  <span className="text-[8px] text-muted-foreground uppercase tracking-tight">Notes</span>
+                  <span className={cn(
+                    "text-sm font-semibold",
+                    completedByCategory.notesLast7Days > 0 && "text-blue-600"
+                  )}>
+                    {completedByCategory.notesLast7Days}
+                  </span>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-xs">Notes created in the last 7 days</TooltipContent>
+            </Tooltip>
           </div>
 
           {/* Action Button */}
