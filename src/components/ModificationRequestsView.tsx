@@ -164,6 +164,7 @@ export function ModificationRequestsView({
       targeting: "TG",
       goals: "GO",
       creative: "CR",
+      note: "NT",
       other: "OT",
     };
     return map[type] || "??";
