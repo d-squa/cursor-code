@@ -70,8 +70,8 @@ const plans = [
 
 export default function PlanManagement() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const { 
+  const [searchParams, setSearchParams] = useSearchParams();
+  const {
     isSubscribed, 
     isOnTrial,
     loading: hookLoading, 
@@ -99,6 +99,14 @@ export default function PlanManagement() {
       const sessionId = searchParams.get("session_id");
       const canceled = searchParams.get("canceled");
       const portalReturn = searchParams.get("portal_return");
+
+      // Early exit if no relevant params
+      if (!success && !canceled && !portalReturn) {
+        return;
+      }
+
+      // Clear URL params immediately to prevent re-execution
+      setSearchParams({}, { replace: true });
 
       if (success === "true" && sessionId) {
         // Finalize plan change - this will cancel the old subscription if it was an upgrade
@@ -136,7 +144,7 @@ export default function PlanManagement() {
     };
 
     handlePostCheckout();
-  }, [searchParams, refetch]);
+  }, [searchParams, setSearchParams, refetch]);
 
   // Set initial yearly toggle based on current billing period
   useEffect(() => {
