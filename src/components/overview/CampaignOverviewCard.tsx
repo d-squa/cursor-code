@@ -7,7 +7,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { 
   TrendingUp, TrendingDown, Check, 
-  BarChart3, MessageSquare, Zap, Target, DollarSign, StickyNote, ChevronDown
+  BarChart3, Zap, ChevronDown
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -65,6 +65,107 @@ const statusConfig: Record<string, { label: string; variant: "default" | "second
   pushed_to_dsp: { label: "Pushed", variant: "outline" },
 };
 
+// Pacing bar component - shows actual spend vs expected with over/under indication
+function PacingBar({ 
+  timePct, 
+  budgetPct, 
+  pacingDiff,
+  label,
+  tooltipContent,
+  hasRecentImpressions,
+}: { 
+  timePct: number; 
+  budgetPct: number; 
+  pacingDiff: number;
+  label: string;
+  tooltipContent: string;
+  hasRecentImpressions?: boolean;
+}) {
+  const absDiff = Math.abs(pacingDiff);
+  const isOnTrack = absDiff <= 5;
+  const isOverpacing = pacingDiff > 5;
+  const isUnderpacing = pacingDiff < -5;
+
+  // Calculate bar segments
+  const expected = Math.min(timePct, 100);
+  const actual = Math.min(budgetPct, 100);
+  
+  // Determine colors based on status
+  const getColors = () => {
+    if (isOnTrack) {
+      return { base: "bg-green-500", diff: "bg-green-300", text: "text-green-600" };
+    }
+    if (isOverpacing) {
+      return { base: "bg-green-500", diff: "bg-red-500", text: "text-red-600" };
+    }
+    return { base: "bg-green-500", diff: "bg-amber-400", text: "text-amber-600" };
+  };
+
+  const colors = getColors();
+  const statusLabel = isOnTrack ? "On Track" : isOverpacing ? "Overpacing" : "Underpacing";
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className="cursor-help">
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] font-medium text-foreground">{label}</span>
+              {hasRecentImpressions && (
+                <Zap className="h-2.5 w-2.5 text-green-500" />
+              )}
+            </div>
+            <span className={cn("text-[9px] font-medium", colors.text)}>{statusLabel}</span>
+          </div>
+          <div className="relative h-3 bg-muted rounded-full overflow-hidden">
+            {isOverpacing ? (
+              <>
+                {/* Expected portion (green) */}
+                <div 
+                  className={cn("absolute top-0 h-3 rounded-l-full", colors.base)}
+                  style={{ width: `${expected}%` }}
+                />
+                {/* Overspend portion (red) */}
+                <div 
+                  className={cn("absolute top-0 h-3", colors.diff)}
+                  style={{ left: `${expected}%`, width: `${Math.min(actual - expected, 100 - expected)}%` }}
+                />
+              </>
+            ) : isUnderpacing ? (
+              <>
+                {/* Actual spend (green) */}
+                <div 
+                  className={cn("absolute top-0 h-3 rounded-l-full", colors.base)}
+                  style={{ width: `${actual}%` }}
+                />
+                {/* Underspend gap (amber/muted) */}
+                <div 
+                  className={cn("absolute top-0 h-3", colors.diff)}
+                  style={{ left: `${actual}%`, width: `${expected - actual}%` }}
+                />
+              </>
+            ) : (
+              /* On track - just show actual in green */
+              <div 
+                className={cn("absolute top-0 h-3 rounded-l-full", colors.base)}
+                style={{ width: `${actual}%` }}
+              />
+            )}
+            {/* Expected marker line */}
+            <div 
+              className="absolute top-0 h-3 w-0.5 bg-foreground/60"
+              style={{ left: `${expected}%` }}
+            />
+          </div>
+        </div>
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-xs whitespace-pre-line text-xs">
+        <p className="text-muted-foreground">{tooltipContent}</p>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 export function CampaignOverviewCard({
   campaign,
   platformPacing,
@@ -84,9 +185,9 @@ export function CampaignOverviewCard({
 
   const pacingStatus = useMemo(() => {
     const absDiff = Math.abs(totalPacingDiff);
-    if (absDiff <= 5) return { status: "on-track", icon: Check, label: "On Track", actualColor: "bg-green-400", idealColor: "bg-green-600" };
-    if (totalPacingDiff > 5) return { status: "overpacing", icon: TrendingUp, label: "Overpacing", actualColor: "bg-red-400", idealColor: "bg-red-600" };
-    return { status: "underpacing", icon: TrendingDown, label: "Underpacing", actualColor: "bg-amber-400", idealColor: "bg-amber-600" };
+    if (absDiff <= 5) return { status: "on-track", icon: Check, label: "On Track" };
+    if (totalPacingDiff > 5) return { status: "overpacing", icon: TrendingUp, label: "Overpacing" };
+    return { status: "underpacing", icon: TrendingDown, label: "Underpacing" };
   }, [totalPacingDiff]);
 
   const PacingIcon = pacingStatus.icon;
@@ -97,15 +198,7 @@ export function CampaignOverviewCard({
     return `$${value.toFixed(0)}`;
   };
 
-  const getPlatformPacingStatus = (pacingDiff: number) => {
-    const absDiff = Math.abs(pacingDiff);
-    if (absDiff <= 5) return { label: "On Track", actualColor: "bg-green-400", idealColor: "bg-green-600" };
-    if (pacingDiff > 5) return { label: "Overpacing", actualColor: "bg-red-400", idealColor: "bg-red-600" };
-    return { label: "Underpacing", actualColor: "bg-amber-400", idealColor: "bg-amber-600" };
-  };
-
-  const durationTooltip = `${format(new Date(campaign.start_date), "MMM d")} - ${format(new Date(campaign.end_date), "MMM d, yyyy")} (${totalDays} days)\n\n${elapsedDays} days (${totalTimePct.toFixed(1)}%) out of ${totalDays} days spent`;
-  const budgetTooltip = `Spent: ${formatCurrency(totalBudgetSpent)} (${totalBudgetPct.toFixed(0)}%) out of ${formatCurrency(campaign.total_budget)}\n\nExpected: ${totalTimePct.toFixed(1)}% | Actual: ${totalBudgetPct.toFixed(0)}%\nDifference: ${totalPacingDiff > 0 ? "+" : ""}${totalPacingDiff.toFixed(1)}%`;
+  const actiplanTooltip = `${format(new Date(campaign.start_date), "MMM d")} - ${format(new Date(campaign.end_date), "MMM d, yyyy")} (${totalDays} days)\n${elapsedDays} days (${totalTimePct.toFixed(0)}%) elapsed\n\nBudget: ${formatCurrency(totalBudgetSpent)} of ${formatCurrency(campaign.total_budget)} (${totalBudgetPct.toFixed(0)}%)\nExpected: ${totalTimePct.toFixed(0)}% | Actual: ${totalBudgetPct.toFixed(0)}%\nDiff: ${totalPacingDiff > 0 ? "+" : ""}${totalPacingDiff.toFixed(1)}%`;
 
   return (
     <TooltipProvider>
@@ -130,7 +223,7 @@ export function CampaignOverviewCard({
             </Badge>
           </div>
 
-          {/* Pacing Status */}
+          {/* Overall Pacing Status */}
           <div className="flex items-center gap-1.5 mb-3">
             <PacingIcon className={cn(
               "h-4 w-4",
@@ -148,49 +241,16 @@ export function CampaignOverviewCard({
             </span>
           </div>
 
-          {/* ActiPlan Duration Bar */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="space-y-1 mb-2 cursor-help">
-                <div className="text-[10px] text-muted-foreground font-medium">ActiPlan Duration</div>
-                <div className="relative h-2.5 bg-muted rounded-full overflow-hidden">
-                  {/* Ideal time marker (darker) */}
-                  <div 
-                    className={cn("absolute top-0 h-2.5 rounded-full", pacingStatus.idealColor)}
-                    style={{ width: `${Math.min(totalTimePct, 100)}%` }}
-                  />
-                  {/* Remaining time (grey) - already shown as bg-muted */}
-                </div>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-xs whitespace-pre-line text-xs">
-              <p className="text-muted-foreground">{durationTooltip}</p>
-            </TooltipContent>
-          </Tooltip>
-
-          {/* ActiPlan Budget Bar */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="space-y-1 mb-3 cursor-help">
-                <div className="text-[10px] text-muted-foreground font-medium">ActiPlan Budget</div>
-                <div className="relative h-2.5 bg-muted rounded-full overflow-hidden">
-                  {/* Ideal spend marker (darker) */}
-                  <div 
-                    className={cn("absolute top-0 h-2.5 rounded-full", pacingStatus.idealColor)}
-                    style={{ width: `${Math.min(totalTimePct, 100)}%` }}
-                  />
-                  {/* Actual spend bar (lighter, overlaid) */}
-                  <div 
-                    className={cn("absolute top-0 h-2.5 rounded-full transition-all", pacingStatus.actualColor)}
-                    style={{ width: `${Math.min(totalBudgetPct, 100)}%` }}
-                  />
-                </div>
-              </div>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-xs whitespace-pre-line text-xs">
-              <p className="text-muted-foreground">{budgetTooltip}</p>
-            </TooltipContent>
-          </Tooltip>
+          {/* ActiPlan Pacing Bar */}
+          <div className="mb-3">
+            <PacingBar
+              timePct={totalTimePct}
+              budgetPct={totalBudgetPct}
+              pacingDiff={totalPacingDiff}
+              label="ActiPlan"
+              tooltipContent={actiplanTooltip}
+            />
+          </div>
 
           {/* Platform Breakdown Collapsible */}
           {platformPacing.length > 0 && (
@@ -201,67 +261,18 @@ export function CampaignOverviewCard({
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-3 pt-2">
                 {platformPacing.map((platform) => {
-                  const status = getPlatformPacingStatus(platform.pacingDiff);
-                  const platformDurationTooltip = `${format(new Date(platform.startDate), "MMM d")} - ${format(new Date(platform.endDate), "MMM d, yyyy")} (${platform.totalDays} days)\n\n${platform.elapsedDays} days (${platform.timePct.toFixed(0)}%) out of ${platform.totalDays} days spent`;
-                  const platformBudgetTooltip = `Spent: ${formatCurrency(platform.budgetSpent)} (${platform.budgetPct.toFixed(0)}%) out of ${formatCurrency(platform.budgetTotal)}\n\nExpected: ${platform.timePct.toFixed(0)}% | Actual: ${platform.budgetPct.toFixed(0)}%\nDifference: ${platform.pacingDiff > 0 ? "+" : ""}${platform.pacingDiff.toFixed(1)}%`;
+                  const platformTooltip = `${format(new Date(platform.startDate), "MMM d")} - ${format(new Date(platform.endDate), "MMM d, yyyy")} (${platform.totalDays} days)\n${platform.elapsedDays} days (${platform.timePct.toFixed(0)}%) elapsed\n\nBudget: ${formatCurrency(platform.budgetSpent)} of ${formatCurrency(platform.budgetTotal)} (${platform.budgetPct.toFixed(0)}%)\nExpected: ${platform.timePct.toFixed(0)}% | Actual: ${platform.budgetPct.toFixed(0)}%\nDiff: ${platform.pacingDiff > 0 ? "+" : ""}${platform.pacingDiff.toFixed(1)}%`;
                   
                   return (
-                    <div key={platform.platform} className="space-y-1.5">
-                      <div className="flex items-center justify-between text-[10px]">
-                        <div className="flex items-center gap-1">
-                          <span className="capitalize font-medium">{platform.platform}</span>
-                          {platform.hasRecentImpressions && (
-                            <Zap className="h-2.5 w-2.5 text-green-500" />
-                          )}
-                        </div>
-                        <span className={cn(
-                          "font-medium",
-                          status.label === "On Track" && "text-green-600",
-                          status.label === "Overpacing" && "text-red-600",
-                          status.label === "Underpacing" && "text-amber-600"
-                        )}>{status.label}</span>
-                      </div>
-                      
-                      {/* Platform Duration */}
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div className="cursor-help">
-                            <div className="text-[9px] text-muted-foreground mb-0.5">Duration</div>
-                            <div className="relative h-2 bg-muted rounded-full overflow-hidden">
-                              <div 
-                                className={cn("absolute top-0 h-2 rounded-full", status.idealColor)}
-                                style={{ width: `${Math.min(platform.timePct, 100)}%` }}
-                              />
-                            </div>
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent side="top" className="max-w-xs whitespace-pre-line text-xs">
-                          <p className="text-muted-foreground">{platformDurationTooltip}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                      
-                      {/* Platform Budget */}
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div className="cursor-help">
-                            <div className="text-[9px] text-muted-foreground mb-0.5">Budget</div>
-                            <div className="relative h-2 bg-muted rounded-full overflow-hidden">
-                              <div 
-                                className={cn("absolute top-0 h-2 rounded-full", status.idealColor)}
-                                style={{ width: `${Math.min(platform.timePct, 100)}%` }}
-                              />
-                              <div 
-                                className={cn("absolute top-0 h-2 rounded-full", status.actualColor)}
-                                style={{ width: `${Math.min(platform.budgetPct, 100)}%` }}
-                              />
-                            </div>
-                          </div>
-                        </TooltipTrigger>
-                        <TooltipContent side="top" className="max-w-xs whitespace-pre-line text-xs">
-                          <p className="text-muted-foreground">{platformBudgetTooltip}</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
+                    <PacingBar
+                      key={platform.platform}
+                      timePct={platform.timePct}
+                      budgetPct={platform.budgetPct}
+                      pacingDiff={platform.pacingDiff}
+                      label={platform.platform.charAt(0).toUpperCase() + platform.platform.slice(1)}
+                      tooltipContent={platformTooltip}
+                      hasRecentImpressions={platform.hasRecentImpressions}
+                    />
                   );
                 })}
               </CollapsibleContent>
