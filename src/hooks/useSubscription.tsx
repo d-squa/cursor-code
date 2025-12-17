@@ -17,10 +17,14 @@ export function useSubscription() {
   const [subscription, setSubscription] = useState<SubscriptionStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
 
-  const checkSubscription = useCallback(async () => {
+  const checkSubscription = useCallback(async (isInitialLoad = false) => {
     try {
-      setLoading(true);
+      // Only show loading state on initial load, not on background refreshes
+      if (isInitialLoad || !initialLoadComplete) {
+        setLoading(true);
+      }
       setError(null);
       
       const { data: { session } } = await supabase.auth.getSession();
@@ -40,26 +44,35 @@ export function useSubscription() {
     } catch (err: any) {
       console.error("Error checking subscription:", err);
       setError(err.message);
-      setSubscription(null);
+      // Don't clear subscription on background refresh errors - keep existing data
+      if (isInitialLoad || !initialLoadComplete) {
+        setSubscription(null);
+      }
     } finally {
       setLoading(false);
+      setInitialLoadComplete(true);
     }
-  }, []);
+  }, [initialLoadComplete]);
 
   useEffect(() => {
-    checkSubscription();
+    checkSubscription(true);
     
-    // Listen for auth changes
+    // Listen for auth changes - but only SIGNED_IN should trigger full refresh
+    // TOKEN_REFRESHED is a background event that shouldn't disrupt the UI
     const { data: { subscription: authSub } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        checkSubscription();
+      if (event === 'SIGNED_IN') {
+        checkSubscription(true);
+      } else if (event === 'TOKEN_REFRESHED') {
+        // Silent background refresh - don't set loading state
+        checkSubscription(false);
       } else if (event === 'SIGNED_OUT') {
         setSubscription(null);
+        setInitialLoadComplete(false);
       }
     });
 
     return () => authSub.unsubscribe();
-  }, [checkSubscription]);
+  }, []);
 
   // Derive the subscription tier from the price ID (more reliable than product ID)
   const tier: SubscriptionTier = useMemo(() => {
