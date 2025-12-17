@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Landing from "./pages/Landing";
 import AppHome from "./pages/AppHome";
+import Overview from "./pages/Overview";
 import Auth from "./pages/Auth";
 import Onboarding from "./pages/Onboarding";
 import ChoosePlan from "./pages/ChoosePlan";
@@ -44,7 +45,8 @@ const App = () => (
             <Route path="/choose-plan" element={<ChoosePlan />} />
             
             {/* Protected app routes - require subscription */}
-            <Route path="/app" element={<SubscriptionGuard><AppHome /></SubscriptionGuard>} />
+            <Route path="/app" element={<SubscriptionGuard><Overview /></SubscriptionGuard>} />
+            <Route path="/app/new" element={<SubscriptionGuard><AppHome /></SubscriptionGuard>} />
             <Route path="/actiplans" element={<SubscriptionGuard><ActiPlans /></SubscriptionGuard>} />
             <Route path="/actiplans/:campaignId/launch" element={<SubscriptionGuard><LaunchStatus /></SubscriptionGuard>} />
             <Route path="/actiplans/:campaignId/report" element={<SubscriptionGuard><PerformanceReport /></SubscriptionGuard>} />
