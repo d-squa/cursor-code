@@ -13,6 +13,7 @@ import {
   Save, Mail, History, Trash2, Lock, Users, Database
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -33,6 +34,7 @@ interface Campaign {
   end_date: string;
   objective: string;
   platforms?: any;
+  generic_config?: any;
 }
 
 interface ConnectedPlatform {
@@ -164,6 +166,10 @@ export default function InsightsRecommendations() {
   const [includeCompetitorAnalysis, setIncludeCompetitorAnalysis] = useState(false);
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string>('');
+  const [clientSource, setClientSource] = useState<'campaign' | 'list' | 'manual'>('campaign');
+  const [campaignClientInfo, setCampaignClientInfo] = useState<{ name: string; industry: string } | null>(null);
+  const [manualClientName, setManualClientName] = useState('');
+  const [manualClientIndustry, setManualClientIndustry] = useState('');
   
   // Results
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
@@ -248,6 +254,43 @@ export default function InsightsRecommendations() {
     activeTab,
   ]);
 
+  // Extract client info from selected campaign's activation details
+  useEffect(() => {
+    if (selectedCampaignIds.length === 0) {
+      setCampaignClientInfo(null);
+      setClientSource(clients.length > 0 ? 'list' : 'manual');
+      return;
+    }
+
+    // Get the first selected campaign
+    const selectedCampaign = campaigns.find(c => selectedCampaignIds.includes(c.id));
+    if (!selectedCampaign?.generic_config) {
+      setCampaignClientInfo(null);
+      setClientSource(clients.length > 0 ? 'list' : 'manual');
+      return;
+    }
+
+    const config = selectedCampaign.generic_config;
+    // Check if campaign has client info in activation details
+    if (config.clientName && config.clientIndustry) {
+      setCampaignClientInfo({
+        name: config.clientName,
+        industry: config.clientIndustry
+      });
+      setClientSource('campaign');
+    } else if (config.client?.name && config.client?.industry) {
+      // Alternative structure
+      setCampaignClientInfo({
+        name: config.client.name,
+        industry: config.client.industry
+      });
+      setClientSource('campaign');
+    } else {
+      setCampaignClientInfo(null);
+      setClientSource(clients.length > 0 ? 'list' : 'manual');
+    }
+  }, [selectedCampaignIds, campaigns, clients.length]);
+
   const loadData = async () => {
     if (!user) return;
     
@@ -255,7 +298,7 @@ export default function InsightsRecommendations() {
       const [campaignsRes, platformsRes, savedRes, clientsRes] = await Promise.all([
         supabase
           .from('campaigns')
-          .select('id, name, status, total_budget, start_date, end_date, objective, platforms')
+          .select('id, name, status, total_budget, start_date, end_date, objective, platforms, generic_config')
           .eq('user_id', user.id)
           .in('status', ['pushed_to_dsp', 'live', 'partially_pushed', 'approved', 'ready_for_push'])
           .order('created_at', { ascending: false }),
@@ -446,8 +489,29 @@ export default function InsightsRecommendations() {
     setAnalysisResult(null);
     setConfigOpen(false);
 
-    // Get selected client data for competitor analysis
-    const selectedClient = clients.find(c => c.id === selectedClientId);
+    // Determine client data for competitor analysis based on source
+    let clientName: string | undefined;
+    let clientIndustry: string | undefined;
+    let hasValidClient = false;
+
+    if (includeCompetitorAnalysis && canUseCompetitorAnalysis) {
+      if (clientSource === 'campaign' && campaignClientInfo) {
+        clientName = campaignClientInfo.name;
+        clientIndustry = campaignClientInfo.industry;
+        hasValidClient = true;
+      } else if (clientSource === 'list' && selectedClientId) {
+        const selectedClient = clients.find(c => c.id === selectedClientId);
+        if (selectedClient) {
+          clientName = selectedClient.name;
+          clientIndustry = selectedClient.industry;
+          hasValidClient = true;
+        }
+      } else if (clientSource === 'manual' && manualClientName && manualClientIndustry) {
+        clientName = manualClientName;
+        clientIndustry = manualClientIndustry;
+        hasValidClient = true;
+      }
+    }
 
     try {
       const { data, error } = await supabase.functions.invoke('insights-recommendations', {
@@ -459,9 +523,9 @@ export default function InsightsRecommendations() {
           crossPlatformEnabled: canAccessCrossPlatform,
           useSampleData: true, // Always use sample data for now
           includeActivityLogs: true,
-          includeCompetitorAnalysis: includeCompetitorAnalysis && canUseCompetitorAnalysis && !!selectedClient,
-          clientName: selectedClient?.name,
-          clientIndustry: selectedClient?.industry
+          includeCompetitorAnalysis: includeCompetitorAnalysis && canUseCompetitorAnalysis && hasValidClient,
+          clientName,
+          clientIndustry
         }
       });
 
@@ -875,33 +939,83 @@ export default function InsightsRecommendations() {
                             </label>
                           </div>
                           {includeCompetitorAnalysis && canUseCompetitorAnalysis && (
-                            <div className="space-y-2 pl-6">
-                              <Label className="text-xs text-muted-foreground">Select Client</Label>
-                              <Select value={selectedClientId} onValueChange={setSelectedClientId}>
-                                <SelectTrigger className="h-9">
-                                  <SelectValue placeholder="Select a client..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {clients.length === 0 ? (
-                                    <div className="p-2 text-sm text-muted-foreground text-center">
-                                      No clients found. Create a client first.
-                                    </div>
-                                  ) : (
-                                    clients.map(client => (
-                                      <SelectItem key={client.id} value={client.id}>
-                                        <div className="flex flex-col">
-                                          <span>{client.name}</span>
-                                          <span className="text-xs text-muted-foreground">{client.industry}</span>
-                                        </div>
-                                      </SelectItem>
-                                    ))
+                            <div className="space-y-3 pl-6">
+                              {/* Campaign client detected */}
+                              {clientSource === 'campaign' && campaignClientInfo && (
+                                <div className="space-y-2">
+                                  <div className="flex items-center gap-2">
+                                    <Badge variant="secondary" className="text-xs">
+                                      From ActiPlan
+                                    </Badge>
+                                  </div>
+                                  <div className="p-3 bg-muted/50 rounded-md space-y-1">
+                                    <p className="text-sm font-medium">{campaignClientInfo.name}</p>
+                                    <p className="text-xs text-muted-foreground">{campaignClientInfo.industry}</p>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground">
+                                    Client detected from selected ActiPlan's activation details
+                                  </p>
+                                </div>
+                              )}
+                              
+                              {/* Client list selection */}
+                              {clientSource === 'list' && clients.length > 0 && (
+                                <div className="space-y-2">
+                                  <Label className="text-xs text-muted-foreground">Select Client</Label>
+                                  <Select value={selectedClientId} onValueChange={setSelectedClientId}>
+                                    <SelectTrigger className="h-9">
+                                      <SelectValue placeholder="Select a client..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {clients.map(client => (
+                                        <SelectItem key={client.id} value={client.id}>
+                                          <div className="flex flex-col">
+                                            <span>{client.name}</span>
+                                            <span className="text-xs text-muted-foreground">{client.industry}</span>
+                                          </div>
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  {selectedClientId && (
+                                    <p className="text-xs text-muted-foreground">
+                                      Will search for competitors based on client name and industry
+                                    </p>
                                   )}
-                                </SelectContent>
-                              </Select>
-                              {selectedClientId && (
-                                <p className="text-xs text-muted-foreground">
-                                  Will search for competitors based on client name and industry
-                                </p>
+                                </div>
+                              )}
+                              
+                              {/* Manual input fallback */}
+                              {clientSource === 'manual' && (
+                                <div className="space-y-3">
+                                  <p className="text-xs text-amber-600 flex items-center gap-1">
+                                    <AlertCircle className="h-3 w-3" />
+                                    No client found. Enter details manually or create a client in Client Management.
+                                  </p>
+                                  <div className="space-y-2">
+                                    <Label className="text-xs">Client Name</Label>
+                                    <Input
+                                      placeholder="Enter client name..."
+                                      value={manualClientName}
+                                      onChange={(e) => setManualClientName(e.target.value)}
+                                      className="h-9"
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label className="text-xs">Industry</Label>
+                                    <Input
+                                      placeholder="Enter industry (e.g., E-commerce, Finance)..."
+                                      value={manualClientIndustry}
+                                      onChange={(e) => setManualClientIndustry(e.target.value)}
+                                      className="h-9"
+                                    />
+                                  </div>
+                                  {manualClientName && manualClientIndustry && (
+                                    <p className="text-xs text-muted-foreground">
+                                      Will search for competitors based on entered details
+                                    </p>
+                                  )}
+                                </div>
                               )}
                             </div>
                           )}
