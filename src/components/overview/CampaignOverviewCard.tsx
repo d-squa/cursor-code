@@ -33,6 +33,16 @@ interface CompletedRequestsByCategory {
   notesLast7Days: number;
 }
 
+interface PlatformStats {
+  platform: string;
+  changes: number;
+  pending: number;
+  optimized: number;
+  notes: number;
+}
+
+type DateRangeFilter = "lifetime" | "this_month" | "last_7_days";
+
 interface CampaignOverviewCardProps {
   campaign: {
     id: string;
@@ -57,6 +67,20 @@ interface CampaignOverviewCardProps {
   completedByCategory: CompletedRequestsByCategory;
   hasRecentAnalysis: boolean;
   isSampleData?: boolean;
+  platformStats?: PlatformStats[];
+  // Stats by date range
+  statsByDateRange?: {
+    lifetime: { changes: number; pending: number; optimized: number; notes: number };
+    this_month: { changes: number; pending: number; optimized: number; notes: number };
+    last_7_days: { changes: number; pending: number; optimized: number; notes: number };
+  };
+  platformStatsByDateRange?: {
+    [platform: string]: {
+      lifetime: { changes: number; pending: number; optimized: number; notes: number };
+      this_month: { changes: number; pending: number; optimized: number; notes: number };
+      last_7_days: { changes: number; pending: number; optimized: number; notes: number };
+    };
+  };
 }
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -166,6 +190,87 @@ function PacingBar({
   );
 }
 
+// Stats row component for reuse
+function StatsRow({ 
+  stats, 
+  label,
+  showLabel = true 
+}: { 
+  stats: { changes: number; pending: number; optimized: number; notes: number }; 
+  label?: string;
+  showLabel?: boolean;
+}) {
+  return (
+    <div className="space-y-1">
+      {showLabel && label && (
+        <span className="text-[9px] font-medium text-muted-foreground">{label}</span>
+      )}
+      <div className="grid grid-cols-4 gap-1 text-center">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="flex flex-col items-center cursor-help">
+              <span className="text-[8px] text-muted-foreground uppercase tracking-tight">Changes</span>
+              <span className="text-sm font-semibold">{stats.changes}</span>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="text-xs">Total modification requests</TooltipContent>
+        </Tooltip>
+        
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="flex flex-col items-center cursor-help">
+              <span className="text-[8px] text-muted-foreground uppercase tracking-tight">Pending</span>
+              <span className={cn(
+                "text-sm font-semibold",
+                stats.pending > 0 && "text-amber-600"
+              )}>
+                {stats.pending}
+              </span>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="text-xs">Pending requests awaiting action</TooltipContent>
+        </Tooltip>
+        
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="flex flex-col items-center cursor-help">
+              <span className="text-[8px] text-muted-foreground uppercase tracking-tight">Optimized</span>
+              <span className={cn(
+                "text-sm font-semibold",
+                stats.optimized > 0 && "text-green-600"
+              )}>
+                {stats.optimized}
+              </span>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="text-xs">Completed optimization requests</TooltipContent>
+        </Tooltip>
+        
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="flex flex-col items-center cursor-help">
+              <span className="text-[8px] text-muted-foreground uppercase tracking-tight">Notes</span>
+              <span className={cn(
+                "text-sm font-semibold",
+                stats.notes > 0 && "text-blue-600"
+              )}>
+                {stats.notes}
+              </span>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="text-xs">Notes added</TooltipContent>
+        </Tooltip>
+      </div>
+    </div>
+  );
+}
+
+const dateRangeLabels: Record<DateRangeFilter, string> = {
+  lifetime: "Lifetime",
+  this_month: "This Month",
+  last_7_days: "Last 7 Days",
+};
+
 export function CampaignOverviewCard({
   campaign,
   platformPacing,
@@ -179,9 +284,13 @@ export function CampaignOverviewCard({
   completedByCategory,
   hasRecentAnalysis,
   isSampleData,
+  statsByDateRange,
+  platformStatsByDateRange,
 }: CampaignOverviewCardProps) {
   const navigate = useNavigate();
   const [platformsOpen, setPlatformsOpen] = useState(false);
+  const [statsOpen, setStatsOpen] = useState(false);
+  const [dateRange, setDateRange] = useState<DateRangeFilter>("lifetime");
 
   const pacingStatus = useMemo(() => {
     const absDiff = Math.abs(totalPacingDiff);
@@ -198,11 +307,34 @@ export function CampaignOverviewCard({
     return `$${value.toFixed(0)}`;
   };
 
+  // Get current stats based on date range
+  const currentStats = useMemo(() => {
+    if (statsByDateRange) {
+      return statsByDateRange[dateRange];
+    }
+    // Fallback to existing props
+    return {
+      changes: modificationRequests.total,
+      pending: modificationRequests.pending,
+      optimized: completedByCategory.optimization,
+      notes: completedByCategory.notesLast7Days,
+    };
+  }, [dateRange, statsByDateRange, modificationRequests, completedByCategory]);
+
+  // Get platform stats for current date range
+  const currentPlatformStats = useMemo(() => {
+    if (!platformStatsByDateRange) return [];
+    return platformPacing.map(p => ({
+      platform: p.platform,
+      stats: platformStatsByDateRange[p.platform]?.[dateRange] || { changes: 0, pending: 0, optimized: 0, notes: 0 },
+    }));
+  }, [dateRange, platformStatsByDateRange, platformPacing]);
+
   const actiplanTooltip = `${format(new Date(campaign.start_date), "MMM d")} - ${format(new Date(campaign.end_date), "MMM d, yyyy")} (${totalDays} days)\n${elapsedDays} days (${totalTimePct.toFixed(0)}%) elapsed\n\nBudget: ${formatCurrency(totalBudgetSpent)} of ${formatCurrency(campaign.total_budget)} (${totalBudgetPct.toFixed(0)}%)\nExpected: ${totalTimePct.toFixed(0)}% | Actual: ${totalBudgetPct.toFixed(0)}%\nDiff: ${totalPacingDiff > 0 ? "+" : ""}${totalPacingDiff.toFixed(1)}%`;
 
   return (
     <TooltipProvider>
-      <Card className="hover:shadow-lg transition-shadow w-full max-w-[280px]">
+      <Card className="hover:shadow-lg transition-shadow w-full max-w-[320px]">
         <CardContent className="p-4 flex flex-col">
           {/* Header Row */}
           <div className="flex items-start justify-between gap-2 mb-3">
@@ -279,62 +411,68 @@ export function CampaignOverviewCard({
             </Collapsible>
           )}
 
-          {/* Stats Grid */}
-          <div className="grid grid-cols-4 gap-1 text-center mt-auto mb-2 border-t pt-2">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="flex flex-col items-center cursor-help">
-                  <span className="text-[8px] text-muted-foreground uppercase tracking-tight">Changes</span>
-                  <span className="text-sm font-semibold">{modificationRequests.total}</span>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="text-xs">Total modification requests</TooltipContent>
-            </Tooltip>
-            
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="flex flex-col items-center cursor-help">
-                  <span className="text-[8px] text-muted-foreground uppercase tracking-tight">Pending</span>
-                  <span className={cn(
-                    "text-sm font-semibold",
-                    modificationRequests.pending > 0 && "text-amber-600"
-                  )}>
-                    {modificationRequests.pending}
-                  </span>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="text-xs">Pending requests awaiting action</TooltipContent>
-            </Tooltip>
-            
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="flex flex-col items-center cursor-help">
-                  <span className="text-[8px] text-muted-foreground uppercase tracking-tight">Optimized</span>
-                  <span className={cn(
-                    "text-sm font-semibold",
-                    completedByCategory.optimization > 0 && "text-green-600"
-                  )}>
-                    {completedByCategory.optimization}
-                  </span>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="text-xs">Completed optimization requests</TooltipContent>
-            </Tooltip>
-            
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="flex flex-col items-center cursor-help">
-                  <span className="text-[8px] text-muted-foreground uppercase tracking-tight">Notes</span>
-                  <span className={cn(
-                    "text-sm font-semibold",
-                    completedByCategory.notesLast7Days > 0 && "text-blue-600"
-                  )}>
-                    {completedByCategory.notesLast7Days}
-                  </span>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="text-xs">Notes created in the last 7 days</TooltipContent>
-            </Tooltip>
+          {/* Activity Stats Section */}
+          <div className="border-t pt-2 mt-auto mb-2">
+            {/* Title and Date Range Toggle */}
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-foreground">Activity Stats</span>
+              <div className="flex gap-0.5">
+                {(["lifetime", "this_month", "last_7_days"] as DateRangeFilter[]).map((range) => (
+                  <button
+                    key={range}
+                    onClick={() => setDateRange(range)}
+                    className={cn(
+                      "px-1.5 py-0.5 text-[8px] rounded transition-colors",
+                      dateRange === range
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:bg-muted"
+                    )}
+                  >
+                    {range === "lifetime" ? "All" : range === "this_month" ? "Month" : "7D"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* ActiPlan Level Stats (Aggregated) */}
+            <StatsRow stats={currentStats} label="All Platforms" showLabel={false} />
+
+            {/* Platform Level Stats Collapsible */}
+            {currentPlatformStats.length > 0 && (
+              <Collapsible open={statsOpen} onOpenChange={setStatsOpen} className="mt-2">
+                <CollapsibleTrigger className="flex items-center justify-between w-full text-[9px] text-muted-foreground hover:text-foreground transition-colors py-1">
+                  <span className="font-medium">Stats by Platform</span>
+                  <ChevronDown className={cn("h-2.5 w-2.5 transition-transform", statsOpen && "rotate-180")} />
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-2 pt-1">
+                  {currentPlatformStats.map(({ platform, stats }) => (
+                    <div key={platform} className="pl-2 border-l-2 border-muted">
+                      <span className="text-[9px] font-medium text-muted-foreground mb-1 block">
+                        {platform.charAt(0).toUpperCase() + platform.slice(1)}
+                      </span>
+                      <div className="grid grid-cols-4 gap-1 text-center">
+                        <div className="flex flex-col items-center">
+                          <span className="text-[7px] text-muted-foreground uppercase">Chg</span>
+                          <span className="text-xs font-semibold">{stats.changes}</span>
+                        </div>
+                        <div className="flex flex-col items-center">
+                          <span className="text-[7px] text-muted-foreground uppercase">Pnd</span>
+                          <span className={cn("text-xs font-semibold", stats.pending > 0 && "text-amber-600")}>{stats.pending}</span>
+                        </div>
+                        <div className="flex flex-col items-center">
+                          <span className="text-[7px] text-muted-foreground uppercase">Opt</span>
+                          <span className={cn("text-xs font-semibold", stats.optimized > 0 && "text-green-600")}>{stats.optimized}</span>
+                        </div>
+                        <div className="flex flex-col items-center">
+                          <span className="text-[7px] text-muted-foreground uppercase">Nts</span>
+                          <span className={cn("text-xs font-semibold", stats.notes > 0 && "text-blue-600")}>{stats.notes}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </CollapsibleContent>
+              </Collapsible>
+            )}
           </div>
 
           {/* Action Button */}

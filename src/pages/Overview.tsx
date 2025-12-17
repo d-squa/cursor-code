@@ -324,7 +324,49 @@ const Overview = () => {
       const campaignModRequests = displayData.modRequests.filter(m => m.campaign_id === campaign.id);
       const pendingRequests = campaignModRequests.filter(m => m.status === "pending" || m.status === "sent").length;
       
-      // Completed requests by category
+      // Calculate stats by different date ranges
+      const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      
+      const getStatsForDateRange = (requests: ModificationRequest[], rangeStart: Date | null) => {
+        const filteredRequests = rangeStart 
+          ? requests.filter(m => isAfter(new Date(m.updated_at), rangeStart))
+          : requests;
+        
+        return {
+          changes: filteredRequests.length,
+          pending: filteredRequests.filter(m => m.status === "pending" || m.status === "sent").length,
+          optimized: filteredRequests.filter(m => 
+            m.status === "completed" && (m.change_type === "targeting" || m.change_type === "goals")
+          ).length,
+          notes: filteredRequests.filter(m => m.change_type === "note").length,
+        };
+      };
+
+      const statsByDateRange = {
+        lifetime: getStatsForDateRange(campaignModRequests, null),
+        this_month: getStatsForDateRange(campaignModRequests, thisMonthStart),
+        last_7_days: getStatsForDateRange(campaignModRequests, sevenDaysAgo),
+      };
+
+      // Platform-level stats by date range
+      const platformStatsByDateRange: Record<string, typeof statsByDateRange> = {};
+      platformPacing.forEach(p => {
+        // In a real scenario, mod requests would be tagged by platform
+        // For now, simulate platform distribution
+        const platformRequests = campaignModRequests.filter((_, idx) => {
+          // Simple distribution: even indices for first platform, odd for second
+          const platformIdx = platformPacing.findIndex(pp => pp.platform === p.platform);
+          return idx % platformPacing.length === platformIdx;
+        });
+        platformStatsByDateRange[p.platform] = {
+          lifetime: getStatsForDateRange(platformRequests, null),
+          this_month: getStatsForDateRange(platformRequests, thisMonthStart),
+          last_7_days: getStatsForDateRange(platformRequests, sevenDaysAgo),
+        };
+      });
+      
+      // Completed requests by category (legacy, kept for backward compat)
       const completedByCategory: CompletedRequestsByCategory = {
         optimization: campaignModRequests.filter(m => 
           m.status === "completed" && (m.change_type === "targeting" || m.change_type === "goals")
@@ -356,6 +398,8 @@ const Overview = () => {
         },
         completedByCategory,
         hasRecentAnalysis,
+        statsByDateRange,
+        platformStatsByDateRange,
       };
     });
   }, [sortedCampaigns, displayData]);
@@ -485,6 +529,8 @@ const Overview = () => {
                 completedByCategory={data.completedByCategory}
                 hasRecentAnalysis={data.hasRecentAnalysis}
                 isSampleData={data.campaign.id === displayData.sampleCampaignId}
+                statsByDateRange={data.statsByDateRange}
+                platformStatsByDateRange={data.platformStatsByDateRange}
               />
             ))}
           </div>
