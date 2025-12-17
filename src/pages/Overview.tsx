@@ -365,6 +365,12 @@ const Overview = () => {
             </div>
             <nav className="flex items-center gap-2">
               <button
+                onClick={() => navigate("/app")}
+                className="px-4 py-2 text-sm font-medium text-primary border-b-2 border-primary transition-colors"
+              >
+                Overview
+              </button>
+              <button
                 onClick={() => navigate("/actiplans")}
                 className="px-4 py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
               >
@@ -440,14 +446,14 @@ const Overview = () => {
           <div className="flex items-center justify-center py-20">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
-        ) : !hasAnyCampaigns ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        ) : !hasAnyCampaigns && dataSource === "live" ? (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             <BlurredPlaceholderCard />
             <BlurredPlaceholderCard />
             <BlurredPlaceholderCard />
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             {campaignPacingData.map(data => (
               <CampaignOverviewCard
                 key={data.campaign.id}
