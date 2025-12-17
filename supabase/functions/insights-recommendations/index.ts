@@ -16,6 +16,9 @@ interface InsightsRequest {
   includeActivityLogs?: boolean;
   includeCompetitorAnalysis?: boolean;
   clientId?: string;
+  clientName?: string;
+  clientIndustry?: string;
+  isGeneralPerformance?: boolean;
 }
 
 interface ActivityLog {
@@ -39,7 +42,7 @@ interface ModificationRequest {
 }
 
 // Generate sample data that mimics real API response structure
-function generateSampleData(platforms: string[], breakdowns: string[], timeComparison: string) {
+function generateSampleData(platforms: string[], breakdowns: string[], timeComparison: string, isGeneralPerformance: boolean = false) {
   const currentPeriodData: any[] = [];
   const comparisonPeriodData: any[] = [];
   
@@ -50,78 +53,150 @@ function generateSampleData(platforms: string[], breakdowns: string[], timeCompa
   const placements = ['feed', 'stories', 'reels', 'right_column', 'marketplace'];
   const publishers = ['facebook', 'instagram', 'audience_network', 'messenger'];
   
+  // Ad set naming convention patterns for general performance mode
+  const adSetPatterns = [
+    { name: 'CONV_LAL_1%_18-35_AllPlc', targeting: 'Lookalike 1%', audience: '18-35', strategy: 'Conversions' },
+    { name: 'CONV_RTG_Web_25-54_Feed', targeting: 'Retargeting Web', audience: '25-54', strategy: 'Conversions' },
+    { name: 'CONV_INT_Fashion_18-44_Auto', targeting: 'Interest Fashion', audience: '18-44', strategy: 'Conversions' },
+    { name: 'TRAFFIC_BRD_25-65_AllPlc', targeting: 'Broad', audience: '25-65', strategy: 'Traffic' },
+    { name: 'REACH_LAL_2%_35-54_Stories', targeting: 'Lookalike 2%', audience: '35-54', strategy: 'Reach' },
+    { name: 'CONV_CUS_HighValue_AllAge_Feed', targeting: 'Custom High Value', audience: 'All Ages', strategy: 'Conversions' },
+  ];
+  
   // Generate data for each platform
   platforms.forEach(platform => {
-    // Generate breakdown combinations
-    const breakdownValues: Record<string, string[]> = {
-      age: ageGroups,
-      gender: genders,
-      country: countries,
-      region: ['California', 'Texas', 'New York', 'Florida', 'Illinois'],
-      device_platform: devices,
-      placement: platform === 'tiktok' ? ['tiktok_feed', 'pangle'] : placements,
-      publisher_platform: platform === 'tiktok' ? ['tiktok'] : publishers
-    };
-    
-    // Get the first breakdown for segmentation
-    const primaryBreakdown = breakdowns[0] || 'age';
-    const values = breakdownValues[primaryBreakdown] || ageGroups;
-    
-    values.forEach((value, idx) => {
-      // Current period data - with some variation
-      const baseSpend = Math.random() * 1000 + 500;
-      const baseImpressions = Math.floor(Math.random() * 100000 + 50000);
-      const baseClicks = Math.floor(baseImpressions * (Math.random() * 0.03 + 0.01));
-      const baseResults = Math.floor(baseClicks * (Math.random() * 0.15 + 0.05));
-      
-      currentPeriodData.push({
-        platform,
-        [primaryBreakdown]: value,
-        date_start: '2024-12-01',
-        date_stop: '2024-12-07',
-        spend: baseSpend,
-        impressions: baseImpressions,
-        clicks: baseClicks,
-        results: baseResults,
-        reach: Math.floor(baseImpressions * 0.7),
-        frequency: 1.4 + Math.random() * 0.5,
-        cpm: (baseSpend / baseImpressions) * 1000,
-        cpc: baseSpend / baseClicks,
-        ctr: (baseClicks / baseImpressions) * 100,
-        cpr: baseSpend / baseResults,
-        result_rate: (baseResults / baseImpressions) * 100,
-        objective: platform === 'meta' ? 'CONVERSIONS' : 'TRAFFIC',
-        optimization_goal: platform === 'meta' ? 'OFFSITE_CONVERSIONS' : 'CLICK',
-        adset_name: `${platform.toUpperCase()}_${value}_AdSet`
+    if (isGeneralPerformance) {
+      // General performance mode: use ad set naming patterns
+      adSetPatterns.forEach((pattern, idx) => {
+        const baseSpend = Math.random() * 1500 + 500;
+        const baseImpressions = Math.floor(Math.random() * 150000 + 50000);
+        const baseClicks = Math.floor(baseImpressions * (Math.random() * 0.035 + 0.01));
+        const baseResults = Math.floor(baseClicks * (Math.random() * 0.18 + 0.05));
+        
+        currentPeriodData.push({
+          platform,
+          adset_name: `${platform.toUpperCase()}_${pattern.name}`,
+          targeting_type: pattern.targeting,
+          audience_segment: pattern.audience,
+          strategy: pattern.strategy,
+          date_start: '2024-12-01',
+          date_stop: '2024-12-07',
+          spend: baseSpend,
+          impressions: baseImpressions,
+          clicks: baseClicks,
+          results: baseResults,
+          reach: Math.floor(baseImpressions * 0.7),
+          frequency: 1.4 + Math.random() * 0.5,
+          cpm: (baseSpend / baseImpressions) * 1000,
+          cpc: baseSpend / baseClicks,
+          ctr: (baseClicks / baseImpressions) * 100,
+          cpr: baseSpend / baseResults,
+          result_rate: (baseResults / baseImpressions) * 100,
+          objective: pattern.strategy.toUpperCase(),
+          optimization_goal: pattern.strategy === 'Conversions' ? 'OFFSITE_CONVERSIONS' : pattern.strategy === 'Traffic' ? 'LINK_CLICKS' : 'REACH'
+        });
+        
+        // Comparison period
+        const compSpend = baseSpend * (0.85 + Math.random() * 0.3);
+        const compImpressions = Math.floor(baseImpressions * (0.9 + Math.random() * 0.2));
+        const compClicks = Math.floor(compImpressions * (Math.random() * 0.028 + 0.008));
+        const compResults = Math.floor(compClicks * (Math.random() * 0.14 + 0.04));
+        
+        comparisonPeriodData.push({
+          platform,
+          adset_name: `${platform.toUpperCase()}_${pattern.name}`,
+          targeting_type: pattern.targeting,
+          audience_segment: pattern.audience,
+          strategy: pattern.strategy,
+          date_start: '2024-11-24',
+          date_stop: '2024-11-30',
+          spend: compSpend,
+          impressions: compImpressions,
+          clicks: compClicks,
+          results: compResults,
+          reach: Math.floor(compImpressions * 0.7),
+          frequency: 1.3 + Math.random() * 0.4,
+          cpm: (compSpend / compImpressions) * 1000,
+          cpc: compSpend / compClicks,
+          ctr: (compClicks / compImpressions) * 100,
+          cpr: compSpend / compResults,
+          result_rate: (compResults / compImpressions) * 100,
+          objective: pattern.strategy.toUpperCase(),
+          optimization_goal: pattern.strategy === 'Conversions' ? 'OFFSITE_CONVERSIONS' : pattern.strategy === 'Traffic' ? 'LINK_CLICKS' : 'REACH'
+        });
       });
+    } else {
+      // Regular breakdown mode
+      const breakdownValues: Record<string, string[]> = {
+        age: ageGroups,
+        gender: genders,
+        country: countries,
+        region: ['California', 'Texas', 'New York', 'Florida', 'Illinois'],
+        device_platform: devices,
+        placement: platform === 'tiktok' ? ['tiktok_feed', 'pangle'] : placements,
+        publisher_platform: platform === 'tiktok' ? ['tiktok'] : publishers
+      };
       
-      // Comparison period data - slightly different performance
-      const compSpend = baseSpend * (0.85 + Math.random() * 0.3);
-      const compImpressions = Math.floor(baseImpressions * (0.9 + Math.random() * 0.2));
-      const compClicks = Math.floor(compImpressions * (Math.random() * 0.025 + 0.008));
-      const compResults = Math.floor(compClicks * (Math.random() * 0.12 + 0.04));
+      // Get the first breakdown for segmentation
+      const primaryBreakdown = breakdowns[0] || 'age';
+      const values = breakdownValues[primaryBreakdown] || ageGroups;
       
-      comparisonPeriodData.push({
-        platform,
-        [primaryBreakdown]: value,
-        date_start: '2024-11-24',
-        date_stop: '2024-11-30',
-        spend: compSpend,
-        impressions: compImpressions,
-        clicks: compClicks,
-        results: compResults,
-        reach: Math.floor(compImpressions * 0.7),
-        frequency: 1.3 + Math.random() * 0.4,
-        cpm: (compSpend / compImpressions) * 1000,
-        cpc: compSpend / compClicks,
-        ctr: (compClicks / compImpressions) * 100,
-        cpr: compSpend / compResults,
-        result_rate: (compResults / compImpressions) * 100,
-        objective: platform === 'meta' ? 'CONVERSIONS' : 'TRAFFIC',
-        optimization_goal: platform === 'meta' ? 'OFFSITE_CONVERSIONS' : 'CLICK',
-        adset_name: `${platform.toUpperCase()}_${value}_AdSet`
+      values.forEach((value, idx) => {
+        // Current period data - with some variation
+        const baseSpend = Math.random() * 1000 + 500;
+        const baseImpressions = Math.floor(Math.random() * 100000 + 50000);
+        const baseClicks = Math.floor(baseImpressions * (Math.random() * 0.03 + 0.01));
+        const baseResults = Math.floor(baseClicks * (Math.random() * 0.15 + 0.05));
+        
+        currentPeriodData.push({
+          platform,
+          [primaryBreakdown]: value,
+          date_start: '2024-12-01',
+          date_stop: '2024-12-07',
+          spend: baseSpend,
+          impressions: baseImpressions,
+          clicks: baseClicks,
+          results: baseResults,
+          reach: Math.floor(baseImpressions * 0.7),
+          frequency: 1.4 + Math.random() * 0.5,
+          cpm: (baseSpend / baseImpressions) * 1000,
+          cpc: baseSpend / baseClicks,
+          ctr: (baseClicks / baseImpressions) * 100,
+          cpr: baseSpend / baseResults,
+          result_rate: (baseResults / baseImpressions) * 100,
+          objective: platform === 'meta' ? 'CONVERSIONS' : 'TRAFFIC',
+          optimization_goal: platform === 'meta' ? 'OFFSITE_CONVERSIONS' : 'CLICK',
+          adset_name: `${platform.toUpperCase()}_${value}_AdSet`
+        });
+        
+        // Comparison period data - slightly different performance
+        const compSpend = baseSpend * (0.85 + Math.random() * 0.3);
+        const compImpressions = Math.floor(baseImpressions * (0.9 + Math.random() * 0.2));
+        const compClicks = Math.floor(compImpressions * (Math.random() * 0.025 + 0.008));
+        const compResults = Math.floor(compClicks * (Math.random() * 0.12 + 0.04));
+        
+        comparisonPeriodData.push({
+          platform,
+          [primaryBreakdown]: value,
+          date_start: '2024-11-24',
+          date_stop: '2024-11-30',
+          spend: compSpend,
+          impressions: compImpressions,
+          clicks: compClicks,
+          results: compResults,
+          reach: Math.floor(compImpressions * 0.7),
+          frequency: 1.3 + Math.random() * 0.4,
+          cpm: (compSpend / compImpressions) * 1000,
+          cpc: compSpend / compClicks,
+          ctr: (compClicks / compImpressions) * 100,
+          cpr: compSpend / compResults,
+          result_rate: (compResults / compImpressions) * 100,
+          objective: platform === 'meta' ? 'CONVERSIONS' : 'TRAFFIC',
+          optimization_goal: platform === 'meta' ? 'OFFSITE_CONVERSIONS' : 'CLICK',
+          adset_name: `${platform.toUpperCase()}_${value}_AdSet`
+        });
       });
-    });
+    }
   });
   
   return { currentPeriodData, comparisonPeriodData };
@@ -233,9 +308,9 @@ function buildAnalysisPrompt(
   timeComparison: string,
   crossPlatformEnabled: boolean,
   activityLogsSection: string,
-  competitorSection: string
+  competitorSection: string,
+  isGeneralPerformance: boolean = false
 ): string {
-  const breakdownLabel = breakdowns.join(', ');
   const timeLabel = timeComparison.replace(/_/g, ' ');
   
   const currentDataStr = JSON.stringify(currentData, null, 2);
@@ -247,10 +322,22 @@ function buildAnalysisPrompt(
   const hasActivityLogs = activityLogsSection.length > 0;
   const hasCompetitorData = competitorSection.length > 0;
   
+  // Determine breakdown label based on mode
+  const breakdownLabel = isGeneralPerformance ? 'Ad Set Name (naming convention)' : breakdowns.join(', ');
+  
   return `
 I am a digital marketing performance analyst, and I need help analyzing campaign performance evolution.
 
-${isCrossPlatform ? `
+${isGeneralPerformance ? `
+**GENERAL PERFORMANCE ANALYSIS MODE**
+This analysis focuses on overall campaign performance using ad set naming conventions as differentiators.
+Please analyze performance by:
+- Ad Set Name patterns (decode naming conventions to identify targeting, creative, or audience types)
+- Overall campaign health metrics
+- Budget efficiency across ad sets
+- Top and bottom performing ad sets by name/strategy
+` : ''}
+${!isGeneralPerformance && isCrossPlatform ? `
 **CROSS-PLATFORM ANALYSIS MODE**
 This analysis compares performance across multiple platforms: ${platformList.join(', ')}.
 Please identify:
@@ -258,10 +345,11 @@ Please identify:
 - Cross-platform budget allocation recommendations
 - Platform-specific optimization opportunities
 - Unified audience insights across platforms
-` : `
+` : ''}
+${!isGeneralPerformance && !isCrossPlatform ? `
 **SINGLE PLATFORM ANALYSIS MODE**
 Analyzing performance for: ${platformList[0]}
-`}
+` : ''}
 
 The performance data has been pre-calculated and includes:
 - CPM (cost per 1,000 impressions)
@@ -388,10 +476,13 @@ serve(async (req) => {
       useSampleData = true,
       includeActivityLogs = true,
       includeCompetitorAnalysis = false,
-      clientId
+      clientId,
+      clientName,
+      clientIndustry,
+      isGeneralPerformance = false
     } = body;
 
-    console.log("Insights request:", { campaignIds, platforms, timeComparison, breakdowns, crossPlatformEnabled, includeActivityLogs, includeCompetitorAnalysis });
+    console.log("Insights request:", { campaignIds, platforms, timeComparison, breakdowns, crossPlatformEnabled, includeActivityLogs, includeCompetitorAnalysis, isGeneralPerformance });
 
     // Fetch activity logs if enabled
     let activityLogs: ActivityLog[] = [];
@@ -427,16 +518,26 @@ serve(async (req) => {
 
     // Fetch competitor data if enabled
     let competitorData: any = null;
-    if (includeCompetitorAnalysis && clientId) {
+    if (includeCompetitorAnalysis) {
       try {
-        // Fetch client info for competitor search
-        const { data: clientData } = await supabase
-          .from('clients')
-          .select('name, industry')
-          .eq('id', clientId)
-          .single();
+        // Use provided clientName/clientIndustry or fetch from clientId
+        let searchClientName = clientName;
+        let searchClientIndustry = clientIndustry;
         
-        if (clientData) {
+        if (!searchClientName && clientId) {
+          const { data: clientData } = await supabase
+            .from('clients')
+            .select('name, industry')
+            .eq('id', clientId)
+            .single();
+          
+          if (clientData) {
+            searchClientName = clientData.name;
+            searchClientIndustry = clientData.industry;
+          }
+        }
+        
+        if (searchClientName && searchClientIndustry) {
           // Call competitor analysis edge function
           const competitorResponse = await fetch(
             `${supabaseUrl}/functions/v1/competitor-ads-search`,
@@ -447,8 +548,8 @@ serve(async (req) => {
                 'Content-Type': 'application/json',
               },
               body: JSON.stringify({
-                clientName: clientData.name,
-                industry: clientData.industry,
+                clientName: searchClientName,
+                industry: searchClientIndustry,
                 platforms
               })
             }
@@ -469,8 +570,10 @@ serve(async (req) => {
     const { currentPeriodData, comparisonPeriodData } = generateSampleData(
       platforms, 
       breakdowns, 
-      timeComparison
+      timeComparison,
+      isGeneralPerformance
     );
+
 
     console.log(`Generated ${currentPeriodData.length} current period records and ${comparisonPeriodData.length} comparison records`);
 
@@ -493,7 +596,8 @@ serve(async (req) => {
       timeComparison,
       crossPlatformEnabled,
       activityLogsSection,
-      competitorSection
+      competitorSection,
+      isGeneralPerformance
     );
 
     // Call Lovable AI for analysis
