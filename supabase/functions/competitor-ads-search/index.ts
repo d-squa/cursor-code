@@ -206,7 +206,9 @@ serve(async (req) => {
       country = 'US'
     } = body;
 
-    console.log("Competitor search request:", { clientName, industry, platforms, country });
+    console.log("=== COMPETITOR ANALYSIS START ===");
+    console.log("Input parameters:", { clientName, industry, platforms, country });
+    console.log("User ID:", userId || "Anonymous (service role)");
 
     // Build search terms from client name and industry
     const industryKeywords = INDUSTRY_KEYWORDS[industry.toLowerCase()] || [];
@@ -216,7 +218,9 @@ serve(async (req) => {
       `${industry} ${country}`
     ];
 
-    console.log("Search terms:", searchTerms);
+    console.log("Industry keywords found:", industryKeywords);
+    console.log("Search terms to use:", searchTerms);
+    console.log("Custom search terms provided:", customSearchTerms ? "Yes" : "No");
 
     // Try to get platform access tokens for live API calls
     let metaAccessToken: string | null = null;
@@ -254,33 +258,59 @@ serve(async (req) => {
     let usedLiveData = false;
 
     // Try live API calls if we have access tokens
+    console.log("=== ATTEMPTING LIVE API CALLS ===");
+    console.log("Meta access token available:", !!metaAccessToken);
+    console.log("TikTok access token available:", !!tiktokAccessToken);
+    
     if (metaAccessToken && platforms.includes('meta')) {
       try {
+        console.log("Calling Meta Ads Library API...");
         result.meta = await searchMetaAdsLibrary(searchTerms, metaAccessToken, country);
         usedLiveData = result.meta.length > 0;
-        console.log(`Fetched ${result.meta.length} Meta ads`);
+        console.log(`Meta API returned ${result.meta.length} ads`);
+        if (result.meta.length > 0) {
+          const metaCompetitorNames = result.meta.map((ad: any) => ad.page_name || ad.advertiser_name).filter(Boolean);
+          console.log("Meta competitors found:", [...new Set(metaCompetitorNames)]);
+        }
       } catch (error) {
         console.error("Meta Ads Library error:", error);
       }
+    } else {
+      console.log("Skipping Meta API: ", !metaAccessToken ? "No access token" : "Meta not in platforms");
     }
 
     if (tiktokAccessToken && platforms.includes('tiktok')) {
       try {
+        console.log("Calling TikTok Ads Library API...");
         result.tiktok = await searchTikTokAdsLibrary(searchTerms, tiktokAccessToken, country);
         usedLiveData = usedLiveData || result.tiktok.length > 0;
-        console.log(`Fetched ${result.tiktok.length} TikTok ads`);
+        console.log(`TikTok API returned ${result.tiktok.length} ads`);
+        if (result.tiktok.length > 0) {
+          const tiktokCompetitorNames = result.tiktok.map((ad: any) => ad.advertiser_name).filter(Boolean);
+          console.log("TikTok competitors found:", [...new Set(tiktokCompetitorNames)]);
+        }
       } catch (error) {
         console.error("TikTok Ads Library error:", error);
       }
+    } else {
+      console.log("Skipping TikTok API: ", !tiktokAccessToken ? "No access token" : "TikTok not in platforms");
     }
 
     // Fall back to sample data if no live data available
     if (!usedLiveData) {
-      console.log("Using sample competitor data");
+      console.log("=== USING SAMPLE COMPETITOR DATA ===");
+      console.log("Reason: No live data retrieved from APIs");
       result = generateSampleCompetitorData(clientName, industry, platforms);
+      console.log("Sample Meta competitors generated:", result.meta?.map((a: any) => a.advertiser_name) || []);
+      console.log("Sample TikTok competitors generated:", result.tiktok?.map((a: any) => a.advertiser_name) || []);
     }
 
     // Analyze competitor activity summary
+    const topCompetitors = [...new Set([
+      ...result.meta.map((a: any) => a.page_name || a.advertiser_name),
+      ...result.tiktok.map((a: any) => a.advertiser_name)
+    ])].filter(Boolean).slice(0, 10);
+    
     const summary = {
       totalCompetitorAds: result.meta.length + result.tiktok.length,
       metaAdsCount: result.meta.length,
@@ -289,13 +319,14 @@ serve(async (req) => {
         ...result.meta.filter((a: any) => a.is_active || !a.ad_delivery_stop_time),
         ...result.tiktok.filter((a: any) => a.is_active)
       ].length,
-      topCompetitors: [...new Set([
-        ...result.meta.map((a: any) => a.page_name || a.advertiser_name),
-        ...result.tiktok.map((a: any) => a.advertiser_name)
-      ])].slice(0, 10),
+      topCompetitors,
       searchTermsUsed: searchTerms,
       usedLiveData
     };
+
+    console.log("=== COMPETITOR ANALYSIS COMPLETE ===");
+    console.log("Summary:", JSON.stringify(summary, null, 2));
+    console.log("Top competitors identified:", topCompetitors);
 
     return new Response(
       JSON.stringify({

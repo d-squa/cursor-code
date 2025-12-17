@@ -253,48 +253,78 @@ When analyzing performance changes, consider whether any of the above actions mi
   return logsSection;
 }
 
-// Format competitor data for AI prompt
+// Format competitor data for AI prompt with explicit competitor names
 function formatCompetitorDataForPrompt(competitorData: any): string {
   if (!competitorData || (!competitorData.meta?.length && !competitorData.tiktok?.length)) {
     return '';
   }
 
+  // Extract unique competitor names
+  const metaCompetitors = competitorData.meta?.map((ad: any) => ad.page_name || ad.advertiser_name).filter(Boolean) || [];
+  const tiktokCompetitors = competitorData.tiktok?.map((ad: any) => ad.advertiser_name).filter(Boolean) || [];
+  const allCompetitors = [...new Set([...metaCompetitors, ...tiktokCompetitors])];
+  
   let competitorSection = `
 ---
 
 **COMPETITOR ADVERTISING ACTIVITY:**
 
-The following competitor ads were found active during this analysis period. Consider these when analyzing performance changes - increased competitor activity may impact your campaign performance.
+**IMPORTANT: You MUST explicitly mention the following competitor names by name in your analysis:**
+${allCompetitors.map((name, idx) => `${idx + 1}. ${name}`).join('\n')}
+
+These are direct competitors actively advertising. Analyze their activity and reference them BY NAME when discussing competitive landscape.
 
 `;
 
   if (competitorData.meta?.length > 0) {
-    competitorSection += `**Meta (Facebook/Instagram) Competitor Ads:**
+    competitorSection += `**Meta (Facebook/Instagram) Competitor Ads (${competitorData.meta.length} total):**
 `;
-    competitorData.meta.slice(0, 10).forEach((ad: any, idx: number) => {
-      competitorSection += `${idx + 1}. **${ad.page_name || ad.advertiser_name || 'Unknown Advertiser'}**
-   - Ad Type: ${ad.ad_creative_body ? 'Text' : 'Visual'}
-   - Started: ${ad.ad_delivery_start_time || 'Unknown'}
-   - Status: ${ad.ad_delivery_stop_time ? 'Ended' : 'Active'}
+    // Group by advertiser name
+    const metaByAdvertiser = new Map<string, any[]>();
+    competitorData.meta.forEach((ad: any) => {
+      const name = ad.page_name || ad.advertiser_name || 'Unknown';
+      if (!metaByAdvertiser.has(name)) {
+        metaByAdvertiser.set(name, []);
+      }
+      metaByAdvertiser.get(name)!.push(ad);
+    });
+    
+    metaByAdvertiser.forEach((ads, advertiserName) => {
+      const activeCount = ads.filter((a: any) => !a.ad_delivery_stop_time).length;
+      competitorSection += `- **${advertiserName}**: ${ads.length} ads (${activeCount} active)
 `;
     });
   }
 
   if (competitorData.tiktok?.length > 0) {
     competitorSection += `
-**TikTok Competitor Ads:**
+**TikTok Competitor Ads (${competitorData.tiktok.length} total):**
 `;
-    competitorData.tiktok.slice(0, 10).forEach((ad: any, idx: number) => {
-      competitorSection += `${idx + 1}. **${ad.advertiser_name || 'Unknown Advertiser'}**
-   - Format: ${ad.ad_format || 'Unknown'}
-   - Impressions: ${ad.impressions || 'N/A'}
-   - Status: ${ad.is_active ? 'Active' : 'Inactive'}
+    // Group by advertiser name
+    const tiktokByAdvertiser = new Map<string, any[]>();
+    competitorData.tiktok.forEach((ad: any) => {
+      const name = ad.advertiser_name || 'Unknown';
+      if (!tiktokByAdvertiser.has(name)) {
+        tiktokByAdvertiser.set(name, []);
+      }
+      tiktokByAdvertiser.get(name)!.push(ad);
+    });
+    
+    tiktokByAdvertiser.forEach((ads, advertiserName) => {
+      const activeCount = ads.filter((a: any) => a.is_active).length;
+      competitorSection += `- **${advertiserName}**: ${ads.length} ads (${activeCount} active)
 `;
     });
   }
 
   competitorSection += `
-Factor in competitor activity when explaining performance fluctuations. Increased competition may explain higher CPMs or reduced reach.
+**Summary:** ${competitorData.summary?.totalCompetitorAds || allCompetitors.length} total competitor ads found across ${allCompetitors.length} unique competitors.
+Data source: ${competitorData.summary?.usedLiveData ? 'Live API data' : 'Sample data (no live API access)'}
+
+When analyzing performance, ALWAYS:
+1. Mention specific competitor names (e.g., "${allCompetitors[0] || 'Competitor A'}", "${allCompetitors[1] || 'Competitor B'}")
+2. Correlate your performance changes with competitor activity levels
+3. Recommend competitive positioning strategies against these specific competitors
 `;
 
   return competitorSection;
@@ -418,10 +448,16 @@ Correlate the logged actions and change requests with observed performance chang
 
 ${hasCompetitorData ? `
 **${hasActivityLogs ? '4' : '3'}. Competitive Landscape Analysis**
-Analyze how competitor activity may be affecting campaign performance:
-- Identify if increased competitor ads correlate with your performance dips
-- Note any competitive positioning opportunities
-- Recommend competitive response strategies
+**CRITICAL: You MUST mention specific competitor names from the data above in this section.**
+
+Analyze how competitor activity is affecting campaign performance:
+- List each competitor BY NAME and their current advertising activity level
+- Explain how each major competitor's activity correlates with your performance metrics
+- Identify which specific competitors pose the biggest threat
+- Note competitive positioning opportunities against named competitors
+- Recommend specific competitive response strategies for each key competitor
+
+Example format: "**Competitor Name** is running X active ads, which may be contributing to..."
 
 ---
 ` : ''}
@@ -519,25 +555,36 @@ serve(async (req) => {
     // Fetch competitor data if enabled
     let competitorData: any = null;
     if (includeCompetitorAnalysis) {
+      console.log("=== COMPETITOR ANALYSIS ENABLED ===");
+      console.log("Client ID provided:", clientId || "None");
+      console.log("Client Name provided:", clientName || "None");
+      console.log("Client Industry provided:", clientIndustry || "None");
+      
       try {
         // Use provided clientName/clientIndustry or fetch from clientId
         let searchClientName = clientName;
         let searchClientIndustry = clientIndustry;
         
         if (!searchClientName && clientId) {
-          const { data: clientData } = await supabase
+          console.log("Fetching client data from database for clientId:", clientId);
+          const { data: clientData, error: clientError } = await supabase
             .from('clients')
             .select('name, industry')
             .eq('id', clientId)
             .single();
           
-          if (clientData) {
+          if (clientError) {
+            console.error("Error fetching client:", clientError);
+          } else if (clientData) {
             searchClientName = clientData.name;
             searchClientIndustry = clientData.industry;
+            console.log("Client data retrieved:", { name: searchClientName, industry: searchClientIndustry });
           }
         }
         
         if (searchClientName && searchClientIndustry) {
+          console.log("Calling competitor-ads-search with:", { clientName: searchClientName, industry: searchClientIndustry, platforms });
+          
           // Call competitor analysis edge function
           const competitorResponse = await fetch(
             `${supabaseUrl}/functions/v1/competitor-ads-search`,
@@ -557,13 +604,23 @@ serve(async (req) => {
           
           if (competitorResponse.ok) {
             competitorData = await competitorResponse.json();
-            console.log('Competitor data fetched successfully');
+            console.log("Competitor data received successfully");
+            console.log("Top competitors found:", competitorData.summary?.topCompetitors || []);
+            console.log("Total ads found:", competitorData.summary?.totalCompetitorAds || 0);
+            console.log("Used live data:", competitorData.summary?.usedLiveData || false);
+          } else {
+            const errorText = await competitorResponse.text();
+            console.error("Competitor API error:", competitorResponse.status, errorText);
           }
+        } else {
+          console.log("Skipping competitor analysis: Missing client name or industry");
         }
       } catch (compError) {
         console.error('Error fetching competitor data:', compError);
         // Continue without competitor data
       }
+    } else {
+      console.log("Competitor analysis not enabled for this request");
     }
 
     // Generate sample data for testing
