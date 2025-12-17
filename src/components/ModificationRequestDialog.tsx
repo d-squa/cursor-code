@@ -332,6 +332,7 @@ export function ModificationRequestDialog({
                 <SelectItem value="targeting">Targeting</SelectItem>
                 <SelectItem value="goals">Goals</SelectItem>
                 <SelectItem value="creative">Creative</SelectItem>
+                <SelectItem value="note">User Note</SelectItem>
                 <SelectItem value="other">Other</SelectItem>
               </SelectContent>
             </Select>

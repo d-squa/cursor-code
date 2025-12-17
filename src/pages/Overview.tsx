@@ -5,13 +5,14 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { 
   Target, Zap, LogOut, Settings, Bug, RefreshCw, Plus, 
-  LayoutDashboard 
+  LayoutDashboard, Database
 } from "lucide-react";
 import { BugReportDialog } from "@/components/BugReportDialog";
 import { CampaignOverviewCard } from "@/components/overview/CampaignOverviewCard";
 import { BlurredPlaceholderCard } from "@/components/overview/BlurredPlaceholderCard";
 import { Loader2 } from "lucide-react";
-import { differenceInDays, differenceInHours, startOfWeek, isAfter } from "date-fns";
+import { differenceInDays, differenceInHours, startOfWeek, isAfter, subDays } from "date-fns";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface Campaign {
   id: string;
@@ -34,6 +35,8 @@ interface CampaignInsight {
 interface ModificationRequest {
   campaign_id: string;
   status: string;
+  change_type: string;
+  updated_at: string;
 }
 
 interface SavedAnalysis {
@@ -50,7 +53,64 @@ interface PlatformPacing {
   pacingDiff: number;
   hasRecentImpressions: boolean;
   lastImpressionAt?: string;
+  startDate: string;
+  endDate: string;
+  totalDays: number;
+  elapsedDays: number;
 }
+
+interface CompletedRequestsByCategory {
+  optimization: number;
+  budget: number;
+  notesLast7Days: number;
+}
+
+// Generate sample data for mid-January scenario
+const generateSampleData = () => {
+  const sampleCampaign: Campaign = {
+    id: "sample-campaign-1",
+    name: "Q4 Holiday Campaign 2025",
+    status: "live",
+    total_budget: 80000,
+    start_date: "2025-12-16T00:00:00Z",
+    end_date: "2026-01-31T23:59:59Z",
+    updated_at: new Date().toISOString(),
+    platforms: [
+      { name: "Meta", enabled: true, budgetPercentage: 62.5 }, // 50k of 80k
+      { name: "TikTok", enabled: true, budgetPercentage: 37.5 }, // 30k of 80k
+    ],
+  };
+
+  // Simulate mid-January (Jan 16, 2026)
+  const sampleInsights: CampaignInsight[] = [
+    {
+      campaign_id: "sample-campaign-1",
+      platform: "meta",
+      metrics: { spend: 41000, impressions: 2500000 },
+      fetched_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(), // 30 min ago
+    },
+    {
+      campaign_id: "sample-campaign-1",
+      platform: "tiktok",
+      metrics: { spend: 14000, impressions: 1800000 },
+      fetched_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
+    },
+  ];
+
+  const sampleModRequests: ModificationRequest[] = [
+    { campaign_id: "sample-campaign-1", status: "completed", change_type: "budget", updated_at: subDays(new Date(), 2).toISOString() },
+    { campaign_id: "sample-campaign-1", status: "completed", change_type: "targeting", updated_at: subDays(new Date(), 5).toISOString() },
+    { campaign_id: "sample-campaign-1", status: "pending", change_type: "creative", updated_at: subDays(new Date(), 1).toISOString() },
+    { campaign_id: "sample-campaign-1", status: "completed", change_type: "note", updated_at: subDays(new Date(), 3).toISOString() },
+    { campaign_id: "sample-campaign-1", status: "completed", change_type: "note", updated_at: subDays(new Date(), 1).toISOString() },
+  ];
+
+  const sampleAnalyses: SavedAnalysis[] = [
+    { campaign_id: "sample-campaign-1", created_at: subDays(new Date(), 2).toISOString() },
+  ];
+
+  return { sampleCampaign, sampleInsights, sampleModRequests, sampleAnalyses };
+};
 
 const Overview = () => {
   const { user, signOut } = useAuth();
@@ -62,6 +122,7 @@ const Overview = () => {
   const [insights, setInsights] = useState<CampaignInsight[]>([]);
   const [modRequests, setModRequests] = useState<ModificationRequest[]>([]);
   const [savedAnalyses, setSavedAnalyses] = useState<SavedAnalysis[]>([]);
+  const [dataSource, setDataSource] = useState<"sample" | "live">("live");
 
   const loadData = async () => {
     if (!user) return;
@@ -88,7 +149,7 @@ const Overview = () => {
               .in("campaign_id", campaignIds),
             supabase
               .from("modification_requests")
-              .select("campaign_id, status")
+              .select("campaign_id, status, change_type, updated_at")
               .in("campaign_id", campaignIds),
             supabase
               .from("saved_insights_analyses")
@@ -118,9 +179,23 @@ const Overview = () => {
     loadData();
   };
 
+  // Get the data to display based on data source selection
+  const displayData = useMemo(() => {
+    if (dataSource === "sample") {
+      const { sampleCampaign, sampleInsights, sampleModRequests, sampleAnalyses } = generateSampleData();
+      return {
+        campaigns: [sampleCampaign],
+        insights: sampleInsights,
+        modRequests: sampleModRequests,
+        savedAnalyses: sampleAnalyses,
+      };
+    }
+    return { campaigns, insights, modRequests, savedAnalyses };
+  }, [dataSource, campaigns, insights, modRequests, savedAnalyses]);
+
   // Sort campaigns: live first, then ended, then by most recent
   const sortedCampaigns = useMemo(() => {
-    return [...campaigns].sort((a, b) => {
+    return [...displayData.campaigns].sort((a, b) => {
       const statusOrder: Record<string, number> = { live: 0, ended: 1, pushed_to_dsp: 2 };
       const aOrder = statusOrder[a.status] ?? 3;
       const bOrder = statusOrder[b.status] ?? 3;
@@ -129,12 +204,14 @@ const Overview = () => {
       
       return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
     });
-  }, [campaigns]);
+  }, [displayData.campaigns]);
 
   // Calculate pacing for each campaign
   const campaignPacingData = useMemo(() => {
-    const now = new Date();
+    // For sample data, use a fixed "now" date (mid-January 2026)
+    const now = dataSource === "sample" ? new Date("2026-01-16T12:00:00Z") : new Date();
     const weekStart = startOfWeek(now, { weekStartsOn: 1 });
+    const sevenDaysAgo = subDays(now, 7);
 
     return sortedCampaigns.map(campaign => {
       const startDate = new Date(campaign.start_date);
@@ -144,21 +221,41 @@ const Overview = () => {
       const timePct = (elapsedDays / totalDays) * 100;
 
       // Get insights for this campaign
-      const campaignInsights = insights.filter(i => i.campaign_id === campaign.id);
+      const campaignInsights = displayData.insights.filter(i => i.campaign_id === campaign.id);
       
       // Calculate platform pacing
       const platformMap: Record<string, PlatformPacing> = {};
       let totalSpent = 0;
 
-      // Get platform budgets from campaign.platforms
-      const platformBudgets: Record<string, number> = {};
+      // Get platform budgets and dates from campaign.platforms
+      const platformConfig: Record<string, { budget: number; startDate?: string; endDate?: string }> = {};
       if (campaign.platforms && Array.isArray(campaign.platforms)) {
         campaign.platforms.forEach((p: any) => {
           if (p.enabled && p.name) {
             const pctAllocation = p.budgetPercentage || 0;
-            platformBudgets[p.name.toLowerCase()] = (campaign.total_budget * pctAllocation) / 100;
+            platformConfig[p.name.toLowerCase()] = {
+              budget: (campaign.total_budget * pctAllocation) / 100,
+              startDate: p.startDate || campaign.start_date,
+              endDate: p.endDate || campaign.end_date,
+            };
           }
         });
+      }
+
+      // For sample data, set platform-specific dates
+      if (dataSource === "sample") {
+        platformConfig["tiktok"] = {
+          ...platformConfig["tiktok"],
+          budget: 30000,
+          startDate: "2026-01-01T00:00:00Z",
+          endDate: "2026-01-31T23:59:59Z",
+        };
+        platformConfig["meta"] = {
+          ...platformConfig["meta"],
+          budget: 50000,
+          startDate: "2025-12-16T00:00:00Z",
+          endDate: "2026-01-31T23:59:59Z",
+        };
       }
 
       campaignInsights.forEach(insight => {
@@ -170,26 +267,36 @@ const Overview = () => {
         totalSpent += spent;
         
         if (!platformMap[platform]) {
-          const budgetTotal = platformBudgets[platform] || campaign.total_budget / (campaignInsights.length || 1);
+          const config = platformConfig[platform] || { budget: campaign.total_budget / (campaignInsights.length || 1) };
+          const budgetTotal = config.budget;
+          const pStartDate = new Date(config.startDate || campaign.start_date);
+          const pEndDate = new Date(config.endDate || campaign.end_date);
+          const pTotalDays = Math.max(differenceInDays(pEndDate, pStartDate), 1);
+          const pElapsedDays = Math.min(Math.max(differenceInDays(now, pStartDate), 0), pTotalDays);
+          const pTimePct = (pElapsedDays / pTotalDays) * 100;
           const budgetPct = budgetTotal > 0 ? (spent / budgetTotal) * 100 : 0;
-          const pacingDiff = budgetPct - timePct;
+          const pacingDiff = budgetPct - pTimePct;
 
           platformMap[platform] = {
             platform,
             budgetSpent: spent,
             budgetTotal,
             budgetPct,
-            timePct,
+            timePct: pTimePct,
             pacingDiff,
             hasRecentImpressions: hoursSinceFetch <= 1 && (insight.metrics?.impressions || 0) > 0,
             lastImpressionAt: insight.fetched_at,
+            startDate: config.startDate || campaign.start_date,
+            endDate: config.endDate || campaign.end_date,
+            totalDays: pTotalDays,
+            elapsedDays: pElapsedDays,
           };
         } else {
           platformMap[platform].budgetSpent += spent;
           platformMap[platform].budgetPct = platformMap[platform].budgetTotal > 0 
             ? (platformMap[platform].budgetSpent / platformMap[platform].budgetTotal) * 100 
             : 0;
-          platformMap[platform].pacingDiff = platformMap[platform].budgetPct - timePct;
+          platformMap[platform].pacingDiff = platformMap[platform].budgetPct - platformMap[platform].timePct;
         }
       });
 
@@ -198,11 +305,24 @@ const Overview = () => {
       const totalPacingDiff = totalBudgetPct - timePct;
 
       // Modification requests for this campaign
-      const campaignModRequests = modRequests.filter(m => m.campaign_id === campaign.id);
-      const pendingRequests = campaignModRequests.filter(m => m.status === "pending").length;
+      const campaignModRequests = displayData.modRequests.filter(m => m.campaign_id === campaign.id);
+      const pendingRequests = campaignModRequests.filter(m => m.status === "pending" || m.status === "sent").length;
+      
+      // Completed requests by category
+      const completedByCategory: CompletedRequestsByCategory = {
+        optimization: campaignModRequests.filter(m => 
+          m.status === "completed" && (m.change_type === "targeting" || m.change_type === "goals")
+        ).length,
+        budget: campaignModRequests.filter(m => 
+          m.status === "completed" && m.change_type === "budget"
+        ).length,
+        notesLast7Days: campaignModRequests.filter(m => 
+          m.change_type === "note" && isAfter(new Date(m.updated_at), sevenDaysAgo)
+        ).length,
+      };
 
       // Check for recent analysis this week
-      const campaignAnalyses = savedAnalyses.filter(a => a.campaign_id === campaign.id);
+      const campaignAnalyses = displayData.savedAnalyses.filter(a => a.campaign_id === campaign.id);
       const hasRecentAnalysis = campaignAnalyses.some(a => isAfter(new Date(a.created_at), weekStart));
 
       return {
@@ -212,14 +332,17 @@ const Overview = () => {
         totalTimePct: timePct,
         totalBudgetPct,
         totalPacingDiff,
+        totalDays,
+        elapsedDays,
         modificationRequests: {
           total: campaignModRequests.length,
           pending: pendingRequests,
         },
+        completedByCategory,
         hasRecentAnalysis,
       };
     });
-  }, [sortedCampaigns, insights, modRequests, savedAnalyses]);
+  }, [sortedCampaigns, displayData, dataSource]);
 
   const hasAnyCampaigns = campaigns.length > 0;
 
@@ -285,12 +408,22 @@ const Overview = () => {
             <h2 className="text-3xl font-bold">Campaign Performance</h2>
             <p className="text-muted-foreground mt-1">Monitor your active campaigns at a glance</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            <Select value={dataSource} onValueChange={(v: "sample" | "live") => setDataSource(v)}>
+              <SelectTrigger className="w-[140px]">
+                <Database className="h-4 w-4 mr-2" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="live">Live Data</SelectItem>
+                <SelectItem value="sample">Sample Data</SelectItem>
+              </SelectContent>
+            </Select>
             <Button 
               variant="outline" 
               size="sm" 
               onClick={handleRefresh}
-              disabled={refreshing}
+              disabled={refreshing || dataSource === "sample"}
             >
               <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
               Refresh
@@ -324,8 +457,12 @@ const Overview = () => {
                 totalTimePct={data.totalTimePct}
                 totalBudgetPct={data.totalBudgetPct}
                 totalPacingDiff={data.totalPacingDiff}
+                totalDays={data.totalDays}
+                elapsedDays={data.elapsedDays}
                 modificationRequests={data.modificationRequests}
+                completedByCategory={data.completedByCategory}
                 hasRecentAnalysis={data.hasRecentAnalysis}
+                isSampleData={dataSource === "sample"}
               />
             ))}
           </div>
