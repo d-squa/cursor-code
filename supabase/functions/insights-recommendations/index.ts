@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
-import { getAccessToken } from "../_shared/vault-helper.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,6 +13,29 @@ interface InsightsRequest {
   breakdowns: string[];
   crossPlatformEnabled: boolean;
   useSampleData?: boolean;
+  includeActivityLogs?: boolean;
+  includeCompetitorAnalysis?: boolean;
+  clientId?: string;
+}
+
+interface ActivityLog {
+  id: string;
+  title: string;
+  description: string;
+  action_type: string;
+  affected_platforms: string[];
+  affected_markets: string[];
+  affected_phases: string[];
+  created_at: string;
+  metadata?: any;
+}
+
+interface ModificationRequest {
+  id: string;
+  change_type: string;
+  description: string;
+  status: string;
+  created_at: string;
 }
 
 // Generate sample data that mimics real API response structure
@@ -105,13 +127,113 @@ function generateSampleData(platforms: string[], breakdowns: string[], timeCompa
   return { currentPeriodData, comparisonPeriodData };
 }
 
+// Format activity logs for AI prompt
+function formatActivityLogsForPrompt(
+  activityLogs: ActivityLog[],
+  modificationRequests: ModificationRequest[]
+): string {
+  if (activityLogs.length === 0 && modificationRequests.length === 0) {
+    return '';
+  }
+
+  let logsSection = `
+---
+
+**ACTIVITY LOGS (Actions taken during this period):**
+
+These are actual changes and optimizations made to the campaign. Use this information to correlate performance changes with specific actions taken.
+
+`;
+
+  if (activityLogs.length > 0) {
+    logsSection += `**Logged Actions:**
+`;
+    activityLogs.forEach(log => {
+      const date = new Date(log.created_at).toLocaleDateString();
+      const platforms = log.affected_platforms?.join(', ') || 'All';
+      logsSection += `- **${date}** [${log.action_type.replace('_', ' ').toUpperCase()}] ${log.title}
+  - Description: ${log.description || 'N/A'}
+  - Affected Platforms: ${platforms}
+  - Affected Markets: ${log.affected_markets?.join(', ') || 'All'}
+`;
+    });
+  }
+
+  if (modificationRequests.length > 0) {
+    logsSection += `
+**Change Requests:**
+`;
+    modificationRequests.forEach(req => {
+      const date = new Date(req.created_at).toLocaleDateString();
+      logsSection += `- **${date}** [${req.change_type.replace('_', ' ').toUpperCase()}] - Status: ${req.status}
+  - Description: ${req.description}
+`;
+    });
+  }
+
+  logsSection += `
+When analyzing performance changes, consider whether any of the above actions might explain the observed trends.
+`;
+
+  return logsSection;
+}
+
+// Format competitor data for AI prompt
+function formatCompetitorDataForPrompt(competitorData: any): string {
+  if (!competitorData || (!competitorData.meta?.length && !competitorData.tiktok?.length)) {
+    return '';
+  }
+
+  let competitorSection = `
+---
+
+**COMPETITOR ADVERTISING ACTIVITY:**
+
+The following competitor ads were found active during this analysis period. Consider these when analyzing performance changes - increased competitor activity may impact your campaign performance.
+
+`;
+
+  if (competitorData.meta?.length > 0) {
+    competitorSection += `**Meta (Facebook/Instagram) Competitor Ads:**
+`;
+    competitorData.meta.slice(0, 10).forEach((ad: any, idx: number) => {
+      competitorSection += `${idx + 1}. **${ad.page_name || ad.advertiser_name || 'Unknown Advertiser'}**
+   - Ad Type: ${ad.ad_creative_body ? 'Text' : 'Visual'}
+   - Started: ${ad.ad_delivery_start_time || 'Unknown'}
+   - Status: ${ad.ad_delivery_stop_time ? 'Ended' : 'Active'}
+`;
+    });
+  }
+
+  if (competitorData.tiktok?.length > 0) {
+    competitorSection += `
+**TikTok Competitor Ads:**
+`;
+    competitorData.tiktok.slice(0, 10).forEach((ad: any, idx: number) => {
+      competitorSection += `${idx + 1}. **${ad.advertiser_name || 'Unknown Advertiser'}**
+   - Format: ${ad.ad_format || 'Unknown'}
+   - Impressions: ${ad.impressions || 'N/A'}
+   - Status: ${ad.is_active ? 'Active' : 'Inactive'}
+`;
+    });
+  }
+
+  competitorSection += `
+Factor in competitor activity when explaining performance fluctuations. Increased competition may explain higher CPMs or reduced reach.
+`;
+
+  return competitorSection;
+}
+
 // Build the AI analysis prompt
 function buildAnalysisPrompt(
   currentData: any[],
   comparisonData: any[],
   breakdowns: string[],
   timeComparison: string,
-  crossPlatformEnabled: boolean
+  crossPlatformEnabled: boolean,
+  activityLogsSection: string,
+  competitorSection: string
 ): string {
   const breakdownLabel = breakdowns.join(', ');
   const timeLabel = timeComparison.replace(/_/g, ' ');
@@ -121,6 +243,9 @@ function buildAnalysisPrompt(
   
   const platformList = [...new Set(currentData.map(d => d.platform))];
   const isCrossPlatform = crossPlatformEnabled && platformList.length > 1;
+  
+  const hasActivityLogs = activityLogsSection.length > 0;
+  const hasCompetitorData = competitorSection.length > 0;
   
   return `
 I am a digital marketing performance analyst, and I need help analyzing campaign performance evolution.
@@ -170,6 +295,10 @@ ${currentDataStr}
 **COMPARISON PERIOD DATA:**
 ${comparisonDataStr}
 
+${activityLogsSection}
+
+${competitorSection}
+
 ---
 
 Please follow this EXACT structure in your response:
@@ -188,15 +317,36 @@ ${isCrossPlatform ? 'Include cross-platform insights about audience behavior dif
 
 ---
 
-**3. ${timeLabel.charAt(0).toUpperCase() + timeLabel.slice(1)} Performance Changes**
+${hasActivityLogs ? `
+**3. Activity Impact Analysis**
+Correlate the logged actions and change requests with observed performance changes. For each significant action:
+- State what action was taken and when
+- Identify if performance metrics changed after the action
+- Rate the likely impact: High/Medium/Low/Inconclusive
+- Provide recommendations for future similar actions
+
+---
+` : ''}
+
+${hasCompetitorData ? `
+**${hasActivityLogs ? '4' : '3'}. Competitive Landscape Analysis**
+Analyze how competitor activity may be affecting campaign performance:
+- Identify if increased competitor ads correlate with your performance dips
+- Note any competitive positioning opportunities
+- Recommend competitive response strategies
+
+---
+` : ''}
+
+**${hasActivityLogs && hasCompetitorData ? '5' : hasActivityLogs || hasCompetitorData ? '4' : '3'}. ${timeLabel.charAt(0).toUpperCase() + timeLabel.slice(1)} Performance Changes**
 Detail the specific changes between periods. For each significant change:
 - State the metric, both period values, and % change
-- Explain potential causes
+- Explain potential causes${hasActivityLogs ? ' (referencing logged actions where applicable)' : ''}${hasCompetitorData ? ' (considering competitor activity)' : ''}
 - Rate severity: Positive/Neutral/Needs Attention
 
 ---
 
-**4. Recommendations for Optimization**
+**${hasActivityLogs && hasCompetitorData ? '6' : hasActivityLogs || hasCompetitorData ? '5' : '4'}. Recommendations for Optimization**
 Provide 4-6 specific, actionable recommendations based on the data.
 ${isCrossPlatform ? `
 Include:
@@ -204,6 +354,8 @@ Include:
 - Platform-specific targeting adjustments
 - Unified audience strategy recommendations
 ` : ''}
+${hasCompetitorData ? '- Competitive response tactics' : ''}
+${hasActivityLogs ? '- Guidance on replicating successful past actions' : ''}
 Prioritize recommendations by expected impact.
 
 ---
@@ -233,10 +385,85 @@ serve(async (req) => {
       timeComparison, 
       breakdowns, 
       crossPlatformEnabled,
-      useSampleData = true 
+      useSampleData = true,
+      includeActivityLogs = true,
+      includeCompetitorAnalysis = false,
+      clientId
     } = body;
 
-    console.log("Insights request:", { campaignIds, platforms, timeComparison, breakdowns, crossPlatformEnabled });
+    console.log("Insights request:", { campaignIds, platforms, timeComparison, breakdowns, crossPlatformEnabled, includeActivityLogs, includeCompetitorAnalysis });
+
+    // Fetch activity logs if enabled
+    let activityLogs: ActivityLog[] = [];
+    let modificationRequests: ModificationRequest[] = [];
+    
+    if (includeActivityLogs && campaignIds.length > 0) {
+      // Fetch activity logs for selected campaigns
+      const { data: logsData } = await supabase
+        .from('activity_logs')
+        .select('id, title, description, action_type, affected_platforms, affected_markets, affected_phases, created_at, metadata')
+        .in('campaign_id', campaignIds)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      
+      if (logsData) {
+        activityLogs = logsData as ActivityLog[];
+      }
+      
+      // Fetch modification requests for selected campaigns
+      const { data: requestsData } = await supabase
+        .from('modification_requests')
+        .select('id, change_type, description, status, created_at')
+        .in('campaign_id', campaignIds)
+        .order('created_at', { ascending: false })
+        .limit(30);
+      
+      if (requestsData) {
+        modificationRequests = requestsData as ModificationRequest[];
+      }
+      
+      console.log(`Fetched ${activityLogs.length} activity logs and ${modificationRequests.length} modification requests`);
+    }
+
+    // Fetch competitor data if enabled
+    let competitorData: any = null;
+    if (includeCompetitorAnalysis && clientId) {
+      try {
+        // Fetch client info for competitor search
+        const { data: clientData } = await supabase
+          .from('clients')
+          .select('name, industry')
+          .eq('id', clientId)
+          .single();
+        
+        if (clientData) {
+          // Call competitor analysis edge function
+          const competitorResponse = await fetch(
+            `${supabaseUrl}/functions/v1/competitor-ads-search`,
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${supabaseServiceKey}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                clientName: clientData.name,
+                industry: clientData.industry,
+                platforms
+              })
+            }
+          );
+          
+          if (competitorResponse.ok) {
+            competitorData = await competitorResponse.json();
+            console.log('Competitor data fetched successfully');
+          }
+        }
+      } catch (compError) {
+        console.error('Error fetching competitor data:', compError);
+        // Continue without competitor data
+      }
+    }
 
     // Generate sample data for testing
     const { currentPeriodData, comparisonPeriodData } = generateSampleData(
@@ -254,13 +481,19 @@ serve(async (req) => {
     const avgCPR = totalResults > 0 ? totalSpend / totalResults : 0;
     const avgResultRate = totalImpressions > 0 ? (totalResults / totalImpressions) * 100 : 0;
 
+    // Format activity logs and competitor data for prompt
+    const activityLogsSection = formatActivityLogsForPrompt(activityLogs, modificationRequests);
+    const competitorSection = formatCompetitorDataForPrompt(competitorData);
+
     // Build the AI prompt
     const prompt = buildAnalysisPrompt(
       currentPeriodData,
       comparisonPeriodData,
       breakdowns,
       timeComparison,
-      crossPlatformEnabled
+      crossPlatformEnabled,
+      activityLogsSection,
+      competitorSection
     );
 
     // Call Lovable AI for analysis
@@ -279,7 +512,7 @@ serve(async (req) => {
             messages: [
               { 
                 role: "system", 
-                content: "You are an expert digital marketing performance analyst. Provide clear, data-driven insights and actionable recommendations. Be specific with metrics and percentages. Format your response in clean markdown." 
+                content: "You are an expert digital marketing performance analyst. Provide clear, data-driven insights and actionable recommendations. Be specific with metrics and percentages. When activity logs are provided, correlate them with performance changes to explain causation. When competitor data is provided, factor it into your analysis. Format your response in clean markdown." 
               },
               { role: "user", content: prompt }
             ],
@@ -358,6 +591,12 @@ Based on the sample data provided, here's a summary of performance across the se
           breakdowns,
           timeComparison
         },
+        activityLogs: {
+          logs: activityLogs,
+          requests: modificationRequests,
+          totalCount: activityLogs.length + modificationRequests.length
+        },
+        competitorData: competitorData || null,
         sampleDataUsed: useSampleData
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
