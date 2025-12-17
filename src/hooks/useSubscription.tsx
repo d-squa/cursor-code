@@ -57,10 +57,9 @@ export function useSubscription() {
         console.error("Error checking subscription:", err);
         setError(err?.message ?? "Failed to check subscription");
 
-        // Don't clear subscription on background refresh errors - keep existing data.
-        if (shouldShowLoading) {
-          setSubscription(null);
-        }
+        // NEVER clear subscription on errors - keep existing data to avoid
+        // unnecessary redirects during transient API failures or plan changes.
+        // Only clear on explicit sign-out (handled in onAuthStateChange).
       } finally {
         hasCheckedOnceRef.current = true;
         if (shouldShowLoading) setLoading(false);
