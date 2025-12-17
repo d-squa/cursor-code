@@ -179,19 +179,32 @@ const Overview = () => {
     loadData();
   };
 
-  // Get the data to display based on data source selection
+  // Get sample data
+  const sampleData = useMemo(() => generateSampleData(), []);
+
+  // Always include sample card, plus live data when in live mode
   const displayData = useMemo(() => {
+    const { sampleCampaign, sampleInsights, sampleModRequests, sampleAnalyses } = sampleData;
+    
     if (dataSource === "sample") {
-      const { sampleCampaign, sampleInsights, sampleModRequests, sampleAnalyses } = generateSampleData();
       return {
         campaigns: [sampleCampaign],
         insights: sampleInsights,
         modRequests: sampleModRequests,
         savedAnalyses: sampleAnalyses,
+        sampleCampaignId: sampleCampaign.id,
       };
     }
-    return { campaigns, insights, modRequests, savedAnalyses };
-  }, [dataSource, campaigns, insights, modRequests, savedAnalyses]);
+    
+    // Live mode: include sample card + live campaigns
+    return {
+      campaigns: [sampleCampaign, ...campaigns],
+      insights: [...sampleInsights, ...insights],
+      modRequests: [...sampleModRequests, ...modRequests],
+      savedAnalyses: [...sampleAnalyses, ...savedAnalyses],
+      sampleCampaignId: sampleCampaign.id,
+    };
+  }, [dataSource, campaigns, insights, modRequests, savedAnalyses, sampleData]);
 
   // Sort campaigns: live first, then ended, then by most recent
   const sortedCampaigns = useMemo(() => {
@@ -468,7 +481,7 @@ const Overview = () => {
                 modificationRequests={data.modificationRequests}
                 completedByCategory={data.completedByCategory}
                 hasRecentAnalysis={data.hasRecentAnalysis}
-                isSampleData={dataSource === "sample"}
+                isSampleData={data.campaign.id === displayData.sampleCampaignId}
               />
             ))}
           </div>
