@@ -88,7 +88,6 @@ type InsightsDraft = {
   selectedPlatforms: string[];
   timeComparison: string;
   selectedBreakdowns: string[];
-  dataSource: 'sample' | 'live';
   analysisResult: string | null;
   rawData: any;
   configOpen: boolean;
@@ -148,9 +147,6 @@ export default function InsightsRecommendations() {
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
   const [saving, setSaving] = useState(false);
-  
-  // Data source selection
-  const [dataSource, setDataSource] = useState<'sample' | 'live'>('sample');
   
   // Selection states
   const [selectedCampaignIds, setSelectedCampaignIds] = useState<string[]>([]);
@@ -222,7 +218,6 @@ export default function InsightsRecommendations() {
       selectedPlatforms,
       timeComparison,
       selectedBreakdowns,
-      dataSource,
       analysisResult,
       rawData,
       configOpen,
@@ -235,7 +230,6 @@ export default function InsightsRecommendations() {
     selectedPlatforms,
     timeComparison,
     selectedBreakdowns,
-    dataSource,
     analysisResult,
     rawData,
     configOpen,
@@ -439,7 +433,7 @@ export default function InsightsRecommendations() {
           timeComparison,
           breakdowns: selectedBreakdowns,
           crossPlatformEnabled: canAccessCrossPlatform,
-          useSampleData: dataSource === 'sample'
+          useSampleData: true // Always use sample data for now
         }
       });
 
@@ -733,31 +727,6 @@ export default function InsightsRecommendations() {
                     </CardHeader>
                     <CollapsibleContent>
                       <CardContent className="space-y-6">
-                        {/* Data Source Selection */}
-                        <div className="space-y-3">
-                          <Label className="text-sm font-medium flex items-center gap-2">
-                            <Database className="h-4 w-4" />
-                            Data Source
-                          </Label>
-                          <Select value={dataSource} onValueChange={(v) => setDataSource(v as 'sample' | 'live')}>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="sample">Sample Data</SelectItem>
-                              <SelectItem value="live" disabled={!hasLiveDataAccess}>
-                                Live Data {!hasLiveDataAccess && '(Connect accounts first)'}
-                              </SelectItem>
-                            </SelectContent>
-                          </Select>
-                          {dataSource === 'live' && !hasLiveDataAccess && (
-                            <p className="text-xs text-amber-600 flex items-center gap-1">
-                              <AlertCircle className="h-3 w-3" />
-                              Connect platform accounts to access live data
-                            </p>
-                          )}
-                        </div>
-
                         <Separator />
 
                         {/* Platform Selection */}
