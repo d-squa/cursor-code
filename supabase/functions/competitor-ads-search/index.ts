@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
+import { getAccessToken } from "../_shared/vault-helper.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,6 +13,7 @@ interface CompetitorSearchRequest {
   platforms: string[];
   markets: string[]; // Array of market codes (e.g., ['IT', 'ES', 'US'])
   searchTerms?: string[];
+  userId?: string; // Optional userId passed from parent function
 }
 
 // Industry keywords for broader competitor search
@@ -205,23 +207,30 @@ serve(async (req) => {
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get auth header for user context
+    // Get auth header for user context (direct call) or use userId from body (internal call)
     const authHeader = req.headers.get('Authorization');
     let userId: string | null = null;
     
-    if (authHeader) {
-      const { data: { user } } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''));
-      userId = user?.id || null;
-    }
-
+    // First check if userId is passed in body (from insights-recommendations)
     const body: CompetitorSearchRequest = await req.json();
     const { 
       clientName, 
       industry, 
       platforms,
       markets = ['US'], // Default to US if no markets provided
-      searchTerms: customSearchTerms
+      searchTerms: customSearchTerms,
+      userId: bodyUserId
     } = body;
+    
+    // Use userId from body if provided, otherwise try to get from auth header
+    if (bodyUserId) {
+      userId = bodyUserId;
+      console.log("Using userId from request body:", userId);
+    } else if (authHeader) {
+      const { data: { user } } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''));
+      userId = user?.id || null;
+      console.log("Using userId from auth header:", userId || "None");
+    }
 
     console.log("=== COMPETITOR ANALYSIS START ===");
     console.log("Input parameters:", { clientName, industry, platforms, markets });
@@ -240,36 +249,50 @@ serve(async (req) => {
     console.log("Custom search terms provided:", customSearchTerms ? "Yes" : "No");
     console.log("Markets to search:", markets);
 
-    // Try to get platform access tokens for live API calls
+    // Try to get platform access tokens for live API calls (using Vault)
     let metaAccessToken: string | null = null;
     let tiktokAccessToken: string | null = null;
     
     if (userId) {
-      // Get Meta access token
+      // Get Meta access token from Vault
       if (platforms.includes('meta')) {
         const { data: metaPlatform } = await supabase
           .from('connected_platforms')
-          .select('access_token')
+          .select('id, access_token')
           .eq('user_id', userId)
           .eq('platform_type', 'meta')
           .eq('is_active', true)
           .single();
         
-        metaAccessToken = metaPlatform?.access_token || null;
+        if (metaPlatform) {
+          // Try Vault first, then fallback to database column
+          metaAccessToken = await getAccessToken(supabase, metaPlatform.id, metaPlatform.access_token);
+          console.log(`[META] Platform ID: ${metaPlatform.id}, Token retrieved from: ${metaAccessToken ? (metaPlatform.access_token ? 'Vault or DB fallback' : 'Vault') : 'None'}`);
+        } else {
+          console.log("[META] No active Meta platform connection found for user");
+        }
       }
       
-      // Get TikTok access token
+      // Get TikTok access token from Vault
       if (platforms.includes('tiktok')) {
         const { data: tiktokPlatform } = await supabase
           .from('connected_platforms')
-          .select('access_token')
+          .select('id, access_token')
           .eq('user_id', userId)
           .eq('platform_type', 'tiktok')
           .eq('is_active', true)
           .single();
         
-        tiktokAccessToken = tiktokPlatform?.access_token || null;
+        if (tiktokPlatform) {
+          // Try Vault first, then fallback to database column
+          tiktokAccessToken = await getAccessToken(supabase, tiktokPlatform.id, tiktokPlatform.access_token);
+          console.log(`[TIKTOK] Platform ID: ${tiktokPlatform.id}, Token retrieved from: ${tiktokAccessToken ? (tiktokPlatform.access_token ? 'Vault or DB fallback' : 'Vault') : 'None'}`);
+        } else {
+          console.log("[TIKTOK] No active TikTok platform connection found for user");
+        }
       }
+    } else {
+      console.log("No userId available - cannot retrieve platform tokens");
     }
 
     // Initialize results per market

@@ -19,6 +19,7 @@ interface InsightsRequest {
   clientName?: string;
   clientIndustry?: string;
   isGeneralPerformance?: boolean;
+  markets?: string[]; // Array of market codes for competitor analysis
 }
 
 interface ActivityLog {
@@ -502,6 +503,15 @@ serve(async (req) => {
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Get user ID from auth header
+    let userId: string | null = null;
+    const authHeader = req.headers.get('Authorization');
+    if (authHeader) {
+      const { data: { user } } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''));
+      userId = user?.id || null;
+    }
+    console.log("User ID for insights request:", userId || "Anonymous");
+
     const body: InsightsRequest = await req.json();
     const { 
       campaignIds, 
@@ -515,10 +525,11 @@ serve(async (req) => {
       clientId,
       clientName,
       clientIndustry,
-      isGeneralPerformance = false
+      isGeneralPerformance = false,
+      markets = []
     } = body;
 
-    console.log("Insights request:", { campaignIds, platforms, timeComparison, breakdowns, crossPlatformEnabled, includeActivityLogs, includeCompetitorAnalysis, isGeneralPerformance });
+    console.log("Insights request:", { campaignIds, platforms, timeComparison, breakdowns, crossPlatformEnabled, includeActivityLogs, includeCompetitorAnalysis, isGeneralPerformance, markets });
 
     // Fetch activity logs if enabled
     let activityLogs: ActivityLog[] = [];
@@ -583,7 +594,9 @@ serve(async (req) => {
         }
         
         if (searchClientName && searchClientIndustry) {
-          console.log("Calling competitor-ads-search with:", { clientName: searchClientName, industry: searchClientIndustry, platforms });
+          // Use provided markets or default to ['US']
+          const marketsToSearch = markets.length > 0 ? markets : ['US'];
+          console.log("Calling competitor-ads-search with:", { clientName: searchClientName, industry: searchClientIndustry, platforms, markets: marketsToSearch });
           
           // Call competitor analysis edge function
           const competitorResponse = await fetch(
@@ -597,7 +610,9 @@ serve(async (req) => {
               body: JSON.stringify({
                 clientName: searchClientName,
                 industry: searchClientIndustry,
-                platforms
+                platforms,
+                markets: marketsToSearch,
+                userId: userId // Pass userId for token retrieval
               })
             }
           );
