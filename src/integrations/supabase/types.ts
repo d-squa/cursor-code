@@ -14,6 +14,63 @@ export type Database = {
   }
   public: {
     Tables: {
+      activity_logs: {
+        Row: {
+          action_type: string
+          affected_markets: string[] | null
+          affected_phases: string[] | null
+          affected_platforms: string[] | null
+          campaign_id: string
+          created_at: string | null
+          description: string | null
+          id: string
+          metadata: Json | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          action_type: string
+          affected_markets?: string[] | null
+          affected_phases?: string[] | null
+          affected_platforms?: string[] | null
+          campaign_id: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+          title: string
+          user_id: string
+        }
+        Update: {
+          action_type?: string
+          affected_markets?: string[] | null
+          affected_phases?: string[] | null
+          affected_platforms?: string[] | null
+          campaign_id?: string
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_logs_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "activity_logs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       campaign_change_history: {
         Row: {
           action: string
