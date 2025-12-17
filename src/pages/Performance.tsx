@@ -63,6 +63,8 @@ interface WeeklyData {
   cumulativeSov: number;
 }
 
+const SAMPLE_CAMPAIGN_ID = "sample-campaign-1";
+
 export default function Performance() {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
@@ -78,8 +80,9 @@ export default function Performance() {
   const [actualMetrics, setActualMetrics] = useState<PerformanceMetrics | null>(null);
   const [weeklyData, setWeeklyData] = useState<WeeklyData[]>([]);
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
-  const [dataSource, setDataSource] = useState<'sample' | 'live'>('sample');
-  const [hasLiveDataAccess, setHasLiveDataAccess] = useState(false);
+
+  // Auto-detect if current campaign is sample
+  const isSampleCampaign = selectedCampaign?.id === SAMPLE_CAMPAIGN_ID;
 
   useEffect(() => {
     if (!loading && !user) {
@@ -91,23 +94,8 @@ export default function Performance() {
     if (user) {
       checkUserAccess();
       loadCampaigns();
-      checkLiveDataAccess();
     }
   }, [user]);
-
-  const checkLiveDataAccess = async () => {
-    try {
-      const { data } = await supabase
-        .from("connected_platforms")
-        .select("id")
-        .eq("user_id", user?.id)
-        .eq("is_active", true)
-        .limit(1);
-      setHasLiveDataAccess((data && data.length > 0) || false);
-    } catch (error) {
-      console.error("Error checking live data access:", error);
-    }
-  };
 
   const checkUserAccess = async () => {
     try {
@@ -149,13 +137,15 @@ export default function Performance() {
 
   useEffect(() => {
     if (selectedCampaign && selectedCampaign.status === "live") {
-      if (dataSource === 'sample') {
+      // For sample campaign, always use forecast/simulated data
+      // For real campaigns, try to load actual metrics
+      if (isSampleCampaign) {
         useForecastData();
       } else {
         loadActualMetrics();
       }
     }
-  }, [selectedCampaign, selectedPlatform, selectedAdSet, dataSource]);
+  }, [selectedCampaign, selectedPlatform, selectedAdSet, isSampleCampaign]);
 
   const loadCampaigns = async () => {
     try {
@@ -365,12 +355,12 @@ export default function Performance() {
     if (!selectedCampaign) return;
 
     const startDate = new Date(selectedCampaign.start_date);
-    const minWeeks = dataSource === 'sample' ? 12 : 1;
+    const minWeeks = isSampleCampaign ? 12 : 1;
     const sampleEndDate = new Date(startDate);
     sampleEndDate.setDate(sampleEndDate.getDate() + (minWeeks * 7));
     
     const endDate = new Date(selectedCampaign.end_date);
-    const effectiveEnd = dataSource === 'sample' ? (sampleEndDate > endDate ? sampleEndDate : endDate) : endDate;
+    const effectiveEnd = isSampleCampaign ? (sampleEndDate > endDate ? sampleEndDate : endDate) : endDate;
 
     const weeks = eachWeekOfInterval({
       start: startDate,
@@ -603,22 +593,7 @@ export default function Performance() {
             <CardDescription>Select campaign, platform, and ad set to view performance</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div>
-                <label className="text-sm font-medium mb-2 block">Data Source</label>
-                <Select value={dataSource} onValueChange={(value: 'sample' | 'live') => setDataSource(value)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="sample">Sample Data</SelectItem>
-                    <SelectItem value="live" disabled={!hasLiveDataAccess}>
-                      Live Data {!hasLiveDataAccess && "(No platforms connected)"}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="text-sm font-medium mb-2 block">ActiPlan</label>
                 <Select

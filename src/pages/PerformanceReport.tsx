@@ -64,18 +64,21 @@ interface CampaignInsight {
   fetched_at: string;
 }
 
+const SAMPLE_CAMPAIGN_ID = "sample-campaign-1";
+
 export default function PerformanceReport() {
   const { campaignId } = useParams<{ campaignId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  
+  // Automatically determine data source based on campaign ID
+  const isSampleCampaign = campaignId === SAMPLE_CAMPAIGN_ID;
   
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [launchStatuses, setLaunchStatuses] = useState<LaunchStatusEntry[]>([]);
   const [insights, setInsights] = useState<CampaignInsight[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [dataSource, setDataSource] = useState<'sample' | 'live'>('sample');
-  const [hasLiveDataAccess, setHasLiveDataAccess] = useState(false);
 
   // Filter states
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
@@ -85,21 +88,6 @@ export default function PerformanceReport() {
   const [selectedOptimizationGoal, setSelectedOptimizationGoal] = useState<string>('all');
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [granularity, setGranularity] = useState<'weekly' | 'monthly'>('weekly');
-
-  const checkLiveDataAccess = useCallback(async () => {
-    if (!user) return;
-    try {
-      const { data } = await supabase
-        .from("connected_platforms")
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("is_active", true)
-        .limit(1);
-      setHasLiveDataAccess((data && data.length > 0) || false);
-    } catch (error) {
-      console.error("Error checking live data access:", error);
-    }
-  }, [user]);
 
   const generateSampleInsights = useCallback((statusData: LaunchStatusEntry[], campaignData: Campaign | null): CampaignInsight[] => {
     // Generate sample insights based on planned data with realistic fluctuations
@@ -206,6 +194,35 @@ export default function PerformanceReport() {
   const loadData = useCallback(async () => {
     if (!campaignId || !user) return;
     
+    // For sample campaign, generate sample data; for real campaigns, fetch live data
+    if (isSampleCampaign) {
+      // Generate sample campaign data
+      const sampleCampaignData: Campaign = {
+        id: SAMPLE_CAMPAIGN_ID,
+        name: "Q4 Holiday Campaign 2025",
+        status: "live",
+        total_budget: 80000,
+        start_date: "2025-12-16T00:00:00Z",
+        end_date: "2026-01-31T23:59:59Z",
+        objective: "conversions",
+        platforms: [
+          { name: "Meta", enabled: true, budgetPercentage: 62.5 },
+          { name: "TikTok", enabled: true, budgetPercentage: 37.5 },
+        ],
+      };
+      
+      const sampleStatuses: LaunchStatusEntry[] = [
+        { id: "s1", platform: "meta", market: "US", phase_name: "Awareness", entity_type: "campaign", entity_name: "Meta Campaign", dsp_entity_id: "123", status: "pushed_to_dsp", dsp_status: "ACTIVE", planned_budget: 50000, planned_impressions: 5000000, planned_reach: 2000000, planned_clicks: 50000, planned_conversions: 2500 },
+        { id: "s2", platform: "tiktok", market: "US", phase_name: "Consideration", entity_type: "campaign", entity_name: "TikTok Campaign", dsp_entity_id: "456", status: "pushed_to_dsp", dsp_status: "ACTIVE", planned_budget: 30000, planned_impressions: 3000000, planned_reach: 1200000, planned_clicks: 30000, planned_conversions: 1500 },
+      ];
+      
+      setCampaign(sampleCampaignData);
+      setLaunchStatuses(sampleStatuses);
+      setInsights(generateSampleInsights(sampleStatuses, sampleCampaignData));
+      setLoading(false);
+      return;
+    }
+    
     try {
       const [
         { data: campaignData }, 
@@ -214,19 +231,17 @@ export default function PerformanceReport() {
       ] = await Promise.all([
         supabase.from('campaigns').select('*').eq('id', campaignId).single(),
         supabase.from('campaign_launch_status').select('*').eq('campaign_id', campaignId),
-        dataSource === 'live' 
-          ? supabase.from('campaign_insights').select('*').eq('campaign_id', campaignId).order('fetched_at', { ascending: false })
-          : Promise.resolve({ data: null })
+        supabase.from('campaign_insights').select('*').eq('campaign_id', campaignId).order('fetched_at', { ascending: false })
       ]);
       
       if (campaignData) setCampaign(campaignData);
       if (statusData) {
         setLaunchStatuses(statusData);
-        // Use sample data if dataSource is sample or no live insights
-        if (dataSource === 'sample' || !insightsData || insightsData.length === 0) {
-          setInsights(generateSampleInsights(statusData, campaignData));
-        } else {
+        if (insightsData && insightsData.length > 0) {
           setInsights(insightsData as CampaignInsight[]);
+        } else {
+          // Fall back to generated sample data if no live insights
+          setInsights(generateSampleInsights(statusData, campaignData));
         }
       }
     } catch (error) {
@@ -235,11 +250,7 @@ export default function PerformanceReport() {
     } finally {
       setLoading(false);
     }
-  }, [campaignId, user, dataSource, generateSampleInsights]);
-
-  useEffect(() => {
-    checkLiveDataAccess();
-  }, [checkLiveDataAccess]);
+  }, [campaignId, user, isSampleCampaign, generateSampleInsights]);
 
   useEffect(() => {
     loadData();
@@ -348,8 +359,8 @@ export default function PerformanceReport() {
 
     const start = new Date(campaign.start_date);
     // For sample data, ensure we have enough periods for visualization
-    const minWeeks = dataSource === 'sample' ? 12 : 1;
-    const minMonths = dataSource === 'sample' ? 6 : 1;
+    const minWeeks = isSampleCampaign ? 12 : 1;
+    const minMonths = isSampleCampaign ? 6 : 1;
     
     const sampleEndDate = new Date(start);
     if (granularity === 'weekly') {
@@ -359,13 +370,13 @@ export default function PerformanceReport() {
     }
     
     const end = campaign.end_date ? new Date(campaign.end_date) : sampleEndDate;
-    const effectiveEnd = dataSource === 'sample' ? (sampleEndDate > end ? sampleEndDate : end) : end;
+    const effectiveEnd = isSampleCampaign ? (sampleEndDate > end ? sampleEndDate : end) : end;
     const now = new Date();
     const campaignDays = differenceInDays(effectiveEnd, start) + 1;
 
     const intervals = granularity === 'weekly'
-      ? eachWeekOfInterval({ start, end: dataSource === 'sample' ? effectiveEnd : (now < effectiveEnd ? now : effectiveEnd) })
-      : eachMonthOfInterval({ start, end: dataSource === 'sample' ? effectiveEnd : (now < effectiveEnd ? now : effectiveEnd) });
+      ? eachWeekOfInterval({ start, end: isSampleCampaign ? effectiveEnd : (now < effectiveEnd ? now : effectiveEnd) })
+      : eachMonthOfInterval({ start, end: isSampleCampaign ? effectiveEnd : (now < effectiveEnd ? now : effectiveEnd) });
 
     // Get weekly metrics from insights
     const allWeeklyMetrics: any[] = [];
@@ -418,7 +429,7 @@ export default function PerformanceReport() {
       }), { spend: 0, impressions: 0, reach: 0, clicks: 0, conversions: 0 });
 
       // For future weeks (no actual data), use null to show empty bars
-      const isFutureWeek = !hasActualData && dataSource === 'sample';
+      const isFutureWeek = !hasActualData && isSampleCampaign;
       const actualSpend = isFutureWeek ? null : (hasActualData ? periodActual.spend : metrics.actual.spend / periodsCount);
       const actualImpressions = isFutureWeek ? null : (hasActualData ? periodActual.impressions : metrics.actual.impressions / periodsCount);
       const actualReach = isFutureWeek ? null : (hasActualData ? periodActual.reach : metrics.actual.reach / periodsCount);
@@ -699,7 +710,7 @@ export default function PerformanceReport() {
       </div>
 
       <div className="space-y-6">
-        {/* Filters - Always show data source dropdown */}
+        {/* Filters */}
         <DashboardFilters
             platforms={filterOptions.platforms}
             markets={filterOptions.markets}
@@ -713,8 +724,6 @@ export default function PerformanceReport() {
             selectedOptimizationGoal={selectedOptimizationGoal}
             dateRange={dateRange}
             granularity={granularity}
-            dataSource={dataSource}
-            hasLiveDataAccess={hasLiveDataAccess}
             onPlatformToggle={handlePlatformToggle}
             onMarketToggle={handleMarketToggle}
             onPhaseToggle={handlePhaseToggle}
@@ -722,7 +731,6 @@ export default function PerformanceReport() {
             onOptimizationGoalChange={setSelectedOptimizationGoal}
             onDateRangeChange={setDateRange}
             onGranularityChange={setGranularity}
-            onDataSourceChange={setDataSource}
             onClearFilters={handleClearFilters}
           />
 

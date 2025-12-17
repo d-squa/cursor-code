@@ -5,14 +5,13 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { 
   Target, Zap, LogOut, Settings, Bug, RefreshCw, Plus, 
-  LayoutDashboard, Database
+  LayoutDashboard
 } from "lucide-react";
 import { BugReportDialog } from "@/components/BugReportDialog";
 import { CampaignOverviewCard } from "@/components/overview/CampaignOverviewCard";
 import { BlurredPlaceholderCard } from "@/components/overview/BlurredPlaceholderCard";
 import { Loader2 } from "lucide-react";
 import { differenceInDays, differenceInHours, startOfWeek, isAfter, subDays } from "date-fns";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface Campaign {
   id: string;
@@ -122,7 +121,6 @@ const Overview = () => {
   const [insights, setInsights] = useState<CampaignInsight[]>([]);
   const [modRequests, setModRequests] = useState<ModificationRequest[]>([]);
   const [savedAnalyses, setSavedAnalyses] = useState<SavedAnalysis[]>([]);
-  const [dataSource, setDataSource] = useState<"sample" | "live">("live");
 
   const loadData = async () => {
     if (!user) return;
@@ -182,21 +180,10 @@ const Overview = () => {
   // Get sample data
   const sampleData = useMemo(() => generateSampleData(), []);
 
-  // Always include sample card, plus live data when in live mode
+  // Always include sample card first, then live campaigns
   const displayData = useMemo(() => {
     const { sampleCampaign, sampleInsights, sampleModRequests, sampleAnalyses } = sampleData;
     
-    if (dataSource === "sample") {
-      return {
-        campaigns: [sampleCampaign],
-        insights: sampleInsights,
-        modRequests: sampleModRequests,
-        savedAnalyses: sampleAnalyses,
-        sampleCampaignId: sampleCampaign.id,
-      };
-    }
-    
-    // Live mode: include sample card + live campaigns
     return {
       campaigns: [sampleCampaign, ...campaigns],
       insights: [...sampleInsights, ...insights],
@@ -204,7 +191,7 @@ const Overview = () => {
       savedAnalyses: [...sampleAnalyses, ...savedAnalyses],
       sampleCampaignId: sampleCampaign.id,
     };
-  }, [dataSource, campaigns, insights, modRequests, savedAnalyses, sampleData]);
+  }, [campaigns, insights, modRequests, savedAnalyses, sampleData]);
 
   // Sort campaigns: live first, then ended, then by most recent
   const sortedCampaigns = useMemo(() => {
@@ -475,21 +462,11 @@ const Overview = () => {
             <p className="text-muted-foreground mt-1">Monitor your active campaigns at a glance</p>
           </div>
           <div className="flex items-center gap-3">
-            <Select value={dataSource} onValueChange={(v: "sample" | "live") => setDataSource(v)}>
-              <SelectTrigger className="w-[140px]">
-                <Database className="h-4 w-4 mr-2" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="live">Live Data</SelectItem>
-                <SelectItem value="sample">Sample Data</SelectItem>
-              </SelectContent>
-            </Select>
             <Button 
               variant="outline" 
               size="sm" 
               onClick={handleRefresh}
-              disabled={refreshing || dataSource === "sample"}
+              disabled={refreshing}
             >
               <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
               Refresh
@@ -506,7 +483,7 @@ const Overview = () => {
           <div className="flex items-center justify-center py-20">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
-        ) : !hasAnyCampaigns && dataSource === "live" ? (
+        ) : !hasAnyCampaigns ? (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             <BlurredPlaceholderCard />
             <BlurredPlaceholderCard />
