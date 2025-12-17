@@ -10,8 +10,8 @@ interface CompetitorSearchRequest {
   clientName: string;
   industry: string;
   platforms: string[];
+  markets: string[]; // Array of market codes (e.g., ['IT', 'ES', 'US'])
   searchTerms?: string[];
-  country?: string;
 }
 
 // Industry keywords for broader competitor search
@@ -32,13 +32,16 @@ const INDUSTRY_KEYWORDS: Record<string, string[]> = {
   'entertainment': ['movie', 'music', 'stream', 'show', 'entertainment', 'media'],
 };
 
-// Search Meta Ad Library API
-async function searchMetaAdsLibrary(
+// Search Meta Ad Library API for a specific market
+async function searchMetaAdsLibraryForMarket(
   searchTerms: string[],
   accessToken: string,
-  country: string = 'US'
+  market: string
 ): Promise<any[]> {
   const results: any[] = [];
+  
+  console.log(`[META] Searching Ad Library for market: ${market}`);
+  console.log(`[META] Search terms: ${searchTerms.join(', ')}`);
   
   for (const term of searchTerms.slice(0, 5)) { // Limit to 5 searches
     try {
@@ -46,27 +49,33 @@ async function searchMetaAdsLibrary(
       const url = new URL('https://graph.facebook.com/v19.0/ads_archive');
       url.searchParams.set('access_token', accessToken);
       url.searchParams.set('search_terms', term);
-      url.searchParams.set('ad_reached_countries', JSON.stringify([country]));
+      url.searchParams.set('ad_reached_countries', JSON.stringify([market]));
       url.searchParams.set('ad_active_status', 'ACTIVE');
+      url.searchParams.set('ad_type', 'ALL'); // Always use ALL ads category
       url.searchParams.set('fields', 'id,ad_creation_time,ad_creative_bodies,ad_creative_link_captions,ad_creative_link_titles,ad_delivery_start_time,ad_delivery_stop_time,page_id,page_name,publisher_platforms,estimated_audience_size');
       url.searchParams.set('limit', '25');
+      
+      console.log(`[META] API call for term "${term}" in market ${market}`);
       
       const response = await fetch(url.toString());
       
       if (response.ok) {
         const data = await response.json();
         if (data.data) {
+          console.log(`[META] Found ${data.data.length} ads for term "${term}" in ${market}`);
           results.push(...data.data.map((ad: any) => ({
             ...ad,
             search_term: term,
+            market: market,
             platform: 'meta'
           })));
         }
       } else {
-        console.error(`Meta Ads Library search failed for term "${term}":`, await response.text());
+        const errorText = await response.text();
+        console.error(`[META] API error for term "${term}" in ${market}:`, errorText);
       }
     } catch (error) {
-      console.error(`Error searching Meta Ads Library for "${term}":`, error);
+      console.error(`[META] Error searching for "${term}" in ${market}:`, error);
     }
   }
   
@@ -78,25 +87,27 @@ async function searchMetaAdsLibrary(
     }
   });
   
+  console.log(`[META] Total unique ads found for ${market}: ${uniqueAds.size}`);
   return Array.from(uniqueAds.values());
 }
 
-// Search TikTok Commercial Content Library
-// Note: TikTok's official API is limited; this uses their public ad library structure
-async function searchTikTokAdsLibrary(
+// Search TikTok Commercial Content Library for a specific market
+async function searchTikTokAdsLibraryForMarket(
   searchTerms: string[],
   accessToken: string,
-  country: string = 'US'
+  market: string
 ): Promise<any[]> {
   const results: any[] = [];
   
-  // TikTok Commercial Content Library API
-  // Note: TikTok's ad library access is more restricted than Meta's
-  // This attempts to use available endpoints
+  console.log(`[TIKTOK] Searching Ad Library for market: ${market}`);
+  console.log(`[TIKTOK] Search terms: ${searchTerms.join(', ')}`);
+  
   for (const term of searchTerms.slice(0, 3)) {
     try {
       // TikTok Business API for commercial content
       const url = 'https://business-api.tiktok.com/open_api/v1.3/creative/ads_library/search/';
+      
+      console.log(`[TIKTOK] API call for term "${term}" in market ${market}`);
       
       const response = await fetch(url, {
         method: 'POST',
@@ -106,7 +117,7 @@ async function searchTikTokAdsLibrary(
         },
         body: JSON.stringify({
           advertiser_name: term,
-          region: country,
+          region: market,
           page_size: 20
         })
       });
@@ -114,30 +125,34 @@ async function searchTikTokAdsLibrary(
       if (response.ok) {
         const data = await response.json();
         if (data.data?.ads) {
+          console.log(`[TIKTOK] Found ${data.data.ads.length} ads for term "${term}" in ${market}`);
           results.push(...data.data.ads.map((ad: any) => ({
             ...ad,
             search_term: term,
+            market: market,
             platform: 'tiktok'
           })));
         }
       } else {
         const errorText = await response.text();
-        console.log(`TikTok Ads Library search note for "${term}":`, errorText);
+        console.log(`[TIKTOK] API note for "${term}" in ${market}:`, errorText);
       }
     } catch (error) {
-      console.error(`Error searching TikTok Ads Library for "${term}":`, error);
+      console.error(`[TIKTOK] Error searching for "${term}" in ${market}:`, error);
     }
   }
   
+  console.log(`[TIKTOK] Total ads found for ${market}: ${results.length}`);
   return results;
 }
 
-// Generate simulated competitor data for demo/fallback
-function generateSampleCompetitorData(
+// Generate simulated competitor data for demo/fallback - per market
+function generateSampleCompetitorDataForMarket(
   clientName: string,
   industry: string,
-  platforms: string[]
-): any {
+  platforms: string[],
+  market: string
+): { meta: any[], tiktok: any[] } {
   const competitorNames = [
     `${industry.charAt(0).toUpperCase() + industry.slice(1)} Pro`,
     `Better${clientName.split(' ')[0]}`,
@@ -146,30 +161,32 @@ function generateSampleCompetitorData(
     `${industry}Expert`,
   ];
   
-  const result: any = { meta: [], tiktok: [] };
+  const result: { meta: any[], tiktok: any[] } = { meta: [], tiktok: [] };
   
   if (platforms.includes('meta')) {
     result.meta = competitorNames.slice(0, 4).map((name, idx) => ({
-      id: `meta_${idx}_${Date.now()}`,
+      id: `meta_${market}_${idx}_${Date.now()}`,
       page_name: name,
       advertiser_name: name,
-      ad_creative_body: `Sample ad creative for ${name}`,
+      ad_creative_body: `Sample ad creative for ${name} targeting ${market}`,
       ad_delivery_start_time: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString(),
       is_active: Math.random() > 0.3,
       publisher_platforms: ['facebook', 'instagram'],
       estimated_audience_size: { lower_bound: 10000, upper_bound: 500000 },
+      market: market,
       platform: 'meta'
     }));
   }
   
   if (platforms.includes('tiktok')) {
     result.tiktok = competitorNames.slice(0, 3).map((name, idx) => ({
-      id: `tiktok_${idx}_${Date.now()}`,
+      id: `tiktok_${market}_${idx}_${Date.now()}`,
       advertiser_name: name,
       ad_format: ['In-Feed', 'TopView', 'Branded Effect'][idx % 3],
       impressions: Math.floor(Math.random() * 1000000) + 50000,
       is_active: Math.random() > 0.4,
-      region: 'US',
+      region: market,
+      market: market,
       platform: 'tiktok'
     }));
   }
@@ -202,25 +219,26 @@ serve(async (req) => {
       clientName, 
       industry, 
       platforms,
-      searchTerms: customSearchTerms,
-      country = 'US'
+      markets = ['US'], // Default to US if no markets provided
+      searchTerms: customSearchTerms
     } = body;
 
     console.log("=== COMPETITOR ANALYSIS START ===");
-    console.log("Input parameters:", { clientName, industry, platforms, country });
+    console.log("Input parameters:", { clientName, industry, platforms, markets });
     console.log("User ID:", userId || "Anonymous (service role)");
+    console.log("Ad type/category: ALL (always)");
 
     // Build search terms from client name and industry
     const industryKeywords = INDUSTRY_KEYWORDS[industry.toLowerCase()] || [];
     const searchTerms = customSearchTerms || [
       clientName,
-      ...industryKeywords.slice(0, 3),
-      `${industry} ${country}`
+      ...industryKeywords.slice(0, 3)
     ];
 
     console.log("Industry keywords found:", industryKeywords);
     console.log("Search terms to use:", searchTerms);
     console.log("Custom search terms provided:", customSearchTerms ? "Yes" : "No");
+    console.log("Markets to search:", markets);
 
     // Try to get platform access tokens for live API calls
     let metaAccessToken: string | null = null;
@@ -254,90 +272,106 @@ serve(async (req) => {
       }
     }
 
-    let result: any = { meta: [], tiktok: [] };
+    // Initialize results per market
+    const resultsByMarket: Record<string, { meta: any[], tiktok: any[] }> = {};
     let usedLiveData = false;
 
-    // Try live API calls if we have access tokens
-    console.log("=== ATTEMPTING LIVE API CALLS ===");
+    console.log("=== ATTEMPTING LIVE API CALLS PER MARKET ===");
     console.log("Meta access token available:", !!metaAccessToken);
     console.log("TikTok access token available:", !!tiktokAccessToken);
-    
-    if (metaAccessToken && platforms.includes('meta')) {
-      try {
-        console.log("Calling Meta Ads Library API...");
-        result.meta = await searchMetaAdsLibrary(searchTerms, metaAccessToken, country);
-        usedLiveData = result.meta.length > 0;
-        console.log(`Meta API returned ${result.meta.length} ads`);
-        if (result.meta.length > 0) {
-          const metaCompetitorNames = result.meta.map((ad: any) => ad.page_name || ad.advertiser_name).filter(Boolean);
-          console.log("Meta competitors found:", [...new Set(metaCompetitorNames)]);
+
+    // Process each market separately
+    for (const market of markets) {
+      console.log(`\n--- Processing market: ${market} ---`);
+      resultsByMarket[market] = { meta: [], tiktok: [] };
+      
+      // Meta API for this market
+      if (metaAccessToken && platforms.includes('meta')) {
+        try {
+          resultsByMarket[market].meta = await searchMetaAdsLibraryForMarket(searchTerms, metaAccessToken, market);
+          if (resultsByMarket[market].meta.length > 0) {
+            usedLiveData = true;
+            const competitorNames = [...new Set(resultsByMarket[market].meta.map((ad: any) => ad.page_name || ad.advertiser_name).filter(Boolean))];
+            console.log(`[META] Competitors found in ${market}:`, competitorNames);
+          }
+        } catch (error) {
+          console.error(`[META] Error for market ${market}:`, error);
         }
-      } catch (error) {
-        console.error("Meta Ads Library error:", error);
       }
-    } else {
-      console.log("Skipping Meta API: ", !metaAccessToken ? "No access token" : "Meta not in platforms");
+      
+      // TikTok API for this market
+      if (tiktokAccessToken && platforms.includes('tiktok')) {
+        try {
+          resultsByMarket[market].tiktok = await searchTikTokAdsLibraryForMarket(searchTerms, tiktokAccessToken, market);
+          if (resultsByMarket[market].tiktok.length > 0) {
+            usedLiveData = true;
+            const competitorNames = [...new Set(resultsByMarket[market].tiktok.map((ad: any) => ad.advertiser_name).filter(Boolean))];
+            console.log(`[TIKTOK] Competitors found in ${market}:`, competitorNames);
+          }
+        } catch (error) {
+          console.error(`[TIKTOK] Error for market ${market}:`, error);
+        }
+      }
+      
+      // Fall back to sample data for this market if no live data
+      const hasLiveDataForMarket = resultsByMarket[market].meta.length > 0 || resultsByMarket[market].tiktok.length > 0;
+      if (!hasLiveDataForMarket) {
+        console.log(`[SAMPLE] Generating sample data for market ${market}`);
+        const sampleData = generateSampleCompetitorDataForMarket(clientName, industry, platforms, market);
+        resultsByMarket[market] = sampleData;
+        console.log(`[SAMPLE] Generated ${sampleData.meta.length} Meta ads and ${sampleData.tiktok.length} TikTok ads for ${market}`);
+      }
     }
 
-    if (tiktokAccessToken && platforms.includes('tiktok')) {
-      try {
-        console.log("Calling TikTok Ads Library API...");
-        result.tiktok = await searchTikTokAdsLibrary(searchTerms, tiktokAccessToken, country);
-        usedLiveData = usedLiveData || result.tiktok.length > 0;
-        console.log(`TikTok API returned ${result.tiktok.length} ads`);
-        if (result.tiktok.length > 0) {
-          const tiktokCompetitorNames = result.tiktok.map((ad: any) => ad.advertiser_name).filter(Boolean);
-          console.log("TikTok competitors found:", [...new Set(tiktokCompetitorNames)]);
-        }
-      } catch (error) {
-        console.error("TikTok Ads Library error:", error);
-      }
-    } else {
-      console.log("Skipping TikTok API: ", !tiktokAccessToken ? "No access token" : "TikTok not in platforms");
-    }
-
-    // Fall back to sample data if no live data available
-    if (!usedLiveData) {
-      console.log("=== USING SAMPLE COMPETITOR DATA ===");
-      console.log("Reason: No live data retrieved from APIs");
-      result = generateSampleCompetitorData(clientName, industry, platforms);
-      console.log("Sample Meta competitors generated:", result.meta?.map((a: any) => a.advertiser_name) || []);
-      console.log("Sample TikTok competitors generated:", result.tiktok?.map((a: any) => a.advertiser_name) || []);
-    }
+    // Combine all results
+    const combinedMeta = Object.values(resultsByMarket).flatMap(r => r.meta);
+    const combinedTiktok = Object.values(resultsByMarket).flatMap(r => r.tiktok);
 
     // Analyze competitor activity summary
     const topCompetitors = [...new Set([
-      ...result.meta.map((a: any) => a.page_name || a.advertiser_name),
-      ...result.tiktok.map((a: any) => a.advertiser_name)
+      ...combinedMeta.map((a: any) => a.page_name || a.advertiser_name),
+      ...combinedTiktok.map((a: any) => a.advertiser_name)
     ])].filter(Boolean).slice(0, 10);
     
     const summary = {
-      totalCompetitorAds: result.meta.length + result.tiktok.length,
-      metaAdsCount: result.meta.length,
-      tiktokAdsCount: result.tiktok.length,
+      totalCompetitorAds: combinedMeta.length + combinedTiktok.length,
+      metaAdsCount: combinedMeta.length,
+      tiktokAdsCount: combinedTiktok.length,
       activeAdsCount: [
-        ...result.meta.filter((a: any) => a.is_active || !a.ad_delivery_stop_time),
-        ...result.tiktok.filter((a: any) => a.is_active)
+        ...combinedMeta.filter((a: any) => a.is_active || !a.ad_delivery_stop_time),
+        ...combinedTiktok.filter((a: any) => a.is_active)
       ].length,
       topCompetitors,
       searchTermsUsed: searchTerms,
-      usedLiveData
+      marketsSearched: markets,
+      usedLiveData,
+      adTypeCategory: 'ALL',
+      perMarketSummary: Object.entries(resultsByMarket).map(([market, data]) => ({
+        market,
+        metaAdsCount: data.meta.length,
+        tiktokAdsCount: data.tiktok.length,
+        competitors: [...new Set([
+          ...data.meta.map((a: any) => a.page_name || a.advertiser_name),
+          ...data.tiktok.map((a: any) => a.advertiser_name)
+        ])].filter(Boolean)
+      }))
     };
 
-    console.log("=== COMPETITOR ANALYSIS COMPLETE ===");
+    console.log("\n=== COMPETITOR ANALYSIS COMPLETE ===");
     console.log("Summary:", JSON.stringify(summary, null, 2));
     console.log("Top competitors identified:", topCompetitors);
 
     return new Response(
       JSON.stringify({
         success: true,
-        meta: result.meta,
-        tiktok: result.tiktok,
+        meta: combinedMeta,
+        tiktok: combinedTiktok,
+        byMarket: resultsByMarket,
         summary,
         clientContext: {
           clientName,
           industry,
-          country
+          markets
         }
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }

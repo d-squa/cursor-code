@@ -35,6 +35,7 @@ interface Campaign {
   objective: string;
   platforms?: any;
   generic_config?: any;
+  market_splits?: any;
 }
 
 interface ConnectedPlatform {
@@ -171,6 +172,8 @@ export default function InsightsRecommendations() {
   const [campaignClientInfo, setCampaignClientInfo] = useState<{ name: string; industry: string } | null>(null);
   const [manualClientName, setManualClientName] = useState('');
   const [manualClientIndustry, setManualClientIndustry] = useState('');
+  const [availableMarkets, setAvailableMarkets] = useState<string[]>([]);
+  const [selectedMarkets, setSelectedMarkets] = useState<string[]>([]);
   
   // Results
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
@@ -255,16 +258,42 @@ export default function InsightsRecommendations() {
     activeTab,
   ]);
 
-  // Extract client info from selected campaign's activation details
+  // Extract client info and markets from selected campaign
   useEffect(() => {
     if (selectedCampaignIds.length === 0) {
       setCampaignClientInfo(null);
       setClientSource(clients.length > 0 ? 'list' : 'manual');
+      setAvailableMarkets([]);
+      setSelectedMarkets([]);
       return;
     }
 
     // Get the first selected campaign
     const selectedCampaign = campaigns.find(c => selectedCampaignIds.includes(c.id));
+    
+    // Extract markets from market_splits
+    if (selectedCampaign?.market_splits) {
+      const marketSplits = selectedCampaign.market_splits;
+      const markets: string[] = [];
+      
+      // market_splits is an object keyed by platform (meta, tiktok) with arrays of market objects
+      Object.values(marketSplits).forEach((platformMarkets: any) => {
+        if (Array.isArray(platformMarkets)) {
+          platformMarkets.forEach((market: any) => {
+            if (market.name && !markets.includes(market.name)) {
+              markets.push(market.name);
+            }
+          });
+        }
+      });
+      
+      setAvailableMarkets(markets);
+      setSelectedMarkets(markets); // Select all by default
+    } else {
+      setAvailableMarkets([]);
+      setSelectedMarkets([]);
+    }
+    
     if (!selectedCampaign?.generic_config) {
       setCampaignClientInfo(null);
       setClientSource(clients.length > 0 ? 'list' : 'manual');
@@ -299,7 +328,7 @@ export default function InsightsRecommendations() {
       const [campaignsRes, platformsRes, savedRes, clientsRes] = await Promise.all([
         supabase
           .from('campaigns')
-          .select('id, name, status, total_budget, start_date, end_date, objective, platforms, generic_config')
+          .select('id, name, status, total_budget, start_date, end_date, objective, platforms, generic_config, market_splits')
           .eq('user_id', user.id)
           .in('status', ['pushed_to_dsp', 'live', 'partially_pushed', 'approved', 'ready_for_push'])
           .order('created_at', { ascending: false }),
@@ -528,7 +557,8 @@ export default function InsightsRecommendations() {
           includeCompetitorAnalysis: includeCompetitorAnalysis && canUseCompetitorAnalysis && hasValidClient,
           clientName,
           clientIndustry,
-          isGeneralPerformance
+          isGeneralPerformance,
+          markets: selectedMarkets.length > 0 ? selectedMarkets : ['US'] // Pass markets for competitor analysis
         }
       });
 
@@ -981,11 +1011,6 @@ export default function InsightsRecommendations() {
                                       ))}
                                     </SelectContent>
                                   </Select>
-                                  {selectedClientId && (
-                                    <p className="text-xs text-muted-foreground">
-                                      Will search for competitors based on client name and industry
-                                    </p>
-                                  )}
                                 </div>
                               )}
                               
@@ -994,7 +1019,7 @@ export default function InsightsRecommendations() {
                                 <div className="space-y-3">
                                   <p className="text-xs text-amber-600 flex items-center gap-1">
                                     <AlertCircle className="h-3 w-3" />
-                                    No client found. Enter details manually or create a client in Client Management.
+                                    No client found. Enter details manually.
                                   </p>
                                   <div className="space-y-2">
                                     <Label className="text-xs">Client Name</Label>
@@ -1008,24 +1033,49 @@ export default function InsightsRecommendations() {
                                   <div className="space-y-2">
                                     <Label className="text-xs">Industry</Label>
                                     <Input
-                                      placeholder="Enter industry (e.g., E-commerce, Finance)..."
+                                      placeholder="Enter industry..."
                                       value={manualClientIndustry}
                                       onChange={(e) => setManualClientIndustry(e.target.value)}
                                       className="h-9"
                                     />
                                   </div>
-                                  {manualClientName && manualClientIndustry && (
-                                    <p className="text-xs text-muted-foreground">
-                                      Will search for competitors based on entered details
-                                    </p>
-                                  )}
+                                </div>
+                              )}
+                              
+                              {/* Market Filter */}
+                              {availableMarkets.length > 0 && (
+                                <div className="space-y-2 pt-3 border-t">
+                                  <Label className="text-xs text-muted-foreground">Markets to Analyze</Label>
+                                  <div className="flex flex-wrap gap-2">
+                                    {availableMarkets.map(market => (
+                                      <div key={market} className="flex items-center space-x-1">
+                                        <Checkbox
+                                          id={`market-${market}`}
+                                          checked={selectedMarkets.includes(market)}
+                                          onCheckedChange={(checked) => {
+                                            if (checked) {
+                                              setSelectedMarkets(prev => [...prev, market]);
+                                            } else {
+                                              setSelectedMarkets(prev => prev.filter(m => m !== market));
+                                            }
+                                          }}
+                                        />
+                                        <label htmlFor={`market-${market}`} className="text-xs cursor-pointer font-medium">
+                                          {market}
+                                        </label>
+                                      </div>
+                                    ))}
+                                  </div>
+                                  <p className="text-xs text-muted-foreground">
+                                    Competitor search runs separately for each market
+                                  </p>
                                 </div>
                               )}
                             </div>
                           )}
                           {!canUseCompetitorAnalysis && (
                             <p className="text-xs text-muted-foreground">
-                              Upgrade to Enterprise to analyze competitor ads from Meta Ads Library and TikTok
+                              Upgrade to Enterprise to analyze competitor ads
                             </p>
                           )}
                         </div>
