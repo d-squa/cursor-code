@@ -93,3 +93,6 @@ verify_jwt = true
 
 [functions.send-insights-email]
 verify_jwt = true
+
+[functions.competitor-ads-search]
+verify_jwt = true
