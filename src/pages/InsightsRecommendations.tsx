@@ -114,6 +114,7 @@ export default function InsightsRecommendations() {
   const [loadingSaved, setLoadingSaved] = useState(false);
   const [activeTab, setActiveTab] = useState('new');
   const [todaySaveCount, setTodaySaveCount] = useState(0);
+  // Track individual segments used today (not combinations)
   const [usedSegments, setUsedSegments] = useState<Set<string>>(new Set());
   
   // Email dialog
@@ -197,11 +198,12 @@ export default function InsightsRecommendations() {
         );
         setTodaySaveCount(todayAnalyses.length);
         
-        // Track used segments for today (breakdown combinations)
+        // Track individual segments used today (each breakdown separately)
         const usedSegs = new Set<string>();
         todayAnalyses.forEach(analysis => {
-          const segmentKey = [...analysis.breakdowns].sort().join(',');
-          usedSegs.add(segmentKey);
+          analysis.breakdowns.forEach(breakdown => {
+            usedSegs.add(breakdown);
+          });
         });
         setUsedSegments(usedSegs);
       }
@@ -308,14 +310,16 @@ export default function InsightsRecommendations() {
       return;
     }
 
-    // Check segment usage for non-enterprise users
-    const currentSegmentKey = [...selectedBreakdowns].sort().join(',');
-    if (!canUseUnlimitedSegments && usedSegments.has(currentSegmentKey)) {
-      toast.error(
-        'You have already analyzed this segment combination today. Upgrade to Enterprise for unlimited segment analysis.',
-        { duration: 5000 }
-      );
-      return;
+    // Check individual segment usage for non-enterprise users
+    if (!canUseUnlimitedSegments) {
+      const alreadyUsedSegments = selectedBreakdowns.filter(s => usedSegments.has(s));
+      if (alreadyUsedSegments.length > 0) {
+        toast.error(
+          `You have already used these segments today: ${alreadyUsedSegments.join(', ')}. Upgrade to Enterprise for unlimited segment analysis.`,
+          { duration: 5000 }
+        );
+        return;
+      }
     }
 
     setAnalyzing(true);
@@ -378,9 +382,12 @@ export default function InsightsRecommendations() {
       toast.success('Analysis saved successfully!');
       setTodaySaveCount(prev => prev + 1);
       
-      // Track used segment
-      const segmentKey = [...selectedBreakdowns].sort().join(',');
-      setUsedSegments(prev => new Set([...prev, segmentKey]));
+      // Track used individual segments
+      setUsedSegments(prev => {
+        const newSet = new Set(prev);
+        selectedBreakdowns.forEach(s => newSet.add(s));
+        return newSet;
+      });
       
       // Reload saved analyses
       const { data: savedRes } = await supabase
@@ -755,15 +762,15 @@ export default function InsightsRecommendations() {
                           </div>
                           {!canUseUnlimitedSegments && (
                             <>
-                              {usedSegments.has([...selectedBreakdowns].sort().join(',')) ? (
+                              {selectedBreakdowns.some(s => usedSegments.has(s)) ? (
                                 <p className="text-xs text-destructive flex items-center gap-1">
                                   <Lock className="h-3 w-3" />
-                                  This segment combination already used today. Upgrade to Enterprise for unlimited.
+                                  Segments already used today: {selectedBreakdowns.filter(s => usedSegments.has(s)).join(', ')}. Upgrade to Enterprise.
                                 </p>
                               ) : (
                                 <p className="text-xs text-muted-foreground flex items-center gap-1">
                                   <AlertCircle className="h-3 w-3" />
-                                  Each segment combination can only be used once per day.
+                                  Each segment can only be used once per day.
                                 </p>
                               )}
                             </>
@@ -776,7 +783,16 @@ export default function InsightsRecommendations() {
                         <Button 
                           className="w-full" 
                           onClick={runAnalysis}
-                          disabled={analyzing || selectedCampaignIds.length === 0}
+                          disabled={
+                            analyzing || 
+                            selectedCampaignIds.length === 0 ||
+                            selectedPlatforms.length === 0 ||
+                            selectedBreakdowns.length === 0 ||
+                            // Disable if Basic/Freelancer selects more than one platform
+                            (!canAccessCrossPlatform && selectedPlatforms.length > 1) ||
+                            // Disable if any selected segment was already used today (for non-enterprise)
+                            (!canUseUnlimitedSegments && selectedBreakdowns.some(s => usedSegments.has(s)))
+                          }
                         >
                           {analyzing ? (
                             <>
