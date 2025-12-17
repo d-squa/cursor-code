@@ -60,6 +60,12 @@ interface TeamMember {
   full_name: string | null;
 }
 
+interface Client {
+  id: string;
+  name: string;
+  industry: string;
+}
+
 const TIME_COMPARISON_PRESETS = [
   { value: 'week_vs_prev_week', label: 'This Week vs Previous Week' },
   { value: 'month_vs_prev_month', label: 'This Month vs Previous Month' },
@@ -154,6 +160,11 @@ export default function InsightsRecommendations() {
   const [timeComparison, setTimeComparison] = useState('week_vs_prev_week');
   const [selectedBreakdowns, setSelectedBreakdowns] = useState<string[]>(['age', 'gender']);
   
+  // Competitor analysis (Enterprise/Agency only)
+  const [includeCompetitorAnalysis, setIncludeCompetitorAnalysis] = useState(false);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [selectedClientId, setSelectedClientId] = useState<string>('');
+  
   // Results
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
   const [rawData, setRawData] = useState<any>(null);
@@ -194,6 +205,7 @@ export default function InsightsRecommendations() {
     tier === 'enterprise' || tier === 'agency';
   const canUseUnlimitedSegments = hasAccess('unlimited_segment_usage' as any) ||
     tier === 'enterprise' || tier === 'agency';
+  const canUseCompetitorAnalysis = tier === 'enterprise' || tier === 'agency';
   
   // Daily save limit for basic/freelancer
   const dailySaveLimit = canSaveUnlimited ? Infinity : 1;
@@ -240,7 +252,7 @@ export default function InsightsRecommendations() {
     if (!user) return;
     
     try {
-      const [campaignsRes, platformsRes, savedRes] = await Promise.all([
+      const [campaignsRes, platformsRes, savedRes, clientsRes] = await Promise.all([
         supabase
           .from('campaigns')
           .select('id, name, status, total_budget, start_date, end_date, objective, platforms')
@@ -256,7 +268,12 @@ export default function InsightsRecommendations() {
           .from('saved_insights_analyses')
           .select('*')
           .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('clients')
+          .select('id, name, industry')
+          .eq('user_id', user.id)
+          .order('name', { ascending: true })
       ]);
 
       if (campaignsRes.data) {
@@ -305,6 +322,10 @@ export default function InsightsRecommendations() {
         // Update localStorage with merged data
         localStorage.setItem(`insights_used_segments_${todayStr}`, JSON.stringify([...fromStorage]));
         setUsedSegments(fromStorage);
+      }
+      
+      if (clientsRes.data) {
+        setClients(clientsRes.data as Client[]);
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -425,6 +446,9 @@ export default function InsightsRecommendations() {
     setAnalysisResult(null);
     setConfigOpen(false);
 
+    // Get selected client data for competitor analysis
+    const selectedClient = clients.find(c => c.id === selectedClientId);
+
     try {
       const { data, error } = await supabase.functions.invoke('insights-recommendations', {
         body: {
@@ -433,7 +457,11 @@ export default function InsightsRecommendations() {
           timeComparison,
           breakdowns: selectedBreakdowns,
           crossPlatformEnabled: canAccessCrossPlatform,
-          useSampleData: true // Always use sample data for now
+          useSampleData: true, // Always use sample data for now
+          includeActivityLogs: true,
+          includeCompetitorAnalysis: includeCompetitorAnalysis && canUseCompetitorAnalysis && !!selectedClient,
+          clientName: selectedClient?.name,
+          clientIndustry: selectedClient?.industry
         }
       });
 
@@ -817,6 +845,71 @@ export default function InsightsRecommendations() {
                               ))}
                             </SelectContent>
                           </Select>
+                        </div>
+
+                        <Separator />
+
+                        {/* Competitor Analysis (Enterprise/Agency only) */}
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <Label className="text-sm font-medium">Competitor Analysis</Label>
+                            {!canUseCompetitorAnalysis && (
+                              <Badge variant="outline" className="text-xs">
+                                <Lock className="h-3 w-3 mr-1" />
+                                Enterprise+
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id="competitor-analysis"
+                              checked={includeCompetitorAnalysis}
+                              onCheckedChange={(checked) => setIncludeCompetitorAnalysis(checked === true)}
+                              disabled={!canUseCompetitorAnalysis}
+                            />
+                            <label 
+                              htmlFor="competitor-analysis" 
+                              className={`text-sm cursor-pointer ${!canUseCompetitorAnalysis ? 'text-muted-foreground' : ''}`}
+                            >
+                              Include competitor ad analysis
+                            </label>
+                          </div>
+                          {includeCompetitorAnalysis && canUseCompetitorAnalysis && (
+                            <div className="space-y-2 pl-6">
+                              <Label className="text-xs text-muted-foreground">Select Client</Label>
+                              <Select value={selectedClientId} onValueChange={setSelectedClientId}>
+                                <SelectTrigger className="h-9">
+                                  <SelectValue placeholder="Select a client..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {clients.length === 0 ? (
+                                    <div className="p-2 text-sm text-muted-foreground text-center">
+                                      No clients found. Create a client first.
+                                    </div>
+                                  ) : (
+                                    clients.map(client => (
+                                      <SelectItem key={client.id} value={client.id}>
+                                        <div className="flex flex-col">
+                                          <span>{client.name}</span>
+                                          <span className="text-xs text-muted-foreground">{client.industry}</span>
+                                        </div>
+                                      </SelectItem>
+                                    ))
+                                  )}
+                                </SelectContent>
+                              </Select>
+                              {selectedClientId && (
+                                <p className="text-xs text-muted-foreground">
+                                  Will search for competitors based on client name and industry
+                                </p>
+                              )}
+                            </div>
+                          )}
+                          {!canUseCompetitorAnalysis && (
+                            <p className="text-xs text-muted-foreground">
+                              Upgrade to Enterprise to analyze competitor ads from Meta Ads Library and TikTok
+                            </p>
+                          )}
                         </div>
 
                         <Separator />
