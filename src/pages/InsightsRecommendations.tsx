@@ -544,6 +544,12 @@ export default function InsightsRecommendations() {
       }
     }
 
+    // Determine clientId for database tracking
+    let clientIdForTracking: string | undefined;
+    if (clientSource === 'list' && selectedClientId) {
+      clientIdForTracking = selectedClientId;
+    }
+
     try {
       const { data, error } = await supabase.functions.invoke('insights-recommendations', {
         body: {
@@ -555,6 +561,7 @@ export default function InsightsRecommendations() {
           useSampleData: true, // Always use sample data for now
           includeActivityLogs: true,
           includeCompetitorAnalysis: includeCompetitorAnalysis && canUseCompetitorAnalysis && hasValidClient,
+          clientId: clientIdForTracking, // Pass clientId for competitor database tracking
           clientName,
           clientIndustry,
           isGeneralPerformance,

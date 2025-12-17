@@ -256,76 +256,68 @@ When analyzing performance changes, consider whether any of the above actions mi
 
 // Format competitor data for AI prompt with explicit competitor names
 function formatCompetitorDataForPrompt(competitorData: any): string {
-  if (!competitorData || (!competitorData.meta?.length && !competitorData.tiktok?.length)) {
+  if (!competitorData || !competitorData.summary) {
     return '';
   }
 
-  // Extract unique competitor names
-  const metaCompetitors = competitorData.meta?.map((ad: any) => ad.page_name || ad.advertiser_name).filter(Boolean) || [];
-  const tiktokCompetitors = competitorData.tiktok?.map((ad: any) => ad.advertiser_name).filter(Boolean) || [];
-  const allCompetitors = [...new Set([...metaCompetitors, ...tiktokCompetitors])];
+  const summary = competitorData.summary;
+  const liveCompetitors = summary.liveCompetitors || [];
+  const silentCompetitors = summary.silentCompetitors || [];
+  const allCompetitors = [...liveCompetitors, ...silentCompetitors];
+  
+  if (allCompetitors.length === 0) {
+    return '';
+  }
   
   let competitorSection = `
 ---
 
 **COMPETITOR ADVERTISING ACTIVITY:**
 
-**IMPORTANT: You MUST explicitly mention the following competitor names by name in your analysis:**
-${allCompetitors.map((name, idx) => `${idx + 1}. ${name}`).join('\n')}
+**IMPORTANT: You MUST explicitly mention the following competitor names BY NAME in your analysis:**
 
-These are direct competitors actively advertising. Analyze their activity and reference them BY NAME when discussing competitive landscape.
+**LIVE COMPETITORS (Currently Advertising):**
+${liveCompetitors.length > 0 ? liveCompetitors.map((name: string, idx: number) => `${idx + 1}. **${name}**`).join('\n') : 'None detected'}
+
+**SILENT COMPETITORS (Not Currently Advertising):**
+${silentCompetitors.length > 0 ? silentCompetitors.map((name: string, idx: number) => `${idx + 1}. ${name}`).join('\n') : 'None detected'}
 
 `;
 
-  if (competitorData.meta?.length > 0) {
-    competitorSection += `**Meta (Facebook/Instagram) Competitor Ads (${competitorData.meta.length} total):**
+  // Add per-market breakdown
+  if (summary.byMarket && summary.byMarket.length > 0) {
+    competitorSection += `**DETAILED BREAKDOWN BY MARKET:**
 `;
-    // Group by advertiser name
-    const metaByAdvertiser = new Map<string, any[]>();
-    competitorData.meta.forEach((ad: any) => {
-      const name = ad.page_name || ad.advertiser_name || 'Unknown';
-      if (!metaByAdvertiser.has(name)) {
-        metaByAdvertiser.set(name, []);
-      }
-      metaByAdvertiser.get(name)!.push(ad);
-    });
-    
-    metaByAdvertiser.forEach((ads, advertiserName) => {
-      const activeCount = ads.filter((a: any) => !a.ad_delivery_stop_time).length;
-      competitorSection += `- **${advertiserName}**: ${ads.length} ads (${activeCount} active)
+    summary.byMarket.forEach((marketData: any) => {
+      competitorSection += `
+**${marketData.market}:**
 `;
-    });
-  }
-
-  if (competitorData.tiktok?.length > 0) {
-    competitorSection += `
-**TikTok Competitor Ads (${competitorData.tiktok.length} total):**
+      marketData.competitors?.forEach((comp: any) => {
+        const statusIcon = comp.isLive ? '🟢' : '⚪';
+        const statusChange = comp.statusChange === 'NOW_LIVE' ? ' (JUST WENT LIVE!)' : 
+                            comp.statusChange === 'NOW_SILENT' ? ' (JUST WENT SILENT)' : 
+                            comp.statusChange === 'NEW' ? ' (New competitor)' : '';
+        competitorSection += `  ${statusIcon} **${comp.name}** (${comp.platform}): ${comp.adCount} active ads${statusChange}
 `;
-    // Group by advertiser name
-    const tiktokByAdvertiser = new Map<string, any[]>();
-    competitorData.tiktok.forEach((ad: any) => {
-      const name = ad.advertiser_name || 'Unknown';
-      if (!tiktokByAdvertiser.has(name)) {
-        tiktokByAdvertiser.set(name, []);
-      }
-      tiktokByAdvertiser.get(name)!.push(ad);
-    });
-    
-    tiktokByAdvertiser.forEach((ads, advertiserName) => {
-      const activeCount = ads.filter((a: any) => a.is_active).length;
-      competitorSection += `- **${advertiserName}**: ${ads.length} ads (${activeCount} active)
-`;
+      });
     });
   }
 
   competitorSection += `
-**Summary:** ${competitorData.summary?.totalCompetitorAds || allCompetitors.length} total competitor ads found across ${allCompetitors.length} unique competitors.
-Data source: ${competitorData.summary?.usedLiveData ? 'Live API data' : 'Sample data (no live API access)'}
+**SUMMARY:**
+- Total competitors tracked: ${allCompetitors.length}
+- Currently live: ${liveCompetitors.length}
+- Currently silent: ${silentCompetitors.length}
+- Total active ads: ${summary.totalActiveAds || 0}
+- Markets analyzed: ${summary.marketsSearched?.join(', ') || 'N/A'}
+- Data source: ${summary.usedLiveData ? 'Live API data from Ad Libraries' : 'AI-identified competitors (sample data)'}
 
-When analyzing performance, ALWAYS:
-1. Mention specific competitor names (e.g., "${allCompetitors[0] || 'Competitor A'}", "${allCompetitors[1] || 'Competitor B'}")
-2. Correlate your performance changes with competitor activity levels
-3. Recommend competitive positioning strategies against these specific competitors
+**ANALYSIS INSTRUCTIONS:**
+1. ALWAYS mention competitor names explicitly (e.g., "${liveCompetitors[0] || 'Deliveroo'}", "${liveCompetitors[1] || 'UberEats'}")
+2. Highlight status changes - competitors who just went live or silent are significant
+3. Compare your client's advertising intensity vs competitors
+4. Recommend positioning strategies against specific named competitors
+5. If competitors are silent, suggest capitalizing on reduced competition
 `;
 
   return competitorSection;

@@ -422,6 +422,97 @@ export type Database = {
         }
         Relationships: []
       }
+      competitor_history: {
+        Row: {
+          ad_count: number | null
+          checked_at: string
+          competitor_tracking_id: string | null
+          created_at: string
+          id: string
+          was_live: boolean
+        }
+        Insert: {
+          ad_count?: number | null
+          checked_at?: string
+          competitor_tracking_id?: string | null
+          created_at?: string
+          id?: string
+          was_live: boolean
+        }
+        Update: {
+          ad_count?: number | null
+          checked_at?: string
+          competitor_tracking_id?: string | null
+          created_at?: string
+          id?: string
+          was_live?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competitor_history_competitor_tracking_id_fkey"
+            columns: ["competitor_tracking_id"]
+            isOneToOne: false
+            referencedRelation: "competitor_tracking"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      competitor_tracking: {
+        Row: {
+          active_ad_count: number | null
+          ad_details: Json | null
+          client_id: string | null
+          competitor_name: string
+          created_at: string
+          first_seen_at: string
+          id: string
+          is_live: boolean
+          last_checked_at: string
+          market: string
+          platform: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          active_ad_count?: number | null
+          ad_details?: Json | null
+          client_id?: string | null
+          competitor_name: string
+          created_at?: string
+          first_seen_at?: string
+          id?: string
+          is_live?: boolean
+          last_checked_at?: string
+          market: string
+          platform: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          active_ad_count?: number | null
+          ad_details?: Json | null
+          client_id?: string | null
+          competitor_name?: string
+          created_at?: string
+          first_seen_at?: string
+          id?: string
+          is_live?: boolean
+          last_checked_at?: string
+          market?: string
+          platform?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competitor_tracking_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       connected_platforms: {
         Row: {
           access_token: string | null
