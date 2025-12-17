@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, Play, Edit, CheckCircle, XCircle, MessageSquare, History, Trash2, Download, TrendingUp, MoreVertical, ArrowLeft, Search, BarChart3, FileText, FileSpreadsheet, ChevronDown, Rocket, Lock } from "lucide-react";
+import { Loader2, Play, Edit, CheckCircle, XCircle, MessageSquare, History, Trash2, Download, TrendingUp, MoreVertical, ArrowLeft, Search, BarChart3, FileText, FileSpreadsheet, ChevronDown, Rocket, Lock, ClipboardList, Activity } from "lucide-react";
 import { LockedFeatureButton } from "@/components/ui/locked-feature-button";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -16,6 +16,8 @@ import { ModificationRequestDialog } from "@/components/ModificationRequestDialo
 import { ChangeHistoryDialog } from "@/components/ChangeHistoryDialog";
 import { ModificationRequestsView } from "@/components/ModificationRequestsView";
 import { ModificationRequestsAnalytics } from "@/components/ModificationRequestsAnalytics";
+import { LogActionDialog } from "@/components/LogActionDialog";
+import { ActivityLogView } from "@/components/ActivityLogView";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { downloadMediaPlanExcel } from "@/utils/excelGenerator";
@@ -65,6 +67,8 @@ export default function ActiPlans() {
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [modificationRequestsViewOpen, setModificationRequestsViewOpen] = useState(false);
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
+  const [logActionDialogOpen, setLogActionDialogOpen] = useState(false);
+  const [activityLogViewOpen, setActivityLogViewOpen] = useState(false);
   const [isAdminOrOwner, setIsAdminOrOwner] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -698,6 +702,41 @@ export default function ActiPlans() {
                   </DropdownMenuItem>
                 )}
 
+                {/* Log an Action - only for post-push campaigns */}
+                {["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setSelectedCampaign(campaign);
+                      setLogActionDialogOpen(true);
+                    }}
+                  >
+                    <ClipboardList className="w-4 h-4 mr-2" />
+                    Log an Action
+                  </DropdownMenuItem>
+                )}
+
+                {/* Activity Log - unified view of requests and actions */}
+                {hasAccess('change_history_dialog') ? (
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setSelectedCampaign(campaign);
+                      setActivityLogViewOpen(true);
+                    }}
+                  >
+                    <Activity className="w-4 h-4 mr-2" />
+                    Activity Log
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem
+                    disabled
+                    className="opacity-50 cursor-pointer"
+                    onClick={() => navigate('/settings/plans')}
+                  >
+                    <Lock className="w-4 h-4 mr-2" />
+                    Activity Log
+                  </DropdownMenuItem>
+                )}
+
                 {hasAccess('modification_status_tracking') ? (
                   <DropdownMenuItem
                     onClick={() => {
@@ -833,17 +872,35 @@ export default function ActiPlans() {
             campaignName={selectedCampaign.name}
           />
 
-      <ModificationRequestsView
-        open={modificationRequestsViewOpen}
-        onOpenChange={setModificationRequestsViewOpen}
-        campaignId={selectedCampaign?.id || ""}
-        campaignName={selectedCampaign?.name || ""}
-      />
+          <ModificationRequestsView
+            open={modificationRequestsViewOpen}
+            onOpenChange={setModificationRequestsViewOpen}
+            campaignId={selectedCampaign?.id || ""}
+            campaignName={selectedCampaign?.name || ""}
+          />
 
-      <ModificationRequestsAnalytics
-        open={analyticsOpen}
-        onOpenChange={setAnalyticsOpen}
-      />
+          <ModificationRequestsAnalytics
+            open={analyticsOpen}
+            onOpenChange={setAnalyticsOpen}
+          />
+
+          <LogActionDialog
+            open={logActionDialogOpen}
+            onOpenChange={setLogActionDialogOpen}
+            campaignId={selectedCampaign.id}
+            campaignName={selectedCampaign.name}
+            onSuccess={() => {
+              loadCampaigns();
+              setLogActionDialogOpen(false);
+            }}
+          />
+
+          <ActivityLogView
+            open={activityLogViewOpen}
+            onOpenChange={setActivityLogViewOpen}
+            campaignId={selectedCampaign.id}
+            campaignName={selectedCampaign.name}
+          />
         </>
       )}
 
