@@ -161,6 +161,7 @@ export default function InsightsRecommendations() {
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [timeComparison, setTimeComparison] = useState('week_vs_prev_week');
   const [selectedBreakdowns, setSelectedBreakdowns] = useState<string[]>(['age', 'gender']);
+  const [isGeneralPerformance, setIsGeneralPerformance] = useState(false);
   
   // Competitor analysis (Enterprise/Agency only)
   const [includeCompetitorAnalysis, setIncludeCompetitorAnalysis] = useState(false);
@@ -468,13 +469,14 @@ export default function InsightsRecommendations() {
       return;
     }
 
-    if (selectedBreakdowns.length === 0) {
-      toast.error('Please select at least one breakdown dimension');
+    // General performance mode doesn't require breakdowns
+    if (!isGeneralPerformance && selectedBreakdowns.length === 0) {
+      toast.error('Please select at least one breakdown dimension or use General Performance mode');
       return;
     }
 
-    // Check individual segment usage for non-enterprise users
-    if (!canUseUnlimitedSegments) {
+    // Check individual segment usage for non-enterprise users (skip for general performance mode)
+    if (!isGeneralPerformance && !canUseUnlimitedSegments) {
       const alreadyUsedSegments = selectedBreakdowns.filter(s => usedSegments.has(s));
       if (alreadyUsedSegments.length > 0) {
         toast.error(
@@ -519,13 +521,14 @@ export default function InsightsRecommendations() {
           campaignIds: selectedCampaignIds,
           platforms: selectedPlatforms,
           timeComparison,
-          breakdowns: selectedBreakdowns,
+          breakdowns: isGeneralPerformance ? [] : selectedBreakdowns,
           crossPlatformEnabled: canAccessCrossPlatform,
           useSampleData: true, // Always use sample data for now
           includeActivityLogs: true,
           includeCompetitorAnalysis: includeCompetitorAnalysis && canUseCompetitorAnalysis && hasValidClient,
           clientName,
-          clientIndustry
+          clientIndustry,
+          isGeneralPerformance
         }
       });
 
@@ -536,7 +539,8 @@ export default function InsightsRecommendations() {
       toast.success('Analysis complete!');
       
       // Track used segments immediately after run (not on save) for non-enterprise users
-      if (!canUseUnlimitedSegments) {
+      // Skip tracking for general performance mode
+      if (!isGeneralPerformance && !canUseUnlimitedSegments) {
         setUsedSegments(prev => {
           const newSet = new Set(prev);
           selectedBreakdowns.forEach(s => newSet.add(s));
@@ -1031,13 +1035,64 @@ export default function InsightsRecommendations() {
                         {/* Breakdown Dimensions */}
                         <div className="space-y-3">
                           <Label className="text-sm font-medium">Analysis Dimensions</Label>
-                          <div className="grid grid-cols-2 gap-2">
+                          
+                          {/* General Performance Option */}
+                          <div className="flex items-center space-x-2 p-3 border rounded-md bg-muted/30">
+                            <Checkbox
+                              id="general-performance"
+                              checked={isGeneralPerformance}
+                              onCheckedChange={(checked) => {
+                                const isChecked = checked === true;
+                                setIsGeneralPerformance(isChecked);
+                                if (isChecked) {
+                                  // Clear breakdowns and auto-enable competitor analysis for enterprise users
+                                  setSelectedBreakdowns([]);
+                                  if (canUseCompetitorAnalysis) {
+                                    setIncludeCompetitorAnalysis(true);
+                                  }
+                                } else {
+                                  // Restore default breakdowns when unchecking
+                                  setSelectedBreakdowns(['age', 'gender']);
+                                  setIncludeCompetitorAnalysis(false);
+                                }
+                              }}
+                            />
+                            <div className="flex-1">
+                              <label 
+                                htmlFor="general-performance" 
+                                className="text-sm font-medium cursor-pointer"
+                              >
+                                General Performance
+                              </label>
+                              <p className="text-xs text-muted-foreground">
+                                Analyze overall performance using ad set naming conventions as differentiators
+                              </p>
+                            </div>
+                          </div>
+                          
+                          {isGeneralPerformance && canUseCompetitorAnalysis && (
+                            <p className="text-xs text-primary flex items-center gap-1">
+                              <Sparkles className="h-3 w-3" />
+                              Competitor analysis unlocked with General Performance
+                            </p>
+                          )}
+                          
+                          {isGeneralPerformance && !canUseCompetitorAnalysis && (
+                            <p className="text-xs text-amber-600 flex items-center gap-1">
+                              <Lock className="h-3 w-3" />
+                              Upgrade to Enterprise to unlock competitor analysis with General Performance
+                            </p>
+                          )}
+                          
+                          {/* Segment Dimensions - disabled when General Performance selected */}
+                          <div className={`grid grid-cols-2 gap-2 ${isGeneralPerformance ? 'opacity-50 pointer-events-none' : ''}`}>
                             {BREAKDOWN_DIMENSIONS.map(dim => (
                               <div key={dim.value} className="flex items-center space-x-2">
                                 <Checkbox
                                   id={`breakdown-${dim.value}`}
                                   checked={selectedBreakdowns.includes(dim.value)}
                                   onCheckedChange={() => toggleBreakdown(dim.value)}
+                                  disabled={isGeneralPerformance}
                                 />
                                 <label 
                                   htmlFor={`breakdown-${dim.value}`} 
@@ -1048,7 +1103,8 @@ export default function InsightsRecommendations() {
                               </div>
                             ))}
                           </div>
-                          {!canUseUnlimitedSegments && (
+                          
+                          {!isGeneralPerformance && !canUseUnlimitedSegments && (
                             <>
                               {selectedBreakdowns.some(s => usedSegments.has(s)) ? (
                                 <p className="text-xs text-destructive flex items-center gap-1">
@@ -1075,11 +1131,12 @@ export default function InsightsRecommendations() {
                             analyzing || 
                             selectedCampaignIds.length === 0 ||
                             selectedPlatforms.length === 0 ||
-                            selectedBreakdowns.length === 0 ||
+                            // Need either general performance or at least one breakdown
+                            (!isGeneralPerformance && selectedBreakdowns.length === 0) ||
                             // Disable if Basic/Freelancer selects more than one platform
                             (!canAccessCrossPlatform && selectedPlatforms.length > 1) ||
-                            // Disable if any selected segment was already used today (for non-enterprise)
-                            (!canUseUnlimitedSegments && selectedBreakdowns.some(s => usedSegments.has(s)))
+                            // Disable if any selected segment was already used today (for non-enterprise, only when not general performance)
+                            (!isGeneralPerformance && !canUseUnlimitedSegments && selectedBreakdowns.some(s => usedSegments.has(s)))
                           }
                         >
                           {analyzing ? (
