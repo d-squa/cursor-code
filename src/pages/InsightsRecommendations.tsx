@@ -114,8 +114,20 @@ export default function InsightsRecommendations() {
   const [loadingSaved, setLoadingSaved] = useState(false);
   const [activeTab, setActiveTab] = useState('new');
   const [todaySaveCount, setTodaySaveCount] = useState(0);
-  // Track individual segments used today (not combinations)
-  const [usedSegments, setUsedSegments] = useState<Set<string>>(new Set());
+  // Track individual segments used today (not combinations) - persisted to localStorage
+  const [usedSegments, setUsedSegments] = useState<Set<string>>(() => {
+    // Load from localStorage on init
+    const today = new Date().toISOString().split('T')[0];
+    const stored = localStorage.getItem(`insights_used_segments_${today}`);
+    if (stored) {
+      try {
+        return new Set(JSON.parse(stored));
+      } catch {
+        return new Set();
+      }
+    }
+    return new Set();
+  });
   
   // Email dialog
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
@@ -198,14 +210,21 @@ export default function InsightsRecommendations() {
         );
         setTodaySaveCount(todayAnalyses.length);
         
-        // Track individual segments used today (each breakdown separately)
-        const usedSegs = new Set<string>();
+        // Merge saved analyses segments with localStorage (localStorage may have unsaved runs)
+        const todayStr = new Date().toISOString().split('T')[0];
+        const storedSegs = localStorage.getItem(`insights_used_segments_${todayStr}`);
+        const fromStorage = storedSegs ? new Set<string>(JSON.parse(storedSegs)) : new Set<string>();
+        
+        // Add segments from saved analyses too
         todayAnalyses.forEach(analysis => {
           analysis.breakdowns.forEach(breakdown => {
-            usedSegs.add(breakdown);
+            fromStorage.add(breakdown);
           });
         });
-        setUsedSegments(usedSegs);
+        
+        // Update localStorage with merged data
+        localStorage.setItem(`insights_used_segments_${todayStr}`, JSON.stringify([...fromStorage]));
+        setUsedSegments(fromStorage);
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -343,6 +362,18 @@ export default function InsightsRecommendations() {
       setAnalysisResult(data.analysis);
       setRawData(data.rawData);
       toast.success('Analysis complete!');
+      
+      // Track used segments immediately after run (not on save) for non-enterprise users
+      if (!canUseUnlimitedSegments) {
+        setUsedSegments(prev => {
+          const newSet = new Set(prev);
+          selectedBreakdowns.forEach(s => newSet.add(s));
+          // Persist to localStorage
+          const today = new Date().toISOString().split('T')[0];
+          localStorage.setItem(`insights_used_segments_${today}`, JSON.stringify([...newSet]));
+          return newSet;
+        });
+      }
     } catch (error: any) {
       console.error('Analysis error:', error);
       toast.error('Failed to run analysis: ' + error.message);
@@ -382,12 +413,7 @@ export default function InsightsRecommendations() {
       toast.success('Analysis saved successfully!');
       setTodaySaveCount(prev => prev + 1);
       
-      // Track used individual segments
-      setUsedSegments(prev => {
-        const newSet = new Set(prev);
-        selectedBreakdowns.forEach(s => newSet.add(s));
-        return newSet;
-      });
+      // Note: Segments are already tracked on run, not on save
       
       // Reload saved analyses
       const { data: savedRes } = await supabase
