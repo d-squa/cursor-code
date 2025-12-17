@@ -14,8 +14,10 @@ export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
   const { isSubscribed, loading: subLoading } = useSubscription();
 
   useEffect(() => {
-    // Wait for loading to complete
-    if (authLoading || subLoading) return;
+    // Wait for auth to complete. For subscription refreshes, don't disrupt if we already
+    // know the user is subscribed.
+    if (authLoading) return;
+    if (subLoading && !isSubscribed) return;
 
     // Not logged in - redirect to auth
     if (!user) {
@@ -32,7 +34,7 @@ export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
     // Check onboarding status
     const onboardingData = localStorage.getItem("actiplan_onboarding");
     const onboardingComplete = onboardingData && JSON.parse(onboardingData).completedAt;
-    
+
     if (!onboardingComplete) {
       navigate("/onboarding");
       return;
@@ -45,8 +47,9 @@ export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
     }
   }, [user, authLoading, isSubscribed, subLoading, navigate, isEmailConfirmed]);
 
-  // Show loading while checking auth and subscription
-  if (authLoading || subLoading) {
+  // Show loading while checking auth and subscription (only when we *don't* already have
+  // a subscribed user). This prevents UI unmounts on background token refreshes.
+  if (authLoading || (subLoading && !isSubscribed)) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -82,6 +82,60 @@ const BREAKDOWN_DIMENSIONS = [
   { value: 'publisher_platform', label: 'Publisher Platform' },
 ];
 
+type InsightsDraft = {
+  updatedAt: string;
+  selectedCampaignIds: string[];
+  selectedPlatforms: string[];
+  timeComparison: string;
+  selectedBreakdowns: string[];
+  dataSource: 'sample' | 'live';
+  analysisResult: string | null;
+  rawData: any;
+  configOpen: boolean;
+  activeTab: string;
+};
+
+const getInsightsDraftKey = (userId: string, campaignId?: string) =>
+  `insights_draft_${userId}_${campaignId ?? "global"}`;
+
+const readInsightsDraft = (userId: string, campaignId?: string): InsightsDraft | null => {
+  try {
+    const raw = localStorage.getItem(getInsightsDraftKey(userId, campaignId));
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw) as Partial<InsightsDraft>;
+    if (!parsed.updatedAt) return null;
+
+    const updatedAtMs = new Date(parsed.updatedAt).getTime();
+    if (Number.isNaN(updatedAtMs)) return null;
+
+    // Only restore fairly recent drafts (prevents stale restores days later)
+    const ageMs = Date.now() - updatedAtMs;
+    if (ageMs > 1000 * 60 * 60 * 24) return null;
+
+    return parsed as InsightsDraft;
+  } catch {
+    return null;
+  }
+};
+
+const writeInsightsDraft = (userId: string, campaignId: string | undefined, draft: InsightsDraft) => {
+  const key = getInsightsDraftKey(userId, campaignId);
+
+  try {
+    localStorage.setItem(key, JSON.stringify(draft));
+  } catch {
+    // If localStorage quota is hit (rawData can be big), retry without rawData.
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { rawData, ...rest } = draft;
+      localStorage.setItem(key, JSON.stringify(rest));
+    } catch {
+      // Ignore persistence failures
+    }
+  }
+};
+
 export default function InsightsRecommendations() {
   const { campaignId } = useParams<{ campaignId: string }>();
   const navigate = useNavigate();
@@ -152,9 +206,41 @@ export default function InsightsRecommendations() {
   // Check if user has connected platforms with data
   const hasLiveDataAccess = connectedPlatforms.length > 0;
 
+  const draftReadyRef = useRef(false);
+
   useEffect(() => {
     loadData();
   }, [user, campaignId]);
+
+  // Persist in-progress state so a refresh/remount doesn't wipe the current analysis.
+  useEffect(() => {
+    if (!user || !draftReadyRef.current) return;
+
+    writeInsightsDraft(user.id, campaignId, {
+      updatedAt: new Date().toISOString(),
+      selectedCampaignIds,
+      selectedPlatforms,
+      timeComparison,
+      selectedBreakdowns,
+      dataSource,
+      analysisResult,
+      rawData,
+      configOpen,
+      activeTab,
+    });
+  }, [
+    user,
+    campaignId,
+    selectedCampaignIds,
+    selectedPlatforms,
+    timeComparison,
+    selectedBreakdowns,
+    dataSource,
+    analysisResult,
+    rawData,
+    configOpen,
+    activeTab,
+  ]);
 
   const loadData = async () => {
     if (!user) return;
