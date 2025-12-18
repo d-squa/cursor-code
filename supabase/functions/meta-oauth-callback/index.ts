@@ -2,11 +2,20 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.76.1";
 import { storePlatformToken } from "../_shared/vault-helper.ts";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// Input validation schema
+const oauthInputSchema = z.object({
+  code: z.string().min(1).max(2000),
+  platformType: z.literal("meta"),
+  redirectUri: z.string().url(),
+  platformId: z.string().uuid().optional()
+});
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -31,11 +40,19 @@ serve(async (req) => {
       throw new Error("Unauthorized");
     }
 
-    const { code, platformType, redirectUri, platformId } = await req.json();
-
-    if (!code || platformType !== "meta" || !redirectUri) {
-      throw new Error("Invalid parameters");
+    const body = await req.json();
+    const parseResult = oauthInputSchema.safeParse(body);
+    if (!parseResult.success) {
+      console.error("Validation error:", parseResult.error);
+      return new Response(
+        JSON.stringify({ error: "Invalid request parameters" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
+    const { code, platformType, redirectUri, platformId } = parseResult.data;
 
     const isReconnection = !!platformId;
 
@@ -219,7 +236,7 @@ serve(async (req) => {
   } catch (error: any) {
     console.error("Meta OAuth callback error:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: "Failed to connect Meta account" }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -9,6 +9,14 @@ import { toast } from "sonner";
 import { Loader2, Target } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { PRICE_IDS } from "@/config/subscriptionTiers";
+import { z } from "zod";
+
+// Input validation schemas
+const authSchema = z.object({
+  email: z.string().email("Please enter a valid email").max(255).trim(),
+  password: z.string().min(8, "Password must be at least 8 characters").max(128),
+  companyName: z.string().max(100).optional()
+});
 
 export default function Auth() {
   const [searchParams] = useSearchParams();
@@ -131,23 +139,39 @@ export default function Auth() {
     e.preventDefault();
     setLoading(true);
 
+    // Validate inputs
+    const validationResult = authSchema.safeParse({
+      email: email.trim(),
+      password,
+      companyName: companyName || undefined
+    });
+
+    if (!validationResult.success) {
+      const firstError = validationResult.error.errors[0];
+      toast.error(firstError.message);
+      setLoading(false);
+      return;
+    }
+
+    const validatedData = validationResult.data;
+
     try {
       if (isLogin) {
         const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
+          email: validatedData.email,
+          password: validatedData.password,
         });
 
         if (error) throw error;
         toast.success("Welcome back!");
       } else {
         const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
+          email: validatedData.email,
+          password: validatedData.password,
           options: {
             emailRedirectTo: `${window.location.origin}/auth`,
             data: {
-              company_name: companyName,
+              company_name: validatedData.companyName,
             },
           },
         });
@@ -158,7 +182,7 @@ export default function Auth() {
         localStorage.removeItem("actiplan_onboarding");
         
         // Store email for reference
-        localStorage.setItem("actiplan_pending_signup_email", email);
+        localStorage.setItem("actiplan_pending_signup_email", validatedData.email);
         
         // Show email confirmation message - don't redirect to onboarding yet
         setShowEmailConfirmation(true);

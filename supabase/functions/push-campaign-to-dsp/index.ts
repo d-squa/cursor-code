@@ -1,11 +1,17 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
 import { getAccessToken } from "../_shared/vault-helper.ts";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// Input validation schema
+const campaignInputSchema = z.object({
+  campaignId: z.string().uuid()
+});
 
 // ============= TAXONOMY GENERATION HELPERS =============
 // Replicates frontend taxonomy generation logic for campaign/ad set naming
@@ -451,7 +457,15 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    const { campaignId } = await req.json();
+    const body = await req.json();
+    const parseResult = campaignInputSchema.safeParse(body);
+    if (!parseResult.success) {
+      return new Response(JSON.stringify({ error: "Invalid request parameters" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
+    const { campaignId } = parseResult.data;
 
     // Get campaign data
     const { data: campaign, error: campaignError } = await supabase
