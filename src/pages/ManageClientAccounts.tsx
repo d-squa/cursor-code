@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Loader2, Pencil } from "lucide-react";
+import { Loader2, Pencil, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -34,6 +34,7 @@ export default function ManageClientAccounts() {
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClient, setSelectedClient] = useState<string | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("info");
 
   const canAccessOperations = hasAccess('operations_measurements');
@@ -77,6 +78,34 @@ export default function ManageClientAccounts() {
       toast.error("Failed to load data");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCreateClient = async (data: any) => {
+    if (!user) return;
+
+    try {
+      const { data: newClient, error } = await supabase
+        .from("clients")
+        .insert({
+          ...data,
+          user_id: user.id,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      toast.success("Client created successfully");
+      setCreateDialogOpen(false);
+      await loadData();
+      if (newClient) {
+        setSelectedClient(newClient.id);
+      }
+    } catch (error: any) {
+      console.error("Error creating client:", error);
+      toast.error("Failed to create client");
+      throw error;
     }
   };
 
@@ -124,19 +153,27 @@ export default function ManageClientAccounts() {
         </div>
 
         <Card className="p-4">
-          <label className="text-sm font-medium mb-2 block">Select Client</label>
-          <select
-            value={selectedClient || ""}
-            onChange={(e) => setSelectedClient(e.target.value)}
-            className="w-full p-2 border rounded-md bg-background"
-          >
-            <option value="">Select a client...</option>
-            {clients.map((client) => (
-              <option key={client.id} value={client.id}>
-                {client.name}
-              </option>
-            ))}
-          </select>
+          <div className="flex items-end gap-4">
+            <div className="flex-1">
+              <label className="text-sm font-medium mb-2 block">Select Client</label>
+              <select
+                value={selectedClient || ""}
+                onChange={(e) => setSelectedClient(e.target.value)}
+                className="w-full p-2 border rounded-md bg-background"
+              >
+                <option value="">Select a client...</option>
+                {clients.map((client) => (
+                  <option key={client.id} value={client.id}>
+                    {client.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <Button onClick={() => setCreateDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Create Client
+            </Button>
+          </div>
         </Card>
 
         {selectedClient && selectedClientData && (
@@ -216,8 +253,12 @@ export default function ManageClientAccounts() {
         )}
 
         {!selectedClient && (
-          <Card className="p-8 text-center">
-            <p className="text-muted-foreground">Select a client to manage their accounts</p>
+          <Card className="p-8 text-center space-y-4">
+            <p className="text-muted-foreground">Select a client to manage their accounts or create a new one</p>
+            <Button onClick={() => setCreateDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Create Client
+            </Button>
           </Card>
         )}
 
@@ -234,6 +275,22 @@ export default function ManageClientAccounts() {
               onSubmit={handleUpdateClient}
               onCancel={() => setEditDialogOpen(false)}
               submitLabel="Update Client"
+            />
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Create Client</DialogTitle>
+              <DialogDescription>
+                Add a new client to manage
+              </DialogDescription>
+            </DialogHeader>
+            <ClientForm
+              onSubmit={handleCreateClient}
+              onCancel={() => setCreateDialogOpen(false)}
+              submitLabel="Create Client"
             />
           </DialogContent>
         </Dialog>
