@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
@@ -663,7 +664,10 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
     return (
       <Card className="p-8">
         <p className="text-muted-foreground text-center">
-          No ad accounts synced for this client. Sync accounts in the Account Sync tab.
+          No ad accounts synced for this client. Sync accounts in{" "}
+          <Link to="/platform-connections" className="text-primary hover:underline">
+            Platform Connections
+          </Link>.
         </p>
       </Card>
     );
