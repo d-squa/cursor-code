@@ -14,6 +14,7 @@ interface CompetitorSearchRequest {
   platforms: string[];
   markets: string[];
   userId?: string;
+  competitors?: string[]; // Custom competitor names to search
 }
 
 interface CompetitorInfo {
@@ -30,93 +31,20 @@ interface CompetitorInfo {
   };
 }
 
-// Use AI to identify top 5 competitors for the client
-async function identifyCompetitors(
+// Get competitors to search - uses provided competitor names
+function getCompetitorsToSearch(
   clientName: string,
-  industry: string,
-  market: string
-): Promise<string[]> {
-  const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
-  
-  if (!lovableApiKey) {
-    console.log("[AI] No Lovable API key, using industry-based competitors");
-    return generateFallbackCompetitors(clientName, industry);
+  customCompetitors?: string[]
+): string[] {
+  // If custom competitors provided, use those
+  if (customCompetitors && customCompetitors.length > 0) {
+    console.log(`[COMPETITORS] Using ${customCompetitors.length} custom competitors`);
+    return customCompetitors;
   }
-
-  try {
-    console.log(`[AI] Identifying competitors for ${clientName} in ${industry} (${market})`);
-    
-    const response = await fetch("https://api.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${lovableApiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          {
-            role: "system",
-            content: "You are a competitive intelligence expert. Return ONLY a JSON array of exactly 5 competitor company/brand names. No explanation, no markdown, just the JSON array."
-          },
-          {
-            role: "user",
-            content: `List the top 5 direct competitors of "${clientName}" in the ${industry} industry for the ${market} market. Consider companies that would be advertising on Meta and TikTok. Return as JSON array: ["Competitor1", "Competitor2", "Competitor3", "Competitor4", "Competitor5"]`
-          }
-        ],
-        max_tokens: 200,
-        temperature: 0.3
-      }),
-    });
-
-    if (!response.ok) {
-      console.error("[AI] API error:", await response.text());
-      return generateFallbackCompetitors(clientName, industry);
-    }
-
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || "";
-    
-    // Parse JSON array from response
-    const match = content.match(/\[[\s\S]*\]/);
-    if (match) {
-      const competitors = JSON.parse(match[0]);
-      console.log(`[AI] Identified competitors:`, competitors);
-      return competitors.slice(0, 5);
-    }
-    
-    return generateFallbackCompetitors(clientName, industry);
-  } catch (error) {
-    console.error("[AI] Error identifying competitors:", error);
-    return generateFallbackCompetitors(clientName, industry);
-  }
-}
-
-function generateFallbackCompetitors(clientName: string, industry: string): string[] {
-  const industryCompetitors: Record<string, string[]> = {
-    'food': ['Deliveroo', 'UberEats', 'DoorDash', 'Just Eat', 'Grubhub'],
-    'ecommerce': ['Amazon', 'eBay', 'Shopify', 'Etsy', 'Alibaba'],
-    'saas': ['Salesforce', 'HubSpot', 'Zendesk', 'Freshworks', 'Monday'],
-    'finance': ['PayPal', 'Stripe', 'Square', 'Revolut', 'Wise'],
-    'healthcare': ['Teladoc', 'MDLive', 'Amwell', 'Doctor On Demand', 'Livongo'],
-    'education': ['Coursera', 'Udemy', 'edX', 'Khan Academy', 'Skillshare'],
-    'travel': ['Booking.com', 'Expedia', 'Airbnb', 'TripAdvisor', 'Kayak'],
-    'fitness': ['Peloton', 'Nike Training', 'MyFitnessPal', 'Fitbit', 'Strava'],
-    'beauty': ['Sephora', 'Ulta', 'Glossier', 'Fenty Beauty', 'Charlotte Tilbury'],
-    'technology': ['Apple', 'Samsung', 'Microsoft', 'Google', 'Dell'],
-    'real_estate': ['Zillow', 'Redfin', 'Realtor.com', 'Trulia', 'Compass'],
-    'automotive': ['CarMax', 'Carvana', 'AutoTrader', 'Cars.com', 'Vroom'],
-    'gaming': ['EA', 'Activision', 'Ubisoft', 'Nintendo', 'Epic Games'],
-    'entertainment': ['Netflix', 'Disney+', 'HBO Max', 'Hulu', 'Amazon Prime'],
-  };
   
-  return industryCompetitors[industry.toLowerCase()] || [
-    `${industry}Leader`,
-    `Top${industry}`,
-    `${industry}Pro`,
-    `Best${industry}`,
-    `${industry}Plus`
-  ];
+  // Otherwise just search for the client name itself
+  console.log(`[COMPETITORS] Searching for client: ${clientName}`);
+  return [clientName];
 }
 
 // Search Meta Ad Library for a specific competitor
@@ -311,9 +239,9 @@ serve(async (req) => {
     for (const market of markets) {
       console.log(`\n=== Processing Market: ${market} ===`);
       
-      // Step 1: Identify top 5 competitors using AI
-      const competitors = await identifyCompetitors(clientName, industry, market);
-      console.log(`[AI] Top 5 competitors for ${market}:`, competitors);
+      // Get competitors to search (custom provided or just client name)
+      const competitors = getCompetitorsToSearch(clientName, body.competitors);
+      console.log(`[SEARCH] Searching for competitors in ${market}:`, competitors);
       
       // Step 2: Get previous status from database
       let previousStatuses: Record<string, any> = {};
