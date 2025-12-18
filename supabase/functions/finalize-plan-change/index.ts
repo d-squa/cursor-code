@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,6 +12,11 @@ const logStep = (step: string, details?: any) => {
   const detailsStr = details ? ` - ${JSON.stringify(details)}` : '';
   console.log(`[FINALIZE-PLAN-CHANGE] ${step}${detailsStr}`);
 };
+
+// Input validation schema
+const sessionInputSchema = z.object({
+  sessionId: z.string().regex(/^cs_[a-zA-Z0-9]+$/, "Invalid session ID format")
+});
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -25,8 +31,15 @@ serve(async (req) => {
   try {
     logStep("Function started");
 
-    const { sessionId } = await req.json();
-    if (!sessionId) throw new Error("Session ID is required");
+    const body = await req.json();
+    const parseResult = sessionInputSchema.safeParse(body);
+    if (!parseResult.success) {
+      return new Response(JSON.stringify({ error: "Invalid request parameters" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400,
+      });
+    }
+    const { sessionId } = parseResult.data;
     logStep("Session ID received", { sessionId });
 
     const authHeader = req.headers.get("Authorization")!;
@@ -203,7 +216,7 @@ serve(async (req) => {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logStep("ERROR", { message: errorMessage });
-    return new Response(JSON.stringify({ error: errorMessage }), {
+    return new Response(JSON.stringify({ error: "Unable to finalize plan change" }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,
     });

@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@18.5.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.2";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,6 +12,11 @@ const logStep = (step: string, details?: any) => {
   const detailsStr = details ? ` - ${JSON.stringify(details)}` : '';
   console.log(`[CREATE-CHECKOUT] ${step}${detailsStr}`);
 };
+
+// Input validation schema
+const checkoutInputSchema = z.object({
+  priceId: z.string().regex(/^price_[a-zA-Z0-9]+$/, "Invalid price ID format")
+});
 
 // Basic plan price IDs - these get 30-day trial for NEW subscriptions only
 const BASIC_PRICE_IDS = [
@@ -43,8 +49,15 @@ serve(async (req) => {
   try {
     logStep("Function started");
 
-    const { priceId } = await req.json();
-    if (!priceId) throw new Error("Price ID is required");
+    const body = await req.json();
+    const parseResult = checkoutInputSchema.safeParse(body);
+    if (!parseResult.success) {
+      return new Response(JSON.stringify({ error: "Invalid request parameters" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400,
+      });
+    }
+    const { priceId } = parseResult.data;
     logStep("Price ID received", { priceId });
 
     const authHeader = req.headers.get("Authorization")!;
@@ -294,7 +307,7 @@ serve(async (req) => {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     logStep("ERROR", { message: errorMessage });
-    return new Response(JSON.stringify({ error: errorMessage }), {
+    return new Response(JSON.stringify({ error: "Unable to process checkout request" }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,
     });

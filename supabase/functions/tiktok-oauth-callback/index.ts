@@ -1,11 +1,20 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
 import { storePlatformToken } from "../_shared/vault-helper.ts";
+import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// Input validation schema
+const oauthInputSchema = z.object({
+  code: z.string().min(1).max(2000),
+  platformType: z.string().optional(),
+  redirectUri: z.string().optional(),
+  platformId: z.string().uuid().optional()
+});
 
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
@@ -41,11 +50,16 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    const { code, platformType, redirectUri, platformId } = await req.json();
-
-    if (!code) {
-      throw new Error("Authorization code is required");
+    const body = await req.json();
+    const parseResult = oauthInputSchema.safeParse(body);
+    if (!parseResult.success) {
+      console.error("Validation error:", parseResult.error);
+      return new Response(JSON.stringify({ error: "Invalid request parameters" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
     }
+    const { code, platformType, redirectUri, platformId } = parseResult.data;
 
     const tiktokAppId = Deno.env.get("TIKTOK_APP_ID");
     const tiktokAppSecret = Deno.env.get("TIKTOK_APP_SECRET");
@@ -252,7 +266,7 @@ const handler = async (req: Request): Promise<Response> => {
   } catch (error: any) {
     console.error("TikTok OAuth callback error:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: "Failed to connect TikTok account" }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
