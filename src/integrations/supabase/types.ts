@@ -17,12 +17,14 @@ export type Database = {
       activity_logs: {
         Row: {
           action_type: string
+          actual_hours: number | null
           affected_markets: string[] | null
           affected_phases: string[] | null
           affected_platforms: string[] | null
           campaign_id: string
           created_at: string | null
           description: string | null
+          estimated_hours: number | null
           id: string
           metadata: Json | null
           title: string
@@ -30,12 +32,14 @@ export type Database = {
         }
         Insert: {
           action_type: string
+          actual_hours?: number | null
           affected_markets?: string[] | null
           affected_phases?: string[] | null
           affected_platforms?: string[] | null
           campaign_id: string
           created_at?: string | null
           description?: string | null
+          estimated_hours?: number | null
           id?: string
           metadata?: Json | null
           title: string
@@ -43,12 +47,14 @@ export type Database = {
         }
         Update: {
           action_type?: string
+          actual_hours?: number | null
           affected_markets?: string[] | null
           affected_phases?: string[] | null
           affected_platforms?: string[] | null
           campaign_id?: string
           created_at?: string | null
           description?: string | null
+          estimated_hours?: number | null
           id?: string
           metadata?: Json | null
           title?: string
@@ -361,6 +367,44 @@ export type Database = {
             columns: ["team_id"]
             isOneToOne: false
             referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_operation_defaults: {
+        Row: {
+          client_id: string
+          created_at: string
+          estimated_hours: number
+          id: string
+          operation_subtype: string
+          operation_type: string
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          estimated_hours?: number
+          id?: string
+          operation_subtype: string
+          operation_type: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          estimated_hours?: number
+          id?: string
+          operation_subtype?: string
+          operation_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_operation_defaults_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
             referencedColumns: ["id"]
           },
         ]
@@ -927,11 +971,15 @@ export type Database = {
       }
       modification_requests: {
         Row: {
+          actual_hours: number | null
           assigned_to: string[] | null
           campaign_id: string
           change_type: string
+          completed_at: string | null
+          completed_by: string | null
           created_at: string | null
           description: string
+          estimated_hours: number | null
           id: string
           notify_all_team: boolean | null
           requester_id: string
@@ -940,11 +988,15 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          actual_hours?: number | null
           assigned_to?: string[] | null
           campaign_id: string
           change_type: string
+          completed_at?: string | null
+          completed_by?: string | null
           created_at?: string | null
           description: string
+          estimated_hours?: number | null
           id?: string
           notify_all_team?: boolean | null
           requester_id: string
@@ -953,11 +1005,15 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          actual_hours?: number | null
           assigned_to?: string[] | null
           campaign_id?: string
           change_type?: string
+          completed_at?: string | null
+          completed_by?: string | null
           created_at?: string | null
           description?: string
+          estimated_hours?: number | null
           id?: string
           notify_all_team?: boolean | null
           requester_id?: string
@@ -971,6 +1027,13 @@ export type Database = {
             columns: ["campaign_id"]
             isOneToOne: false
             referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "modification_requests_completed_by_fkey"
+            columns: ["completed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {

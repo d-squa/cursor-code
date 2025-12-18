@@ -156,7 +156,11 @@ export type Feature =
   | 'save_insights_analysis'
   | 'unlimited_insights_saves'
   | 'share_insights_email'
-  | 'unlimited_segment_usage';
+  | 'unlimited_segment_usage'
+  
+  // Operations Measurements
+  | 'operations_analytics'
+  | 'operations_measurements';
 
 // Minimum tier required for each feature
 const FEATURE_TIERS: Record<Feature, SubscriptionTier> = {
@@ -314,6 +318,10 @@ const FEATURE_TIERS: Record<Feature, SubscriptionTier> = {
   unlimited_insights_saves: 'enterprise',
   share_insights_email: 'enterprise',
   unlimited_segment_usage: 'enterprise',
+  
+  // Operations Measurements
+  operations_analytics: 'enterprise',
+  operations_measurements: 'enterprise',
 };
 
 // Check if a user has access to a feature
