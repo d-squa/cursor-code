@@ -45,11 +45,46 @@ serve(async (req) => {
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
 
+    const findCustomerIdByEmail = async (email: string): Promise<string | null> => {
+      const safeEmail = email.replace(/"/g, "\\\"");
+
+      try {
+        const res = await stripe.customers.search({
+          query: `email:"${safeEmail}"`,
+          limit: 1,
+        });
+
+        const customer = res.data?.[0];
+        if (!customer) return null;
+
+        // Extra guardrail: if Stripe ever returns an unexpected record, don't accept it.
+        if ((customer.email ?? "").toLowerCase() !== email.toLowerCase()) {
+          logStep("Stripe returned customer with mismatched email - ignoring", {
+            expected: email,
+            got: customer.email,
+            customerId: customer.id,
+          });
+          return null;
+        }
+
+        return customer.id;
+      } catch (err) {
+        logStep("Customer search failed, falling back to list()", {
+          message: err instanceof Error ? err.message : String(err),
+        });
+
+        const list = await stripe.customers.list({ limit: 100 });
+        const match = list.data.find(
+          (c) => (c.email ?? "").toLowerCase() === email.toLowerCase()
+        );
+        return match?.id ?? null;
+      }
+    };
+
     // First, check if user has their own subscription
-    const customers = await stripe.customers.list({ email: user.email, limit: 1 });
-    
-    if (customers.data.length > 0) {
-      const customerId = customers.data[0].id;
+    const customerId = await findCustomerIdByEmail(user.email);
+
+    if (customerId) {
       logStep("Found Stripe customer", { customerId });
 
       // Check for active or trialing subscriptions
@@ -67,46 +102,49 @@ serve(async (req) => {
       if (activeSub) {
         let subscriptionEnd: string | null = null;
         let trialEnd: string | null = null;
-        
-        if (activeSub.current_period_end && typeof activeSub.current_period_end === 'number') {
+
+        if (activeSub.current_period_end && typeof activeSub.current_period_end === "number") {
           subscriptionEnd = new Date(activeSub.current_period_end * 1000).toISOString();
         }
-        
-        if (activeSub.trial_end && typeof activeSub.trial_end === 'number') {
+
+        if (activeSub.trial_end && typeof activeSub.trial_end === "number") {
           trialEnd = new Date(activeSub.trial_end * 1000).toISOString();
         }
-        
+
         const priceItem = activeSub.items.data[0]?.price;
         const productId = priceItem?.product as string;
         const priceId = priceItem?.id as string;
         const onTrial = activeSub.status === "trialing";
-        const billingPeriod = priceItem?.recurring?.interval === 'year' ? 'yearly' : 'monthly';
+        const billingPeriod = priceItem?.recurring?.interval === "year" ? "yearly" : "monthly";
 
-        logStep("User has own active subscription", { 
-          subscriptionId: activeSub.id, 
+        logStep("User has own active subscription", {
+          subscriptionId: activeSub.id,
           status: activeSub.status,
-          onTrial,
-          productId,
-          priceId,
-          billingPeriod,
-          subscriptionEnd,
-          trialEnd
-        });
-
-        return new Response(JSON.stringify({
-          subscribed: true,
           onTrial,
           productId,
           priceId,
           billingPeriod,
           subscriptionEnd,
           trialEnd,
-          status: activeSub.status,
-          subscriptionType: "personal"
-        }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-          status: 200,
         });
+
+        return new Response(
+          JSON.stringify({
+            subscribed: true,
+            onTrial,
+            productId,
+            priceId,
+            billingPeriod,
+            subscriptionEnd,
+            trialEnd,
+            status: activeSub.status,
+            subscriptionType: "personal",
+          }),
+          {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 200,
+          }
+        );
       }
     }
 
@@ -158,14 +196,13 @@ serve(async (req) => {
         }
 
         // Check if team owner has a subscription
-        const ownerCustomers = await stripe.customers.list({ email: ownerProfile.email, limit: 1 });
+        const ownerCustomerId = await findCustomerIdByEmail(ownerProfile.email);
 
-        if (ownerCustomers.data.length === 0) {
+        if (!ownerCustomerId) {
           logStep("Team owner has no Stripe customer", { ownerEmail: ownerProfile.email });
           continue;
         }
 
-        const ownerCustomerId = ownerCustomers.data[0].id;
         const ownerSubscriptions = await stripe.subscriptions.list({
           customer: ownerCustomerId,
           status: "all",

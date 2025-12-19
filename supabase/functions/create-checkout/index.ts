@@ -71,12 +71,36 @@ serve(async (req) => {
       apiVersion: "2025-08-27.basil",
     });
 
-    // Check if a Stripe customer already exists
-    const customers = await stripe.customers.list({ email: user.email, limit: 1 });
+    // Check if a Stripe customer already exists (exact match on email)
+    const userEmail = user.email;
+    const safeEmail = userEmail.replace(/"/g, "\\\"");
+
     let customerId: string | undefined;
-    if (customers.data.length > 0) {
-      customerId = customers.data[0].id;
-      logStep("Existing customer found", { customerId });
+
+    try {
+      const customers = await stripe.customers.search({
+        query: `email:"${safeEmail}"`,
+        limit: 1,
+      });
+
+      if (customers.data.length > 0) {
+        customerId = customers.data[0].id;
+        logStep("Existing customer found", { customerId });
+      }
+    } catch (searchErr) {
+      logStep("Customer search failed, falling back to list()", {
+        message: searchErr instanceof Error ? searchErr.message : String(searchErr),
+      });
+
+      const customers = await stripe.customers.list({ limit: 100 });
+      const match = customers.data.find(
+        (c: Stripe.Customer) => (c.email ?? "").toLowerCase() === userEmail.toLowerCase()
+      );
+
+      if (match) {
+        customerId = match.id;
+        logStep("Existing customer found (list)", { customerId });
+      }
     }
 
     const origin = req.headers.get("origin") || "https://lovable.dev";
