@@ -681,6 +681,16 @@ export default function ActiPlans() {
                   </>
                 )}
 
+                {/* Operations Analytics - available for all ActiPlans */}
+                {hasAccess('operations_analytics') && (
+                  <DropdownMenuItem onClick={() => {
+                    navigate(`/operations-analytics?campaign=${campaign.id}`);
+                  }}>
+                    <Activity className="w-4 h-4 mr-2" />
+                    Operations Analytics
+                  </DropdownMenuItem>
+                )}
+
                 {(canEdit(campaign) || canApprove(campaign) || canPushToDSP(campaign) || campaign.status === "live") && <DropdownMenuSeparator />}
                 
                 {hasAccess('change_history_dialog') ? (
