@@ -40,17 +40,32 @@ export default function UserManagement() {
   const [inviteRole, setInviteRole] = useState<string>("member");
   const [inviteTeamId, setInviteTeamId] = useState<string>("");
 
-  // Fetch all users (profiles)
+  // Fetch all users (profiles) with their roles
   const { data: users, isLoading: loadingUsers } = useQuery({
-    queryKey: ["users"],
+    queryKey: ["users-with-roles"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Fetch profiles
+      const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
         .select("*")
         .order("created_at", { ascending: false });
       
-      if (error) throw error;
-      return data;
+      if (profilesError) throw profilesError;
+
+      // Fetch roles for all users
+      const { data: roles, error: rolesError } = await supabase
+        .from("user_roles")
+        .select("user_id, role");
+      
+      if (rolesError) throw rolesError;
+
+      // Map roles to users
+      const rolesMap = new Map(roles?.map(r => [r.user_id, r.role]) || []);
+      
+      return profiles?.map(profile => ({
+        ...profile,
+        role: rolesMap.get(profile.id) || null
+      }));
     },
   });
 
@@ -371,6 +386,7 @@ export default function UserManagement() {
           <TableHeader>
             <TableRow>
               <TableHead>Email</TableHead>
+              <TableHead>Role</TableHead>
               <TableHead>Company</TableHead>
               <TableHead>Joined</TableHead>
             </TableRow>
@@ -379,6 +395,15 @@ export default function UserManagement() {
             {users?.map((user: any) => (
               <TableRow key={user.id}>
                 <TableCell>{user.email}</TableCell>
+                <TableCell>
+                  {user.role ? (
+                    <Badge variant={user.role === 'owner' ? 'default' : user.role === 'admin' ? 'secondary' : 'outline'}>
+                      {user.role.replace('_', ' ')}
+                    </Badge>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </TableCell>
                 <TableCell>{user.company_name || "—"}</TableCell>
                 <TableCell>
                   {new Date(user.created_at).toLocaleDateString()}
