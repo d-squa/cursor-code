@@ -75,7 +75,7 @@ serve(async (req) => {
 
         const list = await stripe.customers.list({ limit: 100 });
         const match = list.data.find(
-          (c) => (c.email ?? "").toLowerCase() === email.toLowerCase()
+          (c: Stripe.Customer) => (c.email ?? "").toLowerCase() === email.toLowerCase()
         );
         return match?.id ?? null;
       }
