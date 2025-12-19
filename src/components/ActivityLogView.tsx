@@ -170,18 +170,51 @@ export function ActivityLogView({
 
   const getCategoryLabel = (category: string) => {
     const labels: Record<string, string> = {
-      budget: "Budget",
+      // Change Request types
+      budget_increase: "Budget Increase",
+      budget_decrease: "Budget Decrease",
+      duration_extension: "Duration Extension",
+      market_expansion: "Market Expansion",
+      targeting_change: "Targeting Change",
+      goals_update: "Goals/KPI Update",
+      creative_change: "Creative Change",
+      pause_request: "Pause Request",
+      // Submit Request types
+      budget_change: "Budget Change",
+      creative_optimization: "Creative Optimization",
+      pause_enable_campaigns: "Pause/Enable Campaigns",
+      targeting_optimization: "Targeting Optimization",
+      audience_expansion: "Audience Expansion",
+      bid_adjustment: "Bid Adjustment",
+      schedule_change: "Schedule Change",
+      landing_page_update: "Landing Page Update",
+      ad_copy_update: "Ad Copy Update",
+      placement_change: "Placement Change",
+      conversion_tracking: "Conversion Tracking Setup",
+      pixel_implementation: "Pixel Implementation",
+      reporting_request: "Reporting Request",
+      // Logged Action types
       budget_adjustment: "Budget Adjustment",
+      creative_update: "Creative Update",
+      campaign_pause_resume: "Campaign Pause/Resume",
+      audience_update: "Audience Update",
+      bid_change: "Bid Change",
+      schedule_modification: "Schedule Modification",
+      landing_page_change: "Landing Page Change",
+      ad_copy_change: "Ad Copy Change",
+      placement_update: "Placement Update",
+      conversion_setup: "Conversion Setup",
+      reporting_delivery: "Reporting Delivery",
+      note: "Note/Comment",
+      other: "Other",
+      // Legacy types for backwards compatibility
+      budget: "Budget",
       duration: "Duration",
       market: "Market",
       targeting: "Targeting",
-      targeting_change: "Targeting Change",
       goals: "Goals",
       creative: "Creative",
-      creative_update: "Creative Update",
       pause_resume: "Pause/Resume",
-      note: "Note",
-      other: "Other",
     };
     return labels[category] || category;
   };

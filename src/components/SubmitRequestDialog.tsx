@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 
-interface LogActionDialogProps {
+interface SubmitRequestDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   campaignId: string;
@@ -36,31 +36,32 @@ interface Phase {
   name: string;
 }
 
-const ACTION_TYPES = [
-  { value: "budget_adjustment", label: "Budget Adjustment", description: "Budget changes, reallocations, or modifications" },
-  { value: "targeting_change", label: "Targeting Change", description: "Audience, demographics, or targeting updates" },
-  { value: "creative_update", label: "Creative Update", description: "Ad creative modifications or rotations" },
-  { value: "campaign_pause_resume", label: "Campaign Pause/Resume", description: "Campaign or ad set pause/resume actions" },
-  { value: "audience_update", label: "Audience Update", description: "Audience list or segment changes" },
-  { value: "bid_change", label: "Bid Change", description: "Bidding strategy or amount adjustments" },
-  { value: "schedule_modification", label: "Schedule Modification", description: "Flight dates or dayparting changes" },
-  { value: "landing_page_change", label: "Landing Page Change", description: "Destination URL or landing page updates" },
-  { value: "ad_copy_change", label: "Ad Copy Change", description: "Text, headline, or description updates" },
-  { value: "placement_update", label: "Placement Update", description: "Ad placement or position changes" },
-  { value: "conversion_setup", label: "Conversion Setup", description: "Pixel, event, or conversion tracking setup" },
-  { value: "reporting_delivery", label: "Reporting Delivery", description: "Report creation or delivery" },
-  { value: "note", label: "Note/Comment", description: "General observations or documentation" },
+const REQUEST_TYPES = [
+  { value: "budget_change", label: "Budget Change", description: "Request budget adjustments or reallocations" },
+  { value: "creative_optimization", label: "Creative Optimization", description: "Request creative improvements or new variants" },
+  { value: "pause_enable_campaigns", label: "Pause/Enable Campaigns", description: "Request to pause or enable campaigns/ad sets" },
+  { value: "targeting_optimization", label: "Targeting Optimization", description: "Request audience or targeting improvements" },
+  { value: "audience_expansion", label: "Audience Expansion", description: "Request to expand reach with new audiences" },
+  { value: "bid_adjustment", label: "Bid Adjustment", description: "Request bid strategy or amount changes" },
+  { value: "schedule_change", label: "Schedule Change", description: "Request flight date or dayparting changes" },
+  { value: "landing_page_update", label: "Landing Page Update", description: "Request destination URL updates" },
+  { value: "ad_copy_update", label: "Ad Copy Update", description: "Request text or headline changes" },
+  { value: "placement_change", label: "Placement Change", description: "Request ad placement modifications" },
+  { value: "conversion_tracking", label: "Conversion Tracking Setup", description: "Request pixel or event implementation" },
+  { value: "pixel_implementation", label: "Pixel Implementation", description: "Request tracking pixel setup" },
+  { value: "reporting_request", label: "Reporting Request", description: "Request custom reports or analyses" },
+  { value: "other", label: "Other", description: "Other operational requests" },
 ];
 
-export function LogActionDialog({
+export function SubmitRequestDialog({
   open,
   onOpenChange,
   campaignId,
   campaignName,
   onSuccess,
-}: LogActionDialogProps) {
+}: SubmitRequestDialogProps) {
   const { user } = useAuth();
-  const [actionType, setActionType] = useState("");
+  const [requestType, setRequestType] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
@@ -75,8 +76,7 @@ export function LogActionDialog({
   useEffect(() => {
     if (open) {
       loadCampaignDetails();
-      // Reset form
-      setActionType("");
+      setRequestType("");
       setTitle("");
       setDescription("");
       setSelectedPlatforms([]);
@@ -112,7 +112,6 @@ export function LogActionDialog({
     }
   };
 
-  // Update available markets and phases when platforms change
   useEffect(() => {
     if (selectedPlatforms.length > 0 && Object.keys(marketSplits).length > 0) {
       const markets: Market[] = [];
@@ -153,7 +152,6 @@ export function LogActionDialog({
       setAvailableMarkets([]);
       setAvailablePhases([]);
     }
-    // Clear selections when platforms change
     setSelectedMarkets([]);
     setSelectedPhases([]);
   }, [selectedPlatforms, marketSplits]);
@@ -167,8 +165,8 @@ export function LogActionDialog({
   };
 
   const handleSubmit = async () => {
-    if (!actionType) {
-      toast.error("Please select an action type");
+    if (!requestType) {
+      toast.error("Please select a request type");
       return;
     }
 
@@ -179,79 +177,88 @@ export function LogActionDialog({
 
     setLoading(true);
     try {
-      // Insert into activity_logs table
-      const { error: logError } = await supabase
-        .from("activity_logs")
+      // Build full description with context
+      let fullDescription = description.trim();
+      if (selectedPlatforms.length > 0) {
+        fullDescription += `\n\nPlatforms: ${selectedPlatforms.join(", ")}`;
+      }
+      if (selectedMarkets.length > 0) {
+        fullDescription += `\nMarkets: ${selectedMarkets.join(", ")}`;
+      }
+      if (selectedPhases.length > 0) {
+        fullDescription += `\nPhases: ${selectedPhases.join(", ")}`;
+      }
+
+      // Insert as a modification request with submit_request type
+      const { error } = await supabase
+        .from("modification_requests")
         .insert({
           campaign_id: campaignId,
-          user_id: user?.id,
-          action_type: actionType,
-          title: title.trim(),
-          description: description.trim() || null,
-          affected_platforms: selectedPlatforms,
-          affected_markets: selectedMarkets,
-          affected_phases: selectedPhases,
-          metadata: {},
+          requester_id: user?.id,
+          change_type: requestType,
+          description: `${title}\n\n${fullDescription}`,
+          status: "sent",
+          notify_all_team: true,
         });
 
-      if (logError) throw logError;
+      if (error) throw error;
 
-      // Also log to campaign_change_history for unified history view
+      // Also log to campaign_change_history
       await supabase.from("campaign_change_history").insert({
         campaign_id: campaignId,
         user_id: user?.id,
-        action: `action_logged_${actionType}`,
-        change_type: actionType,
+        action: `submit_request_${requestType}`,
+        change_type: requestType,
         description: `${title}${description ? `: ${description}` : ""}`,
       });
 
-      toast.success("Action logged successfully");
+      toast.success("Request submitted successfully");
       onSuccess();
       onOpenChange(false);
     } catch (error: any) {
-      console.error("Error logging action:", error);
-      toast.error("Failed to log action");
+      console.error("Error submitting request:", error);
+      toast.error("Failed to submit request");
     } finally {
       setLoading(false);
     }
   };
 
-  const selectedActionType = ACTION_TYPES.find((t) => t.value === actionType);
+  const selectedRequestType = REQUEST_TYPES.find((t) => t.value === requestType);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Log an Action</DialogTitle>
+          <DialogTitle>Submit Request</DialogTitle>
           <DialogDescription>
-            Document changes or actions taken on "{campaignName}"
+            Submit an operational request for "{campaignName}"
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label>Action Type *</Label>
-            <Select value={actionType} onValueChange={setActionType}>
+            <Label>Request Type *</Label>
+            <Select value={requestType} onValueChange={setRequestType}>
               <SelectTrigger>
-                <SelectValue placeholder="Select action type" />
+                <SelectValue placeholder="Select request type" />
               </SelectTrigger>
               <SelectContent>
-                {ACTION_TYPES.map((type) => (
+                {REQUEST_TYPES.map((type) => (
                   <SelectItem key={type.value} value={type.value}>
                     {type.label}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            {selectedActionType && (
-              <p className="text-xs text-muted-foreground">{selectedActionType.description}</p>
+            {selectedRequestType && (
+              <p className="text-xs text-muted-foreground">{selectedRequestType.description}</p>
             )}
           </div>
 
           <div className="space-y-2">
             <Label>Title *</Label>
             <Input
-              placeholder="Brief title for this action..."
+              placeholder="Brief title for this request..."
               value={title}
               onChange={(e) => setTitle(e.target.value)}
             />
@@ -260,7 +267,7 @@ export function LogActionDialog({
           <div className="space-y-2">
             <Label>Description (Optional)</Label>
             <Textarea
-              placeholder="Detailed notes about what was changed..."
+              placeholder="Detailed notes about what is needed..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={4}
@@ -287,7 +294,6 @@ export function LogActionDialog({
             </div>
           )}
 
-          {/* Markets multi-select */}
           {selectedPlatforms.length > 0 && availableMarkets.length > 0 && (
             <div className="space-y-2">
               <Label>Affected Markets (Optional)</Label>
@@ -314,7 +320,6 @@ export function LogActionDialog({
             </div>
           )}
 
-          {/* Phases multi-select */}
           {selectedPlatforms.length > 0 && availablePhases.length > 0 && (
             <div className="space-y-2">
               <Label>Affected Phases (Optional)</Label>
@@ -348,7 +353,7 @@ export function LogActionDialog({
           </Button>
           <Button onClick={handleSubmit} disabled={loading}>
             {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-            Log Action
+            Submit Request
           </Button>
         </DialogFooter>
       </DialogContent>

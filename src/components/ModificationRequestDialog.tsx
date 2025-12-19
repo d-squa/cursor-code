@@ -326,13 +326,14 @@ export function ModificationRequestDialog({
                 <SelectValue placeholder="Select change type" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="budget">Budget</SelectItem>
-                <SelectItem value="duration">Duration</SelectItem>
-                <SelectItem value="market">Market</SelectItem>
-                <SelectItem value="targeting">Targeting</SelectItem>
-                <SelectItem value="goals">Goals</SelectItem>
-                <SelectItem value="creative">Creative</SelectItem>
-                <SelectItem value="note">User Note</SelectItem>
+                <SelectItem value="budget_increase">Budget Increase</SelectItem>
+                <SelectItem value="budget_decrease">Budget Decrease</SelectItem>
+                <SelectItem value="duration_extension">Duration Extension</SelectItem>
+                <SelectItem value="market_expansion">Market Expansion</SelectItem>
+                <SelectItem value="targeting_change">Targeting Change</SelectItem>
+                <SelectItem value="goals_update">Goals/KPI Update</SelectItem>
+                <SelectItem value="creative_change">Creative Change</SelectItem>
+                <SelectItem value="pause_request">Pause Request</SelectItem>
                 <SelectItem value="other">Other</SelectItem>
               </SelectContent>
             </Select>

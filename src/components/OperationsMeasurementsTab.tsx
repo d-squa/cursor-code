@@ -22,22 +22,48 @@ interface OperationsMeasurementsTabProps {
 }
 
 const CHANGE_REQUEST_TYPES = [
-  { value: 'budget', label: 'Budget' },
-  { value: 'duration', label: 'Duration' },
-  { value: 'market', label: 'Market' },
-  { value: 'targeting', label: 'Targeting' },
-  { value: 'goals', label: 'Goals' },
-  { value: 'creative', label: 'Creative' },
-  { value: 'note', label: 'Note' },
+  { value: 'budget_increase', label: 'Budget Increase' },
+  { value: 'budget_decrease', label: 'Budget Decrease' },
+  { value: 'duration_extension', label: 'Duration Extension' },
+  { value: 'market_expansion', label: 'Market Expansion' },
+  { value: 'targeting_change', label: 'Targeting Change' },
+  { value: 'goals_update', label: 'Goals/KPI Update' },
+  { value: 'creative_change', label: 'Creative Change' },
+  { value: 'pause_request', label: 'Pause Request' },
+  { value: 'other', label: 'Other' },
+];
+
+const SUBMIT_REQUEST_TYPES = [
+  { value: 'budget_change', label: 'Budget Change' },
+  { value: 'creative_optimization', label: 'Creative Optimization' },
+  { value: 'pause_enable_campaigns', label: 'Pause/Enable Campaigns' },
+  { value: 'targeting_optimization', label: 'Targeting Optimization' },
+  { value: 'audience_expansion', label: 'Audience Expansion' },
+  { value: 'bid_adjustment', label: 'Bid Adjustment' },
+  { value: 'schedule_change', label: 'Schedule Change' },
+  { value: 'landing_page_update', label: 'Landing Page Update' },
+  { value: 'ad_copy_update', label: 'Ad Copy Update' },
+  { value: 'placement_change', label: 'Placement Change' },
+  { value: 'conversion_tracking', label: 'Conversion Tracking Setup' },
+  { value: 'pixel_implementation', label: 'Pixel Implementation' },
+  { value: 'reporting_request', label: 'Reporting Request' },
   { value: 'other', label: 'Other' },
 ];
 
 const LOGGED_ACTION_TYPES = [
-  { value: 'Budget Adjustment', label: 'Budget Adjustment' },
-  { value: 'Targeting Change', label: 'Targeting Change' },
-  { value: 'Creative Update', label: 'Creative Update' },
-  { value: 'Pause/Resume', label: 'Pause/Resume' },
-  { value: 'Note', label: 'Note' },
+  { value: 'budget_adjustment', label: 'Budget Adjustment' },
+  { value: 'targeting_change', label: 'Targeting Change' },
+  { value: 'creative_update', label: 'Creative Update' },
+  { value: 'campaign_pause_resume', label: 'Campaign Pause/Resume' },
+  { value: 'audience_update', label: 'Audience Update' },
+  { value: 'bid_change', label: 'Bid Change' },
+  { value: 'schedule_modification', label: 'Schedule Modification' },
+  { value: 'landing_page_change', label: 'Landing Page Change' },
+  { value: 'ad_copy_change', label: 'Ad Copy Change' },
+  { value: 'placement_update', label: 'Placement Update' },
+  { value: 'conversion_setup', label: 'Conversion Setup' },
+  { value: 'reporting_delivery', label: 'Reporting Delivery' },
+  { value: 'note', label: 'Note/Comment' },
 ];
 
 export function OperationsMeasurementsTab({ clientId }: OperationsMeasurementsTabProps) {
@@ -45,7 +71,7 @@ export function OperationsMeasurementsTab({ clientId }: OperationsMeasurementsTa
   const [loading, setLoading] = useState(true);
   const [defaults, setDefaults] = useState<OperationDefault[]>([]);
 
-  const isAdmin = role === 'admin' || role === 'owner';
+  const isAdmin = role === 'admin' || role === 'owner' || role === 'campaign_manager';
 
   useEffect(() => {
     loadDefaults();
@@ -152,6 +178,7 @@ export function OperationsMeasurementsTab({ clientId }: OperationsMeasurementsTa
   };
 
   const changeRequestDefaults = getMergedDefaults('change_request', CHANGE_REQUEST_TYPES);
+  const submitRequestDefaults = getMergedDefaults('submit_request', SUBMIT_REQUEST_TYPES);
   const loggedActionDefaults = getMergedDefaults('logged_action', LOGGED_ACTION_TYPES);
 
   return (
@@ -180,6 +207,60 @@ export function OperationsMeasurementsTab({ clientId }: OperationsMeasurementsTa
               </TableHeader>
               <TableBody>
                 {changeRequestDefaults.map((d) => (
+                  <TableRow key={d.operation_subtype}>
+                    <TableCell>{d.label}</TableCell>
+                    <TableCell>
+                      {isAdmin ? (
+                        <Input
+                          type="number"
+                          step="0.5"
+                          min="0"
+                          className="w-24"
+                          placeholder="—"
+                          value={d.estimated_hours ?? ''}
+                          onChange={(e) => handleUpdateHours(
+                            { id: d.id, operation_type: d.operation_type, operation_subtype: d.operation_subtype },
+                            parseFloat(e.target.value) || 0
+                          )}
+                        />
+                      ) : (
+                        <span>{d.estimated_hours !== null ? `${d.estimated_hours}h` : '—'}</span>
+                      )}
+                    </TableCell>
+                    {isAdmin && (
+                      <TableCell>
+                        {d.id && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDeleteDefault(d.id!)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        )}
+                      </TableCell>
+                    )}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Submit Request Defaults */}
+          <div className="space-y-3">
+            <h4 className="font-medium flex items-center gap-2">
+              <Badge variant="outline">Submit Requests</Badge>
+            </h4>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Estimated Hours</TableHead>
+                  {isAdmin && <TableHead className="w-[100px]">Actions</TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {submitRequestDefaults.map((d) => (
                   <TableRow key={d.operation_subtype}>
                     <TableCell>{d.label}</TableCell>
                     <TableCell>
