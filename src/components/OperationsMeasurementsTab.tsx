@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,8 +7,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Trash2, Save } from "lucide-react";
+import { Loader2, Trash2, Save, BarChart3 } from "lucide-react";
 import { useRole } from "@/hooks/useRole";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 
 interface OperationDefault {
   id?: string;
@@ -79,7 +81,9 @@ interface LocalDefault {
 }
 
 export function OperationsMeasurementsTab({ clientId }: OperationsMeasurementsTabProps) {
+  const navigate = useNavigate();
   const { role, loading: roleLoading } = useRole();
+  const { hasAccess } = useFeatureAccess();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [defaults, setDefaults] = useState<OperationDefault[]>([]);
@@ -372,21 +376,32 @@ export function OperationsMeasurementsTab({ clientId }: OperationsMeasurementsTa
                 These estimates are used to calculate team workload and generate operations reports.
               </CardDescription>
             </div>
-            {isAdmin && hasUnsavedChanges && (
-              <Button onClick={handleSaveAll} disabled={saving === 'all'}>
-                {saving === 'all' ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <Save className="h-4 w-4 mr-2" />
-                    Save All Changes
-                  </>
-                )}
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {hasAccess('operations_analytics') && (
+                <Button 
+                  variant="outline" 
+                  onClick={() => navigate('/operations-analytics')}
+                >
+                  <BarChart3 className="h-4 w-4 mr-2" />
+                  View Client Analytics
+                </Button>
+              )}
+              {isAdmin && hasUnsavedChanges && (
+                <Button onClick={handleSaveAll} disabled={saving === 'all'}>
+                  {saving === 'all' ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      Save All Changes
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-6">

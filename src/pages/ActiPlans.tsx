@@ -773,6 +773,19 @@ export default function ActiPlans() {
                   </DropdownMenuItem>
                 )}
 
+                {/* Operations Analytics - admin only */}
+                {isAdminOrOwner && hasAccess('operations_analytics') && (
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setSelectedCampaign(campaign);
+                      setAnalyticsOpen(true);
+                    }}
+                  >
+                    <BarChart3 className="w-4 h-4 mr-2" />
+                    Operations Analytics
+                  </DropdownMenuItem>
+                )}
+
                 {canDelete(campaign) && (
                   <>
                     <DropdownMenuSeparator />
@@ -897,6 +910,8 @@ export default function ActiPlans() {
           <ModificationRequestsAnalytics
             open={analyticsOpen}
             onOpenChange={setAnalyticsOpen}
+            campaignId={selectedCampaign.id}
+            campaignName={selectedCampaign.name}
           />
 
           <LogActionDialog
