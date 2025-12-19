@@ -205,7 +205,7 @@ const pricingTiers = [
       "Approval Workflow",
       "HawkView Intuitive Performance Report",
       "AI-based Knowledge Base",
-      "Activators, Accesses & Permissions",
+      "ActiPlanners, Access & Permissions",
     ],
     limitations: ["Team Management", "Account Manager Support"],
     operationalLimits: "5 ActiPlans/Day, 1 Owner & 4 Team Members",
@@ -231,7 +231,7 @@ const pricingTiers = [
       "Approval Workflow",
       "HawkView Intuitive Performance Report",
       "AI-based Knowledge Base",
-      "Activators, Accesses & Permissions",
+      "ActiPlanners, Access & Permissions",
       "Team Management",
       "Account Manager + Working Hours Support",
     ],
@@ -351,7 +351,7 @@ const Landing = () => {
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">Why Choose ActiPlan?</h2>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Join leading agencies and brands who have transformed their media planners & executives to Activators.
+              Join leading agencies and brands who have transformed their media planners & executives to ActiPlanners.
             </p>
           </div>
 
@@ -535,9 +535,9 @@ const Landing = () => {
       <section className="py-20">
         <div className="container mx-auto px-4">
           <Card className="max-w-3xl mx-auto bg-gradient-to-br from-primary/10 to-accent/10 border-primary/20">
-            <CardContent className="p-8 md:p-12 text-center">
-              <h2 className="text-2xl md:text-3xl font-bold mb-4">Ready to Transform Your Media Team To Activators?</h2>
-              <p className="text-muted-foreground mb-8 max-w-xl mx-auto">
+              <CardContent className="p-8 md:p-12 text-center">
+                <h2 className="text-2xl md:text-3xl font-bold mb-4">Ready to Transform Your Media Team To ActiPlanners?</h2>
+                <p className="text-muted-foreground mb-8 max-w-xl mx-auto">
                 Start your 30-day free trial today and experience the power of cross-platform activation management.
               </p>
               <Button size="lg" onClick={() => navigate("/auth?mode=signup")} className="gap-2">

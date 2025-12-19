@@ -114,7 +114,7 @@ export type Feature =
   | 'assign_clients_teams'
   | 'view_team_campaigns'
   
-  // User/Activator Management
+  // User/ActiPlanner Management
   | 'user_management'
   | 'invite_team_members'
   | 'role_assignment'
@@ -275,7 +275,7 @@ const FEATURE_TIERS: Record<Feature, SubscriptionTier> = {
   assign_clients_teams: 'enterprise',
   view_team_campaigns: 'enterprise',
   
-  // User/Activator Management
+  // User/ActiPlanner Management
   user_management: 'enterprise',
   invite_team_members: 'enterprise',
   role_assignment: 'enterprise',
