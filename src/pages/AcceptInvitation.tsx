@@ -101,27 +101,30 @@ export default function AcceptInvitation() {
     setEmailStatus("checking");
     
     try {
-      // Try to sign in with a wrong password to check if email exists
-      const { error } = await supabase.auth.signInWithPassword({
-        email: invitation.email,
-        password: "check_if_exists_" + Date.now(),
-      });
+      // Check if email exists in profiles table
+      const { data: existingProfile, error: profileError } = await supabase
+        .from("profiles")
+        .select("id, email")
+        .eq("email", invitation.email.toLowerCase())
+        .maybeSingle();
 
-      if (error) {
-        if (error.message.includes("Invalid login credentials")) {
-          // User exists - they need to sign in
-          setEmailStatus("exists_other_subscription");
-          setExistingSubscriptionInfo("This email already has an ActiPlan account.");
-        } else if (error.message.includes("Email not confirmed")) {
-          // User exists but email not confirmed
-          setEmailStatus("exists_other_subscription");
-          setExistingSubscriptionInfo("This email has an account pending confirmation.");
-        } else {
-          // User doesn't exist - new user
-          setEmailStatus("new");
-        }
+      if (profileError) {
+        console.error("Error checking profile:", profileError);
+        // If we can't check, assume new user
+        setEmailStatus("new");
+        return;
+      }
+
+      if (existingProfile) {
+        // User exists - they need to sign in
+        setEmailStatus("exists_other_subscription");
+        setExistingSubscriptionInfo("This email already has an ActiPlan account.");
+      } else {
+        // User doesn't exist - new user
+        setEmailStatus("new");
       }
     } catch (err) {
+      console.error("Error checking email status:", err);
       // If we can't determine, assume new user
       setEmailStatus("new");
     }
