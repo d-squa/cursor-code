@@ -112,11 +112,12 @@ serve(async (req) => {
 
     logStep("No personal subscription found, checking team membership");
 
-    // Check if user is a member of any team
+    // Check if user is a member of any team (only consider roles with a team_id)
     const { data: userRoles, error: rolesError } = await supabaseClient
       .from("user_roles")
       .select("team_id, role")
-      .eq("user_id", user.id);
+      .eq("user_id", user.id)
+      .not("team_id", "is", null);
 
     if (rolesError) {
       logStep("Error fetching user roles", { error: rolesError.message });
