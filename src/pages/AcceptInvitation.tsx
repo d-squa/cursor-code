@@ -219,7 +219,8 @@ export default function AcceptInvitation() {
     setAccepting(true);
 
     try {
-      const { error: signUpError } = await supabase.auth.signUp({
+      // Sign up - with auto-confirm enabled, we get a session immediately
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email: invitation.email,
         password,
         options: {
@@ -229,19 +230,25 @@ export default function AcceptInvitation() {
 
       if (signUpError) throw signUpError;
 
-      // Sign in immediately (invites should not require payment flow)
-      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-        email: invitation.email,
-        password,
-      });
+      // With auto-confirm enabled, signUp returns a session directly
+      let accessToken = signUpData.session?.access_token;
 
-      if (signInError) {
-        toast.success("Account created! Please sign in to continue.");
-        navigate("/auth");
-        return;
+      // If no session from signUp (shouldn't happen with auto-confirm), try signing in
+      if (!accessToken) {
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+          email: invitation.email,
+          password,
+        });
+
+        if (signInError) {
+          toast.success("Account created! Please sign in to continue.");
+          navigate("/auth");
+          return;
+        }
+
+        accessToken = signInData.session?.access_token;
       }
 
-      const accessToken = signInData.session?.access_token;
       await acceptInvitationBackend({ accessToken });
 
       finishInvite();
