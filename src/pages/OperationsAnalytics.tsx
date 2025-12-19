@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -63,6 +63,7 @@ const CHART_COLORS = ['hsl(var(--primary))', 'hsl(var(--secondary))', 'hsl(var(-
 export default function OperationsAnalytics() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClient, setSelectedClient] = useState<string>("all");
@@ -74,6 +75,14 @@ export default function OperationsAnalytics() {
   });
   const [dimensionFilter, setDimensionFilter] = useState<string>("user");
   const [typeFilter, setTypeFilter] = useState<string>("all");
+
+  // Read client ID from URL params on mount
+  useEffect(() => {
+    const clientFromUrl = searchParams.get('client');
+    if (clientFromUrl) {
+      setSelectedClient(clientFromUrl);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (!authLoading && !user) {
