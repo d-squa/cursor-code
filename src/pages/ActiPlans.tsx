@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, Play, Edit, CheckCircle, XCircle, MessageSquare, History, Trash2, Download, TrendingUp, MoreVertical, ArrowLeft, Search, BarChart3, FileText, FileSpreadsheet, ChevronDown, Rocket, Lock, ClipboardList, Activity } from "lucide-react";
+import { Loader2, Play, Edit, CheckCircle, XCircle, MessageSquare, History, Trash2, Download, TrendingUp, MoreVertical, ArrowLeft, Search, BarChart3, FileText, FileSpreadsheet, ChevronDown, Rocket, Lock, ClipboardList, Activity, Send } from "lucide-react";
 import { LockedFeatureButton } from "@/components/ui/locked-feature-button";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -17,6 +17,7 @@ import { ChangeHistoryDialog } from "@/components/ChangeHistoryDialog";
 import { ModificationRequestsView } from "@/components/ModificationRequestsView";
 import { ModificationRequestsAnalytics } from "@/components/ModificationRequestsAnalytics";
 import { LogActionDialog } from "@/components/LogActionDialog";
+import { SubmitRequestDialog } from "@/components/SubmitRequestDialog";
 import { ActivityLogView } from "@/components/ActivityLogView";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
@@ -68,6 +69,7 @@ export default function ActiPlans() {
   const [modificationRequestsViewOpen, setModificationRequestsViewOpen] = useState(false);
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
   const [logActionDialogOpen, setLogActionDialogOpen] = useState(false);
+  const [submitRequestDialogOpen, setSubmitRequestDialogOpen] = useState(false);
   const [activityLogViewOpen, setActivityLogViewOpen] = useState(false);
   const [isAdminOrOwner, setIsAdminOrOwner] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -715,6 +717,19 @@ export default function ActiPlans() {
                   </DropdownMenuItem>
                 )}
 
+                {/* Submit Request - for operational requests */}
+                {["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setSelectedCampaign(campaign);
+                      setSubmitRequestDialogOpen(true);
+                    }}
+                  >
+                    <Send className="w-4 h-4 mr-2" />
+                    Submit Request
+                  </DropdownMenuItem>
+                )}
+
                 {/* Activity Log - unified view of requests and actions */}
                 {hasAccess('change_history_dialog') ? (
                   <DropdownMenuItem
@@ -892,6 +907,17 @@ export default function ActiPlans() {
             onSuccess={() => {
               loadCampaigns();
               setLogActionDialogOpen(false);
+            }}
+          />
+
+          <SubmitRequestDialog
+            open={submitRequestDialogOpen}
+            onOpenChange={setSubmitRequestDialogOpen}
+            campaignId={selectedCampaign.id}
+            campaignName={selectedCampaign.name}
+            onSuccess={() => {
+              loadCampaigns();
+              setSubmitRequestDialogOpen(false);
             }}
           />
 
