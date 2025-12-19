@@ -35,6 +35,11 @@ interface Client {
   name: string;
 }
 
+interface Campaign {
+  id: string;
+  name: string;
+}
+
 interface OperationRecord {
   id: string;
   type: 'change_request' | 'logged_action';
@@ -66,7 +71,9 @@ export default function OperationsAnalytics() {
   const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [clients, setClients] = useState<Client[]>([]);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [selectedClient, setSelectedClient] = useState<string>("all");
+  const [selectedCampaign, setSelectedCampaign] = useState<string>("all");
   const [operations, setOperations] = useState<OperationRecord[]>([]);
   const [defaults, setDefaults] = useState<OperationDefault[]>([]);
   const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
@@ -76,11 +83,15 @@ export default function OperationsAnalytics() {
   const [dimensionFilter, setDimensionFilter] = useState<string>("user");
   const [typeFilter, setTypeFilter] = useState<string>("all");
 
-  // Read client ID from URL params on mount
+  // Read client ID and campaign ID from URL params on mount
   useEffect(() => {
     const clientFromUrl = searchParams.get('client');
+    const campaignFromUrl = searchParams.get('campaign');
     if (clientFromUrl) {
       setSelectedClient(clientFromUrl);
+    }
+    if (campaignFromUrl) {
+      setSelectedCampaign(campaignFromUrl);
     }
   }, [searchParams]);
 
@@ -94,7 +105,7 @@ export default function OperationsAnalytics() {
     if (user) {
       loadData();
     }
-  }, [user, selectedClient]);
+  }, [user, selectedClient, selectedCampaign]);
 
   const loadData = async () => {
     try {
@@ -107,6 +118,13 @@ export default function OperationsAnalytics() {
         .order("name");
       setClients(clientsData || []);
 
+      // Load campaigns
+      const { data: campaignsData } = await supabase
+        .from("campaigns")
+        .select("id, name")
+        .order("name");
+      setCampaigns(campaignsData || []);
+
       // Load operation defaults for selected client
       let defaultsQuery = supabase.from('client_operation_defaults').select('*');
       if (selectedClient !== 'all') {
@@ -116,26 +134,40 @@ export default function OperationsAnalytics() {
       setDefaults(defaultsData || []);
 
       // Load modification requests
-      const { data: modRequests, error: modError } = await supabase
+      let modRequestsQuery = supabase
         .from("modification_requests")
         .select(`
           id, change_type, requester_id, status, created_at, 
           estimated_hours, actual_hours, completed_by, completed_at,
-          campaigns!inner(name)
+          campaign_id,
+          campaigns!inner(id, name)
         `)
         .order("created_at", { ascending: false });
+      
+      if (selectedCampaign !== 'all') {
+        modRequestsQuery = modRequestsQuery.eq('campaign_id', selectedCampaign);
+      }
+      
+      const { data: modRequests, error: modError } = await modRequestsQuery;
 
       if (modError) throw modError;
 
       // Load activity logs
-      const { data: activityLogs, error: actError } = await supabase
+      let activityLogsQuery = supabase
         .from("activity_logs")
         .select(`
           id, action_type, user_id, created_at,
           estimated_hours, actual_hours,
-          campaigns!inner(name)
+          campaign_id,
+          campaigns!inner(id, name)
         `)
         .order("created_at", { ascending: false });
+      
+      if (selectedCampaign !== 'all') {
+        activityLogsQuery = activityLogsQuery.eq('campaign_id', selectedCampaign);
+      }
+      
+      const { data: activityLogs, error: actError } = await activityLogsQuery;
 
       if (actError) throw actError;
 
@@ -359,6 +391,21 @@ export default function OperationsAnalytics() {
               </div>
 
               <div className="space-y-2">
+                <label className="text-sm font-medium">ActiPlan</label>
+                <Select value={selectedCampaign} onValueChange={setSelectedCampaign}>
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="All ActiPlans" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All ActiPlans</SelectItem>
+                    {campaigns.map(c => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
                 <label className="text-sm font-medium">Date Range</label>
                 <Popover>
                   <PopoverTrigger asChild>
@@ -422,13 +469,15 @@ export default function OperationsAnalytics() {
                 </Select>
               </div>
 
-              {(dateRange.from || typeFilter !== 'all') && (
+              {(dateRange.from || typeFilter !== 'all' || selectedCampaign !== 'all' || selectedClient !== 'all') && (
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => {
                     setDateRange({ from: undefined, to: undefined });
                     setTypeFilter('all');
+                    setSelectedCampaign('all');
+                    setSelectedClient('all');
                   }}
                 >
                   Clear Filters
