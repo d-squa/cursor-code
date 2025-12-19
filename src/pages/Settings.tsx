@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { useNavigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useRole } from "@/hooks/useRole";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { Feature, getRequiredTier } from "@/config/featureAccess";
 import { TIER_DISPLAY_NAMES } from "@/config/subscriptionTiers";
@@ -21,21 +22,46 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+// Role requirements for menu items
+type RoleRequirement = 'owner' | 'admin' | 'any';
+
 interface SettingsMenuItem {
   title: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   description: string;
   feature?: Feature;
+  roleRequirement?: RoleRequirement; // If not set, visible to all roles
 }
 
 const allSettingsMenuItems: SettingsMenuItem[] = [
+  {
+    title: "Account Settings",
+    href: "/settings/account",
+    icon: User,
+    description: "Update your profile and password"
+  },
+  {
+    title: "Plan Management",
+    href: "/settings/plans",
+    icon: CreditCard,
+    description: "Manage your subscription plan",
+    roleRequirement: 'owner' // Only owners can see this
+  },
+  {
+    title: "Billing Management",
+    href: "/settings/billing",
+    icon: Receipt,
+    description: "Manage payment methods and billing",
+    roleRequirement: 'owner' // Only owners can see this
+  },
   {
     title: "Users",
     href: "/settings/users",
     icon: Users,
     description: "Invite and manage users",
-    feature: "user_management"
+    feature: "user_management",
+    roleRequirement: 'admin' // Only admins and owners can see this
   },
   {
     title: "Manage Your Team",
@@ -58,24 +84,6 @@ const allSettingsMenuItems: SettingsMenuItem[] = [
     feature: "client_management"
   },
   {
-    title: "Account Settings",
-    href: "/settings/account",
-    icon: User,
-    description: "Update your profile and password"
-  },
-  {
-    title: "Plan Management",
-    href: "/settings/plans",
-    icon: CreditCard,
-    description: "Manage your subscription plan"
-  },
-  {
-    title: "Billing Management",
-    href: "/settings/billing",
-    icon: Receipt,
-    description: "Manage payment methods and billing"
-  },
-  {
     title: "Operations Reports",
     href: "/settings/operations-reports",
     icon: BarChart3,
@@ -86,17 +94,30 @@ const allSettingsMenuItems: SettingsMenuItem[] = [
 
 export default function Settings() {
   const { user, loading } = useAuth();
+  const { isAdmin, isOwner, loading: roleLoading } = useRole();
   const { hasAccess, loading: featureLoading } = useFeatureAccess();
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Get accessible menu items for determining default route
+  // Filter menu items based on role and feature access
   const accessibleMenuItems = useMemo(() => {
     return allSettingsMenuItems.filter(item => {
-      if (!item.feature) return true;
-      return hasAccess(item.feature);
+      // Check role requirement
+      if (item.roleRequirement === 'owner' && !isOwner) {
+        return false;
+      }
+      if (item.roleRequirement === 'admin' && !isAdmin) {
+        return false;
+      }
+      
+      // Check feature access (for subscription-based features)
+      if (item.feature && !hasAccess(item.feature)) {
+        return false;
+      }
+      
+      return true;
     });
-  }, [hasAccess]);
+  }, [hasAccess, isAdmin, isOwner]);
 
   // Get first accessible route
   const firstAccessibleRoute = useMemo(() => {
@@ -116,7 +137,7 @@ export default function Settings() {
     }
   }, [location.pathname, navigate, firstAccessibleRoute]);
 
-  if (loading || featureLoading) {
+  if (loading || featureLoading || roleLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -129,6 +150,18 @@ export default function Settings() {
   }
 
   const isActiveRoute = (href: string) => location.pathname === href;
+
+  // Determine which items to show in sidebar (only accessible ones, no locked items for role-based restrictions)
+  const visibleMenuItems = allSettingsMenuItems.filter(item => {
+    // Check role requirement - if not met, hide completely
+    if (item.roleRequirement === 'owner' && !isOwner) {
+      return false;
+    }
+    if (item.roleRequirement === 'admin' && !isAdmin) {
+      return false;
+    }
+    return true;
+  });
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/20">
@@ -164,13 +197,13 @@ export default function Settings() {
           <aside className="lg:col-span-1">
             <nav className="space-y-2 sticky top-24">
               <TooltipProvider>
-                {allSettingsMenuItems.map((item) => {
+                {visibleMenuItems.map((item) => {
                   const Icon = item.icon;
                   const isActive = isActiveRoute(item.href);
-                  const isLocked = item.feature && !hasAccess(item.feature);
+                  const isLockedByFeature = item.feature && !hasAccess(item.feature);
                   const requiredTier = item.feature ? getRequiredTier(item.feature) : null;
                   
-                  if (isLocked) {
+                  if (isLockedByFeature) {
                     return (
                       <Tooltip key={item.href} delayDuration={0}>
                         <TooltipTrigger asChild>

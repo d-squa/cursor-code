@@ -5,28 +5,51 @@ import { useAuth } from "./useAuth";
 export function useRole() {
   const { user } = useAuth();
   const [role, setRole] = useState<string | null>(null);
+  const [isTeamOwner, setIsTeamOwner] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user) {
       setRole(null);
+      setIsTeamOwner(false);
       setLoading(false);
       return;
     }
 
     const fetchRole = async () => {
       try {
-        const { data, error } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", user.id)
-          .maybeSingle();
+        // Fetch user role and check if they own any teams
+        const [{ data: roleData, error: roleError }, { data: teamsData, error: teamsError }] = await Promise.all([
+          supabase
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", user.id)
+            .maybeSingle(),
+          supabase
+            .from("teams")
+            .select("id")
+            .eq("owner_id", user.id)
+            .limit(1)
+        ]);
 
-        if (error) throw error;
-        setRole(data?.role || null);
+        if (roleError) throw roleError;
+        if (teamsError) throw teamsError;
+
+        const userRole = roleData?.role || null;
+        const ownsTeam = (teamsData && teamsData.length > 0);
+
+        // If user owns a team, their effective role is "owner"
+        if (ownsTeam) {
+          setRole("owner");
+          setIsTeamOwner(true);
+        } else {
+          setRole(userRole);
+          setIsTeamOwner(false);
+        }
       } catch (error) {
         console.error("Error fetching user role:", error);
         setRole(null);
+        setIsTeamOwner(false);
       } finally {
         setLoading(false);
       }
@@ -35,9 +58,10 @@ export function useRole() {
     fetchRole();
   }, [user]);
 
-  const isAdmin = role === "admin" || role === "owner";
+  const isOwner = role === "owner" || isTeamOwner;
+  const isAdmin = role === "admin" || isOwner;
   const canManageClients = isAdmin;
   const canViewClients = !!role; // All authenticated users with a role
 
-  return { role, loading, isAdmin, canManageClients, canViewClients };
+  return { role, loading, isAdmin, isOwner, canManageClients, canViewClients };
 }
