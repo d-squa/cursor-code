@@ -25,6 +25,7 @@ import PlatformConnections from "./pages/PlatformConnections";
 import LaunchStatus from "./pages/LaunchStatus";
 import InsightsRecommendations from "./pages/InsightsRecommendations";
 import OperationsAnalytics from "./pages/OperationsAnalytics";
+import OperationsReports from "./pages/settings/OperationsReports";
 import NotFound from "./pages/NotFound";
 import { BugReportButton } from "./components/BugReportButton";
 import { SubscriptionGuard } from "./components/SubscriptionGuard";
@@ -68,6 +69,7 @@ const App = () => (
               <Route path="account" element={<AccountSettings />} />
               <Route path="plans" element={<PlanManagement />} />
               <Route path="billing" element={<BillingManagement />} />
+              <Route path="operations-reports" element={<OperationsReports />} />
             </Route>
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

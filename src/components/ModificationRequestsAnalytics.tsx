@@ -16,6 +16,8 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
 interface ModificationRequestsAnalyticsProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  campaignId?: string;
+  campaignName?: string;
 }
 
 interface AnalyticsData {
@@ -33,6 +35,8 @@ const COLORS = ['hsl(var(--primary))', 'hsl(var(--secondary))', 'hsl(var(--accen
 export function ModificationRequestsAnalytics({
   open,
   onOpenChange,
+  campaignId,
+  campaignName,
 }: ModificationRequestsAnalyticsProps) {
   const [loading, setLoading] = useState(false);
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
@@ -40,8 +44,15 @@ export function ModificationRequestsAnalytics({
     from: undefined,
     to: undefined,
   });
-  const [campaignFilter, setCampaignFilter] = useState<string>("all");
+  const [campaignFilter, setCampaignFilter] = useState<string>(campaignId || "all");
   const [campaigns, setCampaigns] = useState<{ id: string; name: string }[]>([]);
+
+  // Update campaign filter when campaignId prop changes
+  useEffect(() => {
+    if (campaignId) {
+      setCampaignFilter(campaignId);
+    }
+  }, [campaignId]);
 
   useEffect(() => {
     if (open) {
@@ -198,9 +209,13 @@ export function ModificationRequestsAnalytics({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-7xl max-h-[90vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Modification Requests Analytics</DialogTitle>
+          <DialogTitle>
+            {campaignName ? `Operations Analytics - ${campaignName}` : "Modification Requests Analytics"}
+          </DialogTitle>
           <DialogDescription>
-            Track performance metrics and insights across all campaigns
+            {campaignName 
+              ? `Track operations performance metrics for this ActiPlan`
+              : "Track performance metrics and insights across all campaigns"}
           </DialogDescription>
         </DialogHeader>
 

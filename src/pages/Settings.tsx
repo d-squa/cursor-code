@@ -16,7 +16,8 @@ import {
   ArrowLeft,
   Loader2,
   Plug,
-  Lock
+  Lock,
+  BarChart3
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -73,6 +74,13 @@ const allSettingsMenuItems: SettingsMenuItem[] = [
     href: "/settings/billing",
     icon: Receipt,
     description: "Manage payment methods and billing"
+  },
+  {
+    title: "Operations Reports",
+    href: "/settings/operations-reports",
+    icon: BarChart3,
+    description: "View operations analytics across all clients",
+    feature: "operations_analytics"
   }
 ];
 
