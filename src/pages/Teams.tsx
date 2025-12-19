@@ -2,9 +2,9 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input"; import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -146,7 +146,7 @@ export default function Teams() {
         .eq("email", data.email)
         .maybeSingle();
       
-      if (profileError || !profile) throw new Error("Activator not found");
+      if (profileError || !profile) throw new Error("ActiPlanner not found");
       
       // Add user to team with role
       const { error } = await supabase
@@ -163,10 +163,10 @@ export default function Teams() {
       queryClient.invalidateQueries({ queryKey: ["team-members"] });
       setIsInviteDialogOpen(false);
       setInviteData({ email: "", role: "member" });
-      toast.success("Activator invited successfully");
+      toast.success("ActiPlanner invited successfully");
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to invite activator");
+      toast.error(error.message || "Failed to invite ActiPlanner");
     },
   });
 
@@ -326,7 +326,7 @@ export default function Teams() {
                   </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
-                      <DialogTitle>Invite Activator to Team</DialogTitle>
+                      <DialogTitle>Invite ActiPlanner to Team</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4 mt-4">
                       <div>
@@ -336,7 +336,7 @@ export default function Teams() {
                           type="email"
                           value={inviteData.email}
                           onChange={(e) => setInviteData({ ...inviteData, email: e.target.value })}
-                          placeholder="activator@example.com"
+                          placeholder="actiplanner@example.com"
                         />
                       </div>
                       <div>
@@ -349,7 +349,6 @@ export default function Teams() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="owner">Owner</SelectItem>
                             <SelectItem value="admin">Admin</SelectItem>
                             <SelectItem value="campaign_manager">Campaign Manager</SelectItem>
                             <SelectItem value="viewer">Viewer</SelectItem>
@@ -363,7 +362,7 @@ export default function Teams() {
                         disabled={!inviteData.email}
                         className="w-full"
                       >
-                        Invite Activator
+                        Invite ActiPlanner
                       </Button>
                     </div>
                   </DialogContent>
@@ -388,22 +387,27 @@ export default function Teams() {
                       <TableCell>{member.profile?.email || "Unknown"}</TableCell>
                       <TableCell>{member.profile?.company_name || "-"}</TableCell>
                       <TableCell>
-                        <Select
-                          value={member.role}
-                          onValueChange={(value) => updateMemberRole.mutate({ roleId: member.id, newRole: value as AppRole })}
-                        >
-                          <SelectTrigger className="w-40">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="owner">Owner</SelectItem>
-                            <SelectItem value="admin">Admin</SelectItem>
-                            <SelectItem value="campaign_manager">Campaign Manager</SelectItem>
-                            <SelectItem value="viewer">Viewer</SelectItem>
-                            <SelectItem value="collaborator">Collaborator</SelectItem>
-                            <SelectItem value="member">Member</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        {member.role === "owner" ? (
+                          <Badge>Owner</Badge>
+                        ) : (
+                          <Select
+                            value={member.role}
+                            onValueChange={(value) =>
+                              updateMemberRole.mutate({ roleId: member.id, newRole: value as AppRole })
+                            }
+                          >
+                            <SelectTrigger className="w-40">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="admin">Admin</SelectItem>
+                              <SelectItem value="campaign_manager">Campaign Manager</SelectItem>
+                              <SelectItem value="viewer">Viewer</SelectItem>
+                              <SelectItem value="collaborator">Collaborator</SelectItem>
+                              <SelectItem value="member">Member</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Button

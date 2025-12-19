@@ -44,28 +44,28 @@ export default function UserManagement() {
   const { data: users, isLoading: loadingUsers } = useQuery({
     queryKey: ["users-with-roles"],
     queryFn: async () => {
-      // Fetch profiles
-      const { data: profiles, error: profilesError } = await supabase
-        .from("profiles")
-        .select("*")
-        .order("created_at", { ascending: false });
-      
+      const [{ data: profiles, error: profilesError }, { data: roles, error: rolesError }, { data: teams, error: teamsError }] =
+        await Promise.all([
+          supabase.from("profiles").select("*").order("created_at", { ascending: false }),
+          supabase.from("user_roles").select("user_id, role"),
+          supabase.from("teams").select("owner_id"),
+        ]);
       if (profilesError) throw profilesError;
-
-      // Fetch roles for all users
-      const { data: roles, error: rolesError } = await supabase
-        .from("user_roles")
-        .select("user_id, role");
-      
       if (rolesError) throw rolesError;
+      if (teamsError) throw teamsError;
 
-      // Map roles to users
-      const rolesMap = new Map(roles?.map(r => [r.user_id, r.role]) || []);
-      
-      return profiles?.map(profile => ({
-        ...profile,
-        role: rolesMap.get(profile.id) || null
-      }));
+      const ownerIds = new Set((teams ?? []).map((t: any) => t.owner_id).filter(Boolean));
+      const rolesByUser = new Map<string, Set<string>>();
+      (roles ?? []).forEach((r: any) => {
+        const set = rolesByUser.get(r.user_id) ?? new Set<string>();
+        set.add(r.role);
+        rolesByUser.set(r.user_id, set);
+      });
+
+      const priority = ["owner", "admin", "campaign_manager", "collaborator", "member", "viewer"] as const;
+      const pickRole = (userId: string) => (ownerIds.has(userId) ? "owner" : priority.find((p) => rolesByUser.get(userId)?.has(p)) ?? null);
+
+      return (profiles ?? []).map((profile: any) => ({ ...profile, role: pickRole(profile.id) }));
     },
   });
 
@@ -232,7 +232,7 @@ export default function UserManagement() {
   if (loadingUsers) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-muted-foreground">Loading activators...</div>
+        <div className="text-muted-foreground">Loading ActiPlanners...</div>
       </div>
     );
   }
@@ -242,9 +242,9 @@ export default function UserManagement() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Activator Management</h1>
+          <h1 className="text-3xl font-bold">ActiPlanner Management</h1>
           <p className="text-muted-foreground mt-1">
-            Invite activators, manage permissions, and assign teams
+            Invite ActiPlanners, manage permissions, and assign teams
           </p>
         </div>
         
@@ -252,12 +252,12 @@ export default function UserManagement() {
           <DialogTrigger asChild>
             <Button>
               <UserPlus className="mr-2 h-4 w-4" />
-              Invite Activator
+              Invite ActiPlanner
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Invite New Activator</DialogTitle>
+              <DialogTitle>Invite New ActiPlanner</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 mt-4">
               <div>
@@ -265,7 +265,7 @@ export default function UserManagement() {
                 <Input
                   id="email"
                   type="email"
-                  placeholder="activator@example.com"
+                  placeholder="actiplanner@example.com"
                   value={inviteEmail}
                   onChange={(e) => setInviteEmail(e.target.value)}
                 />
@@ -379,9 +379,9 @@ export default function UserManagement() {
         </div>
       )}
 
-      {/* Active Activators */}
+      {/* Active ActiPlanners */}
       <div className="space-y-4">
-        <h2 className="text-xl font-semibold">Active Activators</h2>
+        <h2 className="text-xl font-semibold">Active ActiPlanners</h2>
         <Table>
           <TableHeader>
             <TableRow>
