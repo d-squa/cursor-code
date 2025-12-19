@@ -7,9 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Loader2, CheckCircle2, XCircle, Users, User, ArrowRight } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Users, User, ArrowRight, AlertTriangle } from "lucide-react";
 
 type SubscriptionChoice = "personal" | "team" | null;
+type EmailStatus = "checking" | "new" | "exists_other_subscription" | "exists_same_team" | null;
 
 export default function AcceptInvitation() {
   const [searchParams] = useSearchParams();
@@ -21,11 +22,13 @@ export default function AcceptInvitation() {
   const [error, setError] = useState<string | null>(null);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [displayName, setDisplayName] = useState("");
   const [accepting, setAccepting] = useState(false);
-  const [createAccount, setCreateAccount] = useState(false);
   
-  // Subscription choice state
+  // Email status checking
+  const [emailStatus, setEmailStatus] = useState<EmailStatus>(null);
+  const [existingSubscriptionInfo, setExistingSubscriptionInfo] = useState<string | null>(null);
+  
+  // Subscription choice state for existing users
   const [hasExistingSubscription, setHasExistingSubscription] = useState(false);
   const [checkingSubscription, setCheckingSubscription] = useState(false);
   const [showSubscriptionChoice, setShowSubscriptionChoice] = useState(false);
@@ -43,9 +46,22 @@ export default function AcceptInvitation() {
     loadInvitation();
   }, [token]);
 
+  // Check if email exists when invitation is loaded
+  useEffect(() => {
+    if (invitation && !user) {
+      checkEmailStatus();
+    }
+  }, [invitation, user]);
+
   // Check subscription when user is logged in
   useEffect(() => {
     if (user && invitation) {
+      // Verify user is using the invited email
+      if (user.email?.toLowerCase() !== invitation.email?.toLowerCase()) {
+        toast.error("Please sign in with the email address you were invited with");
+        supabase.auth.signOut();
+        return;
+      }
       checkUserSubscription();
     }
   }, [user, invitation]);
@@ -79,6 +95,38 @@ export default function AcceptInvitation() {
     }
   };
 
+  const checkEmailStatus = async () => {
+    if (!invitation?.email) return;
+    
+    setEmailStatus("checking");
+    
+    try {
+      // Try to sign in with a wrong password to check if email exists
+      const { error } = await supabase.auth.signInWithPassword({
+        email: invitation.email,
+        password: "check_if_exists_" + Date.now(),
+      });
+
+      if (error) {
+        if (error.message.includes("Invalid login credentials")) {
+          // User exists - they need to sign in
+          setEmailStatus("exists_other_subscription");
+          setExistingSubscriptionInfo("This email already has an ActiPlan account.");
+        } else if (error.message.includes("Email not confirmed")) {
+          // User exists but email not confirmed
+          setEmailStatus("exists_other_subscription");
+          setExistingSubscriptionInfo("This email has an account pending confirmation.");
+        } else {
+          // User doesn't exist - new user
+          setEmailStatus("new");
+        }
+      }
+    } catch (err) {
+      // If we can't determine, assume new user
+      setEmailStatus("new");
+    }
+  };
+
   const checkUserSubscription = async () => {
     if (!user) return;
     
@@ -102,50 +150,40 @@ export default function AcceptInvitation() {
       }
     } catch (err) {
       console.error("Error checking subscription:", err);
-      // If we can't check, assume no subscription and proceed normally
     } finally {
       setCheckingSubscription(false);
     }
   };
 
-  const handleAcceptInvitation = async () => {
+  const handleCreateAccountAndJoin = async () => {
     if (!invitation) return;
 
-    // If user has subscription and hasn't made a choice yet, show choice first
-    if (hasExistingSubscription && !subscriptionChoice) {
-      setShowSubscriptionChoice(true);
+    if (password !== confirmPassword) {
+      toast.error("Passwords don't match");
+      return;
+    }
+
+    if (password.length < 6) {
+      toast.error("Password must be at least 6 characters");
       return;
     }
 
     setAccepting(true);
 
     try {
-      let userId = user?.id;
+      // Create the account
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email: invitation.email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/overview`,
+        },
+      });
 
-      // If user is not logged in, create account
-      if (!userId) {
-        if (password !== confirmPassword) {
-          toast.error("Passwords don't match");
-          setAccepting(false);
-          return;
-        }
-
-        if (password.length < 6) {
-          toast.error("Password must be at least 6 characters");
-          setAccepting(false);
-          return;
-        }
-
-        const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-          email: invitation.email,
-          password,
-        });
-
-        if (signUpError) throw signUpError;
-        userId = signUpData.user?.id;
-
-        if (!userId) throw new Error("Failed to create account");
-      }
+      if (signUpError) throw signUpError;
+      
+      const userId = signUpData.user?.id;
+      if (!userId) throw new Error("Failed to create account");
 
       // Add user to team with role
       const { error: roleError } = await supabase
@@ -169,9 +207,130 @@ export default function AcceptInvitation() {
 
       if (updateError) throw updateError;
 
+      // Mark onboarding as complete
+      localStorage.setItem("actiplan_onboarding", JSON.stringify({
+        completedAt: new Date().toISOString(),
+        skippedViaTeamInvite: true
+      }));
+
+      // Auto sign-in the user
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: invitation.email,
+        password,
+      });
+
+      if (signInError) {
+        toast.success("Account created! Please sign in to continue.");
+        navigate("/auth");
+        return;
+      }
+
+      toast.success("Welcome to ActiPlan! You've joined the team.");
+      navigate("/overview");
+    } catch (err: any) {
+      console.error("Error creating account:", err);
+      if (err.message.includes("already registered")) {
+        setEmailStatus("exists_other_subscription");
+        setExistingSubscriptionInfo("This email is already registered. Please sign in.");
+        toast.error("This email is already registered. Please sign in instead.");
+      } else {
+        toast.error("Failed to create account: " + err.message);
+      }
+    } finally {
+      setAccepting(false);
+    }
+  };
+
+  const handleSignInAndJoin = async () => {
+    if (!invitation || !password) return;
+
+    setAccepting(true);
+
+    try {
+      // Sign in the user
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email: invitation.email,
+        password,
+      });
+
+      if (signInError) throw signInError;
+
+      const userId = signInData.user?.id;
+      if (!userId) throw new Error("Failed to sign in");
+
+      // Check if already in team
+      const { data: existingRole } = await supabase
+        .from("user_roles")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("team_id", invitation.team_id)
+        .single();
+
+      if (existingRole) {
+        toast.info("You're already a member of this team!");
+        navigate("/overview");
+        return;
+      }
+
+      // The subscription check will happen via the useEffect, which will show the choice dialog
+    } catch (err: any) {
+      console.error("Error signing in:", err);
+      toast.error("Invalid password. Please try again.");
+    } finally {
+      setAccepting(false);
+    }
+  };
+
+  const handleAcceptInvitation = async () => {
+    if (!invitation || !user) return;
+
+    // If user has subscription and hasn't made a choice yet, show choice first
+    if (hasExistingSubscription && !subscriptionChoice) {
+      setShowSubscriptionChoice(true);
+      return;
+    }
+
+    setAccepting(true);
+
+    try {
+      // Check if already in team
+      const { data: existingRole } = await supabase
+        .from("user_roles")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("team_id", invitation.team_id)
+        .single();
+
+      if (existingRole) {
+        toast.info("You're already a member of this team!");
+        navigate("/overview");
+        return;
+      }
+
+      // Add user to team with role
+      const { error: roleError } = await supabase
+        .from("user_roles")
+        .insert({
+          user_id: user.id,
+          team_id: invitation.team_id,
+          role: invitation.role,
+        });
+
+      if (roleError) throw roleError;
+
+      // Update invitation status
+      const { error: updateError } = await supabase
+        .from("invitations")
+        .update({
+          status: "accepted",
+          accepted_at: new Date().toISOString(),
+        })
+        .eq("id", invitation.id);
+
+      if (updateError) throw updateError;
+
       // Handle subscription choice
       if (subscriptionChoice === "team") {
-        // User chose to use team subscription - redirect to manage/cancel their personal subscription
         toast.success("Invitation accepted! You can manage your personal subscription in settings.");
       } else {
         toast.success("Invitation accepted! Welcome to the team.");
@@ -182,7 +341,7 @@ export default function AcceptInvitation() {
         localStorage.setItem("actiplan_subscription_mode", subscriptionChoice);
       }
       
-      // Mark onboarding as complete for team members (they inherit team settings)
+      // Mark onboarding as complete
       const existingOnboarding = localStorage.getItem("actiplan_onboarding");
       if (!existingOnboarding) {
         localStorage.setItem("actiplan_onboarding", JSON.stringify({
@@ -191,10 +350,7 @@ export default function AcceptInvitation() {
         }));
       }
       
-      // Redirect to overview page directly (not choose-plan)
-      setTimeout(() => {
-        navigate("/overview");
-      }, 2000);
+      navigate("/overview");
     } catch (err: any) {
       console.error("Error accepting invitation:", err);
       toast.error("Failed to accept invitation: " + err.message);
@@ -237,16 +393,19 @@ export default function AcceptInvitation() {
     );
   }
 
-  // Show subscription choice screen
-  if (showSubscriptionChoice && hasExistingSubscription) {
+  // Show subscription choice screen for logged-in users with existing subscription
+  if (showSubscriptionChoice && hasExistingSubscription && user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="max-w-lg w-full">
           <CardHeader>
-            <CardTitle>Choose Your Workspace</CardTitle>
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-6 w-6 text-amber-500" />
+              <CardTitle>Multiple Workspaces</CardTitle>
+            </div>
             <CardDescription>
-              You already have an ActiPlan subscription. How would you like to proceed when joining{" "}
-              <strong>{invitation?.teams?.name}</strong>?
+              You already have an ActiPlan subscription. You'll have access to both your personal workspace and{" "}
+              <strong>{invitation?.teams?.name}</strong>.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -283,7 +442,7 @@ export default function AcceptInvitation() {
                 </div>
                 <div className="flex-1">
                   <h3 className="font-semibold flex items-center gap-2">
-                    Use Team Subscription
+                    Use Team Subscription Only
                     <ArrowRight className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity" />
                   </h3>
                   <p className="text-sm text-muted-foreground mt-1">
@@ -308,143 +467,181 @@ export default function AcceptInvitation() {
     );
   }
 
+  // Main invitation view
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="max-w-md w-full">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-6 w-6 text-primary" />
-              <CardTitle>Join ActiPlan</CardTitle>
-            </div>
-            <CardDescription>
-              You've been invited to join <strong>{invitation?.teams?.name}</strong> on ActiPlan as a{" "}
-              <strong>{invitation?.role}</strong>
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {checkingSubscription && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Checking your account...
-              </div>
-            )}
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="h-6 w-6 text-primary" />
+            <CardTitle>Join ActiPlan</CardTitle>
+          </div>
+          <CardDescription>
+            You've been invited to join <strong>{invitation?.teams?.name}</strong> on ActiPlan as a{" "}
+            <strong>{invitation?.role}</strong>
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Email field - always locked */}
+          <div>
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              value={invitation?.email || ""}
+              disabled
+              className="bg-muted"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              You must use this email address to accept the invitation
+            </p>
+          </div>
 
-            {/* Show subscription choice indicator if already made */}
-            {subscriptionChoice && (
-              <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
-                <p className="text-sm">
-                  <strong>Workspace choice:</strong>{" "}
-                  {subscriptionChoice === "personal" 
-                    ? "Keep both workspaces" 
-                    : "Use team subscription"}
-                </p>
-                <button
-                  onClick={() => setShowSubscriptionChoice(true)}
-                  className="text-xs text-primary hover:underline mt-1"
-                >
-                  Change
-                </button>
-              </div>
-            )}
-
-            {!user ? (
-              <>
-                <p className="text-sm text-muted-foreground">
-                  Create your ActiPlan account to accept this invitation and start collaborating.
-                </p>
-              
-              <div>
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={invitation?.email || ""}
-                  disabled
-                />
-              </div>
-
-              {createAccount && (
-                <>
-                  <div>
-                    <Label htmlFor="password">Password</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="At least 6 characters"
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="confirmPassword">Confirm Password</Label>
-                    <Input
-                      id="confirmPassword"
-                      type="password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="Confirm your password"
-                    />
-                  </div>
-                </>
-              )}
-
-              <div className="text-center text-sm">
-                {!createAccount ? (
-                  <Button
-                    variant="link"
-                    className="p-0 h-auto"
-                    onClick={() => setCreateAccount(true)}
-                  >
-                    Create a new ActiPlan account instead
-                  </Button>
-                ) : (
-                  <Button
-                    variant="link"
-                    className="p-0 h-auto"
-                    onClick={() => setCreateAccount(false)}
-                  >
-                    Use existing account instead
-                  </Button>
-                )}
-              </div>
-            </>
-          ) : (
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                You're logged in as <strong>{user.email}</strong>
-              </p>
-              <p className="text-sm">
-                Click below to accept the invitation and join the team.
-              </p>
+          {emailStatus === "checking" && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Checking your account status...
             </div>
           )}
 
-          <Button
-            onClick={user ? handleAcceptInvitation : (createAccount ? handleAcceptInvitation : () => navigate("/auth"))}
-            disabled={accepting || checkingSubscription || (createAccount && (!password || !confirmPassword)) || (hasExistingSubscription && !subscriptionChoice)}
-            className="w-full"
-          >
-            {accepting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {user 
-              ? (hasExistingSubscription && !subscriptionChoice 
-                  ? "Choose Workspace First" 
-                  : "Accept & Join Team")
-              : createAccount 
-                ? "Create ActiPlan Account & Join" 
-                : "Sign in to Accept"}
-          </Button>
+          {/* User is logged in */}
+          {user && (
+            <>
+              {checkingSubscription && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Checking your subscription...
+                </div>
+              )}
 
-          {!user && (
-            <div className="text-center text-sm">
-              <span className="text-muted-foreground">Already have an account? </span>
+              {/* Show subscription choice indicator if already made */}
+              {subscriptionChoice && (
+                <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
+                  <p className="text-sm">
+                    <strong>Workspace choice:</strong>{" "}
+                    {subscriptionChoice === "personal" 
+                      ? "Keep both workspaces" 
+                      : "Use team subscription"}
+                  </p>
+                  <button
+                    onClick={() => setShowSubscriptionChoice(true)}
+                    className="text-xs text-primary hover:underline mt-1"
+                  >
+                    Change
+                  </button>
+                </div>
+              )}
+
+              <p className="text-sm text-muted-foreground">
+                You're signed in as <strong>{user.email}</strong>
+              </p>
+
               <Button
-                variant="link"
-                className="p-0 h-auto"
-                onClick={() => navigate("/auth")}
+                onClick={handleAcceptInvitation}
+                disabled={accepting || checkingSubscription || (hasExistingSubscription && !subscriptionChoice)}
+                className="w-full"
               >
-                Sign in
+                {accepting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {hasExistingSubscription && !subscriptionChoice 
+                  ? "Choose Workspace First" 
+                  : "Accept & Join Team"}
               </Button>
+            </>
+          )}
+
+          {/* User is not logged in - New user flow */}
+          {!user && emailStatus === "new" && (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Create a password to set up your ActiPlan account and join the team.
+              </p>
+
+              <div>
+                <Label htmlFor="password">Create Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="At least 6 characters"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Confirm your password"
+                />
+              </div>
+
+              <Button
+                onClick={handleCreateAccountAndJoin}
+                disabled={accepting || !password || !confirmPassword}
+                className="w-full"
+              >
+                {accepting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Create Account & Join Team
+              </Button>
+            </>
+          )}
+
+          {/* User is not logged in - Existing user flow */}
+          {!user && emailStatus === "exists_other_subscription" && (
+            <>
+              <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium">Existing Account Found</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {existingSubscriptionInfo || "This email already has an ActiPlan account."} 
+                      {" "}Sign in to join this team. You'll be able to access both workspaces.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your password"
+                />
+              </div>
+
+              <Button
+                onClick={handleSignInAndJoin}
+                disabled={accepting || !password}
+                className="w-full"
+              >
+                {accepting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Sign In & Join Team
+              </Button>
+
+              <div className="text-center">
+                <Button
+                  variant="link"
+                  className="text-xs p-0 h-auto"
+                  onClick={() => navigate("/auth?mode=reset")}
+                >
+                  Forgot your password?
+                </Button>
+              </div>
+            </>
+          )}
+
+          {/* Fallback if email status not determined yet */}
+          {!user && emailStatus === null && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading...
             </div>
           )}
         </CardContent>
