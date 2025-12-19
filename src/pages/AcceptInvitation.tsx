@@ -182,9 +182,18 @@ export default function AcceptInvitation() {
         localStorage.setItem("actiplan_subscription_mode", subscriptionChoice);
       }
       
-      // Redirect to dashboard
+      // Mark onboarding as complete for team members (they inherit team settings)
+      const existingOnboarding = localStorage.getItem("actiplan_onboarding");
+      if (!existingOnboarding) {
+        localStorage.setItem("actiplan_onboarding", JSON.stringify({
+          completedAt: new Date().toISOString(),
+          skippedViaTeamInvite: true
+        }));
+      }
+      
+      // Redirect to overview page directly (not choose-plan)
       setTimeout(() => {
-        navigate("/app");
+        navigate("/overview");
       }, 2000);
     } catch (err: any) {
       console.error("Error accepting invitation:", err);
