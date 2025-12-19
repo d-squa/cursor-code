@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useRole } from "@/hooks/useRole";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -34,11 +35,15 @@ import { FeatureGate } from "@/components/FeatureGate";
 
 export default function UserManagement() {
   const { user } = useAuth();
+  const { isAdmin, isOwner } = useRole();
   const queryClient = useQueryClient();
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<string>("member");
   const [inviteTeamId, setInviteTeamId] = useState<string>("");
+  
+  // Admins and owners can manage users
+  const canManageUsers = isAdmin || isOwner;
 
   // Fetch all users (profiles) with their roles
   const { data: users, isLoading: loadingUsers } = useQuery({
@@ -242,81 +247,88 @@ export default function UserManagement() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">ActiPlanner Management</h1>
+          <h1 className="text-3xl font-bold">
+            {canManageUsers ? "ActiPlanner Management" : "Team Members"}
+          </h1>
           <p className="text-muted-foreground mt-1">
-            Invite ActiPlanners, manage permissions, and assign teams
+            {canManageUsers 
+              ? "Invite ActiPlanners, manage permissions, and assign teams"
+              : "View team members in your organization"
+            }
           </p>
         </div>
         
-        <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <UserPlus className="mr-2 h-4 w-4" />
-              Invite ActiPlanner
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Invite New ActiPlanner</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 mt-4">
-              <div>
-                <Label htmlFor="email">Email Address</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="actiplanner@example.com"
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                />
-              </div>
-              
-              <div>
-                <Label htmlFor="team">Team</Label>
-                <Select value={inviteTeamId} onValueChange={setInviteTeamId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a team" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {teams?.map((team) => (
-                      <SelectItem key={team.id} value={team.id}>
-                        {team.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label htmlFor="role">Role</Label>
-                <Select value={inviteRole} onValueChange={setInviteRole}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="campaign_manager">Campaign Manager</SelectItem>
-                    <SelectItem value="member">Member</SelectItem>
-                    <SelectItem value="viewer">Viewer</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <Button 
-                onClick={handleInvite} 
-                className="w-full"
-                disabled={createInvitation.isPending}
-              >
-                <Mail className="mr-2 h-4 w-4" />
-                Send Invitation
+        {canManageUsers && (
+          <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <UserPlus className="mr-2 h-4 w-4" />
+                Invite ActiPlanner
               </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Invite New ActiPlanner</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 mt-4">
+                <div>
+                  <Label htmlFor="email">Email Address</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="actiplanner@example.com"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="team">Team</Label>
+                  <Select value={inviteTeamId} onValueChange={setInviteTeamId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a team" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {teams?.map((team) => (
+                        <SelectItem key={team.id} value={team.id}>
+                          {team.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="role">Role</Label>
+                  <Select value={inviteRole} onValueChange={setInviteRole}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="admin">Admin</SelectItem>
+                      <SelectItem value="campaign_manager">Campaign Manager</SelectItem>
+                      <SelectItem value="member">Member</SelectItem>
+                      <SelectItem value="viewer">Viewer</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <Button 
+                  onClick={handleInvite} 
+                  className="w-full"
+                  disabled={createInvitation.isPending}
+                >
+                  <Mail className="mr-2 h-4 w-4" />
+                  Send Invitation
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
-      {/* Pending Invitations */}
-      {invitations && invitations.length > 0 && (
+      {/* Pending Invitations - only show to admins/owners */}
+      {canManageUsers && invitations && invitations.length > 0 && (
         <div className="space-y-4">
           <h2 className="text-xl font-semibold">Pending Invitations</h2>
           <Table>
@@ -381,7 +393,9 @@ export default function UserManagement() {
 
       {/* Active ActiPlanners */}
       <div className="space-y-4">
-        <h2 className="text-xl font-semibold">Active ActiPlanners</h2>
+        <h2 className="text-xl font-semibold">
+          {canManageUsers ? "Active ActiPlanners" : "Team Members"}
+        </h2>
         <Table>
           <TableHeader>
             <TableRow>
@@ -392,21 +406,21 @@ export default function UserManagement() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {users?.map((user: any) => (
-              <TableRow key={user.id}>
-                <TableCell>{user.email}</TableCell>
+            {users?.map((userItem: any) => (
+              <TableRow key={userItem.id}>
+                <TableCell>{userItem.email}</TableCell>
                 <TableCell>
-                  {user.role ? (
-                    <Badge variant={user.role === 'owner' ? 'default' : user.role === 'admin' ? 'secondary' : 'outline'}>
-                      {user.role.replace('_', ' ')}
+                  {userItem.role ? (
+                    <Badge variant={userItem.role === 'owner' ? 'default' : userItem.role === 'admin' ? 'secondary' : 'outline'}>
+                      {userItem.role.replace('_', ' ')}
                     </Badge>
                   ) : (
                     <span className="text-muted-foreground">—</span>
                   )}
                 </TableCell>
-                <TableCell>{user.company_name || "—"}</TableCell>
+                <TableCell>{userItem.company_name || "—"}</TableCell>
                 <TableCell>
-                  {new Date(user.created_at).toLocaleDateString()}
+                  {new Date(userItem.created_at).toLocaleDateString()}
                 </TableCell>
               </TableRow>
             ))}

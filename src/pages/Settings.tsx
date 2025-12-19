@@ -60,8 +60,8 @@ const allSettingsMenuItems: SettingsMenuItem[] = [
     href: "/settings/users",
     icon: Users,
     description: "Invite and manage users",
-    feature: "user_management",
-    roleRequirement: 'admin' // Only admins and owners can see this
+    feature: "user_management"
+    // No roleRequirement - visible to all, data filtered by role in component
   },
   {
     title: "Manage Your Team",
