@@ -371,7 +371,7 @@ export default function AcceptInvitation() {
             <CardDescription>{error}</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={() => navigate("/app")} className="w-full">
+            <Button onClick={() => navigate("/overview")} className="w-full">
               Go to Dashboard
             </Button>
           </CardContent>
