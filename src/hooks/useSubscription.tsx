@@ -15,6 +15,8 @@ interface SubscriptionStatus {
   subscriptionEnd: string | null;
   trialEnd: string | null;
   status?: string;
+  subscriptionType?: "personal" | "team";
+  teamId?: string;
 }
 
 export function useSubscription() {
@@ -118,6 +120,8 @@ export function useSubscription() {
     billingPeriod: subscription?.billingPeriod ?? null,
     subscriptionEnd: subscription?.subscriptionEnd ?? null,
     trialEnd: subscription?.trialEnd ?? null,
+    subscriptionType: subscription?.subscriptionType ?? null,
+    teamId: subscription?.teamId ?? null,
     refetch: (opts?: { showLoading?: boolean }) => checkSubscription(opts),
   };
 }
