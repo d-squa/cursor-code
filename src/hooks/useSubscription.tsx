@@ -27,9 +27,15 @@ export function useSubscription() {
   // NOTE: must be a ref to avoid stale closures inside onAuthStateChange callback.
   const hasCheckedOnceRef = useRef(false);
 
+  // Prevent cross-account leakage: never keep a previous user's subscription state.
+  const currentUserIdRef = useRef<string | null>(null);
+  const lastSuccessfulUserIdRef = useRef<string | null>(null);
+
   const checkSubscription = useCallback(
     async ({ showLoading }: { showLoading?: boolean } = {}) => {
       const shouldShowLoading = showLoading ?? !hasCheckedOnceRef.current;
+
+      let sessionUserId: string | null = null;
 
       try {
         if (shouldShowLoading) setLoading(true);
@@ -41,7 +47,18 @@ export function useSubscription() {
 
         if (!session) {
           setSubscription(null);
+          currentUserIdRef.current = null;
+          lastSuccessfulUserIdRef.current = null;
           return;
+        }
+
+        sessionUserId = session.user.id;
+
+        // If the authenticated user changed, immediately drop any prior subscription state.
+        if (currentUserIdRef.current !== sessionUserId) {
+          currentUserIdRef.current = sessionUserId;
+          lastSuccessfulUserIdRef.current = null;
+          setSubscription(null);
         }
 
         const { data, error: fnError } = await supabase.functions.invoke(
@@ -54,14 +71,22 @@ export function useSubscription() {
         );
 
         if (fnError) throw fnError;
+
         setSubscription(data);
+        lastSuccessfulUserIdRef.current = sessionUserId;
       } catch (err: any) {
         console.error("Error checking subscription:", err);
         setError(err?.message ?? "Failed to check subscription");
 
-        // NEVER clear subscription on errors - keep existing data to avoid
-        // unnecessary redirects during transient API failures or plan changes.
-        // Only clear on explicit sign-out (handled in onAuthStateChange).
+        // Keep existing data for transient errors, but never across account switches.
+        if (
+          sessionUserId &&
+          lastSuccessfulUserIdRef.current &&
+          lastSuccessfulUserIdRef.current !== sessionUserId
+        ) {
+          setSubscription(null);
+          lastSuccessfulUserIdRef.current = null;
+        }
       } finally {
         hasCheckedOnceRef.current = true;
         if (shouldShowLoading) setLoading(false);
@@ -88,6 +113,8 @@ export function useSubscription() {
         setError(null);
         setLoading(false);
         hasCheckedOnceRef.current = false;
+        currentUserIdRef.current = null;
+        lastSuccessfulUserIdRef.current = null;
       }
     });
 
