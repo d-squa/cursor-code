@@ -105,7 +105,7 @@ export default function AcceptInvitation() {
       const { data: existingProfile, error: profileError } = await supabase
         .from("profiles")
         .select("id, email")
-        .eq("email", invitation.email.toLowerCase())
+        .ilike("email", invitation.email)
         .maybeSingle();
 
       if (profileError) {
@@ -158,6 +158,51 @@ export default function AcceptInvitation() {
     }
   };
 
+  const acceptInvitationBackend = async (opts?: {
+    accessToken?: string;
+    choiceOverride?: SubscriptionChoice;
+  }) => {
+    if (!token) throw new Error("Missing invitation token");
+
+    const accessToken =
+      opts?.accessToken ??
+      (await supabase.auth.getSession()).data.session?.access_token;
+
+    if (!accessToken) throw new Error("Please sign in to continue");
+
+    const { data, error: fnError } = await supabase.functions.invoke("accept-invitation", {
+      body: {
+        token,
+        subscriptionChoice: opts?.choiceOverride ?? subscriptionChoice,
+      },
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    if (fnError) throw fnError;
+    return data as { ok: boolean; already_member?: boolean };
+  };
+
+  const finishInvite = (choice?: SubscriptionChoice) => {
+    const mode = choice ?? subscriptionChoice;
+
+    if (mode) {
+      localStorage.setItem("actiplan_subscription_mode", mode);
+    }
+
+    const existingOnboarding = localStorage.getItem("actiplan_onboarding");
+    if (!existingOnboarding) {
+      localStorage.setItem(
+        "actiplan_onboarding",
+        JSON.stringify({
+          completedAt: new Date().toISOString(),
+          skippedViaTeamInvite: true,
+        })
+      );
+    }
+  };
+
   const handleCreateAccountAndJoin = async () => {
     if (!invitation) return;
 
@@ -174,8 +219,7 @@ export default function AcceptInvitation() {
     setAccepting(true);
 
     try {
-      // Create the account
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+      const { error: signUpError } = await supabase.auth.signUp({
         email: invitation.email,
         password,
         options: {
@@ -184,40 +228,9 @@ export default function AcceptInvitation() {
       });
 
       if (signUpError) throw signUpError;
-      
-      const userId = signUpData.user?.id;
-      if (!userId) throw new Error("Failed to create account");
 
-      // Add user to team with role
-      const { error: roleError } = await supabase
-        .from("user_roles")
-        .insert({
-          user_id: userId,
-          team_id: invitation.team_id,
-          role: invitation.role,
-        });
-
-      if (roleError) throw roleError;
-
-      // Update invitation status
-      const { error: updateError } = await supabase
-        .from("invitations")
-        .update({
-          status: "accepted",
-          accepted_at: new Date().toISOString(),
-        })
-        .eq("id", invitation.id);
-
-      if (updateError) throw updateError;
-
-      // Mark onboarding as complete
-      localStorage.setItem("actiplan_onboarding", JSON.stringify({
-        completedAt: new Date().toISOString(),
-        skippedViaTeamInvite: true
-      }));
-
-      // Auto sign-in the user
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      // Sign in immediately (invites should not require payment flow)
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email: invitation.email,
         password,
       });
@@ -228,11 +241,15 @@ export default function AcceptInvitation() {
         return;
       }
 
+      const accessToken = signInData.session?.access_token;
+      await acceptInvitationBackend({ accessToken });
+
+      finishInvite();
       toast.success("Welcome to ActiPlan! You've joined the team.");
       navigate("/overview");
     } catch (err: any) {
       console.error("Error creating account:", err);
-      if (err.message.includes("already registered")) {
+      if (String(err?.message || "").toLowerCase().includes("already registered")) {
         setEmailStatus("exists_other_subscription");
         setExistingSubscriptionInfo("This email is already registered. Please sign in.");
         toast.error("This email is already registered. Please sign in instead.");
@@ -250,7 +267,6 @@ export default function AcceptInvitation() {
     setAccepting(true);
 
     try {
-      // Sign in the user
       const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email: invitation.email,
         password,
@@ -258,24 +274,28 @@ export default function AcceptInvitation() {
 
       if (signInError) throw signInError;
 
-      const userId = signInData.user?.id;
-      if (!userId) throw new Error("Failed to sign in");
+      const accessToken = signInData.session?.access_token;
+      if (!accessToken) throw new Error("Missing session");
 
-      // Check if already in team
-      const { data: existingRole } = await supabase
-        .from("user_roles")
-        .select("id")
-        .eq("user_id", userId)
-        .eq("team_id", invitation.team_id)
-        .single();
+      // If the user already has a subscription, prompt about separate workspaces.
+      const { data: subData, error: subError } = await supabase.functions.invoke("check-subscription", {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
 
-      if (existingRole) {
-        toast.info("You're already a member of this team!");
-        navigate("/overview");
+      if (!subError && subData?.subscribed) {
+        setHasExistingSubscription(true);
+        setShowSubscriptionChoice(true);
+        toast.info("Choose how you'd like to use your workspaces.");
         return;
       }
 
-      // The subscription check will happen via the useEffect, which will show the choice dialog
+      await acceptInvitationBackend({ accessToken });
+      finishInvite();
+
+      toast.success("Invitation accepted! Welcome to the team.");
+      navigate("/overview");
     } catch (err: any) {
       console.error("Error signing in:", err);
       toast.error("Invalid password. Please try again.");
@@ -284,11 +304,10 @@ export default function AcceptInvitation() {
     }
   };
 
-  const handleAcceptInvitation = async () => {
+  const handleAcceptInvitation = async (choiceOverride?: SubscriptionChoice) => {
     if (!invitation || !user) return;
 
-    // If user has subscription and hasn't made a choice yet, show choice first
-    if (hasExistingSubscription && !subscriptionChoice) {
+    if (hasExistingSubscription && !choiceOverride && !subscriptionChoice) {
       setShowSubscriptionChoice(true);
       return;
     }
@@ -296,63 +315,16 @@ export default function AcceptInvitation() {
     setAccepting(true);
 
     try {
-      // Check if already in team
-      const { data: existingRole } = await supabase
-        .from("user_roles")
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("team_id", invitation.team_id)
-        .single();
+      await acceptInvitationBackend({ choiceOverride });
 
-      if (existingRole) {
-        toast.info("You're already a member of this team!");
-        navigate("/overview");
-        return;
-      }
+      finishInvite(choiceOverride);
 
-      // Add user to team with role
-      const { error: roleError } = await supabase
-        .from("user_roles")
-        .insert({
-          user_id: user.id,
-          team_id: invitation.team_id,
-          role: invitation.role,
-        });
-
-      if (roleError) throw roleError;
-
-      // Update invitation status
-      const { error: updateError } = await supabase
-        .from("invitations")
-        .update({
-          status: "accepted",
-          accepted_at: new Date().toISOString(),
-        })
-        .eq("id", invitation.id);
-
-      if (updateError) throw updateError;
-
-      // Handle subscription choice
-      if (subscriptionChoice === "team") {
+      if ((choiceOverride ?? subscriptionChoice) === "team") {
         toast.success("Invitation accepted! You can manage your personal subscription in settings.");
       } else {
         toast.success("Invitation accepted! Welcome to the team.");
       }
-      
-      // Store the choice for reference
-      if (subscriptionChoice) {
-        localStorage.setItem("actiplan_subscription_mode", subscriptionChoice);
-      }
-      
-      // Mark onboarding as complete
-      const existingOnboarding = localStorage.getItem("actiplan_onboarding");
-      if (!existingOnboarding) {
-        localStorage.setItem("actiplan_onboarding", JSON.stringify({
-          completedAt: new Date().toISOString(),
-          skippedViaTeamInvite: true
-        }));
-      }
-      
+
       navigate("/overview");
     } catch (err: any) {
       console.error("Error accepting invitation:", err);
@@ -365,6 +337,11 @@ export default function AcceptInvitation() {
   const handleSubscriptionChoice = (choice: SubscriptionChoice) => {
     setSubscriptionChoice(choice);
     setShowSubscriptionChoice(false);
+
+    // Continue automatically after selecting a workspace mode
+    setTimeout(() => {
+      void handleAcceptInvitation(choice);
+    }, 0);
   };
 
   if (loading) {
@@ -540,7 +517,7 @@ export default function AcceptInvitation() {
               </p>
 
               <Button
-                onClick={handleAcceptInvitation}
+                onClick={() => void handleAcceptInvitation()}
                 disabled={accepting || checkingSubscription || (hasExistingSubscription && !subscriptionChoice)}
                 className="w-full"
               >
