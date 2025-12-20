@@ -40,9 +40,26 @@ export default function AccountSettings() {
         .from("profiles")
         .select("*")
         .eq("id", userData.user.id)
-        .single();
+        .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching profile:", error);
+        // Return a fallback with email from auth user
+        return { 
+          id: userData.user.id, 
+          email: userData.user.email || "", 
+          company_name: null 
+        };
+      }
+      
+      // If no profile found due to RLS, use auth user email
+      if (!data) {
+        return { 
+          id: userData.user.id, 
+          email: userData.user.email || "", 
+          company_name: null 
+        };
+      }
       
       setCompanyName(data.company_name || "");
       return data;
