@@ -2156,6 +2156,7 @@ export type Database = {
         Args: { platform_id: string; token_type?: string }
         Returns: string
       }
+      get_user_highest_role: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
