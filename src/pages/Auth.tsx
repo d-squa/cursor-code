@@ -10,6 +10,7 @@ import { Loader2, Target } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { PRICE_IDS } from "@/config/subscriptionTiers";
 import { z } from "zod";
+import { useSessionManager } from "@/hooks/useSessionManager";
 
 // Input validation schemas
 const authSchema = z.object({
@@ -27,6 +28,7 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
   const [showEmailConfirmation, setShowEmailConfirmation] = useState(false);
   const navigate = useNavigate();
+  const { registerSession, startValidation, clearSession } = useSessionManager();
 
   // Check if user was redirected here because email not confirmed
   const needsEmailConfirmation = searchParams.get("confirm_email") === "true";
@@ -67,6 +69,12 @@ export default function Auth() {
           setEmail(session.user.email || "");
           return;
         }
+        
+        // Register the session for single-session enforcement
+        setTimeout(async () => {
+          await registerSession(session);
+          startValidation(session);
+        }, 0);
         
         // Check if this is a fresh email confirmation (pending signup email exists)
         const pendingEmail = localStorage.getItem("actiplan_pending_signup_email");
@@ -129,11 +137,13 @@ export default function Auth() {
             navigate("/choose-plan");
           }
         }, 0);
+      } else if (event === "SIGNED_OUT") {
+        clearSession();
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate]);
+  }, [navigate, registerSession, startValidation, clearSession]);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -165,6 +175,10 @@ export default function Auth() {
         if (error) throw error;
         toast.success("Welcome back!");
       } else {
+        // CRITICAL: Force sign-out before sign-up to prevent session contamination
+        await supabase.auth.signOut();
+        clearSession();
+        
         const { data, error } = await supabase.auth.signUp({
           email: validatedData.email,
           password: validatedData.password,

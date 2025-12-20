@@ -43,7 +43,7 @@ serve(async (req) => {
 
   const supabaseClient = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_ANON_KEY") ?? ""
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
   );
 
   try {
@@ -64,42 +64,54 @@ serve(async (req) => {
     const token = authHeader.replace("Bearer ", "");
     const { data } = await supabaseClient.auth.getUser(token);
     const user = data.user;
-    if (!user?.email) throw new Error("User not authenticated or email not available");
-    logStep("User authenticated", { email: user.email });
+    if (!user?.email || !user?.id) throw new Error("User not authenticated or email not available");
+    logStep("User authenticated", { userId: user.id, email: user.email });
 
     const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
       apiVersion: "2025-08-27.basil",
     });
 
-    // Check if a Stripe customer already exists (exact match on email)
-    const userEmail = user.email;
-    const safeEmail = userEmail.replace(/"/g, "\\\"");
-
+    // STRICT: Use billing_customers mapping - no email-based lookup
+    // This prevents cross-account subscription leakage
     let customerId: string | undefined;
 
-    try {
-      const customers = await stripe.customers.search({
-        query: `email:"${safeEmail}"`,
-        limit: 1,
+    // Check billing_customers table first
+    const { data: billingCustomer } = await supabaseClient
+      .from("billing_customers")
+      .select("stripe_customer_id")
+      .eq("user_id", user.id)
+      .single();
+
+    if (billingCustomer) {
+      customerId = billingCustomer.stripe_customer_id;
+      logStep("Found existing billing_customers mapping", { customerId });
+    } else {
+      // No mapping exists - create a new Stripe customer
+      logStep("No billing_customers mapping, creating new Stripe customer");
+      
+      const newCustomer = await stripe.customers.create({
+        email: user.email,
+        metadata: {
+          supabase_user_id: user.id
+        }
       });
+      customerId = newCustomer.id;
+      logStep("Created new Stripe customer", { customerId });
 
-      if (customers.data.length > 0) {
-        customerId = customers.data[0].id;
-        logStep("Existing customer found", { customerId });
-      }
-    } catch (searchErr) {
-      logStep("Customer search failed, falling back to list()", {
-        message: searchErr instanceof Error ? searchErr.message : String(searchErr),
-      });
+      // Store the mapping in billing_customers
+      const { error: insertError } = await supabaseClient
+        .from("billing_customers")
+        .insert({
+          user_id: user.id,
+          email: user.email,
+          stripe_customer_id: customerId
+        });
 
-      const customers = await stripe.customers.list({ limit: 100 });
-      const match = customers.data.find(
-        (c: Stripe.Customer) => (c.email ?? "").toLowerCase() === userEmail.toLowerCase()
-      );
-
-      if (match) {
-        customerId = match.id;
-        logStep("Existing customer found (list)", { customerId });
+      if (insertError) {
+        logStep("Warning: Failed to store billing_customers mapping", { error: insertError.message });
+        // Continue anyway - the customer was created
+      } else {
+        logStep("Stored billing_customers mapping");
       }
     }
 
