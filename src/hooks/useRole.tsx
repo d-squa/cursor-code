@@ -18,23 +18,21 @@ export function useRole() {
 
     const fetchRole = async () => {
       try {
-        // Fetch ALL user roles and check if they own any teams
-        const [{ data: rolesData, error: roleError }, { data: teamsData, error: teamsError }] = await Promise.all([
+        // Use security definer function to check team ownership (bypasses RLS)
+        const [{ data: rolesData, error: roleError }, { data: isOwnerResult, error: ownerError }] = await Promise.all([
           supabase
             .from("user_roles")
             .select("role")
             .eq("user_id", user.id),
-          supabase
-            .from("teams")
-            .select("id")
-            .eq("owner_id", user.id)
-            .limit(1)
+          supabase.rpc('is_team_owner', { _user_id: user.id })
         ]);
 
         if (roleError) throw roleError;
-        if (teamsError) throw teamsError;
+        if (ownerError) {
+          console.warn("Error checking team ownership, falling back to role check:", ownerError);
+        }
 
-        const ownsTeam = (teamsData && teamsData.length > 0);
+        const ownsTeam = isOwnerResult === true;
         
         // Priority order for roles - pick highest
         const rolePriority = ["owner", "admin", "campaign_manager", "collaborator", "member", "viewer"];
