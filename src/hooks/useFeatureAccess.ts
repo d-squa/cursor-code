@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useSubscription } from './useSubscription';
-import { getTierFromProductId, SubscriptionTier, ACTIPLAN_DAILY_LIMITS, TEAM_MEMBER_LIMITS, TIER_DISPLAY_NAMES } from '@/config/subscriptionTiers';
+import { SubscriptionTier, ACTIPLAN_DAILY_LIMITS, TEAM_MEMBER_LIMITS, TIER_DISPLAY_NAMES } from '@/config/subscriptionTiers';
 import { Feature, hasFeatureAccess, getRequiredTier } from '@/config/featureAccess';
 
 interface FeatureAccessResult {
@@ -26,18 +26,8 @@ interface FeatureAccessResult {
 }
 
 export function useFeatureAccess(): FeatureAccessResult {
-  const { subscription, loading, isSubscribed, isOnTrial } = useSubscription();
-  
-  const tier = useMemo(() => {
-    if (!subscription?.subscribed) {
-      // If on trial, treat as trial tier
-      if (subscription?.onTrial) {
-        return getTierFromProductId(subscription.productId);
-      }
-      return 'trial';
-    }
-    return getTierFromProductId(subscription.productId);
-  }, [subscription]);
+  // useSubscription already derives tier from priceId correctly
+  const { tier, loading, isSubscribed, isOnTrial } = useSubscription();
   
   const hasAccess = useMemo(() => {
     return (feature: Feature) => hasFeatureAccess(tier, feature);
