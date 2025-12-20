@@ -2152,6 +2152,10 @@ export type Database = {
       }
     }
     Functions: {
+      can_view_roles_in_team: {
+        Args: { _team_id: string; _viewer_id: string }
+        Returns: boolean
+      }
       get_platform_token: {
         Args: { platform_id: string; token_type?: string }
         Returns: string
