@@ -92,9 +92,17 @@ export default function ActiPlans() {
 
       if (campaignsError) throw campaignsError;
 
+      // If no campaigns, just set empty and return early
+      if (!campaignsData || campaignsData.length === 0) {
+        setCampaigns([]);
+        setIsAdminOrOwner(false);
+        setLoading(false);
+        return;
+      }
+
       // Fetch creator profiles and team names
-      const userIds = [...new Set((campaignsData || []).map((c: any) => c.user_id))];
-      const teamIds = [...new Set((campaignsData || []).map((c: any) => c.team_id).filter(Boolean))];
+      const userIds = [...new Set(campaignsData.map((c: any) => c.user_id))];
+      const teamIds = [...new Set(campaignsData.map((c: any) => c.team_id).filter(Boolean))];
 
       const [{ data: creators }, { data: teamsData }] = await Promise.all([
         userIds.length > 0
@@ -108,13 +116,14 @@ export default function ActiPlans() {
       const profilesMap: Record<string, any> = Object.fromEntries((creators || []).map((p: any) => [p.id, p]));
       const teamsMap: Record<string, any> = Object.fromEntries((teamsData || []).map((t: any) => [t.id, t]));
 
-      // Fetch user's roles to determine permissions
-      const { data: userRoles } = await supabase
-        .from("user_roles")
-        .select("team_id, role")
-        .eq("user_id", user?.id);
+      // Fetch user's roles to determine permissions using security definer RPC
+      // This bypasses RLS to prevent issues with new users
+      const [{ data: userRoles }, { data: isOwnerResult }] = await Promise.all([
+        supabase.from("user_roles").select("team_id, role").eq("user_id", user?.id),
+        supabase.rpc('is_team_owner', { _user_id: user?.id })
+      ]);
       
-      const isAdminOrOwner = userRoles?.some((r: any) => r.role === 'admin' || r.role === 'owner');
+      const isAdminOrOwner = isOwnerResult === true || userRoles?.some((r: any) => r.role === 'admin' || r.role === 'owner');
       setIsAdminOrOwner(isAdminOrOwner || false);
 
       // Fetch latest status changes for each campaign
