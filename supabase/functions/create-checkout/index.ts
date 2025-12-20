@@ -116,40 +116,22 @@ serve(async (req) => {
         limit: 10,
       });
 
-      // First try to find active/trialing subscription
-      let activeSub = subscriptions.data.find(
+      // Only look for truly active/trialing subscriptions - cancelled subscriptions should NOT block new purchases
+      const activeSub = subscriptions.data.find(
         (s: Stripe.Subscription) => s.status === "active" || s.status === "trialing"
       );
-
-      // If no active sub, check for very recently cancelled one (within last 5 mins) 
-      // This handles race condition where subscription was just cancelled
-      if (!activeSub) {
-        const fiveMinutesAgo = Math.floor(Date.now() / 1000) - 300;
-        activeSub = subscriptions.data.find(
-          (s: Stripe.Subscription) => 
-            s.status === "canceled" && 
-            s.canceled_at && 
-            s.canceled_at > fiveMinutesAgo
-        );
-        if (activeSub) {
-          logStep("Found recently cancelled subscription for comparison", { 
-            subscriptionId: activeSub.id,
-            cancelledAt: activeSub.canceled_at
-          });
-        }
-      }
 
       if (activeSub) {
         existingSubscription = activeSub;
         const currentPriceId = activeSub.items.data[0]?.price?.id;
         
-        logStep("Existing subscription found", { 
+        logStep("Existing active subscription found", { 
           subscriptionId: activeSub.id, 
           status: activeSub.status,
           currentPriceId
         });
 
-        // Check if already on the same price
+        // Check if already on the same price (only for active/trialing subs)
         if (currentPriceId === priceId) {
           return new Response(JSON.stringify({ 
             error: "You are already subscribed to this plan" 
