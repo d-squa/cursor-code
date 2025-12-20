@@ -45,44 +45,29 @@ serve(async (req) => {
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
 
-    const findCustomerIdByEmail = async (email: string): Promise<string | null> => {
-      const safeEmail = email.replace(/"/g, "\\\"");
+    // STRICT: Only use billing_customers mapping - no email-based lookup
+    // This prevents cross-account subscription leakage
+    const getCustomerIdFromMapping = async (userId: string): Promise<string | null> => {
+      const { data: billingCustomer, error } = await supabaseClient
+        .from("billing_customers")
+        .select("stripe_customer_id")
+        .eq("user_id", userId)
+        .single();
 
-      try {
-        const res = await stripe.customers.search({
-          query: `email:"${safeEmail}"`,
-          limit: 1,
-        });
-
-        const customer = res.data?.[0];
-        if (!customer) return null;
-
-        // Extra guardrail: if Stripe ever returns an unexpected record, don't accept it.
-        if ((customer.email ?? "").toLowerCase() !== email.toLowerCase()) {
-          logStep("Stripe returned customer with mismatched email - ignoring", {
-            expected: email,
-            got: customer.email,
-            customerId: customer.id,
-          });
-          return null;
-        }
-
-        return customer.id;
-      } catch (err) {
-        logStep("Customer search failed, falling back to list()", {
-          message: err instanceof Error ? err.message : String(err),
-        });
-
-        const list = await stripe.customers.list({ limit: 100 });
-        const match = list.data.find(
-          (c: Stripe.Customer) => (c.email ?? "").toLowerCase() === email.toLowerCase()
-        );
-        return match?.id ?? null;
+      if (error || !billingCustomer) {
+        logStep("No billing_customers mapping found for user", { userId });
+        return null;
       }
+
+      logStep("Found billing_customers mapping", { 
+        userId, 
+        stripeCustomerId: billingCustomer.stripe_customer_id 
+      });
+      return billingCustomer.stripe_customer_id;
     };
 
-    // First, check if user has their own subscription
-    const customerId = await findCustomerIdByEmail(user.email);
+    // First, check if user has their own subscription via billing_customers mapping
+    const customerId = await getCustomerIdFromMapping(user.id);
 
     if (customerId) {
       logStep("Found Stripe customer", { customerId });
@@ -183,23 +168,11 @@ serve(async (req) => {
         const teamOwnerId = team.owner_id;
         logStep("Checking team owner subscription", { teamId: team.id, ownerId: teamOwnerId });
 
-        // Get team owner's email from profiles
-        const { data: ownerProfile, error: profileError } = await supabaseClient
-          .from("profiles")
-          .select("email")
-          .eq("id", teamOwnerId)
-          .single();
-
-        if (profileError || !ownerProfile?.email) {
-          logStep("Could not find team owner email", { error: profileError?.message });
-          continue;
-        }
-
-        // Check if team owner has a subscription
-        const ownerCustomerId = await findCustomerIdByEmail(ownerProfile.email);
+        // STRICT: Use billing_customers mapping for team owner too
+        const ownerCustomerId = await getCustomerIdFromMapping(teamOwnerId);
 
         if (!ownerCustomerId) {
-          logStep("Team owner has no Stripe customer", { ownerEmail: ownerProfile.email });
+          logStep("Team owner has no Stripe customer mapping", { teamOwnerId });
           continue;
         }
 
