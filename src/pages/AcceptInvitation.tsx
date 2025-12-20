@@ -225,6 +225,9 @@ export default function AcceptInvitation() {
         password,
         options: {
           emailRedirectTo: `${window.location.origin}/overview`,
+          data: {
+            invited_to_team: invitation.team_id,
+          },
         },
       });
 
@@ -233,7 +236,7 @@ export default function AcceptInvitation() {
       // With auto-confirm enabled, signUp returns a session directly
       let accessToken = signUpData.session?.access_token;
 
-      // If no session from signUp (shouldn't happen with auto-confirm), try signing in
+      // If no session from signUp, sign in immediately (auto-confirm is enabled)
       if (!accessToken) {
         const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
           email: invitation.email,
@@ -241,12 +244,18 @@ export default function AcceptInvitation() {
         });
 
         if (signInError) {
-          toast.success("Account created! Please sign in to continue.");
-          navigate("/auth");
+          // This shouldn't happen with auto-confirm, but handle gracefully
+          console.error("Sign-in after signup failed:", signInError);
+          toast.error("Failed to sign in. Please try signing in manually.");
+          navigate(`/auth?email=${encodeURIComponent(invitation.email)}`);
           return;
         }
 
         accessToken = signInData.session?.access_token;
+      }
+
+      if (!accessToken) {
+        throw new Error("Failed to obtain session after signup");
       }
 
       await acceptInvitationBackend({ accessToken });
