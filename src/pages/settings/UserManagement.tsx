@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { useRole } from "@/hooks/useRole";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,68 +35,69 @@ import { FeatureGate } from "@/components/FeatureGate";
 
 export default function UserManagement() {
   const { user } = useAuth();
-  const { isAdmin, isOwner } = useRole();
+  const { workspaces, activeWorkspaceId, activeWorkspace, loading: workspacesLoading } = useWorkspace();
   const queryClient = useQueryClient();
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<string>("member");
   const [inviteTeamId, setInviteTeamId] = useState<string>("");
-  
-  // Admins and owners can manage users
-  const canManageUsers = isAdmin || isOwner;
 
-  // Fetch users with their roles - scoped to current user's teams
-  const { data: users, isLoading: loadingUsers } = useQuery({
-    queryKey: ["users-with-roles", user?.id],
+  useEffect(() => {
+    if (activeWorkspaceId) setInviteTeamId(activeWorkspaceId);
+  }, [activeWorkspaceId]);
+
+  const { data: myTeamRole } = useQuery({
+    queryKey: ["my-team-role", user?.id, activeWorkspaceId, activeWorkspace?.owner_id],
+    enabled: !!user?.id && !!activeWorkspaceId,
     queryFn: async () => {
-      if (!user?.id) return [];
+      if (!user?.id || !activeWorkspaceId) return null;
+      if (activeWorkspace?.owner_id === user.id) return "owner";
 
-      // First, get the teams the current user belongs to (either as owner or member)
-      const [{ data: ownedTeams, error: ownedError }, { data: memberTeams, error: memberError }] = await Promise.all([
-        supabase.from("teams").select("id, owner_id").eq("owner_id", user.id),
-        supabase.from("user_roles").select("team_id").eq("user_id", user.id),
+      const { data, error } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("team_id", activeWorkspaceId)
+        .maybeSingle();
+
+      if (error) throw error;
+      return (data?.role as string | null) ?? "member";
+    },
+  });
+
+  // Admins and owners can manage users (within the active workspace)
+  const canManageUsers = myTeamRole === "owner" || myTeamRole === "admin";
+
+  const activeWorkspaceName = useMemo(() => activeWorkspace?.name ?? "Workspace", [activeWorkspace?.name]);
+
+  // Fetch users with their roles - scoped to active workspace
+  const { data: users, isLoading: loadingUsers } = useQuery({
+    queryKey: ["users-with-roles", user?.id, activeWorkspaceId],
+    queryFn: async () => {
+      if (!user?.id || !activeWorkspaceId) return [];
+
+      const [{ data: team, error: teamError }, { data: teamRoles, error: rolesError }] = await Promise.all([
+        supabase.from("teams").select("id, owner_id").eq("id", activeWorkspaceId).single(),
+        supabase.from("user_roles").select("user_id, role").eq("team_id", activeWorkspaceId),
       ]);
 
-      if (ownedError) throw ownedError;
-      if (memberError) throw memberError;
-
-      // Collect all team IDs the user has access to
-      const userTeamIds = new Set<string>();
-      (ownedTeams ?? []).forEach((t: any) => userTeamIds.add(t.id));
-      (memberTeams ?? []).forEach((r: any) => {
-        if (r.team_id) userTeamIds.add(r.team_id);
-      });
-
-      if (userTeamIds.size === 0) return [];
-
-      const teamIdArray = Array.from(userTeamIds);
-
-      // Fetch roles and teams for users in these teams only
-      const [{ data: teamRoles, error: rolesError }, { data: teamsData, error: teamsError }] = await Promise.all([
-        supabase.from("user_roles").select("user_id, role, team_id").in("team_id", teamIdArray),
-        supabase.from("teams").select("id, owner_id").in("id", teamIdArray),
-      ]);
-
+      if (teamError) throw teamError;
       if (rolesError) throw rolesError;
-      if (teamsError) throw teamsError;
 
-      // Get unique user IDs from roles + team owners
-      const userIdsInTeams = new Set<string>();
-      (teamRoles ?? []).forEach((r: any) => userIdsInTeams.add(r.user_id));
-      (teamsData ?? []).forEach((t: any) => userIdsInTeams.add(t.owner_id));
+      const userIds = new Set<string>();
+      (teamRoles ?? []).forEach((r: any) => userIds.add(r.user_id));
+      if (team?.owner_id) userIds.add(team.owner_id);
 
-      if (userIdsInTeams.size === 0) return [];
+      if (userIds.size === 0) return [];
 
-      // Fetch profiles for these users
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
         .select("*")
-        .in("id", Array.from(userIdsInTeams))
+        .in("id", Array.from(userIds))
         .order("created_at", { ascending: false });
 
       if (profilesError) throw profilesError;
 
-      // Build role map from accessible teams only - include "owner" role from user_roles
       const rolesByUser = new Map<string, Set<string>>();
       (teamRoles ?? []).forEach((r: any) => {
         const set = rolesByUser.get(r.user_id) ?? new Set<string>();
@@ -104,18 +105,10 @@ export default function UserManagement() {
         rolesByUser.set(r.user_id, set);
       });
 
-      // For team owners who might not have a user_roles entry, add "owner" to their roles
-      (teamsData ?? []).forEach((t: any) => {
-        if (t.owner_id) {
-          const set = rolesByUser.get(t.owner_id) ?? new Set<string>();
-          set.add("owner");
-          rolesByUser.set(t.owner_id, set);
-        }
-      });
-
-      // Pick the highest priority role from all roles the user has
-      const priority = ["owner", "admin", "campaign_manager", "collaborator", "member", "viewer"] as const;
+      const priority = ["admin", "campaign_manager", "collaborator", "member", "viewer"] as const;
       const pickRole = (userId: string) => {
+        if (team?.owner_id && userId === team.owner_id) return "owner";
+
         const roles = rolesByUser.get(userId);
         if (!roles || roles.size === 0) return "member";
         return priority.find((p) => roles.has(p)) ?? "member";
@@ -123,39 +116,34 @@ export default function UserManagement() {
 
       return (profiles ?? []).map((profile: any) => ({ ...profile, role: pickRole(profile.id) }));
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !!activeWorkspaceId,
   });
 
-  // Fetch all teams for invitation dropdown
-  const { data: teams } = useQuery({
-    queryKey: ["teams-for-invite"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("teams")
-        .select("id, name")
-        .order("name");
-      
-      if (error) throw error;
-      return data;
-    },
-  });
+  const teams = workspaces;
 
-  // Fetch pending invitations
+
+  // Fetch pending invitations (active workspace only)
   const { data: invitations } = useQuery({
-    queryKey: ["invitations"],
+    queryKey: ["invitations", activeWorkspaceId],
     queryFn: async () => {
+      if (!activeWorkspaceId) return [];
+
       const { data, error } = await supabase
         .from("invitations")
-        .select(`
+        .select(
+          `
           *,
           teams (name)
-        `)
+        `
+        )
         .eq("status", "pending")
+        .eq("team_id", activeWorkspaceId)
         .order("created_at", { ascending: false });
-      
+
       if (error) throw error;
       return data;
     },
+    enabled: !!activeWorkspaceId,
   });
 
   // Create invitation mutation
@@ -286,10 +274,10 @@ export default function UserManagement() {
     });
   };
 
-  if (loadingUsers) {
+  if (workspacesLoading || loadingUsers) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-muted-foreground">Loading ActiPlanners...</div>
+        <div className="text-muted-foreground">Loading team members...</div>
       </div>
     );
   }
@@ -303,13 +291,10 @@ export default function UserManagement() {
             {canManageUsers ? "ActiPlanner Management" : "Team Members"}
           </h1>
           <p className="text-muted-foreground mt-1">
-            {canManageUsers 
-              ? "Invite ActiPlanners, manage permissions, and assign teams"
-              : "View team members in your organization"
-            }
+            Workspace: <span className="font-medium text-foreground">{activeWorkspaceName}</span>
           </p>
         </div>
-        
+
         {canManageUsers && (
           <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
             <DialogTrigger asChild>
