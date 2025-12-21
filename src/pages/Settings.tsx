@@ -7,18 +7,19 @@ import { Feature, getRequiredTier } from "@/config/featureAccess";
 import { TIER_DISPLAY_NAMES } from "@/config/subscriptionTiers";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { 
-  Settings as SettingsIcon, 
-  Link as LinkIcon, 
-  Users, 
-  User, 
-  CreditCard, 
+import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
+import {
+  Settings as SettingsIcon,
+  Link as LinkIcon,
+  Users,
+  User,
+  CreditCard,
   Receipt,
   ArrowLeft,
   Loader2,
   Plug,
   Lock,
-  BarChart3
+  BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -169,9 +170,9 @@ export default function Settings() {
       <header className="border-b bg-card/80 backdrop-blur-sm sticky top-0 z-50 shadow-sm">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center gap-4">
-            <Button 
-              variant="ghost" 
-              size="sm" 
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => navigate("/app")}
               className="gap-2"
             >
@@ -186,6 +187,10 @@ export default function Settings() {
                 <h1 className="text-xl font-bold">Settings</h1>
                 <p className="text-xs text-muted-foreground">Manage your account and preferences</p>
               </div>
+            </div>
+
+            <div className="ml-auto hidden sm:flex">
+              <WorkspaceSwitcher />
             </div>
           </div>
         </div>

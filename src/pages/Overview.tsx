@@ -2,15 +2,23 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
 import { Button } from "@/components/ui/button";
-import { 
-  Target, Zap, LogOut, Settings, Bug, RefreshCw, Plus, 
-  LayoutDashboard
+import {
+  Target,
+  Zap,
+  LogOut,
+  Settings,
+  Bug,
+  RefreshCw,
+  Plus,
+  LayoutDashboard,
 } from "lucide-react";
 import { BugReportDialog } from "@/components/BugReportDialog";
 import { CampaignOverviewCard } from "@/components/overview/CampaignOverviewCard";
 import { BlurredPlaceholderCard } from "@/components/overview/BlurredPlaceholderCard";
 import { Loader2 } from "lucide-react";
+import { differenceInDays, differenceInHours, startOfWeek, isAfter, subDays } from "date-fns";
 import { differenceInDays, differenceInHours, startOfWeek, isAfter, subDays } from "date-fns";
 
 interface Campaign {
@@ -429,6 +437,9 @@ const Overview = () => {
               >
                 Insights
               </button>
+
+              <WorkspaceSwitcher className="hidden md:flex ml-2" />
+
               <Button
                 variant="ghost"
                 size="sm"
