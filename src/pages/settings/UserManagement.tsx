@@ -96,10 +96,7 @@ export default function UserManagement() {
 
       if (profilesError) throw profilesError;
 
-      // Build owner set from accessible teams only
-      const ownerIds = new Set((teamsData ?? []).map((t: any) => t.owner_id).filter(Boolean));
-      
-      // Build role map from accessible teams only
+      // Build role map from accessible teams only - include "owner" role from user_roles
       const rolesByUser = new Map<string, Set<string>>();
       (teamRoles ?? []).forEach((r: any) => {
         const set = rolesByUser.get(r.user_id) ?? new Set<string>();
@@ -107,8 +104,22 @@ export default function UserManagement() {
         rolesByUser.set(r.user_id, set);
       });
 
+      // For team owners who might not have a user_roles entry, add "owner" to their roles
+      (teamsData ?? []).forEach((t: any) => {
+        if (t.owner_id) {
+          const set = rolesByUser.get(t.owner_id) ?? new Set<string>();
+          set.add("owner");
+          rolesByUser.set(t.owner_id, set);
+        }
+      });
+
+      // Pick the highest priority role from all roles the user has
       const priority = ["owner", "admin", "campaign_manager", "collaborator", "member", "viewer"] as const;
-      const pickRole = (userId: string) => (ownerIds.has(userId) ? "owner" : priority.find((p) => rolesByUser.get(userId)?.has(p)) ?? null);
+      const pickRole = (userId: string) => {
+        const roles = rolesByUser.get(userId);
+        if (!roles || roles.size === 0) return "member";
+        return priority.find((p) => roles.has(p)) ?? "member";
+      };
 
       return (profiles ?? []).map((profile: any) => ({ ...profile, role: pickRole(profile.id) }));
     },
