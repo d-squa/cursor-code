@@ -45,23 +45,63 @@ export default function UserManagement() {
   // Admins and owners can manage users
   const canManageUsers = isAdmin || isOwner;
 
-  // Fetch all users (profiles) with their roles
+  // Fetch users with their roles - scoped to current user's teams
   const { data: users, isLoading: loadingUsers } = useQuery({
-    queryKey: ["users-with-roles"],
+    queryKey: ["users-with-roles", user?.id],
     queryFn: async () => {
-      const [{ data: profiles, error: profilesError }, { data: roles, error: rolesError }, { data: teams, error: teamsError }] =
-        await Promise.all([
-          supabase.from("profiles").select("*").order("created_at", { ascending: false }),
-          supabase.from("user_roles").select("user_id, role"),
-          supabase.from("teams").select("owner_id"),
-        ]);
-      if (profilesError) throw profilesError;
+      if (!user?.id) return [];
+
+      // First, get the teams the current user belongs to (either as owner or member)
+      const [{ data: ownedTeams, error: ownedError }, { data: memberTeams, error: memberError }] = await Promise.all([
+        supabase.from("teams").select("id, owner_id").eq("owner_id", user.id),
+        supabase.from("user_roles").select("team_id").eq("user_id", user.id),
+      ]);
+
+      if (ownedError) throw ownedError;
+      if (memberError) throw memberError;
+
+      // Collect all team IDs the user has access to
+      const userTeamIds = new Set<string>();
+      (ownedTeams ?? []).forEach((t: any) => userTeamIds.add(t.id));
+      (memberTeams ?? []).forEach((r: any) => {
+        if (r.team_id) userTeamIds.add(r.team_id);
+      });
+
+      if (userTeamIds.size === 0) return [];
+
+      const teamIdArray = Array.from(userTeamIds);
+
+      // Fetch roles and teams for users in these teams only
+      const [{ data: teamRoles, error: rolesError }, { data: teamsData, error: teamsError }] = await Promise.all([
+        supabase.from("user_roles").select("user_id, role, team_id").in("team_id", teamIdArray),
+        supabase.from("teams").select("id, owner_id").in("id", teamIdArray),
+      ]);
+
       if (rolesError) throw rolesError;
       if (teamsError) throw teamsError;
 
-      const ownerIds = new Set((teams ?? []).map((t: any) => t.owner_id).filter(Boolean));
+      // Get unique user IDs from roles + team owners
+      const userIdsInTeams = new Set<string>();
+      (teamRoles ?? []).forEach((r: any) => userIdsInTeams.add(r.user_id));
+      (teamsData ?? []).forEach((t: any) => userIdsInTeams.add(t.owner_id));
+
+      if (userIdsInTeams.size === 0) return [];
+
+      // Fetch profiles for these users
+      const { data: profiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select("*")
+        .in("id", Array.from(userIdsInTeams))
+        .order("created_at", { ascending: false });
+
+      if (profilesError) throw profilesError;
+
+      // Build owner set from accessible teams only
+      const ownerIds = new Set((teamsData ?? []).map((t: any) => t.owner_id).filter(Boolean));
+      
+      // Build role map from accessible teams only
       const rolesByUser = new Map<string, Set<string>>();
-      (roles ?? []).forEach((r: any) => {
+      (teamRoles ?? []).forEach((r: any) => {
         const set = rolesByUser.get(r.user_id) ?? new Set<string>();
         set.add(r.role);
         rolesByUser.set(r.user_id, set);
@@ -72,6 +112,7 @@ export default function UserManagement() {
 
       return (profiles ?? []).map((profile: any) => ({ ...profile, role: pickRole(profile.id) }));
     },
+    enabled: !!user?.id,
   });
 
   // Fetch all teams for invitation dropdown
