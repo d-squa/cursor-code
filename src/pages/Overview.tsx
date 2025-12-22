@@ -419,7 +419,7 @@ const Overview = () => {
             </div>
             <nav className="flex items-center gap-2">
               <button
-                onClick={() => navigate("/app")}
+                onClick={() => navigate("/overview")}
                 className="px-4 py-2 text-sm font-medium text-primary border-b-2 border-primary transition-colors"
               >
                 Overview
@@ -481,7 +481,7 @@ const Overview = () => {
               <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
-            <Button onClick={() => navigate("/app/new")} size="sm">
+            <Button onClick={() => navigate("/overview?new=true")} size="sm">
               <Plus className="h-4 w-4 mr-2" />
               New ActiPlan
             </Button>

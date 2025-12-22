@@ -588,7 +588,7 @@ export default function ActiPlans() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 {canEdit(campaign) && campaign.status !== "pushed_to_dsp" && (
-                  <DropdownMenuItem onClick={() => navigate(`/app?campaignId=${campaign.id}`)}>
+                  <DropdownMenuItem onClick={() => navigate(`/overview?campaignId=${campaign.id}`)}>
                     <Edit className="w-4 h-4 mr-2" />
                     Edit ActiPlan
                   </DropdownMenuItem>
@@ -841,7 +841,7 @@ export default function ActiPlans() {
     <div className="container mx-auto py-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/app")} aria-label="Back to create ActiPlan">
+          <Button variant="ghost" size="icon" onClick={() => navigate("/overview")} aria-label="Back to create ActiPlan">
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <h1 className="text-3xl font-bold">ActiPlans</h1>
@@ -866,7 +866,7 @@ export default function ActiPlans() {
           )}
           <Button onClick={() => {
             localStorage.removeItem('draftCampaignId');
-            navigate("/app?new=true");
+            navigate("/overview?new=true");
           }}>
             New ActiPlan
           </Button>

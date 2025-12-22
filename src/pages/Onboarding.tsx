@@ -29,7 +29,7 @@ const Onboarding = () => {
       if (onboardingData) {
         const parsed = JSON.parse(onboardingData);
         if (parsed.completedAt) {
-          navigate("/app");
+          navigate("/overview");
           return;
         }
       }

@@ -104,9 +104,9 @@ export default function ChoosePlan() {
       }
     }
     
-    // Redirect to app if already subscribed
+    // Redirect to overview if already subscribed
     if (!subLoading && isSubscribed) {
-      navigate("/app");
+      navigate("/overview");
     }
   }, [user, authLoading, isSubscribed, subLoading, navigate, isEmailConfirmed]);
 

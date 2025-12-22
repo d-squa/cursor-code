@@ -49,7 +49,7 @@ const App = () => (
             {/* Protected app routes - require subscription */}
             <Route path="/overview" element={<SubscriptionGuard><Overview /></SubscriptionGuard>} />
             <Route path="/app" element={<SubscriptionGuard><Navigate to="/overview" replace /></SubscriptionGuard>} />
-            <Route path="/app/new" element={<SubscriptionGuard><AppHome /></SubscriptionGuard>} />
+            <Route path="/app/new" element={<SubscriptionGuard><Navigate to="/overview?new=true" replace /></SubscriptionGuard>} />
             <Route path="/actiplans" element={<SubscriptionGuard><ActiPlans /></SubscriptionGuard>} />
             <Route path="/actiplans/:campaignId/launch" element={<SubscriptionGuard><LaunchStatus /></SubscriptionGuard>} />
             <Route path="/actiplans/:campaignId/report" element={<SubscriptionGuard><PerformanceReport /></SubscriptionGuard>} />

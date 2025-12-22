@@ -119,7 +119,7 @@ export const OnboardingWizard = () => {
           
           if (subData?.subscribed) {
             toast.success("Welcome to ActiPlan! Let's get started.");
-            navigate("/app");
+            navigate("/overview");
           } else {
             // Not subscribed - automatically start Basic Monthly trial checkout
             toast.success("Almost there! Complete your free trial setup.");
@@ -388,7 +388,7 @@ export const OnboardingWizard = () => {
                   });
                   
                   if (subData?.subscribed) {
-                    navigate("/app");
+                    navigate("/overview");
                   } else {
                     await startBasicTrial();
                   }
