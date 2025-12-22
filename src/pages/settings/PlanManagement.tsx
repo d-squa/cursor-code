@@ -290,7 +290,10 @@ export default function PlanManagement() {
   };
 
   const isCurrentPlan = (planId: string): boolean => {
-    return tier === planId;
+    // Must match both the tier AND the billing period toggle
+    const matchesTier = tier === planId;
+    const matchesBillingPeriod = billingPeriod === (isYearly ? 'yearly' : 'monthly');
+    return matchesTier && matchesBillingPeriod;
   };
 
   const getPlanTierIndex = (planId: string): number => {
