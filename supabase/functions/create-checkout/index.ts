@@ -24,16 +24,16 @@ const BASIC_PRICE_IDS = [
   "price_1ScnL9KrTGU4P754QirsF0Sd"  // yearly
 ];
 
-// Price amounts in cents for comparison (to detect upgrade vs downgrade)
-const PRICE_AMOUNTS: Record<string, number> = {
-  "price_1ScnObKrTGU4P754AAJ9Q5NU": 3900,    // Basic Monthly $39
-  "price_1ScnL9KrTGU4P754QirsF0Sd": 39780,   // Basic Yearly $397.80
-  "price_1ScnOcKrTGU4P754y5pmh5jf": 8900,    // Freelancer Monthly $89
-  "price_1ScnNYKrTGU4P754hbyoSjdc": 90780,   // Freelancer Yearly $907.80
-  "price_1ScnOdKrTGU4P7542mtt9uyC": 18900,   // Enterprise Monthly $189
-  "price_1ScnOOKrTGU4P754r7bdJ94j": 192780,  // Enterprise Yearly $1927.80
-  "price_1ScnOeKrTGU4P75446dvndr3": 99900,   // Agency Monthly $999
-  "price_1ScnOPKrTGU4P754sNgouHiL": 1018980, // Agency Yearly $10189.80
+// Price metadata for GTM tracking and comparison
+const PRICE_METADATA: Record<string, { amount: number; planName: string; productId: string; billingCycle: 'monthly' | 'yearly' }> = {
+  "price_1ScnObKrTGU4P754AAJ9Q5NU": { amount: 3900, planName: "Basic", productId: "prod_TZxJsj5K3hZ8Ku", billingCycle: "monthly" },
+  "price_1ScnL9KrTGU4P754QirsF0Sd": { amount: 39780, planName: "Basic", productId: "prod_TZxJsj5K3hZ8Ku", billingCycle: "yearly" },
+  "price_1ScnOcKrTGU4P754y5pmh5jf": { amount: 8900, planName: "Freelancer", productId: "prod_TZxJ4XAvny2Nnl", billingCycle: "monthly" },
+  "price_1ScnNYKrTGU4P754hbyoSjdc": { amount: 90780, planName: "Freelancer", productId: "prod_TZxJ4XAvny2Nnl", billingCycle: "yearly" },
+  "price_1ScnOdKrTGU4P7542mtt9uyC": { amount: 18900, planName: "Enterprise", productId: "prod_TZxJTdbXy2Rlhb", billingCycle: "monthly" },
+  "price_1ScnOOKrTGU4P754r7bdJ94j": { amount: 192780, planName: "Enterprise", productId: "prod_TZxJTdbXy2Rlhb", billingCycle: "yearly" },
+  "price_1ScnOeKrTGU4P75446dvndr3": { amount: 99900, planName: "Agency", productId: "prod_TZxJAdnaSLNRsJ", billingCycle: "monthly" },
+  "price_1ScnOPKrTGU4P754sNgouHiL": { amount: 1018980, planName: "Agency", productId: "prod_TZxJAdnaSLNRsJ", billingCycle: "yearly" },
 };
 
 serve(async (req) => {
@@ -154,8 +154,8 @@ serve(async (req) => {
         }
 
         // Determine if this is a downgrade
-        const currentAmount = PRICE_AMOUNTS[currentPriceId || ''] || 0;
-        const newAmount = PRICE_AMOUNTS[priceId] || 0;
+        const currentAmount = PRICE_METADATA[currentPriceId || '']?.amount || 0;
+        const newAmount = PRICE_METADATA[priceId]?.amount || 0;
         const isDowngrade = newAmount < currentAmount;
         const isTrialing = activeSub.status === "trialing";
 
@@ -237,6 +237,7 @@ serve(async (req) => {
 
         // Create checkout session for the new plan
         // Store previous subscription ID and refund info in metadata
+        const priceInfo = PRICE_METADATA[priceId];
         const session = await stripe.checkout.sessions.create({
           customer: customerId,
           line_items: [
@@ -247,6 +248,12 @@ serve(async (req) => {
           ],
           mode: "subscription",
           payment_method_collection: "always",
+          metadata: {
+            plan_name: priceInfo?.planName || "Unknown",
+            stripe_price_id: priceId,
+            stripe_product_id: priceInfo?.productId || "",
+            billing_cycle: priceInfo?.billingCycle || "monthly",
+          },
           subscription_data: {
             metadata: {
               previous_subscription_id: activeSub.id,
@@ -293,6 +300,7 @@ serve(async (req) => {
       logStep("Adding 30-day trial period");
     }
 
+    const priceInfo = PRICE_METADATA[priceId];
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       customer_email: customerId ? undefined : user.email,
@@ -304,6 +312,12 @@ serve(async (req) => {
       ],
       mode: "subscription",
       payment_method_collection: "always",
+      metadata: {
+        plan_name: priceInfo?.planName || "Unknown",
+        stripe_price_id: priceId,
+        stripe_product_id: priceInfo?.productId || "",
+        billing_cycle: priceInfo?.billingCycle || "monthly",
+      },
       subscription_data: Object.keys(subscriptionData).length > 0 ? subscriptionData : undefined,
       success_url: `${origin}/settings/plans?success=true&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/settings/plans?canceled=true`,
