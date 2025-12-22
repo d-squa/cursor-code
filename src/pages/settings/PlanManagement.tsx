@@ -100,11 +100,15 @@ export default function PlanManagement() {
       const canceled = searchParams.get("canceled");
       const portalReturn = searchParams.get("portal_return");
 
-      // Optional GTM-friendly params (added by backend when creating checkout session)
+      // GTM-friendly params (added by backend when creating checkout session)
       const planName = searchParams.get("plan_name");
       const stripePriceId = searchParams.get("stripe_price_id");
       const stripeProductId = searchParams.get("stripe_product_id");
       const billingCycle = searchParams.get("billing_cycle");
+      const isTrial = searchParams.get("is_trial");
+      const price = searchParams.get("price");
+      const quantity = searchParams.get("quantity");
+      const currency = searchParams.get("currency");
 
       // Early exit if no relevant params
       if (!success && !canceled && !portalReturn) {
@@ -116,13 +120,33 @@ export default function PlanManagement() {
         if (success === "true" && sessionId) {
           const w = window as any;
           w.dataLayer = w.dataLayer || [];
+          
+          const priceValue = price ? parseFloat(price) : 0;
+          const quantityValue = quantity ? parseInt(quantity, 10) : 1;
+          
+          // GA4 ecommerce purchase event format
           w.dataLayer.push({
-            event: "stripe_checkout_success",
+            event: "purchase",
+            ecommerce: {
+              transaction_id: sessionId,
+              value: priceValue,
+              currency: currency || "USD",
+              items: [{
+                item_id: stripeProductId || undefined,
+                item_name: planName || undefined,
+                price: priceValue,
+                quantity: quantityValue,
+                item_category: "subscription",
+                item_variant: billingCycle || undefined,
+              }]
+            },
+            // Additional custom params for GTM flexibility
             stripe_session_id: sessionId,
             stripe_price_id: stripePriceId || undefined,
             stripe_product_id: stripeProductId || undefined,
             plan_name: planName || undefined,
             billing_cycle: billingCycle || undefined,
+            is_trial: isTrial === "true",
           });
         }
 

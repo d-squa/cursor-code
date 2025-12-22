@@ -238,11 +238,16 @@ serve(async (req) => {
         // Create checkout session for the new plan
         // Store previous subscription ID and refund info in metadata
         const priceInfo = PRICE_METADATA[priceId];
+        const priceInCurrency = priceInfo ? (priceInfo.amount / 100).toFixed(2) : "0.00";
         const successUrl = `${origin}/settings/plans?success=true&session_id={CHECKOUT_SESSION_ID}` +
           `&plan_name=${encodeURIComponent(priceInfo?.planName || "")}` +
           `&stripe_price_id=${encodeURIComponent(priceId)}` +
           `&stripe_product_id=${encodeURIComponent(priceInfo?.productId || "")}` +
-          `&billing_cycle=${encodeURIComponent(priceInfo?.billingCycle || "")}`;
+          `&billing_cycle=${encodeURIComponent(priceInfo?.billingCycle || "")}` +
+          `&is_trial=false` +
+          `&price=${encodeURIComponent(priceInCurrency)}` +
+          `&quantity=1` +
+          `&currency=USD`;
 
         const session = await stripe.checkout.sessions.create({
           customer: customerId,
@@ -307,11 +312,16 @@ serve(async (req) => {
     }
 
     const priceInfo = PRICE_METADATA[priceId];
+    const priceInCurrency = priceInfo ? (priceInfo.amount / 100).toFixed(2) : "0.00";
     const successUrl = `${origin}/settings/plans?success=true&session_id={CHECKOUT_SESSION_ID}` +
       `&plan_name=${encodeURIComponent(priceInfo?.planName || "")}` +
       `&stripe_price_id=${encodeURIComponent(priceId)}` +
       `&stripe_product_id=${encodeURIComponent(priceInfo?.productId || "")}` +
-      `&billing_cycle=${encodeURIComponent(priceInfo?.billingCycle || "")}`;
+      `&billing_cycle=${encodeURIComponent(priceInfo?.billingCycle || "")}` +
+      `&is_trial=${shouldHaveTrial}` +
+      `&price=${encodeURIComponent(priceInCurrency)}` +
+      `&quantity=1` +
+      `&currency=USD`;
 
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
