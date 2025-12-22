@@ -238,6 +238,12 @@ serve(async (req) => {
         // Create checkout session for the new plan
         // Store previous subscription ID and refund info in metadata
         const priceInfo = PRICE_METADATA[priceId];
+        const successUrl = `${origin}/settings/plans?success=true&session_id={CHECKOUT_SESSION_ID}` +
+          `&plan_name=${encodeURIComponent(priceInfo?.planName || "")}` +
+          `&stripe_price_id=${encodeURIComponent(priceId)}` +
+          `&stripe_product_id=${encodeURIComponent(priceInfo?.productId || "")}` +
+          `&billing_cycle=${encodeURIComponent(priceInfo?.billingCycle || "")}`;
+
         const session = await stripe.checkout.sessions.create({
           customer: customerId,
           line_items: [
@@ -261,19 +267,19 @@ serve(async (req) => {
               is_downgrade: isDowngrade.toString(),
             },
           },
-          success_url: `${origin}/settings/plans?success=true&session_id={CHECKOUT_SESSION_ID}`,
+          success_url: successUrl,
           cancel_url: `${origin}/settings/plans?canceled=true`,
         });
 
-        logStep("Plan change checkout session created", { 
-          sessionId: session.id, 
+        logStep("Plan change checkout session created", {
+          sessionId: session.id,
           url: session.url,
           previousSubscriptionId: activeSub.id,
           refundAmount,
           isDowngrade
         });
 
-        return new Response(JSON.stringify({ 
+        return new Response(JSON.stringify({
           url: session.url,
           type: 'checkout'
         }), {
@@ -286,21 +292,27 @@ serve(async (req) => {
     // NEW SUBSCRIPTION: Use Stripe Checkout
     // Trial only for Basic plan with no existing subscription
     const shouldHaveTrial = isBasicPlan && !existingSubscription;
-    
-    logStep("Creating checkout for new subscription", { 
-      isBasicPlan, 
+
+    logStep("Creating checkout for new subscription", {
+      isBasicPlan,
       hasExistingCustomer: !!customerId,
       hasTrialPeriod: shouldHaveTrial
     });
 
     const subscriptionData: Stripe.Checkout.SessionCreateParams.SubscriptionData = {};
-    
+
     if (shouldHaveTrial) {
       subscriptionData.trial_period_days = 30;
       logStep("Adding 30-day trial period");
     }
 
     const priceInfo = PRICE_METADATA[priceId];
+    const successUrl = `${origin}/settings/plans?success=true&session_id={CHECKOUT_SESSION_ID}` +
+      `&plan_name=${encodeURIComponent(priceInfo?.planName || "")}` +
+      `&stripe_price_id=${encodeURIComponent(priceId)}` +
+      `&stripe_product_id=${encodeURIComponent(priceInfo?.productId || "")}` +
+      `&billing_cycle=${encodeURIComponent(priceInfo?.billingCycle || "")}`;
+
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       customer_email: customerId ? undefined : user.email,
@@ -319,7 +331,7 @@ serve(async (req) => {
         billing_cycle: priceInfo?.billingCycle || "monthly",
       },
       subscription_data: Object.keys(subscriptionData).length > 0 ? subscriptionData : undefined,
-      success_url: `${origin}/settings/plans?success=true&session_id={CHECKOUT_SESSION_ID}`,
+      success_url: successUrl,
       cancel_url: `${origin}/settings/plans?canceled=true`,
     });
 

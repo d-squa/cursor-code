@@ -100,46 +100,68 @@ export default function PlanManagement() {
       const canceled = searchParams.get("canceled");
       const portalReturn = searchParams.get("portal_return");
 
+      // Optional GTM-friendly params (added by backend when creating checkout session)
+      const planName = searchParams.get("plan_name");
+      const stripePriceId = searchParams.get("stripe_price_id");
+      const stripeProductId = searchParams.get("stripe_product_id");
+      const billingCycle = searchParams.get("billing_cycle");
+
       // Early exit if no relevant params
       if (!success && !canceled && !portalReturn) {
         return;
       }
 
-      // Clear URL params immediately to prevent re-execution
-      setSearchParams({}, { replace: true });
-
-      if (success === "true" && sessionId) {
-        // Finalize plan change - this will cancel the old subscription if it was an upgrade
-        try {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session) {
-            const { data, error } = await supabase.functions.invoke("finalize-plan-change", {
-              body: { sessionId },
-              headers: {
-                Authorization: `Bearer ${session.access_token}`,
-              },
-            });
-            
-            if (error) {
-              console.error("Finalize error:", error);
-            } else {
-              toast.success(data?.message || "Subscription updated successfully!");
-            }
-          }
-        } catch (err) {
-          console.error("Finalize error:", err);
-          toast.success("Subscription activated!");
+      try {
+        // Push to dataLayer BEFORE we clear URL params (so GTM can reliably pick it up)
+        if (success === "true" && sessionId) {
+          const w = window as any;
+          w.dataLayer = w.dataLayer || [];
+          w.dataLayer.push({
+            event: "stripe_checkout_success",
+            stripe_session_id: sessionId,
+            stripe_price_id: stripePriceId || undefined,
+            stripe_product_id: stripeProductId || undefined,
+            plan_name: planName || undefined,
+            billing_cycle: billingCycle || undefined,
+          });
         }
-        refetch();
-      } else if (success === "true") {
-        toast.success("Subscription activated successfully!");
-        refetch();
-      } else if (portalReturn === "true") {
-        // Returning from Customer Portal - refresh subscription status
-        toast.success("Subscription updated!");
-        refetch();
-      } else if (canceled === "true") {
-        toast.info("Checkout was canceled.");
+
+        if (success === "true" && sessionId) {
+          // Finalize plan change - this will cancel the old subscription if it was an upgrade
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+              const { data, error } = await supabase.functions.invoke("finalize-plan-change", {
+                body: { sessionId },
+                headers: {
+                  Authorization: `Bearer ${session.access_token}`,
+                },
+              });
+
+              if (error) {
+                console.error("Finalize error:", error);
+              } else {
+                toast.success(data?.message || "Subscription updated successfully!");
+              }
+            }
+          } catch (err) {
+            console.error("Finalize error:", err);
+            toast.success("Subscription activated!");
+          }
+          refetch();
+        } else if (success === "true") {
+          toast.success("Subscription activated successfully!");
+          refetch();
+        } else if (portalReturn === "true") {
+          // Returning from Customer Portal - refresh subscription status
+          toast.success("Subscription updated!");
+          refetch();
+        } else if (canceled === "true") {
+          toast.info("Checkout was canceled.");
+        }
+      } finally {
+        // Clear URL params to prevent re-execution
+        setSearchParams({}, { replace: true });
       }
     };
 
