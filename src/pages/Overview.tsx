@@ -19,7 +19,6 @@ import { CampaignOverviewCard } from "@/components/overview/CampaignOverviewCard
 import { BlurredPlaceholderCard } from "@/components/overview/BlurredPlaceholderCard";
 import { Loader2 } from "lucide-react";
 import { differenceInDays, differenceInHours, startOfWeek, isAfter, subDays } from "date-fns";
-import { differenceInDays, differenceInHours, startOfWeek, isAfter, subDays } from "date-fns";
 
 interface Campaign {
   id: string;
