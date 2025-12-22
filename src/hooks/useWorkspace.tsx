@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -15,6 +15,7 @@ function storageKey(userId: string) {
 
 export function useWorkspace() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [activeWorkspaceId, _setActiveWorkspaceId] = useState<string | null>(null);
 
   const { data: workspaces = [], isLoading } = useQuery({
@@ -69,8 +70,15 @@ export function useWorkspace() {
 
       _setActiveWorkspaceId(nextId);
       localStorage.setItem(storageKey(user.id), nextId);
+      
+      // Invalidate all workspace-dependent queries to trigger a refetch
+      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+      queryClient.invalidateQueries({ queryKey: ["clients"] });
+      queryClient.invalidateQueries({ queryKey: ["team-members"] });
+      queryClient.invalidateQueries({ queryKey: ["user-roles"] });
+      queryClient.invalidateQueries({ queryKey: ["subscription"] });
     },
-    [user?.id, workspaces]
+    [user?.id, workspaces, queryClient]
   );
 
   const activeWorkspace = useMemo(
