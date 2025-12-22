@@ -101,26 +101,24 @@ export default function AcceptInvitation() {
     setEmailStatus("checking");
     
     try {
-      // Check if email exists in profiles table (meaning they already have an account with at least one workspace)
-      const { data: existingProfile, error: profileError } = await supabase
-        .from("profiles")
-        .select("id, email")
-        .ilike("email", invitation.email)
-        .maybeSingle();
+      // Use a backend check (based on the invitation token) to determine if the invited email already has an account.
+      // This avoids relying on public profile rows which may not exist for all accounts.
+      const { data, error: statusError } = await supabase.functions.invoke("invitation-account-status", {
+        body: { token },
+      });
 
-      if (profileError) {
-        console.error("Error checking profile:", profileError);
+      if (statusError) {
         // If we can't check, assume new user
         setEmailStatus("new");
         return;
       }
 
-      if (existingProfile) {
-        // User already has an account with a workspace - they just need to sign in (no password setup needed)
+      if (data?.exists) {
+        // Existing user: they should sign in (no password creation)
         setEmailStatus("exists_other_subscription");
         setExistingSubscriptionInfo("You already have an ActiPlan account. Sign in to join this workspace.");
       } else {
-        // User doesn't exist - new user, needs to create password
+        // New user: needs to create password
         setEmailStatus("new");
       }
     } catch (err) {
