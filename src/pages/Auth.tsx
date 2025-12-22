@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Loader2, Target } from "lucide-react";
+import { Loader2, Target, CheckCircle2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { PRICE_IDS } from "@/config/subscriptionTiers";
 import { z } from "zod";
@@ -27,123 +27,157 @@ export default function Auth() {
   const [companyName, setCompanyName] = useState("");
   const [loading, setLoading] = useState(false);
   const [showEmailConfirmation, setShowEmailConfirmation] = useState(false);
+  const [showPostConfirmSuccess, setShowPostConfirmSuccess] = useState(false);
   const navigate = useNavigate();
   const { registerSession, startValidation, clearSession } = useSessionManager();
 
   // Check if user was redirected here because email not confirmed
   const needsEmailConfirmation = searchParams.get("confirm_email") === "true";
+  const isConfirmedRedirect = searchParams.get("confirmed") === "true";
 
   useEffect(() => {
-    const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        // Check if email is confirmed
-        if (!session.user.email_confirmed_at) {
-          // User needs to confirm email - show confirmation screen
-          setShowEmailConfirmation(true);
-          setEmail(session.user.email || "");
-          return;
-        }
-        
-        // Check if onboarding is complete
-        const onboardingData = localStorage.getItem("actiplan_onboarding");
-        if (onboardingData) {
-          const parsed = JSON.parse(onboardingData);
-          if (parsed.completedAt) {
-            navigate("/app");
-            return;
-          }
-        }
-        // If not complete, redirect to onboarding
-        navigate("/onboarding");
-      }
-    };
-    checkUser();
+    let isMounted = true;
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session) {
-        // Check if email is confirmed
-        if (!session.user.email_confirmed_at) {
-          // Show email confirmation screen
-          setShowEmailConfirmation(true);
-          setEmail(session.user.email || "");
-          return;
-        }
-        
-        // Register the session for single-session enforcement
-        setTimeout(async () => {
-          await registerSession(session);
-          startValidation(session);
-        }, 0);
-        
-        // Check if this is a fresh email confirmation (pending signup email exists)
-        const pendingEmail = localStorage.getItem("actiplan_pending_signup_email");
-        const isFreshConfirmation = pendingEmail !== null;
-        
-        if (isFreshConfirmation) {
-          // Fresh confirmation - clear ALL onboarding data and pending email
+    const checkUser = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!isMounted || !session) return;
+
+      // If email needs confirmation, force confirmation screen
+      if (!session.user.email_confirmed_at || needsEmailConfirmation) {
+        setShowEmailConfirmation(true);
+        setEmail(session.user.email || "");
+        return;
+      }
+
+      // If we have a pending signup email, ONLY proceed if we arrived from the email-confirm link
+      const pendingEmail = localStorage.getItem("actiplan_pending_signup_email");
+      if (pendingEmail) {
+        if (isConfirmedRedirect) {
           localStorage.removeItem("actiplan_pending_signup_email");
           localStorage.removeItem("actiplan_onboarding");
           setShowEmailConfirmation(false);
-          // ALWAYS redirect to onboarding for fresh confirmations
-          navigate("/onboarding");
+          setShowPostConfirmSuccess(true);
+        } else {
+          setShowEmailConfirmation(true);
+          setEmail(pendingEmail);
+        }
+        return;
+      }
+
+      // Otherwise, normal routing
+      const onboardingData = localStorage.getItem("actiplan_onboarding");
+      const onboardingComplete = onboardingData && JSON.parse(onboardingData).completedAt;
+
+      if (onboardingComplete) {
+        navigate("/overview");
+        return;
+      }
+
+      navigate("/onboarding");
+    };
+
+    checkUser();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session) {
+        if (!session.user.email_confirmed_at) {
+          setShowEmailConfirmation(true);
+          setEmail(session.user.email || "");
           return;
         }
-        
+
+        // Register the session for single-session enforcement (async, deferred)
+        setTimeout(() => {
+          void (async () => {
+            await registerSession(session);
+            startValidation(session);
+          })();
+        }, 0);
+
+        const pendingEmail = localStorage.getItem("actiplan_pending_signup_email");
+        if (pendingEmail) {
+          if (isConfirmedRedirect) {
+            localStorage.removeItem("actiplan_pending_signup_email");
+            localStorage.removeItem("actiplan_onboarding");
+            setShowEmailConfirmation(false);
+            setShowPostConfirmSuccess(true);
+          } else {
+            setShowEmailConfirmation(true);
+            setEmail(pendingEmail);
+          }
+          return;
+        }
+
         setShowEmailConfirmation(false);
-        
-        // For returning users (no pending email), check onboarding status
+        setShowPostConfirmSuccess(false);
+
         const onboardingData = localStorage.getItem("actiplan_onboarding");
         const onboardingComplete = onboardingData && JSON.parse(onboardingData).completedAt;
-        
+
         if (!onboardingComplete) {
-          // If onboarding not complete, go to onboarding
           navigate("/onboarding");
           return;
         }
-        
+
         // Onboarding complete - check subscription status and auto-start Basic trial
-        setTimeout(async () => {
-          try {
-            const { data: subData } = await supabase.functions.invoke("check-subscription", {
-              headers: {
-                Authorization: `Bearer ${session.access_token}`,
-              },
-            });
-            
-            if (subData?.subscribed) {
-              // Has subscription, go to app
-              navigate("/app");
-            } else {
+        setTimeout(() => {
+          void (async () => {
+            try {
+              const { data: subData } = await supabase.functions.invoke("check-subscription", {
+                headers: {
+                  Authorization: `Bearer ${session.access_token}`,
+                },
+              });
+
+              if (subData?.subscribed) {
+                navigate("/overview");
+                return;
+              }
+
               // No subscription - automatically start Basic Monthly trial checkout
               const priceId = PRICE_IDS.basic.monthly;
-              const { data, error } = await supabase.functions.invoke("create-checkout", {
+              const { data } = await supabase.functions.invoke("create-checkout", {
                 body: { priceId },
                 headers: {
                   Authorization: `Bearer ${session.access_token}`,
                 },
               });
-              
+
               if (data?.url) {
                 window.location.href = data.url;
               } else {
-                // Fallback to choose plan page if checkout fails
                 navigate("/choose-plan");
               }
+            } catch (error) {
+              console.error("Error checking subscription:", error);
+              navigate("/choose-plan");
             }
-          } catch (error) {
-            console.error("Error checking subscription:", error);
-            // On error, go to choose plan to be safe
-            navigate("/choose-plan");
-          }
+          })();
         }, 0);
-      } else if (event === "SIGNED_OUT") {
+      }
+
+      if (event === "SIGNED_OUT") {
         clearSession();
       }
     });
 
-    return () => subscription.unsubscribe();
-  }, [navigate, registerSession, startValidation, clearSession]);
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, [
+    navigate,
+    registerSession,
+    startValidation,
+    clearSession,
+    needsEmailConfirmation,
+    isConfirmedRedirect,
+  ]);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -183,7 +217,7 @@ export default function Auth() {
           email: validatedData.email,
           password: validatedData.password,
           options: {
-            emailRedirectTo: `${window.location.origin}/auth`,
+            emailRedirectTo: `${window.location.origin}/auth?confirmed=true`,
             data: {
               company_name: validatedData.companyName,
             },
@@ -226,6 +260,39 @@ export default function Auth() {
     }
   };
 
+  // Show post-confirmation success screen
+  if (showPostConfirmSuccess) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <div className="flex items-center justify-center mb-4">
+              <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
+                <CheckCircle2 className="h-8 w-8 text-primary" />
+              </div>
+            </div>
+            <CardTitle className="text-2xl">Email Confirmed</CardTitle>
+            <CardDescription className="mt-2">
+              Your account is verified. You can continue to onboarding.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Button className="w-full" onClick={() => navigate("/onboarding")}>Continue</Button>
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={() => navigate("/")}
+                className="text-sm text-muted-foreground hover:text-foreground"
+              >
+                ← Back to home
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   // Show email confirmation screen after signup
   if (showEmailConfirmation) {
     return (
@@ -250,8 +317,8 @@ export default function Auth() {
             </p>
             <div className="pt-4 border-t">
               <p className="text-sm text-muted-foreground mb-2">Didn't receive the email?</p>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 size="sm"
                 onClick={() => {
                   setShowEmailConfirmation(false);
