@@ -67,18 +67,23 @@ export function useWorkspace() {
     (nextId: string) => {
       if (!user?.id) return;
       if (!workspaces.some((w) => w.id === nextId)) return;
+      if (nextId === activeWorkspaceId) return;
 
       _setActiveWorkspaceId(nextId);
       localStorage.setItem(storageKey(user.id), nextId);
-      
+
       // Invalidate all workspace-dependent queries to trigger a refetch
       queryClient.invalidateQueries({ queryKey: ["campaigns"] });
       queryClient.invalidateQueries({ queryKey: ["clients"] });
       queryClient.invalidateQueries({ queryKey: ["team-members"] });
       queryClient.invalidateQueries({ queryKey: ["user-roles"] });
       queryClient.invalidateQueries({ queryKey: ["subscription"] });
+
+      // Some screens keep local state that doesn't automatically reset on workspace change;
+      // force a reload so the UI always reflects the newly selected workspace.
+      setTimeout(() => window.location.reload(), 0);
     },
-    [user?.id, workspaces, queryClient]
+    [user?.id, workspaces, queryClient, activeWorkspaceId]
   );
 
   const activeWorkspace = useMemo(
