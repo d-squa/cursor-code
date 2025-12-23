@@ -6,6 +6,12 @@ import {
   TIER_DISPLAY_NAMES,
 } from "@/config/subscriptionTiers";
 
+// Helper to get active workspace ID from localStorage
+function getActiveWorkspaceId(userId: string | undefined): string | null {
+  if (!userId) return null;
+  return localStorage.getItem(`actiplan.activeWorkspaceId:${userId}`);
+}
+
 interface SubscriptionStatus {
   subscribed: boolean;
   onTrial: boolean;
@@ -61,12 +67,16 @@ export function useSubscription() {
           setSubscription(null);
         }
 
+        // Pass active workspace ID so subscription is scoped correctly
+        const activeWorkspaceId = getActiveWorkspaceId(sessionUserId);
+
         const { data, error: fnError } = await supabase.functions.invoke(
           "check-subscription",
           {
             headers: {
               Authorization: `Bearer ${session.access_token}`,
             },
+            body: { activeWorkspaceId },
           }
         );
 

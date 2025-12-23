@@ -26,6 +26,16 @@ serve(async (req) => {
   try {
     logStep("Function started");
 
+    // Parse request body for activeWorkspaceId
+    let activeWorkspaceId: string | null = null;
+    try {
+      const body = await req.json();
+      activeWorkspaceId = body?.activeWorkspaceId ?? null;
+      logStep("Received activeWorkspaceId", { activeWorkspaceId });
+    } catch {
+      // No body or invalid JSON - that's ok
+    }
+
     const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
     if (!stripeKey) throw new Error("STRIPE_SECRET_KEY is not set");
     logStep("Stripe key verified");
@@ -65,6 +75,28 @@ serve(async (req) => {
       });
       return billingCustomer.stripe_customer_id;
     };
+
+    // Determine if we're checking personal workspace or a team workspace
+    // If activeWorkspaceId is provided, check if user owns that workspace
+    let isPersonalWorkspace = true;
+    let teamToCheck: { id: string; owner_id: string } | null = null;
+
+    if (activeWorkspaceId) {
+      const { data: team } = await supabaseClient
+        .from("teams")
+        .select("id, owner_id")
+        .eq("id", activeWorkspaceId)
+        .single();
+
+      if (team) {
+        // If user owns this workspace, it's their personal workspace
+        isPersonalWorkspace = team.owner_id === user.id;
+        if (!isPersonalWorkspace) {
+          teamToCheck = team;
+        }
+        logStep("Workspace check", { activeWorkspaceId, isPersonalWorkspace, teamOwnerId: team.owner_id });
+      }
+    }
 
     // First, check if user has their own subscription via billing_customers mapping
     const customerId = await getCustomerIdFromMapping(user.id);
@@ -133,37 +165,30 @@ serve(async (req) => {
       }
     }
 
-    logStep("No personal subscription found, checking team membership");
-
-    // Check if user is a member of any team (only consider roles with a team_id)
-    const { data: userRoles, error: rolesError } = await supabaseClient
-      .from("user_roles")
-      .select("team_id, role")
-      .eq("user_id", user.id)
-      .not("team_id", "is", null);
-
-    if (rolesError) {
-      logStep("Error fetching user roles", { error: rolesError.message });
+    // If viewing personal workspace and no personal subscription, return unsubscribed
+    // Don't check team subscriptions for personal workspace
+    if (isPersonalWorkspace) {
+      logStep("Personal workspace with no personal subscription");
+      return new Response(JSON.stringify({ 
+        subscribed: false,
+        onTrial: false,
+        productId: null,
+        priceId: null,
+        billingPeriod: null,
+        subscriptionEnd: null,
+        trialEnd: null,
+        subscriptionType: "personal"
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
     }
 
-    if (userRoles && userRoles.length > 0) {
-      logStep("User has team memberships", { count: userRoles.length });
+    // We're viewing a team workspace - check only THAT team's owner subscription
+    logStep("Checking team workspace subscription", { teamId: teamToCheck?.id });
 
-      // Check each team's owner for an active subscription
-      for (const userRole of userRoles) {
-        const teamId = userRole.team_id;
-        
-        // Get the team to find the owner
-        const { data: team, error: teamError } = await supabaseClient
-          .from("teams")
-          .select("id, owner_id")
-          .eq("id", teamId)
-          .single();
-          
-        if (teamError || !team) {
-          logStep("Could not find team", { teamId, error: teamError?.message });
-          continue;
-        }
+    if (teamToCheck) {
+      const team = teamToCheck;
 
         const teamOwnerId = team.owner_id;
         logStep("Checking team owner subscription", { teamId: team.id, ownerId: teamOwnerId });
@@ -202,51 +227,50 @@ serve(async (req) => {
             "price_1ScnOPKrTGU4P754sNgouHiL", // agency yearly
           ];
 
-          const isTeamPlan = [...enterprisePriceIds, ...agencyPriceIds].includes(priceId);
+        const isTeamPlan = [...enterprisePriceIds, ...agencyPriceIds].includes(priceId);
 
-          if (isTeamPlan) {
-            let subscriptionEnd: string | null = null;
-            let trialEnd: string | null = null;
-            
-            if (ownerActiveSub.current_period_end && typeof ownerActiveSub.current_period_end === 'number') {
-              subscriptionEnd = new Date(ownerActiveSub.current_period_end * 1000).toISOString();
-            }
-            
-            if (ownerActiveSub.trial_end && typeof ownerActiveSub.trial_end === 'number') {
-              trialEnd = new Date(ownerActiveSub.trial_end * 1000).toISOString();
-            }
-
-            const onTrial = ownerActiveSub.status === "trialing";
-            const billingPeriod = priceItem?.recurring?.interval === 'year' ? 'yearly' : 'monthly';
-
-            logStep("User has access via team subscription", { 
-              teamId: team.id,
-              subscriptionId: ownerActiveSub.id, 
-              status: ownerActiveSub.status,
-              onTrial,
-              productId,
-              priceId,
-              billingPeriod
-            });
-
-            return new Response(JSON.stringify({
-              subscribed: true,
-              onTrial,
-              productId,
-              priceId,
-              billingPeriod,
-              subscriptionEnd,
-              trialEnd,
-              status: ownerActiveSub.status,
-              subscriptionType: "team",
-              teamId: team.id
-            }), {
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-              status: 200,
-            });
-          } else {
-            logStep("Team owner subscription is not a team plan", { priceId });
+        if (isTeamPlan) {
+          let subscriptionEnd: string | null = null;
+          let trialEnd: string | null = null;
+          
+          if (ownerActiveSub.current_period_end && typeof ownerActiveSub.current_period_end === 'number') {
+            subscriptionEnd = new Date(ownerActiveSub.current_period_end * 1000).toISOString();
           }
+          
+          if (ownerActiveSub.trial_end && typeof ownerActiveSub.trial_end === 'number') {
+            trialEnd = new Date(ownerActiveSub.trial_end * 1000).toISOString();
+          }
+
+          const onTrial = ownerActiveSub.status === "trialing";
+          const billingPeriod = priceItem?.recurring?.interval === 'year' ? 'yearly' : 'monthly';
+
+          logStep("User has access via team subscription", { 
+            teamId: team.id,
+            subscriptionId: ownerActiveSub.id, 
+            status: ownerActiveSub.status,
+            onTrial,
+            productId,
+            priceId,
+            billingPeriod
+          });
+
+          return new Response(JSON.stringify({
+            subscribed: true,
+            onTrial,
+            productId,
+            priceId,
+            billingPeriod,
+            subscriptionEnd,
+            trialEnd,
+            status: ownerActiveSub.status,
+            subscriptionType: "team",
+            teamId: team.id
+          }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 200,
+          });
+        } else {
+          logStep("Team owner subscription is not a team plan", { priceId });
         }
       }
     }
