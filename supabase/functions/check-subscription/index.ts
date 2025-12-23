@@ -189,18 +189,13 @@ serve(async (req) => {
 
     if (teamToCheck) {
       const team = teamToCheck;
+      const teamOwnerId = team.owner_id;
+      logStep("Checking team owner subscription", { teamId: team.id, ownerId: teamOwnerId });
 
-        const teamOwnerId = team.owner_id;
-        logStep("Checking team owner subscription", { teamId: team.id, ownerId: teamOwnerId });
+      // STRICT: Use billing_customers mapping for team owner too
+      const ownerCustomerId = await getCustomerIdFromMapping(teamOwnerId);
 
-        // STRICT: Use billing_customers mapping for team owner too
-        const ownerCustomerId = await getCustomerIdFromMapping(teamOwnerId);
-
-        if (!ownerCustomerId) {
-          logStep("Team owner has no Stripe customer mapping", { teamOwnerId });
-          continue;
-        }
-
+      if (ownerCustomerId) {
         const ownerSubscriptions = await stripe.subscriptions.list({
           customer: ownerCustomerId,
           status: "all",
@@ -217,7 +212,6 @@ serve(async (req) => {
           const priceId = priceItem?.id as string;
           
           // Check if this is an Enterprise or Agency plan (which allows team members)
-          // Enterprise and Agency price IDs from subscriptionTiers.ts
           const enterprisePriceIds = [
             "price_1ScnOdKrTGU4P7542mtt9uyC", // enterprise monthly
             "price_1ScnOOKrTGU4P754r7bdJ94j", // enterprise yearly
@@ -227,51 +221,54 @@ serve(async (req) => {
             "price_1ScnOPKrTGU4P754sNgouHiL", // agency yearly
           ];
 
-        const isTeamPlan = [...enterprisePriceIds, ...agencyPriceIds].includes(priceId);
+          const isTeamPlan = [...enterprisePriceIds, ...agencyPriceIds].includes(priceId);
 
-        if (isTeamPlan) {
-          let subscriptionEnd: string | null = null;
-          let trialEnd: string | null = null;
-          
-          if (ownerActiveSub.current_period_end && typeof ownerActiveSub.current_period_end === 'number') {
-            subscriptionEnd = new Date(ownerActiveSub.current_period_end * 1000).toISOString();
+          if (isTeamPlan) {
+            let subscriptionEnd: string | null = null;
+            let trialEnd: string | null = null;
+            
+            if (ownerActiveSub.current_period_end && typeof ownerActiveSub.current_period_end === 'number') {
+              subscriptionEnd = new Date(ownerActiveSub.current_period_end * 1000).toISOString();
+            }
+            
+            if (ownerActiveSub.trial_end && typeof ownerActiveSub.trial_end === 'number') {
+              trialEnd = new Date(ownerActiveSub.trial_end * 1000).toISOString();
+            }
+
+            const onTrial = ownerActiveSub.status === "trialing";
+            const billingPeriod = priceItem?.recurring?.interval === 'year' ? 'yearly' : 'monthly';
+
+            logStep("User has access via team subscription", { 
+              teamId: team.id,
+              subscriptionId: ownerActiveSub.id, 
+              status: ownerActiveSub.status,
+              onTrial,
+              productId,
+              priceId,
+              billingPeriod
+            });
+
+            return new Response(JSON.stringify({
+              subscribed: true,
+              onTrial,
+              productId,
+              priceId,
+              billingPeriod,
+              subscriptionEnd,
+              trialEnd,
+              status: ownerActiveSub.status,
+              subscriptionType: "team",
+              teamId: team.id
+            }), {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+              status: 200,
+            });
+          } else {
+            logStep("Team owner subscription is not a team plan", { priceId });
           }
-          
-          if (ownerActiveSub.trial_end && typeof ownerActiveSub.trial_end === 'number') {
-            trialEnd = new Date(ownerActiveSub.trial_end * 1000).toISOString();
-          }
-
-          const onTrial = ownerActiveSub.status === "trialing";
-          const billingPeriod = priceItem?.recurring?.interval === 'year' ? 'yearly' : 'monthly';
-
-          logStep("User has access via team subscription", { 
-            teamId: team.id,
-            subscriptionId: ownerActiveSub.id, 
-            status: ownerActiveSub.status,
-            onTrial,
-            productId,
-            priceId,
-            billingPeriod
-          });
-
-          return new Response(JSON.stringify({
-            subscribed: true,
-            onTrial,
-            productId,
-            priceId,
-            billingPeriod,
-            subscriptionEnd,
-            trialEnd,
-            status: ownerActiveSub.status,
-            subscriptionType: "team",
-            teamId: team.id
-          }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-            status: 200,
-          });
-        } else {
-          logStep("Team owner subscription is not a team plan", { priceId });
         }
+      } else {
+        logStep("Team owner has no Stripe customer mapping", { teamOwnerId });
       }
     }
 
