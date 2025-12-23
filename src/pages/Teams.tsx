@@ -47,6 +47,7 @@ export default function Teams() {
     queryFn: async () => {
       if (!selectedTeam) return [];
       
+      // Get user_roles for this team
       const { data, error } = await supabase
         .from("user_roles")
         .select("id, user_id, role, team_id")
@@ -54,10 +55,17 @@ export default function Teams() {
       
       if (error) throw error;
 
-      // Fetch profiles separately
-      if (!data || data.length === 0) return [];
+      // Collect user IDs from roles
+      let userIds = data?.map(r => r.user_id) || [];
       
-      const userIds = data.map(r => r.user_id);
+      // Also include the team owner if not already in user_roles
+      if (selectedTeam.owner_id && !userIds.includes(selectedTeam.owner_id)) {
+        userIds.push(selectedTeam.owner_id);
+      }
+      
+      if (userIds.length === 0) return [];
+      
+      // Fetch profiles for all users
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
         .select("id, email, company_name")
@@ -65,11 +73,26 @@ export default function Teams() {
       
       if (profilesError) throw profilesError;
 
-      // Merge the data
-      return data.map(role => ({
+      // Build result: start with user_roles entries
+      const result = (data || []).map(role => ({
         ...role,
         profile: profiles?.find(p => p.id === role.user_id) || null
       }));
+      
+      // Add team owner if they don't have a user_role entry for this team
+      const ownerHasRole = data?.some(r => r.user_id === selectedTeam.owner_id);
+      if (!ownerHasRole && selectedTeam.owner_id) {
+        const ownerProfile = profiles?.find(p => p.id === selectedTeam.owner_id);
+        result.unshift({
+          id: `owner-${selectedTeam.id}`,
+          user_id: selectedTeam.owner_id,
+          role: "owner" as AppRole,
+          team_id: selectedTeam.id,
+          profile: ownerProfile || null
+        });
+      }
+      
+      return result;
     },
     enabled: !!selectedTeam,
   });
@@ -84,6 +107,22 @@ export default function Teams() {
         .single();
       
       if (error) throw error;
+      
+      // Also create a user_role entry for the owner in this new team
+      if (user?.id && data) {
+        const { error: roleError } = await supabase
+          .from("user_roles")
+          .insert([{
+            user_id: user.id,
+            role: "owner" as AppRole,
+            team_id: data.id,
+          }]);
+        
+        if (roleError) {
+          console.error("Failed to create owner role:", roleError);
+        }
+      }
+      
       return data;
     },
     onSuccess: () => {
