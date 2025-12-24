@@ -7,9 +7,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, Play, Edit, CheckCircle, XCircle, MessageSquare, History, Trash2, Download, TrendingUp, MoreVertical, ArrowLeft, Search, BarChart3, FileText, FileSpreadsheet, ChevronDown, Rocket, Lock, ClipboardList, Activity, Send } from "lucide-react";
+import { Loader2, Play, Edit, CheckCircle, XCircle, MessageSquare, History, Trash2, Download, TrendingUp, MoreVertical, ArrowLeft, Search, BarChart3, FileText, FileSpreadsheet, ChevronDown, Rocket, Lock, ClipboardList, Activity, Send, Copy } from "lucide-react";
 import { LockedFeatureButton } from "@/components/ui/locked-feature-button";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
+import { useActiplanLimits } from "@/hooks/useActiplanLimits";
+import { TIER_DISPLAY_NAMES, SubscriptionTier } from "@/config/subscriptionTiers";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
 import { ModificationRequestDialog } from "@/components/ModificationRequestDialog";
@@ -60,7 +62,8 @@ interface Campaign {
 export default function ActiPlans() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { hasAccess } = useFeatureAccess();
+  const { hasAccess, tier } = useFeatureAccess();
+  const { dailyLimit, usedToday, remaining, canCreate, loading: limitsLoading, refetch: refetchLimits } = useActiplanLimits();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
@@ -305,6 +308,54 @@ export default function ActiPlans() {
     } finally {
       setActionLoading(false);
     }
+  };
+
+  const handleDuplicate = async (campaign: Campaign) => {
+    if (!canCreate) {
+      toast.error("Daily limit reached. Upgrade your plan for more ActiPlans per day.");
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      // Create a copy of the campaign with a new name
+      const { data: newCampaign, error } = await supabase
+        .from("campaigns")
+        .insert({
+          name: `${campaign.name} (Copy)`,
+          user_id: user?.id,
+          objective: campaign.objective,
+          total_budget: campaign.total_budget,
+          start_date: campaign.start_date,
+          end_date: campaign.end_date,
+          platforms: campaign.platforms,
+          market_splits: campaign.market_splits,
+          status: "draft",
+          team_id: campaign.team_id,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      toast.success("ActiPlan duplicated successfully");
+      refetchLimits();
+      loadCampaigns();
+    } catch (error: any) {
+      console.error("Error duplicating campaign:", error);
+      toast.error("Failed to duplicate ActiPlan");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const getNextTierName = (): string => {
+    const tierOrder: SubscriptionTier[] = ['trial', 'basic', 'freelancer', 'enterprise', 'agency'];
+    const currentIndex = tierOrder.indexOf(tier);
+    if (currentIndex < tierOrder.length - 1) {
+      return TIER_DISPLAY_NAMES[tierOrder[currentIndex + 1]];
+    }
+    return 'Agency';
   };
 
   const getStatusBadge = (status: string) => {
@@ -594,7 +645,7 @@ export default function ActiPlans() {
                   </DropdownMenuItem>
                 )}
                 
-                {canApprove(campaign) && (
+                {canApprove(campaign) && hasAccess('approve_actiplans') && (
                   <>
                     <DropdownMenuItem onClick={() => handleApprove(campaign)} disabled={actionLoading}>
                       <CheckCircle className="w-4 h-4 mr-2" />
@@ -606,6 +657,28 @@ export default function ActiPlans() {
                       className="text-destructive"
                     >
                       <XCircle className="w-4 h-4 mr-2" />
+                      Reject Campaign
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+                
+                {canApprove(campaign) && !hasAccess('approve_actiplans') && (
+                  <>
+                    <DropdownMenuItem
+                      disabled
+                      className="opacity-50 cursor-pointer"
+                      onClick={() => navigate('/settings/plans')}
+                    >
+                      <Lock className="w-4 h-4 mr-2" />
+                      Approve ActiPlan
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      disabled
+                      className="opacity-50 cursor-pointer"
+                      onClick={() => navigate('/settings/plans')}
+                    >
+                      <Lock className="w-4 h-4 mr-2" />
                       Reject Campaign
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
@@ -805,6 +878,26 @@ export default function ActiPlans() {
                   </DropdownMenuItem>
                 )}
 
+                {/* Duplicate ActiPlan */}
+                {hasAccess('duplicate_actiplans') ? (
+                  <DropdownMenuItem
+                    onClick={() => handleDuplicate(campaign)}
+                    disabled={actionLoading || !canCreate}
+                  >
+                    <Copy className="w-4 h-4 mr-2" />
+                    {canCreate ? 'Duplicate ActiPlan' : 'Limit Reached'}
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem
+                    disabled
+                    className="opacity-50 cursor-pointer"
+                    onClick={() => navigate('/settings/plans')}
+                  >
+                    <Lock className="w-4 h-4 mr-2" />
+                    Duplicate ActiPlan
+                  </DropdownMenuItem>
+                )}
+
                 {canDelete(campaign) && (
                   <>
                     <DropdownMenuSeparator />
@@ -864,12 +957,30 @@ export default function ActiPlans() {
               Analytics
             </Button>
           )}
-          <Button onClick={() => {
-            localStorage.removeItem('draftCampaignId');
-            navigate("/app");
-          }}>
-            New ActiPlan
-          </Button>
+          <div className="flex items-center gap-2">
+            {dailyLimit !== Infinity && (
+              <span className="text-xs text-muted-foreground whitespace-nowrap">
+                {remaining}/{dailyLimit} today
+              </span>
+            )}
+            {canCreate ? (
+              <Button onClick={() => {
+                localStorage.removeItem('draftCampaignId');
+                navigate("/app");
+              }}>
+                New ActiPlan
+              </Button>
+            ) : (
+              <Button 
+                variant="outline" 
+                onClick={() => navigate('/settings/plans')}
+                className="border-dashed"
+              >
+                <Lock className="h-4 w-4 mr-2" />
+                Limit Reached - Upgrade to {getNextTierName()}
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 

@@ -2,6 +2,9 @@ import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useActiplanLimits } from "@/hooks/useActiplanLimits";
+import { TIER_DISPLAY_NAMES, SubscriptionTier } from "@/config/subscriptionTiers";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,6 +16,7 @@ import {
   RefreshCw,
   Plus,
   LayoutDashboard,
+  Lock,
 } from "lucide-react";
 import { BugReportDialog } from "@/components/BugReportDialog";
 import { CampaignOverviewCard } from "@/components/overview/CampaignOverviewCard";
@@ -122,6 +126,8 @@ const Overview = () => {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { tier } = useFeatureAccess();
+  const { dailyLimit, remaining, canCreate } = useActiplanLimits();
   const [bugDialogOpen, setBugDialogOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -129,6 +135,15 @@ const Overview = () => {
   const [insights, setInsights] = useState<CampaignInsight[]>([]);
   const [modRequests, setModRequests] = useState<ModificationRequest[]>([]);
   const [savedAnalyses, setSavedAnalyses] = useState<SavedAnalysis[]>([]);
+
+  const getNextTierName = (): string => {
+    const tierOrder: SubscriptionTier[] = ['trial', 'basic', 'freelancer', 'enterprise', 'agency'];
+    const currentIndex = tierOrder.indexOf(tier);
+    if (currentIndex < tierOrder.length - 1) {
+      return TIER_DISPLAY_NAMES[tierOrder[currentIndex + 1]];
+    }
+    return 'Agency';
+  };
 
   // Handle new=true query param - redirect to app for creating new ActiPlan
   useEffect(() => {
@@ -481,10 +496,29 @@ const Overview = () => {
               <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
-            <Button onClick={() => navigate("/app")} size="sm">
-              <Plus className="h-4 w-4 mr-2" />
-              New ActiPlan
-            </Button>
+            <div className="flex items-center gap-2">
+              {dailyLimit !== Infinity && (
+                <span className="text-xs text-muted-foreground whitespace-nowrap">
+                  {remaining}/{dailyLimit} today
+                </span>
+              )}
+              {canCreate ? (
+                <Button onClick={() => navigate("/app")} size="sm">
+                  <Plus className="h-4 w-4 mr-2" />
+                  New ActiPlan
+                </Button>
+              ) : (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => navigate('/settings/plans')}
+                  className="border-dashed"
+                >
+                  <Lock className="h-4 w-4 mr-2" />
+                  Upgrade to {getNextTierName()}
+                </Button>
+              )}
+            </div>
           </div>
         </div>
 
