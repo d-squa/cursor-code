@@ -866,7 +866,7 @@ export default function ActiPlans() {
           )}
           <Button onClick={() => {
             localStorage.removeItem('draftCampaignId');
-            navigate("/overview?new=true");
+            navigate("/app");
           }}>
             New ActiPlan
           </Button>
