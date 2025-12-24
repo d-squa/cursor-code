@@ -8,110 +8,126 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 220 25% 98%;
-    --foreground: 240 10% 10%;
+    --background: 220 20% 98%;
+    --foreground: 222 47% 11%;
 
     --card: 0 0% 100%;
-    --card-foreground: 240 10% 10%;
+    --card-foreground: 222 47% 11%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 10%;
+    --popover-foreground: 222 47% 11%;
 
-    --primary: 243 75% 59%;
+    /* Primary: Deep navy blue from logo arrow */
+    --primary: 225 70% 40%;
     --primary-foreground: 0 0% 100%;
-    --primary-glow: 250 80% 70%;
+    --primary-glow: 195 90% 50%;
 
-    --secondary: 240 5% 96%;
-    --secondary-foreground: 240 10% 10%;
+    --secondary: 220 15% 96%;
+    --secondary-foreground: 222 47% 11%;
 
-    --muted: 240 5% 96%;
-    --muted-foreground: 240 4% 46%;
+    --muted: 220 15% 96%;
+    --muted-foreground: 220 10% 46%;
 
-    --accent: 280 70% 65%;
+    /* Accent: Magenta/pink from logo end */
+    --accent: 310 100% 60%;
     --accent-foreground: 0 0% 100%;
+
+    /* Cyan from logo */
+    --cyan: 195 100% 50%;
+    --cyan-foreground: 0 0% 100%;
+
+    /* Purple from logo */
+    --purple: 270 70% 60%;
+    --purple-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 240 6% 90%;
-    --input: 240 6% 90%;
-    --ring: 243 75% 59%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 225 70% 40%;
 
     --radius: 0.75rem;
     
-    --gradient-primary: linear-gradient(135deg, hsl(243 75% 59%) 0%, hsl(280 70% 65%) 100%);
-    --gradient-subtle: linear-gradient(180deg, hsl(220 25% 98%) 0%, hsl(240 20% 96%) 100%);
+    /* Gradient matching logo: navy -> cyan -> purple -> magenta */
+    --gradient-primary: linear-gradient(135deg, hsl(225 70% 40%) 0%, hsl(195 100% 50%) 25%, hsl(270 70% 60%) 75%, hsl(310 100% 60%) 100%);
+    --gradient-subtle: linear-gradient(180deg, hsl(220 20% 98%) 0%, hsl(220 20% 96%) 100%);
     
-    --shadow-sm: 0 1px 2px 0 hsl(240 10% 10% / 0.05);
-    --shadow-md: 0 4px 6px -1px hsl(240 10% 10% / 0.08), 0 2px 4px -1px hsl(240 10% 10% / 0.06);
-    --shadow-lg: 0 10px 15px -3px hsl(240 10% 10% / 0.1), 0 4px 6px -2px hsl(240 10% 10% / 0.05);
-    --shadow-glow: 0 0 30px hsl(243 75% 59% / 0.3);
+    --shadow-sm: 0 1px 2px 0 hsl(222 47% 11% / 0.05);
+    --shadow-md: 0 4px 6px -1px hsl(222 47% 11% / 0.08), 0 2px 4px -1px hsl(222 47% 11% / 0.06);
+    --shadow-lg: 0 10px 15px -3px hsl(222 47% 11% / 0.1), 0 4px 6px -2px hsl(222 47% 11% / 0.05);
+    --shadow-glow: 0 0 30px hsl(195 100% 50% / 0.3);
     
     --transition-base: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 
     --sidebar-background: 0 0% 98%;
-
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
+    --sidebar-foreground: 222 47% 20%;
+    --sidebar-primary: 225 70% 40%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 15% 96%;
+    --sidebar-accent-foreground: 222 47% 11%;
     --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-ring: 195 100% 50%;
   }
 
   .dark {
-    --background: 240 10% 5%;
+    --background: 222 47% 6%;
     --foreground: 0 0% 98%;
 
-    --card: 240 8% 8%;
+    --card: 222 40% 9%;
     --card-foreground: 0 0% 98%;
 
-    --popover: 240 8% 8%;
+    --popover: 222 40% 9%;
     --popover-foreground: 0 0% 98%;
 
-    --primary: 243 75% 59%;
-    --primary-foreground: 0 0% 100%;
-    --primary-glow: 250 80% 70%;
+    /* Primary: Deep navy blue from logo arrow */
+    --primary: 195 100% 50%;
+    --primary-foreground: 222 47% 6%;
+    --primary-glow: 195 90% 60%;
 
-    --secondary: 240 6% 12%;
+    --secondary: 222 30% 14%;
     --secondary-foreground: 0 0% 98%;
 
-    --muted: 240 6% 12%;
-    --muted-foreground: 240 5% 65%;
+    --muted: 222 30% 14%;
+    --muted-foreground: 220 15% 65%;
 
-    --accent: 280 70% 65%;
+    /* Accent: Magenta/pink from logo end */
+    --accent: 310 100% 60%;
     --accent-foreground: 0 0% 100%;
+
+    /* Cyan from logo */
+    --cyan: 195 100% 50%;
+    --cyan-foreground: 222 47% 6%;
+
+    /* Purple from logo */
+    --purple: 270 70% 60%;
+    --purple-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 240 6% 18%;
-    --input: 240 6% 18%;
-    --ring: 243 75% 59%;
+    --border: 222 30% 18%;
+    --input: 222 30% 18%;
+    --ring: 195 100% 50%;
     
-    --gradient-primary: linear-gradient(135deg, hsl(243 75% 59%) 0%, hsl(280 70% 65%) 100%);
-    --gradient-subtle: linear-gradient(180deg, hsl(240 10% 5%) 0%, hsl(240 8% 8%) 100%);
+    /* Gradient matching logo: navy -> cyan -> purple -> magenta */
+    --gradient-primary: linear-gradient(135deg, hsl(225 70% 45%) 0%, hsl(195 100% 50%) 25%, hsl(270 70% 60%) 75%, hsl(310 100% 60%) 100%);
+    --gradient-subtle: linear-gradient(180deg, hsl(222 47% 6%) 0%, hsl(222 40% 9%) 100%);
     
     --shadow-sm: 0 1px 2px 0 hsl(0 0% 0% / 0.3);
     --shadow-md: 0 4px 6px -1px hsl(0 0% 0% / 0.4), 0 2px 4px -1px hsl(0 0% 0% / 0.3);
     --shadow-lg: 0 10px 15px -3px hsl(0 0% 0% / 0.5), 0 4px 6px -2px hsl(0 0% 0% / 0.4);
-    --shadow-glow: 0 0 30px hsl(243 75% 59% / 0.4);
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --shadow-glow: 0 0 30px hsl(195 100% 50% / 0.4);
+    
+    --sidebar-background: 222 47% 8%;
+    --sidebar-foreground: 220 15% 90%;
+    --sidebar-primary: 195 100% 50%;
+    --sidebar-primary-foreground: 222 47% 6%;
+    --sidebar-accent: 222 30% 14%;
+    --sidebar-accent-foreground: 220 15% 90%;
+    --sidebar-border: 222 30% 18%;
+    --sidebar-ring: 195 100% 50%;
   }
 }
 
