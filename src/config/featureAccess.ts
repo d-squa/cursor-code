@@ -8,6 +8,8 @@ export type Feature =
   | 'edit_actiplans'
   | 'delete_actiplans'
   | 'duplicate_actiplans'
+  | 'approve_actiplans'
+  | 'reject_actiplans'
   | 'campaign_status_tracking'
   | 'change_history_dialog'
   
@@ -168,7 +170,9 @@ const FEATURE_TIERS: Record<Feature, SubscriptionTier> = {
   create_actiplans: 'trial',
   edit_actiplans: 'trial',
   delete_actiplans: 'trial',
-  duplicate_actiplans: 'freelancer',
+  duplicate_actiplans: 'basic',
+  approve_actiplans: 'freelancer',
+  reject_actiplans: 'freelancer',
   campaign_status_tracking: 'trial',
   change_history_dialog: 'freelancer',
   
