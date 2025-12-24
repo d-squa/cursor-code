@@ -11,9 +11,9 @@ const corsHeaders = {
 // Input validation schema
 const oauthInputSchema = z.object({
   code: z.string().min(1).max(2000),
-  platformType: z.string().optional(),
-  redirectUri: z.string().optional(),
-  platformId: z.string().uuid().optional()
+  platformType: z.string().optional().nullable(),
+  redirectUri: z.string().optional().nullable(),
+  platformId: z.string().uuid().optional().nullable()
 });
 
 const handler = async (req: Request): Promise<Response> => {
