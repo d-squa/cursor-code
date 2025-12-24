@@ -555,10 +555,7 @@ const Landing = () => {
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-                <Target className="h-4 w-4 text-primary-foreground" />
-              </div>
-              <span className="font-semibold">ActiPlan</span>
+              <img src="/logo.png" alt="ActiPlan" className="h-8 w-auto" />
             </div>
             <p className="text-sm text-muted-foreground">
               © {new Date().getFullYear()} ActiPlan. All rights reserved.

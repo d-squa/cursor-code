@@ -347,10 +347,8 @@ export default function Auth() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-              <Target className="h-6 w-6 text-primary-foreground" />
-            </div>
+          <div className="flex items-center justify-center mb-4">
+            <img src="/logo.png" alt="ActiPlan" className="h-10 w-auto" />
           </div>
           <CardTitle className="text-2xl">{isLogin ? "Welcome Back" : "Start Your Free Trial"}</CardTitle>
           <CardDescription>
