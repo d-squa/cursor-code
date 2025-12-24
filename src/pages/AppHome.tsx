@@ -20,15 +20,12 @@ const AppHome = () => {
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-lg">
-                <Target className="h-6 w-6 text-primary-foreground" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-                  ActiPlan
-                </h1>
-                <p className="text-xs text-muted-foreground">Cross-Platform Activation Manager</p>
-              </div>
+              <img 
+                src="/logo.png" 
+                alt="ActiPlan" 
+                className="h-10 w-auto"
+              />
+              <p className="text-xs text-muted-foreground hidden md:block">Cross-Platform Activation Manager</p>
             </div>
             <nav className="flex items-center gap-2">
               <button

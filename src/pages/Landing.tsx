@@ -269,11 +269,12 @@ const Landing = () => {
       {/* Navigation */}
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <nav className="container mx-auto px-4 py-3 md:py-4 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 shrink-0">
-            <div className="h-8 w-8 md:h-10 md:w-10 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-              <Target className="h-4 w-4 md:h-6 md:w-6 text-primary-foreground" />
-            </div>
-            <span className="text-lg md:text-xl font-bold">ActiPlan</span>
+          <div className="flex items-center shrink-0">
+            <img 
+              src="/logo.png" 
+              alt="ActiPlan" 
+              className="h-8 md:h-10 w-auto"
+            />
           </div>
           <div className="hidden md:flex items-center gap-6">
             <button
