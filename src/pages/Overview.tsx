@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
@@ -121,6 +121,7 @@ const generateSampleData = () => {
 const Overview = () => {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [bugDialogOpen, setBugDialogOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -129,6 +130,12 @@ const Overview = () => {
   const [modRequests, setModRequests] = useState<ModificationRequest[]>([]);
   const [savedAnalyses, setSavedAnalyses] = useState<SavedAnalysis[]>([]);
 
+  // Handle new=true query param - redirect to app for creating new ActiPlan
+  useEffect(() => {
+    if (searchParams.get("new") === "true") {
+      navigate("/app", { replace: true });
+    }
+  }, [searchParams, navigate]);
   const loadData = async () => {
     if (!user) return;
     
