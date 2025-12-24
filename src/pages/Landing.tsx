@@ -268,12 +268,12 @@ const Landing = () => {
     <div className="min-h-screen bg-background">
       {/* Navigation */}
       <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <nav className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
-              <Target className="h-6 w-6 text-primary-foreground" />
+        <nav className="container mx-auto px-4 py-3 md:py-4 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="h-8 w-8 md:h-10 md:w-10 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
+              <Target className="h-4 w-4 md:h-6 md:w-6 text-primary-foreground" />
             </div>
-            <span className="text-xl font-bold">ActiPlan</span>
+            <span className="text-lg md:text-xl font-bold">ActiPlan</span>
           </div>
           <div className="hidden md:flex items-center gap-6">
             <button
@@ -289,23 +289,26 @@ const Landing = () => {
               Pricing
             </button>
           </div>
-          <div className="flex items-center gap-3">
-            <Button onClick={() => navigate("/auth")} variant="outline">
+          <div className="flex items-center gap-2 md:gap-3">
+            <Button onClick={() => navigate("/auth")} variant="outline" size="sm" className="text-xs md:text-sm px-2 md:px-4">
               Sign In
             </Button>
-            <Button onClick={() => navigate("/auth?mode=signup")}>Start Free Trial</Button>
+            <Button onClick={() => navigate("/auth?mode=signup")} size="sm" className="text-xs md:text-sm px-2 md:px-4 whitespace-nowrap">
+              Start Trial
+            </Button>
           </div>
         </nav>
       </header>
 
       {/* Hero Section */}
-      <section className="container mx-auto px-4 py-20 md:py-32">
+      <section className="container mx-auto px-4 py-12 md:py-32">
         <div className="max-w-4xl mx-auto text-center">
-          <Badge variant="secondary" className="mb-6">
+          <Badge variant="secondary" className="mb-4 md:mb-6 text-xs md:text-sm">
             <Sparkles className="h-3 w-3 mr-1" />
-            AI-Powered Cross-Platform Paid Media Campaign Manager
+            <span className="hidden sm:inline">AI-Powered Cross-Platform Paid Media Campaign Manager</span>
+            <span className="sm:hidden">AI-Powered Media Manager</span>
           </Badge>
-          <h1 className="text-4xl md:text-6xl font-bold mb-6 leading-tight">
+          <h1 className="text-3xl sm:text-4xl md:text-6xl font-bold mb-4 md:mb-6 leading-tight">
             Plan & Launch
             <br />
             <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
@@ -314,13 +317,11 @@ const Landing = () => {
             <br />
             in Minutes
           </h1>
-          <p className="text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
+          <p className="text-base md:text-xl text-muted-foreground mb-6 md:mb-8 max-w-2xl mx-auto px-2">
             ActiPlan is an AI-powered media planning and buying platform designed to help you efficiently manage
-            cross-platform paid media campaigns at scale. It streamlines planning, activation, optimization, and
-            reporting by unifying workflows across multiple DSPs into one integrated solution—empowering you to grow
-            your client portfolio with ease.
+            cross-platform paid media campaigns at scale.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center">
             <Button size="lg" onClick={() => navigate("/auth?mode=signup")} className="gap-2">
               Start Free Trial <ArrowRight className="h-4 w-4" />
             </Button>
