@@ -499,25 +499,13 @@ const Overview = () => {
             <div className="flex items-center gap-2">
               {dailyLimit !== Infinity && (
                 <span className="text-xs text-muted-foreground whitespace-nowrap">
-                  {remaining}/{dailyLimit} today
+                  {remaining}/{dailyLimit} DSP pushes today
                 </span>
               )}
-              {canCreate ? (
-                <Button onClick={() => navigate("/app")} size="sm">
-                  <Plus className="h-4 w-4 mr-2" />
-                  New ActiPlan
-                </Button>
-              ) : (
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => navigate('/settings/plans')}
-                  className="border-dashed"
-                >
-                  <Lock className="h-4 w-4 mr-2" />
-                  Upgrade to {getNextTierName()}
-                </Button>
-              )}
+              <Button onClick={() => navigate("/app")} size="sm">
+                <Plus className="h-4 w-4 mr-2" />
+                New ActiPlan
+              </Button>
             </div>
           </div>
         </div>

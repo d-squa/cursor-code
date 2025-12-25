@@ -311,10 +311,6 @@ export default function ActiPlans() {
   };
 
   const handleDuplicate = async (campaign: Campaign) => {
-    if (!canCreate) {
-      toast.error("Daily limit reached. Upgrade your plan for more ActiPlans per day.");
-      return;
-    }
 
     setActionLoading(true);
     try {
@@ -639,7 +635,7 @@ export default function ActiPlans() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 {canEdit(campaign) && campaign.status !== "pushed_to_dsp" && (
-                  <DropdownMenuItem onClick={() => navigate(`/overview?campaignId=${campaign.id}`)}>
+                  <DropdownMenuItem onClick={() => navigate(`/app?campaignId=${campaign.id}`)}>
                     <Edit className="w-4 h-4 mr-2" />
                     Edit ActiPlan
                   </DropdownMenuItem>
@@ -882,10 +878,10 @@ export default function ActiPlans() {
                 {hasAccess('duplicate_actiplans') ? (
                   <DropdownMenuItem
                     onClick={() => handleDuplicate(campaign)}
-                    disabled={actionLoading || !canCreate}
+                    disabled={actionLoading}
                   >
                     <Copy className="w-4 h-4 mr-2" />
-                    {canCreate ? 'Duplicate ActiPlan' : 'Limit Reached'}
+                    Duplicate ActiPlan
                   </DropdownMenuItem>
                 ) : (
                   <DropdownMenuItem
@@ -960,26 +956,15 @@ export default function ActiPlans() {
           <div className="flex items-center gap-2">
             {dailyLimit !== Infinity && (
               <span className="text-xs text-muted-foreground whitespace-nowrap">
-                {remaining}/{dailyLimit} today
+                {remaining}/{dailyLimit} DSP pushes today
               </span>
             )}
-            {canCreate ? (
-              <Button onClick={() => {
-                localStorage.removeItem('draftCampaignId');
-                navigate("/app");
-              }}>
-                New ActiPlan
-              </Button>
-            ) : (
-              <Button 
-                variant="outline" 
-                onClick={() => navigate('/settings/plans')}
-                className="border-dashed"
-              >
-                <Lock className="h-4 w-4 mr-2" />
-                Limit Reached - Upgrade to {getNextTierName()}
-              </Button>
-            )}
+            <Button onClick={() => {
+              localStorage.removeItem('draftCampaignId');
+              navigate("/app");
+            }}>
+              New ActiPlan
+            </Button>
           </div>
         </div>
       </div>
