@@ -182,17 +182,75 @@ export default function LaunchStatus() {
       if (error) {
         // Try to parse the error for more details
         let errorMessage = error.message;
+        let isRateLimitError = false;
+        
         try {
           const parsed = JSON.parse(error.message);
           errorMessage = parsed.error || parsed.message || error.message;
+          
+          // Check if this is a daily limit error
+          if (errorMessage.includes('Daily DSP push limit reached') || 
+              errorMessage.includes('limit reached') ||
+              parsed.code === 'DAILY_LIMIT_REACHED') {
+            isRateLimitError = true;
+          }
         } catch (e) {
-          // Use original message
+          // Use original message - also check for rate limit keywords
+          if (errorMessage.includes('Daily DSP push limit reached') || 
+              errorMessage.includes('limit reached')) {
+            isRateLimitError = true;
+          }
         }
+        
+        if (isRateLimitError) {
+          const nextTier = getNextTierName();
+          toast.error(`Daily limit reached`, {
+            duration: 15000,
+            description: `You've used all ${dailyLimit} DSP push${dailyLimit > 1 ? 'es' : ''} for today. Upgrade to ${nextTier} to push more campaigns.`,
+            action: {
+              label: 'Upgrade Now',
+              onClick: () => navigate('/settings/plans')
+            }
+          });
+          
+          // Revert pushing statuses to ready_for_push (not an actual failure, just rate limited)
+          await supabase
+            .from('campaign_launch_status')
+            .update({ status: 'ready_for_push' })
+            .eq('campaign_id', campaignId)
+            .eq('status', 'pushing');
+          
+          await loadData();
+          return;
+        }
+        
         throw new Error(errorMessage);
       }
       
       // Check if the response indicates failure
       if (!data?.success && data?.error) {
+        // Check if error is rate limit related
+        if (data.error.includes('Daily DSP push limit reached') || data.error.includes('limit reached')) {
+          const nextTier = getNextTierName();
+          toast.error(`Daily limit reached`, {
+            duration: 15000,
+            description: `You've used all ${dailyLimit} DSP push${dailyLimit > 1 ? 'es' : ''} for today. Upgrade to ${nextTier} to push more campaigns.`,
+            action: {
+              label: 'Upgrade Now',
+              onClick: () => navigate('/settings/plans')
+            }
+          });
+          
+          // Revert pushing statuses
+          await supabase
+            .from('campaign_launch_status')
+            .update({ status: 'ready_for_push' })
+            .eq('campaign_id', campaignId)
+            .eq('status', 'pushing');
+          
+          await loadData();
+          return;
+        }
         throw new Error(data.error);
       }
       
