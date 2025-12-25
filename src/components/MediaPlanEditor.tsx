@@ -1548,8 +1548,6 @@ export function MediaPlanEditor() {
                 platforms={platformsWithMarkets}
                 setPlatforms={setPlatformsWithMarkets}
                 totalBudget={parseFloat(totalBudget) || 0}
-                startDate={startDate}
-                endDate={endDate}
                 setStartDate={setStartDate}
                 setEndDate={setEndDate}
                 setTotalBudget={setTotalBudget}
