@@ -1382,32 +1382,6 @@ export function CampaignForecast({
           </div>
         ) : (
           <>
-            {/* Debug Panel - Show Unix Timestamps */}
-            {debugInfo && (
-              <Card className="bg-muted/50 border-dashed">
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium">Meta R&F API Timestamps (Debug)</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <div className="grid grid-cols-2 gap-4 text-sm font-mono">
-                    <div>
-                      <p className="text-muted-foreground mb-1">Start Time (Unix)</p>
-                      <p className="font-semibold">{debugInfo.startTimeUnix}</p>
-                      <p className="text-xs text-muted-foreground">{debugInfo.startDateFormatted}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground mb-1">End Time (Unix)</p>
-                      <p className="font-semibold">{debugInfo.endTimeUnix}</p>
-                      <p className="text-xs text-muted-foreground">{debugInfo.endDateFormatted}</p>
-                    </div>
-                  </div>
-                  <p className="text-xs text-muted-foreground pt-2">
-                    Both timestamps are set to 7:00 AM UTC as per Meta R&F API requirements
-                  </p>
-                </CardContent>
-              </Card>
-            )}
-
             {/* Actiplan Deliverables View */}
             {actiplanForecast && (
               <ActiplanDeliverablesView actiplanForecast={actiplanForecast} />
