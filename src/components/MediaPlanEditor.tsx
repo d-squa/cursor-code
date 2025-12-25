@@ -753,6 +753,7 @@ export function MediaPlanEditor() {
 
         await supabase.from("campaigns").update({
           name: campaignName,
+          bo_number: boNumber.trim() || null,
           objective: genericConfig.strategyFocus || "conversions",
           total_budget: parseFloat(totalBudget) || 0,
           start_date: startDate || null,
