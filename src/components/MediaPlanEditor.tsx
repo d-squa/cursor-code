@@ -853,7 +853,7 @@ export function MediaPlanEditor() {
   const isActivationDetailsComplete = () => {
     const allPlatformsSelected = platformsWithMarkets.every(p => p.id !== "");
     const allHaveMarkets = platformsWithMarkets.every(p => p.markets.length > 0);
-    return !!(campaignName.trim() && boNumber.trim() && totalBudget && startDate && endDate && allPlatformsSelected && allHaveMarkets);
+    return !!(campaignName.trim() && totalBudget && startDate && endDate && allPlatformsSelected && allHaveMarkets);
   };
 
   const isStrategyComplete = () => {
@@ -1604,15 +1604,14 @@ export function MediaPlanEditor() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="bo-number">BO Number *</Label>
+                <Label htmlFor="bo-number">BO Number</Label>
                 <Input
                   id="bo-number"
                   value={boNumber}
                   onChange={(e) => { setBoNumber(e.target.value); ensureDraft(); }}
                   placeholder="e.g., BO-2025-001"
-                  required
                 />
-                <p className="text-xs text-muted-foreground">Unique financial reference for invoicing</p>
+                <p className="text-xs text-muted-foreground">Optional unique financial reference for invoicing</p>
               </div>
             </div>
 
