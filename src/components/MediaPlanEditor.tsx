@@ -25,6 +25,7 @@ import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { PlatformWithMarkets, FunnelStage } from "@/types/mediaplan";
 import { Platform, PlatformConfiguration } from "./PlatformConfiguration";
 import { determineStrategyFocus } from "@/utils/strategyFocusMapping";
@@ -56,6 +57,7 @@ const mapFocusToTemplate = (focus?: string): string | undefined => {
 
 export function MediaPlanEditor() {
   const { user } = useAuth();
+  const { activeWorkspaceId } = useWorkspace();
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedClientId, setSelectedClientId] = useState<string>("");
   const [clients, setClients] = useState<Array<{id: string; name: string}>>([]);
@@ -940,22 +942,20 @@ export function MediaPlanEditor() {
       return;
     }
     
-    if (!boNumber.trim()) {
-      toast.error("Please enter a BO number");
-      return;
-    }
-
-    // Check if BO number is unique
-    const { data: existingCampaign } = await supabase
-      .from("campaigns")
-      .select("id")
-      .eq("bo_number", boNumber.trim())
-      .neq("id", savedCampaignId || "")
-      .single();
-    
-    if (existingCampaign) {
-      toast.error("BO number must be unique. This number is already in use.");
-      return;
+    // Check if BO number is unique within the same workspace (if provided)
+    if (boNumber.trim() && activeWorkspaceId) {
+      const { data: existingCampaign } = await supabase
+        .from("campaigns")
+        .select("id")
+        .eq("bo_number", boNumber.trim())
+        .eq("team_id", activeWorkspaceId)
+        .neq("id", savedCampaignId || "")
+        .single();
+      
+      if (existingCampaign) {
+        toast.error("BO number must be unique within your workspace. This number is already in use.");
+        return;
+      }
     }
 
     setSaving(true);
@@ -1250,26 +1250,24 @@ export function MediaPlanEditor() {
       return null;
     }
     
-    if (!boNumber.trim()) {
-      toast.error("Please enter a BO number");
-      return null;
-    }
-
     if (!validateBudgetTypes()) {
       return null;
     }
 
-    // Check if BO number is unique
-    const { data: existingCampaign } = await supabase
-      .from("campaigns")
-      .select("id")
-      .eq("bo_number", boNumber.trim())
-      .neq("id", savedCampaignId || "")
-      .single();
-    
-    if (existingCampaign) {
-      toast.error("BO number must be unique. This number is already in use.");
-      return null;
+    // Check if BO number is unique within the same workspace (if provided)
+    if (boNumber.trim() && activeWorkspaceId) {
+      const { data: existingCampaign } = await supabase
+        .from("campaigns")
+        .select("id")
+        .eq("bo_number", boNumber.trim())
+        .eq("team_id", activeWorkspaceId)
+        .neq("id", savedCampaignId || "")
+        .single();
+      
+      if (existingCampaign) {
+        toast.error("BO number must be unique within your workspace. This number is already in use.");
+        return null;
+      }
     }
 
     if (savedCampaignId) {
