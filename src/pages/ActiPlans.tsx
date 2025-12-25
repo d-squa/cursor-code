@@ -947,26 +947,37 @@ export default function ActiPlans() {
               aria-label="Search ActiPlans"
             />
           </div>
-          {isAdminOrOwner && (
-            <Button variant="outline" onClick={() => setAnalyticsOpen(true)}>
-              <BarChart3 className="h-4 w-4 mr-2" />
-              Analytics
-            </Button>
+          {dailyLimit !== Infinity && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary/50 border border-border">
+              <Rocket className="h-4 w-4 text-primary" />
+              <div className="flex flex-col">
+                <span className="text-sm font-semibold text-foreground whitespace-nowrap">
+                  {usedToday}/{dailyLimit} DSP pushes
+                </span>
+                {remaining === 0 ? (
+                  <Button
+                    variant="link"
+                    size="sm"
+                    className="h-auto p-0 text-xs text-primary"
+                    onClick={() => navigate('/settings/plans')}
+                  >
+                    Upgrade to {getNextTierName()} →
+                  </Button>
+                ) : (
+                  <span className="text-xs text-muted-foreground">
+                    {remaining} remaining today
+                  </span>
+                )}
+              </div>
+            </div>
           )}
-          <div className="flex items-center gap-2">
-            {dailyLimit !== Infinity && (
-              <span className="text-xs text-muted-foreground whitespace-nowrap">
-                {remaining}/{dailyLimit} DSP pushes today
-              </span>
-            )}
-            <Button onClick={() => {
-              localStorage.removeItem('draftCampaignId');
-              localStorage.removeItem('basicTargeting');
-              navigate("/app?new=true");
-            }}>
-              New ActiPlan
-            </Button>
-          </div>
+          <Button onClick={() => {
+            localStorage.removeItem('draftCampaignId');
+            localStorage.removeItem('basicTargeting');
+            navigate("/app?new=true");
+          }}>
+            New ActiPlan
+          </Button>
         </div>
       </div>
 
