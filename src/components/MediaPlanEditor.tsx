@@ -355,6 +355,57 @@ export function MediaPlanEditor() {
     strategyFocus: effectiveStrategyFocus,
   }), [genericConfig, effectiveStrategyFocus]);
 
+  // Sync genericConfig.phases to market phases when phases change in Step 3
+  // This ensures changes made in Strategy Configuration (Step 3) propagate to Platform & Market Selection (Step 1)
+  useEffect(() => {
+    if (!genericConfig.phases || genericConfig.phases.length === 0) return;
+    
+    // Check if any market needs its phases synced from genericConfig
+    let needsSync = false;
+    platformsWithMarkets.forEach(platform => {
+      platform.markets.forEach(market => {
+        // Only sync if market doesn't have custom strategy or has no phases
+        const usesGlobalStrategy = !market.strategy || market.strategy === genericConfig.strategy;
+        if (usesGlobalStrategy) {
+          // Check if phases are different (by comparing length and names)
+          const marketPhaseNames = (market.phases || []).map(p => p.name).join(',');
+          const genericPhaseNames = genericConfig.phases?.map(p => p.name).join(',') || '';
+          if (marketPhaseNames !== genericPhaseNames) {
+            needsSync = true;
+          }
+        }
+      });
+    });
+    
+    if (needsSync) {
+      console.log('🔄 Syncing genericConfig.phases to market phases');
+      setPlatformsWithMarkets(prev => prev.map(platform => ({
+        ...platform,
+        markets: platform.markets.map(market => {
+          const usesGlobalStrategy = !market.strategy || market.strategy === genericConfig.strategy;
+          if (usesGlobalStrategy && genericConfig.phases && genericConfig.phases.length > 0) {
+            return {
+              ...market,
+              phases: genericConfig.phases.map(phase => ({
+                ...phase,
+                // Preserve any market-specific overrides that might exist
+                ...(market.phases?.find(mp => mp.name === phase.name) || {}),
+                // But ensure core phase properties come from genericConfig
+                name: phase.name,
+                startDate: phase.startDate,
+                endDate: phase.endDate,
+                budgetPercentage: phase.budgetPercentage,
+                objective: phase.objective,
+                optimizationGoal: phase.optimizationGoal,
+              })),
+            };
+          }
+          return market;
+        }),
+      })));
+    }
+  }, [genericConfig.phases, genericConfig.strategy]);
+
   // Render-time auto-detect for Step 3 (Strategy Configuration)
   useEffect(() => {
     if (currentStep !== 3) return;
@@ -402,7 +453,31 @@ export function MediaPlanEditor() {
     if (changed) setPlatformsWithMarkets(updated);
   }, [currentStep, platformsWithMarkets, genericConfig.strategy, genericConfig.strategyFocus, genericConfig.targeting?.adFormats, startDate, endDate]);
 
-  // Hydrate editor from a saved campaign record
+  // Reverse sync: when market phases change in Step 1, update genericConfig.phases for Step 3
+  // Only sync from the first market that uses global strategy
+  useEffect(() => {
+    // Find first market using global strategy
+    for (const platform of platformsWithMarkets) {
+      for (const market of platform.markets) {
+        const usesGlobalStrategy = !market.strategy || market.strategy === genericConfig.strategy;
+        if (usesGlobalStrategy && market.phases && market.phases.length > 0) {
+          // Check if genericConfig.phases needs updating
+          const marketPhaseNames = market.phases.map(p => p.name).join(',');
+          const genericPhaseNames = genericConfig.phases?.map(p => p.name).join(',') || '';
+          
+          if (marketPhaseNames !== genericPhaseNames || !genericConfig.phases || genericConfig.phases.length === 0) {
+            console.log('🔄 Syncing market phases back to genericConfig.phases');
+            setGenericConfig(prev => ({
+              ...prev,
+              phases: market.phases,
+            }));
+          }
+          return; // Only sync from first matching market
+        }
+      }
+    }
+  }, [platformsWithMarkets]);
+
   const hydrateFromCampaign = (c: any) => {
     try {
       setCampaignName(c.name || "");
