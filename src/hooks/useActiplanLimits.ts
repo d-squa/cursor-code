@@ -29,13 +29,13 @@ export function useActiplanLimits(): ActiplanLimitsResult {
       const todayStart = startOfDay(new Date()).toISOString();
       const todayEnd = endOfDay(new Date()).toISOString();
 
-      // Count campaigns pushed to DSP today (status pushed_to_dsp, live, or partially_pushed)
-      // We check published_at for when the campaign was actually pushed
+      // Count campaigns successfully pushed to DSP today
+      // (exclude failed/partial attempts so users aren't penalized for retries)
       const { count, error } = await supabase
         .from('campaigns')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', user.id)
-        .in('status', ['pushed_to_dsp', 'live', 'partially_pushed'])
+        .in('status', ['pushed_to_dsp', 'live'])
         .gte('published_at', todayStart)
         .lte('published_at', todayEnd);
 

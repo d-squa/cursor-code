@@ -583,7 +583,7 @@ const handler = async (req: Request): Promise<Response> => {
     const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0)).toISOString();
     const todayEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999)).toISOString();
 
-    const pushCountStatuses = ['pushed_to_dsp', 'live', 'partially_pushed'];
+    const pushCountStatuses = ['pushed_to_dsp', 'live'];
 
     const { data: pushedWithPublishedAt, error: publishedCountError } = await supabase
       .from('campaigns')
@@ -835,7 +835,7 @@ const handler = async (req: Request): Promise<Response> => {
     
     const nowIso = new Date().toISOString();
     const shouldSetPublishedAt =
-      (finalStatus === 'pushed_to_dsp' || finalStatus === 'partially_pushed') && !campaign.published_at;
+      (finalStatus === 'pushed_to_dsp' || finalStatus === 'live') && !campaign.published_at;
 
     await supabase
       .from('campaigns')
