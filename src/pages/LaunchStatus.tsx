@@ -2,6 +2,9 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useActiplanLimits } from "@/hooks/useActiplanLimits";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
+import { TIER_DISPLAY_NAMES, SubscriptionTier } from "@/config/subscriptionTiers";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +12,7 @@ import { toast } from "sonner";
 import { 
   Loader2, ArrowLeft, RefreshCw, CheckCircle2, XCircle, 
   AlertTriangle, AlertCircle, Clock, Rocket, Play, ChevronDown, ChevronRight,
-  ExternalLink
+  ExternalLink, Lock
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Progress } from "@/components/ui/progress";
@@ -66,6 +69,8 @@ export default function LaunchStatus() {
   const { campaignId } = useParams<{ campaignId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { dailyLimit, remaining, canCreate, refetch: refetchLimits } = useActiplanLimits();
+  const { tier } = useFeatureAccess();
   
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [statuses, setStatuses] = useState<LaunchStatusEntry[]>([]);
@@ -74,6 +79,15 @@ export default function LaunchStatus() {
   const [pushing, setPushing] = useState(false);
   const [checkingStatus, setCheckingStatus] = useState(false);
   const [expandedPlatforms, setExpandedPlatforms] = useState<Set<string>>(new Set());
+
+  const getNextTierName = (): string => {
+    const tierOrder: SubscriptionTier[] = ['trial', 'basic', 'freelancer', 'enterprise', 'agency'];
+    const currentIndex = tierOrder.indexOf(tier);
+    if (currentIndex < tierOrder.length - 1) {
+      return TIER_DISPLAY_NAMES[tierOrder[currentIndex + 1]];
+    }
+    return TIER_DISPLAY_NAMES.agency;
+  };
 
   const loadData = useCallback(async () => {
     if (!campaignId || !user) return;
@@ -193,6 +207,8 @@ export default function LaunchStatus() {
       
       // Refresh data to show updated statuses
       await loadData();
+      // Refetch the limits since we just pushed
+      await refetchLimits();
       
     } catch (error: any) {
       console.error('Push error:', error);
@@ -357,6 +373,11 @@ export default function LaunchStatus() {
             <div>
               <p className="text-sm font-medium">Launch Progress</p>
               <p className="text-2xl font-bold">{pushedEntities} / {totalEntities} entities pushed</p>
+              {dailyLimit !== Infinity && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  {remaining}/{dailyLimit} DSP pushes remaining today
+                </p>
+              )}
             </div>
             <div className="flex gap-2">
               <Button 
@@ -375,13 +396,24 @@ export default function LaunchStatus() {
                 {checkingStatus ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
                 Check Status
               </Button>
-              <Button 
-                onClick={handlePush}
-                disabled={!canPush || allPushed}
-              >
-                {pushing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Rocket className="h-4 w-4 mr-2" />}
-                {isRetry ? `Retry Failed (${pendingEntities.length})` : 'Push to DSP'}
-              </Button>
+              {canCreate ? (
+                <Button 
+                  onClick={handlePush}
+                  disabled={!canPush || allPushed}
+                >
+                  {pushing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Rocket className="h-4 w-4 mr-2" />}
+                  {isRetry ? `Retry Failed (${pendingEntities.length})` : 'Push to DSP'}
+                </Button>
+              ) : (
+                <Button 
+                  variant="outline"
+                  onClick={() => navigate('/settings/plans')}
+                  className="border-dashed"
+                >
+                  <Lock className="h-4 w-4 mr-2" />
+                  Limit Reached - Upgrade to {getNextTierName()}
+                </Button>
+              )}
             </div>
           </div>
           <Progress value={progressPercent} className="h-2" />
