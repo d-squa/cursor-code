@@ -533,9 +533,17 @@ class TikTokAdapter implements PlatformAdapter {
       }
       
       // Only add bid when bid_type requires it (not for BID_TYPE_NO_BID)
+      // TikTok API uses different field names depending on billing event:
+      // - For CPC/CPM/CPV: use bid_price
+      // - For OCPM: use conversion_bid_price
       if (bidType !== "BID_TYPE_NO_BID") {
-        body.bid = finalBidAmount;
-        console.log(`✅ Including bid: €${finalBidAmount} for bid_type: ${bidType}`);
+        if (requiredBillingEvent === 'OCPM') {
+          body.conversion_bid_price = finalBidAmount;
+          console.log(`✅ Including conversion_bid_price: €${finalBidAmount} for OCPM billing`);
+        } else {
+          body.bid_price = finalBidAmount;
+          console.log(`✅ Including bid_price: €${finalBidAmount} for ${requiredBillingEvent} billing`);
+        }
       } else {
         console.log(`⚠️ Skipping bid field for bid_type: ${bidType} (automatic bidding)`);
       }
@@ -670,7 +678,8 @@ class TikTokAdapter implements PlatformAdapter {
         optimization_goal: body.optimization_goal,
         billing_event: body.billing_event,
         bid_type: body.bid_type,
-        bid: body.bid,
+        bid_price: body.bid_price,
+        conversion_bid_price: body.conversion_bid_price,
       });
 
 
