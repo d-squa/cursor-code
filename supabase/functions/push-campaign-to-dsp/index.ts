@@ -292,6 +292,18 @@ async function generateTaxonomyName(
     return null;
   }
 }
+
+// Helper function to generate unique timestamp suffix (YYMMDDHHMMSS)
+function generateTimestampSuffix(): string {
+  const now = new Date();
+  return now.getFullYear().toString().slice(-2) +
+    String(now.getMonth() + 1).padStart(2, '0') +
+    String(now.getDate()).padStart(2, '0') +
+    String(now.getHours()).padStart(2, '0') +
+    String(now.getMinutes()).padStart(2, '0') +
+    String(now.getSeconds()).padStart(2, '0');
+}
+
 // ============= END TAXONOMY HELPERS =============
 
 // ============= UPDATE LAUNCH STATUS HELPER =============
@@ -842,7 +854,7 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           phase.campaignTaxonomyValues
         ) : null;
         
-        const defaultCampaignName = `${campaign.name} - ${market.name}${phases.length > 1 ? ` - ${phase.name}` : ''}`;
+        const defaultCampaignName = `${campaign.name} - ${market.name}${phases.length > 1 ? ` - ${phase.name}` : ''}_${generateTimestampSuffix()}`;
         
         const campaignPayload = {
           name: campaignTaxonomyName || defaultCampaignName,
@@ -1440,7 +1452,7 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           phase.adsetTaxonomyValues
         ) : null;
         
-        const defaultAdSetName = `${phase.name} - Ad Set`;
+        const defaultAdSetName = `${phase.name} - Ad Set_${generateTimestampSuffix()}`;
         
         const adSetPayload: any = {
           name: adsetTaxonomyName || defaultAdSetName,
@@ -1740,7 +1752,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           phase.campaignTaxonomyValues
         ) : null;
         
-        const defaultTiktokCampaignName = `${campaign.name} - ${market.name}${phases.length > 1 ? ` - ${phase.name}` : ''}`;
+        const defaultTiktokCampaignName = `${campaign.name} - ${market.name}${phases.length > 1 ? ` - ${phase.name}` : ''}_${generateTimestampSuffix()}`;
         
         // Create TikTok campaign
         const campaignResult = await tiktokAdapter.createCampaign({
@@ -2070,7 +2082,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           phase.adsetTaxonomyValues
         ) : null;
         
-        const defaultTiktokAdGroupName = `${phase.name} - Ad Group`;
+        const defaultTiktokAdGroupName = `${phase.name} - Ad Group_${generateTimestampSuffix()}`;
         
         const adGroupResult = await tiktokAdapter.createAdGroup({
           accountId: advertiserId,
