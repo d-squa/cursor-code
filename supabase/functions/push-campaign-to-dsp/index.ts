@@ -1528,8 +1528,55 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
         // Phase-level Meta fields take priority over market-level
         const requestedBidStrategy = phase.metaBidStrategy || market.metaBidStrategy || "LOWEST_COST_WITHOUT_CAP";
         const metaBidAmount = phase.metaBidAmount || market.metaBidAmount;
-        const metaBillingEvent = phase.metaBillingEvent || (market as any).metaBillingEvent || "IMPRESSIONS";
+        const userBillingEvent = phase.metaBillingEvent || (market as any).metaBillingEvent;
         const metaLandingPageUrl = phase.metaLandingPageUrl || (market as any).metaLandingPageUrl;
+        
+        // Meta billing_event + optimization_goal compatibility mapping
+        // The billing_event MUST be compatible with the optimization_goal or the API will reject
+        const getBillingEventForOptimizationGoal = (optGoal: string, userEvent?: string): string => {
+          // Map optimization goals to their ONLY valid billing events
+          const billingEventMap: Record<string, string> = {
+            // Awareness & Reach - IMPRESSIONS only
+            'REACH': 'IMPRESSIONS',
+            'IMPRESSIONS': 'IMPRESSIONS',
+            'BRAND_AWARENESS': 'IMPRESSIONS',
+            'AD_RECALL_LIFT': 'IMPRESSIONS',
+            // Traffic - LINK_CLICKS or IMPRESSIONS
+            'LINK_CLICKS': 'LINK_CLICKS',
+            'LANDING_PAGE_VIEWS': 'LINK_CLICKS',
+            // Engagement - IMPRESSIONS or specific event
+            'POST_ENGAGEMENT': 'IMPRESSIONS',
+            'PAGE_LIKES': 'IMPRESSIONS',
+            'EVENT_RESPONSES': 'IMPRESSIONS',
+            // Video - THRUPLAY or IMPRESSIONS
+            'THRUPLAY': 'THRUPLAY',
+            'TWO_SECOND_CONTINUOUS_VIDEO_VIEWS': 'IMPRESSIONS',
+            // Conversions - IMPRESSIONS only (despite the name)
+            'OFFSITE_CONVERSIONS': 'IMPRESSIONS',
+            'VALUE': 'IMPRESSIONS',
+            // App - IMPRESSIONS
+            'APP_INSTALLS': 'IMPRESSIONS',
+            'APP_EVENTS': 'IMPRESSIONS',
+            // Lead Gen - IMPRESSIONS
+            'LEAD_GENERATION': 'IMPRESSIONS',
+            'QUALITY_LEAD': 'IMPRESSIONS',
+            // Messaging - IMPRESSIONS or REPLIES
+            'CONVERSATIONS': 'IMPRESSIONS',
+            'REPLIES': 'IMPRESSIONS',
+          };
+          
+          const requiredEvent = billingEventMap[optGoal];
+          if (requiredEvent) {
+            if (userEvent && userEvent !== requiredEvent) {
+              console.warn(`⚠️ Billing event ${userEvent} not compatible with ${optGoal}. Using ${requiredEvent}`);
+            }
+            return requiredEvent;
+          }
+          // Default fallback
+          return userEvent || 'IMPRESSIONS';
+        };
+        
+        const metaBillingEvent = getBillingEventForOptimizationGoal(optimizationGoal, userBillingEvent);
         const rawMetaOptimizationLocation = phase.metaOptimizationLocation || (market as any).metaOptimizationLocation || "WEBSITE";
         
         // Map internal destination values to Meta's exact API enum values
