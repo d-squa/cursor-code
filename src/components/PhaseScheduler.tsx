@@ -1400,11 +1400,11 @@ export function PhaseScheduler({
                               </div>
                             ) : (
                             <div className="text-xs text-muted-foreground space-y-1">
-                              {(marketTargeting.ageMin || marketTargeting.ageMax) && (
+                              {(basicTargeting?.ageMin !== undefined || basicTargeting?.ageMax !== undefined || marketTargeting.ageMin !== undefined || marketTargeting.ageMax !== undefined) && (
                                 <div className="flex justify-between">
                                   <span>Age Range:</span>
                                   <span className="font-medium text-foreground">
-                                    {marketTargeting.ageMin || 18} - {marketTargeting.ageMax || 65}
+                                    {basicTargeting?.ageMin ?? marketTargeting.ageMin ?? 18} - {basicTargeting?.ageMax ?? marketTargeting.ageMax ?? 65}
                                   </span>
                                 </div>
                               )}
@@ -1440,40 +1440,38 @@ export function PhaseScheduler({
                                   </span>
                                 </div>
                               )}
-                              {/* Show detailed targeting counts for brand awareness phases */}
-                              {!phase.overrideTargeting &&
-                                (phase.objective?.toLowerCase().includes('awareness') || 
-                                phase.objective?.toLowerCase().includes('reach') ||
-                                phase.optimizationGoal?.toLowerCase().includes('awareness') ||
-                                phase.optimizationGoal?.toLowerCase().includes('reach')) &&
-                                basicTargeting?.selectedItems && basicTargeting.selectedItems.length > 0 && (
-                                <div className="flex justify-between pt-2 border-t">
-                                  <span>Detailed Targeting:</span>
-                                  <div className="flex flex-col gap-2">
-                                    {/* Unified Targeting */}
-                                    <div className="flex gap-2 items-center flex-wrap">
-                                      <Badge variant="outline" className="text-xs">
-                                        {basicTargeting.selectedItems.length} Selected
-                                      </Badge>
-                                      {basicTargeting.selectedItems.filter(item => item.platforms.length === 2).length > 0 && (
-                                        <Badge variant="secondary" className="text-xs">
-                                          {basicTargeting.selectedItems.filter(item => item.platforms.length === 2).length} Both Platforms
+                              {/* Show detailed targeting counts by type */}
+                              {!phase.overrideTargeting && basicTargeting?.selectedItems && basicTargeting.selectedItems.length > 0 && (() => {
+                                const interestCount = basicTargeting.selectedItems.filter(item => item.category === 'interest').length;
+                                const behaviorCount = basicTargeting.selectedItems.filter(item => item.category === 'behavior').length;
+                                const demographicCount = basicTargeting.selectedItems.filter(item => item.category === 'demographic').length;
+                                
+                                return (
+                                  <div className="pt-2 border-t space-y-1">
+                                    <div className="flex justify-between">
+                                      <span>Detailed Targeting:</span>
+                                      <span className="font-medium text-foreground">{basicTargeting.selectedItems.length} total</span>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1 justify-end">
+                                      {interestCount > 0 && (
+                                        <Badge variant="outline" className="text-xs">
+                                          {interestCount} Interests
                                         </Badge>
                                       )}
-                                      {basicTargeting.selectedItems.filter(item => item.platforms.includes('meta') && item.platforms.length === 1).length > 0 && (
-                                        <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
-                                          {basicTargeting.selectedItems.filter(item => item.platforms.includes('meta') && item.platforms.length === 1).length} Meta Only
+                                      {behaviorCount > 0 && (
+                                        <Badge variant="outline" className="text-xs">
+                                          {behaviorCount} Behaviors
                                         </Badge>
                                       )}
-                                      {basicTargeting.selectedItems.filter(item => item.platforms.includes('tiktok') && item.platforms.length === 1).length > 0 && (
-                                        <Badge variant="outline" className="text-xs bg-pink-50 text-pink-700 border-pink-200">
-                                          {basicTargeting.selectedItems.filter(item => item.platforms.includes('tiktok') && item.platforms.length === 1).length} TikTok Only
+                                      {demographicCount > 0 && (
+                                        <Badge variant="outline" className="text-xs">
+                                          {demographicCount} Demographics
                                         </Badge>
                                       )}
                                     </div>
                                   </div>
-                                </div>
-                              )}
+                                );
+                              })()}
                             </div>
                           )}
                         </div>
