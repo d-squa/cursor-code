@@ -180,50 +180,67 @@ export default function LaunchStatus() {
       });
       
       if (error) {
-        // Try to parse the error for more details
+        // Supabase functions can return a generic message for non-2xx responses.
+        // Try to extract the real JSON body + HTTP status from error.context.
         let errorMessage = error.message;
         let isRateLimitError = false;
-        
-        try {
-          const parsed = JSON.parse(error.message);
-          errorMessage = parsed.error || parsed.message || error.message;
-          
-          // Check if this is a daily limit error
-          if (errorMessage.includes('Daily DSP push limit reached') || 
-              errorMessage.includes('limit reached') ||
-              parsed.code === 'DAILY_LIMIT_REACHED') {
-            isRateLimitError = true;
+
+        const ctx = (error as any)?.context as Response | undefined;
+        const httpStatus = ctx?.status;
+
+        let payload: any = null;
+        if (ctx) {
+          try {
+            payload = await ctx.clone().json();
+          } catch {
+            try {
+              payload = await ctx.clone().text();
+            } catch {
+              // ignore
+            }
           }
-        } catch (e) {
-          // Use original message - also check for rate limit keywords
-          if (errorMessage.includes('Daily DSP push limit reached') || 
-              errorMessage.includes('limit reached')) {
+        }
+
+        if (payload && typeof payload === 'object') {
+          errorMessage = payload.error || payload.message || errorMessage;
+
+          if (payload.code === 'DAILY_LIMIT_REACHED') {
             isRateLimitError = true;
           }
         }
-        
+
+        // Also detect by HTTP status / message keywords
+        if (
+          httpStatus === 429 ||
+          errorMessage.includes('Daily DSP push limit reached') ||
+          errorMessage.toLowerCase().includes('limit reached')
+        ) {
+          isRateLimitError = true;
+        }
+
         if (isRateLimitError) {
           const nextTier = getNextTierName();
-          toast.error(`Daily limit reached`, {
+          toast.error('Daily limit reached', {
             duration: 15000,
             description: `You've used all ${dailyLimit} DSP push${dailyLimit > 1 ? 'es' : ''} for today. Upgrade to ${nextTier} to push more campaigns.`,
             action: {
               label: 'Upgrade Now',
-              onClick: () => navigate('/settings/plans')
-            }
+              onClick: () => navigate('/settings/plans'),
+            },
           });
-          
-          // Revert pushing statuses to ready_for_push (not an actual failure, just rate limited)
+
+          // Revert pushing statuses to ready_for_push (not an API/push failure)
           await supabase
             .from('campaign_launch_status')
             .update({ status: 'ready_for_push' })
             .eq('campaign_id', campaignId)
             .eq('status', 'pushing');
-          
+
           await loadData();
+          await refetchLimits();
           return;
         }
-        
+
         throw new Error(errorMessage);
       }
       
@@ -636,21 +653,55 @@ export default function LaunchStatus() {
                                     ))}
                                   </div>
                                 ) : entry.error_message ? (
-                                  <div className="flex items-start justify-between gap-2">
-                                    <div className="flex items-start gap-2 flex-1">
-                                      <XCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
-                                      <p className="text-sm text-destructive">{entry.error_message}</p>
-                                    </div>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="h-7 text-xs shrink-0"
-                                      onClick={() => handleFixIssue('step1')}
-                                    >
-                                      <ExternalLink className="h-3 w-3 mr-1" />
-                                      Fix Issue
-                                    </Button>
-                                  </div>
+                                  (() => {
+                                    const isGenericNon2xx = entry.error_message
+                                      .toLowerCase()
+                                      .includes('non-2xx');
+                                    const showLimitUpsell =
+                                      isGenericNon2xx &&
+                                      Number.isFinite(dailyLimit) &&
+                                      remaining <= 0;
+
+                                    if (showLimitUpsell) {
+                                      const nextTier = getNextTierName();
+                                      return (
+                                        <div className="flex items-start justify-between gap-2">
+                                          <div className="flex items-start gap-2 flex-1">
+                                            <Lock className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+                                            <p className="text-sm text-destructive">
+                                              Daily DSP push limit reached. Upgrade to {nextTier} to push more campaigns today.
+                                            </p>
+                                          </div>
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-7 text-xs shrink-0"
+                                            onClick={() => navigate('/settings/plans')}
+                                          >
+                                            Upgrade Now
+                                          </Button>
+                                        </div>
+                                      );
+                                    }
+
+                                    return (
+                                      <div className="flex items-start justify-between gap-2">
+                                        <div className="flex items-start gap-2 flex-1">
+                                          <XCircle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+                                          <p className="text-sm text-destructive">{entry.error_message}</p>
+                                        </div>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          className="h-7 text-xs shrink-0"
+                                          onClick={() => handleFixIssue('step1')}
+                                        >
+                                          <ExternalLink className="h-3 w-3 mr-1" />
+                                          Fix Issue
+                                        </Button>
+                                      </div>
+                                    );
+                                  })()
                                 ) : (
                                   <div className="flex items-start justify-between gap-2">
                                     <div className="flex items-start gap-2 flex-1">
