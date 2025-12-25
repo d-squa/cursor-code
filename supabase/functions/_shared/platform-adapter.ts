@@ -697,8 +697,7 @@ class TikTokAdapter implements PlatformAdapter {
       // Schedule dates (required for TikTok)
       if (params.startDate && params.endDate) {
         body.schedule_type = "SCHEDULE_START_END";
-        const formatDateForTikTok = (dateStr: string) => {
-          const date = new Date(dateStr);
+        const formatDateForTikTok = (date: Date) => {
           const year = date.getUTCFullYear();
           const month = String(date.getUTCMonth() + 1).padStart(2, '0');
           const day = String(date.getUTCDate()).padStart(2, '0');
@@ -707,8 +706,20 @@ class TikTokAdapter implements PlatformAdapter {
           const seconds = String(date.getUTCSeconds()).padStart(2, '0');
           return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
         };
-        body.schedule_start_time = formatDateForTikTok(params.startDate);
-        body.schedule_end_time = formatDateForTikTok(params.endDate);
+        
+        // TikTok requires start time to be in the future
+        // If configured start date is in the past, use current time + 5 minutes
+        const now = new Date();
+        const fiveMinutesFromNow = new Date(now.getTime() + 5 * 60 * 1000);
+        const configuredStartDate = new Date(params.startDate);
+        const actualStartDate = configuredStartDate < fiveMinutesFromNow ? fiveMinutesFromNow : configuredStartDate;
+        
+        if (configuredStartDate < fiveMinutesFromNow) {
+          console.log(`⚠️ Configured start date ${params.startDate} is in the past, using ${actualStartDate.toISOString()} instead`);
+        }
+        
+        body.schedule_start_time = formatDateForTikTok(actualStartDate);
+        body.schedule_end_time = formatDateForTikTok(new Date(params.endDate));
       }
 
       // Budget (rounded to 2 decimals for TikTok currency precision)
