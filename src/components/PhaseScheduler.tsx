@@ -137,8 +137,10 @@ interface PhaseSchedulerProps {
 
 interface DraggingState {
   phaseId: string;
-  isStart: boolean;
+  type: 'start' | 'end' | 'move';
   initialX: number;
+  initialStartPos?: number;
+  initialEndPos?: number;
 }
 
 export function PhaseScheduler({ 
@@ -599,25 +601,75 @@ export function PhaseScheduler({
     return format(addDays(campaignStart, days), "yyyy-MM-dd");
   };
 
-  const handleMouseDown = (phaseId: string, isStart: boolean, e: React.MouseEvent) => {
-    e.preventDefault();
-    setDragging({ phaseId, isStart, initialX: e.clientX });
+  // Get client X position from mouse or touch event
+  const getClientX = (e: React.MouseEvent | React.TouchEvent | MouseEvent | TouchEvent): number => {
+    if ('touches' in e) {
+      return e.touches[0]?.clientX ?? (e as TouchEvent).changedTouches?.[0]?.clientX ?? 0;
+    }
+    return (e as MouseEvent).clientX;
   };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
+  const handleDragStart = (phaseId: string, type: 'start' | 'end' | 'move', e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const phase = phases.find(p => p.id === phaseId);
+    if (!phase) return;
+    
+    const clientX = getClientX(e);
+    setDragging({ 
+      phaseId, 
+      type, 
+      initialX: clientX,
+      initialStartPos: dateToPosition(phase.startDate),
+      initialEndPos: dateToPosition(phase.endDate)
+    });
+  };
+
+  const handleDragMove = (e: React.MouseEvent | React.TouchEvent | MouseEvent | TouchEvent) => {
     if (!dragging || !containerRef.current) return;
 
     const rect = containerRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
+    const clientX = getClientX(e);
+    const x = clientX - rect.left;
     const position = Math.max(0, Math.min(100, (x / rect.width) * 100));
-    const newDate = positionToDate(position);
 
     const updatedPhases = phases.map(phase => {
       if (phase.id === dragging.phaseId) {
-        if (dragging.isStart) {
+        if (dragging.type === 'start') {
+          const newDate = positionToDate(position);
           return { ...phase, startDate: newDate };
-        } else {
+        } else if (dragging.type === 'end') {
+          const newDate = positionToDate(position);
           return { ...phase, endDate: newDate };
+        } else if (dragging.type === 'move') {
+          // Calculate the delta movement
+          const initialStartPos = dragging.initialStartPos ?? 0;
+          const initialEndPos = dragging.initialEndPos ?? 0;
+          const phaseWidth = initialEndPos - initialStartPos;
+          
+          // Calculate new position based on initial position and mouse delta
+          const deltaX = clientX - dragging.initialX;
+          const deltaPercent = (deltaX / rect.width) * 100;
+          
+          let newStartPos = initialStartPos + deltaPercent;
+          let newEndPos = initialEndPos + deltaPercent;
+          
+          // Clamp to boundaries
+          if (newStartPos < 0) {
+            newStartPos = 0;
+            newEndPos = phaseWidth;
+          }
+          if (newEndPos > 100) {
+            newEndPos = 100;
+            newStartPos = 100 - phaseWidth;
+          }
+          
+          return { 
+            ...phase, 
+            startDate: positionToDate(newStartPos),
+            endDate: positionToDate(newEndPos)
+          };
         }
       }
       return phase;
@@ -626,17 +678,33 @@ export function PhaseScheduler({
     onPhasesChange(updatedPhases);
   };
 
-  const handleMouseUp = () => {
+  const handleDragEnd = () => {
     setDragging(null);
   };
 
   useEffect(() => {
     if (dragging) {
-      const handleGlobalMouseUp = () => handleMouseUp();
+      const handleGlobalMouseUp = () => handleDragEnd();
+      const handleGlobalTouchEnd = () => handleDragEnd();
+      const handleGlobalMouseMove = (e: MouseEvent) => handleDragMove(e);
+      const handleGlobalTouchMove = (e: TouchEvent) => {
+        e.preventDefault(); // Prevent scrolling while dragging
+        handleDragMove(e);
+      };
+      
       window.addEventListener("mouseup", handleGlobalMouseUp);
-      return () => window.removeEventListener("mouseup", handleGlobalMouseUp);
+      window.addEventListener("touchend", handleGlobalTouchEnd);
+      window.addEventListener("mousemove", handleGlobalMouseMove);
+      window.addEventListener("touchmove", handleGlobalTouchMove, { passive: false });
+      
+      return () => {
+        window.removeEventListener("mouseup", handleGlobalMouseUp);
+        window.removeEventListener("touchend", handleGlobalTouchEnd);
+        window.removeEventListener("mousemove", handleGlobalMouseMove);
+        window.removeEventListener("touchmove", handleGlobalTouchMove);
+      };
     }
-  }, [dragging]);
+  }, [dragging, phases]);
 
   const addPhase = () => {
     const defaultPublisherConfig = getDefaultPublisherConfig();
@@ -782,11 +850,10 @@ export function PhaseScheduler({
       <CardContent>
         <div
           ref={containerRef}
-          className="relative h-48 bg-muted/30 rounded-lg border"
-          onMouseMove={handleMouseMove}
+          className="relative h-48 bg-muted/30 rounded-lg border touch-none"
         >
           {/* Timeline markers */}
-          <div className="absolute inset-0 flex">
+          <div className="absolute inset-0 flex pointer-events-none">
             {Array.from({ length: 11 }).map((_, i) => (
               <div key={i} className="flex-1 border-r border-muted-foreground/10 last:border-r-0">
                 <div className="text-[10px] text-muted-foreground/60 px-1 pt-1">
@@ -809,20 +876,35 @@ export function PhaseScheduler({
             return (
               <div
                 key={phase.id}
-                className={`absolute h-12 ${getPhaseColor(index)} border-2 rounded-md transition-all hover:shadow-lg`}
+                className={`absolute h-12 ${getPhaseColor(index)} border-2 rounded-md transition-shadow hover:shadow-lg cursor-move touch-none select-none`}
                 style={{
                   left: `${startPos}%`,
                   width: `${width}%`,
                   top: `${28 + index * 24}px`,
                   zIndex: dragging?.phaseId === phase.id ? 20 : 10,
                 }}
+                onMouseDown={(e) => {
+                  // Only trigger move if not clicking on handles or buttons
+                  const target = e.target as HTMLElement;
+                  if (!target.closest('[data-handle]') && !target.closest('button') && !target.closest('input')) {
+                    handleDragStart(phase.id, 'move', e);
+                  }
+                }}
+                onTouchStart={(e) => {
+                  const target = e.target as HTMLElement;
+                  if (!target.closest('[data-handle]') && !target.closest('button') && !target.closest('input')) {
+                    handleDragStart(phase.id, 'move', e);
+                  }
+                }}
               >
                 {/* Start handle */}
                 <div
-                  className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize bg-current opacity-50 hover:opacity-100 transition-opacity"
-                  onMouseDown={(e) => handleMouseDown(phase.id, true, e)}
+                  data-handle="start"
+                  className="absolute left-0 top-0 bottom-0 w-4 cursor-ew-resize bg-current opacity-50 hover:opacity-100 active:opacity-100 transition-opacity touch-none"
+                  onMouseDown={(e) => handleDragStart(phase.id, 'start', e)}
+                  onTouchStart={(e) => handleDragStart(phase.id, 'start', e)}
                 >
-                  <GripVertical className="h-3 w-3 text-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                  <GripVertical className="h-4 w-4 text-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
                 </div>
 
                 {/* Phase content */}
@@ -949,10 +1031,12 @@ export function PhaseScheduler({
 
                 {/* End handle */}
                 <div
-                  className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize bg-current opacity-50 hover:opacity-100 transition-opacity"
-                  onMouseDown={(e) => handleMouseDown(phase.id, false, e)}
+                  data-handle="end"
+                  className="absolute right-0 top-0 bottom-0 w-4 cursor-ew-resize bg-current opacity-50 hover:opacity-100 active:opacity-100 transition-opacity touch-none"
+                  onMouseDown={(e) => handleDragStart(phase.id, 'end', e)}
+                  onTouchStart={(e) => handleDragStart(phase.id, 'end', e)}
                 >
-                  <GripVertical className="h-3 w-3 text-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                  <GripVertical className="h-4 w-4 text-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
                 </div>
               </div>
             );
@@ -970,20 +1054,34 @@ export function PhaseScheduler({
             return (
               <div
                 key={phase.id}
-                className="absolute h-8 bg-amber-500/10 border border-amber-500 border-dashed rounded-md"
+                className="absolute h-8 bg-amber-500/10 border border-amber-500 border-dashed rounded-md cursor-move touch-none select-none"
                 style={{
                   left: `${startPos}%`,
                   width: `${width}%`,
                   top: `${28 + (phases.filter(p => !p.isLoyaltyPhase).length) * 24}px`,
                   zIndex: dragging?.phaseId === phase.id ? 20 : 5,
                 }}
+                onMouseDown={(e) => {
+                  const target = e.target as HTMLElement;
+                  if (!target.closest('[data-handle]') && !target.closest('button') && !target.closest('input')) {
+                    handleDragStart(phase.id, 'move', e);
+                  }
+                }}
+                onTouchStart={(e) => {
+                  const target = e.target as HTMLElement;
+                  if (!target.closest('[data-handle]') && !target.closest('button') && !target.closest('input')) {
+                    handleDragStart(phase.id, 'move', e);
+                  }
+                }}
               >
                 {/* Start handle */}
                 <div
-                  className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize bg-amber-500 opacity-50 hover:opacity-100 transition-opacity"
-                  onMouseDown={(e) => handleMouseDown(phase.id, true, e)}
+                  data-handle="start"
+                  className="absolute left-0 top-0 bottom-0 w-4 cursor-ew-resize bg-amber-500 opacity-50 hover:opacity-100 active:opacity-100 transition-opacity touch-none"
+                  onMouseDown={(e) => handleDragStart(phase.id, 'start', e)}
+                  onTouchStart={(e) => handleDragStart(phase.id, 'start', e)}
                 >
-                  <GripVertical className="h-3 w-3 text-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                  <GripVertical className="h-4 w-4 text-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
                 </div>
                 <div className="px-3 py-1 flex items-center justify-between h-full">
                   <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -1091,10 +1189,12 @@ export function PhaseScheduler({
 
                 {/* End handle */}
                 <div
-                  className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize bg-amber-500 opacity-50 hover:opacity-100 transition-opacity"
-                  onMouseDown={(e) => handleMouseDown(phase.id, false, e)}
+                  data-handle="end"
+                  className="absolute right-0 top-0 bottom-0 w-4 cursor-ew-resize bg-amber-500 opacity-50 hover:opacity-100 active:opacity-100 transition-opacity touch-none"
+                  onMouseDown={(e) => handleDragStart(phase.id, 'end', e)}
+                  onTouchStart={(e) => handleDragStart(phase.id, 'end', e)}
                 >
-                  <GripVertical className="h-3 w-3 text-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                  <GripVertical className="h-4 w-4 text-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
                 </div>
               </div>
             );
