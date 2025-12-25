@@ -577,24 +577,64 @@ const handler = async (req: Request): Promise<Response> => {
     console.log(`📊 User tier: ${userTier}, daily limit: ${dailyLimit}`);
 
     // Count campaigns pushed to DSP today (excluding the current one if it's a retry)
-    const today = new Date();
-    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0).toISOString();
-    const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999).toISOString();
+    // Note: We primarily rely on campaigns.published_at, but legacy records may have published_at = null.
+    // For those, we fall back to campaign_launch_status timestamps (entity_type=campaign) to avoid counting edits.
+    const now = new Date();
+    const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0)).toISOString();
+    const todayEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999)).toISOString();
 
-    const { count: pushedTodayCount, error: countError } = await supabase
+    const pushCountStatuses = ['pushed_to_dsp', 'live', 'partially_pushed'];
+
+    const { data: pushedWithPublishedAt, error: publishedCountError } = await supabase
       .from('campaigns')
-      .select('*', { count: 'exact', head: true })
+      .select('id')
       .eq('user_id', user.id)
-      .in('status', ['pushed_to_dsp', 'live', 'partially_pushed'])
+      .in('status', pushCountStatuses)
       .gte('published_at', todayStart)
-      .lte('published_at', todayEnd)
-      .neq('id', campaignId); // Exclude current campaign (retry case)
+      .lte('published_at', todayEnd);
 
-    if (countError) {
-      console.error("Error counting pushed campaigns:", countError);
+    if (publishedCountError) {
+      console.error('Error counting pushed campaigns (published_at):', publishedCountError);
     }
 
-    const usedToday = pushedTodayCount || 0;
+    // Only look at user's pushed campaigns that are missing published_at (legacy) — then use launch status timestamps
+    const { data: pushedWithNullPublishedAt, error: nullPublishedError } = await supabase
+      .from('campaigns')
+      .select('id')
+      .eq('user_id', user.id)
+      .in('status', pushCountStatuses)
+      .is('published_at', null);
+
+    if (nullPublishedError) {
+      console.error('Error fetching pushed campaigns with null published_at:', nullPublishedError);
+    }
+
+    const allPushedToday = new Set<string>((pushedWithPublishedAt || []).map((r: { id: string }) => r.id));
+
+    const legacyNullIds = (pushedWithNullPublishedAt || []).map((r: { id: string }) => r.id);
+    if (legacyNullIds.length > 0) {
+      const { data: launchRows, error: launchError } = await supabase
+        .from('campaign_launch_status')
+        .select('campaign_id')
+        .in('campaign_id', legacyNullIds)
+        .eq('entity_type', 'campaign')
+        .in('status', ['pushed_to_dsp', 'live'])
+        .gte('created_at', todayStart)
+        .lte('created_at', todayEnd);
+
+      if (launchError) {
+        console.error('Error counting pushed campaigns (launch_status fallback):', launchError);
+      } else {
+        for (const row of (launchRows || []) as Array<{ campaign_id: string }>) {
+          allPushedToday.add(row.campaign_id);
+        }
+      }
+    }
+
+    // Exclude current campaign (retry case)
+    allPushedToday.delete(campaignId);
+
+    const usedToday = allPushedToday.size;
     console.log(`📊 Campaigns pushed today (excluding current): ${usedToday}/${dailyLimit}`);
 
     // Check if this is a first-time push (not a retry)
@@ -793,11 +833,16 @@ const handler = async (req: Request): Promise<Response> => {
     
     console.log(`📊 Launch status summary: pushed=${statusCounts.pushed}, failed=${statusCounts.failed}, pending=${statusCounts.pending} → ${finalStatus}`);
     
+    const nowIso = new Date().toISOString();
+    const shouldSetPublishedAt =
+      (finalStatus === 'pushed_to_dsp' || finalStatus === 'partially_pushed') && !campaign.published_at;
+
     await supabase
       .from('campaigns')
-      .update({ 
+      .update({
         status: finalStatus,
-        updated_at: new Date().toISOString()
+        updated_at: nowIso,
+        ...(shouldSetPublishedAt ? { published_at: nowIso } : {}),
       })
       .eq('id', campaignId);
     
