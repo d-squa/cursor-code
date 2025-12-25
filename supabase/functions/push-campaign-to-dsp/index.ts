@@ -498,6 +498,123 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("Pushing campaign to DSP:", campaign.name, "for user:", user.id);
 
+    // ============= SERVER-SIDE DAILY LIMIT CHECK =============
+    // Check subscription tier and enforce daily DSP push limits
+    const PRICE_IDS = {
+      basic: {
+        monthly: "price_1ScnObKrTGU4P754AAJ9Q5NU",
+        yearly: "price_1ScnL9KrTGU4P754QirsF0Sd",
+      },
+      freelancer: {
+        monthly: "price_1ScnOcKrTGU4P754y5pmh5jf",
+        yearly: "price_1ScnNYKrTGU4P754hbyoSjdc",
+      },
+      enterprise: {
+        monthly: "price_1ScnOdKrTGU4P7542mtt9uyC",
+        yearly: "price_1ScnOOKrTGU4P754r7bdJ94j",
+      },
+      agency: {
+        monthly: "price_1ScnOeKrTGU4P75446dvndr3",
+        yearly: "price_1ScnOPKrTGU4P754sNgouHiL",
+      }
+    };
+
+    const DAILY_LIMITS: Record<string, number> = {
+      trial: 1,
+      basic: 1,
+      freelancer: 2,
+      enterprise: 5,
+      agency: Infinity
+    };
+
+    const getTierFromPriceId = (priceId: string | null): string => {
+      if (!priceId) return 'trial';
+      for (const [tier, config] of Object.entries(PRICE_IDS)) {
+        if (config.monthly === priceId || config.yearly === priceId) {
+          return tier;
+        }
+      }
+      return 'trial';
+    };
+
+    // Get user's subscription from Stripe via check-subscription logic
+    let userTier = 'trial';
+    try {
+      const { data: billingCustomer } = await supabase
+        .from('billing_customers')
+        .select('stripe_customer_id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (billingCustomer?.stripe_customer_id) {
+        const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
+        if (stripeKey) {
+          const { default: Stripe } = await import("https://esm.sh/stripe@18.5.0");
+          const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
+          
+          const subscriptions = await stripe.subscriptions.list({
+            customer: billingCustomer.stripe_customer_id,
+            status: "all",
+            limit: 10,
+          });
+
+          const activeSub = subscriptions.data.find(
+            (s: { status: string }) => s.status === "active" || s.status === "trialing"
+          );
+
+          if (activeSub) {
+            const priceId = activeSub.items?.data?.[0]?.price?.id;
+            userTier = getTierFromPriceId(priceId);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("Error checking subscription tier:", err);
+      // Default to trial if we can't determine tier
+    }
+
+    const dailyLimit = DAILY_LIMITS[userTier] ?? 1;
+    console.log(`📊 User tier: ${userTier}, daily limit: ${dailyLimit}`);
+
+    // Count campaigns pushed to DSP today (excluding the current one if it's a retry)
+    const today = new Date();
+    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0).toISOString();
+    const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999).toISOString();
+
+    const { count: pushedTodayCount, error: countError } = await supabase
+      .from('campaigns')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .in('status', ['pushed_to_dsp', 'live', 'partially_pushed'])
+      .gte('published_at', todayStart)
+      .lte('published_at', todayEnd)
+      .neq('id', campaignId); // Exclude current campaign (retry case)
+
+    if (countError) {
+      console.error("Error counting pushed campaigns:", countError);
+    }
+
+    const usedToday = pushedTodayCount || 0;
+    console.log(`📊 Campaigns pushed today (excluding current): ${usedToday}/${dailyLimit}`);
+
+    // Check if this is a first-time push (not a retry)
+    const isRetry = campaign.status === 'partially_pushed' || campaign.status === 'pushed_to_dsp';
+    
+    if (!isRetry && dailyLimit !== Infinity && usedToday >= dailyLimit) {
+      console.log(`🚫 Daily DSP push limit reached for tier ${userTier}`);
+      return new Response(JSON.stringify({ 
+        error: `Daily DSP push limit reached (${dailyLimit} per day for ${userTier} plan). Please upgrade your subscription for more pushes.`,
+        limitReached: true,
+        tier: userTier,
+        limit: dailyLimit,
+        used: usedToday
+      }), { 
+        status: 429,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+    // ============= END DAILY LIMIT CHECK =============
+
     // Get user's connected platforms
     const { data: platforms, error: platformsError } = await supabase
       .from("connected_platforms")
