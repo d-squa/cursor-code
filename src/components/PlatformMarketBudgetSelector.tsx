@@ -606,8 +606,16 @@ export function PlatformMarketBudgetSelector({
     return conversionEvents.filter(event => event.pixelId === pixelId);
   };
 
-  // Check if market needs conversion event (has conversion-related phases)
+  // Check if market needs conversion event (has conversion-related phases or campaign objective)
   const needsConversionEvent = (market: any) => {
+    // Check campaign-level strategy focus first
+    const campaignFocus = genericConfig?.strategyFocus?.toLowerCase() || "";
+    const conversionFocuses = ["purchase", "conversions", "leads", "sales", "app-installs"];
+    if (conversionFocuses.some(focus => campaignFocus.includes(focus))) {
+      return true;
+    }
+    
+    // Then check phase-level objectives
     if (!market.phases || market.phases.length === 0) return false;
     
     return market.phases.some((phase: any) => {
