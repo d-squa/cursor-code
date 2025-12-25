@@ -391,8 +391,14 @@ export default function PlatformConnections() {
           
           console.log('OAuth callback - calling function:', callbackFunction);
           
+          // Only include platformId if it's a valid string (not null/undefined)
           const { data, error } = await supabase.functions.invoke(callbackFunction, {
-            body: { code, platformType: state, redirectUri, platformId }
+            body: { 
+              code, 
+              platformType: state, 
+              redirectUri, 
+              ...(platformId ? { platformId } : {}) 
+            }
           });
 
           console.log('OAuth callback - response data:', data);

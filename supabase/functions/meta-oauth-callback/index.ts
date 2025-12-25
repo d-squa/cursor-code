@@ -9,12 +9,12 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Input validation schema
+// Input validation schema - platformId can be null, undefined, or a valid UUID
 const oauthInputSchema = z.object({
   code: z.string().min(1).max(2000),
   platformType: z.literal("meta"),
   redirectUri: z.string().url(),
-  platformId: z.string().uuid().optional()
+  platformId: z.string().uuid().nullish() // Allow null, undefined, or valid UUID
 });
 
 serve(async (req) => {
