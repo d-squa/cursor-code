@@ -502,7 +502,11 @@ const Overview = () => {
                   {remaining}/{dailyLimit} DSP pushes today
                 </span>
               )}
-              <Button onClick={() => navigate("/app")} size="sm">
+              <Button onClick={() => {
+                localStorage.removeItem('draftCampaignId');
+                localStorage.removeItem('basicTargeting');
+                navigate("/app?new=true");
+              }} size="sm">
                 <Plus className="h-4 w-4 mr-2" />
                 New ActiPlan
               </Button>
