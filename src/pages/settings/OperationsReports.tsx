@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { useRole } from "@/hooks/useRole";
+import { useWorkspaceAdminAccess } from "@/hooks/useWorkspaceAdminAccess";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -71,7 +71,8 @@ const CHART_COLORS = ['hsl(var(--primary))', 'hsl(var(--secondary))', 'hsl(var(-
 
 export default function OperationsReports() {
   const { user, loading: authLoading } = useAuth();
-  const { isAdmin, isOwner, loading: roleLoading } = useRole();
+  const { canAccess: hasAccess, loading: accessLoading } = useWorkspaceAdminAccess();
+  const roleLoading = accessLoading;
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   
@@ -96,19 +97,16 @@ export default function OperationsReports() {
   const [availablePlatforms, setAvailablePlatforms] = useState<string[]>([]);
   const [availableMarkets, setAvailableMarkets] = useState<string[]>([]);
 
-  // Use isAdmin from useRole which already accounts for isOwner
-  const hasAccess = isAdmin || isOwner;
-
   useEffect(() => {
     if (!authLoading && !roleLoading && !hasAccess) {
       if (import.meta.env.DEV) {
         // eslint-disable-next-line no-console
-        console.warn("[OperationsReports] Access denied", { hasAccess, isAdmin, isOwner, authLoading, roleLoading });
+        console.warn("[OperationsReports] Access denied", { hasAccess, authLoading, roleLoading });
       }
       toast.error("Access denied. Admin or Owner role required.");
       navigate("/settings/account");
     }
-  }, [hasAccess, isAdmin, isOwner, authLoading, roleLoading, navigate]);
+  }, [hasAccess, authLoading, roleLoading, navigate]);
 
   useEffect(() => {
     if (user && hasAccess) {
