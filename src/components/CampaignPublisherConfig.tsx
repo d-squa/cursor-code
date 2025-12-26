@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useId } from "react";
 import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -70,6 +70,7 @@ export function CampaignPublisherConfig({
   };
   
   const availablePlacements = getPlacements();
+  const radioName = useId();
 
   // Note: Auto-initialization removed - PhaseScheduler now handles applying account defaults
   // This component should only display and update what it receives, not auto-initialize
@@ -115,7 +116,7 @@ export function CampaignPublisherConfig({
         <div className="space-y-2">
           <div 
             className={`flex items-start space-x-3 p-3 border rounded-lg cursor-pointer transition-colors ${
-              advantagePlusPlacements 
+              advantagePlusPlacements !== false 
                 ? 'bg-primary/10 border-primary' 
                 : 'bg-background hover:bg-accent/50'
             }`}
@@ -124,8 +125,8 @@ export function CampaignPublisherConfig({
             <div className="flex items-center h-5 mt-0.5">
               <input 
                 type="radio" 
-                name="placement-strategy"
-                checked={advantagePlusPlacements === true}
+                name={radioName}
+                checked={advantagePlusPlacements !== false}
                 onChange={() => onAdvantagePlusPlacementsChange?.(true)}
                 className="h-4 w-4 text-primary"
               />
@@ -142,12 +143,12 @@ export function CampaignPublisherConfig({
           </div>
           <div 
             className={`flex items-start space-x-3 p-3 border rounded-lg cursor-pointer transition-colors ${
-              !advantagePlusPlacements 
+              advantagePlusPlacements === false
                 ? 'bg-primary/10 border-primary' 
                 : 'bg-background hover:bg-accent/50'
             }`}
             onClick={() => {
-              if (advantagePlusPlacements) {
+              if (advantagePlusPlacements !== false) {
                 onAdvantagePlusPlacementsChange?.(false);
                 // Auto-select all publishers and their placements when switching to manual
                 const allPublishers = availablePublisherPlatforms;
@@ -165,10 +166,10 @@ export function CampaignPublisherConfig({
             <div className="flex items-center h-5 mt-0.5">
               <input 
                 type="radio" 
-                name="placement-strategy"
-                checked={!advantagePlusPlacements}
+                name={radioName}
+                checked={advantagePlusPlacements === false}
                 onChange={() => {
-                  if (advantagePlusPlacements) {
+                  if (advantagePlusPlacements !== false) {
                     onAdvantagePlusPlacementsChange?.(false);
                     // Auto-select all publishers and their placements when switching to manual
                     const allPublishers = availablePublisherPlatforms;
@@ -196,7 +197,7 @@ export function CampaignPublisherConfig({
       </div>
 
       {/* Manual Placement Configuration - only shown when manual mode is selected */}
-      {!advantagePlusPlacements && (
+      {advantagePlusPlacements === false && (
         <>
           <div className="space-y-3">
             <Label>Publisher Platforms</Label>
