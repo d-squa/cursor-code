@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useWorkspace } from "@/hooks/useWorkspace";
@@ -8,66 +8,82 @@ import { useWorkspace } from "@/hooks/useWorkspace";
  * Uses a backend permission function to avoid client-side RLS edge cases.
  */
 export function useWorkspaceAdminAccess() {
-  const { user } = useAuth();
-  const {
-    activeWorkspaceId,
-    loading: workspaceLoading,
-    workspaces,
-  } = useWorkspace();
+  const { user, loading: authLoading } = useAuth();
+  const { activeWorkspaceId, loading: workspaceLoading } = useWorkspace();
 
   const [loading, setLoading] = useState(true);
   const [canAccess, setCanAccess] = useState(false);
+  const checkedRef = useRef<string | null>(null);
 
   useEffect(() => {
+    // Still loading auth or workspace
+    if (authLoading || workspaceLoading) {
+      setLoading(true);
+      return;
+    }
+
+    // No user = no access
     if (!user) {
       setCanAccess(false);
       setLoading(false);
       return;
     }
 
-    if (workspaceLoading) {
+    // No active workspace yet = keep loading (don't deny prematurely)
+    if (!activeWorkspaceId) {
       setLoading(true);
       return;
     }
 
-    // `useWorkspace` derives `activeWorkspaceId` in an effect.
-    // There can be a render where `workspaceLoading=false` but `activeWorkspaceId=null`
-    // even though workspaces have loaded. In that case, keep loading to avoid a false-deny.
-    if (!activeWorkspaceId) {
-      if ((workspaces?.length ?? 0) > 0) {
-        setLoading(true);
-        return;
-      }
-      setCanAccess(false);
-      setLoading(false);
+    // Already checked this exact combo
+    if (checkedRef.current === `${user.id}:${activeWorkspaceId}`) {
       return;
     }
 
     let cancelled = false;
 
-    const run = async () => {
+    const checkAccess = async () => {
+      setLoading(true);
       try {
-        setLoading(true);
+        console.log("[useWorkspaceAdminAccess] Checking access", {
+          userId: user.id,
+          workspaceId: activeWorkspaceId,
+        });
+
         const { data, error } = await supabase.rpc("can_view_roles_in_team", {
           _viewer_id: user.id,
           _team_id: activeWorkspaceId,
         });
 
-        if (error) throw error;
-        if (!cancelled) setCanAccess(data === true);
+        if (error) {
+          console.error("[useWorkspaceAdminAccess] RPC error:", error);
+          throw error;
+        }
+
+        console.log("[useWorkspaceAdminAccess] Result:", data);
+
+        if (!cancelled) {
+          checkedRef.current = `${user.id}:${activeWorkspaceId}`;
+          setCanAccess(data === true);
+        }
       } catch (err) {
-        console.warn("[useWorkspaceAdminAccess] failed", err);
-        if (!cancelled) setCanAccess(false);
+        console.error("[useWorkspaceAdminAccess] Error:", err);
+        if (!cancelled) {
+          setCanAccess(false);
+        }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
-    run();
+    checkAccess();
+
     return () => {
       cancelled = true;
     };
-  }, [user, activeWorkspaceId, workspaceLoading, workspaces?.length]);
+  }, [user, activeWorkspaceId, authLoading, workspaceLoading]);
 
   return { canAccess, loading, activeWorkspaceId };
 }
