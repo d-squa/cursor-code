@@ -201,11 +201,20 @@ export default function LaunchStatus() {
           }
         }
 
+        let isBudgetValidationError = false;
+        let budgetErrors: any[] = [];
+
         if (payload && typeof payload === 'object') {
           errorMessage = payload.error || payload.message || errorMessage;
 
           if (payload.code === 'DAILY_LIMIT_REACHED') {
             isRateLimitError = true;
+          }
+          
+          // Check for budget validation errors
+          if (payload.code === 'BUDGET_VALIDATION_FAILED' && payload.validationErrors) {
+            isBudgetValidationError = true;
+            budgetErrors = payload.validationErrors;
           }
         }
 
@@ -216,6 +225,15 @@ export default function LaunchStatus() {
           errorMessage.toLowerCase().includes('limit reached')
         ) {
           isRateLimitError = true;
+        }
+        
+        // Detect budget errors from message content
+        if (
+          errorMessage.includes('minimum budget') ||
+          errorMessage.includes('Budget validation failed') ||
+          errorMessage.includes('below minimum')
+        ) {
+          isBudgetValidationError = true;
         }
 
         if (isRateLimitError) {
@@ -238,6 +256,32 @@ export default function LaunchStatus() {
 
           await loadData();
           await refetchLimits();
+          return;
+        }
+        
+        // Handle budget validation errors with clear messaging
+        if (isBudgetValidationError) {
+          const budgetErrorDetails = budgetErrors.length > 0 
+            ? budgetErrors.map((e: any) => `${e.platform} ${e.market}/${e.phase}: €${e.currentBudget?.toFixed(2) || '0'} (min: €${e.minimumRequired?.toFixed(2) || '?'})`).join('\n')
+            : 'One or more campaigns have budgets below platform minimums.';
+          
+          toast.error('Budget Too Low', {
+            duration: 15000,
+            description: `${budgetErrorDetails}\n\nIncrease the budget or reduce campaign duration to meet platform requirements.`,
+          });
+
+          // Revert pushing statuses to validation_error
+          await supabase
+            .from('campaign_launch_status')
+            .update({ 
+              status: 'validation_error',
+              error_message: 'Budget below platform minimum',
+              error_details: budgetErrors.length > 0 ? budgetErrors : [{ message: errorMessage, type: 'budget_validation' }]
+            })
+            .eq('campaign_id', campaignId)
+            .eq('status', 'pushing');
+
+          await loadData();
           return;
         }
 
