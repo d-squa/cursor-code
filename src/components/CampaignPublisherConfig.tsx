@@ -146,14 +146,42 @@ export function CampaignPublisherConfig({
                 ? 'bg-primary/10 border-primary' 
                 : 'bg-background hover:bg-accent/50'
             }`}
-            onClick={() => onAdvantagePlusPlacementsChange?.(false)}
+            onClick={() => {
+              if (advantagePlusPlacements !== false) {
+                onAdvantagePlusPlacementsChange?.(false);
+                // Auto-select all publishers and their placements when switching to manual
+                const allPublishers = availablePublisherPlatforms;
+                const allPositions: typeof positions = {};
+                allPublishers.forEach(publisher => {
+                  if (availablePlacements[publisher]) {
+                    allPositions[publisher as keyof typeof positions] = availablePlacements[publisher];
+                  }
+                });
+                onPublisherPlatformsChange(allPublishers);
+                onPositionsChange(allPositions);
+              }
+            }}
           >
             <div className="flex items-center h-5 mt-0.5">
               <input 
                 type="radio" 
                 name="placement-strategy"
                 checked={advantagePlusPlacements === false}
-                onChange={() => onAdvantagePlusPlacementsChange?.(false)}
+                onChange={() => {
+                  if (advantagePlusPlacements !== false) {
+                    onAdvantagePlusPlacementsChange?.(false);
+                    // Auto-select all publishers and their placements when switching to manual
+                    const allPublishers = availablePublisherPlatforms;
+                    const allPositions: typeof positions = {};
+                    allPublishers.forEach(publisher => {
+                      if (availablePlacements[publisher]) {
+                        allPositions[publisher as keyof typeof positions] = availablePlacements[publisher];
+                      }
+                    });
+                    onPublisherPlatformsChange(allPublishers);
+                    onPositionsChange(allPositions);
+                  }
+                }}
                 className="h-4 w-4 text-primary"
               />
             </div>

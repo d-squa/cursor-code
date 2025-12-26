@@ -1874,11 +1874,42 @@ export function PhaseScheduler({
                         // Skip destination config for TikTok - handled in TiktokPhaseConfig
                         if (isTikTok) return null;
                         
+                        // Objectives that do NOT support optimization location selection
+                        const objectivesWithoutOptimizationLocation = [
+                          'OUTCOME_AWARENESS',
+                          'REACH',
+                          'BRAND_AWARENESS',
+                          'OUTCOME_ENGAGEMENT', // Will be handled specially below based on optimization goal
+                        ];
+                        
+                        // Optimization goals that do NOT require/support optimization location
+                        const goalsWithoutOptimizationLocation = [
+                          'REACH',
+                          'IMPRESSIONS',
+                          'AD_RECALL_LIFT',
+                          'THRUPLAY',
+                          'TWO_SECOND_CONTINUOUS_VIDEO_VIEWS',
+                          'POST_ENGAGEMENT',
+                          'PAGE_LIKES',
+                          'EVENT_RESPONSES',
+                          'VIDEO_VIEWS',
+                        ];
+                        
                         const platformType = "meta";
                         const validDestinations = phase.objective ? getDestinationsForObjective(platformType, phase.objective) : [];
                         
                         // Check if current optimization goal requires a specific destination
                         const goalRequiredDestination = phase.optimizationGoal ? getDestinationForOptimizationGoal(phase.optimizationGoal) : null;
+                        
+                        // Hide optimization location for objectives that don't support it
+                        if (phase.objective && objectivesWithoutOptimizationLocation.includes(phase.objective) && phase.objective !== 'OUTCOME_ENGAGEMENT') {
+                          return null;
+                        }
+                        
+                        // Hide for optimization goals that don't support optimization location
+                        if (phase.optimizationGoal && goalsWithoutOptimizationLocation.includes(phase.optimizationGoal)) {
+                          return null;
+                        }
                         
                         // For Engagement objective, only show destination section if optimization goal specifically requires one
                         // (On Your Ad goals like POST_ENGAGEMENT, THRUPLAY don't need destinations)
