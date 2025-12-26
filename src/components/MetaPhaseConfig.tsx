@@ -55,19 +55,20 @@ export function MetaPhaseConfig({ phase, adAccountDefaults, onUpdate }: MetaPhas
   // Show bid amount only when bid cap is required
   const showBidAmount = phase.metaBidStrategy === 'LOWEST_COST_WITH_BID_CAP' || phase.metaBidStrategy === 'COST_CAP';
 
-  // Show attribution windows for conversion-based campaigns
-  const showAttributionWindows = [
-    "OUTCOME_LEADS",
+  // Show attribution windows ONLY for true conversion campaigns
+  // Meta only supports extended attribution for OUTCOME_SALES with OFFSITE_CONVERSIONS or VALUE optimization
+  // All other objectives only support (1, 0) which is auto-applied - no need to show UI
+  const isConversionObjective = [
     "OUTCOME_SALES", 
     "CONVERSIONS",
+  ].includes(objective.toUpperCase());
+  
+  const isConversionGoal = [
     "OFFSITE_CONVERSIONS",
-    "LEAD_GENERATION"
-  ].includes(objective.toUpperCase()) || [
-    "OFFSITE_CONVERSIONS",
-    "LANDING_PAGE_VIEWS",
-    "LINK_CLICKS",
     "VALUE"
   ].includes(optimizationGoal.toUpperCase());
+  
+  const showAttributionWindows = isConversionObjective && isConversionGoal;
 
   // Show conversion count for conversion-based campaigns
   const showConversionCount = [
@@ -158,40 +159,47 @@ export function MetaPhaseConfig({ phase, adAccountDefaults, onUpdate }: MetaPhas
           </div>
         )}
 
-        {/* Attribution Windows */}
+        {/* Attribution Windows - Only for conversion campaigns */}
         {showAttributionWindows && (
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Click-Through Window (days)</Label>
-              <Select
-                value={phase.metaClickWindow?.toString() || undefined}
-                onValueChange={(value) => onUpdate("metaClickWindow", parseInt(value))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={selectPlaceholder} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">1 day</SelectItem>
-                  <SelectItem value="7">7 days</SelectItem>
-                  <SelectItem value="28">28 days</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="space-y-3">
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertDescription className="text-xs">
+                Meta only supports these attribution combinations: (1,0), (1,1), (7,0), (7,1) for click-through and view-through days respectively.
+              </AlertDescription>
+            </Alert>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Click-Through Window (days)</Label>
+                <Select
+                  value={phase.metaClickWindow?.toString() || undefined}
+                  onValueChange={(value) => onUpdate("metaClickWindow", parseInt(value))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={selectPlaceholder} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">1 day</SelectItem>
+                    <SelectItem value="7">7 days</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-            <div className="space-y-2">
-              <Label>View-Through Window (days)</Label>
-              <Select
-                value={phase.metaViewWindow?.toString() || undefined}
-                onValueChange={(value) => onUpdate("metaViewWindow", parseInt(value))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={selectPlaceholder} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">1 day</SelectItem>
-                  <SelectItem value="7">7 days</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="space-y-2">
+                <Label>View-Through Window (days)</Label>
+                <Select
+                  value={phase.metaViewWindow?.toString() || undefined}
+                  onValueChange={(value) => onUpdate("metaViewWindow", parseInt(value))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={selectPlaceholder} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">None (0 days)</SelectItem>
+                    <SelectItem value="1">1 day</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
         )}
