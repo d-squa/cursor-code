@@ -486,41 +486,64 @@ export function PhaseScheduler({
   
   useEffect(() => {
     if (!adAccountDefaults || phases.length === 0) return;
-    
-    const isMeta = platformName.toLowerCase().includes('meta');
+
+    const isMeta = platformName.toLowerCase().includes("meta");
     if (!isMeta) return;
-    
+
     // Check if any defaults are available
-    const hasDefaultPublishers = adAccountDefaults.publisherPlatforms && adAccountDefaults.publisherPlatforms.length > 0;
-    const hasDefaultPositions = adAccountDefaults.positions && Object.keys(adAccountDefaults.positions).length > 0;
-    
+    const hasDefaultPublishers =
+      adAccountDefaults.publisherPlatforms && adAccountDefaults.publisherPlatforms.length > 0;
+    const hasDefaultPositions =
+      adAccountDefaults.positions && Object.keys(adAccountDefaults.positions).length > 0;
+
     if (!hasDefaultPublishers && !hasDefaultPositions) return;
-    
+
     // Find phases that haven't had defaults applied yet
-    const phasesNeedingDefaults = phases.filter(phase => !placementDefaultsAppliedRef.current.has(phase.id));
-    
+    const phasesNeedingDefaults = phases.filter(
+      (phase) => !placementDefaultsAppliedRef.current.has(phase.id)
+    );
+
     if (phasesNeedingDefaults.length === 0) return;
-    
-    console.log("[PhaseScheduler] Applying placement defaults to phases:", phasesNeedingDefaults.map(p => p.id));
-    
-    // Mark these phases as having defaults applied
-    phasesNeedingDefaults.forEach(phase => placementDefaultsAppliedRef.current.add(phase.id));
-    
-    // Build all updates at once
-    const updatedPhases = phases.map(phase => {
-      if (!phasesNeedingDefaults.some(p => p.id === phase.id)) {
-        return phase;
-      }
-      
+
+    console.log(
+      "[PhaseScheduler] Applying placement defaults to phases:",
+      phasesNeedingDefaults.map((p) => p.id)
+    );
+
+    // Mark these phases as having defaults applied (we only auto-apply once)
+    phasesNeedingDefaults.forEach((phase) => placementDefaultsAppliedRef.current.add(phase.id));
+
+    const updatedPhases = phases.map((phase) => {
+      if (!phasesNeedingDefaults.some((p) => p.id === phase.id)) return phase;
+
+      // Only apply defaults when the phase hasn't been explicitly set yet.
+      // This avoids overriding the user's Manual vs Advantage+ selection.
+      const shouldApplyPublishers =
+        hasDefaultPublishers && (!phase.publisherPlatforms || phase.publisherPlatforms.length === 0);
+      const shouldApplyPositions =
+        hasDefaultPositions && (!phase.positions || Object.keys(phase.positions).length === 0);
+      const shouldApplyStrategy = phase.advantagePlusPlacements == null;
+
+      if (!shouldApplyPublishers && !shouldApplyPositions && !shouldApplyStrategy) return phase;
+
       return {
         ...phase,
-        publisherPlatforms: hasDefaultPublishers ? [...adAccountDefaults.publisherPlatforms!] : phase.publisherPlatforms,
-        positions: hasDefaultPositions ? JSON.parse(JSON.stringify(adAccountDefaults.positions)) : phase.positions,
-        advantagePlusPlacements: adAccountDefaults.metaAdvantagePlusPlacements ?? phase.advantagePlusPlacements,
+        ...(shouldApplyPublishers
+          ? { publisherPlatforms: [...adAccountDefaults.publisherPlatforms!] }
+          : {}),
+        ...(shouldApplyPositions
+          ? { positions: JSON.parse(JSON.stringify(adAccountDefaults.positions)) }
+          : {}),
+        ...(shouldApplyStrategy
+          ? { advantagePlusPlacements: adAccountDefaults.metaAdvantagePlusPlacements ?? true }
+          : {}),
       };
     });
-    
-    onPhasesChange(updatedPhases);
+
+    const changed = updatedPhases.some((p, i) => p !== phases[i]);
+    if (changed) {
+      onPhasesChange(updatedPhases);
+    }
   }, [adAccountDefaults, phases, platformName, onPhasesChange]);
 
   const getDefaultObjectiveForFocus = (focus: string, phaseName: string): string => {
