@@ -16,6 +16,9 @@ export function useRole() {
       return;
     }
 
+    // Ensure consumers don't treat role as resolved while we fetch it
+    setLoading(true);
+
     const fetchRole = async () => {
       try {
         // Use security definer functions to bypass RLS and prevent recursive policy issues
