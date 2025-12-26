@@ -142,12 +142,12 @@ export function CampaignPublisherConfig({
           </div>
           <div 
             className={`flex items-start space-x-3 p-3 border rounded-lg cursor-pointer transition-colors ${
-              advantagePlusPlacements === false 
+              !advantagePlusPlacements 
                 ? 'bg-primary/10 border-primary' 
                 : 'bg-background hover:bg-accent/50'
             }`}
             onClick={() => {
-              if (advantagePlusPlacements !== false) {
+              if (advantagePlusPlacements) {
                 onAdvantagePlusPlacementsChange?.(false);
                 // Auto-select all publishers and their placements when switching to manual
                 const allPublishers = availablePublisherPlatforms;
@@ -166,9 +166,9 @@ export function CampaignPublisherConfig({
               <input 
                 type="radio" 
                 name="placement-strategy"
-                checked={advantagePlusPlacements === false}
+                checked={!advantagePlusPlacements}
                 onChange={() => {
-                  if (advantagePlusPlacements !== false) {
+                  if (advantagePlusPlacements) {
                     onAdvantagePlusPlacementsChange?.(false);
                     // Auto-select all publishers and their placements when switching to manual
                     const allPublishers = availablePublisherPlatforms;
