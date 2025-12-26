@@ -101,10 +101,14 @@ export default function OperationsReports() {
 
   useEffect(() => {
     if (!authLoading && !roleLoading && !hasAccess) {
+      if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
+        console.warn("[OperationsReports] Access denied", { hasAccess, isAdmin, isOwner, authLoading, roleLoading });
+      }
       toast.error("Access denied. Admin or Owner role required.");
       navigate("/settings/account");
     }
-  }, [hasAccess, authLoading, roleLoading, navigate]);
+  }, [hasAccess, isAdmin, isOwner, authLoading, roleLoading, navigate]);
 
   useEffect(() => {
     if (user && hasAccess) {
