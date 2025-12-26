@@ -13,6 +13,124 @@ const campaignInputSchema = z.object({
   campaignId: z.string().uuid()
 });
 
+// ============= MINIMUM BUDGET REQUIREMENTS =============
+// Platform minimum budget requirements (in account currency - e.g., EUR/USD)
+// These are lifetime minimums - daily minimums are calculated based on duration
+const PLATFORM_MINIMUM_BUDGETS = {
+  meta: {
+    // Meta requires minimum $1/day for daily budget, or $1 * days for lifetime
+    dailyMinimum: 1,
+    lifetimeMinimumPerDay: 1,
+    currency: 'USD',
+    name: 'Meta'
+  },
+  tiktok: {
+    // TikTok requires higher minimums - ~€380 for short campaigns, scales with duration
+    // Per TikTok docs: $50/day minimum, or $50 * campaign_days for lifetime (varies by region)
+    // EU region often requires higher minimums
+    dailyMinimum: 50,
+    lifetimeMinimumPerDay: 50,
+    // For short campaigns (< 7 days), TikTok enforces a flat minimum (~€380 in EU)
+    shortCampaignMinimum: 380,
+    shortCampaignDays: 7,
+    currency: 'EUR',
+    name: 'TikTok'
+  }
+};
+
+interface BudgetValidationError {
+  platform: string;
+  market: string;
+  phase: string;
+  calculatedBudget: number;
+  minimumRequired: number;
+  budgetType: string;
+  durationDays: number;
+  message: string;
+  fieldPath: string;
+}
+
+function validatePlatformBudgets(
+  campaign: any,
+  platformConfig: any,
+  platformName: string,
+  markets: Record<string, any>
+): BudgetValidationError[] {
+  const errors: BudgetValidationError[] = [];
+  const platformKey = platformName.toLowerCase().includes('meta') ? 'meta' : 
+                      platformName.toLowerCase().includes('tiktok') ? 'tiktok' : null;
+  
+  if (!platformKey || !PLATFORM_MINIMUM_BUDGETS[platformKey]) {
+    return errors; // Skip validation for unsupported platforms
+  }
+  
+  const platformMinimums = PLATFORM_MINIMUM_BUDGETS[platformKey];
+  const totalCampaignBudget = campaign.total_budget || 0;
+  const platformBudgetPercentage = platformConfig.budgetPercentage || 100;
+  
+  for (const [marketCode, market] of Object.entries(markets) as [string, any][]) {
+    const marketBudgetPercentage = market.budgetPercentage || 100;
+    const phases = market.phases || [{
+      id: 'default-phase',
+      name: market.name,
+      startDate: campaign.start_date,
+      endDate: campaign.end_date,
+      budgetPercentage: 100,
+    }];
+    
+    for (const phase of phases) {
+      const phaseBudgetPercentage = phase.budgetPercentage || 100;
+      const phaseBudget = (totalCampaignBudget * platformBudgetPercentage / 100) * 
+                          (marketBudgetPercentage / 100) * (phaseBudgetPercentage / 100);
+      
+      const startDate = new Date(phase.startDate || campaign.start_date);
+      const endDate = new Date(phase.endDate || campaign.end_date);
+      const durationDays = Math.max(1, Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+      
+      const budgetType = phase.budgetType || 'lifetime';
+      
+      let minimumRequired: number;
+      let calculatedBudgetValue: number;
+      
+      if (budgetType === 'daily') {
+        // For daily budget, check daily minimum
+        calculatedBudgetValue = phaseBudget / durationDays;
+        minimumRequired = platformMinimums.dailyMinimum;
+      } else {
+        // For lifetime budget
+        calculatedBudgetValue = phaseBudget;
+        
+        if (platformKey === 'tiktok') {
+          // TikTok has special rules for short campaigns
+          if (durationDays <= (platformMinimums as any).shortCampaignDays) {
+            minimumRequired = (platformMinimums as any).shortCampaignMinimum;
+          } else {
+            minimumRequired = platformMinimums.lifetimeMinimumPerDay * durationDays;
+          }
+        } else {
+          minimumRequired = platformMinimums.lifetimeMinimumPerDay * durationDays;
+        }
+      }
+      
+      if (calculatedBudgetValue < minimumRequired) {
+        errors.push({
+          platform: platformMinimums.name,
+          market: market.name || marketCode,
+          phase: phase.name || 'Default',
+          calculatedBudget: Math.round(calculatedBudgetValue * 100) / 100,
+          minimumRequired: minimumRequired,
+          budgetType: budgetType,
+          durationDays: durationDays,
+          message: `${platformMinimums.name} requires a minimum ${budgetType} budget of ${platformMinimums.currency}${minimumRequired.toFixed(2)} for ${durationDays} day(s). Current budget: ${platformMinimums.currency}${calculatedBudgetValue.toFixed(2)}`,
+          fieldPath: 'step2' // Budget allocation step
+        });
+      }
+    }
+  }
+  
+  return errors;
+}
+
 // ============= TAXONOMY GENERATION HELPERS =============
 // Replicates frontend taxonomy generation logic for campaign/ad set naming
 
@@ -697,10 +815,109 @@ const handler = async (req: Request): Promise<Response> => {
 
     const results = [];
 
-    // Process each platform in the campaign
-    // Extract platform configurations from market_splits
+    // ============= PRE-PUSH BUDGET VALIDATION =============
+    // Validate minimum budget requirements for all platforms BEFORE pushing anything
+    console.log('🔍 Running pre-push budget validation...');
+    const allBudgetErrors: BudgetValidationError[] = [];
     const marketSplits = campaign.market_splits || {};
+    const budgetAllocation = campaign.budget_allocation || {};
     
+    for (const [platformId, markets] of Object.entries(marketSplits)) {
+      const campaignPlatform = (campaign.platforms || []).find((p: any) => p.id === platformId);
+      if (!campaignPlatform) continue;
+      
+      const platformName = campaignPlatform.name;
+      const platformBudgetPercentage = budgetAllocation[platformId] || 0;
+      
+      // Skip already-pushed markets in validation too
+      const platformKey = platformName.toLowerCase().includes('meta') ? 'meta' : 
+                          platformName.toLowerCase().includes('tiktok') ? 'tiktok' : platformName.toLowerCase();
+      
+      const marketsToValidate: Record<string, any> = {};
+      for (const [marketCode, marketData] of Object.entries(markets as Record<string, any>)) {
+        const phases = (marketData as any).phases || [];
+        const phasesToValidate: any[] = [];
+        
+        for (const phase of phases) {
+          const checkKey = `${platformKey}|${marketCode}|${phase.name || ''}`;
+          if (!alreadyPushedSet.has(checkKey)) {
+            phasesToValidate.push(phase);
+          }
+        }
+        
+        if (phasesToValidate.length > 0) {
+          marketsToValidate[marketCode] = { ...marketData, phases: phasesToValidate };
+        }
+      }
+      
+      if (Object.keys(marketsToValidate).length > 0) {
+        const platformConfig = { budgetPercentage: platformBudgetPercentage };
+        const budgetErrors = validatePlatformBudgets(campaign, platformConfig, platformName, marketsToValidate);
+        allBudgetErrors.push(...budgetErrors);
+      }
+    }
+    
+    if (allBudgetErrors.length > 0) {
+      console.log(`❌ Pre-push validation failed with ${allBudgetErrors.length} budget error(s)`);
+      for (const err of allBudgetErrors) {
+        console.log(`  - ${err.platform}/${err.market}/${err.phase}: ${err.message}`);
+        
+        // Insert validation error status for each failed entity
+        await supabase.from('campaign_launch_status').upsert({
+          campaign_id: campaignId,
+          platform: err.platform.toLowerCase(),
+          market: err.market,
+          phase_name: err.phase,
+          entity_type: 'adset',
+          status: 'validation_error',
+          error_message: err.message,
+          error_details: {
+            type: 'minimum_budget',
+            calculatedBudget: err.calculatedBudget,
+            minimumRequired: err.minimumRequired,
+            budgetType: err.budgetType,
+            durationDays: err.durationDays,
+            fieldPath: err.fieldPath
+          },
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'campaign_id,platform,market,phase_name,entity_type'
+        });
+      }
+      
+      // Update campaign status to validation_failed
+      await supabase.from('campaigns').update({
+        status: 'validation_failed',
+        updated_at: new Date().toISOString()
+      }).eq('id', campaignId);
+      
+      return new Response(JSON.stringify({
+        success: false,
+        validationFailed: true,
+        errors: allBudgetErrors.map(e => ({
+          platform: e.platform,
+          market: e.market,
+          phase: e.phase,
+          error: e.message,
+          type: 'minimum_budget',
+          fieldPath: e.fieldPath,
+          details: {
+            calculatedBudget: e.calculatedBudget,
+            minimumRequired: e.minimumRequired,
+            budgetType: e.budgetType,
+            durationDays: e.durationDays
+          }
+        }))
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+    
+    console.log('✅ Pre-push budget validation passed');
+    // ============= END PRE-PUSH BUDGET VALIDATION =============
+
+    // Process each platform in the campaign
     for (const [platformId, markets] of Object.entries(marketSplits)) {
       // Find the platform in campaign.platforms to get the name
       const campaignPlatform = (campaign.platforms || []).find((p: any) => p.id === platformId);
