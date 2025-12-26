@@ -805,17 +805,28 @@ export default function ActiPlans() {
                   </DropdownMenuItem>
                 )}
 
-                {/* Submit Request - for operational requests */}
+                {/* Submit Request - for operational requests (Enterprise+ only) */}
                 {["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
-                  <DropdownMenuItem
-                    onClick={() => {
-                      setSelectedCampaign(campaign);
-                      setSubmitRequestDialogOpen(true);
-                    }}
-                  >
-                    <Send className="w-4 h-4 mr-2" />
-                    Submit Request
-                  </DropdownMenuItem>
+                  hasAccess('request_modifications') ? (
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setSelectedCampaign(campaign);
+                        setSubmitRequestDialogOpen(true);
+                      }}
+                    >
+                      <Send className="w-4 h-4 mr-2" />
+                      Submit Request
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem
+                      onClick={() => navigate('/settings/plans')}
+                      className="text-muted-foreground"
+                    >
+                      <Lock className="w-4 h-4 mr-2" />
+                      Submit Request
+                      <Badge variant="outline" className="ml-auto text-xs">Enterprise</Badge>
+                    </DropdownMenuItem>
+                  )
                 )}
 
                 {/* Activity Log - unified view of requests and actions */}
