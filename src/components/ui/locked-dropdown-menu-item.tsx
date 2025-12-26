@@ -35,13 +35,11 @@ export function LockedDropdownMenuItem({ feature, children, icon }: LockedDropdo
       <Tooltip delayDuration={0}>
         <TooltipTrigger asChild>
           <DropdownMenuItem
-            disabled
+            aria-disabled
             className="opacity-50 cursor-pointer"
-            onClick={(e) => {
-              e.preventDefault();
+            onSelect={() => {
               navigate('/settings/plans');
             }}
-            onSelect={(e) => e.preventDefault()}
           >
             <Lock className="w-4 h-4 mr-2" />
             {children}
