@@ -824,7 +824,6 @@ export default function ActiPlans() {
                     >
                       <Lock className="w-4 h-4 mr-2" />
                       Submit Request
-                      <Badge variant="outline" className="ml-auto text-xs">Enterprise</Badge>
                     </DropdownMenuItem>
                   )
                 )}
