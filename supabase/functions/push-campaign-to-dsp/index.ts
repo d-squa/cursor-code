@@ -408,7 +408,9 @@ async function updateLaunchStatuses(
       ];
       
       for (const platformName of platformVariants) {
-        const { data: failUpdateResult } = await supabase
+        // IMPORTANT: do not clobber other phases / entity types (can overwrite previously pushed rows)
+        // Scope failure updates to the specific phase + entity type when we have that info.
+        let q = supabase
           .from('campaign_launch_status')
           .update({
             status: 'push_failed',
@@ -418,9 +420,19 @@ async function updateLaunchStatuses(
           })
           .eq('campaign_id', campaignId)
           .eq('platform', platformName)
-          .eq('market', market)
-          .select();
-        
+          .eq('market', market);
+
+        if (phase) q = q.eq('phase_name', phase);
+
+        const typeStr = (type || '').toLowerCase();
+        if (typeStr.includes('adgroup') || typeStr.includes('adset')) {
+          q = q.eq('entity_type', 'adset');
+        } else if (typeStr.includes('campaign')) {
+          q = q.eq('entity_type', 'campaign');
+        }
+
+        const { data: failUpdateResult } = await q.select();
+
         if (failUpdateResult && failUpdateResult.length > 0) {
           console.log(`⚠️ Marked as failed for ${market}/${phase}: ${failUpdateResult.length} rows`);
           break;
@@ -671,10 +683,11 @@ const handler = async (req: Request): Promise<Response> => {
       .eq('campaign_id', campaignId);
     
     // Create a set of already-pushed entities (market+phase combinations)
-    // Include both 'pushed_to_dsp' and 'live' statuses to prevent re-pushing
+    // Include statuses that indicate an entity already exists in DSP to prevent accidental re-push on retries
+    // NOTE: 'push_failed' can still have a dsp_entity_id if the DSP entity was created but a later step failed.
     const alreadyPushedSet = new Set<string>();
     for (const status of (existingStatuses || [])) {
-      if ((status.status === 'pushed_to_dsp' || status.status === 'live') && status.dsp_entity_id) {
+      if ((status.status === 'pushed_to_dsp' || status.status === 'live' || status.status === 'push_failed') && status.dsp_entity_id) {
         // Key format: platform|market|phase_name
         const key = `${status.platform?.toLowerCase()}|${status.market}|${status.phase_name || ''}`;
         alreadyPushedSet.add(key);
