@@ -1,46 +1,54 @@
 import React from 'react';
 import { Lock } from 'lucide-react';
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useFeatureAccess } from '@/hooks/useFeatureAccess';
 import { Feature } from '@/config/featureAccess';
 import { TIER_DISPLAY_NAMES } from '@/config/subscriptionTiers';
-import { Link } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 
-interface LockedFeatureButtonProps {
+interface LockedDropdownMenuItemProps {
   feature: Feature;
   children: React.ReactNode;
-  className?: string;
+  icon?: React.ReactNode;
 }
 
 /**
- * Wraps a button to show it as disabled with a lock icon and an upgrade tooltip 
- * when the user doesn't have access to the feature. The tooltip contains a 
- * hyperlink to the plans page.
+ * A dropdown menu item that shows as locked when the user doesn't have access to the feature.
+ * Shows a lock icon and displays an upgrade tooltip on hover with a link to the plans page.
  */
-export function LockedFeatureButton({ feature, children, className }: LockedFeatureButtonProps) {
+export function LockedDropdownMenuItem({ feature, children, icon }: LockedDropdownMenuItemProps) {
   const { hasAccess, getRequiredTierForFeature } = useFeatureAccess();
+  const navigate = useNavigate();
   
   const canAccess = hasAccess(feature);
+  const requiredTier = getRequiredTierForFeature(feature);
   
   if (canAccess) {
-    return <>{children}</>;
+    // This component should only be used for locked items
+    // If user has access, the parent should render the normal item instead
+    return null;
   }
-  
-  const requiredTier = getRequiredTierForFeature(feature);
   
   return (
     <TooltipProvider>
       <Tooltip delayDuration={0}>
         <TooltipTrigger asChild>
-          <span className={`inline-flex ${className || ''}`}>
-            <span className="opacity-50 pointer-events-none flex items-center gap-2">
-              <Lock className="h-4 w-4" />
-              {children}
-            </span>
-          </span>
+          <DropdownMenuItem
+            disabled
+            className="opacity-50 cursor-pointer"
+            onClick={(e) => {
+              e.preventDefault();
+              navigate('/settings/plans');
+            }}
+            onSelect={(e) => e.preventDefault()}
+          >
+            <Lock className="w-4 h-4 mr-2" />
+            {children}
+          </DropdownMenuItem>
         </TooltipTrigger>
         <TooltipContent 
-          side="top" 
+          side="left" 
           className="bg-background border border-border shadow-lg z-[100]"
         >
           <Link 
