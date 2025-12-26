@@ -15,7 +15,10 @@ const logStep = (step: string, details?: any) => {
 
 // Input validation schema
 const sessionInputSchema = z.object({
-  sessionId: z.string().regex(/^cs_[a-zA-Z0-9]+$/, "Invalid session ID format")
+  sessionId: z
+    .string()
+    // Stripe checkout session IDs look like: cs_test_..., cs_live_...
+    .regex(/^cs_(?:test|live)_[A-Za-z0-9]+$/, "Invalid session ID format"),
 });
 
 serve(async (req) => {
@@ -95,18 +98,54 @@ serve(async (req) => {
       isDowngrade 
     });
 
-    // Cancel the previous subscription ONLY after checkout is completed
-    if (previousSubscriptionId) {
-      logStep("Canceling previous subscription", { previousSubscriptionId });
-      
+    // Enforce single active subscription per customer (after checkout completes)
+    const customerId = typeof newSubscription.customer === 'string'
+      ? newSubscription.customer
+      : newSubscription.customer.id;
+
+    const canceledSubscriptionIds: string[] = [];
+
+    logStep("Enforcing single active subscription", {
+      customerId,
+      newSubscriptionId: newSubscription.id,
+      previousSubscriptionId,
+    });
+
+    const subscriptions = await stripe.subscriptions.list({
+      customer: customerId,
+      status: "all",
+      limit: 100,
+    });
+
+    const candidates = subscriptions.data.filter(
+      (s: Stripe.Subscription) =>
+        s.id !== newSubscription.id &&
+        (s.status === "active" || s.status === "trialing"),
+    );
+
+    const orderedCandidates: Stripe.Subscription[] = previousSubscriptionId
+      ? [
+          ...candidates.filter((s: Stripe.Subscription) => s.id === previousSubscriptionId),
+          ...candidates.filter((s: Stripe.Subscription) => s.id !== previousSubscriptionId),
+        ]
+      : candidates;
+
+    for (const sub of orderedCandidates) {
       try {
-        await stripe.subscriptions.cancel(previousSubscriptionId, {
-          prorate: false, // We handle refund manually
+        logStep("Canceling old subscription", {
+          subscriptionId: sub.id,
+          status: sub.status,
         });
-        logStep("Previous subscription canceled");
+
+        await stripe.subscriptions.cancel(sub.id, {
+          prorate: false, // We handle refunds manually
+        });
+
+        canceledSubscriptionIds.push(sub.id);
       } catch (cancelError) {
-        logStep("Warning: Could not cancel previous subscription", { 
-          error: cancelError instanceof Error ? cancelError.message : String(cancelError)
+        logStep("Warning: Could not cancel subscription", {
+          subscriptionId: sub.id,
+          error: cancelError instanceof Error ? cancelError.message : String(cancelError),
         });
       }
     }
