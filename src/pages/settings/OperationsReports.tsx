@@ -100,7 +100,7 @@ export default function OperationsReports() {
 
   useEffect(() => {
     if (!authLoading && !roleLoading && !isAdmin) {
-      toast.error("Access denied. Admin role required.");
+      toast.error("Access denied. Admin or Owner role required.");
       navigate("/settings/account");
     }
   }, [isAdmin, authLoading, roleLoading, navigate]);
@@ -418,7 +418,7 @@ export default function OperationsReports() {
           <div className="text-center space-y-2">
             <AlertTriangle className="h-12 w-12 text-destructive mx-auto" />
             <h3 className="text-lg font-semibold">Access Denied</h3>
-            <p className="text-muted-foreground">Only admins can access Operations Reports.</p>
+            <p className="text-muted-foreground">Only admins and owners can access Operations Reports.</p>
           </div>
         </CardContent>
       </Card>
