@@ -15,6 +15,7 @@ import {
   Bug,
   RefreshCw,
   Plus,
+  Rocket,
   LayoutDashboard,
   Lock,
 } from "lucide-react";
@@ -127,7 +128,7 @@ const Overview = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { tier } = useFeatureAccess();
-  const { dailyLimit, remaining, canCreate } = useActiplanLimits();
+  const { dailyLimit, remaining, usedToday, canCreate } = useActiplanLimits();
   const [bugDialogOpen, setBugDialogOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -498,9 +499,28 @@ const Overview = () => {
             </Button>
             <div className="flex items-center gap-2">
               {dailyLimit !== Infinity && (
-                <span className="text-xs text-muted-foreground whitespace-nowrap">
-                  {remaining}/{dailyLimit} DSP pushes today
-                </span>
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-secondary/50 border border-border">
+                  <Rocket className="h-4 w-4 text-primary" />
+                  <div className="flex flex-col">
+                    <span className="text-sm font-semibold text-foreground whitespace-nowrap">
+                      {usedToday}/{dailyLimit} DSP pushes
+                    </span>
+                    {remaining === 0 ? (
+                      <Button
+                        variant="link"
+                        size="sm"
+                        className="h-auto p-0 text-xs text-primary"
+                        onClick={() => navigate('/settings/plans')}
+                      >
+                        Upgrade to {getNextTierName()} →
+                      </Button>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">
+                        Upgrade to {getNextTierName()} →
+                      </span>
+                    )}
+                  </div>
+                </div>
               )}
               <Button onClick={() => {
                 localStorage.removeItem('draftCampaignId');
