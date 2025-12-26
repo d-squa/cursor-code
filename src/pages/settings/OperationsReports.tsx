@@ -71,7 +71,7 @@ const CHART_COLORS = ['hsl(var(--primary))', 'hsl(var(--secondary))', 'hsl(var(-
 
 export default function OperationsReports() {
   const { user, loading: authLoading } = useAuth();
-  const { role, loading: roleLoading } = useRole();
+  const { isAdmin, isOwner, loading: roleLoading } = useRole();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   
@@ -96,26 +96,27 @@ export default function OperationsReports() {
   const [availablePlatforms, setAvailablePlatforms] = useState<string[]>([]);
   const [availableMarkets, setAvailableMarkets] = useState<string[]>([]);
 
-  const isAdmin = role === 'admin' || role === 'owner';
+  // Use isAdmin from useRole which already accounts for isOwner
+  const hasAccess = isAdmin || isOwner;
 
   useEffect(() => {
-    if (!authLoading && !roleLoading && !isAdmin) {
+    if (!authLoading && !roleLoading && !hasAccess) {
       toast.error("Access denied. Admin or Owner role required.");
       navigate("/settings/account");
     }
-  }, [isAdmin, authLoading, roleLoading, navigate]);
+  }, [hasAccess, authLoading, roleLoading, navigate]);
 
   useEffect(() => {
-    if (user && isAdmin) {
+    if (user && hasAccess) {
       loadInitialData();
     }
-  }, [user, isAdmin]);
+  }, [user, hasAccess]);
 
   useEffect(() => {
-    if (user && isAdmin && selectedClients.length > 0) {
+    if (user && hasAccess && selectedClients.length > 0) {
       loadOperationsData();
     }
-  }, [user, isAdmin, selectedClients, selectedTeam, selectedCampaign]);
+  }, [user, hasAccess, selectedClients, selectedTeam, selectedCampaign]);
 
   const loadInitialData = async () => {
     try {
@@ -411,7 +412,7 @@ export default function OperationsReports() {
     );
   }
 
-  if (!isAdmin) {
+  if (!hasAccess) {
     return (
       <Card>
         <CardContent className="py-12">
