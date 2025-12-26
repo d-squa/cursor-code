@@ -2156,6 +2156,7 @@ export type Database = {
         Args: { _team_id: string; _viewer_id: string }
         Returns: boolean
       }
+      ensure_user_workspace: { Args: never; Returns: string }
       get_platform_token: {
         Args: { platform_id: string; token_type?: string }
         Returns: string
