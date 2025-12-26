@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Loader2, Play, Edit, CheckCircle, XCircle, MessageSquare, History, Trash2, Download, TrendingUp, MoreVertical, ArrowLeft, Search, BarChart3, FileText, FileSpreadsheet, ChevronDown, Rocket, Lock, ClipboardList, Activity, Send, Copy } from "lucide-react";
 import { LockedFeatureButton } from "@/components/ui/locked-feature-button";
+import { LockedDropdownMenuItem } from "@/components/ui/locked-dropdown-menu-item";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { useActiplanLimits } from "@/hooks/useActiplanLimits";
 import { TIER_DISPLAY_NAMES, SubscriptionTier } from "@/config/subscriptionTiers";
@@ -661,22 +662,12 @@ export default function ActiPlans() {
                 
                 {canApprove(campaign) && !hasAccess('approve_actiplans') && (
                   <>
-                    <DropdownMenuItem
-                      disabled
-                      className="opacity-50 cursor-pointer"
-                      onClick={() => navigate('/settings/plans')}
-                    >
-                      <Lock className="w-4 h-4 mr-2" />
+                    <LockedDropdownMenuItem feature="approve_actiplans">
                       Approve ActiPlan
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      disabled
-                      className="opacity-50 cursor-pointer"
-                      onClick={() => navigate('/settings/plans')}
-                    >
-                      <Lock className="w-4 h-4 mr-2" />
+                    </LockedDropdownMenuItem>
+                    <LockedDropdownMenuItem feature="approve_actiplans">
                       Reject Campaign
-                    </DropdownMenuItem>
+                    </LockedDropdownMenuItem>
                     <DropdownMenuSeparator />
                   </>
                 )}
@@ -693,14 +684,9 @@ export default function ActiPlans() {
                     Request Changes
                   </DropdownMenuItem>
                 ) : (
-                  <DropdownMenuItem
-                    disabled
-                    className="opacity-50 cursor-pointer"
-                    onClick={() => navigate('/settings/plans')}
-                  >
-                    <Lock className="w-4 h-4 mr-2" />
+                  <LockedDropdownMenuItem feature="request_modifications">
                     Request Changes
-                  </DropdownMenuItem>
+                  </LockedDropdownMenuItem>
                 )}
 
                 {/* Launch/Push menu item - conditional based on status */}
@@ -782,14 +768,9 @@ export default function ActiPlans() {
                     View History
                   </DropdownMenuItem>
                 ) : (
-                  <DropdownMenuItem
-                    disabled
-                    className="opacity-50 cursor-pointer"
-                    onClick={() => navigate('/settings/plans')}
-                  >
-                    <Lock className="w-4 h-4 mr-2" />
+                  <LockedDropdownMenuItem feature="change_history_dialog">
                     View History
-                  </DropdownMenuItem>
+                  </LockedDropdownMenuItem>
                 )}
 
                 {/* Log an Action - only for post-push campaigns */}
@@ -818,13 +799,9 @@ export default function ActiPlans() {
                       Submit Request
                     </DropdownMenuItem>
                   ) : (
-                    <DropdownMenuItem
-                      onClick={() => navigate('/settings/plans')}
-                      className="text-muted-foreground"
-                    >
-                      <Lock className="w-4 h-4 mr-2" />
+                    <LockedDropdownMenuItem feature="request_modifications">
                       Submit Request
-                    </DropdownMenuItem>
+                    </LockedDropdownMenuItem>
                   )
                 )}
 
@@ -840,14 +817,9 @@ export default function ActiPlans() {
                     Activity Log
                   </DropdownMenuItem>
                 ) : (
-                  <DropdownMenuItem
-                    disabled
-                    className="opacity-50 cursor-pointer"
-                    onClick={() => navigate('/settings/plans')}
-                  >
-                    <Lock className="w-4 h-4 mr-2" />
+                  <LockedDropdownMenuItem feature="change_history_dialog">
                     Activity Log
-                  </DropdownMenuItem>
+                  </LockedDropdownMenuItem>
                 )}
 
                 {hasAccess('modification_status_tracking') ? (
@@ -861,14 +833,9 @@ export default function ActiPlans() {
                     Check Modification Requests
                   </DropdownMenuItem>
                 ) : (
-                  <DropdownMenuItem
-                    disabled
-                    className="opacity-50 cursor-pointer"
-                    onClick={() => navigate('/settings/plans')}
-                  >
-                    <Lock className="w-4 h-4 mr-2" />
+                  <LockedDropdownMenuItem feature="modification_status_tracking">
                     Check Modification Requests
-                  </DropdownMenuItem>
+                  </LockedDropdownMenuItem>
                 )}
 
                 {/* Operations Analytics - admin only */}
@@ -894,14 +861,9 @@ export default function ActiPlans() {
                     Duplicate ActiPlan
                   </DropdownMenuItem>
                 ) : (
-                  <DropdownMenuItem
-                    disabled
-                    className="opacity-50 cursor-pointer"
-                    onClick={() => navigate('/settings/plans')}
-                  >
-                    <Lock className="w-4 h-4 mr-2" />
+                  <LockedDropdownMenuItem feature="duplicate_actiplans">
                     Duplicate ActiPlan
-                  </DropdownMenuItem>
+                  </LockedDropdownMenuItem>
                 )}
 
                 {canDelete(campaign) && (

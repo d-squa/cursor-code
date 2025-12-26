@@ -213,7 +213,6 @@ export default function Settings() {
                       <Tooltip key={item.href} delayDuration={0}>
                         <TooltipTrigger asChild>
                           <button
-                            onClick={() => navigate('/settings/plans')}
                             className={cn(
                               "w-full flex items-start gap-3 p-4 rounded-lg transition-all",
                               "hover:bg-accent/50 text-left opacity-50 cursor-pointer"
@@ -230,11 +229,20 @@ export default function Settings() {
                             </div>
                           </button>
                         </TooltipTrigger>
-                        <TooltipContent side="right" className="flex items-center gap-2 bg-background border border-border shadow-lg">
-                          <Lock className="h-3.5 w-3.5 text-muted-foreground" />
-                          <span className="text-sm">
-                            Upgrade to <span className="font-semibold text-primary">{requiredTier ? TIER_DISPLAY_NAMES[requiredTier] : 'higher plan'}</span> to unlock
-                          </span>
+                        <TooltipContent side="right" className="bg-background border border-border shadow-lg z-[100]">
+                          <a 
+                            href="/settings/plans"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              navigate('/settings/plans');
+                            }}
+                            className="flex items-center gap-2 text-sm hover:text-primary transition-colors"
+                          >
+                            <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+                            <span>
+                              Upgrade to <span className="font-semibold text-primary">{requiredTier ? TIER_DISPLAY_NAMES[requiredTier] : 'higher plan'}</span> to unlock
+                            </span>
+                          </a>
                         </TooltipContent>
                       </Tooltip>
                     );
