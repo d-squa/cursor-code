@@ -235,26 +235,8 @@ serve(async (req) => {
           }
         }
 
-        // IMPORTANT: Cancel the existing subscription IMMEDIATELY before creating new checkout
-        // This prevents multiple active subscriptions from being created
-        logStep("Canceling existing subscription before creating new checkout", { 
-          subscriptionId: activeSub.id 
-        });
-        
-        try {
-          await stripe.subscriptions.cancel(activeSub.id, {
-            prorate: false, // We handle refund manually
-          });
-          logStep("Previous subscription canceled successfully");
-        } catch (cancelError) {
-          logStep("Error canceling previous subscription", { 
-            error: cancelError instanceof Error ? cancelError.message : String(cancelError)
-          });
-          // Continue anyway - we'll still create the new subscription
-        }
-
         // Create checkout session for the new plan
-        // Store refund info in metadata for processing after checkout
+        // Store previous subscription ID in metadata - will be canceled AFTER checkout completes
         const priceInfo = PRICE_METADATA[priceId];
         const priceInCurrency = priceInfo ? (priceInfo.amount / 100).toFixed(2) : "0.00";
         const successUrl = `${origin}/settings/plans?success=true&session_id={CHECKOUT_SESSION_ID}` +
@@ -285,9 +267,9 @@ serve(async (req) => {
           },
           subscription_data: {
             metadata: {
+              previous_subscription_id: activeSub.id,
               refund_amount: refundAmount.toString(),
               is_downgrade: isDowngrade.toString(),
-              previous_plan_canceled: "true",
             },
           },
           success_url: successUrl,
@@ -297,7 +279,7 @@ serve(async (req) => {
         logStep("Plan change checkout session created", {
           sessionId: session.id,
           url: session.url,
-          previousSubscriptionCanceled: true,
+          previousSubscriptionId: activeSub.id,
           refundAmount,
           isDowngrade
         });

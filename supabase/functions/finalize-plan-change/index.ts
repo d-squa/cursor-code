@@ -84,17 +84,32 @@ serve(async (req) => {
       });
     }
 
-    // Check metadata for refund info
-    // Note: previous subscription is now canceled in create-checkout before checkout is created
+    // Check metadata for previous subscription and refund info
+    const previousSubscriptionId = newSubscription.metadata?.previous_subscription_id;
     const refundAmountFromMetadata = parseInt(newSubscription.metadata?.refund_amount || '0', 10);
     const isDowngrade = newSubscription.metadata?.is_downgrade === 'true';
-    const previousPlanCanceled = newSubscription.metadata?.previous_plan_canceled === 'true';
     
     logStep("Subscription metadata", { 
+      previousSubscriptionId, 
       refundAmountFromMetadata,
-      isDowngrade,
-      previousPlanCanceled
+      isDowngrade 
     });
+
+    // Cancel the previous subscription ONLY after checkout is completed
+    if (previousSubscriptionId) {
+      logStep("Canceling previous subscription", { previousSubscriptionId });
+      
+      try {
+        await stripe.subscriptions.cancel(previousSubscriptionId, {
+          prorate: false, // We handle refund manually
+        });
+        logStep("Previous subscription canceled");
+      } catch (cancelError) {
+        logStep("Warning: Could not cancel previous subscription", { 
+          error: cancelError instanceof Error ? cancelError.message : String(cancelError)
+        });
+      }
+    }
 
     // Issue refund for downgrade
     let refundedAmount = 0;
@@ -180,7 +195,7 @@ serve(async (req) => {
 
     logStep("Plan change finalized successfully", {
       newSubscriptionId: newSubscription.id,
-      previousPlanCanceled,
+      previousSubscriptionCanceled: !!previousSubscriptionId,
       refundedAmount,
       isDowngrade
     });
@@ -191,7 +206,7 @@ serve(async (req) => {
       isDowngrade,
       message: refundedAmount > 0
         ? `Plan changed successfully! $${refundedAmount.toFixed(2)} has been refunded to your card.`
-        : previousPlanCanceled 
+        : previousSubscriptionId 
           ? "Plan changed successfully!"
           : "Subscription activated successfully!"
     }), {
