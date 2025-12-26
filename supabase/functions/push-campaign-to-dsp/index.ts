@@ -1597,28 +1597,33 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
         };
         const metaOptimizationLocation = metaDestinationTypeMap[rawMetaOptimizationLocation] || rawMetaOptimizationLocation.toUpperCase();
         
-        // Attribution window validation - certain objectives only support specific combinations
-        // Meta enforces strict attribution window rules based on optimization goal:
-        // - Only OUTCOME_SALES/OFFSITE_CONVERSIONS with VALUE optimization truly support extended attribution
-        // - All other objectives (including LEAD_GENERATION, APP_INSTALLS) only support (1,0) in practice
-        // Being restrictive to avoid API errors - only true purchase/conversion tracking gets extended windows
+        // Attribution window validation - Meta enforces STRICT attribution window rules
+        // Valid combinations are ONLY: (1,0), (1,1), (7,0), (7,1) for (click_through, view_through)
+        // Click-through: only 1 or 7 days allowed
+        // View-through: only 0 or 1 days allowed
+        // Extended windows (28 days click, 7 days view) are NOT supported in 2024+ API
         const trueConversionObjectives = ['OUTCOME_SALES', 'CONVERSIONS'];
         const trueConversionGoals = ['OFFSITE_CONVERSIONS', 'VALUE'];
         const hasFullAttribution = trueConversionObjectives.includes(objective) && trueConversionGoals.includes(optimizationGoal);
+        
+        // Get raw configured values
+        const rawClickWindow = phase.metaClickWindow || (market as any).metaClickWindow;
+        const rawViewWindow = phase.metaViewWindow || (market as any).metaViewWindow;
         
         let metaClickWindow: number;
         let metaViewWindow: number;
         
         if (hasFullAttribution) {
-          // Use configured values or defaults for conversion-type objectives
-          metaClickWindow = phase.metaClickWindow || (market as any).metaClickWindow || 7;
-          metaViewWindow = phase.metaViewWindow || (market as any).metaViewWindow || 1;
-          console.log(`✅ ${objective}/${optimizationGoal} supports full attribution windows: click=${metaClickWindow}d, view=${metaViewWindow}d`);
+          // Conversion objectives can use 7-day click window
+          // But MUST clamp click to 1 or 7, view to 0 or 1
+          metaClickWindow = (rawClickWindow === 1) ? 1 : 7; // Default to 7 for conversions
+          metaViewWindow = (rawViewWindow === 0) ? 0 : 1;   // Default to 1 for conversions
+          console.log(`✅ ${objective}/${optimizationGoal} supports full attribution. Using click=${metaClickWindow}d, view=${metaViewWindow}d (raw: ${rawClickWindow}, ${rawViewWindow})`);
         } else {
           // Force (1, 0) for all other objectives - Meta only supports this combination
           metaClickWindow = 1;
           metaViewWindow = 0;
-          console.log(`⚠️ ${objective}/${optimizationGoal} only supports limited attribution (1,0). Forcing click=${metaClickWindow}d, view=${metaViewWindow}d`);
+          console.log(`⚠️ ${objective}/${optimizationGoal} only supports limited attribution (1,0). Forcing click=${metaClickWindow}d, view=${metaViewWindow}d (configured was: ${rawClickWindow}, ${rawViewWindow})`);
         }
         
         const requiresBidCap = requestedBidStrategy === 'COST_CAP' || requestedBidStrategy === 'LOWEST_COST_WITH_BID_CAP';
