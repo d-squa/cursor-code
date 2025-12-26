@@ -9,7 +9,11 @@ import { useWorkspace } from "@/hooks/useWorkspace";
  */
 export function useWorkspaceAdminAccess() {
   const { user } = useAuth();
-  const { activeWorkspaceId, loading: workspaceLoading } = useWorkspace();
+  const {
+    activeWorkspaceId,
+    loading: workspaceLoading,
+    workspaces,
+  } = useWorkspace();
 
   const [loading, setLoading] = useState(true);
   const [canAccess, setCanAccess] = useState(false);
@@ -26,7 +30,14 @@ export function useWorkspaceAdminAccess() {
       return;
     }
 
+    // `useWorkspace` derives `activeWorkspaceId` in an effect.
+    // There can be a render where `workspaceLoading=false` but `activeWorkspaceId=null`
+    // even though workspaces have loaded. In that case, keep loading to avoid a false-deny.
     if (!activeWorkspaceId) {
+      if ((workspaces?.length ?? 0) > 0) {
+        setLoading(true);
+        return;
+      }
       setCanAccess(false);
       setLoading(false);
       return;
@@ -56,7 +67,7 @@ export function useWorkspaceAdminAccess() {
     return () => {
       cancelled = true;
     };
-  }, [user, activeWorkspaceId, workspaceLoading]);
+  }, [user, activeWorkspaceId, workspaceLoading, workspaces?.length]);
 
   return { canAccess, loading, activeWorkspaceId };
 }
