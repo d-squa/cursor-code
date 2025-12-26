@@ -671,9 +671,10 @@ const handler = async (req: Request): Promise<Response> => {
       .eq('campaign_id', campaignId);
     
     // Create a set of already-pushed entities (market+phase combinations)
+    // Include both 'pushed_to_dsp' and 'live' statuses to prevent re-pushing
     const alreadyPushedSet = new Set<string>();
     for (const status of (existingStatuses || [])) {
-      if (status.status === 'pushed_to_dsp' && status.dsp_entity_id) {
+      if ((status.status === 'pushed_to_dsp' || status.status === 'live') && status.dsp_entity_id) {
         // Key format: platform|market|phase_name
         const key = `${status.platform?.toLowerCase()}|${status.market}|${status.phase_name || ''}`;
         alreadyPushedSet.add(key);
