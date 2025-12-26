@@ -97,16 +97,25 @@ export default function OperationsReports() {
   const [availablePlatforms, setAvailablePlatforms] = useState<string[]>([]);
   const [availableMarkets, setAvailableMarkets] = useState<string[]>([]);
 
+  // Only redirect AFTER we have a definitive answer (loading complete AND access denied)
   useEffect(() => {
-    if (!authLoading && !roleLoading && !hasAccess) {
-      if (import.meta.env.DEV) {
-        // eslint-disable-next-line no-console
-        console.warn("[OperationsReports] Access denied", { hasAccess, authLoading, roleLoading });
-      }
+    // Don't do anything while still loading
+    if (authLoading || roleLoading) {
+      return;
+    }
+    
+    // If we're done loading and don't have access, redirect
+    if (!hasAccess) {
+      console.warn("[OperationsReports] Access denied after loading complete", { 
+        hasAccess, 
+        authLoading, 
+        roleLoading,
+        userId: user?.id 
+      });
       toast.error("Access denied. Admin or Owner role required.");
       navigate("/settings/account");
     }
-  }, [hasAccess, authLoading, roleLoading, navigate]);
+  }, [hasAccess, authLoading, roleLoading, navigate, user?.id]);
 
   useEffect(() => {
     if (user && hasAccess) {
