@@ -169,6 +169,13 @@ export function PhaseScheduler({
   const [budgetTypeDialogOpen, setBudgetTypeDialogOpen] = useState(false);
   const [pendingBudgetType, setPendingBudgetType] = useState<"daily" | "lifetime" | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Keep latest phases in a ref so multiple rapid updates (e.g. switching to Manual placements
+  // which updates strategy + publishers + positions) don't clobber each other due to stale closures.
+  const phasesRef = useRef<Phase[]>(phases);
+  useEffect(() => {
+    phasesRef.current = phases;
+  }, [phases]);
   
   // Taxonomy validation state - track per phase per entity type
   const [taxonomyValidation, setTaxonomyValidation] = useState<Record<string, { campaign: boolean; adset: boolean; campaignMissing: number; adsetMissing: number }>>({});
@@ -800,16 +807,25 @@ export function PhaseScheduler({
 
   const updatePhaseField = (phaseId: string, field: string, value: any) => {
     console.log("📝 updatePhaseField called:", { phaseId, field, value });
-    const updatedPhases = phases.map(p => p.id === phaseId ? { ...p, [field]: value } : p);
-    const updatedPhase = updatedPhases.find(p => p.id === phaseId);
+
+    const base = phasesRef.current;
+    const updatedPhases = base.map((p) => (p.id === phaseId ? { ...p, [field]: value } : p));
+    phasesRef.current = updatedPhases;
+
+    const updatedPhase = updatedPhases.find((p) => p.id === phaseId);
     console.log("📋 Updated phase full object:", updatedPhase);
     console.log(`📋 Updated phase.${field}:`, updatedPhase?.[field]);
+
     onPhasesChange(updatedPhases);
   };
 
   const updatePhaseFields = (phaseId: string, updates: Record<string, any>) => {
     console.log("📝 updatePhaseFields called:", { phaseId, updates });
-    const updatedPhases = phases.map(p => p.id === phaseId ? { ...p, ...updates } : p);
+
+    const base = phasesRef.current;
+    const updatedPhases = base.map((p) => (p.id === phaseId ? { ...p, ...updates } : p));
+    phasesRef.current = updatedPhases;
+
     onPhasesChange(updatedPhases);
   };
 
