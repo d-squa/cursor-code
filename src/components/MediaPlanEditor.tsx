@@ -1,9 +1,11 @@
 import { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { PlatformSelector } from "./PlatformSelector";
 import { BudgetSummary } from "./BudgetSummary";
 import { CampaignMetrics } from "./CampaignMetrics";
@@ -19,13 +21,15 @@ import { PhaseAudienceSelector, SelectedAudience } from "./PhaseAudienceSelector
 import { CampaignForecast } from "./CampaignForecast";
 import { PhaseScheduler } from "./PhaseScheduler";
 import { getDefaultPhases, generateAutoDetectPhases } from "@/utils/funnelPhases";
-import { Calendar, Download, Rocket, Loader2, ChevronDown, ChevronUp, Copy, Trash2 } from "lucide-react";
+import { Calendar, Download, Rocket, Loader2, ChevronDown, ChevronUp, Copy, Trash2, Plus, Lock } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useWorkspace } from "@/hooks/useWorkspace";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
+import { TIER_DISPLAY_NAMES } from "@/config/subscriptionTiers";
 import { PlatformWithMarkets, FunnelStage } from "@/types/mediaplan";
 import { Platform, PlatformConfiguration } from "./PlatformConfiguration";
 import { determineStrategyFocus } from "@/utils/strategyFocusMapping";
@@ -58,6 +62,8 @@ const mapFocusToTemplate = (focus?: string): string | undefined => {
 export function MediaPlanEditor() {
   const { user } = useAuth();
   const { activeWorkspaceId } = useWorkspace();
+  const { hasAccess, getRequiredTierForFeature } = useFeatureAccess();
+  const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedClientId, setSelectedClientId] = useState<string>("");
   const [clients, setClients] = useState<Array<{id: string; name: string}>>([]);
@@ -1573,6 +1579,10 @@ export function MediaPlanEditor() {
               <Select 
                 value={selectedClientId || undefined} 
                 onValueChange={(value) => { 
+                  if (value === "__new_client__") {
+                    navigate('/settings/accounts');
+                    return;
+                  }
                   setSelectedClientId(value || ""); 
                   ensureDraft(); 
                 }}
@@ -1587,6 +1597,45 @@ export function MediaPlanEditor() {
                       {client.name}
                     </SelectItem>
                   ))}
+                  {/* + New Client option - locked for non-Enterprise users */}
+                  {hasAccess('client_management') ? (
+                    <SelectItem value="__new_client__" className="text-primary font-medium">
+                      <span className="flex items-center gap-2">
+                        <Plus className="h-4 w-4" />
+                        New Client
+                      </span>
+                    </SelectItem>
+                  ) : (
+                    <TooltipProvider>
+                      <Tooltip delayDuration={0}>
+                        <TooltipTrigger asChild>
+                          <div 
+                            className="relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none opacity-50"
+                            onClick={() => navigate('/settings/plans')}
+                          >
+                            <Lock className="h-4 w-4 mr-2" />
+                            <Plus className="h-4 w-4 mr-1" />
+                            New Client
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="left" className="bg-background border border-border shadow-lg z-[100]">
+                          <a 
+                            href="/settings/plans"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              navigate('/settings/plans');
+                            }}
+                            className="flex items-center gap-2 text-sm hover:text-primary transition-colors"
+                          >
+                            <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+                            <span>
+                              Upgrade to <span className="font-semibold text-primary">{TIER_DISPLAY_NAMES[getRequiredTierForFeature('client_management')]}</span> to unlock
+                            </span>
+                          </a>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
