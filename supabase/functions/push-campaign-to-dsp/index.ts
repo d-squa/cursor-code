@@ -510,6 +510,7 @@ async function updateLaunchStatuses(
     }
     
     // Update failed entities with detailed API response
+    // Use UPSERT to ensure failures are recorded even if no row exists
     for (const errorItem of errorResults) {
       const { market, phase, error, type, apiResponse } = errorItem;
       
@@ -525,9 +526,19 @@ async function updateLaunchStatuses(
         }
       ];
       
-      for (const platformName of platformVariants) {
-        // IMPORTANT: do not clobber other phases / entity types (can overwrite previously pushed rows)
-        // Scope failure updates to the specific phase + entity type when we have that info.
+      // Determine entity type from error type
+      const typeStr = (type || '').toLowerCase();
+      let entityType = 'adset'; // Default to adset for ad group/adset errors
+      if (typeStr.includes('campaign') && !typeStr.includes('adgroup') && !typeStr.includes('adset')) {
+        entityType = 'campaign';
+      }
+      
+      // Use the first platform variant as the canonical name
+      const platformName = platformVariants[0];
+      
+      // First try to update existing row
+      let updated = false;
+      for (const pVariant of platformVariants) {
         let q = supabase
           .from('campaign_launch_status')
           .update({
@@ -537,23 +548,44 @@ async function updateLaunchStatuses(
             updated_at: new Date().toISOString()
           })
           .eq('campaign_id', campaignId)
-          .eq('platform', platformName)
+          .eq('platform', pVariant)
           .eq('market', market);
 
         if (phase) q = q.eq('phase_name', phase);
-
-        const typeStr = (type || '').toLowerCase();
-        if (typeStr.includes('adgroup') || typeStr.includes('adset')) {
-          q = q.eq('entity_type', 'adset');
-        } else if (typeStr.includes('campaign')) {
-          q = q.eq('entity_type', 'campaign');
-        }
+        q = q.eq('entity_type', entityType);
 
         const { data: failUpdateResult } = await q.select();
 
         if (failUpdateResult && failUpdateResult.length > 0) {
           console.log(`⚠️ Marked as failed for ${market}/${phase}: ${failUpdateResult.length} rows`);
+          updated = true;
           break;
+        }
+      }
+      
+      // If no row was updated, INSERT a new failure row
+      if (!updated) {
+        console.log(`📝 No existing ${entityType} row found for ${platformName}/${market}/${phase}, inserting new failure row`);
+        const { error: insertError } = await supabase
+          .from('campaign_launch_status')
+          .insert({
+            campaign_id: campaignId,
+            platform: platformName,
+            market: market,
+            phase_name: phase || null,
+            entity_type: entityType,
+            entity_name: `${phase || 'Default'} - ${entityType === 'adset' ? 'Ad Set' : 'Campaign'}`,
+            status: 'push_failed',
+            error_message: errorMessage,
+            error_details: errorDetails,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          });
+        
+        if (insertError) {
+          console.error(`❌ Failed to insert failure row: ${insertError.message}`);
+        } else {
+          console.log(`✅ Inserted new failure row for ${platformName}/${market}/${phase}`);
         }
       }
     }
