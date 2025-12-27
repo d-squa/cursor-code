@@ -5,8 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Info } from "lucide-react";
 import { Phase } from "@/types/mediaplan";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
+import { getOptimizationGoalsForObjective, getBillingEventForGoal } from "@/utils/objectiveOptimizationMapping";
 
 interface AdAccountDefaults {
   metaBidStrategy?: string;
@@ -51,6 +52,60 @@ export function MetaPhaseConfig({ phase, adAccountDefaults, onUpdate }: MetaPhas
 
   const objective = phase.objective || "";
   const optimizationGoal = phase.optimizationGoal || "";
+
+  // Get valid billing events for the selected optimization goal
+  const validBillingEvents = useMemo(() => {
+    if (!objective || !optimizationGoal) return [];
+    
+    const billingEvent = getBillingEventForGoal("meta", objective, optimizationGoal);
+    
+    // Map billing event to available options
+    // Most optimization goals use IMPRESSIONS, but some have specific billing events
+    const billingEventOptions: { value: string; label: string }[] = [];
+    
+    if (billingEvent) {
+      // Add the specific billing event for this goal
+      const labelMap: Record<string, string> = {
+        IMPRESSIONS: "Impressions (CPM)",
+        LINK_CLICKS: "Link Clicks (CPC)",
+        POST_ENGAGEMENT: "Post Engagement",
+        THRUPLAY: "ThruPlay (Video)",
+        PAGE_LIKES: "Page Likes",
+        EVENT_RESPONSES: "Event Responses",
+        APP_INSTALLS: "App Installs",
+      };
+      
+      billingEventOptions.push({
+        value: billingEvent,
+        label: labelMap[billingEvent] || billingEvent
+      });
+      
+      // IMPRESSIONS is always a fallback option for most goals
+      if (billingEvent !== "IMPRESSIONS") {
+        billingEventOptions.push({
+          value: "IMPRESSIONS",
+          label: "Impressions (CPM)"
+        });
+      }
+    }
+    
+    return billingEventOptions;
+  }, [objective, optimizationGoal]);
+
+  // Auto-set billing event when optimization goal changes
+  useEffect(() => {
+    if (!objective || !optimizationGoal) return;
+    
+    const recommendedBillingEvent = getBillingEventForGoal("meta", objective, optimizationGoal);
+    
+    // Only auto-set if current billing event is invalid or not set
+    if (recommendedBillingEvent) {
+      const isCurrentValid = validBillingEvents.some(be => be.value === phase.metaBillingEvent);
+      if (!phase.metaBillingEvent || !isCurrentValid) {
+        onUpdate("metaBillingEvent", recommendedBillingEvent);
+      }
+    }
+  }, [objective, optimizationGoal, validBillingEvents]);
 
   // Show bid amount only when bid cap is required
   const showBidAmount = phase.metaBidStrategy === 'LOWEST_COST_WITH_BID_CAP' || phase.metaBidStrategy === 'COST_CAP';
@@ -232,19 +287,28 @@ export function MetaPhaseConfig({ phase, adAccountDefaults, onUpdate }: MetaPhas
           <Select
             value={phase.metaBillingEvent || undefined}
             onValueChange={(value) => onUpdate("metaBillingEvent", value)}
+            disabled={validBillingEvents.length === 0}
           >
             <SelectTrigger>
-              <SelectValue placeholder={selectPlaceholder} />
+              <SelectValue placeholder={validBillingEvents.length === 0 ? "Select optimization goal first" : selectPlaceholder} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="IMPRESSIONS">Impressions (CPM)</SelectItem>
-              <SelectItem value="LINK_CLICKS">Link Clicks (CPC)</SelectItem>
-              <SelectItem value="POST_ENGAGEMENT">Post Engagement</SelectItem>
-              <SelectItem value="THRUPLAY">ThruPlay (Video)</SelectItem>
-              <SelectItem value="PAGE_LIKES">Page Likes</SelectItem>
-              <SelectItem value="APP_INSTALLS">App Installs</SelectItem>
+              {validBillingEvents.length > 0 ? (
+                validBillingEvents.map((be) => (
+                  <SelectItem key={be.value} value={be.value}>
+                    {be.label}
+                  </SelectItem>
+                ))
+              ) : (
+                <SelectItem value="IMPRESSIONS">Impressions (CPM)</SelectItem>
+              )}
             </SelectContent>
           </Select>
+          {validBillingEvents.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Billing events are filtered based on the selected optimization goal
+            </p>
+          )}
         </div>
       </CardContent>
     </Card>
