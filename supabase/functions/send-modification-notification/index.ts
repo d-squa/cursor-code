@@ -14,6 +14,9 @@ interface ModificationNotificationRequest {
   notifyAllTeam?: boolean;
   assignedTo?: string[];
   requestId?: string;
+  notificationType?: "new_request" | "status_change";
+  newStatus?: string;
+  requesterId?: string;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -59,6 +62,9 @@ const handler = async (req: Request): Promise<Response> => {
       notifyAllTeam = false,
       assignedTo = [],
       requestId,
+      notificationType = "new_request",
+      newStatus,
+      requesterId,
     }: ModificationNotificationRequest = await req.json();
 
     // Get requester profile
@@ -109,34 +115,82 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     let recipientEmails: string[] = [];
+    let recipientUserIds: string[] = [];
 
-    if (notifyAllTeam && campaign.team_id) {
-      // Get all team members
-      const { data: members } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("team_id", campaign.team_id);
+    if (notificationType === "status_change") {
+      // For status changes, notify the requester and all assigned users
+      const allStakeholders = new Set<string>();
+      
+      // Add requester
+      if (requesterId && requesterId !== user.id) {
+        allStakeholders.add(requesterId);
+      }
+      
+      // Add assigned users (excluding the person who made the change)
+      assignedTo.forEach(id => {
+        if (id !== user.id) {
+          allStakeholders.add(id);
+        }
+      });
+      
+      // Add team members if notify_all_team is true
+      if (notifyAllTeam && campaign.team_id) {
+        const { data: members } = await supabase
+          .from("user_roles")
+          .select("user_id")
+          .eq("team_id", campaign.team_id);
 
-      if (members && members.length > 0) {
-        const userIds = members.map((m) => m.user_id).filter(id => id !== user.id);
-        
-        if (userIds.length > 0) {
-          const { data: profiles } = await supabase
-            .from("profiles")
-            .select("email")
-            .in("id", userIds);
-
-          if (profiles) {
-            recipientEmails = profiles.map((p) => p.email);
-          }
+        if (members) {
+          members.forEach((m) => {
+            if (m.user_id !== user.id) {
+              allStakeholders.add(m.user_id);
+            }
+          });
         }
       }
-    } else if (assignedTo.length > 0) {
-      // Get specific team members
-      const { data: profiles } = await supabase.from("profiles").select("email").in("id", assignedTo);
+      
+      recipientUserIds = Array.from(allStakeholders);
+      
+      if (recipientUserIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("email")
+          .in("id", recipientUserIds);
 
-      if (profiles) {
-        recipientEmails = profiles.map((p) => p.email);
+        if (profiles) {
+          recipientEmails = profiles.map((p) => p.email);
+        }
+      }
+    } else {
+      // Original logic for new requests
+      if (notifyAllTeam && campaign.team_id) {
+        // Get all team members
+        const { data: members } = await supabase
+          .from("user_roles")
+          .select("user_id")
+          .eq("team_id", campaign.team_id);
+
+        if (members && members.length > 0) {
+          const userIds = members.map((m) => m.user_id).filter(id => id !== user.id);
+          
+          if (userIds.length > 0) {
+            const { data: profiles } = await supabase
+              .from("profiles")
+              .select("email")
+              .in("id", userIds);
+
+            if (profiles) {
+              recipientEmails = profiles.map((p) => p.email);
+            }
+          }
+        }
+      } else if (assignedTo.length > 0) {
+        // Get specific team members
+        const { data: profiles } = await supabase.from("profiles").select("email").in("id", assignedTo);
+
+        if (profiles) {
+          recipientEmails = profiles.map((p) => p.email);
+        }
       }
     }
 
@@ -153,7 +207,7 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Email service not configured");
     }
 
-    console.log("Sending modification notification for campaign:", campaignId, "by user:", user.id);
+    console.log(`Sending ${notificationType} notification for campaign:`, campaignId, "by user:", user.id);
 
     // Build the deep link URL
     const appUrl = Deno.env.get("APP_URL") || "https://actiplan.app";
@@ -161,11 +215,66 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Format change type for display
     const formattedChangeType = changeType.charAt(0).toUpperCase() + changeType.slice(1);
+    
+    // Format status for display
+    const formatStatus = (status: string) => {
+      const statusMap: Record<string, string> = {
+        completed: "Completed",
+        in_progress: "In Progress",
+        rejected: "Rejected",
+        sent: "Sent",
+      };
+      return statusMap[status] || status.charAt(0).toUpperCase() + status.slice(1);
+    };
+
+    // Generate email content based on notification type
+    let emailSubject: string;
+    let emailTitle: string;
+    let emailIntro: string;
+    let emailAction: string;
+    let ctaText: string;
+    let statusBadge = "";
+
+    if (notificationType === "status_change" && newStatus) {
+      const formattedStatus = formatStatus(newStatus);
+      emailSubject = `ActiPlan App: Modification Request ${formattedStatus} - ${campaignName}`;
+      emailTitle = `Request ${formattedStatus}`;
+      emailIntro = `<strong>${senderName}</strong> has marked a modification request as <strong>${formattedStatus}</strong> for the media plan <strong>"${campaignName}"</strong>.`;
+      ctaText = "View Request";
+      
+      // Add status badge
+      const statusColors: Record<string, string> = {
+        completed: "#22c55e",
+        in_progress: "#eab308",
+        rejected: "#ef4444",
+        sent: "#3b82f6",
+      };
+      const badgeColor = statusColors[newStatus] || "#6b7280";
+      statusBadge = `
+        <tr>
+          <td style="padding: 8px 0; color: #64748b; font-size: 14px; width: 120px;">Status:</td>
+          <td style="padding: 8px 0;">
+            <span style="display: inline-block; background-color: ${badgeColor}; color: #ffffff; font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 9999px;">
+              ${formattedStatus}
+            </span>
+          </td>
+        </tr>
+      `;
+      emailAction = newStatus === "completed" 
+        ? "This modification request has been completed." 
+        : `The status has been updated to ${formattedStatus}.`;
+    } else {
+      emailSubject = `ActiPlan App: Modification Request - ${campaignName}`;
+      emailTitle = "Modification Request";
+      emailIntro = `<strong>${senderName}</strong> has requested a modification for the media plan <strong>"${campaignName}"</strong>.`;
+      ctaText = "View Modification Request";
+      emailAction = "Please review this request and mark it as complete once the changes have been made.";
+    }
 
     const emailData = {
       from: "ActiPlan <do-not-reply@actiplan.app>",
       to: recipientEmails,
-      subject: `ActiPlan App: Modification Request - ${campaignName}`,
+      subject: emailSubject,
       html: `
         <!DOCTYPE html>
         <html>
@@ -182,7 +291,7 @@ const handler = async (req: Request): Promise<Response> => {
           <!-- Main Content -->
           <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px; background-color: #ffffff;">
             <h1 style="color: #0f172a; font-size: 28px; font-weight: 600; margin-bottom: 24px; text-align: center;">
-              Modification Request
+              ${emailTitle}
             </h1>
             
             <p style="color: #334155; font-size: 16px; margin-bottom: 16px;">
@@ -190,7 +299,7 @@ const handler = async (req: Request): Promise<Response> => {
             </p>
             
             <p style="color: #334155; font-size: 16px; margin-bottom: 16px;">
-              <strong>${senderName}</strong> has requested a modification for the media plan <strong>"${campaignName}"</strong>.
+              ${emailIntro}
             </p>
             
             <!-- Request Details Box -->
@@ -203,6 +312,7 @@ const handler = async (req: Request): Promise<Response> => {
                   <td style="padding: 8px 0; color: #64748b; font-size: 14px; width: 120px;">Change Type:</td>
                   <td style="padding: 8px 0; color: #1e293b; font-size: 14px; font-weight: 500;">${formattedChangeType}</td>
                 </tr>
+                ${statusBadge}
               </table>
               
               <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #e2e8f0;">
@@ -212,7 +322,7 @@ const handler = async (req: Request): Promise<Response> => {
             </div>
             
             <p style="color: #64748b; font-size: 14px; font-style: italic; margin-bottom: 24px;">
-              Please review this request and mark it as complete once the changes have been made.
+              ${emailAction}
             </p>
             
             <p style="color: #334155; font-size: 16px; margin-bottom: 32px;">
@@ -223,7 +333,7 @@ const handler = async (req: Request): Promise<Response> => {
             <!-- CTA Button -->
             <div style="text-align: center; margin-bottom: 32px;">
               <a href="${planUrl}" style="display: inline-block; background-color: #f97316; color: #ffffff; font-size: 16px; font-weight: 600; text-decoration: none; padding: 14px 32px; border-radius: 6px;">
-                View Modification Request
+                ${ctaText}
               </a>
             </div>
           </div>

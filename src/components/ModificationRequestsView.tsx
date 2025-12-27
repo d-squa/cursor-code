@@ -127,12 +127,37 @@ export function ModificationRequestsView({
   const handleStatusUpdate = async (requestId: string, newStatus: string) => {
     setUpdating(true);
     try {
+      // Find the request to get its details
+      const request = requests.find(r => r.id === requestId);
+      if (!request) throw new Error("Request not found");
+
       const { error } = await supabase
         .from("modification_requests")
         .update({ status: newStatus })
         .eq("id", requestId);
 
       if (error) throw error;
+
+      // Send notification to stakeholders about status change
+      try {
+        await supabase.functions.invoke("send-modification-notification", {
+          body: {
+            campaignId,
+            campaignName,
+            changeType: request.change_type,
+            description: request.description,
+            notifyAllTeam: request.notify_all_team,
+            assignedTo: request.assigned_to || [],
+            requestId,
+            notificationType: "status_change",
+            newStatus,
+            requesterId: request.requester_id,
+          },
+        });
+      } catch (notifyError) {
+        console.error("Failed to send status change notification:", notifyError);
+        // Don't block the status update if notification fails
+      }
 
       toast.success("Status updated successfully");
       await loadRequests();
