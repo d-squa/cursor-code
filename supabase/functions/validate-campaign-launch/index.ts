@@ -450,13 +450,28 @@ const handler = async (req: Request): Promise<Response> => {
               Math.round(marketForecast.impressions * (phaseBudgetPct / 100) * (phaseForecast.resultRate / 100)) : null);
           const plannedConversions = phaseForecast?.conversions || phaseForecast?.result || null;
           
-          // Add entity to list
+          // Add campaign entity to list
           result.entities.push({
             platform: platformName,
             market: entityMarketName,
             phase: entityPhaseName,
             entityType: 'campaign',
             entityName: `${campaign.name} - ${entityMarketName} - ${entityPhaseName}`,
+            plannedBudget: phaseBudget,
+            plannedImpressions,
+            plannedReach,
+            plannedClicks,
+            plannedConversions,
+          });
+          
+          // Also add adset entity to track ad set level status separately
+          // This ensures we have a row to update when ad set creation fails
+          result.entities.push({
+            platform: platformName,
+            market: entityMarketName,
+            phase: entityPhaseName,
+            entityType: 'adset',
+            entityName: `${campaign.name} - ${entityMarketName} - ${entityPhaseName} - Ad Set`,
             plannedBudget: phaseBudget,
             plannedImpressions,
             plannedReach,
@@ -472,15 +487,16 @@ const handler = async (req: Request): Promise<Response> => {
     // Get existing launch statuses to preserve pushed_to_dsp entities
     const { data: existingStatuses } = await supabase
       .from('campaign_launch_status')
-      .select('id, platform, market, phase_name, status, dsp_entity_id')
+      .select('id, platform, market, phase_name, entity_type, status, dsp_entity_id')
       .eq('campaign_id', campaignId);
     
     // Create a map of already-pushed entities (entities with dsp_entity_id should be preserved)
+    // Include entity_type in key to distinguish campaigns from adsets
     const pushedEntitiesMap = new Map<string, { id: string; status: string; dsp_entity_id: string }>();
     for (const status of (existingStatuses || [])) {
       // Only preserve entities that are successfully pushed (have DSP ID)
       if (status.dsp_entity_id && ['pushed_to_dsp', 'live'].includes(status.status)) {
-        const key = `${status.platform}|${status.market}|${status.phase_name || 'Default'}`;
+        const key = `${status.platform}|${status.market}|${status.phase_name || 'Default'}|${status.entity_type}`;
         pushedEntitiesMap.set(key, { 
           id: status.id, 
           status: status.status, 
@@ -501,7 +517,7 @@ const handler = async (req: Request): Promise<Response> => {
     // Insert new status entries only for entities NOT already pushed
     const statusEntries = result.entities
       .filter(entity => {
-        const key = `${entity.platform}|${entity.market}|${entity.phase || 'Default'}`;
+        const key = `${entity.platform}|${entity.market}|${entity.phase || 'Default'}|${entity.entityType}`;
         return !pushedEntitiesMap.has(key);
       })
       .map(entity => {
