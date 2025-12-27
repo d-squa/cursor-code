@@ -762,12 +762,16 @@ const handler = async (req: Request): Promise<Response> => {
     const dailyLimit = DAILY_LIMITS[userTier] ?? 1;
     console.log(`📊 User tier: ${userTier}, daily limit: ${dailyLimit}`);
 
-    // Count campaigns pushed to DSP today by team_id (workspace) - same logic as frontend useActiplanLimits
+    // Count FULLY pushed campaigns to DSP today by team_id (workspace)
+    // IMPORTANT: Only count campaigns with status 'pushed_to_dsp' or 'live' (ALL entities successful)
+    // 'partially_pushed' campaigns do NOT count against the limit since they have failed entities
     // This ensures the limit is shared across all team members
     const now = new Date();
     const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0)).toISOString();
     const todayEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999)).toISOString();
 
+    // CRITICAL: Only fully successful pushes count against daily limit
+    // 'partially_pushed' is intentionally excluded - user must retry and fully succeed
     const pushCountStatuses = ['pushed_to_dsp', 'live'];
 
     // teamId already declared above when checking subscription
@@ -843,7 +847,10 @@ const handler = async (req: Request): Promise<Response> => {
     console.log(`📊 Campaigns pushed today (excluding current): ${usedToday}/${dailyLimit}`);
 
     // Check if this is a first-time push (not a retry)
+    // Retries of partially_pushed or pushed_to_dsp campaigns don't count as new pushes
     const isRetry = campaign.status === 'partially_pushed' || campaign.status === 'pushed_to_dsp';
+    
+    console.log(`📊 Limit check: isRetry=${isRetry}, usedToday=${usedToday}, dailyLimit=${dailyLimit}, currentStatus=${campaign.status}`);
     
     if (!isRetry && dailyLimit !== Infinity && usedToday >= dailyLimit) {
       console.log(`🚫 Daily DSP push limit reached for tier ${userTier}`);
@@ -1121,25 +1128,31 @@ const handler = async (req: Request): Promise<Response> => {
       else statusCounts.pending++;
     }
     
-    // Determine final campaign status
-    // - pushed_to_dsp: ALL entities are pushed (no failures, no pending)
-    // - partially_pushed: SOME pushed, but some failed or still pending
-    // - push_failed: ALL failed (none pushed)
-    // - ready_for_push: none pushed yet, still pending
+    // Determine final campaign status based on ALL entity statuses
+    // CRITICAL: Only campaigns where ALL entities are pushed count against daily limit
+    // - pushed_to_dsp: ALL entities are pushed (no failures, no pending) → COUNTS against limit
+    // - partially_pushed: SOME pushed, but some failed or still pending → DOES NOT count
+    // - push_failed: ALL failed (none pushed) → DOES NOT count
+    // - ready_for_push: none pushed yet, still pending → DOES NOT count
     let finalStatus = 'ready_for_push';
     const totalEntities = (finalStatuses || []).length;
     
     if (statusCounts.pushed === totalEntities && totalEntities > 0) {
-      finalStatus = 'pushed_to_dsp'; // All entities pushed successfully
+      finalStatus = 'pushed_to_dsp'; // All entities pushed successfully - THIS counts against limit
+      console.log(`✅ All ${totalEntities} entities pushed successfully - campaign counts against daily limit`);
     } else if (statusCounts.pushed > 0 && (statusCounts.failed > 0 || statusCounts.pending > 0)) {
-      finalStatus = 'partially_pushed'; // Some pushed, some not
+      finalStatus = 'partially_pushed'; // Some pushed, some not - DOES NOT count against limit
+      console.log(`⚠️ Partial push: ${statusCounts.pushed}/${totalEntities} entities succeeded - campaign DOES NOT count against daily limit`);
     } else if (statusCounts.failed > 0 && statusCounts.pushed === 0) {
-      finalStatus = 'push_failed'; // All failed
+      finalStatus = 'push_failed'; // All failed - DOES NOT count against limit
+      console.log(`❌ All ${statusCounts.failed} entities failed - campaign DOES NOT count against daily limit`);
     }
     
     console.log(`📊 Launch status summary: pushed=${statusCounts.pushed}, failed=${statusCounts.failed}, pending=${statusCounts.pending} → ${finalStatus}`);
     
     const nowIso = new Date().toISOString();
+    // Only set published_at for FULLY successful pushes (pushed_to_dsp or live)
+    // This timestamp is used for daily limit counting
     const shouldSetPublishedAt =
       (finalStatus === 'pushed_to_dsp' || finalStatus === 'live') && !campaign.published_at;
 
