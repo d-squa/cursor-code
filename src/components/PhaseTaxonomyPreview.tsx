@@ -45,7 +45,7 @@ export function PhaseTaxonomyPreview({
       try {
         // First try to get the database UUID for this platform account
         let dbAccountId = adAccountId;
-        
+
         if (platform === 'tiktok') {
           const { data: accountData } = await supabase
             .from('tiktok_ad_accounts')
@@ -62,12 +62,22 @@ export function PhaseTaxonomyPreview({
           if (accountData?.id) dbAccountId = accountData.id;
         }
 
-        const { data, error } = await supabase
-          .from('taxonomy_templates')
-          .select('entity_type, template')
-          .eq('ad_account_id', dbAccountId)
-          .eq('platform', platform)
-          .in('entity_type', ['campaign', 'adset']);
+        const fetchForAccountId = async (accountIdToTry: string) => {
+          return supabase
+            .from('taxonomy_templates')
+            .select('entity_type, template')
+            .eq('ad_account_id', accountIdToTry)
+            .eq('platform', platform)
+            .in('entity_type', ['campaign', 'adset']);
+        };
+
+        // Prefer internal UUID; fall back to legacy platform ID if needed
+        let { data, error } = await fetchForAccountId(dbAccountId);
+        if ((!data || data.length === 0) && dbAccountId !== adAccountId) {
+          const legacy = await fetchForAccountId(adAccountId);
+          data = legacy.data;
+          error = legacy.error;
+        }
 
         if (error) {
           console.error('Error loading taxonomy templates:', error);

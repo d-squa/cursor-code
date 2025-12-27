@@ -467,85 +467,98 @@ export function PhaseScheduler({
     }
   }, [phases, adAccountDefaults, platformName]);
 
-  // Auto-populate placement defaults from adAccountDefaults when they become available
-  // Uses a ref to track which phase IDs have been initialized to prevent infinite loops
-  const placementDefaultsAppliedRef = useRef<Set<string>>(new Set());
-  const lastAdAccountIdRef = useRef<string | undefined>(adAccountId);
-  
-  // Reset the ref when ad account changes (user switched accounts)
-  useEffect(() => {
-    if (adAccountId !== lastAdAccountIdRef.current) {
-      console.log("[PhaseScheduler] Ad account changed, resetting placement defaults tracking");
-      placementDefaultsAppliedRef.current.clear();
-      lastAdAccountIdRef.current = adAccountId;
-    }
-  }, [adAccountId]);
-  
-  // Clean up stale phase IDs from the ref when phases are deleted
-  useEffect(() => {
-    const currentPhaseIds = new Set(phases.map(p => p.id));
-    placementDefaultsAppliedRef.current.forEach(phaseId => {
-      if (!currentPhaseIds.has(phaseId)) {
-        placementDefaultsAppliedRef.current.delete(phaseId);
-      }
-    });
-  }, [phases]);
-  
+  // Auto-populate Meta placement defaults from adAccountDefaults.
+  // Important: defaults can change AFTER phases are created (e.g. user selects ad account).
+  // We update phases only when they are still using the previous defaults (or empty), to avoid overriding user edits.
+  const prevMetaPlacementDefaultsRef = useRef<{
+    publisherPlatforms?: string[];
+    positions?: Record<string, any>;
+    metaAdvantagePlusPlacements?: boolean;
+  } | null>(null);
+
+  const arraysEqual = (a?: string[], b?: string[]) => {
+    if (!a && !b) return true;
+    if (!a || !b) return false;
+    if (a.length !== b.length) return false;
+    return a.every((v, i) => v === b[i]);
+  };
+
+  const jsonEqual = (a: any, b: any) => {
+    return JSON.stringify(a ?? {}) === JSON.stringify(b ?? {});
+  };
+
   useEffect(() => {
     if (!adAccountDefaults || phases.length === 0) return;
 
     const isMeta = platformName.toLowerCase().includes("meta");
     if (!isMeta) return;
 
-    // Check if any defaults are available
-    const hasDefaultPublishers =
-      adAccountDefaults.publisherPlatforms && adAccountDefaults.publisherPlatforms.length > 0;
-    const hasDefaultPositions =
-      adAccountDefaults.positions && Object.keys(adAccountDefaults.positions).length > 0;
+    const currentPublishers = adAccountDefaults.publisherPlatforms || [];
+    const currentPositions = adAccountDefaults.positions || {};
+
+    const hasDefaultPublishers = currentPublishers.length > 0;
+    const hasDefaultPositions = Object.keys(currentPositions).length > 0;
 
     if (!hasDefaultPublishers && !hasDefaultPositions) return;
 
-    // Find phases that haven't had defaults applied yet
-    const phasesNeedingDefaults = phases.filter(
-      (phase) => !placementDefaultsAppliedRef.current.has(phase.id)
-    );
+    const prev = prevMetaPlacementDefaultsRef.current;
 
-    if (phasesNeedingDefaults.length === 0) return;
+    const publishersChanged =
+      !!prev?.publisherPlatforms &&
+      hasDefaultPublishers &&
+      !arraysEqual(prev.publisherPlatforms, currentPublishers);
 
-    console.log(
-      "[PhaseScheduler] Applying placement defaults to phases:",
-      phasesNeedingDefaults.map((p) => p.id)
-    );
+    const positionsChanged =
+      !!prev?.positions &&
+      hasDefaultPositions &&
+      !jsonEqual(prev.positions, currentPositions);
 
-    // Mark these phases as having defaults applied (we only auto-apply once)
-    phasesNeedingDefaults.forEach((phase) => placementDefaultsAppliedRef.current.add(phase.id));
+    const strategyChanged =
+      prev?.metaAdvantagePlusPlacements != null &&
+      adAccountDefaults.metaAdvantagePlusPlacements != null &&
+      prev.metaAdvantagePlusPlacements !== adAccountDefaults.metaAdvantagePlusPlacements;
 
     const updatedPhases = phases.map((phase) => {
-      if (!phasesNeedingDefaults.some((p) => p.id === phase.id)) return phase;
-
-      // Only apply defaults when the phase hasn't been explicitly set yet.
-      // This avoids overriding the user's Manual vs Advantage+ selection.
       const shouldApplyPublishers =
-        hasDefaultPublishers && (!phase.publisherPlatforms || phase.publisherPlatforms.length === 0);
+        hasDefaultPublishers &&
+        (!phase.publisherPlatforms ||
+          phase.publisherPlatforms.length === 0 ||
+          (publishersChanged &&
+            prev?.publisherPlatforms &&
+            arraysEqual(phase.publisherPlatforms, prev.publisherPlatforms)));
+
       const shouldApplyPositions =
-        hasDefaultPositions && (!phase.positions || Object.keys(phase.positions).length === 0);
-      const shouldApplyStrategy = phase.advantagePlusPlacements == null;
+        hasDefaultPositions &&
+        (!phase.positions ||
+          Object.keys(phase.positions).length === 0 ||
+          (positionsChanged && prev?.positions && jsonEqual(phase.positions, prev.positions)));
+
+      const shouldApplyStrategy =
+        phase.advantagePlusPlacements == null ||
+        (strategyChanged &&
+          prev?.metaAdvantagePlusPlacements != null &&
+          phase.advantagePlusPlacements === prev.metaAdvantagePlusPlacements);
 
       if (!shouldApplyPublishers && !shouldApplyPositions && !shouldApplyStrategy) return phase;
 
       return {
         ...phase,
-        ...(shouldApplyPublishers
-          ? { publisherPlatforms: [...adAccountDefaults.publisherPlatforms!] }
-          : {}),
+        ...(shouldApplyPublishers ? { publisherPlatforms: [...currentPublishers] } : {}),
         ...(shouldApplyPositions
-          ? { positions: JSON.parse(JSON.stringify(adAccountDefaults.positions)) }
+          ? { positions: JSON.parse(JSON.stringify(currentPositions)) }
           : {}),
         ...(shouldApplyStrategy
           ? { advantagePlusPlacements: adAccountDefaults.metaAdvantagePlusPlacements ?? true }
           : {}),
       };
     });
+
+    // Update ref AFTER we compute the delta, so comparisons are against the previous defaults.
+    prevMetaPlacementDefaultsRef.current = {
+      publisherPlatforms: hasDefaultPublishers ? [...currentPublishers] : undefined,
+      positions: hasDefaultPositions ? JSON.parse(JSON.stringify(currentPositions)) : undefined,
+      metaAdvantagePlusPlacements: adAccountDefaults.metaAdvantagePlusPlacements,
+    };
 
     const changed = updatedPhases.some((p, i) => p !== phases[i]);
     if (changed) {

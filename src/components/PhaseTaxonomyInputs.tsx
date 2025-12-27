@@ -77,7 +77,7 @@ export function PhaseTaxonomyInputs({
     try {
       // First try to get the database UUID for this platform account
       let dbAccountId = adAccountId;
-      
+
       if (platform === 'tiktok') {
         const { data: accountData } = await supabase
           .from('tiktok_ad_accounts')
@@ -93,14 +93,50 @@ export function PhaseTaxonomyInputs({
           .maybeSingle();
         if (accountData?.id) dbAccountId = accountData.id;
       }
-      
-      const { data, error } = await supabase
+
+      // Prefer internal UUID (new standard)
+      let { data, error } = await supabase
         .from('taxonomy_templates')
         .select('template')
         .eq('ad_account_id', dbAccountId)
         .eq('entity_type', entityType)
         .eq('platform', platform)
         .maybeSingle();
+
+      // Fallback: legacy templates saved under the platform-native ID
+      if (!data?.template && dbAccountId !== adAccountId) {
+        const legacy = await supabase
+          .from('taxonomy_templates')
+          .select('template')
+          .eq('ad_account_id', adAccountId)
+          .eq('entity_type', entityType)
+          .eq('platform', platform)
+          .maybeSingle();
+
+        if (legacy.data?.template) {
+          data = legacy.data;
+          error = legacy.error;
+
+          // Best-effort migration so future loads (and publishing) use the internal UUID
+          try {
+            const { data: userData } = await supabase.auth.getUser();
+            const userId = userData.user?.id;
+            if (userId) {
+              await supabase.from('taxonomy_templates').insert([
+                {
+                  ad_account_id: dbAccountId,
+                  platform,
+                  entity_type: entityType,
+                  template: JSON.parse(JSON.stringify(legacy.data.template)) as any,
+                  user_id: userId,
+                },
+              ]);
+            }
+          } catch {
+            // ignore migration errors
+          }
+        }
+      }
 
       if (error) {
         console.error('Error loading taxonomy template:', error);
