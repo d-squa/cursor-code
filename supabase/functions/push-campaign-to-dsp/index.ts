@@ -2075,13 +2075,40 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
 
         let adSetData = await adSetResponse.json();
         
-        // Check for pixel eligibility error for VALUE optimization (error_subcode: 2446368)
-        if (adSetData.error && adSetData.error.error_subcode === 2446368 && adSetPayload.optimization_goal === 'VALUE') {
-          console.warn(`Pixel ${market.pixel} not eligible for VALUE optimization. Retrying with OFFSITE_CONVERSIONS...`);
+        // Check for VALUE optimization errors and fallback to OFFSITE_CONVERSIONS
+        // Error subcodes:
+        // - 2446368: Pixel not eligible for VALUE optimization
+        // - 2446146: VALUE optimization not available (unverified business account)
+        // - 1815117: Billing event invalid for optimization goal
+        const valueOptErrorCodes = [2446368, 2446146, 1815117];
+        const isValueOptError = adSetData.error && 
+          valueOptErrorCodes.includes(adSetData.error.error_subcode) && 
+          (adSetPayload.optimization_goal === 'VALUE' || 
+           (adSetData.error.error_data && adSetData.error.error_data.includes('billing_event')));
+        
+        if (isValueOptError) {
+          const errorSubcode = adSetData.error.error_subcode;
+          let fallbackReason = '';
           
-          // Retry with OFFSITE_CONVERSIONS fallback
+          if (errorSubcode === 2446368) {
+            fallbackReason = `Pixel ${market.pixel} not eligible for VALUE optimization`;
+          } else if (errorSubcode === 2446146) {
+            fallbackReason = `VALUE optimization not available for this ad account (unverified business)`;
+          } else if (errorSubcode === 1815117) {
+            fallbackReason = `Billing event ${adSetPayload.billing_event} incompatible with optimization goal ${adSetPayload.optimization_goal}`;
+          }
+          
+          console.warn(`${fallbackReason}. Retrying with OFFSITE_CONVERSIONS...`);
+          
+          // Fallback: Use OFFSITE_CONVERSIONS which is available to all accounts
           adSetPayload.optimization_goal = 'OFFSITE_CONVERSIONS';
-          console.log("Retrying Meta ad set creation with fallback optimization_goal:", adSetPayload);
+          // Ensure billing_event is compatible with OFFSITE_CONVERSIONS
+          adSetPayload.billing_event = 'IMPRESSIONS';
+          
+          console.log("Retrying Meta ad set creation with fallback:", {
+            optimization_goal: adSetPayload.optimization_goal,
+            billing_event: adSetPayload.billing_event
+          });
           
           const retryResponse = await fetch(
             `https://graph.facebook.com/v22.0/${adAccountPath}/adsets`,
