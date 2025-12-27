@@ -78,21 +78,94 @@ export default function TaxonomyBuilder({
 
   useEffect(() => {
     loadTemplate();
-  }, [adAccountId, entityType]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adAccountId, entityType, platform]);
+
+  const resolveInternalAdAccountId = async (): Promise<string> => {
+    if (!adAccountId) return adAccountId;
+
+    try {
+      if (platform === 'tiktok') {
+        const { data } = await supabase
+          .from('tiktok_ad_accounts')
+          .select('id')
+          .eq('advertiser_id', adAccountId)
+          .maybeSingle();
+        return data?.id || adAccountId;
+      }
+
+      if (platform === 'meta') {
+        const { data } = await supabase
+          .from('meta_ad_accounts')
+          .select('id')
+          .eq('account_id', adAccountId)
+          .maybeSingle();
+        return data?.id || adAccountId;
+      }
+
+      return adAccountId;
+    } catch {
+      return adAccountId;
+    }
+  };
 
   const loadTemplate = async () => {
     setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('taxonomy_templates')
-        .select('*')
-        .eq('ad_account_id', adAccountId)
-        .eq('entity_type', entityType)
-        .single();
 
-      if (error && error.code !== 'PGRST116') {
-        throw error;
+    try {
+      const internalAdAccountId = await resolveInternalAdAccountId();
+
+      // Prefer internal UUID (new standard), but fall back to legacy platform ID if needed.
+      const tryLoad = async (accountIdToTry: string) => {
+        const { data, error } = await supabase
+          .from('taxonomy_templates')
+          .select('*')
+          .eq('ad_account_id', accountIdToTry)
+          .eq('entity_type', entityType)
+          .eq('platform', platform)
+          .maybeSingle();
+
+        return { data, error };
+      };
+
+      // 1) Try internal UUID first
+      let { data, error } = await tryLoad(internalAdAccountId);
+
+      // 2) If missing and internal differs, try legacy platform ID (old behavior)
+      if (!data && internalAdAccountId !== adAccountId) {
+        const legacy = await tryLoad(adAccountId);
+        data = legacy.data;
+        error = legacy.error;
+
+        // If legacy exists, migrate it to internal UUID so ActiPlan + publishing can find it.
+        if (data?.template && internalAdAccountId) {
+          try {
+            const { data: migrated, error: migrateError } = await supabase
+              .from('taxonomy_templates')
+              .insert([
+                {
+                  ad_account_id: internalAdAccountId,
+                  platform,
+                  entity_type: entityType,
+                  template: JSON.parse(JSON.stringify(data.template)) as Json,
+                  user_id: userId,
+                },
+              ])
+              .select()
+              .single();
+
+            if (!migrateError && migrated) {
+              setTemplateId(migrated.id);
+              setParams((migrated.template as unknown) as TaxonomyParam[]);
+              return;
+            }
+          } catch {
+            // Ignore migration errors; we will still use legacy template for editing.
+          }
+        }
       }
+
+      if (error) throw error;
 
       if (data) {
         setTemplateId(data.id);
@@ -101,8 +174,8 @@ export default function TaxonomyBuilder({
         // Generate default template
         const defaultParams = getDefaultParams();
         setParams(defaultParams);
-        // Auto-save default template
-        await saveTemplate(defaultParams, true);
+        // Auto-save default template under internal UUID (if available)
+        await saveTemplate(defaultParams, true, internalAdAccountId);
       }
     } catch (error: any) {
       console.error('Error loading taxonomy template:', error);
@@ -126,7 +199,7 @@ export default function TaxonomyBuilder({
     }
   };
 
-  const saveTemplate = async (paramsToSave: TaxonomyParam[], isDefault = false) => {
+  const saveTemplate = async (paramsToSave: TaxonomyParam[], isDefault = false, overrideAdAccountId?: string) => {
     setSaving(true);
     try {
       if (templateId) {
@@ -140,15 +213,19 @@ export default function TaxonomyBuilder({
 
         if (error) throw error;
       } else {
+        const internalAdAccountId = overrideAdAccountId || (await resolveInternalAdAccountId());
+
         const { data, error } = await supabase
           .from('taxonomy_templates')
-          .insert([{
-            ad_account_id: adAccountId,
-            platform,
-            entity_type: entityType,
-            template: JSON.parse(JSON.stringify(paramsToSave)) as Json,
-            user_id: userId,
-          }])
+          .insert([
+            {
+              ad_account_id: internalAdAccountId,
+              platform,
+              entity_type: entityType,
+              template: JSON.parse(JSON.stringify(paramsToSave)) as Json,
+              user_id: userId,
+            },
+          ])
           .select()
           .single();
 
