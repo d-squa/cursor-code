@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,6 +64,7 @@ export function MediaPlanEditor() {
   const { activeWorkspaceId } = useWorkspace();
   const { hasAccess, getRequiredTierForFeature } = useFeatureAccess();
   const navigate = useNavigate();
+  const location = useLocation();
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedClientId, setSelectedClientId] = useState<string>("");
   const [clients, setClients] = useState<Array<{id: string; name: string}>>([]);
@@ -75,6 +76,7 @@ export function MediaPlanEditor() {
   const [saving, setSaving] = useState(false);
   const [savedCampaignId, setSavedCampaignId] = useState<string | null>(null);
   const [isHydrated, setIsHydrated] = useState(false);
+  const lastCampaignIdRef = useRef<string | null>(null);
   const [genericConfig, setGenericConfig] = useState<GenericConfig>({
     strategy: "auto-detect",
     strategyFocus: "auto",
@@ -582,6 +584,46 @@ export function MediaPlanEditor() {
     }
   };
 
+  // Detect URL campaign ID changes and reset hydration to reload different campaign
+  useEffect(() => {
+    const urlParams = new URLSearchParams(location.search);
+    const urlCampaignId = urlParams.get('campaignId');
+    
+    // If URL campaign ID changed, reset state to force re-hydration
+    if (urlCampaignId && urlCampaignId !== lastCampaignIdRef.current && isHydrated) {
+      console.log('🔄 URL campaign ID changed, resetting for new campaign:', urlCampaignId);
+      lastCampaignIdRef.current = urlCampaignId;
+      setIsHydrated(false);
+      // Clear form state to prevent stale data
+      setCampaignName("");
+      setBoNumber("");
+      setTotalBudget("");
+      setStartDate("");
+      setEndDate("");
+      setPlatformsWithMarkets([]);
+      setSavedCampaignId(null);
+      setGenericConfig({
+        strategy: "auto-detect",
+        strategyFocus: "auto",
+        targeting: {
+          adFormats: [],
+          ageMin: undefined,
+          ageMax: undefined,
+          genders: [],
+          devices: [],
+          targetingExpansion: false,
+          os: [],
+          language: "",
+          interests: "",
+          websiteAudience: "",
+          keywordList: "",
+          customerList: "",
+          lookalikeAudience: ""
+        }
+      });
+    }
+  }, [location.search, isHydrated]);
+
   // Restore draft by URL param or localStorage (latest draft)
   useEffect(() => {
     const restore = async () => {
@@ -590,8 +632,14 @@ export function MediaPlanEditor() {
       // Check if user explicitly wants a new campaign
       const urlParams = new URLSearchParams(window.location.search);
       const isNewCampaign = urlParams.get('new') === 'true';
+      const urlCampaignId = urlParams.get('campaignId');
       
-      console.log('MediaPlanEditor restore:', { isNewCampaign, isHydrated, url: window.location.href });
+      console.log('MediaPlanEditor restore:', { isNewCampaign, isHydrated, urlCampaignId, url: window.location.href });
+      
+      // Track the campaign ID we're loading
+      if (urlCampaignId) {
+        lastCampaignIdRef.current = urlCampaignId;
+      }
       
       if (isNewCampaign) {
         // Clear the URL param and start fresh
