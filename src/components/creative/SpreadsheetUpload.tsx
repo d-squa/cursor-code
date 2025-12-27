@@ -4,36 +4,21 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   FileSpreadsheet, 
   Upload, 
   Download,
-  CheckCircle, 
-  XCircle, 
-  AlertTriangle,
   Loader2,
   Info,
+  Grid3X3,
+  FileUp,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import type { Creative, Platform, CreativeType, SpreadsheetCreativeRow } from '@/types/creative';
 import { VALID_OPTIMIZATION_GOALS, VALID_FUNNEL_STAGES } from '@/utils/creativeValidation';
-import { cn } from '@/lib/utils';
+import { SpreadsheetEditor } from './SpreadsheetEditor';
 
 interface SpreadsheetUploadProps {
   onUploadComplete: (creatives: Partial<Creative>[]) => Promise<void>;
@@ -80,12 +65,46 @@ const validateCreativeType = (value: string): CreativeType | null => {
   return map[value.toLowerCase().trim().replace(/[\s-]+/g, '_')] || null;
 };
 
+// Validate a single row for the editor
+const validateRow = (row: SpreadsheetCreativeRow): string[] => {
+  const errors: string[] = [];
+  
+  if (!row.name?.trim()) errors.push('Name is required');
+  
+  const platform = validatePlatform(row.platform);
+  if (!platform) errors.push(`Invalid platform: ${row.platform}`);
+  
+  if (!row.market?.trim() || !/^[A-Z]{2}$/i.test(row.market)) {
+    errors.push(`Invalid market code: ${row.market}`);
+  }
+  
+  if (row.phase && !VALID_FUNNEL_STAGES.map(s => s.toLowerCase()).includes(row.phase.toLowerCase())) {
+    errors.push(`Invalid phase: ${row.phase}`);
+  }
+  
+  if (platform && row.optimizationGoal && !VALID_OPTIMIZATION_GOALS[platform]?.includes(row.optimizationGoal.toUpperCase())) {
+    errors.push(`Invalid optimization goal for ${platform}: ${row.optimizationGoal}`);
+  }
+  
+  const creativeType = validateCreativeType(row.creativeType);
+  if (!creativeType) errors.push(`Invalid creative type: ${row.creativeType}`);
+  
+  if (row.creativeType === 'dark_post' && !row.mediaUrl) {
+    errors.push('Dark post requires a media URL');
+  }
+  if (row.creativeType === 'existing_post' && !row.externalPostId) {
+    errors.push('Existing post requires a post ID');
+  }
+  
+  return errors;
+};
+
 export function SpreadsheetUpload({ onUploadComplete, isUploading = false }: SpreadsheetUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [parsedRows, setParsedRows] = useState<SpreadsheetCreativeRow[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [columnMapping, setColumnMapping] = useState<Record<string, string>>({});
+  const [activeMode, setActiveMode] = useState<'import' | 'editor'>('import');
 
   // Parse spreadsheet file
   const parseSpreadsheet = useCallback(async (file: File) => {
@@ -126,8 +145,6 @@ export function SpreadsheetUpload({ onUploadComplete, isUploading = false }: Spr
         const row = jsonData[i];
         if (!row || row.every(cell => !cell)) continue; // Skip empty rows
 
-        const errors: string[] = [];
-        
         // Get values
         const name = String(row[mapping.name] || '').trim();
         const platformRaw = String(row[mapping.platform] || '').trim();
@@ -136,26 +153,8 @@ export function SpreadsheetUpload({ onUploadComplete, isUploading = false }: Spr
         const optimizationGoal = String(row[mapping.optimization_goal] || '').trim().toUpperCase();
         const creativeTypeRaw = String(row[mapping.creative_type] || '').trim();
 
-        // Validate required fields
-        if (!name) errors.push('Name is required');
-        
         const platform = validatePlatform(platformRaw);
-        if (!platform) errors.push(`Invalid platform: ${platformRaw}`);
-        
-        if (!market || !/^[A-Z]{2}$/.test(market)) {
-          errors.push(`Invalid market code: ${market}`);
-        }
-        
-        if (phase && !VALID_FUNNEL_STAGES.map(s => s.toLowerCase()).includes(phase.toLowerCase())) {
-          errors.push(`Invalid phase: ${phase}`);
-        }
-        
-        if (platform && optimizationGoal && !VALID_OPTIMIZATION_GOALS[platform]?.includes(optimizationGoal)) {
-          errors.push(`Invalid optimization goal for ${platform}: ${optimizationGoal}`);
-        }
-        
         const creativeType = validateCreativeType(creativeTypeRaw);
-        if (!creativeType) errors.push(`Invalid creative type: ${creativeTypeRaw}`);
 
         // Get optional fields
         const mediaUrl = mapping.media_url !== undefined ? String(row[mapping.media_url] || '') : undefined;
@@ -167,16 +166,8 @@ export function SpreadsheetUpload({ onUploadComplete, isUploading = false }: Spr
         const callToAction = mapping.call_to_action !== undefined ? String(row[mapping.call_to_action] || '') : undefined;
         const destinationUrl = mapping.destination_url !== undefined ? String(row[mapping.destination_url] || '') : undefined;
 
-        // Validate creative type specific requirements
-        if (creativeType === 'dark_post' && !mediaUrl) {
-          errors.push('Dark post requires a media URL');
-        }
-        if (creativeType === 'existing_post' && !externalPostId) {
-          errors.push('Existing post requires a post ID');
-        }
-
-        rows.push({
-          rowNumber: i + 1,
+        const parsedRow: SpreadsheetCreativeRow = {
+          rowNumber: i,
           name,
           platform: platform || platformRaw,
           market,
@@ -191,13 +182,21 @@ export function SpreadsheetUpload({ onUploadComplete, isUploading = false }: Spr
           caption,
           callToAction,
           destinationUrl,
-          isValid: errors.length === 0,
-          validationErrors: errors,
-        });
+          isValid: false,
+          validationErrors: [],
+        };
+
+        // Validate
+        const errors = validateRow(parsedRow);
+        parsedRow.isValid = errors.length === 0;
+        parsedRow.validationErrors = errors;
+
+        rows.push(parsedRow);
       }
 
       setParsedRows(rows);
-      toast.success(`Parsed ${rows.length} rows from spreadsheet`);
+      setActiveMode('editor');
+      toast.success(`Loaded ${rows.length} rows into editor`);
     } catch (error) {
       toast.error('Failed to parse spreadsheet: ' + (error as Error).message);
       console.error(error);
@@ -229,6 +228,35 @@ export function SpreadsheetUpload({ onUploadComplete, isUploading = false }: Spr
     XLSX.writeFile(wb, 'creative_upload_template.xlsx');
     
     toast.success('Template downloaded');
+  }, []);
+
+  // Handle editor changes
+  const handleEditorChange = useCallback((newRows: SpreadsheetCreativeRow[]) => {
+    setParsedRows(newRows);
+  }, []);
+
+  // Start fresh with empty editor
+  const handleStartFresh = useCallback(() => {
+    const emptyRow: SpreadsheetCreativeRow = {
+      rowNumber: 1,
+      name: '',
+      platform: 'meta',
+      market: '',
+      phase: 'Awareness',
+      optimizationGoal: 'REACH',
+      creativeType: 'dark_post',
+      mediaUrl: '',
+      externalPostId: '',
+      primaryText: '',
+      headline: '',
+      description: '',
+      callToAction: '',
+      destinationUrl: '',
+      isValid: false,
+      validationErrors: ['Name is required', 'Invalid market code: '],
+    };
+    setParsedRows([emptyRow]);
+    setActiveMode('editor');
   }, []);
 
   // Upload valid rows
@@ -269,7 +297,8 @@ export function SpreadsheetUpload({ onUploadComplete, isUploading = false }: Spr
 
       await onUploadComplete(creatives);
       setParsedRows([]);
-      toast.success(`Created ${creatives.length} creatives from spreadsheet`);
+      setActiveMode('import');
+      toast.success(`Created ${creatives.length} creatives`);
     } catch (error) {
       toast.error('Upload failed: ' + (error as Error).message);
     }
@@ -280,175 +309,125 @@ export function SpreadsheetUpload({ onUploadComplete, isUploading = false }: Spr
   const invalidCount = parsedRows.filter(r => !r.isValid).length;
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className="flex flex-col h-[calc(100vh-280px)] min-h-[500px]">
+      <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="flex items-center gap-2">
               <FileSpreadsheet className="h-5 w-5" />
-              Spreadsheet Upload
+              Spreadsheet Editor
             </CardTitle>
             <CardDescription>
-              Upload an Excel or CSV file with creative metadata
+              Import from Excel/CSV or create directly in the grid editor
             </CardDescription>
           </div>
-          <Button variant="outline" size="sm" onClick={handleDownloadTemplate}>
-            <Download className="h-4 w-4 mr-2" />
-            Download Template
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* File Input */}
-        <div className="flex items-center gap-4">
-          <input
-            ref={inputRef}
-            type="file"
-            accept=".xlsx,.xls,.csv"
-            onChange={handleFileSelect}
-            className="hidden"
-          />
-          <Button 
-            onClick={() => inputRef.current?.click()}
-            disabled={isProcessing}
-            className="flex-1"
-          >
-            {isProcessing ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Processing...
-              </>
-            ) : (
-              <>
-                <Upload className="h-4 w-4 mr-2" />
-                Select Spreadsheet
-              </>
-            )}
-          </Button>
-        </div>
-
-        {/* Required Columns Info */}
-        <div className="flex items-start gap-2 p-3 bg-muted rounded-lg text-sm">
-          <Info className="h-4 w-4 mt-0.5 shrink-0" />
-          <div>
-            <p className="font-medium">Required columns:</p>
-            <p className="text-muted-foreground">
-              {REQUIRED_COLUMNS.map(c => c.replace(/_/g, ' ')).join(', ')}
-            </p>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={handleDownloadTemplate}>
+              <Download className="h-4 w-4 mr-2" />
+              Template
+            </Button>
           </div>
         </div>
-
-        {/* Parsed Rows Preview */}
-        {parsedRows.length > 0 && (
-          <>
-            {/* Stats */}
-            <div className="flex items-center gap-4">
-              <Badge variant="secondary" className="gap-1">
-                <CheckCircle className="h-3 w-3 text-green-500" />
-                {validCount} valid
-              </Badge>
-              {invalidCount > 0 && (
-                <Badge variant="destructive" className="gap-1">
-                  <XCircle className="h-3 w-3" />
-                  {invalidCount} invalid
-                </Badge>
-              )}
+      </CardHeader>
+      <CardContent className="flex-1 flex flex-col overflow-hidden">
+        {activeMode === 'import' ? (
+          <div className="flex flex-col items-center justify-center flex-1 gap-6">
+            {/* Import Options */}
+            <div className="grid grid-cols-2 gap-4 w-full max-w-md">
+              <input
+                ref={inputRef}
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+              <Button 
+                variant="outline"
+                className="h-32 flex-col gap-2"
+                onClick={() => inputRef.current?.click()}
+                disabled={isProcessing}
+              >
+                {isProcessing ? (
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                ) : (
+                  <FileUp className="h-8 w-8" />
+                )}
+                <span className="text-sm font-medium">
+                  {isProcessing ? 'Processing...' : 'Import File'}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  Excel or CSV
+                </span>
+              </Button>
+              <Button 
+                variant="outline"
+                className="h-32 flex-col gap-2"
+                onClick={handleStartFresh}
+              >
+                <Grid3X3 className="h-8 w-8" />
+                <span className="text-sm font-medium">Start Fresh</span>
+                <span className="text-xs text-muted-foreground">
+                  Empty grid
+                </span>
+              </Button>
             </div>
 
-            {/* Data Table */}
-            <ScrollArea className="h-[300px] border rounded-lg">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-12">Row</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Platform</TableHead>
-                    <TableHead>Market</TableHead>
-                    <TableHead>Phase</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Errors</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {parsedRows.map((row) => (
-                    <TableRow 
-                      key={row.rowNumber}
-                      className={cn(!row.isValid && 'bg-destructive/5')}
-                    >
-                      <TableCell className="font-mono text-xs">{row.rowNumber}</TableCell>
-                      <TableCell>
-                        {row.isValid ? (
-                          <CheckCircle className="h-4 w-4 text-green-500" />
-                        ) : (
-                          <XCircle className="h-4 w-4 text-destructive" />
-                        )}
-                      </TableCell>
-                      <TableCell className="font-medium max-w-[150px] truncate">
-                        {row.name}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{row.platform}</Badge>
-                      </TableCell>
-                      <TableCell>{row.market}</TableCell>
-                      <TableCell>{row.phase}</TableCell>
-                      <TableCell className="capitalize">
-                        {row.creativeType.replace(/_/g, ' ')}
-                      </TableCell>
-                      <TableCell>
-                        {row.validationErrors.length > 0 && (
-                          <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger>
-                                <Badge variant="destructive" className="gap-1">
-                                  <AlertTriangle className="h-3 w-3" />
-                                  {row.validationErrors.length}
-                                </Badge>
-                              </TooltipTrigger>
-                              <TooltipContent side="left" className="max-w-[300px]">
-                                <ul className="text-xs space-y-1">
-                                  {row.validationErrors.map((err, i) => (
-                                    <li key={i}>• {err}</li>
-                                  ))}
-                                </ul>
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </ScrollArea>
+            {/* Info */}
+            <div className="flex items-start gap-2 p-3 bg-muted rounded-lg text-sm max-w-md">
+              <Info className="h-4 w-4 mt-0.5 shrink-0" />
+              <div>
+                <p className="font-medium">Required columns for import:</p>
+                <p className="text-muted-foreground">
+                  {REQUIRED_COLUMNS.map(c => c.replace(/_/g, ' ')).join(', ')}
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1 flex flex-col overflow-hidden gap-3">
+            {/* Editor */}
+            <div className="flex-1 overflow-hidden">
+              <SpreadsheetEditor 
+                rows={parsedRows} 
+                onChange={handleEditorChange} 
+              />
+            </div>
 
-            {/* Upload Button */}
+            {/* Actions */}
             {uploadProgress > 0 && uploadProgress < 100 && (
               <Progress value={uploadProgress} className="h-2" />
             )}
             
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setParsedRows([])}>
-                Clear
+            <div className="flex justify-between items-center">
+              <Button variant="outline" onClick={() => {
+                setParsedRows([]);
+                setActiveMode('import');
+              }}>
+                Clear All
               </Button>
-              <Button 
-                onClick={handleUpload} 
-                disabled={validCount === 0 || isUploading}
-              >
-                {isUploading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Creating...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="h-4 w-4 mr-2" />
-                    Create {validCount} Creatives
-                  </>
-                )}
-              </Button>
+              <div className="flex gap-2">
+                <Badge variant="outline" className="text-xs">
+                  {parsedRows.length} total rows
+                </Badge>
+                <Button 
+                  onClick={handleUpload} 
+                  disabled={validCount === 0 || isUploading}
+                >
+                  {isUploading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-4 w-4 mr-2" />
+                      Create {validCount} Creatives
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
-          </>
+          </div>
         )}
       </CardContent>
     </Card>
