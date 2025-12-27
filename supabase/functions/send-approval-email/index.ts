@@ -13,6 +13,7 @@ interface ApprovalEmailRequest {
   pdfBase64: string;
   excelBase64?: string;
   senderName?: string;
+  campaignId?: string;
 }
 
 function formatNumber(num: number): string {
@@ -224,8 +225,13 @@ serve(async (req: Request): Promise<Response> => {
       planDetails,
       pdfBase64,
       excelBase64,
-      senderName = "Media Planning Team",
+      senderName = "The ActiPlan Team",
+      campaignId,
     }: ApprovalEmailRequest = await req.json();
+    
+    // Build the plan URL
+    const appUrl = Deno.env.get("APP_URL") || "https://actiplan.app";
+    const planUrl = campaignId ? `${appUrl}/actiplans?edit=${campaignId}` : appUrl;
 
     if (!recipientEmails || recipientEmails.length === 0) {
       return new Response(JSON.stringify({ error: "No recipient emails provided" }), {
@@ -309,44 +315,101 @@ serve(async (req: Request): Promise<Response> => {
       }
 
       const emailData = {
-        from: `${senderName} <do-not-reply@actiplan.app>`,
+        from: `ActiPlan <do-not-reply@actiplan.app>`,
         to: [email],
-        subject: `Media Plan Approval Request: ${planName}`,
+        subject: `ActiPlan App: Approval Request - ${planName}`,
         html: `
           <!DOCTYPE html>
           <html>
           <head>
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
-            <style>
-              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #1e293b; max-width: 800px; margin: 0 auto; padding: 20px; }
-              h1 { color: #1e40af; border-bottom: 2px solid #3b82f6; padding-bottom: 10px; }
-              h2 { color: #1e40af; margin-top: 30px; }
-              h3 { color: #334155; margin-top: 25px; }
-              h4 { color: #475569; margin-top: 15px; }
-              table { border-collapse: collapse; width: 100%; margin-bottom: 15px; }
-              .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #e2e8f0; color: #64748b; font-size: 14px; }
-              .attachments { background-color: #f0f9ff; padding: 15px; border-radius: 8px; margin-top: 20px; }
-            </style>
           </head>
-          <body>
-            <h1>📋 Media Plan Approval Request</h1>
-            <p>Dear Team Member,</p>
-            <p>A new media plan <strong>"${planName}"</strong> has been submitted for your review and approval.</p>
-            
-            ${forecastHtml}
-            
-            <div class="attachments">
-              <p><strong>📎 Attachments:</strong></p>
-              <ul>
-                ${pdfBase64 ? '<li>Full Media Plan (PDF) - Detailed report with all forecasts</li>' : ''}
-                ${excelBase64 ? '<li>Media Plan Data (Excel) - Spreadsheet with all metrics and breakdowns</li>' : ''}
-              </ul>
+          <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #1e293b; background-color: #f8fafc;">
+            <!-- Header -->
+            <div style="background-color: #0f172a; padding: 20px; text-align: center;">
+              <img src="https://actiplan.app/logo.png" alt="ActiPlan" style="height: 40px;" />
             </div>
             
-            <div class="footer">
-              <p>Best regards,<br>${senderName}</p>
-              <p style="font-size: 12px; color: #94a3b8;">This email was sent from ActiPlan. Please review the attachments for complete details.</p>
+            <!-- Main Content -->
+            <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px; background-color: #ffffff;">
+              <h1 style="color: #0f172a; font-size: 28px; font-weight: 600; margin-bottom: 24px; text-align: center;">
+                Media Plan Approval Request
+              </h1>
+              
+              <p style="color: #334155; font-size: 16px; margin-bottom: 16px;">
+                Hey there,
+              </p>
+              
+              <p style="color: #334155; font-size: 16px; margin-bottom: 16px;">
+                A new media plan <strong>"${planName}"</strong> has been submitted for your review and approval.
+              </p>
+              
+              <p style="color: #334155; font-size: 16px; margin-bottom: 8px;">
+                Here's a quick summary:
+              </p>
+              
+              <ul style="color: #334155; font-size: 16px; margin-bottom: 24px; padding-left: 24px;">
+                <li style="margin-bottom: 8px;">✅ Total Budget: <strong>$${planDetails.actiplanForecasts?.totalBudget?.toLocaleString() || planDetails.totalBudget?.toLocaleString() || "N/A"}</strong></li>
+                <li style="margin-bottom: 8px;">✅ Total Reach: <strong>${formatNumber(planDetails.actiplanForecasts?.totalReach || 0)}</strong></li>
+                <li style="margin-bottom: 8px;">✅ Total Impressions: <strong>${formatNumber(planDetails.actiplanForecasts?.totalImpressions || 0)}</strong></li>
+                <li style="margin-bottom: 8px;">✅ Platforms: <strong>${planDetails.platforms?.map((p: any) => p.name).join(", ") || "N/A"}</strong></li>
+              </ul>
+              
+              <p style="color: #334155; font-size: 16px; margin-bottom: 8px;">
+                <strong>Please review the attached documents for complete details:</strong>
+              </p>
+              <ul style="color: #334155; font-size: 16px; margin-bottom: 24px; padding-left: 24px;">
+                ${pdfBase64 ? '<li style="margin-bottom: 8px;">📄 Full Media Plan (PDF)</li>' : ''}
+                ${excelBase64 ? '<li style="margin-bottom: 8px;">📊 Media Plan Data (Excel)</li>' : ''}
+              </ul>
+              
+              <p style="color: #64748b; font-size: 14px; font-style: italic; margin-bottom: 24px;">
+                If you have any questions or need help getting started, simply reply to this email — we're here for you.
+              </p>
+              
+              <p style="color: #334155; font-size: 16px; margin-bottom: 8px;">
+                Welcome to ActiPlan.<br/>
+                We can't wait for you to see what we've built.
+              </p>
+              
+              <p style="color: #334155; font-size: 16px; margin-bottom: 32px;">
+                <em>Warm regards,</em><br/>
+                <strong>${senderName}</strong>
+              </p>
+              
+              <!-- CTA Button -->
+              <div style="text-align: center; margin-bottom: 32px;">
+                <a href="${planUrl}" style="display: inline-block; background-color: #f97316; color: #ffffff; font-size: 16px; font-weight: 600; text-decoration: none; padding: 14px 32px; border-radius: 6px;">
+                  View ActiPlan
+                </a>
+              </div>
+            </div>
+            
+            <!-- Footer -->
+            <div style="background-color: #1e293b; padding: 30px 20px; text-align: center;">
+              <!-- Social Icons -->
+              <div style="margin-bottom: 20px;">
+                <a href="https://linkedin.com/company/actiplan" style="display: inline-block; margin: 0 8px;">
+                  <img src="https://cdn-icons-png.flaticon.com/32/174/174857.png" alt="LinkedIn" style="width: 24px; height: 24px;" />
+                </a>
+                <a href="https://youtube.com/@actiplan" style="display: inline-block; margin: 0 8px;">
+                  <img src="https://cdn-icons-png.flaticon.com/32/1384/1384060.png" alt="YouTube" style="width: 24px; height: 24px;" />
+                </a>
+                <a href="https://tiktok.com/@actiplan" style="display: inline-block; margin: 0 8px;">
+                  <img src="https://cdn-icons-png.flaticon.com/32/3046/3046121.png" alt="TikTok" style="width: 24px; height: 24px;" />
+                </a>
+                <a href="https://instagram.com/actiplan" style="display: inline-block; margin: 0 8px;">
+                  <img src="https://cdn-icons-png.flaticon.com/32/174/174855.png" alt="Instagram" style="width: 24px; height: 24px;" />
+                </a>
+              </div>
+              
+              <p style="color: #94a3b8; font-size: 12px; margin: 0 0 8px 0;">
+                © ActiPlan
+              </p>
+              <p style="color: #64748b; font-size: 11px; margin: 0 0 16px 0;">
+                This email was sent because you're part of a team using ActiPlan.
+              </p>
             </div>
           </body>
           </html>
