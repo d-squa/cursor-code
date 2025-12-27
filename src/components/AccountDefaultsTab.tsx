@@ -16,11 +16,11 @@ import { Separator } from "@/components/ui/separator";
 import AccountTaxonomySection from "./AccountTaxonomySection";
 import MetaAppSearch from "./MetaAppSearch";
 import ConversionLocationsSection from "./ConversionLocationsSection";
-import { 
-  META_APP_STORES, 
-  META_MESSAGING_MODES, 
+import {
+  META_APP_STORES,
+  META_MESSAGING_MODES,
   TIKTOK_MESSAGING_APPS,
-  TIKTOK_OPTIMIZATION_LOCATIONS 
+  TIKTOK_OPTIMIZATION_LOCATIONS,
 } from "@/utils/destinationOptions";
 import {
   extractMetaLocations,
@@ -37,7 +37,7 @@ interface AdAccount {
   account_id: string;
   account_name: string;
   advertiser_id?: string;
-  platform: 'meta' | 'tiktok';
+  platform: "meta" | "tiktok";
   default_pixel_id?: string | null;
   default_page_id?: string | null;
   default_instagram_account_id?: string | null;
@@ -92,7 +92,13 @@ interface AdAccount {
   default_line_business_id?: string | null;
 }
 
-import { DEVICE_OPTIONS, LANGUAGE_OPTIONS, GENDER_OPTIONS, AGE_OPTIONS, normalizeLanguageValues } from "@/utils/targetingOptions";
+import {
+  DEVICE_OPTIONS,
+  LANGUAGE_OPTIONS,
+  GENDER_OPTIONS,
+  AGE_OPTIONS,
+  normalizeLanguageValues,
+} from "@/utils/targetingOptions";
 
 interface MetaResource {
   id: string;
@@ -173,7 +179,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
   const [clientTargeting, setClientTargeting] = useState<ClientTargetingDefaults>({
     default_age_min: 18,
     default_age_max: 65,
-    default_gender: 'all',
+    default_gender: "all",
     default_devices: [],
     default_languages: [],
   });
@@ -196,22 +202,22 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         .single();
 
       if (clientError) throw clientError;
-      
+
       if (!clientMarkets) {
-        setFetchedClientMarkets(Array.isArray(clientData.markets) ? clientData.markets as string[] : []);
+        setFetchedClientMarkets(Array.isArray(clientData.markets) ? (clientData.markets as string[]) : []);
       }
-      
+
       // Set client-level targeting defaults
       // Normalize language values to handle legacy numeric IDs
-      const normalizedLanguages = Array.isArray(clientData.default_languages) 
+      const normalizedLanguages = Array.isArray(clientData.default_languages)
         ? normalizeLanguageValues(clientData.default_languages as (string | number)[])
         : [];
-      
+
       setClientTargeting({
         default_age_min: clientData.default_age_min ?? 18,
         default_age_max: clientData.default_age_max ?? 65,
-        default_gender: clientData.default_gender || 'all',
-        default_devices: Array.isArray(clientData.default_devices) ? clientData.default_devices as string[] : [],
+        default_gender: clientData.default_gender || "all",
+        default_devices: Array.isArray(clientData.default_devices) ? (clientData.default_devices as string[]) : [],
         default_languages: normalizedLanguages,
       });
 
@@ -223,7 +229,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         .eq("client_id", clientId);
 
       if (metaAccountsError) throw metaAccountsError;
-      
+
       // Load TikTok ad accounts for this client
       const { data: tiktokAccountsData, error: tiktokAccountsError } = await supabase
         .from("tiktok_ad_accounts")
@@ -235,34 +241,34 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
 
       console.log("Meta accounts loaded:", metaAccountsData?.length || 0);
       console.log("TikTok accounts loaded:", tiktokAccountsData?.length || 0);
-      
+
       // Combine and type cast accounts
-      const metaAccounts = (metaAccountsData || []).map(acc => ({
+      const metaAccounts = (metaAccountsData || []).map((acc) => ({
         ...acc,
-        platform: 'meta' as const,
-        main_markets: Array.isArray(acc.main_markets) ? acc.main_markets as string[] : [],
+        platform: "meta" as const,
+        main_markets: Array.isArray(acc.main_markets) ? (acc.main_markets as string[]) : [],
         default_conversion_budget_type: acc.default_conversion_budget_type || null,
         default_non_conversion_budget_type: acc.default_non_conversion_budget_type || null,
-        default_bid_strategy: acc.default_bid_strategy || 'LOWEST_COST_WITHOUT_CAP',
-        default_publisher_platforms: Array.isArray((acc as any).default_publisher_platforms) 
-          ? (acc as any).default_publisher_platforms as string[] 
-          : ['facebook', 'instagram', 'audience_network'],
+        default_bid_strategy: acc.default_bid_strategy || "LOWEST_COST_WITHOUT_CAP",
+        default_publisher_platforms: Array.isArray((acc as any).default_publisher_platforms)
+          ? ((acc as any).default_publisher_platforms as string[])
+          : ["facebook", "instagram", "audience_network"],
         default_positions: (acc as any).default_positions || {},
         default_advantage_plus_placements: (acc as any).default_advantage_plus_placements ?? true,
-        default_devices: Array.isArray((acc as any).default_devices) ? (acc as any).default_devices as string[] : [],
-        default_languages: Array.isArray((acc as any).default_languages) 
+        default_devices: Array.isArray((acc as any).default_devices) ? ((acc as any).default_devices as string[]) : [],
+        default_languages: Array.isArray((acc as any).default_languages)
           ? normalizeLanguageValues((acc as any).default_languages as (string | number)[])
           : [],
         default_age_min: (acc as any).default_age_min ?? 18,
         default_age_max: (acc as any).default_age_max ?? 65,
-        default_gender: (acc as any).default_gender || 'all',
+        default_gender: (acc as any).default_gender || "all",
       }));
 
-      const tiktokAccounts = (tiktokAccountsData || []).map(acc => ({
+      const tiktokAccounts = (tiktokAccountsData || []).map((acc) => ({
         ...acc,
-        platform: 'tiktok' as const,
+        platform: "tiktok" as const,
         advertiser_id: acc.advertiser_id,
-        main_markets: Array.isArray(acc.main_markets) ? acc.main_markets as string[] : [],
+        main_markets: Array.isArray(acc.main_markets) ? (acc.main_markets as string[]) : [],
         // Ensure all TikTok-specific defaults are properly mapped
         default_pixel_id: acc.default_pixel_id || null,
         default_identity_id: acc.default_identity_id || null,
@@ -270,33 +276,38 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         default_product_set_id: acc.default_product_set_id || null,
         default_conversion_budget_type: acc.default_conversion_budget_type || null,
         default_non_conversion_budget_type: acc.default_non_conversion_budget_type || null,
-        default_billing_event: acc.default_billing_event || 'OCPM',
-        default_optimization_event: acc.default_optimization_event || 'ON_WEB_ORDER',
+        default_billing_event: acc.default_billing_event || "OCPM",
+        default_optimization_event: acc.default_optimization_event || "ON_WEB_ORDER",
         default_landing_page_url: acc.default_landing_page_url || null,
-        default_bid_strategy: acc.default_bid_strategy || 'LOWEST_COST',
-        default_placement_type: (acc as any).default_placement_type || 'PLACEMENT_TYPE_AUTOMATIC',
-        default_placements: Array.isArray((acc as any).default_placements) ? (acc as any).default_placements as string[] : ['PLACEMENT_TIKTOK', 'PLACEMENT_GLOBAL_APP_BUNDLE', 'PLACEMENT_PANGLE'],
-        default_devices: Array.isArray((acc as any).default_devices) ? (acc as any).default_devices as string[] : [],
-        default_languages: Array.isArray((acc as any).default_languages) 
+        default_bid_strategy: acc.default_bid_strategy || "LOWEST_COST",
+        default_placement_type: (acc as any).default_placement_type || "PLACEMENT_TYPE_AUTOMATIC",
+        default_placements: Array.isArray((acc as any).default_placements)
+          ? ((acc as any).default_placements as string[])
+          : ["PLACEMENT_TIKTOK", "PLACEMENT_GLOBAL_APP_BUNDLE", "PLACEMENT_PANGLE"],
+        default_devices: Array.isArray((acc as any).default_devices) ? ((acc as any).default_devices as string[]) : [],
+        default_languages: Array.isArray((acc as any).default_languages)
           ? normalizeLanguageValues((acc as any).default_languages as (string | number)[])
           : [],
         default_age_min: (acc as any).default_age_min ?? 18,
         default_age_max: (acc as any).default_age_max ?? 65,
-        default_gender: (acc as any).default_gender || 'all',
+        default_gender: (acc as any).default_gender || "all",
       }));
 
-      console.log("[AccountDefaultsTab] TikTok accounts loaded from database:", tiktokAccounts.map(acc => ({
-        id: acc.id,
-        name: acc.account_name,
-        pixel_id: acc.default_pixel_id,
-        identity_id: acc.default_identity_id,
-        catalog_id: acc.default_catalog_id,
-        product_set_id: acc.default_product_set_id,
-        conversion_budget: acc.default_conversion_budget_type,
-        non_conversion_budget: acc.default_non_conversion_budget_type,
-        billing_event: acc.default_billing_event,
-        main_markets: acc.main_markets
-      })));
+      console.log(
+        "[AccountDefaultsTab] TikTok accounts loaded from database:",
+        tiktokAccounts.map((acc) => ({
+          id: acc.id,
+          name: acc.account_name,
+          pixel_id: acc.default_pixel_id,
+          identity_id: acc.default_identity_id,
+          catalog_id: acc.default_catalog_id,
+          product_set_id: acc.default_product_set_id,
+          conversion_budget: acc.default_conversion_budget_type,
+          non_conversion_budget: acc.default_non_conversion_budget_type,
+          billing_event: acc.default_billing_event,
+          main_markets: acc.main_markets,
+        })),
+      );
 
       const allAccounts = [...metaAccounts, ...tiktokAccounts];
       setAdAccounts(allAccounts);
@@ -307,85 +318,121 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         defaults[acc.id] = {
           platform: acc.platform,
           default_pixel_id: acc.default_pixel_id || null,
-          default_page_id: acc.platform === 'meta' ? acc.default_page_id || null : null,
-          default_instagram_account_id: acc.platform === 'meta' ? acc.default_instagram_account_id || null : null,
+          default_page_id: acc.platform === "meta" ? acc.default_page_id || null : null,
+          default_instagram_account_id: acc.platform === "meta" ? acc.default_instagram_account_id || null : null,
           default_catalog_id: acc.default_catalog_id || null,
           default_product_set_id: acc.default_product_set_id || null,
-          default_conversion_event: acc.platform === 'meta' ? acc.default_conversion_event || null : null,
+          default_conversion_event: acc.platform === "meta" ? acc.default_conversion_event || null : null,
           default_conversion_budget_type: acc.default_conversion_budget_type || null,
           default_non_conversion_budget_type: acc.default_non_conversion_budget_type || null,
-          default_bid_strategy: acc.default_bid_strategy || (acc.platform === 'meta' ? 'LOWEST_COST_WITHOUT_CAP' : 'LOWEST_COST'),
+          default_bid_strategy:
+            acc.default_bid_strategy || (acc.platform === "meta" ? "LOWEST_COST_WITHOUT_CAP" : "LOWEST_COST"),
           default_bid_amount: (acc as any).default_bid_amount || null,
-          default_identity_id: acc.platform === 'tiktok' ? acc.default_identity_id || null : null,
+          default_identity_id: acc.platform === "tiktok" ? acc.default_identity_id || null : null,
           // Billing event for both platforms
-          default_billing_event: acc.platform === 'tiktok' 
-            ? acc.default_billing_event || 'OCPM' 
-            : (acc as any).default_billing_event || 'IMPRESSIONS',
-          default_optimization_event: acc.platform === 'tiktok' ? acc.default_optimization_event || 'ON_WEB_ORDER' : null,
+          default_billing_event:
+            acc.platform === "tiktok"
+              ? acc.default_billing_event || "OCPM"
+              : (acc as any).default_billing_event || "IMPRESSIONS",
+          default_optimization_event:
+            acc.platform === "tiktok" ? acc.default_optimization_event || "ON_WEB_ORDER" : null,
           // Landing page URL for both platforms
           default_landing_page_url: (acc as any).default_landing_page_url || null,
           // Optimization location for both platforms
-          default_optimization_location: (acc as any).default_optimization_location || (acc.platform === 'meta' ? 'WEBSITE' : null),
-          default_app_name: acc.platform === 'tiktok' ? (acc as any).default_app_name || null : null,
+          default_optimization_location:
+            (acc as any).default_optimization_location || (acc.platform === "meta" ? "WEBSITE" : null),
+          default_app_name: acc.platform === "tiktok" ? (acc as any).default_app_name || null : null,
           default_app_id: (acc as any).default_app_id || null,
-          default_frequency_schedule: acc.platform === 'tiktok' ? (acc as any).default_frequency_schedule || null : null,
+          default_frequency_schedule:
+            acc.platform === "tiktok" ? (acc as any).default_frequency_schedule || null : null,
           // Attribution windows for both platforms
-          default_click_window: (acc as any).default_click_window || (acc.platform === 'meta' ? 7 : null),
-          default_view_window: (acc as any).default_view_window || (acc.platform === 'meta' ? 1 : null),
-          default_placement_type: acc.platform === 'tiktok' ? (acc as any).default_placement_type || 'PLACEMENT_TYPE_AUTOMATIC' : null,
-          default_placements: acc.platform === 'tiktok' ? (acc as any).default_placements || ['PLACEMENT_TIKTOK', 'PLACEMENT_GLOBAL_APP_BUNDLE', 'PLACEMENT_PANGLE'] : null,
+          default_click_window: (acc as any).default_click_window || (acc.platform === "meta" ? 7 : null),
+          default_view_window: (acc as any).default_view_window || (acc.platform === "meta" ? 1 : null),
+          default_placement_type:
+            acc.platform === "tiktok" ? (acc as any).default_placement_type || "PLACEMENT_TYPE_AUTOMATIC" : null,
+          default_placements:
+            acc.platform === "tiktok"
+              ? (acc as any).default_placements || [
+                  "PLACEMENT_TIKTOK",
+                  "PLACEMENT_GLOBAL_APP_BUNDLE",
+                  "PLACEMENT_PANGLE",
+                ]
+              : null,
           // Meta-specific placements
-          default_publisher_platforms: acc.platform === 'meta' ? (acc as any).default_publisher_platforms || ['facebook', 'instagram', 'audience_network'] : null,
-          default_positions: acc.platform === 'meta' ? (acc as any).default_positions || {} : null,
-          default_advantage_plus_placements: acc.platform === 'meta' ? (acc as any).default_advantage_plus_placements ?? true : null,
+          default_publisher_platforms:
+            acc.platform === "meta"
+              ? (acc as any).default_publisher_platforms || ["facebook", "instagram", "audience_network"]
+              : null,
+          default_positions: acc.platform === "meta" ? (acc as any).default_positions || {} : null,
+          default_advantage_plus_placements:
+            acc.platform === "meta" ? ((acc as any).default_advantage_plus_placements ?? true) : null,
           main_markets: acc.main_markets,
           // Targeting defaults
           default_devices: (acc as any).default_devices || [],
-          default_languages: Array.isArray((acc as any).default_languages) 
+          default_languages: Array.isArray((acc as any).default_languages)
             ? normalizeLanguageValues((acc as any).default_languages as (string | number)[])
             : [],
           default_age_min: (acc as any).default_age_min ?? 18,
           default_age_max: (acc as any).default_age_max ?? 65,
-          default_gender: (acc as any).default_gender || 'all',
+          default_gender: (acc as any).default_gender || "all",
           // Meta messaging/destination fields
-          default_app_store: acc.platform === 'meta' ? (acc as any).default_app_store || null : null,
-          default_messaging_mode: acc.platform === 'meta' ? (acc as any).default_messaging_mode || null : null,
-          default_messenger_enabled: acc.platform === 'meta' ? (acc as any).default_messenger_enabled || false : null,
-          default_instagram_dm_enabled: acc.platform === 'meta' ? (acc as any).default_instagram_dm_enabled || false : null,
-          default_whatsapp_enabled: acc.platform === 'meta' ? (acc as any).default_whatsapp_enabled || false : null,
+          default_app_store: acc.platform === "meta" ? (acc as any).default_app_store || null : null,
+          default_messaging_mode: acc.platform === "meta" ? (acc as any).default_messaging_mode || null : null,
+          default_messenger_enabled: acc.platform === "meta" ? (acc as any).default_messenger_enabled || false : null,
+          default_instagram_dm_enabled:
+            acc.platform === "meta" ? (acc as any).default_instagram_dm_enabled || false : null,
+          default_whatsapp_enabled: acc.platform === "meta" ? (acc as any).default_whatsapp_enabled || false : null,
           default_whatsapp_number: (acc as any).default_whatsapp_number || null,
           // TikTok messaging fields
-          default_messaging_app: acc.platform === 'tiktok' ? (acc as any).default_messaging_app || null : null,
-          default_facebook_page_id: acc.platform === 'tiktok' ? (acc as any).default_facebook_page_id || null : null,
-          default_message_event_set: acc.platform === 'tiktok' ? (acc as any).default_message_event_set || null : null,
-          default_zalo_account_id: acc.platform === 'tiktok' ? (acc as any).default_zalo_account_id || null : null,
-          default_line_business_id: acc.platform === 'tiktok' ? (acc as any).default_line_business_id || null : null,
+          default_messaging_app: acc.platform === "tiktok" ? (acc as any).default_messaging_app || null : null,
+          default_facebook_page_id: acc.platform === "tiktok" ? (acc as any).default_facebook_page_id || null : null,
+          default_message_event_set: acc.platform === "tiktok" ? (acc as any).default_message_event_set || null : null,
+          default_zalo_account_id: acc.platform === "tiktok" ? (acc as any).default_zalo_account_id || null : null,
+          default_line_business_id: acc.platform === "tiktok" ? (acc as any).default_line_business_id || null : null,
         };
       });
-      
-      console.log("Local defaults initialized:", Object.entries(defaults).map(([id, def]) => ({
-        id,
-        platform: def.platform,
-        pixel_id: def.default_pixel_id,
-        identity_id: def.default_identity_id,
-        catalog_id: def.default_catalog_id,
-        product_set_id: def.default_product_set_id,
-        conversion_budget: def.default_conversion_budget_type,
-        non_conversion_budget: def.default_non_conversion_budget_type,
-        billing_event: def.default_billing_event
-      })));
-      
+
+      console.log(
+        "Local defaults initialized:",
+        Object.entries(defaults).map(([id, def]) => ({
+          id,
+          platform: def.platform,
+          pixel_id: def.default_pixel_id,
+          identity_id: def.default_identity_id,
+          catalog_id: def.default_catalog_id,
+          product_set_id: def.default_product_set_id,
+          conversion_budget: def.default_conversion_budget_type,
+          non_conversion_budget: def.default_non_conversion_budget_type,
+          billing_event: def.default_billing_event,
+        })),
+      );
+
       console.log("[AccountDefaultsTab] RAW localDefaults state:", defaults);
-      
+
       setLocalDefaults(defaults);
 
       // Load all available resources
-      const [pixelsRes, pagesRes, igRes, catalogsRes, productSetsRes, eventsRes, tiktokPixelsRes, tiktokIdentitiesRes, tiktokCatalogsRes, tiktokProductSetsRes, tiktokAppsRes] = await Promise.all([
+      const [
+        pixelsRes,
+        pagesRes,
+        igRes,
+        catalogsRes,
+        productSetsRes,
+        eventsRes,
+        tiktokPixelsRes,
+        tiktokIdentitiesRes,
+        tiktokCatalogsRes,
+        tiktokProductSetsRes,
+        tiktokAppsRes,
+      ] = await Promise.all([
         supabase.from("meta_pixels").select("id, ad_account_id, pixel_id, pixel_name").eq("user_id", userId),
         supabase.from("meta_pages").select("id, page_id, page_name").eq("user_id", userId),
         supabase.from("meta_instagram_accounts").select("id, instagram_account_id, username").eq("user_id", userId),
         supabase.from("meta_catalogs").select("id, catalog_id, catalog_name").eq("user_id", userId),
-        supabase.from("meta_product_sets").select("id, catalog_id, product_set_id, product_set_name").eq("user_id", userId),
+        supabase
+          .from("meta_product_sets")
+          .select("id, catalog_id, product_set_id, product_set_name")
+          .eq("user_id", userId),
         supabase.from("meta_conversion_events").select("id, pixel_id, event_name").eq("user_id", userId),
         supabase.from("tiktok_pixels").select("*").eq("user_id", userId),
         supabase.from("tiktok_identities").select("*").eq("user_id", userId),
@@ -428,32 +475,32 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
   // Fetch TikTok events for an advertiser
   const fetchTiktokEvents = async (advertiserId: string, pixelId?: string) => {
     if (tiktokEvents[advertiserId]) return; // Already fetched
-    
+
     setLoadingTiktokEvents(advertiserId);
     try {
-      const { data, error } = await supabase.functions.invoke('fetch-tiktok-events', {
-        body: { advertiserId, pixelId }
+      const { data, error } = await supabase.functions.invoke("fetch-tiktok-events", {
+        body: { advertiserId, pixelId },
       });
-      
+
       if (error) throw error;
-      
+
       if (data?.events) {
-        setTiktokEvents(prev => ({
+        setTiktokEvents((prev) => ({
           ...prev,
-          [advertiserId]: data.events
+          [advertiserId]: data.events,
         }));
       }
     } catch (error) {
-      console.error('Error fetching TikTok events:', error);
+      console.error("Error fetching TikTok events:", error);
       // Set fallback events
-      setTiktokEvents(prev => ({
+      setTiktokEvents((prev) => ({
         ...prev,
         [advertiserId]: [
           { id: "SubmitForm", name: "Submit Form" },
           { id: "CompletePayment", name: "Complete Payment" },
           { id: "PlaceAnOrder", name: "Place an Order" },
           { id: "Contact", name: "Contact" },
-        ]
+        ],
       }));
     } finally {
       setLoadingTiktokEvents(null);
@@ -464,144 +511,140 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
     setSaving(accountId);
     try {
       const updates = localDefaults[accountId];
-      const account = adAccounts.find(acc => acc.id === accountId);
+      const account = adAccounts.find((acc) => acc.id === accountId);
       if (!account) {
         toast.error("Account not found");
         return;
       }
-      
+
       // Debug: Log full updates object
       console.log(`[AccountDefaultsTab] Full updates object for ${account.account_name}:`, updates);
       console.log(`[AccountDefaultsTab] Pixel value in updates:`, updates?.default_pixel_id);
-      
+
       const platform = account.platform;
-      const tableName = platform === 'tiktok' ? 'tiktok_ad_accounts' : 'meta_ad_accounts';
-      
+      const tableName = platform === "tiktok" ? "tiktok_ad_accounts" : "meta_ad_accounts";
+
       // Platform-specific field mapping
       const metaFields = [
-        'default_pixel_id',
-        'default_page_id',
-        'default_instagram_account_id',
-        'default_catalog_id',
-        'default_product_set_id',
-        'default_conversion_event',
-        'default_conversion_budget_type',
-        'default_non_conversion_budget_type',
-        'default_bid_strategy',
-        'default_billing_event',
-        'default_landing_page_url',
-        'default_optimization_location',
-        'default_click_window',
-        'default_view_window',
-        'default_publisher_platforms',
-        'default_positions',
-        'default_advantage_plus_placements',
-        'default_conversion_count',
-        'main_markets',
-        'default_devices',
-        'default_languages',
-        'default_age_min',
-        'default_age_max',
-        'default_gender',
+        "default_pixel_id",
+        "default_page_id",
+        "default_instagram_account_id",
+        "default_catalog_id",
+        "default_product_set_id",
+        "default_conversion_event",
+        "default_conversion_budget_type",
+        "default_non_conversion_budget_type",
+        "default_bid_strategy",
+        "default_billing_event",
+        "default_landing_page_url",
+        "default_optimization_location",
+        "default_click_window",
+        "default_view_window",
+        "default_publisher_platforms",
+        "default_positions",
+        "default_advantage_plus_placements",
+        "default_conversion_count",
+        "main_markets",
+        "default_devices",
+        "default_languages",
+        "default_age_min",
+        "default_age_max",
+        "default_gender",
         // Meta destination-specific fields
-        'default_app_store',
-        'default_app_id',
-        'default_whatsapp_number',
-        'default_messaging_mode',
-        'default_messenger_enabled',
-        'default_instagram_dm_enabled',
-        'default_whatsapp_enabled',
+        "default_app_store",
+        "default_app_id",
+        "default_whatsapp_number",
+        "default_messaging_mode",
+        "default_messenger_enabled",
+        "default_instagram_dm_enabled",
+        "default_whatsapp_enabled",
       ];
-      
+
       const tiktokFields = [
-        'default_pixel_id',
-        'default_identity_id',
-        'default_catalog_id',
-        'default_product_set_id',
-        'default_conversion_budget_type',
-        'default_non_conversion_budget_type',
-        'default_billing_event',
-        'default_optimization_event',
-        'default_landing_page_url',
-        'default_bid_strategy',
-        'default_bid_amount',
-        'default_optimization_location',
-        'default_app_name',
-        'default_app_id',
-        'default_frequency_enabled',
-        'default_frequency_schedule',
-        'default_click_window',
-        'default_view_window',
-        'default_event_count_enabled',
-        'default_smart_plus_enabled',
-        'default_search_enabled',
-        'default_placement_type',
-        'default_placements',
-        'default_conversion_count',
-        'main_markets',
-        'default_devices',
-        'default_languages',
-        'default_age_min',
-        'default_age_max',
-        'default_gender',
+        "default_pixel_id",
+        "default_identity_id",
+        "default_catalog_id",
+        "default_product_set_id",
+        "default_conversion_budget_type",
+        "default_non_conversion_budget_type",
+        "default_billing_event",
+        "default_optimization_event",
+        "default_landing_page_url",
+        "default_bid_strategy",
+        "default_bid_amount",
+        "default_optimization_location",
+        "default_app_name",
+        "default_app_id",
+        "default_frequency_enabled",
+        "default_frequency_schedule",
+        "default_click_window",
+        "default_view_window",
+        "default_event_count_enabled",
+        "default_smart_plus_enabled",
+        "default_search_enabled",
+        "default_placement_type",
+        "default_placements",
+        "default_conversion_count",
+        "main_markets",
+        "default_devices",
+        "default_languages",
+        "default_age_min",
+        "default_age_max",
+        "default_gender",
         // TikTok destination-specific fields
-        'default_messaging_app',
-        'default_facebook_page_id',
-        'default_message_event_set',
-        'default_whatsapp_number',
-        'default_zalo_account_id',
-        'default_line_business_id',
+        "default_messaging_app",
+        "default_facebook_page_id",
+        "default_message_event_set",
+        "default_whatsapp_number",
+        "default_zalo_account_id",
+        "default_line_business_id",
       ];
-      
-      const validFields = platform === 'tiktok' ? tiktokFields : metaFields;
-      
+
+      const validFields = platform === "tiktok" ? tiktokFields : metaFields;
+
       // Filter to only valid fields for this platform
       const updateData: Record<string, any> = {};
-      validFields.forEach(field => {
+      validFields.forEach((field) => {
         // Use hasOwnProperty to check if field exists (including null values)
         if (updates && Object.prototype.hasOwnProperty.call(updates, field)) {
           updateData[field] = updates[field as keyof typeof updates];
         }
       });
-      
+
       // Ensure pixel is explicitly included for TikTok if it exists in updates
-      if (platform === 'tiktok' && updates?.default_pixel_id !== undefined) {
+      if (platform === "tiktok" && updates?.default_pixel_id !== undefined) {
         updateData.default_pixel_id = updates.default_pixel_id;
         console.log(`[AccountDefaultsTab] Explicitly setting TikTok pixel:`, updates.default_pixel_id);
       }
-      
+
       console.log(`[AccountDefaultsTab] Saving ${platform} account ${accountId} defaults:`, updateData);
       console.log(`[AccountDefaultsTab] Update data keys:`, Object.keys(updateData));
-      
-      const { error, data } = await supabase
-        .from(tableName)
-        .update(updateData)
-        .eq("id", accountId)
-        .select();
+
+      const { error, data } = await supabase.from(tableName).update(updateData).eq("id", accountId).select();
 
       if (error) {
         console.error(`[AccountDefaultsTab] Save error for ${platform}:`, error);
         throw error;
       }
-      
+
       console.log(`[AccountDefaultsTab] Successfully saved ${platform} defaults:`, data);
-      
+
       // Verify the data was actually written by fetching it back
       const { data: verifyData, error: verifyError } = await supabase
         .from(tableName)
-        .select('*')
+        .select("*")
         .eq("id", accountId)
         .single();
-      
+
       if (verifyError) {
         console.error(`[AccountDefaultsTab] Verification error:`, verifyError);
       } else {
         console.log(`[AccountDefaultsTab] Verification - data in database after save:`, verifyData);
         console.log(`[AccountDefaultsTab] Verification - pixel value:`, verifyData?.default_pixel_id);
       }
-      
+
       toast.success("Defaults saved successfully");
-      
+
       // Reload to get fresh data
       await loadData();
     } catch (error: any) {
@@ -665,9 +708,10 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
       <Card className="p-8">
         <p className="text-muted-foreground text-center">
           No ad accounts synced for this client. Sync accounts in{" "}
-          <Link to="/platform-connections" className="text-primary hover:underline">
+          <Link to="/settings/platforms" className="text-primary hover:underline">
             Platform Connections
-          </Link>.
+          </Link>
+          .
         </p>
       </Card>
     );
@@ -675,13 +719,13 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
 
   // Filter market options to only show markets defined for this client
   const activeClientMarkets = clientMarkets || fetchedClientMarkets;
-  
+
   // For TikTok accounts, filter out US from available markets
-  const getMarketOptions = (platform: 'meta' | 'tiktok') => {
-    const baseOptions = platform === 'tiktok' ? TIKTOK_MARKET_OPTIONS : MARKET_OPTIONS;
+  const getMarketOptions = (platform: "meta" | "tiktok") => {
+    const baseOptions = platform === "tiktok" ? TIKTOK_MARKET_OPTIONS : MARKET_OPTIONS;
     return baseOptions
-      .filter(m => activeClientMarkets.includes(m.value))
-      .map(m => ({ value: m.value, label: m.label }));
+      .filter((m) => activeClientMarkets.includes(m.value))
+      .map((m) => ({ value: m.value, label: m.label }));
   };
 
   return (
@@ -696,11 +740,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                 These targeting defaults apply to all ad accounts across all platforms
               </p>
             </div>
-            <Button
-              onClick={handleSaveClientTargeting}
-              disabled={savingClientDefaults}
-              size="sm"
-            >
+            <Button onClick={handleSaveClientTargeting} disabled={savingClientDefaults} size="sm">
               {savingClientDefaults ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />
               ) : (
@@ -709,16 +749,16 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
               Save Defaults
             </Button>
           </div>
-          
+
           <Separator />
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             {/* Age Min */}
             <div className="space-y-2">
               <Label>Age Min</Label>
               <Select
                 value={String(clientTargeting.default_age_min)}
-                onValueChange={(value) => setClientTargeting(prev => ({ ...prev, default_age_min: parseInt(value) }))}
+                onValueChange={(value) => setClientTargeting((prev) => ({ ...prev, default_age_min: parseInt(value) }))}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Min age" />
@@ -738,7 +778,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
               <Label>Age Max</Label>
               <Select
                 value={String(clientTargeting.default_age_max)}
-                onValueChange={(value) => setClientTargeting(prev => ({ ...prev, default_age_max: parseInt(value) }))}
+                onValueChange={(value) => setClientTargeting((prev) => ({ ...prev, default_age_max: parseInt(value) }))}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Max age" />
@@ -758,7 +798,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
               <Label>Gender</Label>
               <Select
                 value={clientTargeting.default_gender}
-                onValueChange={(value) => setClientTargeting(prev => ({ ...prev, default_gender: value }))}
+                onValueChange={(value) => setClientTargeting((prev) => ({ ...prev, default_gender: value }))}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select gender" />
@@ -779,7 +819,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
               <MultiSelect
                 options={DEVICE_OPTIONS}
                 value={clientTargeting.default_devices}
-                onChange={(devices) => setClientTargeting(prev => ({ ...prev, default_devices: devices }))}
+                onChange={(devices) => setClientTargeting((prev) => ({ ...prev, default_devices: devices }))}
                 placeholder="All devices"
                 emptyText="All devices"
               />
@@ -791,7 +831,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
               <MultiSelect
                 options={LANGUAGE_OPTIONS}
                 value={clientTargeting.default_languages}
-                onChange={(languages) => setClientTargeting(prev => ({ ...prev, default_languages: languages }))}
+                onChange={(languages) => setClientTargeting((prev) => ({ ...prev, default_languages: languages }))}
                 placeholder="All languages"
                 emptyText="All languages"
               />
@@ -808,12 +848,12 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
             accountId: account.id,
             platform: account.platform,
             hasDefaults: Object.keys(defaults).length > 0,
-            defaults: defaults
+            defaults: defaults,
           });
           const selectedCatalog = defaults.default_catalog_id;
-          const catalogProductSets = productSets.filter(ps => ps.catalog_id === selectedCatalog);
+          const catalogProductSets = productSets.filter((ps) => ps.catalog_id === selectedCatalog);
           const selectedPixel = defaults.default_pixel_id;
-          const pixelEvents = conversionEvents.filter(e => e.pixel_id === selectedPixel);
+          const pixelEvents = conversionEvents.filter((e) => e.pixel_id === selectedPixel);
 
           // Remove ad_account_id filter to show all available resources
           const accountPixels = pixels;
@@ -830,7 +870,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                       <div className="flex items-center gap-2">
                         <p className="font-semibold">{account.account_name}</p>
                         <Badge variant="outline" className="text-xs">
-                          {account.platform === 'tiktok' ? 'TikTok' : 'Meta'}
+                          {account.platform === "tiktok" ? "TikTok" : "Meta"}
                         </Badge>
                       </div>
                       <p className="text-sm text-muted-foreground">ID: {account.account_id}</p>
@@ -858,7 +898,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {/* Meta-specific fields */}
-                      {account.platform === 'meta' && (
+                      {account.platform === "meta" && (
                         <>
                           {/* Pixel */}
                           <div className="space-y-2">
@@ -872,7 +912,9 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                               </SelectTrigger>
                               <SelectContent>
                                 {pixels.length === 0 ? (
-                                  <SelectItem value="none" disabled>No pixels available</SelectItem>
+                                  <SelectItem value="none" disabled>
+                                    No pixels available
+                                  </SelectItem>
                                 ) : (
                                   pixels.map((pixel) => (
                                     <SelectItem key={pixel.id} value={pixel.pixel_id || ""}>
@@ -896,7 +938,9 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                               </SelectTrigger>
                               <SelectContent>
                                 {pages.length === 0 ? (
-                                  <SelectItem value="none" disabled>No pages available</SelectItem>
+                                  <SelectItem value="none" disabled>
+                                    No pages available
+                                  </SelectItem>
                                 ) : (
                                   pages.map((page) => (
                                     <SelectItem key={page.id} value={page.page_id || ""}>
@@ -913,14 +957,18 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                             <Label>Default Instagram Account</Label>
                             <Select
                               value={defaults.default_instagram_account_id || undefined}
-                              onValueChange={(value) => updateDefault(account.id, "default_instagram_account_id", value)}
+                              onValueChange={(value) =>
+                                updateDefault(account.id, "default_instagram_account_id", value)
+                              }
                             >
                               <SelectTrigger>
                                 <SelectValue placeholder="Select Instagram account" />
                               </SelectTrigger>
                               <SelectContent>
                                 {instagramAccounts.length === 0 ? (
-                                  <SelectItem value="none" disabled>No Instagram accounts available</SelectItem>
+                                  <SelectItem value="none" disabled>
+                                    No Instagram accounts available
+                                  </SelectItem>
                                 ) : (
                                   instagramAccounts.map((ig) => (
                                     <SelectItem key={ig.id} value={ig.instagram_account_id || ""}>
@@ -947,7 +995,9 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                               </SelectTrigger>
                               <SelectContent>
                                 {catalogs.length === 0 ? (
-                                  <SelectItem value="none" disabled>No catalogs available</SelectItem>
+                                  <SelectItem value="none" disabled>
+                                    No catalogs available
+                                  </SelectItem>
                                 ) : (
                                   catalogs.map((catalog) => (
                                     <SelectItem key={catalog.id} value={catalog.catalog_id || ""}>
@@ -972,7 +1022,9 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                 </SelectTrigger>
                                 <SelectContent>
                                   {catalogProductSets.length === 0 ? (
-                                    <SelectItem value="none" disabled>No product sets available</SelectItem>
+                                    <SelectItem value="none" disabled>
+                                      No product sets available
+                                    </SelectItem>
                                   ) : (
                                     catalogProductSets.map((ps) => (
                                       <SelectItem key={ps.id} value={ps.product_set_id || ""}>
@@ -1011,7 +1063,9 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                             <Label>Conversion Budget Type</Label>
                             <Select
                               value={defaults.default_conversion_budget_type || undefined}
-                              onValueChange={(value) => updateDefault(account.id, "default_conversion_budget_type", value)}
+                              onValueChange={(value) =>
+                                updateDefault(account.id, "default_conversion_budget_type", value)
+                              }
                             >
                               <SelectTrigger>
                                 <SelectValue placeholder="Select budget type" />
@@ -1031,7 +1085,9 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                             <Label>Non-Conversion Budget Type</Label>
                             <Select
                               value={defaults.default_non_conversion_budget_type || undefined}
-                              onValueChange={(value) => updateDefault(account.id, "default_non_conversion_budget_type", value)}
+                              onValueChange={(value) =>
+                                updateDefault(account.id, "default_non_conversion_budget_type", value)
+                              }
                             >
                               <SelectTrigger>
                                 <SelectValue placeholder="Select budget type" />
@@ -1090,7 +1146,9 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                             <Label>Conversion Count</Label>
                             <Select
                               value={(defaults as any).default_conversion_count || "all_conversions"}
-                              onValueChange={(value) => updateDefault(account.id, "default_conversion_count" as any, value)}
+                              onValueChange={(value) =>
+                                updateDefault(account.id, "default_conversion_count" as any, value)
+                              }
                             >
                               <SelectTrigger>
                                 <SelectValue placeholder="Select conversion count" />
@@ -1109,7 +1167,8 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                           <div className="space-y-2 md:col-span-2">
                             <Label className="text-base font-medium">Conversion Locations</Label>
                             <p className="text-xs text-muted-foreground mb-4">
-                              Configure destination locations. When a campaign objective requires a specific location, it will auto-fill from here.
+                              Configure destination locations. When a campaign objective requires a specific location,
+                              it will auto-fill from here.
                             </p>
                             <ConversionLocationsSection
                               platform="meta"
@@ -1119,7 +1178,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                               onSaveLocation={async (locationType, data) => {
                                 const updates = metaLocationToDefaults(locationType, data);
                                 // Also set the optimization location to this type
-                                await updateDefault(account.id, 'default_optimization_location' as any, locationType);
+                                await updateDefault(account.id, "default_optimization_location" as any, locationType);
                                 for (const [key, value] of Object.entries(updates)) {
                                   await updateDefault(account.id, key as any, value);
                                 }
@@ -1131,11 +1190,15 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                 }
                                 // Clear optimization location if it matches the deleted type
                                 if (defaults.default_optimization_location === locationType) {
-                                  await updateDefault(account.id, 'default_optimization_location' as any, null);
+                                  await updateDefault(account.id, "default_optimization_location" as any, null);
                                 }
                               }}
-                              pages={pages.filter(p => p.page_id).map(p => ({ page_id: p.page_id!, page_name: p.page_name! }))}
-                              instagramAccounts={instagramAccounts.filter(i => i.instagram_account_id).map(i => ({ instagram_account_id: i.instagram_account_id!, username: i.username! }))}
+                              pages={pages
+                                .filter((p) => p.page_id)
+                                .map((p) => ({ page_id: p.page_id!, page_name: p.page_name! }))}
+                              instagramAccounts={instagramAccounts
+                                .filter((i) => i.instagram_account_id)
+                                .map((i) => ({ instagram_account_id: i.instagram_account_id!, username: i.username! }))}
                               saving={saving}
                             />
                           </div>
@@ -1145,7 +1208,9 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                             <Label>Click-Through Window (days)</Label>
                             <Select
                               value={String(defaults.default_click_window || 7)}
-                              onValueChange={(value) => updateDefault(account.id, "default_click_window", parseInt(value))}
+                              onValueChange={(value) =>
+                                updateDefault(account.id, "default_click_window", parseInt(value))
+                              }
                             >
                               <SelectTrigger>
                                 <SelectValue placeholder="Select click window" />
@@ -1156,16 +1221,16 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                 <SelectItem value="28">28 days</SelectItem>
                               </SelectContent>
                             </Select>
-                            <p className="text-xs text-muted-foreground">
-                              Attribution window for clicks
-                            </p>
+                            <p className="text-xs text-muted-foreground">Attribution window for clicks</p>
                           </div>
 
                           <div className="space-y-2">
                             <Label>View-Through Window (days)</Label>
                             <Select
                               value={String(defaults.default_view_window || 1)}
-                              onValueChange={(value) => updateDefault(account.id, "default_view_window", parseInt(value))}
+                              onValueChange={(value) =>
+                                updateDefault(account.id, "default_view_window", parseInt(value))
+                              }
                             >
                               <SelectTrigger>
                                 <SelectValue placeholder="Select view window" />
@@ -1175,28 +1240,28 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                 <SelectItem value="7">7 days</SelectItem>
                               </SelectContent>
                             </Select>
-                            <p className="text-xs text-muted-foreground">
-                              Attribution window for views
-                            </p>
+                            <p className="text-xs text-muted-foreground">Attribution window for views</p>
                           </div>
 
                           {/* Advantage+ Placements Toggle */}
                           <div className="space-y-3 md:col-span-2">
                             <Label>Placement Strategy</Label>
                             <div className="space-y-2">
-                              <div 
+                              <div
                                 className={`flex items-start space-x-3 p-3 border rounded-lg cursor-pointer transition-colors ${
-                                  (defaults as any).default_advantage_plus_placements !== false 
-                                    ? 'bg-primary/10 border-primary' 
-                                    : 'bg-background hover:bg-accent/50'
+                                  (defaults as any).default_advantage_plus_placements !== false
+                                    ? "bg-primary/10 border-primary"
+                                    : "bg-background hover:bg-accent/50"
                                 }`}
                                 onClick={() => updateDefault(account.id, "default_advantage_plus_placements", true)}
                               >
                                 <div className="flex items-center h-5 mt-0.5">
-                                  <input 
-                                    type="radio" 
+                                  <input
+                                    type="radio"
                                     checked={(defaults as any).default_advantage_plus_placements !== false}
-                                    onChange={() => updateDefault(account.id, "default_advantage_plus_placements", true)}
+                                    onChange={() =>
+                                      updateDefault(account.id, "default_advantage_plus_placements", true)
+                                    }
                                     className="h-4 w-4"
                                   />
                                 </div>
@@ -1210,26 +1275,26 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                   </p>
                                 </div>
                               </div>
-                              <div 
+                              <div
                                 className={`flex items-start space-x-3 p-3 border rounded-lg cursor-pointer transition-colors ${
-                                  (defaults as any).default_advantage_plus_placements === false 
-                                    ? 'bg-primary/10 border-primary' 
-                                    : 'bg-background hover:bg-accent/50'
+                                  (defaults as any).default_advantage_plus_placements === false
+                                    ? "bg-primary/10 border-primary"
+                                    : "bg-background hover:bg-accent/50"
                                 }`}
                                 onClick={() => updateDefault(account.id, "default_advantage_plus_placements", false)}
                               >
                                 <div className="flex items-center h-5 mt-0.5">
-                                  <input 
-                                    type="radio" 
+                                  <input
+                                    type="radio"
                                     checked={(defaults as any).default_advantage_plus_placements === false}
-                                    onChange={() => updateDefault(account.id, "default_advantage_plus_placements", false)}
+                                    onChange={() =>
+                                      updateDefault(account.id, "default_advantage_plus_placements", false)
+                                    }
                                     className="h-4 w-4"
                                   />
                                 </div>
                                 <div className="flex-1">
-                                  <Label className="cursor-pointer font-medium">
-                                    Manual placements
-                                  </Label>
+                                  <Label className="cursor-pointer font-medium">Manual placements</Label>
                                   <p className="text-xs text-muted-foreground mt-1">
                                     Choose specific platforms and placements
                                   </p>
@@ -1252,7 +1317,13 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                     { value: "messenger", label: "Messenger" },
                                     { value: "threads", label: "Threads" },
                                   ]}
-                                  value={defaults.default_publisher_platforms || ['facebook', 'instagram', 'audience_network']}
+                                  value={
+                                    defaults.default_publisher_platforms || [
+                                      "facebook",
+                                      "instagram",
+                                      "audience_network",
+                                    ]
+                                  }
                                   onChange={(platforms) => {
                                     updateDefault(account.id, "default_publisher_platforms", platforms);
                                     // Update positions to remove unselected platforms
@@ -1260,7 +1331,9 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                     const updatedPositions: Record<string, string[]> = {};
                                     platforms.forEach((p: string) => {
                                       if (currentPositions[p as keyof typeof currentPositions]) {
-                                        updatedPositions[p] = currentPositions[p as keyof typeof currentPositions] as string[];
+                                        updatedPositions[p] = currentPositions[
+                                          p as keyof typeof currentPositions
+                                        ] as string[];
                                       }
                                     });
                                     updateDefault(account.id, "default_positions", updatedPositions);
@@ -1268,13 +1341,13 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                   placeholder="Select publisher platforms"
                                   emptyText="No platforms selected"
                                 />
-                                <p className="text-xs text-muted-foreground">
-                                  Where your ads will be shown
-                                </p>
+                                <p className="text-xs text-muted-foreground">Where your ads will be shown</p>
                               </div>
 
                               {/* Placements for each publisher */}
-                              {(defaults.default_publisher_platforms || ['facebook', 'instagram', 'audience_network']).includes('facebook') && (
+                              {(
+                                defaults.default_publisher_platforms || ["facebook", "instagram", "audience_network"]
+                              ).includes("facebook") && (
                                 <div className="space-y-2">
                                   <Label>Facebook Placements</Label>
                                   <MultiSelect
@@ -1292,7 +1365,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                       const currentPositions = defaults.default_positions || {};
                                       updateDefault(account.id, "default_positions", {
                                         ...currentPositions,
-                                        facebook: placements
+                                        facebook: placements,
                                       });
                                     }}
                                     placeholder="All placements (automatic)"
@@ -1301,7 +1374,9 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                 </div>
                               )}
 
-                              {(defaults.default_publisher_platforms || ['facebook', 'instagram', 'audience_network']).includes('instagram') && (
+                              {(
+                                defaults.default_publisher_platforms || ["facebook", "instagram", "audience_network"]
+                              ).includes("instagram") && (
                                 <div className="space-y-2">
                                   <Label>Instagram Placements</Label>
                                   <MultiSelect
@@ -1317,7 +1392,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                       const currentPositions = defaults.default_positions || {};
                                       updateDefault(account.id, "default_positions", {
                                         ...currentPositions,
-                                        instagram: placements
+                                        instagram: placements,
                                       });
                                     }}
                                     placeholder="All placements (automatic)"
@@ -1326,7 +1401,9 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                 </div>
                               )}
 
-                              {(defaults.default_publisher_platforms || ['facebook', 'instagram', 'audience_network']).includes('audience_network') && (
+                              {(
+                                defaults.default_publisher_platforms || ["facebook", "instagram", "audience_network"]
+                              ).includes("audience_network") && (
                                 <div className="space-y-2">
                                   <Label>Audience Network Placements</Label>
                                   <MultiSelect
@@ -1340,7 +1417,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                       const currentPositions = defaults.default_positions || {};
                                       updateDefault(account.id, "default_positions", {
                                         ...currentPositions,
-                                        audience_network: placements
+                                        audience_network: placements,
                                       });
                                     }}
                                     placeholder="All placements (automatic)"
@@ -1354,25 +1431,30 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                       )}
 
                       {/* TikTok-specific fields */}
-                      {account.platform === 'tiktok' && (
+                      {account.platform === "tiktok" && (
                         <>
                           {/* TikTok Pixel */}
                           <div className="space-y-2">
                             <Label>Default TikTok Pixel</Label>
                             {(() => {
-                              const accountPixels = tiktokPixels.filter(p => p.advertiser_id === account.advertiser_id);
+                              const accountPixels = tiktokPixels.filter(
+                                (p) => p.advertiser_id === account.advertiser_id,
+                              );
                               const pixelValue = defaults.default_pixel_id || undefined;
-                              console.log(`[TikTok Pixel Select] Account ${account.account_name} (${account.advertiser_id}):`, {
-                                selectedValue: pixelValue,
-                                availablePixels: accountPixels.map(p => ({ id: p.pixel_id, name: p.pixel_name })),
-                                hasMatch: accountPixels.some(p => p.pixel_id === pixelValue),
-                                allPixels: tiktokPixels.length,
-                                filteredPixels: accountPixels.length
-                              });
+                              console.log(
+                                `[TikTok Pixel Select] Account ${account.account_name} (${account.advertiser_id}):`,
+                                {
+                                  selectedValue: pixelValue,
+                                  availablePixels: accountPixels.map((p) => ({ id: p.pixel_id, name: p.pixel_name })),
+                                  hasMatch: accountPixels.some((p) => p.pixel_id === pixelValue),
+                                  allPixels: tiktokPixels.length,
+                                  filteredPixels: accountPixels.length,
+                                },
+                              );
                               return null;
                             })()}
                             <Select
-                              key={`pixel-${account.id}-${defaults.default_pixel_id || 'empty'}`}
+                              key={`pixel-${account.id}-${defaults.default_pixel_id || "empty"}`}
                               value={defaults.default_pixel_id || undefined}
                               onValueChange={(value) => updateDefault(account.id, "default_pixel_id", value)}
                             >
@@ -1381,9 +1463,13 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                               </SelectTrigger>
                               <SelectContent>
                                 {(() => {
-                                  const accountPixels = tiktokPixels.filter(p => p.advertiser_id === account.advertiser_id);
+                                  const accountPixels = tiktokPixels.filter(
+                                    (p) => p.advertiser_id === account.advertiser_id,
+                                  );
                                   return accountPixels.length === 0 ? (
-                                    <SelectItem value="none" disabled>No pixels available for this advertiser</SelectItem>
+                                    <SelectItem value="none" disabled>
+                                      No pixels available for this advertiser
+                                    </SelectItem>
                                   ) : (
                                     accountPixels.map((pixel) => (
                                       <SelectItem key={pixel.id} value={pixel.pixel_id}>
@@ -1400,19 +1486,27 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                           <div className="space-y-2">
                             <Label>Default TikTok Identity</Label>
                             {(() => {
-                              const accountIdentities = tiktokIdentities.filter(i => i.advertiser_id === account.advertiser_id);
+                              const accountIdentities = tiktokIdentities.filter(
+                                (i) => i.advertiser_id === account.advertiser_id,
+                              );
                               const identityValue = defaults.default_identity_id || undefined;
-                              console.log(`[TikTok Identity Select] Account ${account.account_name} (${account.advertiser_id}):`, {
-                                selectedValue: identityValue,
-                                availableIdentities: accountIdentities.map(i => ({ id: i.identity_id, name: i.identity_name })),
-                                hasMatch: accountIdentities.some(i => i.identity_id === identityValue),
-                                allIdentities: tiktokIdentities.length,
-                                filteredIdentities: accountIdentities.length
-                              });
+                              console.log(
+                                `[TikTok Identity Select] Account ${account.account_name} (${account.advertiser_id}):`,
+                                {
+                                  selectedValue: identityValue,
+                                  availableIdentities: accountIdentities.map((i) => ({
+                                    id: i.identity_id,
+                                    name: i.identity_name,
+                                  })),
+                                  hasMatch: accountIdentities.some((i) => i.identity_id === identityValue),
+                                  allIdentities: tiktokIdentities.length,
+                                  filteredIdentities: accountIdentities.length,
+                                },
+                              );
                               return null;
                             })()}
                             <Select
-                              key={`identity-${account.id}-${defaults.default_identity_id || 'empty'}`}
+                              key={`identity-${account.id}-${defaults.default_identity_id || "empty"}`}
                               value={defaults.default_identity_id || undefined}
                               onValueChange={(value) => updateDefault(account.id, "default_identity_id", value)}
                             >
@@ -1421,9 +1515,13 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                               </SelectTrigger>
                               <SelectContent>
                                 {(() => {
-                                  const accountIdentities = tiktokIdentities.filter(i => i.advertiser_id === account.advertiser_id);
+                                  const accountIdentities = tiktokIdentities.filter(
+                                    (i) => i.advertiser_id === account.advertiser_id,
+                                  );
                                   return accountIdentities.length === 0 ? (
-                                    <SelectItem value="none" disabled>No identities available for this advertiser</SelectItem>
+                                    <SelectItem value="none" disabled>
+                                      No identities available for this advertiser
+                                    </SelectItem>
                                   ) : (
                                     accountIdentities.map((identity) => (
                                       <SelectItem key={identity.id} value={identity.identity_id}>
@@ -1435,7 +1533,8 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                               </SelectContent>
                             </Select>
                             <p className="text-xs text-muted-foreground">
-                              TikTok accounts must be shared as "assets" in your Business Center (not just linked). Go to Business Center → Assets → Add Asset → TikTok Account.
+                              TikTok accounts must be shared as "assets" in your Business Center (not just linked). Go
+                              to Business Center → Assets → Add Asset → TikTok Account.
                             </p>
                           </div>
 
@@ -1443,19 +1542,27 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                           <div className="space-y-2">
                             <Label>Default TikTok Catalog</Label>
                             {(() => {
-                              const accountCatalogs = tiktokCatalogs.filter(c => c.advertiser_id === account.advertiser_id);
+                              const accountCatalogs = tiktokCatalogs.filter(
+                                (c) => c.advertiser_id === account.advertiser_id,
+                              );
                               const catalogValue = defaults.default_catalog_id || undefined;
-                              console.log(`[TikTok Catalog Select] Account ${account.account_name} (${account.advertiser_id}):`, {
-                                selectedValue: catalogValue,
-                                availableCatalogs: accountCatalogs.map(c => ({ id: c.catalog_id, name: c.catalog_name })),
-                                hasMatch: accountCatalogs.some(c => c.catalog_id === catalogValue),
-                                allCatalogs: tiktokCatalogs.length,
-                                filteredCatalogs: accountCatalogs.length
-                              });
+                              console.log(
+                                `[TikTok Catalog Select] Account ${account.account_name} (${account.advertiser_id}):`,
+                                {
+                                  selectedValue: catalogValue,
+                                  availableCatalogs: accountCatalogs.map((c) => ({
+                                    id: c.catalog_id,
+                                    name: c.catalog_name,
+                                  })),
+                                  hasMatch: accountCatalogs.some((c) => c.catalog_id === catalogValue),
+                                  allCatalogs: tiktokCatalogs.length,
+                                  filteredCatalogs: accountCatalogs.length,
+                                },
+                              );
                               return null;
                             })()}
                             <Select
-                              key={`catalog-${account.id}-${defaults.default_catalog_id || 'empty'}`}
+                              key={`catalog-${account.id}-${defaults.default_catalog_id || "empty"}`}
                               value={defaults.default_catalog_id || undefined}
                               onValueChange={(value) => updateDefault(account.id, "default_catalog_id", value)}
                             >
@@ -1464,9 +1571,13 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                               </SelectTrigger>
                               <SelectContent>
                                 {(() => {
-                                  const accountCatalogs = tiktokCatalogs.filter(c => c.advertiser_id === account.advertiser_id);
+                                  const accountCatalogs = tiktokCatalogs.filter(
+                                    (c) => c.advertiser_id === account.advertiser_id,
+                                  );
                                   return accountCatalogs.length === 0 ? (
-                                    <SelectItem value="none" disabled>No catalogs available for this advertiser</SelectItem>
+                                    <SelectItem value="none" disabled>
+                                      No catalogs available for this advertiser
+                                    </SelectItem>
                                   ) : (
                                     accountCatalogs.map((catalog) => (
                                       <SelectItem key={catalog.id} value={catalog.catalog_id}>
@@ -1484,7 +1595,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                             <div className="space-y-2">
                               <Label>Default Product Set</Label>
                               <Select
-                                key={`product-set-${account.id}-${defaults.default_product_set_id || 'empty'}`}
+                                key={`product-set-${account.id}-${defaults.default_product_set_id || "empty"}`}
                                 value={defaults.default_product_set_id || undefined}
                                 onValueChange={(value) => updateDefault(account.id, "default_product_set_id", value)}
                               >
@@ -1493,14 +1604,24 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                 </SelectTrigger>
                                 <SelectContent>
                                   {tiktokProductSets
-                                    .filter(ps => ps.catalog_id === defaults.default_catalog_id && ps.advertiser_id === account.advertiser_id)
+                                    .filter(
+                                      (ps) =>
+                                        ps.catalog_id === defaults.default_catalog_id &&
+                                        ps.advertiser_id === account.advertiser_id,
+                                    )
                                     .map((ps) => (
                                       <SelectItem key={ps.product_set_id} value={ps.product_set_id}>
                                         {ps.product_set_name}
                                       </SelectItem>
                                     ))}
-                                  {tiktokProductSets.filter(ps => ps.catalog_id === defaults.default_catalog_id && ps.advertiser_id === account.advertiser_id).length === 0 && (
-                                    <SelectItem value="none" disabled>No product sets available</SelectItem>
+                                  {tiktokProductSets.filter(
+                                    (ps) =>
+                                      ps.catalog_id === defaults.default_catalog_id &&
+                                      ps.advertiser_id === account.advertiser_id,
+                                  ).length === 0 && (
+                                    <SelectItem value="none" disabled>
+                                      No product sets available
+                                    </SelectItem>
                                   )}
                                 </SelectContent>
                               </Select>
@@ -1514,9 +1635,11 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                               Conversion Budget Type
                             </Label>
                             <Select
-                              key={`conv-budget-${account.id}-${defaults.default_conversion_budget_type || 'empty'}`}
+                              key={`conv-budget-${account.id}-${defaults.default_conversion_budget_type || "empty"}`}
                               value={defaults.default_conversion_budget_type || undefined}
-                              onValueChange={(value) => updateDefault(account.id, "default_conversion_budget_type", value)}
+                              onValueChange={(value) =>
+                                updateDefault(account.id, "default_conversion_budget_type", value)
+                              }
                             >
                               <SelectTrigger className="border-black/20 dark:border-white/20">
                                 <SelectValue placeholder="Select budget type" />
@@ -1538,9 +1661,11 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                               Non-Conversion Budget Type
                             </Label>
                             <Select
-                              key={`non-conv-budget-${account.id}-${defaults.default_non_conversion_budget_type || 'empty'}`}
+                              key={`non-conv-budget-${account.id}-${defaults.default_non_conversion_budget_type || "empty"}`}
                               value={defaults.default_non_conversion_budget_type || undefined}
-                              onValueChange={(value) => updateDefault(account.id, "default_non_conversion_budget_type", value)}
+                              onValueChange={(value) =>
+                                updateDefault(account.id, "default_non_conversion_budget_type", value)
+                              }
                             >
                               <SelectTrigger className="border-black/20 dark:border-white/20">
                                 <SelectValue placeholder="Select budget type" />
@@ -1562,7 +1687,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                               Billing Event
                             </Label>
                             <Select
-                              key={`billing-event-${account.id}-${defaults.default_billing_event || 'empty'}`}
+                              key={`billing-event-${account.id}-${defaults.default_billing_event || "empty"}`}
                               value={defaults.default_billing_event || undefined}
                               onValueChange={(value) => updateDefault(account.id, "default_billing_event", value)}
                             >
@@ -1601,7 +1726,8 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                               </SelectContent>
                             </Select>
                             <p className="text-xs text-muted-foreground">
-                              Maximum Delivery maximizes conversions within budget. Cost Cap targets a specific cost per result (bid amount set on phase level).
+                              Maximum Delivery maximizes conversions within budget. Cost Cap targets a specific cost per
+                              result (bid amount set on phase level).
                             </p>
                           </div>
 
@@ -1613,7 +1739,9 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                             </Label>
                             <Select
                               value={String(defaults.default_click_window || 7)}
-                              onValueChange={(value) => updateDefault(account.id, "default_click_window", parseInt(value))}
+                              onValueChange={(value) =>
+                                updateDefault(account.id, "default_click_window", parseInt(value))
+                              }
                             >
                               <SelectTrigger className="border-black/20 dark:border-white/20">
                                 <SelectValue placeholder="Select click window" />
@@ -1636,7 +1764,9 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                             </Label>
                             <Select
                               value={String(defaults.default_view_window || 1)}
-                              onValueChange={(value) => updateDefault(account.id, "default_view_window", parseInt(value))}
+                              onValueChange={(value) =>
+                                updateDefault(account.id, "default_view_window", parseInt(value))
+                              }
                             >
                               <SelectTrigger className="border-black/20 dark:border-white/20">
                                 <SelectValue placeholder="Select view window" />
@@ -1658,7 +1788,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                               Optimization Event
                             </Label>
                             <Select
-                              key={`optimization-event-${account.id}-${defaults.default_optimization_event || 'empty'}`}
+                              key={`optimization-event-${account.id}-${defaults.default_optimization_event || "empty"}`}
                               value={defaults.default_optimization_event || undefined}
                               onValueChange={(value) => updateDefault(account.id, "default_optimization_event", value)}
                             >
@@ -1674,7 +1804,8 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                               </SelectContent>
                             </Select>
                             <p className="text-xs text-muted-foreground">
-                              Conversion event to optimize for. Requires at least 90 days of historical data on the selected pixel.
+                              Conversion event to optimize for. Requires at least 90 days of historical data on the
+                              selected pixel.
                             </p>
                           </div>
 
@@ -1708,7 +1839,11 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                 updateDefault(account.id, "default_placement_type", value);
                                 // Select all placements when switching to automatic
                                 if (value === "PLACEMENT_TYPE_AUTOMATIC") {
-                                  updateDefault(account.id, "default_placements", ["PLACEMENT_TIKTOK", "PLACEMENT_GLOBAL_APP_BUNDLE", "PLACEMENT_PANGLE"]);
+                                  updateDefault(account.id, "default_placements", [
+                                    "PLACEMENT_TIKTOK",
+                                    "PLACEMENT_GLOBAL_APP_BUNDLE",
+                                    "PLACEMENT_PANGLE",
+                                  ]);
                                 }
                               }}
                             >
@@ -1738,7 +1873,13 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                   { value: "PLACEMENT_GLOBAL_APP_BUNDLE", label: "Global App Bundle" },
                                   { value: "PLACEMENT_PANGLE", label: "Pangle" },
                                 ]}
-                                value={defaults.default_placements || ["PLACEMENT_TIKTOK", "PLACEMENT_GLOBAL_APP_BUNDLE", "PLACEMENT_PANGLE"]}
+                                value={
+                                  defaults.default_placements || [
+                                    "PLACEMENT_TIKTOK",
+                                    "PLACEMENT_GLOBAL_APP_BUNDLE",
+                                    "PLACEMENT_PANGLE",
+                                  ]
+                                }
                                 onChange={(placements) => updateDefault(account.id, "default_placements", placements)}
                                 placeholder="Select placements"
                                 emptyText="No placements selected"
@@ -1756,7 +1897,8 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                               Conversion Locations
                             </Label>
                             <p className="text-xs text-muted-foreground mb-4">
-                              Configure destination locations. When a campaign objective requires a specific location, it will auto-fill from here.
+                              Configure destination locations. When a campaign objective requires a specific location,
+                              it will auto-fill from here.
                             </p>
                             <ConversionLocationsSection
                               platform="tiktok"
@@ -1765,7 +1907,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                               onSaveLocation={async (locationType, data) => {
                                 const updates = tiktokLocationToDefaults(locationType, data);
                                 // Also set the optimization location to this type
-                                await updateDefault(account.id, 'default_optimization_location' as any, locationType);
+                                await updateDefault(account.id, "default_optimization_location" as any, locationType);
                                 for (const [key, value] of Object.entries(updates)) {
                                   await updateDefault(account.id, key as any, value);
                                 }
@@ -1777,10 +1919,10 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                 }
                                 // Clear optimization location if it matches the deleted type
                                 if (defaults.default_optimization_location === locationType) {
-                                  await updateDefault(account.id, 'default_optimization_location' as any, null);
+                                  await updateDefault(account.id, "default_optimization_location" as any, null);
                                 }
                               }}
-                              tiktokApps={tiktokApps.filter(app => app.advertiser_id === account.advertiser_id)}
+                              tiktokApps={tiktokApps.filter((app) => app.advertiser_id === account.advertiser_id)}
                               tiktokEvents={tiktokEvents[account.advertiser_id] || []}
                               saving={saving}
                             />
@@ -1794,7 +1936,9 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                             </Label>
                             <Select
                               value={(defaults as any).default_conversion_count || "all_conversions"}
-                              onValueChange={(value) => updateDefault(account.id, "default_conversion_count" as any, value)}
+                              onValueChange={(value) =>
+                                updateDefault(account.id, "default_conversion_count" as any, value)
+                              }
                             >
                               <SelectTrigger className="border-black/20 dark:border-white/20">
                                 <SelectValue placeholder="Select conversion count" />
@@ -1808,24 +1952,16 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                               Count all conversion events or just one per click
                             </p>
                           </div>
-
                         </>
                       )}
                     </div>
 
                     {/* Naming Taxonomy Section */}
                     <Separator className="my-6" />
-                    <AccountTaxonomySection
-                      adAccountId={account.id}
-                      platform={account.platform}
-                      userId={userId}
-                    />
+                    <AccountTaxonomySection adAccountId={account.id} platform={account.platform} userId={userId} />
 
                     <div className="flex justify-end gap-2 pt-4">
-                      <Button
-                        onClick={() => handleSave(account.id)}
-                        disabled={saving === account.id}
-                      >
+                      <Button onClick={() => handleSave(account.id)} disabled={saving === account.id}>
                         {saving === account.id ? (
                           <>
                             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
