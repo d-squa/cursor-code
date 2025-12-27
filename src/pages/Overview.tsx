@@ -452,6 +452,12 @@ const Overview = () => {
               >
                 Insights
               </button>
+              <button
+                onClick={() => navigate("/creatives")}
+                className="px-4 py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
+              >
+                Creatives
+              </button>
 
               <WorkspaceSwitcher className="hidden md:flex ml-2" />
 
