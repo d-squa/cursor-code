@@ -138,6 +138,7 @@ export function CampaignForecast({
   const [debugInfo, setDebugInfo] = useState<{startTimeUnix: number; endTimeUnix: number; startDateFormatted: string; endDateFormatted: string} | null>(null);
   const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
   const [pdfBase64Data, setPdfBase64Data] = useState<string>("");
+  const [excelBase64Data, setExcelBase64Data] = useState<string>("");
   const [hasExistingForecast, setHasExistingForecast] = useState(false);
   const [expandedPlatforms, setExpandedPlatforms] = useState<Record<string, boolean>>({});
   const [expandedMarkets, setExpandedMarkets] = useState<Record<string, boolean>>({});
@@ -272,8 +273,53 @@ export function CampaignForecast({
         totalImpressions: totalMetrics.impressions,
         campaigns: campaignsData,
       } : undefined,
-      actiplanForecast,
+      // Map actiplanForecast to actiplanForecasts for PDF/Excel generators
+      actiplanForecasts: actiplanForecast,
     };
+  };
+
+  // Generate PDF base64 for email attachment
+  const generatePdfBase64 = async () => {
+    const planData = getPlanData();
+    try {
+      const { generateMediaPlanPDF } = await import("@/utils/pdfGenerator");
+      const blob = generateMediaPlanPDF(planData);
+      
+      return new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64 = reader.result as string;
+          resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    } catch (error) {
+      console.error("Error generating PDF for email:", error);
+      return "";
+    }
+  };
+
+  // Generate Excel base64 for email attachment
+  const generateExcelBase64 = async () => {
+    const planData = getPlanData();
+    try {
+      const { generateMediaPlanExcel } = await import("@/utils/excelGenerator");
+      const blob = generateMediaPlanExcel(planData);
+      
+      return new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64 = reader.result as string;
+          resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+    } catch (error) {
+      console.error("Error generating Excel for email:", error);
+      return "";
+    }
   };
 
   const handleDownloadPDF = async () => {
@@ -1444,7 +1490,18 @@ export function CampaignForecast({
 
         <ApprovalDialog
           open={approvalDialogOpen}
-          onOpenChange={setApprovalDialogOpen}
+          onOpenChange={async (open) => {
+            if (open && !pdfBase64Data) {
+              // Generate attachments when opening dialog
+              const [pdf, excel] = await Promise.all([
+                generatePdfBase64(),
+                generateExcelBase64(),
+              ]);
+              setPdfBase64Data(pdf);
+              setExcelBase64Data(excel);
+            }
+            setApprovalDialogOpen(open);
+          }}
           planName={`${genericConfig.strategyFocus || 'Media'} Plan`}
           planDetails={{
             campaignId,
@@ -1455,6 +1512,8 @@ export function CampaignForecast({
             platforms: platforms.map(p => ({ name: p.name })),
           }}
           pdfBase64={pdfBase64Data}
+          excelBase64={excelBase64Data}
+          actiplanForecasts={actiplanForecast}
         />
       </CardContent>
     </Card>
