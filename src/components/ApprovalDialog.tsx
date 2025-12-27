@@ -138,6 +138,7 @@ export function ApprovalDialog({
           pdfBase64,
           excelBase64,
           senderName,
+          campaignId: planDetails.campaignId,
         },
       });
 
