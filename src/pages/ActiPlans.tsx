@@ -358,18 +358,30 @@ export default function ActiPlans() {
   const handleDuplicate = async (campaign: Campaign, targetWorkspaceId: string | null) => {
     setActionLoading(true);
     try {
-      // Create a copy of the campaign with a new name
+      // Fetch full campaign data including budget_allocation and generic_config
+      const { data: fullCampaign, error: fetchError } = await supabase
+        .from("campaigns")
+        .select("*")
+        .eq("id", campaign.id)
+        .single();
+      
+      if (fetchError || !fullCampaign) throw fetchError || new Error("Campaign not found");
+      
+      // Create a copy of the campaign with all relevant data
       const { data: newCampaign, error } = await supabase
         .from("campaigns")
         .insert({
           name: `${campaign.name} (Copy)`,
           user_id: user?.id,
-          objective: campaign.objective,
-          total_budget: campaign.total_budget,
-          start_date: campaign.start_date,
-          end_date: campaign.end_date,
-          platforms: campaign.platforms,
-          market_splits: campaign.market_splits,
+          objective: fullCampaign.objective,
+          total_budget: fullCampaign.total_budget,
+          start_date: fullCampaign.start_date,
+          end_date: fullCampaign.end_date,
+          platforms: fullCampaign.platforms,
+          market_splits: fullCampaign.market_splits,
+          budget_allocation: fullCampaign.budget_allocation, // Include budget percentages
+          generic_config: fullCampaign.generic_config, // Include strategy, targeting config
+          bo_number: null, // Clear BO number to avoid duplicates
           status: "draft",
           team_id: targetWorkspaceId,
         })
