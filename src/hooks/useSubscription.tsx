@@ -12,6 +12,9 @@ function getActiveWorkspaceId(userId: string | undefined): string | null {
   return localStorage.getItem(`actiplan.activeWorkspaceId:${userId}`);
 }
 
+// Cache duration: 5 minutes - avoid redundant API calls
+const SUBSCRIPTION_CACHE_DURATION_MS = 5 * 60 * 1000;
+
 interface SubscriptionStatus {
   subscribed: boolean;
   onTrial: boolean;
@@ -30,7 +33,8 @@ export function useSubscription() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // NOTE: must be a ref to avoid stale closures inside onAuthStateChange callback.
+  // Track when we last successfully checked subscription
+  const lastCheckTimeRef = useRef<number>(0);
   const hasCheckedOnceRef = useRef(false);
 
   // Prevent cross-account leakage: never keep a previous user's subscription state.
@@ -38,7 +42,20 @@ export function useSubscription() {
   const lastSuccessfulUserIdRef = useRef<string | null>(null);
 
   const checkSubscription = useCallback(
-    async ({ showLoading }: { showLoading?: boolean } = {}) => {
+    async ({ showLoading, force }: { showLoading?: boolean; force?: boolean } = {}) => {
+      const now = Date.now();
+      const timeSinceLastCheck = now - lastCheckTimeRef.current;
+
+      // Skip if we've checked recently and not forcing, and we have a valid subscription
+      if (
+        !force &&
+        hasCheckedOnceRef.current &&
+        timeSinceLastCheck < SUBSCRIPTION_CACHE_DURATION_MS &&
+        subscription !== null
+      ) {
+        return;
+      }
+
       const shouldShowLoading = showLoading ?? !hasCheckedOnceRef.current;
 
       let sessionUserId: string | null = null;
@@ -65,6 +82,14 @@ export function useSubscription() {
           currentUserIdRef.current = sessionUserId;
           lastSuccessfulUserIdRef.current = null;
           setSubscription(null);
+          // Force check on user change
+        } else if (
+          !force &&
+          hasCheckedOnceRef.current &&
+          timeSinceLastCheck < SUBSCRIPTION_CACHE_DURATION_MS
+        ) {
+          // Same user, recently checked, not forced - skip
+          return;
         }
 
         // Pass active workspace ID so subscription is scoped correctly
@@ -84,6 +109,7 @@ export function useSubscription() {
 
         setSubscription(data);
         lastSuccessfulUserIdRef.current = sessionUserId;
+        lastCheckTimeRef.current = Date.now();
       } catch (err: any) {
         console.error("Error checking subscription:", err);
         setError(err?.message ?? "Failed to check subscription");
@@ -103,26 +129,28 @@ export function useSubscription() {
         else setLoading((v) => v); // no-op; avoids toggling UI during background refresh
       }
     },
-    []
+    [subscription]
   );
 
   useEffect(() => {
-    checkSubscription({ showLoading: true });
+    checkSubscription({ showLoading: true, force: true });
 
-    // Listen for auth changes - but only SIGNED_IN should trigger a UI loading state.
+    // Listen for auth changes - only SIGNED_IN triggers full check
     const {
       data: { subscription: authSub },
     } = supabase.auth.onAuthStateChange((event) => {
       if (event === "SIGNED_IN") {
-        checkSubscription({ showLoading: true });
+        // Force check on sign in
+        checkSubscription({ showLoading: true, force: true });
       } else if (event === "TOKEN_REFRESHED") {
-        // Silent background refresh - don't disrupt the UI
-        checkSubscription({ showLoading: false });
+        // Do NOT re-check on token refresh - this is what causes the window minimize issue
+        // Token refresh happens on visibility change and we don't need to re-check subscription
       } else if (event === "SIGNED_OUT") {
         setSubscription(null);
         setError(null);
         setLoading(false);
         hasCheckedOnceRef.current = false;
+        lastCheckTimeRef.current = 0;
         currentUserIdRef.current = null;
         lastSuccessfulUserIdRef.current = null;
       }
@@ -159,7 +187,7 @@ export function useSubscription() {
     trialEnd: subscription?.trialEnd ?? null,
     subscriptionType: subscription?.subscriptionType ?? null,
     teamId: subscription?.teamId ?? null,
-    refetch: (opts?: { showLoading?: boolean }) => checkSubscription(opts),
+    refetch: (opts?: { showLoading?: boolean; force?: boolean }) => checkSubscription(opts),
   };
 }
 
