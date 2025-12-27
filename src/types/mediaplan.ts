@@ -33,6 +33,7 @@ export interface Market {
   tiktokSmartPlusEnabled?: boolean; // Whether Smart+ is enabled
   tiktokPlacementType?: string; // PLACEMENT_TYPE_AUTOMATIC or PLACEMENT_TYPE_NORMAL
   tiktokPlacements?: string[]; // Array of placement positions when manual
+  tiktokBillingEvent?: string; // TikTok billing event (OCPM, CPC, CPV, CPM)
   // TikTok messaging/destination fields
   tiktokMessagingApp?: string; // TikTok Messaging App (MESSENGER, WHATSAPP, ZALO, LINE)
   tiktokFacebookPageId?: string; // Facebook Page ID for Messenger
