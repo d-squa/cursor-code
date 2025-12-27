@@ -1231,14 +1231,23 @@ function getMetaObjectiveFromPhase(phaseName: string, strategyFocus?: string, op
 
 async function pushToMeta(campaign: any, platformConfig: any, platform: any, supabase: any) {
   console.log("Pushing to Meta...");
+  console.log("📦 platformConfig.markets received:", JSON.stringify(platformConfig.markets, null, 2));
   
   const results = [];
   const errors = [];
   
   // Extract markets from the correct structure (it's an object, not array)
   const marketsObj = platformConfig.markets || {};
+  console.log("📦 marketsObj keys:", Object.keys(marketsObj));
   
   for (const [marketCode, market] of Object.entries(marketsObj) as [string, any][]) {
+    console.log(`📦 Processing market ${marketCode}:`, {
+      name: market.name,
+      pixel: market.pixel,
+      conversionEvent: market.conversionEvent,
+      adAccountId: market.adAccountId
+    });
+    
     // Validate required fields for conversion campaigns
     // Optimization goals that REQUIRE a pixel and conversion event for Meta
     const conversionOptGoals = ['OFFSITE_CONVERSIONS', 'VALUE', 'CONVERSIONS'];
