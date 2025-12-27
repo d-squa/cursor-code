@@ -2137,7 +2137,7 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
 
         let adSetData = await adSetResponse.json();
         
-        // Check for VALUE optimization errors and fallback to OFFSITE_CONVERSIONS
+        // Check for VALUE optimization errors and determine fallback strategy
         // Error subcodes:
         // - 2446368: Pixel not eligible for VALUE optimization
         // - 2446146: VALUE optimization not available (unverified business account)
@@ -2160,16 +2160,51 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
             fallbackReason = `Billing event ${adSetPayload.billing_event} incompatible with optimization goal ${adSetPayload.optimization_goal}`;
           }
           
-          console.warn(`${fallbackReason}. Retrying with OFFSITE_CONVERSIONS...`);
+          // Determine fallback strategy based on available pixel/conversion event
+          // Only fallback to OFFSITE_CONVERSIONS if we have pixel + conversion event
+          // Otherwise fall back to LINK_CLICKS (traffic objective)
+          const canUseConversionFallback = effectivePixel && effectiveConversionEvent;
           
-          // Fallback: Use OFFSITE_CONVERSIONS which is available to all accounts
-          adSetPayload.optimization_goal = 'OFFSITE_CONVERSIONS';
-          // Ensure billing_event is compatible with OFFSITE_CONVERSIONS
-          adSetPayload.billing_event = 'IMPRESSIONS';
+          if (canUseConversionFallback) {
+            console.warn(`${fallbackReason}. Retrying with OFFSITE_CONVERSIONS...`);
+            
+            // Fallback: Use OFFSITE_CONVERSIONS which is available to all accounts
+            adSetPayload.optimization_goal = 'OFFSITE_CONVERSIONS';
+            // Ensure billing_event is compatible with OFFSITE_CONVERSIONS
+            adSetPayload.billing_event = 'IMPRESSIONS';
+            
+            // CRITICAL: Add promoted_object for OFFSITE_CONVERSIONS - it's required
+            const validEventTypes = [
+              'AD_IMPRESSION', 'RATE', 'TUTORIAL_COMPLETION', 'CONTACT', 'CUSTOMIZE_PRODUCT', 
+              'DONATE', 'FIND_LOCATION', 'SCHEDULE', 'START_TRIAL', 'SUBMIT_APPLICATION', 
+              'SUBSCRIBE', 'ADD_TO_CART', 'ADD_TO_WISHLIST', 'INITIATED_CHECKOUT', 
+              'ADD_PAYMENT_INFO', 'PURCHASE', 'LEAD', 'COMPLETE_REGISTRATION', 'CONTENT_VIEW', 
+              'SEARCH', 'SERVICE_BOOKING_REQUEST', 'MESSAGING_CONVERSATION_STARTED_7D', 
+              'LEVEL_ACHIEVED', 'ACHIEVEMENT_UNLOCKED', 'SPENT_CREDITS', 'LISTING_INTERACTION', 
+              'D2_RETENTION', 'D7_RETENTION', 'OTHER'
+            ];
+            const normalizedEvent = effectiveConversionEvent.toUpperCase().trim();
+            const eventType = validEventTypes.includes(normalizedEvent) ? normalizedEvent : 'OTHER';
+            
+            adSetPayload.promoted_object = {
+              pixel_id: effectivePixel,
+              custom_event_type: eventType,
+            };
+            console.log(`✅ Added promoted_object for OFFSITE_CONVERSIONS fallback: pixel=${effectivePixel}, event=${eventType}`);
+          } else {
+            console.warn(`${fallbackReason}. No pixel/conversion event available, retrying with LINK_CLICKS (traffic)...`);
+            
+            // Fallback to traffic objective when no conversion tracking is available
+            adSetPayload.optimization_goal = 'LINK_CLICKS';
+            adSetPayload.billing_event = 'LINK_CLICKS';
+            // Remove promoted_object as it's not needed for traffic
+            delete adSetPayload.promoted_object;
+          }
           
           console.log("Retrying Meta ad set creation with fallback:", {
             optimization_goal: adSetPayload.optimization_goal,
-            billing_event: adSetPayload.billing_event
+            billing_event: adSetPayload.billing_event,
+            has_promoted_object: !!adSetPayload.promoted_object
           });
           
           const retryResponse = await fetch(
@@ -2189,7 +2224,7 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           adSetData = await retryResponse.json();
           
           if (!adSetData.error) {
-            console.log(`✓ Ad set created successfully with OFFSITE_CONVERSIONS fallback for ${phase.name}`);
+            console.log(`✓ Ad set created successfully with ${adSetPayload.optimization_goal} fallback for ${phase.name}`);
           }
         }
         
