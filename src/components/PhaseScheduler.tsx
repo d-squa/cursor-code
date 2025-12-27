@@ -27,6 +27,7 @@ import { PhaseTaxonomyInputs } from "./PhaseTaxonomyInputs";
 import { PhaseTaxonomyPreview } from "./PhaseTaxonomyPreview";
 import { SplittableSection } from "./SplittableSection";
 import { AdSetSplitManager } from "./AdSetSplitManager";
+import { createInitialAdSets } from "@/utils/adSetSplitUtils";
 import { detectTargetingType } from "@/utils/detectTargetingType";
 import { getAudienceStrategyConfig, type AudienceStrategyConfig } from "@/utils/audienceStrategyMapping";
 import { getPlacementsForSelection } from "@/utils/placements";
@@ -2314,17 +2315,16 @@ export function PhaseScheduler({
                         currentSplitDimension={phase.adSetSplitDimension}
                         onSplitClick={(dim) => {
                           const newDimension = dim === 'none' ? undefined : dim;
-                          const newAdSets = newDimension ? [{
-                            id: `adset-${Date.now()}`,
-                            name: `${phase.name} - Ad Set 1`,
-                            dimensionValue: "Feed",
-                            budgetPercentage: 50,
-                          }, {
-                            id: `adset-${Date.now() + 1}`,
-                            name: `${phase.name} - Ad Set 2`,
-                            dimensionValue: "Stories",
-                            budgetPercentage: 50,
-                          }] : undefined;
+                          const newAdSets = newDimension ? createInitialAdSets(dim, phase.name, {
+                            availablePlacements: getPlacementsForSelection(platformName, phase.assetTypes || []),
+                            availableOptimizationGoals: getOptimizationGoalsForPhase(phase.objective || "").map(g => ({ value: g.value, label: g.label })),
+                            currentGender: phase.targeting?.genders?.[0] || basicTargeting?.genders?.[0],
+                            currentAgeMin: phase.targeting?.ageMin ?? basicTargeting?.ageMin,
+                            currentAgeMax: phase.targeting?.ageMax ?? basicTargeting?.ageMax,
+                            currentDevices: phase.targeting?.devices || basicTargeting?.devices,
+                            currentLanguages: phase.targeting?.languages || basicTargeting?.languages,
+                            currentOptimizationGoal: phase.optimizationGoal,
+                          }) : undefined;
                           updatePhaseFields(phase.id, { 
                             adSetSplitDimension: newDimension,
                             adSets: newAdSets,
@@ -2366,6 +2366,11 @@ export function PhaseScheduler({
                           availablePlacements={getPlacementsForSelection(platformName, phase.assetTypes || [])}
                           availableOptimizationGoals={getOptimizationGoalsForPhase(phase.objective || "").map(g => ({ value: g.value, label: g.label }))}
                           availableAudiences={phase.audiences?.map(a => ({ id: a.id, name: a.name, type: a.type })) || []}
+                          currentGender={phase.targeting?.genders?.[0] || basicTargeting?.genders?.[0]}
+                          currentAgeMin={phase.targeting?.ageMin ?? basicTargeting?.ageMin}
+                          currentAgeMax={phase.targeting?.ageMax ?? basicTargeting?.ageMax}
+                          currentDevices={phase.targeting?.devices || basicTargeting?.devices}
+                          currentLanguages={phase.targeting?.languages || basicTargeting?.languages}
                         />
                       )}
 
