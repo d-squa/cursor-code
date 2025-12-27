@@ -706,34 +706,54 @@ const handler = async (req: Request): Promise<Response> => {
     const dailyLimit = DAILY_LIMITS[userTier] ?? 1;
     console.log(`📊 User tier: ${userTier}, daily limit: ${dailyLimit}`);
 
-    // Count campaigns pushed to DSP today (excluding the current one if it's a retry)
-    // Note: We primarily rely on campaigns.published_at, but legacy records may have published_at = null.
-    // For those, we fall back to campaign_launch_status timestamps (entity_type=campaign) to avoid counting edits.
+    // Count campaigns pushed to DSP today by team_id (workspace) - same logic as frontend useActiplanLimits
+    // This ensures the limit is shared across all team members
     const now = new Date();
     const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0)).toISOString();
     const todayEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999)).toISOString();
 
     const pushCountStatuses = ['pushed_to_dsp', 'live'];
 
-    const { data: pushedWithPublishedAt, error: publishedCountError } = await supabase
+    // Get the team_id from the current campaign to count by team context
+    const teamId = campaign.team_id;
+
+    let countQuery = supabase
       .from('campaigns')
       .select('id')
-      .eq('user_id', user.id)
       .in('status', pushCountStatuses)
       .gte('published_at', todayStart)
       .lte('published_at', todayEnd);
+
+    // If campaign has a team_id, count by team (shared limit pool)
+    // Otherwise fall back to user_id (personal workspace)
+    if (teamId) {
+      countQuery = countQuery.eq('team_id', teamId);
+      console.log(`📊 Counting by team_id: ${teamId}`);
+    } else {
+      countQuery = countQuery.eq('user_id', user.id);
+      console.log(`📊 Counting by user_id: ${user.id} (no team context)`);
+    }
+
+    const { data: pushedWithPublishedAt, error: publishedCountError } = await countQuery;
 
     if (publishedCountError) {
       console.error('Error counting pushed campaigns (published_at):', publishedCountError);
     }
 
-    // Only look at user's pushed campaigns that are missing published_at (legacy) — then use launch status timestamps
-    const { data: pushedWithNullPublishedAt, error: nullPublishedError } = await supabase
+    // Also check for legacy campaigns without published_at
+    let legacyQuery = supabase
       .from('campaigns')
       .select('id')
-      .eq('user_id', user.id)
       .in('status', pushCountStatuses)
       .is('published_at', null);
+
+    if (teamId) {
+      legacyQuery = legacyQuery.eq('team_id', teamId);
+    } else {
+      legacyQuery = legacyQuery.eq('user_id', user.id);
+    }
+
+    const { data: pushedWithNullPublishedAt, error: nullPublishedError } = await legacyQuery;
 
     if (nullPublishedError) {
       console.error('Error fetching pushed campaigns with null published_at:', nullPublishedError);
