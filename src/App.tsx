@@ -26,6 +26,7 @@ import LaunchStatus from "./pages/LaunchStatus";
 import InsightsRecommendations from "./pages/InsightsRecommendations";
 import OperationsAnalytics from "./pages/OperationsAnalytics";
 import OperationsReports from "./pages/settings/OperationsReports";
+import CreativeLibrary from "./pages/CreativeLibrary";
 import NotFound from "./pages/NotFound";
 import { BugReportButton } from "./components/BugReportButton";
 import { SubscriptionGuard } from "./components/SubscriptionGuard";
@@ -59,6 +60,7 @@ const App = () => (
             <Route path="/performance/:id" element={<SubscriptionGuard><Performance /></SubscriptionGuard>} />
             <Route path="/performance" element={<SubscriptionGuard><Performance /></SubscriptionGuard>} />
             <Route path="/clients" element={<SubscriptionGuard><Clients /></SubscriptionGuard>} />
+            <Route path="/creatives" element={<SubscriptionGuard><CreativeLibrary /></SubscriptionGuard>} />
             <Route path="/manage-accounts" element={<SubscriptionGuard><ManageClientAccounts /></SubscriptionGuard>} />
             <Route path="/teams" element={<SubscriptionGuard><Teams /></SubscriptionGuard>} />
             <Route path="/settings" element={<SubscriptionGuard><Settings /></SubscriptionGuard>}>
