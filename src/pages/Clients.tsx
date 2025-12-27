@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useRole } from "@/hooks/useRole";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -28,6 +29,7 @@ interface Client {
 export default function Clients() {
   const { user, loading: authLoading } = useAuth();
   const { canManageClients, loading: roleLoading } = useRole();
+  const { activeWorkspaceId, loading: workspaceLoading } = useWorkspace();
   const navigate = useNavigate();
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,26 +46,37 @@ export default function Clients() {
   }, [user, authLoading, navigate]);
 
   useEffect(() => {
-    if (user) {
+    if (user && activeWorkspaceId) {
       loadClients();
     }
-  }, [user]);
+  }, [user, activeWorkspaceId]);
 
   const loadClients = async () => {
+    if (!activeWorkspaceId) {
+      setClients([]);
+      setLoading(false);
+      return;
+    }
+    
     try {
-      const { data, error } = await supabase
-        .from("clients")
-        .select("*")
-        .order("name");
+      // Fetch clients linked to the active workspace via team_clients
+      const { data: teamClients, error: tcError } = await supabase
+        .from("team_clients")
+        .select("client_id, clients(*)")
+        .eq("team_id", activeWorkspaceId);
 
-      if (error) throw error;
+      if (tcError) throw tcError;
       
-      // Type cast platforms and markets from Json to string[]
-      const typedClients = (data || []).map(client => ({
-        ...client,
-        platforms: Array.isArray(client.platforms) ? client.platforms as string[] : [],
-        markets: Array.isArray(client.markets) ? client.markets as string[] : [],
-      }));
+      // Extract and type cast clients from the join
+      const typedClients = (teamClients || [])
+        .map(tc => tc.clients)
+        .filter(Boolean)
+        .map((client: any) => ({
+          ...client,
+          platforms: Array.isArray(client.platforms) ? client.platforms as string[] : [],
+          markets: Array.isArray(client.markets) ? client.markets as string[] : [],
+        }))
+        .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
       
       setClients(typedClients);
     } catch (error: any) {
@@ -75,13 +88,30 @@ export default function Clients() {
   };
 
   const handleCreateClient = async (data: any) => {
+    if (!activeWorkspaceId) {
+      toast.error("No workspace selected");
+      return;
+    }
+    
     try {
-      const { error } = await supabase.from("clients").insert({
+      // Insert the client
+      const { data: newClient, error } = await supabase.from("clients").insert({
         user_id: user?.id,
         ...data,
-      });
+      }).select().single();
 
       if (error) throw error;
+
+      // Link the client to the current workspace
+      const { error: linkError } = await supabase.from("team_clients").insert({
+        team_id: activeWorkspaceId,
+        client_id: newClient.id,
+      });
+
+      if (linkError) {
+        console.error("Error linking client to workspace:", linkError);
+        // Don't fail the whole operation, client was created
+      }
 
       toast.success("Client created successfully");
       setDialogOpen(false);
@@ -154,7 +184,7 @@ export default function Clients() {
     setEditingClient(null);
   };
 
-  if (authLoading || loading || roleLoading) {
+  if (authLoading || loading || roleLoading || workspaceLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
