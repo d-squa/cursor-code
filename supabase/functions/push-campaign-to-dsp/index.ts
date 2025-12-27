@@ -667,13 +667,32 @@ const handler = async (req: Request): Promise<Response> => {
       return 'trial';
     };
 
-    // Get user's subscription from Stripe via check-subscription logic
+    // Get subscription tier - if campaign belongs to a team, use team owner's subscription
+    // This matches the frontend useFeatureAccess logic
     let userTier = 'trial';
+    const teamId = campaign.team_id;
+    
     try {
+      let billingUserId = user.id; // Default to current user
+      
+      // If campaign has a team_id, get the team owner's subscription instead
+      if (teamId) {
+        const { data: team } = await supabase
+          .from('teams')
+          .select('owner_id')
+          .eq('id', teamId)
+          .single();
+        
+        if (team?.owner_id) {
+          billingUserId = team.owner_id;
+          console.log(`📊 Using team owner's subscription: ${billingUserId} (team: ${teamId})`);
+        }
+      }
+      
       const { data: billingCustomer } = await supabase
         .from('billing_customers')
         .select('stripe_customer_id')
-        .eq('user_id', user.id)
+        .eq('user_id', billingUserId)
         .single();
 
       if (billingCustomer?.stripe_customer_id) {
@@ -695,8 +714,13 @@ const handler = async (req: Request): Promise<Response> => {
           if (activeSub) {
             const priceId = activeSub.items?.data?.[0]?.price?.id;
             userTier = getTierFromPriceId(priceId);
+            console.log(`📊 Subscription found - priceId: ${priceId}, tier: ${userTier}`);
+          } else {
+            console.log(`📊 No active subscription found for billing customer`);
           }
         }
+      } else {
+        console.log(`📊 No billing customer found for user: ${billingUserId}`);
       }
     } catch (err) {
       console.warn("Error checking subscription tier:", err);
@@ -714,8 +738,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     const pushCountStatuses = ['pushed_to_dsp', 'live'];
 
-    // Get the team_id from the current campaign to count by team context
-    const teamId = campaign.team_id;
+    // teamId already declared above when checking subscription
 
     let countQuery = supabase
       .from('campaigns')
