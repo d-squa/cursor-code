@@ -643,6 +643,243 @@ export type Database = {
         }
         Relationships: []
       }
+      creative_assignments: {
+        Row: {
+          assigned_at: string
+          assigned_by: string | null
+          campaign_id: string
+          creative_id: string
+          dsp_creative_id: string | null
+          error_message: string | null
+          id: string
+          market: string
+          phase_name: string
+          platform: string
+          position: number | null
+          status: string | null
+        }
+        Insert: {
+          assigned_at?: string
+          assigned_by?: string | null
+          campaign_id: string
+          creative_id: string
+          dsp_creative_id?: string | null
+          error_message?: string | null
+          id?: string
+          market: string
+          phase_name: string
+          platform: string
+          position?: number | null
+          status?: string | null
+        }
+        Update: {
+          assigned_at?: string
+          assigned_by?: string | null
+          campaign_id?: string
+          creative_id?: string
+          dsp_creative_id?: string | null
+          error_message?: string | null
+          id?: string
+          market?: string
+          phase_name?: string
+          platform?: string
+          position?: number | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creative_assignments_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "creative_assignments_creative_id_fkey"
+            columns: ["creative_id"]
+            isOneToOne: false
+            referencedRelation: "creatives"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      creative_import_batches: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          error_log: Json | null
+          failed_items: number | null
+          id: string
+          import_type: string
+          source_filename: string | null
+          status: string | null
+          successful_items: number | null
+          total_items: number | null
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          error_log?: Json | null
+          failed_items?: number | null
+          id?: string
+          import_type: string
+          source_filename?: string | null
+          status?: string | null
+          successful_items?: number | null
+          total_items?: number | null
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          error_log?: Json | null
+          failed_items?: number | null
+          id?: string
+          import_type?: string
+          source_filename?: string | null
+          status?: string | null
+          successful_items?: number | null
+          total_items?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      creatives: {
+        Row: {
+          aspect_ratio: string | null
+          call_to_action: string | null
+          campaign_id: string | null
+          caption: string | null
+          created_at: string
+          creative_type: Database["public"]["Enums"]["creative_type"]
+          description: string | null
+          destination_url: string | null
+          duration_seconds: number | null
+          external_account_name: string | null
+          external_page_id: string | null
+          external_post_id: string | null
+          file_size_bytes: number | null
+          folder_path: string | null
+          funnel_stage: string | null
+          headline: string | null
+          height: number | null
+          id: string
+          import_batch_id: string | null
+          is_valid: boolean | null
+          market: string | null
+          media_urls: string[] | null
+          name: string
+          optimization_goal: string | null
+          original_filename: string | null
+          phase_name: string | null
+          platform: string
+          platform_metadata: Json | null
+          primary_text: string | null
+          spreadsheet_row_number: number | null
+          status: Database["public"]["Enums"]["creative_status"]
+          team_id: string | null
+          thumbnail_url: string | null
+          updated_at: string
+          user_id: string
+          validation_errors: string[] | null
+          width: number | null
+        }
+        Insert: {
+          aspect_ratio?: string | null
+          call_to_action?: string | null
+          campaign_id?: string | null
+          caption?: string | null
+          created_at?: string
+          creative_type?: Database["public"]["Enums"]["creative_type"]
+          description?: string | null
+          destination_url?: string | null
+          duration_seconds?: number | null
+          external_account_name?: string | null
+          external_page_id?: string | null
+          external_post_id?: string | null
+          file_size_bytes?: number | null
+          folder_path?: string | null
+          funnel_stage?: string | null
+          headline?: string | null
+          height?: number | null
+          id?: string
+          import_batch_id?: string | null
+          is_valid?: boolean | null
+          market?: string | null
+          media_urls?: string[] | null
+          name: string
+          optimization_goal?: string | null
+          original_filename?: string | null
+          phase_name?: string | null
+          platform: string
+          platform_metadata?: Json | null
+          primary_text?: string | null
+          spreadsheet_row_number?: number | null
+          status?: Database["public"]["Enums"]["creative_status"]
+          team_id?: string | null
+          thumbnail_url?: string | null
+          updated_at?: string
+          user_id: string
+          validation_errors?: string[] | null
+          width?: number | null
+        }
+        Update: {
+          aspect_ratio?: string | null
+          call_to_action?: string | null
+          campaign_id?: string | null
+          caption?: string | null
+          created_at?: string
+          creative_type?: Database["public"]["Enums"]["creative_type"]
+          description?: string | null
+          destination_url?: string | null
+          duration_seconds?: number | null
+          external_account_name?: string | null
+          external_page_id?: string | null
+          external_post_id?: string | null
+          file_size_bytes?: number | null
+          folder_path?: string | null
+          funnel_stage?: string | null
+          headline?: string | null
+          height?: number | null
+          id?: string
+          import_batch_id?: string | null
+          is_valid?: boolean | null
+          market?: string | null
+          media_urls?: string[] | null
+          name?: string
+          optimization_goal?: string | null
+          original_filename?: string | null
+          phase_name?: string | null
+          platform?: string
+          platform_metadata?: Json | null
+          primary_text?: string | null
+          spreadsheet_row_number?: number | null
+          status?: Database["public"]["Enums"]["creative_status"]
+          team_id?: string | null
+          thumbnail_url?: string | null
+          updated_at?: string
+          user_id?: string
+          validation_errors?: string[] | null
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creatives_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "creatives_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invitations: {
         Row: {
           accepted_at: string | null
@@ -2185,6 +2422,20 @@ export type Database = {
         | "owner"
         | "collaborator"
         | "member"
+      creative_status:
+        | "draft"
+        | "ready"
+        | "needs_review"
+        | "error"
+        | "published"
+      creative_type:
+        | "dark_post"
+        | "existing_post"
+        | "image"
+        | "video"
+        | "carousel"
+        | "collection"
+        | "instant_experience"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2319,6 +2570,16 @@ export const Constants = {
         "owner",
         "collaborator",
         "member",
+      ],
+      creative_status: ["draft", "ready", "needs_review", "error", "published"],
+      creative_type: [
+        "dark_post",
+        "existing_post",
+        "image",
+        "video",
+        "carousel",
+        "collection",
+        "instant_experience",
       ],
     },
   },
