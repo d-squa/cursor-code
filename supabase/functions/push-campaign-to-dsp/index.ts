@@ -1227,24 +1227,45 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
   
   for (const [marketCode, market] of Object.entries(marketsObj) as [string, any][]) {
     // Validate required fields for conversion campaigns
-    const requiresConversionEvent = market.phases && market.phases.some((phase: any) => {
-      const phaseName = phase.name?.toLowerCase() || "";
-      const objective = phase.objective?.toLowerCase() || "";
-      return (
-        phaseName.includes("conversion") ||
-        phaseName.includes("purchase") ||
-        phaseName.includes("sales") ||
-        phaseName.includes("lead") ||
-        objective.includes("conversion") ||
-        objective.includes("sales") ||
-        objective.includes("lead")
-      );
-    });
-
-    if (requiresConversionEvent && (!market.pixel || !market.conversionEvent)) {
+    // Optimization goals that REQUIRE a pixel and conversion event for Meta
+    const conversionOptGoals = ['OFFSITE_CONVERSIONS', 'VALUE', 'CONVERSIONS'];
+    
+    const phasesWithMissingConversion: string[] = [];
+    
+    if (market.phases) {
+      for (const phase of market.phases) {
+        const phaseName = phase.name?.toLowerCase() || "";
+        const objective = phase.objective?.toLowerCase() || "";
+        const optGoal = phase.optimizationGoal || market.optimizationGoal || "";
+        
+        // Check if conversion event is required based on optimization goal OR phase/objective name
+        const requiresConversionByOptGoal = conversionOptGoals.includes(optGoal);
+        const requiresConversionByName = (
+          phaseName.includes("conversion") ||
+          phaseName.includes("purchase") ||
+          phaseName.includes("sales") ||
+          phaseName.includes("lead") ||
+          objective.includes("conversion") ||
+          objective.includes("sales") ||
+          objective.includes("lead")
+        );
+        
+        if (requiresConversionByOptGoal || requiresConversionByName) {
+          // Check phase-level first, then market-level for pixel/conversion config
+          const hasPixel = phase.pixel || market.pixel;
+          const hasConversionEvent = phase.conversionEvent || market.conversionEvent;
+          
+          if (!hasPixel || !hasConversionEvent) {
+            phasesWithMissingConversion.push(phase.name || 'Default');
+          }
+        }
+      }
+    }
+    
+    if (phasesWithMissingConversion.length > 0) {
       errors.push({
         market: market.name,
-        error: "Pixel and Conversion Event are required for conversion campaigns. Please configure them in the campaign customization.",
+        error: `Pixel and Conversion Event are required for conversion-optimized phases (${phasesWithMissingConversion.join(', ')}). Please configure them in the campaign customization.`,
         type: 'validation_error'
       });
       continue;
@@ -2024,7 +2045,11 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
         }
         
         // Add conversion tracking for conversion-optimized ad sets (including VALUE)
-        if (market.pixel && market.conversionEvent && (adSetPayload.optimization_goal === 'OFFSITE_CONVERSIONS' || adSetPayload.optimization_goal === 'VALUE')) {
+        // Use phase-level pixel/conversionEvent if available, otherwise fall back to market-level
+        const effectivePixel = phase.pixel || market.pixel;
+        const effectiveConversionEvent = phase.conversionEvent || market.conversionEvent;
+        
+        if (effectivePixel && effectiveConversionEvent && (adSetPayload.optimization_goal === 'OFFSITE_CONVERSIONS' || adSetPayload.optimization_goal === 'VALUE')) {
           // Meta's valid custom_event_type values
           const validEventTypes = [
             'AD_IMPRESSION', 'RATE', 'TUTORIAL_COMPLETION', 'CONTACT', 'CUSTOMIZE_PRODUCT', 
@@ -2036,17 +2061,20 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
             'D2_RETENTION', 'D7_RETENTION', 'OTHER'
           ];
           // Normalize and validate conversion event
-          const normalizedEvent = market.conversionEvent.toUpperCase().trim();
+          const normalizedEvent = effectiveConversionEvent.toUpperCase().trim();
           const eventType = validEventTypes.includes(normalizedEvent) ? normalizedEvent : 'OTHER';
           if (!validEventTypes.includes(normalizedEvent)) {
-            console.warn(`Invalid conversion event "${market.conversionEvent}" for market ${market.name}, using "OTHER" as fallback`);
+            console.warn(`Invalid conversion event "${effectiveConversionEvent}" for market ${market.name}, using "OTHER" as fallback`);
           }
           adSetPayload.promoted_object = {
-            pixel_id: market.pixel,
+            pixel_id: effectivePixel,
             custom_event_type: eventType,
           };
-          console.info(`Including promoted_object for optimization_goal=${adSetPayload.optimization_goal}`);
-        } else if (adSetPayload.optimization_goal !== 'OFFSITE_CONVERSIONS' && (market.pixel || market.conversionEvent)) {
+          console.info(`Including promoted_object for optimization_goal=${adSetPayload.optimization_goal} with pixel=${effectivePixel}, event=${eventType}`);
+        } else if ((adSetPayload.optimization_goal === 'OFFSITE_CONVERSIONS' || adSetPayload.optimization_goal === 'VALUE') && (!effectivePixel || !effectiveConversionEvent)) {
+          // This should be caught by validation earlier, but log a warning just in case
+          console.error(`⚠️ Missing pixel or conversion event for ${adSetPayload.optimization_goal} optimization - pixel: ${effectivePixel}, event: ${effectiveConversionEvent}`);
+        } else if (adSetPayload.optimization_goal !== 'OFFSITE_CONVERSIONS' && (effectivePixel || effectiveConversionEvent)) {
           console.info(`Skipping promoted_object for optimization_goal=${adSetPayload.optimization_goal}`);
         }
         
