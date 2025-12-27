@@ -102,3 +102,6 @@ verify_jwt = true
 
 [functions.validate-session]
 verify_jwt = true
+
+[functions.send-dsp-push-notification]
+verify_jwt = true
