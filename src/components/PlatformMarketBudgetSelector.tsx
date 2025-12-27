@@ -1619,9 +1619,10 @@ export function PlatformMarketBudgetSelector({
                                                 tiktokWhatsappNumber: defaults?.whatsappNumber || "",
                                                 tiktokZaloAccountId: defaults?.zaloAccountId || "",
                                                 tiktokLineBusinessId: defaults?.lineBusinessId || "",
-                                                // Attribution windows
+                                                // Attribution windows and billing
                                                 tiktokClickWindow: defaults?.clickWindow || undefined,
                                                 tiktokViewWindow: defaults?.viewWindow || undefined,
+                                                tiktokBillingEvent: defaults?.billingEvent || undefined,
                                                 phases: [],
                                                 adFormats: [],
                                                 // Filter out US from TikTok countries
@@ -1746,6 +1747,11 @@ export function PlatformMarketBudgetSelector({
                                                       if (defaults.whatsappNumber) updated.tiktokWhatsappNumber = defaults.whatsappNumber;
                                                       if (defaults.zaloAccountId) updated.tiktokZaloAccountId = defaults.zaloAccountId;
                                                       if (defaults.lineBusinessId) updated.tiktokLineBusinessId = defaults.lineBusinessId;
+                                                      // TikTok billing event
+                                                      if (defaults.billingEvent) {
+                                                        updated.tiktokBillingEvent = defaults.billingEvent;
+                                                        console.log("  ✓ Set tiktokBillingEvent:", defaults.billingEvent);
+                                                      }
                                                       
                                                       toast.success("Applied default TikTok settings");
                                                    } else {
@@ -2043,6 +2049,12 @@ export function PlatformMarketBudgetSelector({
                                     metaPageId: market.pageId,
                                     metaInstagramAccountId: (market as any).metaInstagramAccountId || market.instagramActorId,
                                     metaLandingPageUrl: (market as any).metaLandingPageUrl,
+                                    // Meta advanced settings defaults
+                                    metaBidStrategy: market.metaBidStrategy,
+                                    metaBidAmount: market.metaBidAmount,
+                                    metaClickWindow: (market as any).metaClickWindow,
+                                    metaViewWindow: (market as any).metaViewWindow,
+                                    metaBillingEvent: (market as any).metaBillingEvent,
                                     // TikTok destination defaults
                                     tiktokOptimizationLocation: (market as any).tiktokOptimizationLocation,
                                     tiktokAppId: (market as any).tiktokAppId,
@@ -2054,6 +2066,12 @@ export function PlatformMarketBudgetSelector({
                                     tiktokZaloAccountId: (market as any).tiktokZaloAccountId,
                                     tiktokLineBusinessId: (market as any).tiktokLineBusinessId,
                                     tiktokLandingPageUrl: (market as any).tiktokLandingPageUrl,
+                                    // TikTok advanced settings defaults
+                                    tiktokBidStrategy: (market as any).tiktokBidStrategy,
+                                    tiktokBidAmount: (market as any).tiktokBidAmount,
+                                    tiktokClickWindow: (market as any).tiktokClickWindow,
+                                    tiktokViewWindow: (market as any).tiktokViewWindow,
+                                    tiktokBillingEvent: (market as any).tiktokBillingEvent,
                                   }}
                                   marketBudget={marketBudget}
                                 />
