@@ -13,6 +13,7 @@ interface ModificationNotificationRequest {
   description: string;
   notifyAllTeam?: boolean;
   assignedTo?: string[];
+  requestId?: string;
 }
 
 const handler = async (req: Request): Promise<Response> => {
@@ -57,7 +58,17 @@ const handler = async (req: Request): Promise<Response> => {
       description,
       notifyAllTeam = false,
       assignedTo = [],
+      requestId,
     }: ModificationNotificationRequest = await req.json();
+
+    // Get requester profile
+    const { data: requesterProfile } = await supabase
+      .from("profiles")
+      .select("full_name, email")
+      .eq("id", user.id)
+      .single();
+
+    const senderName = requesterProfile?.full_name || requesterProfile?.email?.split("@")[0] || "A team member";
 
     // Get campaign to verify access
     const { data: campaign, error: campaignError } = await supabase
@@ -144,16 +155,106 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("Sending modification notification for campaign:", campaignId, "by user:", user.id);
 
+    // Build the deep link URL
+    const appUrl = Deno.env.get("APP_URL") || "https://actiplan.app";
+    const planUrl = `${appUrl}/actiplans?edit=${campaignId}&showModifications=true${requestId ? `&requestId=${requestId}` : ""}`;
+
+    // Format change type for display
+    const formattedChangeType = changeType.charAt(0).toUpperCase() + changeType.slice(1);
+
     const emailData = {
       from: "ActiPlan <do-not-reply@actiplan.app>",
       to: recipientEmails,
-      subject: `Modification Requested: ${campaignName}`,
+      subject: `ActiPlan App: Modification Request - ${campaignName}`,
       html: `
-        <h1>Modification Requested for "${campaignName}"</h1>
-        <p><strong>Change Type:</strong> ${changeType.charAt(0).toUpperCase() + changeType.slice(1)}</p>
-        <p><strong>Description:</strong> ${description}</p>
-        <p>Please log in to your ActiPlan and go to the "Check Modification Requests" section to review and mark as completed when done.</p>
-        <p>Best regards,<br>The ActiPlan Team</p>
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+        </head>
+        <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #1e293b; background-color: #f8fafc;">
+          <!-- Header -->
+          <div style="background-color: #0f172a; padding: 20px; text-align: center;">
+            <img src="https://actiplan.app/logo.png" alt="ActiPlan" style="height: 40px;" />
+          </div>
+          
+          <!-- Main Content -->
+          <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px; background-color: #ffffff;">
+            <h1 style="color: #0f172a; font-size: 28px; font-weight: 600; margin-bottom: 24px; text-align: center;">
+              Modification Request
+            </h1>
+            
+            <p style="color: #334155; font-size: 16px; margin-bottom: 16px;">
+              Hey there,
+            </p>
+            
+            <p style="color: #334155; font-size: 16px; margin-bottom: 16px;">
+              <strong>${senderName}</strong> has requested a modification for the media plan <strong>"${campaignName}"</strong>.
+            </p>
+            
+            <!-- Request Details Box -->
+            <div style="background-color: #f1f5f9; border-radius: 8px; padding: 20px; margin-bottom: 24px;">
+              <h3 style="color: #0f172a; font-size: 16px; font-weight: 600; margin-top: 0; margin-bottom: 12px;">
+                Request Details
+              </h3>
+              <table style="width: 100%; border-collapse: collapse;">
+                <tr>
+                  <td style="padding: 8px 0; color: #64748b; font-size: 14px; width: 120px;">Change Type:</td>
+                  <td style="padding: 8px 0; color: #1e293b; font-size: 14px; font-weight: 500;">${formattedChangeType}</td>
+                </tr>
+              </table>
+              
+              <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #e2e8f0;">
+                <p style="color: #64748b; font-size: 14px; margin: 0 0 8px 0; font-weight: 500;">Description:</p>
+                <p style="color: #1e293b; font-size: 14px; margin: 0; white-space: pre-wrap;">${description}</p>
+              </div>
+            </div>
+            
+            <p style="color: #64748b; font-size: 14px; font-style: italic; margin-bottom: 24px;">
+              Please review this request and mark it as complete once the changes have been made.
+            </p>
+            
+            <p style="color: #334155; font-size: 16px; margin-bottom: 32px;">
+              <em>Warm regards,</em><br/>
+              <strong>The ActiPlan Team</strong>
+            </p>
+            
+            <!-- CTA Button -->
+            <div style="text-align: center; margin-bottom: 32px;">
+              <a href="${planUrl}" style="display: inline-block; background-color: #f97316; color: #ffffff; font-size: 16px; font-weight: 600; text-decoration: none; padding: 14px 32px; border-radius: 6px;">
+                View Modification Request
+              </a>
+            </div>
+          </div>
+          
+          <!-- Footer -->
+          <div style="background-color: #1e293b; padding: 30px 20px; text-align: center;">
+            <!-- Social Icons -->
+            <div style="margin-bottom: 20px;">
+              <a href="https://linkedin.com/company/actiplan" style="display: inline-block; margin: 0 8px;">
+                <img src="https://cdn-icons-png.flaticon.com/32/174/174857.png" alt="LinkedIn" style="width: 24px; height: 24px;" />
+              </a>
+              <a href="https://youtube.com/@actiplan" style="display: inline-block; margin: 0 8px;">
+                <img src="https://cdn-icons-png.flaticon.com/32/1384/1384060.png" alt="YouTube" style="width: 24px; height: 24px;" />
+              </a>
+              <a href="https://twitter.com/actiplan" style="display: inline-block; margin: 0 8px;">
+                <img src="https://cdn-icons-png.flaticon.com/32/733/733579.png" alt="Twitter" style="width: 24px; height: 24px;" />
+              </a>
+              <a href="https://instagram.com/actiplan" style="display: inline-block; margin: 0 8px;">
+                <img src="https://cdn-icons-png.flaticon.com/32/174/174855.png" alt="Instagram" style="width: 24px; height: 24px;" />
+              </a>
+            </div>
+            
+            <p style="color: #94a3b8; font-size: 12px; margin: 0;">
+              © ${new Date().getFullYear()} ActiPlan. All rights reserved.
+            </p>
+            <p style="color: #64748b; font-size: 11px; margin-top: 8px;">
+              This email was sent from ActiPlan. If you did not expect this email, please ignore it.
+            </p>
+          </div>
+        </body>
+        </html>
       `,
     };
 

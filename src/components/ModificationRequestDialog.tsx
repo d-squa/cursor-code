@@ -244,7 +244,7 @@ export function ModificationRequestDialog({
       }
 
       // Create modification request
-      const { error: requestError } = await supabase
+      const { data: newRequest, error: requestError } = await supabase
         .from("modification_requests")
         .insert({
           campaign_id: campaignId,
@@ -254,7 +254,9 @@ export function ModificationRequestDialog({
           status: "sent",
           assigned_to: notifyType === "specific" ? selectedMembers : [],
           notify_all_team: notifyType === "all",
-        });
+        })
+        .select("id")
+        .single();
 
       if (requestError) throw requestError;
 
@@ -288,6 +290,7 @@ export function ModificationRequestDialog({
           description: fullDescription,
           notifyAllTeam: notifyType === "all",
           assignedTo: notifyType === "specific" ? selectedMembers : [],
+          requestId: newRequest?.id,
         },
       });
 
