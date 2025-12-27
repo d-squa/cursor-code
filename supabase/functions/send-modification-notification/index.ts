@@ -210,8 +210,9 @@ const handler = async (req: Request): Promise<Response> => {
     console.log(`Sending ${notificationType} notification for campaign:`, campaignId, "by user:", user.id);
 
     // Build the deep link URL
-    const appUrl = Deno.env.get("APP_URL") || "https://actiplan.app";
-    const planUrl = `${appUrl}/actiplans?edit=${campaignId}&showModifications=true${requestId ? `&requestId=${requestId}` : ""}`;
+    const origin = req.headers.get("origin");
+    const appUrl = origin || Deno.env.get("APP_URL") || "https://actiplan.app";
+    const planUrl = `${appUrl}/actiplans?campaignId=${campaignId}&open=modifications${requestId ? `&requestId=${requestId}` : ""}`;
 
     // Format change type for display
     const formattedChangeType = changeType.charAt(0).toUpperCase() + changeType.slice(1);
@@ -237,11 +238,11 @@ const handler = async (req: Request): Promise<Response> => {
 
     if (notificationType === "status_change" && newStatus) {
       const formattedStatus = formatStatus(newStatus);
-      emailSubject = `ActiPlan App: Modification Request ${formattedStatus} - ${campaignName}`;
+      emailSubject = `ActiPlan App: Modification Request - ${campaignName}`;
       emailTitle = `Request ${formattedStatus}`;
-      emailIntro = `<strong>${senderName}</strong> has marked a modification request as <strong>${formattedStatus}</strong> for the media plan <strong>"${campaignName}"</strong>.`;
+      emailIntro = `<strong>${senderName}</strong> has updated a modification request for the media plan <strong>"${campaignName}"</strong>.`;
       ctaText = "View Request";
-      
+
       // Add status badge
       const statusColors: Record<string, string> = {
         completed: "#22c55e",
@@ -260,8 +261,8 @@ const handler = async (req: Request): Promise<Response> => {
           </td>
         </tr>
       `;
-      emailAction = newStatus === "completed" 
-        ? "This modification request has been completed." 
+      emailAction = newStatus === "completed"
+        ? "This modification request has been completed."
         : `The status has been updated to ${formattedStatus}.`;
     } else {
       emailSubject = `ActiPlan App: Modification Request - ${campaignName}`;

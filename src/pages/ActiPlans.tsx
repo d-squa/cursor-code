@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useWorkspace } from "@/hooks/useWorkspace";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -65,6 +65,7 @@ interface Campaign {
 export default function ActiPlans() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { hasAccess, tier } = useFeatureAccess();
   const { dailyLimit, usedToday, remaining, canCreate, loading: limitsLoading, refetch: refetchLimits } = useActiplanLimits();
   const { activeWorkspaceId, workspaces, loading: workspacesLoading } = useWorkspace();
@@ -74,6 +75,7 @@ export default function ActiPlans() {
   const [modificationDialogOpen, setModificationDialogOpen] = useState(false);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [modificationRequestsViewOpen, setModificationRequestsViewOpen] = useState(false);
+  const [deepLinkRequestId, setDeepLinkRequestId] = useState<string | null>(null);
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
   const [logActionDialogOpen, setLogActionDialogOpen] = useState(false);
   const [submitRequestDialogOpen, setSubmitRequestDialogOpen] = useState(false);
@@ -93,6 +95,26 @@ export default function ActiPlans() {
       loadCampaigns();
     }
   }, [user, activeWorkspaceId]);
+
+  // Handle deep links from emails
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const urlCampaignId = params.get("campaignId") || params.get("edit");
+    const openParam = params.get("open");
+    const requestId = params.get("requestId");
+    const shouldOpenModifications = params.get("showModifications") === "true" || openParam === "modifications";
+
+    if (!urlCampaignId) return;
+    const found = campaigns.find((c) => c.id === urlCampaignId);
+    if (!found) return;
+
+    setSelectedCampaign(found);
+
+    if (shouldOpenModifications) {
+      setDeepLinkRequestId(requestId);
+      setModificationRequestsViewOpen(true);
+    }
+  }, [location.search, campaigns]);
 
   const loadCampaigns = async () => {
     if (!activeWorkspaceId) return;
@@ -1025,9 +1047,13 @@ export default function ActiPlans() {
 
           <ModificationRequestsView
             open={modificationRequestsViewOpen}
-            onOpenChange={setModificationRequestsViewOpen}
+            onOpenChange={(nextOpen) => {
+              setModificationRequestsViewOpen(nextOpen);
+              if (!nextOpen) setDeepLinkRequestId(null);
+            }}
             campaignId={selectedCampaign?.id || ""}
             campaignName={selectedCampaign?.name || ""}
+            initialRequestId={deepLinkRequestId || undefined}
           />
 
           <ModificationRequestsAnalytics

@@ -44,6 +44,7 @@ interface ModificationRequestsViewProps {
   onOpenChange: (open: boolean) => void;
   campaignId: string;
   campaignName: string;
+  initialRequestId?: string;
 }
 
 export function ModificationRequestsView({
@@ -51,6 +52,7 @@ export function ModificationRequestsView({
   onOpenChange,
   campaignId,
   campaignName,
+  initialRequestId,
 }: ModificationRequestsViewProps) {
   const { session } = useAuth();
   const [requests, setRequests] = useState<ModificationRequest[]>([]);
