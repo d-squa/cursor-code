@@ -46,12 +46,11 @@ export function useSubscription() {
       const now = Date.now();
       const timeSinceLastCheck = now - lastCheckTimeRef.current;
 
-      // Skip if we've checked recently and not forcing, and we have a valid subscription
+      // Skip if we've checked recently and not forcing
       if (
         !force &&
         hasCheckedOnceRef.current &&
-        timeSinceLastCheck < SUBSCRIPTION_CACHE_DURATION_MS &&
-        subscription !== null
+        timeSinceLastCheck < SUBSCRIPTION_CACHE_DURATION_MS
       ) {
         return;
       }
@@ -129,7 +128,7 @@ export function useSubscription() {
         else setLoading((v) => v); // no-op; avoids toggling UI during background refresh
       }
     },
-    [subscription]
+    [] // No dependencies - use refs for state checks
   );
 
   useEffect(() => {

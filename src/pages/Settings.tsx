@@ -132,11 +132,13 @@ export default function Settings() {
   }, [user, loading, navigate]);
 
   useEffect(() => {
-    // Redirect to first accessible settings page if on base /settings route
+    // Only redirect once everything is loaded and we're on the base route
+    if (loading || featureLoading || roleLoading) return;
+    
     if (location.pathname === "/settings") {
-      navigate(firstAccessibleRoute);
+      navigate(firstAccessibleRoute, { replace: true });
     }
-  }, [location.pathname, navigate, firstAccessibleRoute]);
+  }, [location.pathname, navigate, firstAccessibleRoute, loading, featureLoading, roleLoading]);
 
   if (loading || featureLoading || roleLoading) {
     return (
