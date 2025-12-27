@@ -222,10 +222,10 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
       });
 
       // Load Meta ad accounts for this client
+      // RLS handles access control - users can see their own accounts or accounts linked to team clients
       const { data: metaAccountsData, error: metaAccountsError } = await supabase
         .from("meta_ad_accounts")
         .select("*")
-        .eq("user_id", userId)
         .eq("client_id", clientId);
 
       if (metaAccountsError) throw metaAccountsError;
@@ -234,7 +234,6 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
       const { data: tiktokAccountsData, error: tiktokAccountsError } = await supabase
         .from("tiktok_ad_accounts")
         .select("*")
-        .eq("user_id", userId)
         .eq("client_id", clientId);
 
       if (tiktokAccountsError) throw tiktokAccountsError;
