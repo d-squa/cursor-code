@@ -25,7 +25,6 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Server configuration error");
     }
 
-    // Authenticate the user
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -35,11 +34,13 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
-    
-    // Verify the user's JWT token
+
     const token = authHeader.replace("Bearer ", "");
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser(token);
+
     if (authError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
@@ -49,7 +50,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     const { campaignId, campaignName, action }: ApprovalNotificationRequest = await req.json();
 
-    // Get campaign to verify access and find user_id
+    // Verify access and get campaign owner/team
     const { data: campaign, error: campaignError } = await supabase
       .from("campaigns")
       .select("user_id, team_id")
@@ -71,16 +72,15 @@ const handler = async (req: Request): Promise<Response> => {
         .eq("user_id", user.id)
         .eq("team_id", campaign.team_id)
         .single();
-      
+
       if (!userRole) {
-        // Check if admin
         const { data: adminRole } = await supabase
           .from("user_roles")
           .select("id")
           .eq("user_id", user.id)
           .eq("role", "admin")
           .single();
-        
+
         if (!adminRole) {
           return new Response(JSON.stringify({ error: "Permission denied" }), {
             status: 403,
@@ -90,43 +90,99 @@ const handler = async (req: Request): Promise<Response> => {
       }
     }
 
-    // Get creator's email from profiles
-    const { data: profile, error: profileError } = await supabase
+    // Get creator email
+    const { data: creatorProfile, error: creatorError } = await supabase
       .from("profiles")
       .select("email")
       .eq("id", campaign.user_id)
       .single();
 
-    if (profileError || !profile) {
+    if (creatorError || !creatorProfile?.email) {
       throw new Error("Creator profile not found");
     }
 
-    const creatorEmail = profile.email;
+    // Get sender name (approver)
+    const { data: approverProfile } = await supabase
+      .from("profiles")
+      .select("full_name, email")
+      .eq("id", user.id)
+      .single();
 
-    const subject = action === "approved" ? `ActiPlan Approved: ${campaignName}` : `ActiPlan Rejected: ${campaignName}`;
-
-    const message =
-      action === "approved"
-        ? `Your ActiPlan "${campaignName}" has been approved and is ready to launch! You can now push it to the DSP.`
-        : `Your ActiPlan "${campaignName}" has been rejected. Please review the feedback and create a new plan.`;
+    const senderName =
+      approverProfile?.full_name || approverProfile?.email?.split("@")[0] || "A team member";
 
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
     if (!resendApiKey) {
       throw new Error("Email service not configured");
     }
 
+    const origin = req.headers.get("origin");
+    const appUrl = origin || Deno.env.get("APP_URL") || "https://actiplan.app";
+    const planUrl = `${appUrl}/app?campaignId=${campaignId}`;
+
+    const isApproved = action === "approved";
+    const statusLabel = isApproved ? "Approved" : "Rejected";
+
+    const subject = `ActiPlan App: ActiPlan ${statusLabel} - ${campaignName}`;
+
+    const headline = isApproved ? `ActiPlan Approved: ${campaignName}` : `ActiPlan Rejected: ${campaignName}`;
+    const message = isApproved
+      ? `Your ActiPlan <strong>"${campaignName}"</strong> has been approved and is ready to launch. You can now push it to the DSP.`
+      : `Your ActiPlan <strong>"${campaignName}"</strong> has been rejected. Please review the feedback and update your plan.`;
+
+    console.log("Sending approval status email", { campaignId, action, to: creatorProfile.email });
+
     const emailData = {
       from: "ActiPlan <do-not-reply@actiplan.app>",
-      to: [creatorEmail],
+      to: [creatorProfile.email],
       subject,
       html: `
-        <h1>${subject}</h1>
-        <p>${message}</p>
-        <p>Best regards,<br>The ActiPlan Team</p>
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+        </head>
+        <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #1e293b; background-color: #f8fafc;">
+          <!-- Header -->
+          <div style="background-color: #0f172a; padding: 20px; text-align: center;">
+            <img src="https://actiplan.app/logo.png" alt="ActiPlan" style="height: 40px;" />
+          </div>
+
+          <!-- Main Content -->
+          <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px; background-color: #ffffff;">
+            <h1 style="color: #0f172a; font-size: 28px; font-weight: 600; margin-bottom: 24px; text-align: center;">
+              ${headline}
+            </h1>
+
+            <p style="color: #334155; font-size: 16px; margin-bottom: 16px;">Hey there,</p>
+
+            <p style="color: #334155; font-size: 16px; margin-bottom: 16px;">
+              ${message}
+            </p>
+
+            <p style="color: #334155; font-size: 16px; margin-bottom: 32px;">
+              <em>Warm regards,</em><br/>
+              <strong>${senderName}</strong>
+            </p>
+
+            <!-- CTA Button -->
+            <div style="text-align: center; margin-bottom: 32px;">
+              <a href="${planUrl}" style="display: inline-block; background-color: #f97316; color: #ffffff; font-size: 16px; font-weight: 600; text-decoration: none; padding: 14px 32px; border-radius: 6px;">
+                View ActiPlan
+              </a>
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <div style="background-color: #1e293b; padding: 30px 20px; text-align: center;">
+            <p style="color: #94a3b8; font-size: 12px; margin: 0;">© ${new Date().getFullYear()} ActiPlan. All rights reserved.</p>
+            <p style="color: #64748b; font-size: 11px; margin-top: 8px;">This email was sent from ActiPlan. If you did not expect this email, please ignore it.</p>
+          </div>
+        </body>
+        </html>
       `,
     };
-
-    console.log("Sending approval notification to:", creatorEmail, "for campaign:", campaignId, "by user:", user.id);
 
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -138,11 +194,9 @@ const handler = async (req: Request): Promise<Response> => {
     });
 
     if (!response.ok) {
-      console.error("Resend API error");
+      console.error("Resend API error", await response.text());
       throw new Error("Failed to send email");
     }
-
-    console.log(`Notification sent to ${creatorEmail} for campaign ${campaignId}`);
 
     return new Response(JSON.stringify({ success: true }), {
       status: 200,
