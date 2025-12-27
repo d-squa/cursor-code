@@ -70,10 +70,16 @@ export function ModificationRequestDialog({
 
   useEffect(() => {
     if (open) {
-      loadTeamMembers();
       loadCampaignDetails();
     }
   }, [open]);
+
+  // Load team members when dialog opens or when user switches to "specific" notify type
+  useEffect(() => {
+    if (open && (notifyType === "specific" || teamMembers.length === 0)) {
+      loadTeamMembers();
+    }
+  }, [open, notifyType]);
 
   const loadCampaignDetails = async () => {
     try {
