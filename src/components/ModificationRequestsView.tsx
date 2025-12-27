@@ -36,6 +36,7 @@ interface ModificationRequest {
   assigned_to?: string[];
   assigned_emails?: string[];
   status_history?: StatusHistoryEntry[];
+  notify_all_team?: boolean;
 }
 
 interface ModificationRequestsViewProps {
@@ -153,7 +154,9 @@ export function ModificationRequestsView({
 
   const canUpdateStatus = (request: ModificationRequest) => {
     if (!session?.user?.id) return false;
-    return request.assigned_to?.includes(session.user.id);
+    // Allow update if assigned to the request, or if notifyAllTeam is true for team members
+    return request.assigned_to?.includes(session.user.id) || 
+           (request.notify_all_team && request.requester_id !== session.user.id);
   };
 
   const getChangeTypeInitials = (type: string) => {
