@@ -13,6 +13,8 @@ interface ApprovalDialogProps {
   planName: string;
   planDetails: any;
   pdfBase64: string;
+  excelBase64?: string;
+  actiplanForecasts?: any;
 }
 
 export function ApprovalDialog({
@@ -21,6 +23,8 @@ export function ApprovalDialog({
   planName,
   planDetails,
   pdfBase64,
+  excelBase64,
+  actiplanForecasts,
 }: ApprovalDialogProps) {
   const [sending, setSending] = useState(false);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
@@ -127,8 +131,12 @@ export function ApprovalDialog({
         body: {
           recipientEmails: recipients,
           planName,
-          planDetails,
+          planDetails: {
+            ...planDetails,
+            actiplanForecasts,
+          },
           pdfBase64,
+          excelBase64,
           senderName,
         },
       });
@@ -153,7 +161,7 @@ export function ApprovalDialog({
         <DialogHeader>
           <DialogTitle>Send for Approval</DialogTitle>
           <DialogDescription>
-            Select team members to send this media plan for approval. They will receive an email with the plan details and PDF attachment.
+            Select team members to send this media plan for approval. They will receive an email with full forecast data and PDF/Excel attachments.
           </DialogDescription>
         </DialogHeader>
 
@@ -206,6 +214,11 @@ export function ApprovalDialog({
             <p className="text-muted-foreground text-xs">
               {planName} • ${planDetails.totalBudget?.toLocaleString()} • {planDetails.platforms?.length} platform(s)
             </p>
+            {actiplanForecasts && (
+              <p className="text-muted-foreground text-xs mt-1">
+                Includes full forecast data with {actiplanForecasts.platforms?.length || 0} platform(s) deliverables
+              </p>
+            )}
           </div>
         </div>
 
