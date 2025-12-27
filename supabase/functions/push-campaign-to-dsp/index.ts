@@ -2059,8 +2059,18 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
         
         // Add conversion tracking for conversion-optimized ad sets (including VALUE)
         // Use phase-level pixel/conversionEvent if available, otherwise fall back to market-level
+        console.log(`🔍 Conversion tracking lookup for phase "${phase.name}":`, {
+          phasePixel: phase.pixel,
+          marketPixel: market.pixel,
+          phaseConversionEvent: phase.conversionEvent,
+          marketConversionEvent: market.conversionEvent,
+          optimizationGoal: adSetPayload.optimization_goal
+        });
+        
         const effectivePixel = phase.pixel || market.pixel;
         const effectiveConversionEvent = phase.conversionEvent || market.conversionEvent;
+        
+        console.log(`🔍 Effective values: pixel=${effectivePixel}, event=${effectiveConversionEvent}`);
         
         if (effectivePixel && effectiveConversionEvent && (adSetPayload.optimization_goal === 'OFFSITE_CONVERSIONS' || adSetPayload.optimization_goal === 'VALUE')) {
           // Meta's valid custom_event_type values
@@ -2083,10 +2093,12 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
             pixel_id: effectivePixel,
             custom_event_type: eventType,
           };
-          console.info(`Including promoted_object for optimization_goal=${adSetPayload.optimization_goal} with pixel=${effectivePixel}, event=${eventType}`);
+          console.info(`✅ Including promoted_object for optimization_goal=${adSetPayload.optimization_goal} with pixel=${effectivePixel}, event=${eventType}`);
         } else if ((adSetPayload.optimization_goal === 'OFFSITE_CONVERSIONS' || adSetPayload.optimization_goal === 'VALUE') && (!effectivePixel || !effectiveConversionEvent)) {
           // This should be caught by validation earlier, but log a warning just in case
-          console.error(`⚠️ Missing pixel or conversion event for ${adSetPayload.optimization_goal} optimization - pixel: ${effectivePixel}, event: ${effectiveConversionEvent}`);
+          console.error(`⚠️ Missing pixel or conversion event for ${adSetPayload.optimization_goal} optimization`);
+          console.error(`  Phase data:`, JSON.stringify({ pixel: phase.pixel, conversionEvent: phase.conversionEvent }));
+          console.error(`  Market data:`, JSON.stringify({ pixel: market.pixel, conversionEvent: market.conversionEvent, name: market.name }));
         } else if (adSetPayload.optimization_goal !== 'OFFSITE_CONVERSIONS' && (effectivePixel || effectiveConversionEvent)) {
           console.info(`Skipping promoted_object for optimization_goal=${adSetPayload.optimization_goal}`);
         }
