@@ -986,6 +986,7 @@ export function MediaPlanEditor() {
 
       const { data: campaign, error } = await supabase.from("campaigns").insert({
         user_id: user.id,
+        team_id: activeWorkspaceId || null,
         name: campaignName,
         bo_number: boNumber.trim(),
         objective: genericConfig.strategyFocus || "conversions",
@@ -1291,6 +1292,7 @@ export function MediaPlanEditor() {
 
       const { data: campaign, error } = await supabase.from("campaigns").insert({
         user_id: user.id,
+        team_id: activeWorkspaceId || null,
         name: campaignName,
         bo_number: boNumber.trim(),
         objective: genericConfig.strategyFocus || "conversions",

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -22,6 +23,7 @@ import { ModificationRequestsAnalytics } from "@/components/ModificationRequests
 import { LogActionDialog } from "@/components/LogActionDialog";
 import { SubmitRequestDialog } from "@/components/SubmitRequestDialog";
 import { ActivityLogView } from "@/components/ActivityLogView";
+import { WorkspaceSelectionDialog } from "@/components/WorkspaceSelectionDialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { downloadMediaPlanExcel } from "@/utils/excelGenerator";
@@ -65,6 +67,7 @@ export default function ActiPlans() {
   const navigate = useNavigate();
   const { hasAccess, tier } = useFeatureAccess();
   const { dailyLimit, usedToday, remaining, canCreate, loading: limitsLoading, refetch: refetchLimits } = useActiplanLimits();
+  const { activeWorkspaceId, workspaces, loading: workspacesLoading } = useWorkspace();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
@@ -80,18 +83,26 @@ export default function ActiPlans() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [campaignToDelete, setCampaignToDelete] = useState<Campaign | null>(null);
   const [search, setSearch] = useState("");
+  
+  // Workspace selection dialog for duplication
+  const [workspaceDialogOpen, setWorkspaceDialogOpen] = useState(false);
+  const [campaignToDuplicate, setCampaignToDuplicate] = useState<Campaign | null>(null);
+
   useEffect(() => {
-    if (user) {
+    if (user && activeWorkspaceId) {
       loadCampaigns();
     }
-  }, [user]);
+  }, [user, activeWorkspaceId]);
 
   const loadCampaigns = async () => {
+    if (!activeWorkspaceId) return;
+    
     try {
-      // Fetch campaigns
+      // Fetch campaigns for the active workspace
       const { data: campaignsData, error: campaignsError } = await supabase
         .from("campaigns")
         .select("*")
+        .eq("team_id", activeWorkspaceId)
         .order("created_at", { ascending: false });
 
       if (campaignsError) throw campaignsError;
@@ -311,8 +322,18 @@ export default function ActiPlans() {
     }
   };
 
-  const handleDuplicate = async (campaign: Campaign) => {
+  const handleDuplicateClick = (campaign: Campaign) => {
+    // If user has multiple workspaces, show selection dialog
+    if (workspaces.length > 1) {
+      setCampaignToDuplicate(campaign);
+      setWorkspaceDialogOpen(true);
+    } else {
+      // Single workspace, duplicate directly
+      handleDuplicate(campaign, activeWorkspaceId);
+    }
+  };
 
+  const handleDuplicate = async (campaign: Campaign, targetWorkspaceId: string | null) => {
     setActionLoading(true);
     try {
       // Create a copy of the campaign with a new name
@@ -328,14 +349,15 @@ export default function ActiPlans() {
           platforms: campaign.platforms,
           market_splits: campaign.market_splits,
           status: "draft",
-          team_id: campaign.team_id,
+          team_id: targetWorkspaceId,
         })
         .select()
         .single();
 
       if (error) throw error;
 
-      toast.success("ActiPlan duplicated successfully");
+      const targetWorkspace = workspaces.find(w => w.id === targetWorkspaceId);
+      toast.success(`ActiPlan duplicated${targetWorkspace ? ` to ${targetWorkspace.name}` : ""}`);
       refetchLimits();
       loadCampaigns();
     } catch (error: any) {
@@ -343,6 +365,8 @@ export default function ActiPlans() {
       toast.error("Failed to duplicate ActiPlan");
     } finally {
       setActionLoading(false);
+      setWorkspaceDialogOpen(false);
+      setCampaignToDuplicate(null);
     }
   };
 
@@ -854,7 +878,7 @@ export default function ActiPlans() {
                 {/* Duplicate ActiPlan */}
                 {hasAccess('duplicate_actiplans') ? (
                   <DropdownMenuItem
-                    onClick={() => handleDuplicate(campaign)}
+                    onClick={() => handleDuplicateClick(campaign)}
                     disabled={actionLoading}
                   >
                     <Copy className="w-4 h-4 mr-2" />
@@ -1043,6 +1067,21 @@ export default function ActiPlans() {
           />
         </>
       )}
+
+      {/* Workspace Selection Dialog for Duplication */}
+      <WorkspaceSelectionDialog
+        open={workspaceDialogOpen}
+        onOpenChange={setWorkspaceDialogOpen}
+        workspaces={workspaces}
+        currentWorkspaceId={activeWorkspaceId}
+        title="Duplicate to Workspace"
+        description="Choose which workspace to place the duplicated ActiPlan in"
+        onConfirm={(workspaceId) => {
+          if (campaignToDuplicate) {
+            handleDuplicate(campaignToDuplicate, workspaceId);
+          }
+        }}
+      />
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
