@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, X, GripVertical, Link2, ChevronDown, Copy, Trash2, ExternalLink } from "lucide-react";
 import MetaAppSearch from "./MetaAppSearch";
-import { Phase } from "./PlatformConfiguration";
+import { Phase, AdSetSplitDimension, AdSetConfig } from "@/types/mediaplan";
 import { format, addDays, differenceInDays, parseISO } from "date-fns";
 import { platformAdFormats } from "@/utils/adFormats";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -25,8 +25,11 @@ import { TiktokPhaseConfig } from "./TiktokPhaseConfig";
 import { MetaPhaseConfig } from "./MetaPhaseConfig";
 import { PhaseTaxonomyInputs } from "./PhaseTaxonomyInputs";
 import { PhaseTaxonomyPreview } from "./PhaseTaxonomyPreview";
+import { SplittableSection } from "./SplittableSection";
+import { AdSetSplitManager } from "./AdSetSplitManager";
 import { detectTargetingType } from "@/utils/detectTargetingType";
 import { getAudienceStrategyConfig, type AudienceStrategyConfig } from "@/utils/audienceStrategyMapping";
+import { getPlacementsForSelection } from "@/utils/placements";
 import { 
   getObjectivesForPlatform, 
   getOptimizationGoalsForObjective, 
@@ -2304,24 +2307,67 @@ export function PhaseScheduler({
                         </div>
                       </div>
 
-                      {/* Publisher Platforms & Placements */}
-                      <div className="space-y-2">
-                        <CampaignPublisherConfig
+                      {/* Publisher Platforms & Placements with Split Button */}
+                      <SplittableSection
+                        dimension="placement"
+                        dimensionLabel="Placement"
+                        currentSplitDimension={phase.adSetSplitDimension}
+                        onSplitClick={(dim) => {
+                          const newDimension = dim === 'none' ? undefined : dim;
+                          const newAdSets = newDimension ? [{
+                            id: `adset-${Date.now()}`,
+                            name: `${phase.name} - Ad Set 1`,
+                            dimensionValue: "Feed",
+                            budgetPercentage: 50,
+                          }, {
+                            id: `adset-${Date.now() + 1}`,
+                            name: `${phase.name} - Ad Set 2`,
+                            dimensionValue: "Stories",
+                            budgetPercentage: 50,
+                          }] : undefined;
+                          updatePhaseFields(phase.id, { 
+                            adSetSplitDimension: newDimension,
+                            adSets: newAdSets,
+                          });
+                        }}
+                      >
+                        <div className="space-y-2">
+                          <CampaignPublisherConfig
+                            platformName={platformName}
+                            publisherPlatforms={phase.publisherPlatforms || []}
+                            positions={phase.positions || {}}
+                            advantagePlusPlacements={phase.advantagePlusPlacements}
+                            onPublisherPlatformsChange={(publishers) => 
+                              updatePhaseField(phase.id, "publisherPlatforms", publishers)
+                            }
+                            onPositionsChange={(positions) => 
+                              updatePhaseField(phase.id, "positions", positions)
+                            }
+                            onAdvantagePlusPlacementsChange={(enabled) =>
+                              updatePhaseField(phase.id, "advantagePlusPlacements", enabled)
+                            }
+                          />
+                        </div>
+                      </SplittableSection>
+
+                      {/* Ad Set Split Manager */}
+                      {phase.adSetSplitDimension && phase.adSetSplitDimension !== 'none' && phase.adSets && (
+                        <AdSetSplitManager
+                          dimension={phase.adSetSplitDimension}
+                          adSets={phase.adSets}
                           platformName={platformName}
-                          publisherPlatforms={phase.publisherPlatforms || []}
-                          positions={phase.positions || {}}
-                          advantagePlusPlacements={phase.advantagePlusPlacements}
-                          onPublisherPlatformsChange={(publishers) => 
-                            updatePhaseField(phase.id, "publisherPlatforms", publishers)
-                          }
-                          onPositionsChange={(positions) => 
-                            updatePhaseField(phase.id, "positions", positions)
-                          }
-                          onAdvantagePlusPlacementsChange={(enabled) =>
-                            updatePhaseField(phase.id, "advantagePlusPlacements", enabled)
-                          }
+                          platformId={platformId || 'meta'}
+                          phaseName={phase.name}
+                          onAdSetsChange={(adSets) => updatePhaseField(phase.id, "adSets", adSets)}
+                          onRemoveSplit={() => updatePhaseFields(phase.id, { 
+                            adSetSplitDimension: undefined,
+                            adSets: undefined,
+                          })}
+                          availablePlacements={getPlacementsForSelection(platformName, phase.assetTypes || [])}
+                          availableOptimizationGoals={getOptimizationGoalsForPhase(phase.objective || "").map(g => ({ value: g.value, label: g.label }))}
+                          availableAudiences={phase.audiences?.map(a => ({ id: a.id, name: a.name, type: a.type })) || []}
                         />
-                      </div>
+                      )}
 
                       {/* TikTok Advanced Settings - Platform-specific */}
                       {platformId?.toLowerCase() === 'tiktok' && (

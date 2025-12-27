@@ -99,6 +99,53 @@ export interface FunnelStage {
   budgetPercentage: number;
 }
 
+// Represents a single ad set configuration within a phase split
+export interface AdSetConfig {
+  id: string;
+  name: string;
+  // The value for the split dimension (e.g., specific placement, language, etc.)
+  dimensionValue: string | string[] | number | { min: number; max: number };
+  budgetPercentage: number; // Budget share within the phase
+  // Optional overrides for specific fields based on dimension
+  placements?: string[];
+  tiktokPlacements?: string[];
+  publisherPlatforms?: string[];
+  positions?: {
+    facebook?: string[];
+    instagram?: string[];
+    audience_network?: string[];
+    messenger?: string[];
+    threads?: string[];
+  };
+  languages?: number[] | string[];
+  countries?: string[];
+  gender?: string;
+  devices?: string[];
+  ageMin?: number;
+  ageMax?: number;
+  optimizationGoal?: string;
+  audiences?: Array<{
+    id: string;
+    name: string;
+    type: string;
+    source: string;
+    subtype?: string;
+    approximate_count?: number;
+  }>;
+}
+
+// Dimensions available for splitting ad sets
+export type AdSetSplitDimension = 
+  | 'none'
+  | 'placement'
+  | 'optimization_goal'
+  | 'audience'
+  | 'language'
+  | 'location'
+  | 'gender'
+  | 'device'
+  | 'age';
+
 export interface Phase {
   id: string;
   name: string;
@@ -111,6 +158,9 @@ export interface Phase {
   optimizationGoal?: string;
   funnelStage?: string;
   budgetType?: "daily" | "lifetime";
+  // Ad Set Split configuration
+  adSetSplitDimension?: AdSetSplitDimension;
+  adSets?: AdSetConfig[];
   // Taxonomy values for naming
   campaignTaxonomyValues?: Record<string, string>;
   adsetTaxonomyValues?: Record<string, string>;
@@ -179,6 +229,7 @@ export interface Phase {
   detailedTargeting?: Array<{ id: string; type: string; name?: string }>;
   // Override for campaign-level targeting
   overrideTargeting?: boolean;
+  useBroadTargeting?: boolean; // Use broad targeting (no demographics or interests)
   targeting?: {
     adFormats?: string[];
     ageMin?: number;
@@ -194,6 +245,14 @@ export interface Phase {
     keywordList?: string;
     customerList?: string;
     lookalikeAudience?: string;
+    selectedItems?: Array<{
+      id: string;
+      name: string;
+      category: string;
+      platforms: string[];
+      platform_ids?: Record<string, string>;
+    }>;
+    useBroadTargeting?: boolean;
   };
   audiences?: Array<{
     id: string;
