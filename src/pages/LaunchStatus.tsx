@@ -386,6 +386,23 @@ export default function LaunchStatus() {
         toast.success("Campaign pushed to DSP successfully!");
       }
 
+      // Send notification email to all stakeholders
+      try {
+        const finalStatus = data?.finalStatus || (data?.hasErrors ? "partially_pushed" : "pushed_to_dsp");
+        await supabase.functions.invoke("send-dsp-push-notification", {
+          body: {
+            campaignId,
+            campaignName: campaign?.name || "Campaign",
+            finalStatus,
+            results: data?.results || [],
+          },
+        });
+        console.log("DSP push notification sent");
+      } catch (notifError) {
+        console.error("Failed to send DSP push notification:", notifError);
+        // Don't block the flow - notification is best-effort
+      }
+
       // Refresh data to show updated statuses
       await loadData();
       // Refetch the limits since we just pushed
