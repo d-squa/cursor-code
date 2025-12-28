@@ -1845,84 +1845,108 @@ export function PhaseScheduler({
                         </Select>
                       </div>
 
-                      {/* Optimization Goal */}
-                      <div className="space-y-2">
-                        <Label htmlFor={`optimization-${phase.id}`}>Optimization Goal</Label>
-                        <Select
-                          value={phase.optimizationGoal || ""}
-                          onValueChange={(value) => {
-                            const isMeta = !platformName.toLowerCase().includes('tiktok');
-                            
-                            // Check if this optimization goal requires a specific destination
-                            const requiredDestination = isMeta ? getDestinationForOptimizationGoal(value) : null;
-                            
-                            if (requiredDestination && adAccountDefaults) {
-                              // Auto-set the destination and populate related defaults
-                              const updates: Partial<Phase> = { 
-                                optimizationGoal: value,
-                                metaOptimizationLocation: requiredDestination 
-                              };
+                      {/* Optimization Goal with Split Button */}
+                      <SplittableSection
+                        dimension="optimization_goal"
+                        dimensionLabel="Optimization Goal"
+                        currentSplitDimension={phase.adSetSplitDimension}
+                        onSplitClick={(dim) => {
+                          const newDimension = dim === 'none' ? undefined : dim;
+                          const newAdSets = newDimension ? createInitialAdSets(dim, phase.name, {
+                            platformId: platformId || 'meta',
+                            availableOptimizationGoals: getOptimizationGoalsForPhase(phase.objective || "").map(g => ({ value: g.value, label: g.label })),
+                            currentOptimizationGoal: phase.optimizationGoal,
+                            currentGender: phase.targeting?.genders?.[0] || basicTargeting?.genders?.[0],
+                            currentAgeMin: phase.targeting?.ageMin ?? basicTargeting?.ageMin,
+                            currentAgeMax: phase.targeting?.ageMax ?? basicTargeting?.ageMax,
+                            currentDevices: phase.targeting?.devices || basicTargeting?.devices,
+                            currentLanguages: phase.targeting?.languages || basicTargeting?.languages,
+                          }) : undefined;
+                          updatePhaseFields(phase.id, { 
+                            adSetSplitDimension: newDimension,
+                            adSets: newAdSets,
+                          });
+                        }}
+                        disabled={!phase.objective}
+                      >
+                        <div className="space-y-2">
+                          <Label htmlFor={`optimization-${phase.id}`}>Optimization Goal</Label>
+                          <Select
+                            value={phase.optimizationGoal || ""}
+                            onValueChange={(value) => {
+                              const isMeta = !platformName.toLowerCase().includes('tiktok');
                               
-                              // Auto-populate related fields based on destination
-                              if (requiredDestination === 'APP') {
-                                if (!phase.metaAppStore && adAccountDefaults.metaAppStore) {
-                                  updates.metaAppStore = adAccountDefaults.metaAppStore;
+                              // Check if this optimization goal requires a specific destination
+                              const requiredDestination = isMeta ? getDestinationForOptimizationGoal(value) : null;
+                              
+                              if (requiredDestination && adAccountDefaults) {
+                                // Auto-set the destination and populate related defaults
+                                const updates: Partial<Phase> = { 
+                                  optimizationGoal: value,
+                                  metaOptimizationLocation: requiredDestination 
+                                };
+                                
+                                // Auto-populate related fields based on destination
+                                if (requiredDestination === 'APP') {
+                                  if (!phase.metaAppStore && adAccountDefaults.metaAppStore) {
+                                    updates.metaAppStore = adAccountDefaults.metaAppStore;
+                                  }
+                                  if (!phase.metaAppId && adAccountDefaults.metaAppId) {
+                                    updates.metaAppId = adAccountDefaults.metaAppId;
+                                  }
+                                } else if (requiredDestination === 'MESSAGING_APPS') {
+                                  if (phase.metaMessagingMode === undefined && adAccountDefaults.metaMessagingMode) {
+                                    updates.metaMessagingMode = adAccountDefaults.metaMessagingMode;
+                                  }
+                                  if (phase.metaMessengerEnabled === undefined) {
+                                    updates.metaMessengerEnabled = adAccountDefaults.metaMessengerEnabled;
+                                  }
+                                  if (phase.metaInstagramDmEnabled === undefined) {
+                                    updates.metaInstagramDmEnabled = adAccountDefaults.metaInstagramDmEnabled;
+                                  }
+                                  if (phase.metaWhatsappEnabled === undefined) {
+                                    updates.metaWhatsappEnabled = adAccountDefaults.metaWhatsappEnabled;
+                                  }
+                                  if (!phase.metaWhatsappNumber && adAccountDefaults.metaWhatsappNumber) {
+                                    updates.metaWhatsappNumber = adAccountDefaults.metaWhatsappNumber;
+                                  }
+                                  if (!phase.metaPageId && adAccountDefaults.metaPageId) {
+                                    updates.metaPageId = adAccountDefaults.metaPageId;
+                                  }
+                                  if (!phase.metaInstagramAccountId && adAccountDefaults.metaInstagramAccountId) {
+                                    updates.metaInstagramAccountId = adAccountDefaults.metaInstagramAccountId;
+                                  }
+                                } else if (requiredDestination === 'WEBSITE') {
+                                  if (!phase.metaLandingPageUrl && adAccountDefaults.metaLandingPageUrl) {
+                                    updates.metaLandingPageUrl = adAccountDefaults.metaLandingPageUrl;
+                                  }
+                                } else if (requiredDestination === 'CALLS') {
+                                  if (!phase.metaPageId && adAccountDefaults.metaPageId) {
+                                    updates.metaPageId = adAccountDefaults.metaPageId;
+                                  }
                                 }
-                                if (!phase.metaAppId && adAccountDefaults.metaAppId) {
-                                  updates.metaAppId = adAccountDefaults.metaAppId;
-                                }
-                              } else if (requiredDestination === 'MESSAGING_APPS') {
-                                if (phase.metaMessagingMode === undefined && adAccountDefaults.metaMessagingMode) {
-                                  updates.metaMessagingMode = adAccountDefaults.metaMessagingMode;
-                                }
-                                if (phase.metaMessengerEnabled === undefined) {
-                                  updates.metaMessengerEnabled = adAccountDefaults.metaMessengerEnabled;
-                                }
-                                if (phase.metaInstagramDmEnabled === undefined) {
-                                  updates.metaInstagramDmEnabled = adAccountDefaults.metaInstagramDmEnabled;
-                                }
-                                if (phase.metaWhatsappEnabled === undefined) {
-                                  updates.metaWhatsappEnabled = adAccountDefaults.metaWhatsappEnabled;
-                                }
-                                if (!phase.metaWhatsappNumber && adAccountDefaults.metaWhatsappNumber) {
-                                  updates.metaWhatsappNumber = adAccountDefaults.metaWhatsappNumber;
-                                }
-                                if (!phase.metaPageId && adAccountDefaults.metaPageId) {
-                                  updates.metaPageId = adAccountDefaults.metaPageId;
-                                }
-                                if (!phase.metaInstagramAccountId && adAccountDefaults.metaInstagramAccountId) {
-                                  updates.metaInstagramAccountId = adAccountDefaults.metaInstagramAccountId;
-                                }
-                              } else if (requiredDestination === 'WEBSITE') {
-                                if (!phase.metaLandingPageUrl && adAccountDefaults.metaLandingPageUrl) {
-                                  updates.metaLandingPageUrl = adAccountDefaults.metaLandingPageUrl;
-                                }
-                              } else if (requiredDestination === 'CALLS') {
-                                if (!phase.metaPageId && adAccountDefaults.metaPageId) {
-                                  updates.metaPageId = adAccountDefaults.metaPageId;
-                                }
+                                
+                                updatePhaseFields(phase.id, updates);
+                              } else {
+                                // No destination required, just update the goal
+                                updatePhaseField(phase.id, "optimizationGoal", value);
                               }
-                              
-                              updatePhaseFields(phase.id, updates);
-                            } else {
-                              // No destination required, just update the goal
-                              updatePhaseField(phase.id, "optimizationGoal", value);
-                            }
-                          }}
-                          disabled={!phase.objective}
-                        >
-                          <SelectTrigger id={`optimization-${phase.id}`} className={!phase.objective ? 'opacity-50' : ''}>
-                            <SelectValue placeholder={phase.objective ? "Select optimization goal" : "Select objective first"} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {getOptimizationGoalsForPhase(phase.objective || "").map((goal) => (
-                              <SelectItem key={goal.value} value={goal.value}>
-                                {goal.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                            }}
+                            disabled={!phase.objective}
+                          >
+                            <SelectTrigger id={`optimization-${phase.id}`} className={!phase.objective ? 'opacity-50' : ''}>
+                              <SelectValue placeholder={phase.objective ? "Select optimization goal" : "Select objective first"} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {getOptimizationGoalsForPhase(phase.objective || "").map((goal) => (
+                                <SelectItem key={goal.value} value={goal.value}>
+                                  {goal.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </SplittableSection>
 
                       {/* Destination Configuration - Show only for Meta (TikTok handles this in TiktokPhaseConfig) */}
                       {(() => {
@@ -2316,6 +2340,7 @@ export function PhaseScheduler({
                         onSplitClick={(dim) => {
                           const newDimension = dim === 'none' ? undefined : dim;
                           const newAdSets = newDimension ? createInitialAdSets(dim, phase.name, {
+                            platformId: platformId || 'meta',
                             availablePlacements: getPlacementsForSelection(platformName, phase.assetTypes || []),
                             availableOptimizationGoals: getOptimizationGoalsForPhase(phase.objective || "").map(g => ({ value: g.value, label: g.label })),
                             currentGender: phase.targeting?.genders?.[0] || basicTargeting?.genders?.[0],
