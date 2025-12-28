@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { Loader2 } from "lucide-react";
 
 interface SubscriptionGuardProps {
@@ -12,6 +13,7 @@ export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
   const navigate = useNavigate();
   const { user, loading: authLoading, isEmailConfirmed } = useAuth();
   const { isSubscribed, loading: subLoading, error: subError } = useSubscription();
+  const { loading: workspaceLoading, activeWorkspaceId } = useWorkspace();
   
   // Track if user was ever subscribed in this session to prevent redirect during transient errors
   const wasSubscribedRef = useRef(false);
@@ -26,6 +28,9 @@ export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
   useEffect(() => {
     // Wait for auth to complete
     if (authLoading) return;
+    
+    // Wait for workspace to load - subscription check depends on activeWorkspaceId
+    if (workspaceLoading) return;
     
     // For subscription refreshes, don't disrupt if we already know the user is subscribed
     // or if they were subscribed before (prevents redirect during transient errors)
@@ -56,16 +61,17 @@ export function SubscriptionGuard({ children }: SubscriptionGuardProps) {
     // Only redirect to choose-plan if:
     // 1. Not currently subscribed AND
     // 2. Never was subscribed in this session (or explicitly confirmed unsubscribed) AND
-    // 3. No subscription error (errors should not trigger redirect)
-    if (!isSubscribed && !wasSubscribedRef.current && !subError && !subLoading) {
+    // 3. No subscription error (errors should not trigger redirect) AND
+    // 4. Workspace is loaded (so subscription check has correct context)
+    if (!isSubscribed && !wasSubscribedRef.current && !subError && !subLoading && activeWorkspaceId) {
       navigate("/choose-plan");
       return;
     }
-  }, [user, authLoading, isSubscribed, subLoading, subError, navigate, isEmailConfirmed]);
+  }, [user, authLoading, isSubscribed, subLoading, subError, navigate, isEmailConfirmed, workspaceLoading, activeWorkspaceId]);
 
-  // Show loading while checking auth and subscription (only when we *don't* already have
+  // Show loading while checking auth, workspace, and subscription (only when we *don't* already have
   // a subscribed user). This prevents UI unmounts on background token refreshes.
-  if (authLoading || (subLoading && !isSubscribed && !wasSubscribedRef.current)) {
+  if (authLoading || workspaceLoading || (subLoading && !isSubscribed && !wasSubscribedRef.current)) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
