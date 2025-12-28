@@ -110,9 +110,15 @@ export function UnifiedTargeting({
     }
   };
 
+  // Create a unique key for an item based on id, name, and category
+  const getItemKey = (item: UnifiedTargetingItem) => `${item.id}_${item.name}_${item.category}`;
+
+  const isItemSelected = (item: UnifiedTargetingItem) => {
+    return selectedItems.some(selected => getItemKey(selected) === getItemKey(item));
+  };
+
   const handleAddItem = (item: UnifiedTargetingItem) => {
-    const alreadySelected = selectedItems.some(i => i.id === item.id);
-    if (alreadySelected) {
+    if (isItemSelected(item)) {
       toast.info('Already selected');
       return;
     }
@@ -123,16 +129,12 @@ export function UnifiedTargeting({
       selectedItems: newSelectedItems
     };
     onUpdate(updated);
-    // Persist immediately to localStorage
     localStorage.setItem('basicTargeting', JSON.stringify(updated));
     toast.success(`Added: ${item.name}`);
   };
 
   const handleAddAll = () => {
-    // Filter out items that are already selected
-    const newItems = searchResults.filter(
-      result => !selectedItems.some(selected => selected.id === result.id)
-    );
+    const newItems = searchResults.filter(result => !isItemSelected(result));
     
     if (newItems.length === 0) {
       toast.info('All items already selected');
@@ -145,19 +147,18 @@ export function UnifiedTargeting({
       selectedItems: newSelectedItems
     };
     onUpdate(updated);
-    // Persist immediately to localStorage
     localStorage.setItem('basicTargeting', JSON.stringify(updated));
     toast.success(`Added ${newItems.length} targeting options`);
   };
 
-  const handleRemoveItem = (itemId: string) => {
-    const newSelectedItems = selectedItems.filter(i => i.id !== itemId);
+  const handleRemoveItem = (item: UnifiedTargetingItem) => {
+    const itemKey = getItemKey(item);
+    const newSelectedItems = selectedItems.filter(i => getItemKey(i) !== itemKey);
     const updated = {
       ...targeting,
       selectedItems: newSelectedItems
     };
     onUpdate(updated);
-    // Persist immediately to localStorage
     localStorage.setItem('basicTargeting', JSON.stringify(updated));
   };
 
@@ -307,11 +308,12 @@ export function UnifiedTargeting({
               </div>
               <ScrollArea className="h-[300px] rounded-md border p-4">
                 <div className="space-y-2">
-                  {searchResults.map((result) => {
-                    const isSelected = selectedItems.some(s => s.id === result.id);
+                  {searchResults.map((result, index) => {
+                    const isSelected = isItemSelected(result);
+                    const uniqueKey = `${getItemKey(result)}_${index}`;
                     return (
                       <div
-                        key={result.id}
+                        key={uniqueKey}
                         className={`flex items-start justify-between p-3 rounded-lg border hover:bg-accent cursor-pointer transition-colors ${isSelected ? 'bg-accent/50 opacity-60' : ''}`}
                         onClick={() => !isSelected && handleAddItem(result)}
                       >
@@ -351,9 +353,9 @@ export function UnifiedTargeting({
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {selectedItems.map((item) => (
+              {selectedItems.map((item, index) => (
                 <div
-                  key={item.id}
+                  key={`${getItemKey(item)}_${index}`}
                   className="flex items-center justify-between p-3 rounded-lg border bg-accent/50"
                 >
                   <div className="flex items-center gap-2">
@@ -364,7 +366,7 @@ export function UnifiedTargeting({
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => handleRemoveItem(item.id)}
+                    onClick={() => handleRemoveItem(item)}
                   >
                     <X className="h-4 w-4" />
                   </Button>
