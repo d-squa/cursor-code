@@ -173,6 +173,8 @@ export function PhaseScheduler({
   const [budgetTypeDialogOpen, setBudgetTypeDialogOpen] = useState(false);
   const [pendingBudgetType, setPendingBudgetType] = useState<"daily" | "lifetime" | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const splitManagerRefs = useRef<{ [phaseId: string]: HTMLDivElement | null }>({});
+  const [scrollToSplitPhaseId, setScrollToSplitPhaseId] = useState<string | null>(null);
 
   // Keep latest phases in a ref so multiple rapid updates (e.g. switching to Manual placements
   // which updates strategy + publishers + positions) don't clobber each other due to stale closures.
@@ -211,6 +213,21 @@ export function PhaseScheduler({
     const allComplete = Object.values(taxonomyValidation).length === 0 || Object.values(taxonomyValidation).every(v => v.campaign && v.adset);
     taxonomyValidationCallbackRef.current?.(allComplete, totalMissing);
   }, [taxonomyValidation]);
+  
+  // Auto-scroll to split manager when a split is activated
+  useEffect(() => {
+    if (scrollToSplitPhaseId) {
+      // Small delay to allow the DOM to render
+      const timer = setTimeout(() => {
+        const el = splitManagerRefs.current[scrollToSplitPhaseId];
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        setScrollToSplitPhaseId(null);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [scrollToSplitPhaseId]);
   
   // Helper to update taxonomy validation for a specific phase
   const handleTaxonomyValidation = useCallback((phaseId: string, entityType: 'campaign' | 'adset', isComplete: boolean, missingCount: number) => {
@@ -2370,6 +2387,10 @@ export function PhaseScheduler({
                             adSetSplitDimension: newDimension,
                             adSets: newAdSets,
                           });
+                          // Trigger scroll to split manager
+                          if (newDimension) {
+                            setScrollToSplitPhaseId(phase.id);
+                          }
                         }}
                       >
                         <div className="space-y-2">
@@ -2390,30 +2411,6 @@ export function PhaseScheduler({
                           />
                         </div>
                       </SplittableSection>
-
-                      {/* Ad Set Split Manager */}
-                      {phase.adSetSplitDimension && phase.adSetSplitDimension !== 'none' && phase.adSets && (
-                        <AdSetSplitManager
-                          dimension={phase.adSetSplitDimension}
-                          adSets={phase.adSets}
-                          platformName={platformName}
-                          platformId={platformId || 'meta'}
-                          phaseName={phase.name}
-                          onAdSetsChange={(adSets) => updatePhaseField(phase.id, "adSets", adSets)}
-                          onRemoveSplit={() => updatePhaseFields(phase.id, { 
-                            adSetSplitDimension: undefined,
-                            adSets: undefined,
-                          })}
-                          availablePlacements={getPlacementsForSelection(platformName, phase.assetTypes || [])}
-                          availableOptimizationGoals={getOptimizationGoalsForPhase(phase.objective || "").map(g => ({ value: g.value, label: g.label }))}
-                          availableAudiences={phase.audiences?.map(a => ({ id: a.id, name: a.name, type: a.type })) || []}
-                          currentGender={phase.targeting?.genders?.[0] || basicTargeting?.genders?.[0]}
-                          currentAgeMin={phase.targeting?.ageMin ?? basicTargeting?.ageMin}
-                          currentAgeMax={phase.targeting?.ageMax ?? basicTargeting?.ageMax}
-                          currentDevices={phase.targeting?.devices || basicTargeting?.devices}
-                          currentLanguages={phase.targeting?.languages || basicTargeting?.languages}
-                        />
-                      )}
 
                       {/* TikTok Advanced Settings - Platform-specific */}
                       {platformId?.toLowerCase() === 'tiktok' && (
@@ -2437,6 +2434,35 @@ export function PhaseScheduler({
                             updatePhaseField(phase.id, field as keyof Phase, value);
                           }}
                         />
+                      )}
+
+                      {/* Ad Set Split Manager - shown at bottom of phase */}
+                      {phase.adSetSplitDimension && phase.adSetSplitDimension !== 'none' && phase.adSets && (
+                        <div 
+                          ref={(el) => { splitManagerRefs.current[phase.id] = el; }}
+                          className="mt-4"
+                        >
+                          <AdSetSplitManager
+                            dimension={phase.adSetSplitDimension}
+                            adSets={phase.adSets}
+                            platformName={platformName}
+                            platformId={platformId || 'meta'}
+                            phaseName={phase.name}
+                            onAdSetsChange={(adSets) => updatePhaseField(phase.id, "adSets", adSets)}
+                            onRemoveSplit={() => updatePhaseFields(phase.id, { 
+                              adSetSplitDimension: undefined,
+                              adSets: undefined,
+                            })}
+                            availablePlacements={getPlacementsForSelection(platformName, phase.assetTypes || [])}
+                            availableOptimizationGoals={getOptimizationGoalsForPhase(phase.objective || "").map(g => ({ value: g.value, label: g.label }))}
+                            availableAudiences={phase.audiences?.map(a => ({ id: a.id, name: a.name, type: a.type })) || []}
+                            currentGender={phase.targeting?.genders?.[0] || basicTargeting?.genders?.[0]}
+                            currentAgeMin={phase.targeting?.ageMin ?? basicTargeting?.ageMin}
+                            currentAgeMax={phase.targeting?.ageMax ?? basicTargeting?.ageMax}
+                            currentDevices={phase.targeting?.devices || basicTargeting?.devices}
+                            currentLanguages={phase.targeting?.languages || basicTargeting?.languages}
+                          />
+                        </div>
                       )}
 
                     </div>
