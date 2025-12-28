@@ -554,9 +554,21 @@ export function MediaPlanEditor() {
     }
   }, [genericConfig.phases, genericConfig.strategy]);
 
-  // Render-time auto-detect for Step 3 (Strategy Configuration)
+  // Auto-generate phases for markets using auto-detect strategy
+  // Runs regardless of step to ensure phases are populated when markets are first loaded
   useEffect(() => {
-    if (currentStep !== 3) return;
+    // Don't run if no dates set
+    if (!startDate || !endDate) return;
+    
+    // Check if any auto-detect market needs phases
+    const needsUpdate = platformsWithMarkets.some(platform => 
+      platform.markets.some(market => {
+        const strategy = market.strategy || genericConfig.strategy || "auto-detect";
+        return strategy === "auto-detect" && (!market.phases || market.phases.length === 0);
+      })
+    );
+    
+    if (!needsUpdate) return;
 
     // 1) Set global strategy focus when in auto-detect
     if (genericConfig.strategy === "auto-detect") {
@@ -575,7 +587,7 @@ export function MediaPlanEditor() {
     const updated = platformsWithMarkets.map(platform => ({
       ...platform,
       markets: platform.markets.map(market => {
-        const strategy = market.strategy || genericConfig.strategy;
+        const strategy = market.strategy || genericConfig.strategy || "auto-detect";
         if (strategy !== "auto-detect") return market;
 
         const marketAdFormats = (market as any).adFormats || [];
@@ -592,6 +604,7 @@ export function MediaPlanEditor() {
         changed = true;
         return {
           ...market,
+          strategy: "auto-detect", // Explicitly set the strategy
           strategyFocus: detected,
           phases: needsPhases ? (generateAutoDetectPhases(adFormats, hasPixel, hasCatalog, startDate, endDate, platform.id) || []) : market.phases,
         };
@@ -599,7 +612,7 @@ export function MediaPlanEditor() {
     }));
 
     if (changed) setPlatformsWithMarkets(updated);
-  }, [currentStep, platformsWithMarkets, genericConfig.strategy, genericConfig.strategyFocus, genericConfig.targeting?.adFormats, startDate, endDate]);
+  }, [platformsWithMarkets, genericConfig.strategy, genericConfig.strategyFocus, genericConfig.targeting?.adFormats, startDate, endDate]);
 
   // Reverse sync: when market phases change in Step 1, update genericConfig.phases for Step 3
   // Only sync from the first market that uses global strategy
