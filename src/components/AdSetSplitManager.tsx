@@ -22,6 +22,7 @@ interface AdSetSplitManagerProps {
   phaseName: string;
   onAdSetsChange: (adSets: AdSetConfig[]) => void;
   onRemoveSplit: () => void;
+  useCBO?: boolean; // Campaign Budget Optimization mode
   // Available options based on context
   availablePlacements?: string[];
   availableAudiences?: Array<{ id: string; name: string; type: string }>;
@@ -214,6 +215,7 @@ export function AdSetSplitManager({
   phaseName,
   onAdSetsChange,
   onRemoveSplit,
+  useCBO = false,
   availablePlacements = [],
   availableAudiences = [],
   availableOptimizationGoals = [],
@@ -629,6 +631,9 @@ export function AdSetSplitManager({
           <div className="flex items-center gap-2">
             <Split className="h-4 w-4 text-primary" />
             <CardTitle className="text-sm">Ad Set Split by {DIMENSION_LABELS[dimension]}</CardTitle>
+            <Badge variant={useCBO ? "secondary" : "outline"} className="text-xs">
+              {useCBO ? "CBO" : "ABO"}
+            </Badge>
           </div>
           <Button
             type="button"
@@ -642,7 +647,9 @@ export function AdSetSplitManager({
           </Button>
         </div>
         <CardDescription className="text-xs">
-          Create multiple ad sets targeting different {DIMENSION_LABELS[dimension].toLowerCase()} values
+          {useCBO 
+            ? "Campaign Budget Optimization: Platform automatically distributes budget across ad sets"
+            : "Ad Set Budget Optimization: You control budget distribution per ad set"}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -654,13 +661,15 @@ export function AdSetSplitManager({
           </AlertDescription>
         </Alert>
 
-        {/* Budget summary */}
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">Total budget allocation:</span>
-          <Badge variant={totalBudget === 100 ? "default" : "destructive"}>
-            {totalBudget}%
-          </Badge>
-        </div>
+        {/* Budget summary - only show for ABO */}
+        {!useCBO && (
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">Total budget allocation:</span>
+            <Badge variant={totalBudget === 100 ? "default" : "destructive"}>
+              {totalBudget}%
+            </Badge>
+          </div>
+        )}
 
         {/* Ad Sets list */}
         <div className="space-y-3">
@@ -671,7 +680,7 @@ export function AdSetSplitManager({
             >
               <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab" />
               
-              <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className={`flex-1 grid grid-cols-1 gap-3 ${useCBO ? 'md:grid-cols-2' : 'md:grid-cols-3'}`}>
                 {/* Ad Set Name - Auto-generated with taxonomy */}
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Name (auto-generated)</Label>
@@ -689,20 +698,22 @@ export function AdSetSplitManager({
                   {renderDimensionInput(adSet)}
                 </div>
 
-                {/* Budget Percentage */}
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Budget %</Label>
-                  <div className="flex items-center gap-2">
-                    <Slider
-                      value={[adSet.budgetPercentage]}
-                      onValueChange={([value]) => updateAdSet(adSet.id, { budgetPercentage: value })}
-                      max={100}
-                      step={1}
-                      className="flex-1"
-                    />
-                    <span className="w-12 text-sm text-right">{adSet.budgetPercentage}%</span>
+                {/* Budget Percentage - only show for ABO */}
+                {!useCBO && (
+                  <div className="space-y-1">
+                    <Label className="text-xs text-muted-foreground">Budget %</Label>
+                    <div className="flex items-center gap-2">
+                      <Slider
+                        value={[adSet.budgetPercentage]}
+                        onValueChange={([value]) => updateAdSet(adSet.id, { budgetPercentage: value })}
+                        max={100}
+                        step={1}
+                        className="flex-1"
+                      />
+                      <span className="w-12 text-sm text-right">{adSet.budgetPercentage}%</span>
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
               <Button
@@ -731,7 +742,7 @@ export function AdSetSplitManager({
           Add Ad Set
         </Button>
 
-        {totalBudget !== 100 && (
+        {!useCBO && totalBudget !== 100 && (
           <p className="text-xs text-destructive">
             Budget allocation must equal 100%. Current: {totalBudget}%
           </p>

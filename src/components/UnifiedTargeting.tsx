@@ -47,7 +47,7 @@ interface UnifiedTargetingProps {
   tiktokAdvertiserId?: string;
   // Split functionality props
   currentSplitDimension?: AdSetSplitDimension;
-  onSplitDimensionChange?: (dimension: AdSetSplitDimension) => void;
+  onSplitDimensionChange?: (dimension: AdSetSplitDimension, useCBO?: boolean) => void;
 }
 
 export function UnifiedTargeting({ 
@@ -184,7 +184,7 @@ export function UnifiedTargeting({
               dimension="age"
               dimensionLabel="Age"
               currentSplitDimension={currentSplitDimension}
-              onSplitClick={(dim) => onSplitDimensionChange?.(dim)}
+              onSplitClick={(dim, useCBO) => onSplitDimensionChange?.(dim, useCBO)}
             >
               <div className="space-y-2">
                 <Label>Age Range</Label>
@@ -214,7 +214,7 @@ export function UnifiedTargeting({
               dimension="gender"
               dimensionLabel="Gender"
               currentSplitDimension={currentSplitDimension}
-              onSplitClick={(dim) => onSplitDimensionChange?.(dim)}
+              onSplitClick={(dim, useCBO) => onSplitDimensionChange?.(dim, useCBO)}
             >
               <div className="space-y-2">
                 <Label>Gender</Label>
@@ -242,7 +242,7 @@ export function UnifiedTargeting({
               dimension="device"
               dimensionLabel="Device"
               currentSplitDimension={currentSplitDimension}
-              onSplitClick={(dim) => onSplitDimensionChange?.(dim)}
+              onSplitClick={(dim, useCBO) => onSplitDimensionChange?.(dim, useCBO)}
             >
               <div className="space-y-2">
                 <Label>Devices</Label>
@@ -259,7 +259,7 @@ export function UnifiedTargeting({
               dimension="language"
               dimensionLabel="Language"
               currentSplitDimension={currentSplitDimension}
-              onSplitClick={(dim) => onSplitDimensionChange?.(dim)}
+              onSplitClick={(dim, useCBO) => onSplitDimensionChange?.(dim, useCBO)}
             >
               <div className="space-y-2">
                 <Label>Languages</Label>
