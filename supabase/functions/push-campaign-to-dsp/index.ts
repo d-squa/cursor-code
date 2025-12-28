@@ -2743,10 +2743,15 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           // CONVERSIONS objective always uses CONVERT optimization goal
           tiktokOptGoal = "CONVERT";
         } else if (mappedObjective === "TRAFFIC") {
-          // TRAFFIC objective uses CLICK or LANDING_PAGE_VIEW
+          // TRAFFIC objective uses CLICK or TRAFFIC_LANDING_PAGE_VIEW (TikTok enum)
           const phaseOptGoal = (phase.optimizationGoal || "").toUpperCase();
-          if (phaseOptGoal === "LANDING_PAGE_VIEWS" || phaseOptGoal === "LANDING_PAGE_VIEW" || phaseOptGoal === "LANDING_PAGE") {
-            tiktokOptGoal = "LANDING_PAGE_VIEW";
+          if (
+            phaseOptGoal === "TRAFFIC_LANDING_PAGE_VIEW" ||
+            phaseOptGoal === "LANDING_PAGE_VIEWS" ||
+            phaseOptGoal === "LANDING_PAGE_VIEW" ||
+            phaseOptGoal === "LANDING_PAGE"
+          ) {
+            tiktokOptGoal = "TRAFFIC_LANDING_PAGE_VIEW";
           } else {
             tiktokOptGoal = "CLICK";
           }
@@ -2768,7 +2773,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
         const billingEventMap: Record<string, Record<string, string>> = {
           "TRAFFIC": {
             "CLICK": "CPC",  // TRAFFIC supports CPC
-            "LANDING_PAGE_VIEW": "CPC",
+            "TRAFFIC_LANDING_PAGE_VIEW": "CPC",
             "LANDING_PAGE": "CPC", // legacy alias
           },
           "CONVERSIONS": {
