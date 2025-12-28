@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Info } from "lucide-react";
 import { Phase } from "@/types/mediaplan";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { 
   getValidTikTokLocations, 
   objectiveRequiresLocation,
@@ -46,6 +46,9 @@ export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: Tiktok
   const canInheritDefaults = hasAccess('bid_strategy_defaults');
   const selectPlaceholder = canInheritDefaults ? "Inherit from defaults" : "Select...";
   
+  // Track if defaults have been applied to prevent infinite loops
+  const defaultsAppliedRef = useRef(false);
+  
   const [eventCountOptions] = useState<Array<{ value: string; label: string }>>([
     { value: "every_conversion", label: "Every Conversion" },
     { value: "once", label: "Once" }
@@ -58,6 +61,11 @@ export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: Tiktok
   useEffect(() => {
     setFrequencyCapInput(phase.tiktokFrequencySchedule?.toString() ?? "");
   }, [phase.tiktokFrequencySchedule]);
+  
+  // Reset defaults tracking when phase ID changes (new phase)
+  useEffect(() => {
+    defaultsAppliedRef.current = false;
+  }, [phase.id]);
 
   // Get objective and optimization goal
   const objective = phase.objective || "";
@@ -74,7 +82,11 @@ export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: Tiktok
   }, [objective, validLocations]);
 
   // Auto-populate from defaults when fields are empty, respecting location validity - only for enterprise+ users
+  // This effect runs only ONCE per phase to prevent infinite loops
   useEffect(() => {
+    // Skip if defaults already applied for this phase
+    if (defaultsAppliedRef.current) return;
+    
     console.log("🔍 TiktokPhaseConfig defaults check:", {
       hasDefaults: !!adAccountDefaults,
       canInheritDefaults,
@@ -94,8 +106,12 @@ export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: Tiktok
     // Skip auto-population for non-enterprise users
     if (!canInheritDefaults) {
       console.log("⚠️ TiktokPhaseConfig: User doesn't have access to inherit defaults");
+      defaultsAppliedRef.current = true; // Mark as done even if we skip
       return;
     }
+    
+    // Mark defaults as applied BEFORE making updates to prevent re-runs
+    defaultsAppliedRef.current = true;
     
     // Only auto-populate optimization location if:
     // 1. Field is not already set
