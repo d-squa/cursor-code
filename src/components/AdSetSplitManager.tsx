@@ -41,6 +41,7 @@ const DIMENSION_LABELS: Record<AdSetSplitDimension, string> = {
   placement: "Placement",
   optimization_goal: "Optimization Goal",
   audience: "Audience",
+  audience_selection: "Audience Selection",
   language: "Language",
   location: "Location",
   gender: "Gender",
@@ -54,6 +55,7 @@ const DIMENSION_TAXONOMY: Record<AdSetSplitDimension, string> = {
   placement: "PLMT",
   optimization_goal: "OPT",
   audience: "AUD",
+  audience_selection: "AUDSEL",
   language: "LANG",
   location: "GEO",
   gender: "GEN",
@@ -195,6 +197,14 @@ function generateAdSetName(
         const audOpt = options.availableAudiences?.find(a => a.id === dimensionValue);
         valueSuffix = audOpt?.type.toUpperCase().slice(0, 3) || "CUS";
       }
+      break;
+    case "audience_selection":
+      // Map audience selection types to taxonomy abbreviations
+      if (dimensionValue === "custom") valueSuffix = "CUS";
+      else if (dimensionValue === "lookalike") valueSuffix = "LAL";
+      else if (dimensionValue === "retargeting") valueSuffix = "RET";
+      else if (dimensionValue === "broad") valueSuffix = "BRD";
+      else valueSuffix = String(dimensionValue).toUpperCase().slice(0, 3);
       break;
     case "age":
       const ageVal = dimensionValue as { min: number; max: number };
@@ -617,6 +627,34 @@ export function AdSetSplitManager({
               })}
             />
           </div>
+        );
+
+      case "audience_selection":
+        // Audience selection split options: Custom, Lookalike, Retargeting, Broad
+        const AUDIENCE_SELECTION_OPTIONS = [
+          { value: "custom", label: "Custom Audiences" },
+          { value: "lookalike", label: "Lookalike Audiences" },
+          { value: "retargeting", label: "Retargeting Audiences" },
+          { value: "broad", label: "Broad Targeting" },
+        ];
+        return (
+          <Select
+            value={adSet.dimensionValue as string}
+            onValueChange={(value) => updateAdSet(adSet.id, { 
+              dimensionValue: value,
+            })}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select audience type" />
+            </SelectTrigger>
+            <SelectContent>
+              {AUDIENCE_SELECTION_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         );
 
       default:

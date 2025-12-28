@@ -140,6 +140,7 @@ export type AdSetSplitDimension =
   | 'placement'
   | 'optimization_goal'
   | 'audience'
+  | 'audience_selection'
   | 'language'
   | 'location'
   | 'gender'
