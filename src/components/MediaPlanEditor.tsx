@@ -2061,7 +2061,9 @@ export function MediaPlanEditor() {
                         platformId={singlePlatform?.id || "meta"}
                         adAccountId={singleMarket.adAccountId}
                         basicTargeting={basicTargeting}
-                                  adAccountDefaults={{
+                        strategy={singleMarket.strategy || genericConfig.strategy}
+                        strategyFocus={singleMarket.strategyFocus || genericConfig.strategyFocus}
+                        adAccountDefaults={{
                                     hasDefaults: true,
                                     publisherPlatforms: singleMarket.metaPublisherPlatforms || singleMarket.publisherPlatforms,
                                     positions: singleMarket.metaPositions || singleMarket.positions,
