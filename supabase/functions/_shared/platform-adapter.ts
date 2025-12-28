@@ -487,18 +487,22 @@ class TikTokAdapter implements PlatformAdapter {
       const objectivesRequiringManualPlacement = ['VIDEO_VIEW', 'VIDEO_VIEWS', '6S_VIDEO_VIEW', '15S_VIDEO_VIEW', 'FOCUSED_VIEW'];
       // REACH objective requires manual placement AND only supports PLACEMENT_TIKTOK
       const reachObjectives = ['REACH'];
+      // LEAD_GENERATION objectives require manual placement with PLACEMENT_TIKTOK only
+      const leadGenObjectives = ['LEAD_GENERATION', 'LEADS', 'CONVERSION_LEADS', 'PREFERRED_LEAD'];
       const isReachObjective = reachObjectives.includes(finalOptimizationGoal.toUpperCase()) ||
                                 reachObjectives.includes(params.optimizationGoal?.toUpperCase() || '');
+      const isLeadGenObjective = leadGenObjectives.includes(finalOptimizationGoal.toUpperCase()) ||
+                                  leadGenObjectives.includes(params.optimizationGoal?.toUpperCase() || '');
       const requiresManualPlacement = objectivesRequiringManualPlacement.includes(finalOptimizationGoal.toUpperCase()) ||
                                        objectivesRequiringManualPlacement.includes(params.optimizationGoal?.toUpperCase() || '') ||
-                                       isReachObjective;
+                                       isReachObjective || isLeadGenObjective;
       
       let finalPlacementType = params.placementType || "PLACEMENT_TYPE_AUTOMATIC";
       let finalPlacements = params.placements;
       
-      if (isReachObjective) {
-        // REACH objective only supports TikTok placement - PANGLE and GLOBAL_APP_BUNDLE are not accessible
-        console.warn(`⚠️ REACH objective - forcing PLACEMENT_TYPE_NORMAL with PLACEMENT_TIKTOK only`);
+      if (isReachObjective || isLeadGenObjective) {
+        // REACH and LEAD_GENERATION objectives only support TikTok placement
+        console.warn(`⚠️ ${isReachObjective ? 'REACH' : 'LEAD_GENERATION'} objective - forcing PLACEMENT_TYPE_NORMAL with PLACEMENT_TIKTOK only`);
         finalPlacementType = "PLACEMENT_TYPE_NORMAL";
         finalPlacements = ["PLACEMENT_TIKTOK"];
       } else if (requiresManualPlacement) {
