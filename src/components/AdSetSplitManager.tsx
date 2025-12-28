@@ -696,9 +696,16 @@ export function AdSetSplitManager({
         // Filter available audiences based on selected type
         const selectedType = adSet.dimensionValue as string;
         const filteredAudiences = availableAudiences.filter(a => {
-          if (selectedType === "custom") return a.type === "custom" || a.type === "custom_audience";
-          if (selectedType === "lookalike") return a.type === "lookalike" || a.type === "lookalike_audience";
-          if (selectedType === "retargeting") return a.type === "retargeting" || a.type === "website_custom_audience";
+          const typeLower = a.type?.toLowerCase() || '';
+          if (selectedType === "custom") {
+            return typeLower === "custom" || typeLower === "custom_audience" || typeLower === "custom audience";
+          }
+          if (selectedType === "lookalike") {
+            return typeLower === "lookalike" || typeLower === "lookalike_audience" || typeLower === "lookalike audience";
+          }
+          if (selectedType === "retargeting") {
+            return typeLower === "retargeting" || typeLower === "website_custom_audience" || typeLower === "website" || typeLower.includes("retarget");
+          }
           return false; // "broad" doesn't have specific audiences
         });
         
