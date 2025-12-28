@@ -1737,10 +1737,19 @@ export function PhaseScheduler({
                       {/* Audience Selection - hidden when broad targeting is active */}
                       {(() => {
                         const audienceStrategy = getAudienceStrategyConfig(platformName, phase.objective, phase.optimizationGoal);
-                        // Only show if at least one audience type is visible
-                        const hasVisibleAudiences = audienceStrategy.showRetargetingAudiences || audienceStrategy.showLookalikeAudiences;
+                        // For Custom strategy focus, always show all audience types
+                        const isCustomStrategy = strategyFocus === "custom";
+                        // Only show if at least one audience type is visible OR if using custom strategy
+                        const hasVisibleAudiences = isCustomStrategy || audienceStrategy.showRetargetingAudiences || audienceStrategy.showLookalikeAudiences;
                         
                         if (!adAccountId || phase.useBroadTargeting || !hasVisibleAudiences) return null;
+                        
+                        // Override audience strategy for custom - show all audience types
+                        const effectiveStrategy = isCustomStrategy ? {
+                          ...audienceStrategy,
+                          showRetargetingAudiences: true,
+                          showLookalikeAudiences: true,
+                        } : audienceStrategy;
                         
                         return (
                           <SplittableSection
@@ -1789,8 +1798,8 @@ export function PhaseScheduler({
                                 platform={platformName}
                                 basicTargeting={undefined}
                                 overrideTargeting={phase.overrideTargeting}
-                                showRetargetingAudiences={audienceStrategy.showRetargetingAudiences}
-                                showLookalikeAudiences={audienceStrategy.showLookalikeAudiences}
+                                showRetargetingAudiences={effectiveStrategy.showRetargetingAudiences}
+                                showLookalikeAudiences={effectiveStrategy.showLookalikeAudiences}
                                 autoExcludeEnabled={phase.autoExcludeAudiences || false}
                                 onAutoExcludeChange={(enabled) => {
                                   updatePhaseField(phase.id, "autoExcludeAudiences", enabled);
