@@ -435,7 +435,12 @@ export function PhaseScheduler({
           
           // Auto-populate related fields based on the set destination
           const setDest = updatedPhase.metaOptimizationLocation;
-          if (setDest === 'APP') {
+          if (setDest === 'WEBSITE') {
+            if (!phase.metaLandingPageUrl && adAccountDefaults.metaLandingPageUrl) {
+              hasUpdates = true;
+              updatedPhase.metaLandingPageUrl = adAccountDefaults.metaLandingPageUrl;
+            }
+          } else if (setDest === 'APP') {
             updatedPhase.metaAppStore = phase.metaAppStore || adAccountDefaults.metaAppStore;
             updatedPhase.metaAppId = phase.metaAppId || adAccountDefaults.metaAppId;
           } else if (setDest === 'MESSAGING_APPS') {
@@ -448,8 +453,8 @@ export function PhaseScheduler({
             updatedPhase.metaInstagramAccountId = phase.metaInstagramAccountId || adAccountDefaults.metaInstagramAccountId;
           }
         }
-        // Always populate landing page URL if missing
-        if (!phase.metaLandingPageUrl && adAccountDefaults.metaLandingPageUrl) {
+        // Always populate landing page URL if missing (fallback for when WEBSITE destination isn't explicitly set)
+        if (!updatedPhase.metaLandingPageUrl && !phase.metaLandingPageUrl && adAccountDefaults.metaLandingPageUrl) {
           hasUpdates = true;
           updatedPhase.metaLandingPageUrl = adAccountDefaults.metaLandingPageUrl;
         }
