@@ -316,84 +316,110 @@ export function PhaseScheduler({
 
   // Initialize default phases if empty
   useEffect(() => {
-    if (phases.length === 0 && startDate && endDate) {
-  const campaignStart = parseISO(startDate);
-  const campaignEnd = parseISO(endDate);
-  const totalDays = differenceInDays(campaignEnd, campaignStart);
+    if (phases.length !== 0) return;
+    if (!startDate || !endDate) return;
 
-  const defaultPublisherConfig = getDefaultPublisherConfig();
-      
-      if (totalDays > 0) {
-        // For manual strategy, start with one empty phase
-        if (strategy === "manual") {
-          const manualPhase: Phase = {
-            id: `phase-${Date.now()}`,
-            name: "Phase 1",
-            startDate: format(campaignStart, "yyyy-MM-dd"),
-            endDate: format(campaignEnd, "yyyy-MM-dd"),
-            budgetPercentage: 100,
-            assetTypes: [],
-            isLoyaltyPhase: false,
-            ...defaultPublisherConfig,
-          };
-          onPhasesChange([manualPhase]);
-        } else {
-          // Default phases for auto-detect and full-funnel
-          const defaultPhases: Phase[] = [
-            {
-              id: "phase-awareness",
-              name: "Awareness",
-              startDate: format(campaignStart, "yyyy-MM-dd"),
-              endDate: format(addDays(campaignStart, Math.floor(totalDays * 0.5)), "yyyy-MM-dd"),
-              budgetPercentage: 50,
-              assetTypes: [],
-              isLoyaltyPhase: false,
-              objective: strategyFocus ? getDefaultObjectiveForFocus(strategyFocus, "Awareness") : undefined,
-              optimizationGoal: strategyFocus ? getOptimizationGoalForFocus(strategyFocus as any, platformId || "meta") : undefined,
-              ...defaultPublisherConfig,
-            },
-            {
-              id: "phase-consideration",
-              name: "Consideration",
-              startDate: format(addDays(campaignStart, Math.floor(totalDays * 0.5)), "yyyy-MM-dd"),
-              endDate: format(addDays(campaignStart, Math.floor(totalDays * 0.8)), "yyyy-MM-dd"),
-              budgetPercentage: 30,
-              assetTypes: [],
-              isLoyaltyPhase: false,
-              objective: strategyFocus ? getDefaultObjectiveForFocus(strategyFocus, "Consideration") : undefined,
-              optimizationGoal: strategyFocus ? getOptimizationGoalForFocus(strategyFocus as any, platformId || "meta") : undefined,
-              ...defaultPublisherConfig,
-            },
-            {
-              id: "phase-conversion",
-              name: "Conversion",
-              startDate: format(addDays(campaignStart, Math.floor(totalDays * 0.8)), "yyyy-MM-dd"),
-              endDate: format(campaignEnd, "yyyy-MM-dd"),
-              budgetPercentage: 20,
-              assetTypes: [],
-              isLoyaltyPhase: false,
-              objective: strategyFocus ? getDefaultObjectiveForFocus(strategyFocus, "Conversion") : undefined,
-              optimizationGoal: strategyFocus ? getOptimizationGoalForFocus(strategyFocus as any, platformId || "meta") : undefined,
-              ...defaultPublisherConfig,
-            },
-            {
-              id: "phase-loyalty",
-              name: "Loyalty",
-              startDate: format(campaignStart, "yyyy-MM-dd"),
-              endDate: format(campaignEnd, "yyyy-MM-dd"),
-              budgetPercentage: 0,
-              assetTypes: [],
-              isLoyaltyPhase: true,
-              objective: "Conversions",
-              optimizationGoal: "Value",
-              ...defaultPublisherConfig,
-            },
-          ];
-          onPhasesChange(defaultPhases);
-        }
-      }
+    const campaignStart = parseISO(startDate);
+    const campaignEnd = parseISO(endDate);
+    const totalDays = differenceInDays(campaignEnd, campaignStart);
+
+    const defaultPublisherConfig = getDefaultPublisherConfig();
+
+    // IMPORTANT: keep objective + optimizationGoal values aligned with objectiveOptimizationMapping.ts
+    // so dependent fields (Optimization Location + Landing Page URL) can auto-populate.
+    const detected = detectPlatformType(platformName);
+    const platformKey =
+      detected ?? (platformName.toLowerCase().includes("tiktok") ? "tiktok" : "meta");
+
+    const goalForObjective = (objective?: string) => {
+      if (!objective) return undefined;
+      if (!platformKey) return undefined;
+      return getDefaultOptimizationGoal(platformKey, objective) || undefined;
+    };
+
+    if (totalDays <= 0) return;
+
+    // For manual strategy, start with one empty phase
+    if (strategy === "manual") {
+      const manualPhase: Phase = {
+        id: `phase-${Date.now()}`,
+        name: "Phase 1",
+        startDate: format(campaignStart, "yyyy-MM-dd"),
+        endDate: format(campaignEnd, "yyyy-MM-dd"),
+        budgetPercentage: 100,
+        assetTypes: [],
+        isLoyaltyPhase: false,
+        ...defaultPublisherConfig,
+      };
+      onPhasesChange([manualPhase]);
+      return;
     }
-  }, [startDate, endDate, strategy]);
+
+    // Default phases for auto-detect and full-funnel
+    const awarenessObjective = strategyFocus
+      ? getDefaultObjectiveForFocus(strategyFocus, "Awareness")
+      : undefined;
+    const considerationObjective = strategyFocus
+      ? getDefaultObjectiveForFocus(strategyFocus, "Consideration")
+      : undefined;
+    const conversionObjective = strategyFocus
+      ? getDefaultObjectiveForFocus(strategyFocus, "Conversion")
+      : undefined;
+
+    const defaultPhases: Phase[] = [
+      {
+        id: "phase-awareness",
+        name: "Awareness",
+        startDate: format(campaignStart, "yyyy-MM-dd"),
+        endDate: format(addDays(campaignStart, Math.floor(totalDays * 0.5)), "yyyy-MM-dd"),
+        budgetPercentage: 50,
+        assetTypes: [],
+        isLoyaltyPhase: false,
+        objective: awarenessObjective,
+        optimizationGoal: goalForObjective(awarenessObjective),
+        ...defaultPublisherConfig,
+      },
+      {
+        id: "phase-consideration",
+        name: "Consideration",
+        startDate: format(addDays(campaignStart, Math.floor(totalDays * 0.5)), "yyyy-MM-dd"),
+        endDate: format(addDays(campaignStart, Math.floor(totalDays * 0.8)), "yyyy-MM-dd"),
+        budgetPercentage: 30,
+        assetTypes: [],
+        isLoyaltyPhase: false,
+        objective: considerationObjective,
+        optimizationGoal: goalForObjective(considerationObjective),
+        ...defaultPublisherConfig,
+      },
+      {
+        id: "phase-conversion",
+        name: "Conversion",
+        startDate: format(addDays(campaignStart, Math.floor(totalDays * 0.8)), "yyyy-MM-dd"),
+        endDate: format(campaignEnd, "yyyy-MM-dd"),
+        budgetPercentage: 20,
+        assetTypes: [],
+        isLoyaltyPhase: false,
+        objective: conversionObjective,
+        optimizationGoal: goalForObjective(conversionObjective),
+        ...defaultPublisherConfig,
+      },
+      {
+        id: "phase-loyalty",
+        name: "Loyalty",
+        startDate: format(campaignStart, "yyyy-MM-dd"),
+        endDate: format(campaignEnd, "yyyy-MM-dd"),
+        budgetPercentage: 0,
+        assetTypes: [],
+        isLoyaltyPhase: true,
+        objective: platformKey === "tiktok" ? "CONVERSIONS" : "OUTCOME_SALES",
+        optimizationGoal: "VALUE",
+        ...defaultPublisherConfig,
+      },
+    ];
+
+    onPhasesChange(defaultPhases);
+  }, [startDate, endDate, strategy, strategyFocus, platformName, phases.length]);
+
 
   // Auto-populate destination fields from defaults when phases have objectives that require destinations
   // This handles the case where phases are auto-generated with objectives already set (e.g., auto-generate strategy)
@@ -593,16 +619,24 @@ export function PhaseScheduler({
   }, [adAccountDefaults, phases, platformName, onPhasesChange]);
 
   const getDefaultObjectiveForFocus = (focus: string, phaseName: string): string => {
-    if (focus === "conversions") {
-      return phaseName === "Awareness" ? "Brand Awareness" : phaseName === "Consideration" ? "Traffic" : "Conversions";
-    } else if (focus === "leads") {
-      return phaseName === "Awareness" ? "Brand Awareness" : phaseName === "Consideration" ? "Traffic" : "Lead Generation";
-    } else if (focus === "brand-awareness") {
-      return phaseName === "Conversion" ? "Conversions" : "Brand Awareness";
-    } else if (focus === "app-installs") {
-      return phaseName === "Awareness" ? "Brand Awareness" : "App Installs";
+    const isTikTok = platformName.toLowerCase().includes("tiktok");
+
+    // Strategy focus values in this app are typically: purchase | leads | app-installs | conversions | brand-awareness
+    if (isTikTok) {
+      if (focus === "brand-awareness") return "REACH";
+      if (focus === "app-installs") return "APP_PROMOTION";
+      if (focus === "leads") return phaseName === "Conversion" ? "LEAD_GENERATION" : "TRAFFIC";
+      // purchase + conversions default
+      return phaseName === "Awareness" ? "REACH" : phaseName === "Consideration" ? "TRAFFIC" : "CONVERSIONS";
     }
-    return "Conversions";
+
+    // Meta
+    if (focus === "brand-awareness") return "OUTCOME_AWARENESS";
+    if (focus === "app-installs") return phaseName === "Awareness" ? "OUTCOME_AWARENESS" : "OUTCOME_APP_PROMOTION";
+    if (focus === "leads") return phaseName === "Conversion" ? "OUTCOME_LEADS" : "OUTCOME_TRAFFIC";
+
+    // purchase + conversions default
+    return phaseName === "Awareness" ? "OUTCOME_AWARENESS" : phaseName === "Consideration" ? "OUTCOME_TRAFFIC" : "OUTCOME_SALES";
   };
 
   // Validate dates
@@ -2084,8 +2118,13 @@ export function PhaseScheduler({
                           return null;
                         }
                         
-                        // Hide for optimization goals that don't support optimization location
-                        if (phase.optimizationGoal && goalsWithoutOptimizationLocation.includes(phase.optimizationGoal)) {
+                        // Hide for optimization goals that don't support optimization location,
+                        // unless the selected goal explicitly requires a destination.
+                        if (
+                          phase.optimizationGoal &&
+                          goalsWithoutOptimizationLocation.includes(phase.optimizationGoal) &&
+                          !goalRequiredDestination
+                        ) {
                           return null;
                         }
                         
