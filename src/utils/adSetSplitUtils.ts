@@ -8,6 +8,7 @@ const DIMENSION_TAXONOMY: Record<AdSetSplitDimension, string> = {
   placement: "PLMT",
   optimization_goal: "OPT",
   audience: "AUD",
+  audience_selection: "AUDSEL",
   language: "LANG",
   location: "GEO",
   gender: "GEN",
@@ -94,6 +95,13 @@ function getTaxonomySuffix(
     case "audience":
       const audOpt = options?.availableAudiences?.find(a => a.id === value);
       return audOpt?.type.toUpperCase().slice(0, 3) || "CUS";
+    case "audience_selection":
+      // Map audience selection types to taxonomy abbreviations
+      if (value === "custom") return "CUS";
+      if (value === "lookalike") return "LAL";
+      if (value === "retargeting") return "RET";
+      if (value === "broad") return "BRD";
+      return String(value).toUpperCase().slice(0, 3);
     case "age":
       const ageVal = value as { min: number; max: number };
       return `${ageVal.min}-${ageVal.max}`;
@@ -190,6 +198,16 @@ export function getComplementaryValues(
         .slice(0, 2)
         .map(a => ({ value: a.id, label: a.name }));
 
+    case "audience_selection":
+      // Return complementary audience selection types
+      const allTypes = [
+        { value: "custom", label: "Custom Audiences" },
+        { value: "lookalike", label: "Lookalike Audiences" },
+        { value: "retargeting", label: "Retargeting Audiences" },
+        { value: "broad", label: "Broad Targeting" },
+      ];
+      return allTypes.filter(t => t.value !== currentValue);
+
     case "age":
       const currentAge = context.currentAgeMin && context.currentAgeMax 
         ? { min: context.currentAgeMin, max: context.currentAgeMax }
@@ -282,6 +300,11 @@ export function createInitialAdSets(
 
     case "audience":
       primaryValue = context.availableAudiences?.[0]?.id || "";
+      complementaryValues = getComplementaryValues(dimension, primaryValue as string, context);
+      break;
+
+    case "audience_selection":
+      primaryValue = "custom"; // Default to Custom Audiences
       complementaryValues = getComplementaryValues(dimension, primaryValue as string, context);
       break;
 

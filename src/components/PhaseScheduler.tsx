@@ -1743,32 +1743,63 @@ export function PhaseScheduler({
                         if (!adAccountId || phase.useBroadTargeting || !hasVisibleAudiences) return null;
                         
                         return (
-                          <div className="space-y-3">
-                            <div className="flex items-center gap-2">
-                              <Label>Audience Selection</Label>
-                              {phase.objective && phase.optimizationGoal && (
-                                <Badge variant="secondary" className="text-xs">
-                                  Based on {phase.objective} / {phase.optimizationGoal}
-                                </Badge>
-                              )}
+                          <SplittableSection
+                            dimension="audience_selection"
+                            dimensionLabel="Audience Selection"
+                            currentSplitDimension={phase.adSetSplitDimension}
+                            onSplitClick={(dim, useCBO) => {
+                              const updatedPhases = phases.map(p => {
+                                if (p.id === phase.id) {
+                                  if (dim === 'none') {
+                                    return { ...p, adSetSplitDimension: undefined, adSets: undefined, useCBO: undefined };
+                                  }
+                                  const initialAdSets = createInitialAdSets(dim, p.name, {
+                                    platformId,
+                                    currentGender: p.targeting?.genders?.[0],
+                                    currentDevices: p.targeting?.devices,
+                                    currentLanguages: p.targeting?.languages,
+                                    currentAgeMin: p.targeting?.ageMin,
+                                    currentAgeMax: p.targeting?.ageMax,
+                                    currentOptimizationGoal: p.optimizationGoal,
+                                    availableAudiences: phase.audiences?.map(a => ({ id: a.id, name: a.name, type: a.type })),
+                                    availableOptimizationGoals: getOptimizationGoalsForPhase(p.objective || ''),
+                                  });
+                                  return { ...p, adSetSplitDimension: dim, adSets: initialAdSets, useCBO };
+                                }
+                                return p;
+                              });
+                              onPhasesChange(updatedPhases);
+                              setExpandedPhases(prev => ({ ...prev, [phase.id]: true }));
+                              setScrollToSplitPhaseId(phase.id);
+                            }}
+                          >
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-2">
+                                <Label>Audience Selection</Label>
+                                {phase.objective && phase.optimizationGoal && (
+                                  <Badge variant="secondary" className="text-xs">
+                                    Based on {phase.objective} / {phase.optimizationGoal}
+                                  </Badge>
+                                )}
+                              </div>
+                              <PhaseAudienceSelector
+                                phaseName={phase.name}
+                                phaseId={phase.id}
+                                phaseObjective={phase.objective || ''}
+                                phaseOptimizationGoal={phase.optimizationGoal || ''}
+                                adAccountId={adAccountId}
+                                platform={platformName}
+                                basicTargeting={undefined}
+                                overrideTargeting={phase.overrideTargeting}
+                                showRetargetingAudiences={audienceStrategy.showRetargetingAudiences}
+                                showLookalikeAudiences={audienceStrategy.showLookalikeAudiences}
+                                onAudiencesSelected={(audiences) => {
+                                  updatePhaseField(phase.id, "audiences", audiences);
+                                }}
+                                initialSelection={phase.audiences || []}
+                              />
                             </div>
-                            <PhaseAudienceSelector
-                              phaseName={phase.name}
-                              phaseId={phase.id}
-                              phaseObjective={phase.objective || ''}
-                              phaseOptimizationGoal={phase.optimizationGoal || ''}
-                              adAccountId={adAccountId}
-                              platform={platformName}
-                              basicTargeting={undefined}
-                              overrideTargeting={phase.overrideTargeting}
-                              showRetargetingAudiences={audienceStrategy.showRetargetingAudiences}
-                              showLookalikeAudiences={audienceStrategy.showLookalikeAudiences}
-                              onAudiencesSelected={(audiences) => {
-                                updatePhaseField(phase.id, "audiences", audiences);
-                              }}
-                              initialSelection={phase.audiences || []}
-                            />
-                          </div>
+                          </SplittableSection>
                         );
                       })()}
                       <div className="space-y-2">
