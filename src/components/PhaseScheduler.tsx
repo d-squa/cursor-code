@@ -1746,7 +1746,7 @@ export function PhaseScheduler({
                           audienceStrategy.showRetargetingAudiences ||
                           audienceStrategy.showLookalikeAudiences;
                         
-                        if (!adAccountId || phase.useBroadTargeting || !hasVisibleAudiences) return null;
+                        if (phase.useBroadTargeting || !hasVisibleAudiences) return null;
                         
                         // Override audience strategy for custom - show all audience types
                         const effectiveStrategy = isCustomStrategy
@@ -1795,41 +1795,47 @@ export function PhaseScheduler({
                                   </Badge>
                                 )}
                               </div>
-                              <PhaseAudienceSelector
-                                phaseName={phase.name}
-                                phaseId={phase.id}
-                                phaseObjective={phase.objective || ''}
-                                phaseOptimizationGoal={phase.optimizationGoal || ''}
-                                adAccountId={adAccountId}
-                                platform={platformName}
-                                basicTargeting={undefined}
-                                overrideTargeting={phase.overrideTargeting}
-                                showRetargetingAudiences={effectiveStrategy.showRetargetingAudiences}
-                                showLookalikeAudiences={effectiveStrategy.showLookalikeAudiences}
-                                autoExcludeEnabled={phase.autoExcludeAudiences || false}
-                                onAutoExcludeChange={(enabled) => {
-                                  updatePhaseField(phase.id, "autoExcludeAudiences", enabled);
-                                }}
-                                onAudiencesSelected={(audiences, excludedAudiences) => {
-                                  const updatedPhases = phasesRef.current.map(p => {
-                                    if (p.id === phase.id) {
-                                      return {
-                                        ...p,
-                                        audiences,
-                                        excludedAudiences: excludedAudiences?.map(a => ({
-                                          id: a.id,
-                                          name: a.name,
-                                          type: a.type,
-                                          source: a.source,
-                                        })),
-                                      };
-                                    }
-                                    return p;
-                                  });
-                                  onPhasesChange(updatedPhases);
-                                }}
-                                initialSelection={phase.audiences || []}
-                              />
+                              {adAccountId ? (
+                                <PhaseAudienceSelector
+                                  phaseName={phase.name}
+                                  phaseId={phase.id}
+                                  phaseObjective={phase.objective || ''}
+                                  phaseOptimizationGoal={phase.optimizationGoal || ''}
+                                  adAccountId={adAccountId}
+                                  platform={platformName}
+                                  basicTargeting={undefined}
+                                  overrideTargeting={phase.overrideTargeting}
+                                  showRetargetingAudiences={effectiveStrategy.showRetargetingAudiences}
+                                  showLookalikeAudiences={effectiveStrategy.showLookalikeAudiences}
+                                  autoExcludeEnabled={phase.autoExcludeAudiences || false}
+                                  onAutoExcludeChange={(enabled) => {
+                                    updatePhaseField(phase.id, "autoExcludeAudiences", enabled);
+                                  }}
+                                  onAudiencesSelected={(audiences, excludedAudiences) => {
+                                    const updatedPhases = phasesRef.current.map(p => {
+                                      if (p.id === phase.id) {
+                                        return {
+                                          ...p,
+                                          audiences,
+                                          excludedAudiences: excludedAudiences?.map(a => ({
+                                            id: a.id,
+                                            name: a.name,
+                                            type: a.type,
+                                            source: a.source,
+                                          })),
+                                        };
+                                      }
+                                      return p;
+                                    });
+                                    onPhasesChange(updatedPhases);
+                                  }}
+                                  initialSelection={phase.audiences || []}
+                                />
+                              ) : (
+                                <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+                                  Connect an ad account to load available audiences.
+                                </div>
+                              )}
                             </div>
                           </SplittableSection>
                         );
