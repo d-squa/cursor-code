@@ -517,13 +517,23 @@ function applyMetaAdSetOverrides(
       
     case 'audience':
     case 'audience_selection':
-      // Add custom audiences from the ad set
+      // Add custom audiences from the ad set - filter out invalid IDs
       if (adSet.audiences && adSet.audiences.length > 0) {
-        targeting.custom_audiences = adSet.audiences.map(a => ({ id: a.id }));
+        const validAudiences = adSet.audiences
+          .filter(a => a.id && typeof a.id === 'string' && a.id.trim() !== '' && /^\d+$/.test(a.id.trim()))
+          .map(a => ({ id: a.id.trim() }));
+        if (validAudiences.length > 0) {
+          targeting.custom_audiences = validAudiences;
+        }
       }
-      // Add excluded audiences
+      // Add excluded audiences - filter out invalid IDs
       if (adSet.excludedAudiences && adSet.excludedAudiences.length > 0) {
-        targeting.excluded_custom_audiences = adSet.excludedAudiences.map(a => ({ id: a.id }));
+        const validExcluded = adSet.excludedAudiences
+          .filter(a => a.id && typeof a.id === 'string' && a.id.trim() !== '' && /^\d+$/.test(a.id.trim()))
+          .map(a => ({ id: a.id.trim() }));
+        if (validExcluded.length > 0) {
+          targeting.excluded_custom_audiences = validExcluded;
+        }
       }
       break;
   }
