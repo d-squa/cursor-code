@@ -15,6 +15,22 @@ const DIMENSION_TAXONOMY: Record<AdSetSplitDimension, string> = {
   age: "AGE",
 };
 
+// Meta publisher platform options for split
+export const META_PUBLISHER_OPTIONS = [
+  { value: "facebook", label: "Facebook" },
+  { value: "instagram", label: "Instagram" },
+  { value: "audience_network", label: "Audience Network" },
+  { value: "messenger", label: "Messenger" },
+  { value: "threads", label: "Threads" },
+];
+
+// TikTok placement options for split
+export const TIKTOK_PLACEMENT_OPTIONS = [
+  { value: "PLACEMENT_TIKTOK", label: "TikTok" },
+  { value: "PLACEMENT_PANGLE", label: "Pangle" },
+  { value: "PLACEMENT_TOPBUZZ", label: "TopBuzz/BuzzVideo" },
+];
+
 // Get taxonomy suffix for a dimension value
 function getTaxonomySuffix(
   dimension: AdSetSplitDimension,
@@ -75,6 +91,7 @@ export function getComplementaryValues(
   dimension: AdSetSplitDimension,
   currentValue: string | undefined,
   context: {
+    platformId?: string;
     availablePlacements?: string[];
     availableOptimizationGoals?: Array<{ value: string; label: string }>;
     availableAudiences?: Array<{ id: string; name: string; type: string }>;
@@ -108,10 +125,13 @@ export function getComplementaryValues(
         .map(d => ({ value: d.value, label: d.label }));
 
     case "placement":
-      return (context.availablePlacements || [])
-        .filter(p => p !== currentValue)
+      // Use platform-specific placement options
+      const isTikTokPlatform = context.platformId === 'tiktok';
+      const placementOptions = isTikTokPlatform ? TIKTOK_PLACEMENT_OPTIONS : META_PUBLISHER_OPTIONS;
+      return placementOptions
+        .filter(p => p.value !== currentValue)
         .slice(0, 2)
-        .map(p => ({ value: p, label: p }));
+        .map(p => ({ value: p.value, label: p.label }));
 
     case "language":
       const usedLangs = context.currentLanguages || [];
@@ -173,6 +193,7 @@ export function createInitialAdSets(
   dimension: AdSetSplitDimension,
   phaseName: string,
   context: {
+    platformId?: string;
     currentGender?: string;
     currentDevices?: string[];
     currentLanguages?: string[];
@@ -206,7 +227,10 @@ export function createInitialAdSets(
       break;
 
     case "placement":
-      primaryValue = context.availablePlacements?.[0] || "Feed";
+      // Use platform-specific placement options
+      const isTikTokPlat = context.platformId === 'tiktok';
+      const placementOpts = isTikTokPlat ? TIKTOK_PLACEMENT_OPTIONS : META_PUBLISHER_OPTIONS;
+      primaryValue = placementOpts[0]?.value || "facebook";
       complementaryValues = getComplementaryValues(dimension, primaryValue as string, context);
       break;
 

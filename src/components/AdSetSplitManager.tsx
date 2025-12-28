@@ -303,10 +303,33 @@ export function AdSetSplitManager({
     }));
   };
 
+  // Build placement options from available placements
+  // For Meta: use publisher platforms (facebook, instagram, etc.)
+  // For TikTok: use TikTok placement options
+  const getPlacementOptions = () => {
+    if (platformId === "tiktok") {
+      // TikTok placement options
+      return [
+        { value: "PLACEMENT_TIKTOK", label: "TikTok" },
+        { value: "PLACEMENT_PANGLE", label: "Pangle" },
+        { value: "PLACEMENT_TOPBUZZ", label: "TopBuzz/BuzzVideo" },
+      ];
+    }
+    // Meta publisher platforms
+    return [
+      { value: "facebook", label: "Facebook" },
+      { value: "instagram", label: "Instagram" },
+      { value: "audience_network", label: "Audience Network" },
+      { value: "messenger", label: "Messenger" },
+      { value: "threads", label: "Threads" },
+    ];
+  };
+
   // Render dimension-specific input
   const renderDimensionInput = (adSet: AdSetConfig) => {
     switch (dimension) {
       case "placement":
+        const placementOptions = getPlacementOptions();
         return (
           <Select
             value={adSet.dimensionValue as string}
@@ -314,15 +337,16 @@ export function AdSetSplitManager({
               dimensionValue: value,
               placements: [value],
               tiktokPlacements: platformId === "tiktok" ? [value] : undefined,
+              publisherPlatforms: platformId !== "tiktok" ? [value] : undefined,
             })}
           >
             <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select placement" />
+              <SelectValue placeholder="Select placement/publisher" />
             </SelectTrigger>
             <SelectContent>
-              {availablePlacements.map((placement) => (
-                <SelectItem key={placement} value={placement}>
-                  {placement}
+              {placementOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
                 </SelectItem>
               ))}
             </SelectContent>
