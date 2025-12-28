@@ -2564,10 +2564,10 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           // CONVERSIONS objective always uses CONVERT optimization goal
           tiktokOptGoal = "CONVERT";
         } else if (mappedObjective === "TRAFFIC") {
-          // TRAFFIC objective uses CLICK or LANDING_PAGE
-          const phaseOptGoal = phase.optimizationGoal;
-          if (phaseOptGoal === "LANDING_PAGE_VIEWS") {
-            tiktokOptGoal = "LANDING_PAGE";
+          // TRAFFIC objective uses CLICK or LANDING_PAGE_VIEW
+          const phaseOptGoal = (phase.optimizationGoal || "").toUpperCase();
+          if (phaseOptGoal === "LANDING_PAGE_VIEWS" || phaseOptGoal === "LANDING_PAGE_VIEW" || phaseOptGoal === "LANDING_PAGE") {
+            tiktokOptGoal = "LANDING_PAGE_VIEW";
           } else {
             tiktokOptGoal = "CLICK";
           }
@@ -2588,8 +2588,9 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
         // TikTok has strict billing event requirements per objective
         const billingEventMap: Record<string, Record<string, string>> = {
           "TRAFFIC": {
-            "CLICK": "CPC",  // TRAFFIC with CLICK only supports CPC
-            "LANDING_PAGE": "CPC",
+            "CLICK": "CPC",  // TRAFFIC supports CPC
+            "LANDING_PAGE_VIEW": "CPC",
+            "LANDING_PAGE": "CPC", // legacy alias
           },
           "CONVERSIONS": {
             "CONVERT": "OCPM",  // CONVERSIONS supports OCPM
