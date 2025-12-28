@@ -500,77 +500,111 @@ export function AdSetSplitManager({
     switch (dimension) {
       case "placement":
         if (platformId === "tiktok") {
-          // TikTok: simple placement dropdown
+          // TikTok: Multi-select placements
+          const tiktokPlacementValues = Array.isArray(adSet.tiktokPlacements) 
+            ? adSet.tiktokPlacements 
+            : adSet.dimensionValue ? [adSet.dimensionValue as string] : [];
+          
           return (
-            <Select
-              value={adSet.dimensionValue as string}
-              onValueChange={(value) => updateAdSet(adSet.id, { 
-                dimensionValue: value,
-                tiktokPlacements: [value],
-              })}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select TikTok placement" />
-              </SelectTrigger>
-              <SelectContent>
-                {TIKTOK_PLACEMENT_OPTIONS_LIST.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Placements</Label>
+              <MultiSelect
+                options={TIKTOK_PLACEMENT_OPTIONS_LIST}
+                value={tiktokPlacementValues}
+                onChange={(values) => updateAdSet(adSet.id, { 
+                  dimensionValue: values.join('+'),
+                  tiktokPlacements: values,
+                })}
+                placeholder="Select TikTok placements"
+              />
+            </div>
           );
         }
         
-        // Meta: Publisher + Positions dropdowns
-        const currentPublisher = adSet.publisherPlatforms?.[0] || "";
-        const currentPositions = adSet.positions?.[currentPublisher as keyof typeof adSet.positions] || [];
-        const availablePositions = getPositionsForPublisher(currentPublisher);
+        // Meta: Multi-select Publishers + Positions per publisher
+        const selectedPublishers = adSet.publisherPlatforms || [];
+        
+        // Get all available positions for selected publishers
+        const getPositionsOptionsForPublishers = (publishers: string[]) => {
+          const allPositions: Array<{ value: string; label: string; publisher: string }> = [];
+          publishers.forEach(pub => {
+            const positions = getPositionsForPublisher(pub);
+            positions.forEach(pos => {
+              allPositions.push({
+                value: `${pub}:${pos.value}`,
+                label: `${META_PUBLISHER_OPTIONS.find(p => p.value === pub)?.label || pub} - ${pos.label}`,
+                publisher: pub,
+              });
+            });
+          });
+          return allPositions;
+        };
+        
+        // Convert positions object to flat array for MultiSelect
+        const flattenPositions = (positions: Record<string, string[]> | undefined): string[] => {
+          if (!positions) return [];
+          const flat: string[] = [];
+          Object.entries(positions).forEach(([pub, posArr]) => {
+            posArr.forEach(pos => flat.push(`${pub}:${pos}`));
+          });
+          return flat;
+        };
+        
+        // Convert flat array back to positions object
+        const unflattenPositions = (flat: string[]): Record<string, string[]> => {
+          const positions: Record<string, string[]> = {};
+          flat.forEach(item => {
+            const [pub, pos] = item.split(':');
+            if (!positions[pub]) positions[pub] = [];
+            positions[pub].push(pos);
+          });
+          return positions;
+        };
+        
+        const currentFlatPositions = flattenPositions(adSet.positions);
+        const availablePositionsForSelected = getPositionsOptionsForPublishers(selectedPublishers);
         
         return (
           <div className="space-y-2">
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Publisher</Label>
-              <Select
-                value={currentPublisher}
-                onValueChange={(value) => {
-                  // Reset positions when publisher changes
-                  const defaultPositions = getPositionsForPublisher(value);
+              <Label className="text-xs text-muted-foreground">Publishers</Label>
+              <MultiSelect
+                options={META_PUBLISHER_OPTIONS}
+                value={selectedPublishers}
+                onChange={(values) => {
+                  // When publishers change, keep existing positions for remaining publishers
+                  const newPositions: Record<string, string[]> = {};
+                  values.forEach(pub => {
+                    if (adSet.positions?.[pub]) {
+                      newPositions[pub] = adSet.positions[pub];
+                    } else {
+                      // Set default position for new publisher
+                      const defaultPos = getPositionsForPublisher(pub);
+                      if (defaultPos.length > 0) {
+                        newPositions[pub] = [defaultPos[0].value];
+                      }
+                    }
+                  });
                   updateAdSet(adSet.id, { 
-                    dimensionValue: value,
-                    publisherPlatforms: [value],
-                    positions: {
-                      [value]: defaultPositions.slice(0, 1).map(p => p.value)
-                    },
+                    dimensionValue: values.join('+'),
+                    publisherPlatforms: values,
+                    positions: newPositions,
                   });
                 }}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select publisher" />
-                </SelectTrigger>
-                <SelectContent>
-                  {META_PUBLISHER_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                placeholder="Select publishers"
+              />
             </div>
             
-            {currentPublisher && availablePositions.length > 0 && (
+            {selectedPublishers.length > 0 && availablePositionsForSelected.length > 0 && (
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">Positions</Label>
                 <MultiSelect
-                  options={availablePositions}
-                  value={currentPositions}
+                  options={availablePositionsForSelected.map(p => ({ value: p.value, label: p.label }))}
+                  value={currentFlatPositions}
                   onChange={(values) => {
+                    const newPositions = unflattenPositions(values);
                     updateAdSet(adSet.id, { 
-                      positions: {
-                        ...adSet.positions,
-                        [currentPublisher]: values
-                      },
+                      positions: newPositions,
                     });
                   }}
                   placeholder="Select positions"
