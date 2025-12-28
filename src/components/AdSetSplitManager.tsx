@@ -250,7 +250,9 @@ export function AdSetSplitManager({
   const [localAutoCrossExclude, setLocalAutoCrossExclude] = useState(autoCrossExclude);
   
   // State for fetched audiences (for audience_selection dimension)
-  const [fetchedAudiences, setFetchedAudiences] = useState<Array<{ id: string; name: string; type: string; source?: string }>>([]);
+  const [fetchedAudiences, setFetchedAudiences] = useState<
+    Array<{ id: string; name: string; type: string; subtype?: string; source?: string }>
+  >([]);
   const [audiencesLoading, setAudiencesLoading] = useState(false);
   
   // Audience selection options for cross-exclude
@@ -263,43 +265,40 @@ export function AdSetSplitManager({
   
   // Fetch audiences when dimension is audience_selection and adAccountId is available
   useEffect(() => {
-    if (dimension !== 'audience_selection' || !adAccountId) {
-      return;
-    }
-    
+    if (dimension !== "audience_selection" || !adAccountId) return;
+
     const fetchAudiences = async () => {
       setAudiencesLoading(true);
       try {
-        // Fetch all audience types: custom_audiences and saved_audiences
-        const { data, error } = await supabase.functions.invoke('fetch-meta-audiences', {
-          body: { 
-            adAccountId, 
-            sources: ['custom_audiences', 'saved_audiences']
-          }
+        // Fetch ALL available audiences for the ad account (custom + saved)
+        // The backend function returns an array.
+        const { data, error } = await supabase.functions.invoke("fetch-meta-audiences", {
+          body: { adAccountId },
         });
-        
+
         if (error) {
-          console.error('Error fetching audiences:', error);
+          console.error("Error fetching audiences:", error);
           return;
         }
-        
-        const audiences = data?.audiences || [];
-        // Map to consistent format with type based on subtype
-        const mappedAudiences = audiences.map((aud: any) => ({
-          id: aud.id,
-          name: aud.name,
-          type: aud.subtype || aud.source || 'Custom Audience',
-          source: aud.source,
-        }));
-        
-        setFetchedAudiences(mappedAudiences);
+
+        const audiences = Array.isArray(data) ? data : (data?.audiences ?? []);
+
+        setFetchedAudiences(
+          audiences.map((aud: any) => ({
+            id: aud.id,
+            name: aud.name,
+            type: aud.subtype || aud.source || "Unknown",
+            subtype: aud.subtype,
+            source: aud.source,
+          }))
+        );
       } catch (err) {
-        console.error('Error fetching audiences:', err);
+        console.error("Error fetching audiences:", err);
       } finally {
         setAudiencesLoading(false);
       }
     };
-    
+
     fetchAudiences();
   }, [dimension, adAccountId]);
   
@@ -743,26 +742,27 @@ export function AdSetSplitManager({
           { value: "broad", label: "Broad Targeting" },
         ];
         
-        // Use fetched audiences for the dropdown
-        const audiencesToFilter = fetchedAudiences.length > 0 ? fetchedAudiences : availableAudiences;
+        // Use fetched audiences when an ad account is connected; otherwise fall back to provided audiences
+        const audiencesToFilter = adAccountId ? fetchedAudiences : availableAudiences;
         
         // Filter audiences based on selected type
         const selectedType = adSet.dimensionValue as string;
-        const filteredAudiences = audiencesToFilter.filter(a => {
-          const typeLower = (a.type || '').toLowerCase();
-          
-          if (selectedType === "custom") {
-            // Match custom audiences but not lookalikes
-            return typeLower.includes("custom") && !typeLower.includes("lookalike");
-          }
-          if (selectedType === "lookalike") {
-            // Match lookalike audiences
-            return typeLower.includes("lookalike");
-          }
-          if (selectedType === "retargeting") {
-            // Retargeting = website/app-based custom audiences
-            return (typeLower.includes("custom") || typeLower.includes("website") || typeLower.includes("app")) && !typeLower.includes("lookalike");
-          }
+        const filteredAudiences = audiencesToFilter.filter((a: any) => {
+          const subtypeOrType = a.subtype ?? a.type ?? a.source ?? "";
+          const key = String(subtypeOrType).toLowerCase();
+
+          const isSaved = key.includes("saved");
+          const isLookalike = key.includes("lookalike");
+          const isRetargeting =
+            key.includes("website") ||
+            key.includes("app") ||
+            key.includes("engagement") ||
+            key.includes("video") ||
+            key.includes("event");
+
+          if (selectedType === "lookalike") return isLookalike;
+          if (selectedType === "retargeting") return isRetargeting && !isLookalike;
+          if (selectedType === "custom") return !isSaved && !isLookalike && !isRetargeting;
           return false; // "broad" doesn't have specific audiences
         });
         
