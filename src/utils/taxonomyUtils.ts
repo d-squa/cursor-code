@@ -808,7 +808,7 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyPara
         ? ['ONAD', 'WEB', 'APP', 'MSG', 'CALL', 'SHOP', 'FORM']
         : ['ONAD', 'WEB', 'APP', 'MSG', 'FORM', 'SHOP', 'TTIP'],
       system: true,
-      required: false,
+      required: true,
       description: 'Auto-filled from Phase Config → Optimization Location. ONAD=On Ad (no destination), WEB=Website, APP=App, MSG=Messaging, CALL=Calls, SHOP=Shop, FORM=Instant Form.',
     },
     {
@@ -857,7 +857,7 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyPara
       type: 'options',
       options: ['ALL', 'MOB', 'DSK', 'TAB'],
       system: true,
-      required: false,
+      required: true,
       description: 'Auto-filled from Targeting → Device Types. ALL=All devices, MOB=Mobile only, DSK=Desktop only, TAB=Tablet only. Uses phase override if active.',
     },
     {
@@ -869,7 +869,7 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyPara
         ? ['AUTO', 'FB', 'IG', 'AN', 'MIX']
         : ['AUTO', 'TT', 'GAB', 'PAN'],
       system: true,
-      required: false,
+      required: true,
       description: platform === 'meta'
         ? 'Auto-filled from Phase Config → Placement Type. AUTO=Advantage+ placements, FB=Facebook, IG=Instagram, AN=Audience Network, MIX=Multiple platforms.'
         : 'Auto-filled from Phase Config → Placement Type. AUTO=Automatic, TT=TikTok, GAB=Global App Bundle, PAN=Pangle.',
@@ -883,7 +883,7 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyPara
         ? ['AUTO', 'FEED', 'STORY', 'REEL', 'MIX']
         : ['AUTO', 'TT', 'GAB', 'PAN'],
       system: true,
-      required: false,
+      required: true,
       description: platform === 'meta'
         ? 'Auto-filled from Phase Config → Specific ad positions. FEED=Feed placements, STORY=Stories, REEL=Reels, MIX=Multiple positions.'
         : 'Auto-filled from Phase Config → Specific TikTok positions.',
@@ -895,7 +895,7 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyPara
       type: 'options',
       options: ['NTV', 'EXP', 'SIM', 'RTG', 'BRD', 'LAL'],
       system: true,
-      required: false,
+      required: true,
       description: 'Auto-filled from Targeting → Expansion Strategy. NTV=Native (selected interests only), EXP=Expand (find new audiences), SIM=Similar, RTG=Retargeting, BRD=Broad, LAL=Lookalike.',
     },
     {
@@ -904,7 +904,7 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyPara
       label: 'Languages',
       type: 'text',
       system: true,
-      required: false,
+      required: true,
       description: 'Auto-filled from Targeting → Languages. Shows abbreviated language codes (e.g., EN, ES, DE). Uses phase override if active.',
     },
   ];
@@ -938,7 +938,7 @@ export function getDefaultAdParams(): TaxonomyParam[] {
       label: 'Copy Variant',
       type: 'mixed',
       system: false,
-      required: false,
+      required: true,
       description: 'User-defined copy variant identifier. Use to track different ad copy versions for the same creative.',
     },
     {
@@ -948,7 +948,7 @@ export function getDefaultAdParams(): TaxonomyParam[] {
       type: 'options',
       options: ['EN', 'ES', 'DE', 'FR', 'IT', 'PT', 'NL'],
       system: false,
-      required: false,
+      required: true,
       description: 'User-defined language code for the ad creative. Helps identify ads in different languages for multi-language campaigns.',
     },
   ];
