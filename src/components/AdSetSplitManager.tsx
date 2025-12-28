@@ -562,28 +562,19 @@ export function AdSetSplitManager({
             {currentPublisher && availablePositions.length > 0 && (
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">Positions</Label>
-                <Select
-                  value={currentPositions[0] || ""}
-                  onValueChange={(value) => {
+                <MultiSelect
+                  options={availablePositions}
+                  value={currentPositions}
+                  onChange={(values) => {
                     updateAdSet(adSet.id, { 
                       positions: {
                         ...adSet.positions,
-                        [currentPublisher]: [value]
+                        [currentPublisher]: values
                       },
                     });
                   }}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select position" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availablePositions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  placeholder="Select positions"
+                />
               </div>
             )}
           </div>
