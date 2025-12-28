@@ -185,8 +185,15 @@ function generateAdSetName(
       valueSuffix = goalOpt?.label.replace(/\s+/g, '').toUpperCase().slice(0, 6) || String(dimensionValue).slice(0, 6);
       break;
     case "audience":
-      const audOpt = options.availableAudiences?.find(a => a.id === dimensionValue);
-      valueSuffix = audOpt?.type.toUpperCase().slice(0, 3) || "CUS";
+      if (Array.isArray(dimensionValue)) {
+        valueSuffix = dimensionValue.map(id => {
+          const aud = options.availableAudiences?.find(a => a.id === id);
+          return aud?.type.toUpperCase().slice(0, 3) || "CUS";
+        }).join('+');
+      } else {
+        const audOpt = options.availableAudiences?.find(a => a.id === dimensionValue);
+        valueSuffix = audOpt?.type.toUpperCase().slice(0, 3) || "CUS";
+      }
       break;
     case "age":
       const ageVal = dimensionValue as { min: number; max: number };
@@ -489,28 +496,25 @@ export function AdSetSplitManager({
         );
 
       case "audience":
+        const audValues = Array.isArray(adSet.dimensionValue) 
+          ? adSet.dimensionValue as string[]
+          : adSet.dimensionValue ? [adSet.dimensionValue as string] : [];
         return (
-          <Select
-            value={adSet.dimensionValue as string}
-            onValueChange={(value) => {
-              const audience = availableAudiences.find(a => a.id === value);
+          <MultiSelect
+            options={availableAudiences.map(a => ({ value: a.id, label: a.name }))}
+            value={audValues}
+            onChange={(values) => {
+              const selectedAudiences = values.map(v => {
+                const aud = availableAudiences.find(a => a.id === v);
+                return aud ? { ...aud, source: "custom" } : null;
+              }).filter(Boolean);
               updateAdSet(adSet.id, { 
-                dimensionValue: value,
-                audiences: audience ? [{ ...audience, source: "custom" }] : [],
+                dimensionValue: values,
+                audiences: selectedAudiences as any[],
               });
             }}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select audience" />
-            </SelectTrigger>
-            <SelectContent>
-              {availableAudiences.map((audience) => (
-                <SelectItem key={audience.id} value={audience.id}>
-                  {audience.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            placeholder="Select audiences"
+          />
         );
 
       case "language":
