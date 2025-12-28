@@ -161,6 +161,7 @@ export interface Phase {
   // Ad Set Split configuration
   adSetSplitDimension?: AdSetSplitDimension;
   adSets?: AdSetConfig[];
+  useCBO?: boolean; // Campaign Budget Optimization (true) vs Ad Set Budget Optimization (false)
   // Taxonomy values for naming
   campaignTaxonomyValues?: Record<string, string>;
   adsetTaxonomyValues?: Record<string, string>;

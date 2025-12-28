@@ -1634,7 +1634,7 @@ export function PhaseScheduler({
                                     metaAdAccountId={platformId === 'meta' ? adAccountId : undefined}
                                     tiktokAdvertiserId={platformId === 'tiktok' ? adAccountId : undefined}
                                     currentSplitDimension={phase.adSetSplitDimension}
-                                    onSplitDimensionChange={(dim) => {
+                                    onSplitDimensionChange={(dim, useCBO) => {
                                       const newDimension = dim === 'none' ? undefined : dim;
                                       const newAdSets = newDimension ? createInitialAdSets(dim, phase.name, {
                                         platformId: platformId || 'meta',
@@ -1647,6 +1647,7 @@ export function PhaseScheduler({
                                       updatePhaseFields(phase.id, { 
                                         adSetSplitDimension: newDimension,
                                         adSets: newAdSets,
+                                        useCBO: useCBO,
                                       });
                                       // Trigger scroll to split manager
                                       if (newDimension) {
@@ -1887,7 +1888,7 @@ export function PhaseScheduler({
                         dimension="optimization_goal"
                         dimensionLabel="Optimization Goal"
                         currentSplitDimension={phase.adSetSplitDimension}
-                        onSplitClick={(dim) => {
+                        onSplitClick={(dim, useCBO) => {
                           const newDimension = dim === 'none' ? undefined : dim;
                           const newAdSets = newDimension ? createInitialAdSets(dim, phase.name, {
                             platformId: platformId || 'meta',
@@ -1902,6 +1903,7 @@ export function PhaseScheduler({
                           updatePhaseFields(phase.id, { 
                             adSetSplitDimension: newDimension,
                             adSets: newAdSets,
+                            useCBO: useCBO,
                           });
                           // Trigger scroll to split manager
                           if (newDimension) {
@@ -2378,7 +2380,7 @@ export function PhaseScheduler({
                         dimension="placement"
                         dimensionLabel="Placement"
                         currentSplitDimension={phase.adSetSplitDimension}
-                        onSplitClick={(dim) => {
+                        onSplitClick={(dim, useCBO) => {
                           const newDimension = dim === 'none' ? undefined : dim;
                           const newAdSets = newDimension ? createInitialAdSets(dim, phase.name, {
                             platformId: platformId || 'meta',
@@ -2394,6 +2396,7 @@ export function PhaseScheduler({
                           updatePhaseFields(phase.id, { 
                             adSetSplitDimension: newDimension,
                             adSets: newAdSets,
+                            useCBO: useCBO,
                           });
                           // Trigger scroll to split manager
                           if (newDimension) {
@@ -2456,10 +2459,12 @@ export function PhaseScheduler({
                             platformName={platformName}
                             platformId={platformId || 'meta'}
                             phaseName={phase.name}
+                            useCBO={phase.useCBO}
                             onAdSetsChange={(adSets) => updatePhaseField(phase.id, "adSets", adSets)}
                             onRemoveSplit={() => updatePhaseFields(phase.id, { 
                               adSetSplitDimension: undefined,
                               adSets: undefined,
+                              useCBO: undefined,
                             })}
                             availablePlacements={getPlacementsForSelection(platformName, phase.assetTypes || [])}
                             availableOptimizationGoals={getOptimizationGoalsForPhase(phase.objective || "").map(g => ({ value: g.value, label: g.label }))}

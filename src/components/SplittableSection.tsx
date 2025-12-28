@@ -1,6 +1,7 @@
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 import { AdSetSplitButton } from "./AdSetSplitButton";
 import { AdSetSplitDimension } from "@/types/mediaplan";
+import { BudgetOptimizationDialog } from "./BudgetOptimizationDialog";
 import { cn } from "@/lib/utils";
 
 interface SplittableSectionProps {
@@ -8,7 +9,7 @@ interface SplittableSectionProps {
   dimension: AdSetSplitDimension;
   dimensionLabel: string;
   currentSplitDimension?: AdSetSplitDimension;
-  onSplitClick: (dimension: AdSetSplitDimension) => void;
+  onSplitClick: (dimension: AdSetSplitDimension, useCBO?: boolean) => void;
   className?: string;
   disabled?: boolean;
 }
@@ -22,8 +23,19 @@ export function SplittableSection({
   className,
   disabled,
 }: SplittableSectionProps) {
+  const [showBudgetDialog, setShowBudgetDialog] = useState(false);
   const isActive = currentSplitDimension === dimension;
   const isDisabled = disabled || (currentSplitDimension && currentSplitDimension !== 'none' && currentSplitDimension !== dimension);
+
+  const handleSplitButtonClick = () => {
+    if (isActive) {
+      // Remove split
+      onSplitClick('none');
+    } else {
+      // Show budget optimization dialog
+      setShowBudgetDialog(true);
+    }
+  };
 
   return (
     <div className={cn("group relative", className)}>
@@ -34,18 +46,22 @@ export function SplittableSection({
           dimensionLabel={dimensionLabel}
           isActive={isActive}
           disabled={isDisabled}
-          onClick={() => {
-            if (isActive) {
-              // Remove split
-              onSplitClick('none');
-            } else {
-              // Set this dimension as the split
-              onSplitClick(dimension);
-            }
-          }}
+          onClick={handleSplitButtonClick}
         />
       </div>
       {children}
+
+      <BudgetOptimizationDialog
+        open={showBudgetDialog}
+        onOpenChange={setShowBudgetDialog}
+        dimensionLabel={dimensionLabel}
+        onSelectCBO={() => {
+          onSplitClick(dimension, true);
+        }}
+        onSelectABO={() => {
+          onSplitClick(dimension, false);
+        }}
+      />
     </div>
   );
 }
