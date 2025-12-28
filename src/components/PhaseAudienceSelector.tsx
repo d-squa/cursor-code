@@ -121,23 +121,33 @@ export function PhaseAudienceSelector({
   // Collapsible sections state - all start collapsed
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
 
-  // Determine phase
-  const determinedPhase = phaseObjective && phaseOptimizationGoal
-    ? determineFunnelPhaseFromObjective(phaseObjective, phaseOptimizationGoal)
-    : 'Consideration';
-
-  // Fetch audiences and group by strategy
+  // Fetch ALL audience types regardless of objective/optimization goal
+  // This ensures the audience list remains persistent
   useEffect(() => {
     if (!adAccountId) return;
     
-    const entries = getAudienceTypesForPhase(determinedPhase);
-    setMatrixEntries(entries);
+    // Get ALL audience types from all phases to ensure full list
+    const allPhases = ['Awareness', 'Consideration', 'Conversion'];
+    const allEntries: AudienceTypeMatrixEntry[] = [];
+    const seenSources = new Set<string>();
     
-    // Group entries by source type to fetch
-    const sourcesToFetch = [...new Set(entries.map(e => e.source))];
+    allPhases.forEach(phase => {
+      const entries = getAudienceTypesForPhase(phase);
+      entries.forEach(entry => {
+        if (!seenSources.has(entry.source)) {
+          seenSources.add(entry.source);
+          allEntries.push(entry);
+        }
+      });
+    });
+    
+    setMatrixEntries(allEntries);
+    
+    // Fetch from all sources
+    const sourcesToFetch = [...seenSources];
     
     loadAudiences(sourcesToFetch);
-  }, [adAccountId, determinedPhase]);
+  }, [adAccountId]);
 
   // Group audiences by strategy instead of type
   // Filter based on visibility props
@@ -430,8 +440,8 @@ export function PhaseAudienceSelector({
 
       {!loading && Object.keys(audiencesByStrategy).length === 0 && (
         <div className="text-center py-8 text-muted-foreground">
-          <p>No audiences available for this phase</p>
-          <p className="text-sm mt-2">Phase: {determinedPhase}</p>
+          <p>No audiences available</p>
+          <p className="text-sm mt-2">Connect an ad account to load audiences</p>
         </div>
       )}
     </div>
