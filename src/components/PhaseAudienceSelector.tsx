@@ -5,33 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, ChevronDown, ChevronUp, Ban } from "lucide-react";
 import { toast } from "sonner";
-import { getAudienceTypesForPhase, AudienceTypeMatrixEntry } from "@/utils/audienceTypeMatrix";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 
-// Helper function to determine funnel phase from objective and optimization goal
-function determineFunnelPhaseFromObjective(objective: string, optimizationGoal: string): string {
-  const objLower = objective.toLowerCase();
-  const goalLower = optimizationGoal.toLowerCase();
-  
-  // Conversion phase indicators
-  if (objLower.includes('conversion') || objLower.includes('catalog') || 
-      goalLower.includes('conversion') || goalLower.includes('purchase') || 
-      goalLower.includes('value') || goalLower.includes('roas')) {
-    return 'Conversion';
-  }
-  
-  // Awareness phase indicators
-  if (objLower.includes('awareness') || objLower.includes('reach') || 
-      goalLower.includes('awareness') || goalLower.includes('reach') || 
-      goalLower.includes('impression')) {
-    return 'Awareness';
-  }
-  
-  // Consideration phase (default for everything else)
-  return 'Consideration';
-}
 
 interface PhaseAudienceSelectorProps {
   phaseName: string;
@@ -116,141 +93,128 @@ export function PhaseAudienceSelector({
     }
     return initial;
   });
-  const [matrixEntries, setMatrixEntries] = useState<AudienceTypeMatrixEntry[]>([]);
-  
   // Collapsible sections state - all start collapsed
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
 
-  // Fetch ALL audience types regardless of objective/optimization goal
-  // This ensures the audience list remains persistent
+  type AudienceGroupType = "Custom Audience" | "Lookalike Audience" | "Saved Audience" | "Detailed Targeting";
+
+  const getAudienceGroupType = (aud: FetchedAudience): Exclude<AudienceGroupType, "Detailed Targeting"> => {
+    if (aud.source === "Saved Audience") return "Saved Audience";
+    if (aud.subtype?.toUpperCase() === "LOOKALIKE" || aud.source === "Lookalikes") return "Lookalike Audience";
+    return "Custom Audience";
+  };
+
+  // Load ALL audiences for the connected ad account (not dependent on objective/optimization)
   useEffect(() => {
     if (!adAccountId) return;
-    
-    // Get ALL audience types from all phases to ensure full list
-    const allPhases = ['Awareness', 'Consideration', 'Conversion'];
-    const allEntries: AudienceTypeMatrixEntry[] = [];
-    const seenSources = new Set<string>();
-    
-    allPhases.forEach(phase => {
-      const entries = getAudienceTypesForPhase(phase);
-      entries.forEach(entry => {
-        if (!seenSources.has(entry.source)) {
-          seenSources.add(entry.source);
-          allEntries.push(entry);
-        }
-      });
-    });
-    
-    setMatrixEntries(allEntries);
-    
-    // Fetch from all sources
-    const sourcesToFetch = [...seenSources];
-    
-    loadAudiences(sourcesToFetch);
-  }, [adAccountId]);
+    loadAudiences();
+  }, [adAccountId, platform]);
 
-  // Group audiences by strategy instead of type
-  // Filter based on visibility props
-  const audiencesByStrategy = matrixEntries.reduce((acc, entry) => {
-    // Skip strategies based on visibility props
-    if (entry.strategy === 'Retarget' && !showRetargetingAudiences) return acc;
-    if (entry.strategy === 'Expand' && !showLookalikeAudiences) return acc;
-    
-    const audiences = audiencesByType[entry.source] || [];
-    if (!acc[entry.strategy]) {
-      acc[entry.strategy] = [];
-    }
-    acc[entry.strategy].push(...audiences.map(aud => ({ ...aud, source: entry.source })));
-    return acc;
-  }, {} as Record<string, FetchedAudience[]>);
+  // Build platform-specific "Detailed Targeting" list (AI selected)
+  const detailedTargetingAudiences: FetchedAudience[] = (() => {
+    if (!basicTargeting || !isBrandAwareness || overrideTargeting) return [];
 
-  // Add interests, behaviors, and demographics from basicTargeting as "Detailed Targeting"
-  // Only show for Brand Awareness campaigns and when override targeting is NOT active
-  // FILTER BY PLATFORM: Only show platform-specific targeting
-  
-  if (basicTargeting && isBrandAwareness && !overrideTargeting) {
-    const detailedTargetingAudiences: FetchedAudience[] = [];
-    const isTikTok = platform?.toLowerCase().includes('tiktok');
-    const isMeta = platform?.toLowerCase().includes('meta') || platform?.toLowerCase().includes('facebook') || platform?.toLowerCase().includes('instagram');
-    
-    // Only show Meta targeting for Meta platforms
+    const detailed: FetchedAudience[] = [];
+    const platformLower = platform?.toLowerCase() || "";
+    const isTikTok = platformLower.includes("tiktok");
+    const isMeta = platformLower.includes("meta") || platformLower.includes("facebook") || platformLower.includes("instagram");
+
     if (isMeta) {
-      if (basicTargeting.metaInterests) {
-        detailedTargetingAudiences.push(...basicTargeting.metaInterests.map(interest => ({
+      basicTargeting.metaInterests?.forEach((interest) => {
+        detailed.push({
           id: interest.id,
           name: interest.name,
-          subtype: 'interest',
-          source: 'Interest',
-          audienceSize: interest.audienceSize
-        })));
-      }
-      
-      if (basicTargeting.metaBehaviors) {
-        detailedTargetingAudiences.push(...basicTargeting.metaBehaviors.map(behavior => ({
+          subtype: "interest",
+          source: "Interest",
+          audienceSize: interest.audienceSize,
+        });
+      });
+      basicTargeting.metaBehaviors?.forEach((behavior) => {
+        detailed.push({
           id: behavior.id,
           name: behavior.name,
-          subtype: 'behavior',
-          source: 'Behavior',
-          audienceSize: behavior.audienceSize
-        })));
-      }
-      
-      if (basicTargeting.metaDemographics) {
-        detailedTargetingAudiences.push(...basicTargeting.metaDemographics.map(demo => ({
+          subtype: "behavior",
+          source: "Behavior",
+          audienceSize: behavior.audienceSize,
+        });
+      });
+      basicTargeting.metaDemographics?.forEach((demo) => {
+        detailed.push({
           id: demo.id,
           name: demo.name,
-          subtype: 'demographic',
-          source: 'Demographic',
-          audienceSize: demo.audienceSize
-        })));
-      }
+          subtype: "demographic",
+          source: "Demographic",
+          audienceSize: demo.audienceSize,
+        });
+      });
     }
-    
-    // Only show TikTok targeting for TikTok platform
-    if (isTikTok) {
-      if (basicTargeting.tiktokInterests) {
-        detailedTargetingAudiences.push(...basicTargeting.tiktokInterests.map(interest => ({
-          id: interest.id,
-          name: interest.name,
-          subtype: 'interest',
-          source: 'Interest',
-          audienceSize: interest.audienceSize
-        })));
-      }
-      
-      if (basicTargeting.tiktokBehaviors) {
-        detailedTargetingAudiences.push(...basicTargeting.tiktokBehaviors.map(behavior => ({
-          id: behavior.id,
-          name: behavior.name,
-          subtype: 'behavior',
-          source: 'Behavior',
-          audienceSize: behavior.audienceSize
-        })));
-      }
-      
-      if (basicTargeting.tiktokDemographics) {
-        detailedTargetingAudiences.push(...basicTargeting.tiktokDemographics.map(demo => ({
-          id: demo.id,
-          name: demo.name,
-          subtype: 'demographic',
-          source: 'Demographic',
-          audienceSize: demo.audienceSize
-        })));
-      }
-    }
-    
-    if (detailedTargetingAudiences.length > 0) {
-      audiencesByStrategy['Detailed Targeting'] = detailedTargetingAudiences;
-    }
-  }
 
-  const loadAudiences = async (sources: string[]) => {
+    if (isTikTok) {
+      basicTargeting.tiktokInterests?.forEach((interest) => {
+        detailed.push({
+          id: interest.id,
+          name: interest.name,
+          subtype: "interest",
+          source: "Interest",
+          audienceSize: interest.audienceSize,
+        });
+      });
+      basicTargeting.tiktokBehaviors?.forEach((behavior) => {
+        detailed.push({
+          id: behavior.id,
+          name: behavior.name,
+          subtype: "behavior",
+          source: "Behavior",
+          audienceSize: behavior.audienceSize,
+        });
+      });
+      basicTargeting.tiktokDemographics?.forEach((demo) => {
+        detailed.push({
+          id: demo.id,
+          name: demo.name,
+          subtype: "demographic",
+          source: "Demographic",
+          audienceSize: demo.audienceSize,
+        });
+      });
+    }
+
+    return detailed;
+  })();
+
+  // Group ALL fetched audiences by broad "type" buckets
+  const groupedAudiences = (() => {
+    const groups: Record<AudienceGroupType, FetchedAudience[]> = {
+      "Custom Audience": [],
+      "Lookalike Audience": [],
+      "Saved Audience": [],
+      "Detailed Targeting": detailedTargetingAudiences,
+    };
+
+    const fetched = Object.values(audiencesByType).flat();
+    fetched.forEach((aud) => {
+      const key = getAudienceGroupType(aud);
+      groups[key].push(aud);
+    });
+
+    return groups;
+  })();
+
+  const groupOrder: AudienceGroupType[] = [
+    "Custom Audience",
+    "Lookalike Audience",
+    "Saved Audience",
+    ...(groupedAudiences["Detailed Targeting"].length > 0 ? (["Detailed Targeting"] as const) : []),
+  ];
+
+
+  const loadAudiences = async () => {
     setLoading(true);
     try {
       // Determine which audience endpoint to call based on platform
       const platformLower = platform.toLowerCase();
       const isTikTok = platformLower.includes('tiktok');
-      
+
       // For TikTok, we would call a TikTok-specific audience endpoint
       // For now, skip audience loading for TikTok as it's not implemented yet
       if (isTikTok) {
@@ -258,10 +222,10 @@ export function PhaseAudienceSelector({
         setAudiencesByType({});
         return;
       }
-      
-      // Meta audience loading
+
+      // Meta audience loading (fetch ALL audiences; no objective/goal filtering)
       const { data, error } = await supabase.functions.invoke('fetch-meta-audiences', {
-        body: { adAccountId, sources }
+        body: { adAccountId }
       });
 
       if (error) throw error;
@@ -302,31 +266,34 @@ export function PhaseAudienceSelector({
   useEffect(() => {
     const selected: SelectedAudience[] = [];
     const excluded: SelectedAudience[] = [];
-    
-    Object.entries(audiencesByType).forEach(([source, audiences]) => {
-      audiences.forEach(aud => {
-        const entry = matrixEntries.find(e => e.source === source);
+
+    (Object.entries(groupedAudiences) as [string, FetchedAudience[]][]).forEach(([group, audiences]) => {
+      audiences.forEach((aud) => {
+        const isDetailedTargeting = group === "Detailed Targeting";
+        const type: SelectedAudience["type"] = isDetailedTargeting ? "New Audience" : (group as SelectedAudience["type"]);
+
         const audienceData: SelectedAudience = {
           id: aud.id,
           name: aud.name,
-          type: entry?.type || 'Unknown',
-          source: source,
+          type,
+          source: aud.source || "Unknown",
           subtype: aud.subtype,
           approximate_count: aud.approximate_count_lower_bound,
-          audienceSize: aud.audienceSize
+          audienceSize: aud.audienceSize,
         };
-        
+
         if (selectedAudiences.has(aud.id)) {
           selected.push(audienceData);
-        } else if (autoExcludeEnabled) {
+        } else if (autoExcludeEnabled && !isDetailedTargeting) {
           // When auto-exclude is enabled, add non-selected audiences to excluded list
           excluded.push(audienceData);
         }
       });
     });
-    
+
     onAudiencesSelected(selected, autoExcludeEnabled ? excluded : undefined);
-  }, [selectedAudiences, audiencesByType, matrixEntries, autoExcludeEnabled]);
+  }, [selectedAudiences, groupedAudiences, autoExcludeEnabled]);
+
 
   const formatAudienceSize = (size?: number) => {
     if (!size) return '';
@@ -365,13 +332,15 @@ export function PhaseAudienceSelector({
         </div>
       )}
 
-      {/* Audience Selection by Strategy */}
-      {!loading && Object.keys(audiencesByStrategy).length > 0 && (
+      {/* Audience Selection by Type */}
+      {!loading && groupOrder.length > 0 && (
         <div className="space-y-3">
-          {Object.entries(audiencesByStrategy).map(([strategy, audiences]) => {
+          {groupOrder.map((group) => {
+            const audiences = groupedAudiences[group] || [];
+
             // Remove duplicates based on id
             const uniqueAudiences = audiences.reduce((acc, curr) => {
-              if (!acc.find(a => a.id === curr.id)) {
+              if (!acc.find((a) => a.id === curr.id)) {
                 acc.push(curr);
               }
               return acc;
@@ -379,58 +348,63 @@ export function PhaseAudienceSelector({
 
             return (
               <Collapsible
-                key={strategy}
-                open={expandedSections[strategy] || false}
-                onOpenChange={(open) => setExpandedSections(prev => ({ ...prev, [strategy]: open }))}
+                key={group}
+                open={expandedSections[group] || false}
+                onOpenChange={(open) => setExpandedSections((prev) => ({ ...prev, [group]: open }))}
               >
                 <CollapsibleTrigger asChild>
                   <Button variant="outline" className="w-full justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium">{strategy} ({uniqueAudiences.length})</span>
-                      <Badge 
-                        variant="secondary" 
+                      <span className="font-medium">{group} ({uniqueAudiences.length})</span>
+                      <Badge
+                        variant="secondary"
                         className={
-                          uniqueAudiences.length > 0 && uniqueAudiences.filter(a => selectedAudiences.has(a.id)).length === 0 
-                            ? "bg-destructive/10 text-destructive border-destructive" 
+                          uniqueAudiences.length > 0 && uniqueAudiences.filter((a) => selectedAudiences.has(a.id)).length === 0
+                            ? "bg-destructive/10 text-destructive border-destructive"
                             : ""
                         }
                       >
-                        {uniqueAudiences.filter(a => selectedAudiences.has(a.id)).length}/{uniqueAudiences.length} selected
+                        {uniqueAudiences.filter((a) => selectedAudiences.has(a.id)).length}/{uniqueAudiences.length} selected
                       </Badge>
                     </div>
                     <div className="flex items-center gap-2">
-                      {expandedSections[strategy] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                      {expandedSections[group] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                     </div>
                   </Button>
                 </CollapsibleTrigger>
                 <CollapsibleContent className="pt-3 space-y-2">
-                  {uniqueAudiences.map((audience) => (
-                     <div key={audience.id} className="flex items-center gap-2 p-2 border rounded">
-                      <Checkbox
-                        checked={selectedAudiences.has(audience.id)}
-                        onCheckedChange={() => handleAudienceToggle(audience)}
-                      />
-                      <div className="flex-1">
-                        <span className="text-sm font-medium">{audience.name}</span>
-                        {audience.source && (
-                          <Badge variant="outline" className="ml-2 text-xs">
-                            {audience.source}
-                          </Badge>
-                        )}
-                        {/* Show AI Selected badge for detailed targeting items */}
-                        {strategy === 'Detailed Targeting' && (
-                          <Badge variant="secondary" className="ml-2 text-xs">
-                            AI Selected
-                          </Badge>
-                        )}
-                        {audience.audienceSize && (
-                          <Badge variant="outline" className="ml-2 text-xs">
-                            {formatAudienceSize(audience.audienceSize)}
-                          </Badge>
-                        )}
-                      </div>
+                  {uniqueAudiences.length === 0 ? (
+                    <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+                      No audiences found in this account for this category.
                     </div>
-                  ))}
+                  ) : (
+                    uniqueAudiences.map((audience) => (
+                      <div key={audience.id} className="flex items-center gap-2 p-2 border rounded">
+                        <Checkbox
+                          checked={selectedAudiences.has(audience.id)}
+                          onCheckedChange={() => handleAudienceToggle(audience)}
+                        />
+                        <div className="flex-1">
+                          <span className="text-sm font-medium">{audience.name}</span>
+                          {audience.source && (
+                            <Badge variant="outline" className="ml-2 text-xs">
+                              {audience.source}
+                            </Badge>
+                          )}
+                          {group === "Detailed Targeting" && (
+                            <Badge variant="secondary" className="ml-2 text-xs">
+                              AI Selected
+                            </Badge>
+                          )}
+                          {audience.audienceSize && (
+                            <Badge variant="outline" className="ml-2 text-xs">
+                              {formatAudienceSize(audience.audienceSize)}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </CollapsibleContent>
               </Collapsible>
             );
@@ -438,12 +412,13 @@ export function PhaseAudienceSelector({
         </div>
       )}
 
-      {!loading && Object.keys(audiencesByStrategy).length === 0 && (
+      {!loading && groupOrder.every((g) => (groupedAudiences[g] || []).length === 0) && (
         <div className="text-center py-8 text-muted-foreground">
-          <p>No audiences available</p>
-          <p className="text-sm mt-2">Connect an ad account to load audiences</p>
+          <p>No audiences available in this ad account</p>
+          <p className="text-sm mt-2">Create audiences in your ad account, then refresh here.</p>
         </div>
       )}
+
     </div>
   );
 }
