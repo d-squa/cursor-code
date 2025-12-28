@@ -1616,6 +1616,22 @@ export function PhaseScheduler({
                                     onUpdate={(targeting) => updatePhaseField(phase.id, "targeting", targeting)}
                                     metaAdAccountId={platformId === 'meta' ? adAccountId : undefined}
                                     tiktokAdvertiserId={platformId === 'tiktok' ? adAccountId : undefined}
+                                    currentSplitDimension={phase.adSetSplitDimension}
+                                    onSplitDimensionChange={(dim) => {
+                                      const newDimension = dim === 'none' ? undefined : dim;
+                                      const newAdSets = newDimension ? createInitialAdSets(dim, phase.name, {
+                                        platformId: platformId || 'meta',
+                                        currentGender: phase.targeting?.genders?.[0] || basicTargeting?.genders?.[0],
+                                        currentAgeMin: phase.targeting?.ageMin ?? basicTargeting?.ageMin,
+                                        currentAgeMax: phase.targeting?.ageMax ?? basicTargeting?.ageMax,
+                                        currentDevices: phase.targeting?.devices || basicTargeting?.devices,
+                                        currentLanguages: phase.targeting?.languages || basicTargeting?.languages,
+                                      }) : undefined;
+                                      updatePhaseFields(phase.id, { 
+                                        adSetSplitDimension: newDimension,
+                                        adSets: newAdSets,
+                                      });
+                                    }}
                                   />
                                 </>
                               )}

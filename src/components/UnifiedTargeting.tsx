@@ -11,6 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { DEVICE_OPTIONS, LANGUAGE_OPTIONS, GENDER_OPTIONS } from "@/utils/targetingOptions";
+import { SplittableSection } from "./SplittableSection";
+import { AdSetSplitDimension } from "@/types/mediaplan";
 
 export interface UnifiedTargetingItem {
   id: string;
@@ -43,9 +45,19 @@ interface UnifiedTargetingProps {
   onUpdate: (targeting: UnifiedTargetingConfig) => void;
   metaAdAccountId?: string;
   tiktokAdvertiserId?: string;
+  // Split functionality props
+  currentSplitDimension?: AdSetSplitDimension;
+  onSplitDimensionChange?: (dimension: AdSetSplitDimension) => void;
 }
 
-export function UnifiedTargeting({ targeting, onUpdate, metaAdAccountId, tiktokAdvertiserId }: UnifiedTargetingProps) {
+export function UnifiedTargeting({ 
+  targeting, 
+  onUpdate, 
+  metaAdAccountId, 
+  tiktokAdvertiserId,
+  currentSplitDimension,
+  onSplitDimensionChange 
+}: UnifiedTargetingProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<UnifiedTargetingItem[]>([]);
@@ -168,69 +180,97 @@ export function UnifiedTargeting({ targeting, onUpdate, metaAdAccountId, tiktokA
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Age Range</Label>
-              <div className="flex gap-2 items-center">
-                <Input
-                  type="number"
-                  placeholder="Min"
-                  value={targeting.ageMin || ''}
-                  onChange={(e) => updateField('ageMin', parseInt(e.target.value) || undefined)}
-                  min={13}
-                  max={65}
-                />
-                <span>to</span>
-                <Input
-                  type="number"
-                  placeholder="Max"
-                  value={targeting.ageMax || ''}
-                  onChange={(e) => updateField('ageMax', parseInt(e.target.value) || undefined)}
-                  min={13}
-                  max={65}
-                />
+            <SplittableSection
+              dimension="age"
+              dimensionLabel="Age"
+              currentSplitDimension={currentSplitDimension}
+              onSplitClick={(dim) => onSplitDimensionChange?.(dim)}
+            >
+              <div className="space-y-2">
+                <Label>Age Range</Label>
+                <div className="flex gap-2 items-center">
+                  <Input
+                    type="number"
+                    placeholder="Min"
+                    value={targeting.ageMin || ''}
+                    onChange={(e) => updateField('ageMin', parseInt(e.target.value) || undefined)}
+                    min={13}
+                    max={65}
+                  />
+                  <span>to</span>
+                  <Input
+                    type="number"
+                    placeholder="Max"
+                    value={targeting.ageMax || ''}
+                    onChange={(e) => updateField('ageMax', parseInt(e.target.value) || undefined)}
+                    min={13}
+                    max={65}
+                  />
+                </div>
               </div>
-            </div>
+            </SplittableSection>
 
-            <div className="space-y-2">
-              <Label>Gender</Label>
-              <Select
-                value={targeting.genders?.[0] || 'all'}
-                onValueChange={(value) => updateField('genders', [value])}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select gender" />
-                </SelectTrigger>
-                <SelectContent>
-                  {GENDER_OPTIONS.map(option => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <SplittableSection
+              dimension="gender"
+              dimensionLabel="Gender"
+              currentSplitDimension={currentSplitDimension}
+              onSplitClick={(dim) => onSplitDimensionChange?.(dim)}
+            >
+              <div className="space-y-2">
+                <Label>Gender</Label>
+                <Select
+                  value={targeting.genders?.[0] || 'all'}
+                  onValueChange={(value) => updateField('genders', [value])}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select gender" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {GENDER_OPTIONS.map(option => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </SplittableSection>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Devices</Label>
-              <MultiSelect
-                options={DEVICE_OPTIONS}
-                value={targeting.devices || []}
-                onChange={(values) => updateField('devices', values)}
-                placeholder="Select devices"
-              />
-            </div>
+            <SplittableSection
+              dimension="device"
+              dimensionLabel="Device"
+              currentSplitDimension={currentSplitDimension}
+              onSplitClick={(dim) => onSplitDimensionChange?.(dim)}
+            >
+              <div className="space-y-2">
+                <Label>Devices</Label>
+                <MultiSelect
+                  options={DEVICE_OPTIONS}
+                  value={targeting.devices || []}
+                  onChange={(values) => updateField('devices', values)}
+                  placeholder="Select devices"
+                />
+              </div>
+            </SplittableSection>
 
-            <div className="space-y-2">
-              <Label>Languages</Label>
-              <MultiSelect
-                options={LANGUAGE_OPTIONS}
-                value={targeting.languages || []}
-                onChange={(values) => updateField('languages', values)}
-                placeholder="Select languages"
-              />
-            </div>
+            <SplittableSection
+              dimension="language"
+              dimensionLabel="Language"
+              currentSplitDimension={currentSplitDimension}
+              onSplitClick={(dim) => onSplitDimensionChange?.(dim)}
+            >
+              <div className="space-y-2">
+                <Label>Languages</Label>
+                <MultiSelect
+                  options={LANGUAGE_OPTIONS}
+                  value={targeting.languages || []}
+                  onChange={(values) => updateField('languages', values)}
+                  placeholder="Select languages"
+                />
+              </div>
+            </SplittableSection>
           </div>
         </CardContent>
       </Card>
