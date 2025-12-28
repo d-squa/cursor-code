@@ -396,7 +396,7 @@ class TikTokAdapter implements PlatformAdapter {
       // Some objectives don't support optimization location
       const objectivesWithoutLocation = ['REACH', 'VIDEO_VIEWS', 'VIDEO_VIEW', 'FOCUSED_VIEW', '6S_VIDEO_VIEW', '15S_VIDEO_VIEW', 'COMMUNITY_INTERACTION', 'PROFILE_VISIT', 'FOLLOW'];
       // TRAFFIC/CLICK objectives only support Website/App destinations, not Lead Gen types
-      const trafficObjectives = ['TRAFFIC', 'CLICK', 'LANDING_PAGE'];
+      const trafficObjectives = ['TRAFFIC', 'CLICK', 'LANDING_PAGE', 'LANDING_PAGE_VIEW', 'LANDING_PAGE_VIEWS'];
       const isTrafficObjective = trafficObjectives.includes(finalOptimizationGoal.toUpperCase()) ||
                                   trafficObjectives.includes(params.optimizationGoal?.toUpperCase() || '');
       const skipPromotionType = objectivesWithoutLocation.includes(finalOptimizationGoal.toUpperCase()) ||
