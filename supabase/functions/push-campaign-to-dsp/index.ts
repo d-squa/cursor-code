@@ -2878,106 +2878,149 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
         console.log(`🚀 CALLING tiktokAdapter.createAdGroup for ${phase.name}...`);
         console.log(`📍 campaignId: ${campaignResult.campaignId}, advertiserId: ${advertiserId}`);
         
-        // Build context for TikTok ad group taxonomy
-        const tiktokAdgroupTaxonomyContext: TaxonomyContext = {
-          platform: 'tiktok',
-          objective: objectiveMapping.targetObjective,
-          optimizationGoal: tiktokOptGoal,
-          phaseBudget: campaignBudget,
-          budgetType: budgetType,
-          ageMin: effectiveTargeting.ageMin || effectiveTargeting.age_min || 18,
-          ageMax: effectiveTargeting.ageMax || effectiveTargeting.age_max || 65,
-          gender: effectiveTargeting.genders?.[0],
-          location: market.name,
-          devices: effectiveTargeting.devices,
-          placementType: placementType,
-          targetingType: effectiveTargeting.targetingExpansion ? 'expand' : 'native',
-          startDate: phase.startDate || campaign.start_date,
-          endDate: phase.endDate || campaign.end_date,
-        };
+        // ============= AD SET SPLITS FOR TIKTOK =============
+        // Determine if we have ad set splits defined
+        const tiktokAdSets: AdSetConfig[] = (phase.adSets && Array.isArray(phase.adSets) && phase.adSets.length > 0)
+          ? phase.adSets
+          : [{ id: 'default', name: phase.name, dimensionValue: '', budgetPercentage: 100 }];
         
-        const tiktokAdgroupTaxonomyName = advertiserId ? await generateTaxonomyName(
-          supabase,
-          campaign.user_id,
-          advertiserId,
-          'tiktok',
-          'adset',
-          tiktokAdgroupTaxonomyContext,
-          phase.adsetTaxonomyValues
-        ) : null;
+        const tiktokSplitDimension = phase.adSetSplitDimension || null;
+        const isTiktokCBO = budgetType === 'BUDGET_MODE_DAY' || budgetType === 'BUDGET_MODE_TOTAL';
         
-        const defaultTiktokAdGroupName = `${phase.name} - Ad Group_${generateTimestampSuffix()}`;
+        console.log(`📊 TikTok Ad Group Splits: ${tiktokAdSets.length} ad groups, dimension: ${tiktokSplitDimension || 'none'}, CBO: ${isTiktokCBO}`);
         
-        const adGroupResult = await tiktokAdapter.createAdGroup({
-          accountId: advertiserId,
-          accessToken: platform.access_token,
-          campaignId: campaignResult.campaignId,
-          adGroupName: tiktokAdgroupTaxonomyName || defaultTiktokAdGroupName,
-          targeting: targeting,
-          placements: tiktokPlacements,
-          placementType: placementType,
-          optimizationGoal: tiktokOptGoal,
-          billingEvent: billingEvent,
-          bidStrategy: phase.tiktokBidStrategy || market.tiktokBidStrategy || "LOWEST_COST",
-          bidAmount: bidAmount,
-          budget: campaignBudget,
-          budgetMode: budgetType,
-          startDate: startDate.toISOString(),
-          endDate: endDate.toISOString(),
-          status: "PAUSED",
-          pixelId: pixelId,
-          landingPageUrl: landingPageUrl,
-          optimizationLocation: optimizationLocation,
-          appName: appName,
-          appId: appId,
-          clickWindow: clickWindow,
-          viewWindow: viewWindow,
-          frequencySchedule: tiktokFrequencySchedule,
-          eventCount: tiktokEventCount,
-          smartPlusEnabled: smartPlusEnabled,
-        });
+        for (const tiktokAdSet of tiktokAdSets) {
+          // Calculate budget for this ad group
+          let adGroupBudget = campaignBudget;
+          if (!isTiktokCBO && tiktokAdSet.budgetPercentage && tiktokAdSet.budgetPercentage < 100) {
+            adGroupBudget = Math.round(campaignBudget * (tiktokAdSet.budgetPercentage / 100) * 100) / 100;
+          }
+          console.log(`📊 TikTok Ad Group "${tiktokAdSet.name}" budget: €${adGroupBudget} (${tiktokAdSet.budgetPercentage}% of phase budget, CBO: ${isTiktokCBO})`);
+          
+          // Build targeting with split overrides
+          let adGroupTargeting = { ...targeting };
+          
+          // Apply dimension-specific overrides for TikTok
+          if (tiktokSplitDimension && tiktokAdSet.id !== 'default') {
+            adGroupTargeting = applyTikTokAdSetOverrides(adGroupTargeting, tiktokAdSet, tiktokSplitDimension);
+          }
+          
+          // Get placement overrides for this ad set
+          let adGroupPlacements = tiktokPlacements;
+          let adGroupPlacementType = placementType;
+          if (tiktokSplitDimension === 'placement' || tiktokSplitDimension === 'publisherPlatforms') {
+            const placementOverrides = getTikTokPlacementOverrides(tiktokAdSet);
+            if (placementOverrides.placements) {
+              adGroupPlacements = placementOverrides.placements;
+              adGroupPlacementType = placementOverrides.placementType || 'PLACEMENT_TYPE_NORMAL';
+              console.log(`📍 TikTok Ad Group "${tiktokAdSet.name}" using custom placements: ${adGroupPlacements.join(', ')}`);
+            }
+          }
+        
+          // Build context for TikTok ad group taxonomy
+          const tiktokAdgroupTaxonomyContext: TaxonomyContext = {
+            platform: 'tiktok',
+            objective: objectiveMapping.targetObjective,
+            optimizationGoal: tiktokOptGoal,
+            phaseBudget: adGroupBudget,
+            budgetType: budgetType,
+            ageMin: adGroupTargeting.age_min || 18,
+            ageMax: adGroupTargeting.age_max || 65,
+            gender: adGroupTargeting.genders?.[0],
+            location: market.name,
+            devices: adGroupTargeting.devices,
+            placementType: adGroupPlacementType,
+            targetingType: effectiveTargeting.targetingExpansion ? 'expand' : 'native',
+            startDate: phase.startDate || campaign.start_date,
+            endDate: phase.endDate || campaign.end_date,
+          };
+          
+          const tiktokAdgroupTaxonomyName = advertiserId ? await generateTaxonomyName(
+            supabase,
+            campaign.user_id,
+            advertiserId,
+            'tiktok',
+            'adset',
+            tiktokAdgroupTaxonomyContext,
+            phase.adsetTaxonomyValues
+          ) : null;
+          
+          const adGroupSuffix = tiktokAdSet.id !== 'default' ? ` - ${tiktokAdSet.name}` : '';
+          const defaultTiktokAdGroupName = `${phase.name}${adGroupSuffix} - Ad Group_${generateTimestampSuffix()}`;
+          
+          const adGroupResult = await tiktokAdapter.createAdGroup({
+            accountId: advertiserId,
+            accessToken: platform.access_token,
+            campaignId: campaignResult.campaignId,
+            adGroupName: tiktokAdgroupTaxonomyName || defaultTiktokAdGroupName,
+            targeting: adGroupTargeting,
+            placements: adGroupPlacements,
+            placementType: adGroupPlacementType,
+            optimizationGoal: tiktokOptGoal,
+            billingEvent: billingEvent,
+            bidStrategy: phase.tiktokBidStrategy || market.tiktokBidStrategy || "LOWEST_COST",
+            bidAmount: bidAmount,
+            budget: adGroupBudget,
+            budgetMode: budgetType,
+            startDate: startDate.toISOString(),
+            endDate: endDate.toISOString(),
+            status: "PAUSED",
+            pixelId: pixelId,
+            landingPageUrl: landingPageUrl,
+            optimizationLocation: optimizationLocation,
+            appName: appName,
+            appId: appId,
+            clickWindow: clickWindow,
+            viewWindow: viewWindow,
+            frequencySchedule: tiktokFrequencySchedule,
+            eventCount: tiktokEventCount,
+            smartPlusEnabled: smartPlusEnabled,
+          });
 
-        if (!adGroupResult.success) {
-          const errData = (adGroupResult as any).error;
-          const errorMsg = typeof errData === 'string' 
-            ? errData 
-            : (errData?.message || JSON.stringify(errData));
-          errors.push({
+          if (!adGroupResult.success) {
+            const errData = (adGroupResult as any).error;
+            const errorMsg = typeof errData === 'string' 
+              ? errData 
+              : (errData?.message || JSON.stringify(errData));
+            errors.push({
+              market: market.name,
+              phase: phase.name,
+              adSet: tiktokAdSet.name,
+              error: errorMsg,
+              type: 'adgroup_creation',
+              apiResponse: errData,
+              fieldPath: 'step3'
+            });
+            continue;
+          }
+          
+          console.log(`✅ TikTok ad group created: ${adGroupResult.adGroupId} (${tiktokAdSet.name})`);
+          
+          // Store ad group in database
+          await supabase.from("tiktok_ad_groups").insert({
+            user_id: campaign.user_id,
+            tiktok_campaign_id: campaignResult.campaignId,
+            tiktok_ad_group_id: adGroupResult.adGroupId,
+            advertiser_id: advertiserId,
+            ad_group_name: adGroupResult.metadata?.adgroup_name || tiktokAdSet.name,
+            placement_type: adGroupPlacementType,
+            placements: adGroupPlacements,
+            targeting: adGroupTargeting,
+            budget: adGroupBudget,
+            budget_mode: budgetType,
+            optimization_goal: tiktokOptGoal,
+            status: "PAUSED",
+          });
+          
+          results.push({
             market: market.name,
             phase: phase.name,
-            error: errorMsg,
-            type: 'adgroup_creation',
-            apiResponse: errData,
-            fieldPath: 'step3'
+            adSet: tiktokAdSet.name,
+            campaignId: campaignResult.campaignId,
+            adGroupId: adGroupResult.adGroupId,
+            success: true,
           });
-          continue;
-        }
-        
-        console.log("TikTok ad group created:", adGroupResult.adGroupId);
-        
-        // Store ad group in database
-        await supabase.from("tiktok_ad_groups").insert({
-          user_id: campaign.user_id,
-          tiktok_campaign_id: campaignResult.campaignId,
-          tiktok_ad_group_id: adGroupResult.adGroupId,
-          advertiser_id: advertiserId,
-          ad_group_name: adGroupResult.metadata?.adgroup_name || "",
-          placement_type: placementType,
-          placements: tiktokPlacements,
-          targeting: targeting,
-          budget: campaignBudget,
-          budget_mode: budgetType,
-          optimization_goal: tiktokOptGoal,
-          status: "PAUSED",
-        });
-        
-        results.push({
-          market: market.name,
-          phase: phase.name,
-          campaignId: campaignResult.campaignId,
-          adGroupId: adGroupResult.adGroupId,
-          success: true,
-        });
+        } // End of ad set splits loop
         
       } catch (error: any) {
         console.error("Error creating TikTok campaign/ad group:", error);
