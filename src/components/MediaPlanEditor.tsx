@@ -242,12 +242,30 @@ export function MediaPlanEditor() {
       return;
     }
 
+    // Fetch all ad accounts linked to this client for Meta and TikTok
+    const [metaAccountsResult, tiktokAccountsResult] = await Promise.all([
+      supabase
+        .from("meta_ad_accounts")
+        .select("*")
+        .eq("client_id", selectedClientId),
+      supabase
+        .from("tiktok_ad_accounts")
+        .select("*")
+        .eq("client_id", selectedClientId)
+    ]);
+
+    const metaAdAccounts = metaAccountsResult.data || [];
+    const tiktokAdAccounts = tiktokAccountsResult.data || [];
+    
+    console.log('📦 Meta ad accounts for client:', metaAdAccounts);
+    console.log('📦 TikTok ad accounts for client:', tiktokAdAccounts);
+
     // Calculate total percentage for selected platforms
     const totalSelectedPercentage = selectedPlatformIds.reduce((sum: number, platformId: string) => {
       return sum + (budgetAllocations[platformId] || 0);
     }, 0);
 
-    // Create platforms with proportional budgets and one temporary market
+    // Create platforms with proportional budgets and auto-populated markets from ad accounts
     const newPlatforms: PlatformWithMarkets[] = selectedPlatformIds.map((platformId: string) => {
       const platformName = platformId === 'meta' ? 'Meta' : 
                            platformId === 'google' ? 'Google Ads' :
@@ -257,12 +275,110 @@ export function MediaPlanEditor() {
         ? (rawPercentage / totalSelectedPercentage) * 100 
         : 0;
 
-      return {
-        id: platformId,
-        name: platformName,
-        budgetPercentage: Math.round(normalizedPercentage * 10) / 10,
-        enabled: true,
-        markets: [{
+      // Build markets from linked ad accounts
+      let markets: any[] = [];
+      
+      if (platformId === 'meta' && metaAdAccounts.length > 0) {
+        // Create markets from all Meta ad accounts with main_markets
+        metaAdAccounts.forEach((acc: any) => {
+          const accountMarkets = Array.isArray(acc.main_markets) ? acc.main_markets : [];
+          if (accountMarkets.length > 0) {
+            accountMarkets.forEach((marketCode: string, idx: number) => {
+              markets.push({
+                id: `${marketCode}-${acc.account_id}-${Date.now()}-${idx}`,
+                name: marketCode,
+                budgetPercentage: 0, // Will be normalized later
+                adAccountId: acc.account_id,
+                accountName: acc.account_name,
+                pixel: acc.default_pixel_id || "",
+                pageId: acc.default_page_id || "",
+                page: acc.default_page_id || "",
+                instagramActorId: acc.default_instagram_account_id || "",
+                catalog: acc.default_catalog_id || "",
+                productSet: acc.default_product_set_id || "",
+                conversionEvent: acc.default_conversion_event || "",
+                metaBidStrategy: acc.default_bid_strategy || 'LOWEST_COST_WITHOUT_CAP',
+                metaBidAmount: acc.default_bid_amount || undefined,
+                phases: [],
+                adFormats: [],
+                countries: [marketCode],
+                ageMin: selectedClient.default_age_min ?? 18,
+                ageMax: selectedClient.default_age_max ?? 65,
+                gender: selectedClient.default_gender || "all",
+                languages: Array.isArray(selectedClient.default_languages) ? selectedClient.default_languages : [],
+                metaPublisherPlatforms: Array.isArray(acc.default_publisher_platforms) ? acc.default_publisher_platforms : ['facebook', 'instagram', 'audience_network'],
+                metaPositions: acc.default_positions || {},
+                publisherPlatforms: Array.isArray(acc.default_publisher_platforms) ? acc.default_publisher_platforms : ['facebook', 'instagram', 'audience_network'],
+                positions: acc.default_positions || {},
+                detailedTargeting: [],
+                isCBOEnabled: false,
+                isLifetimeBudget: false,
+                metaOptimizationLocation: acc.default_optimization_location || "",
+                metaAppStore: acc.default_app_store || "",
+                metaAppId: acc.default_app_id || "",
+                metaLandingPageUrl: acc.default_landing_page_url || "",
+                metaMessagingMode: acc.default_messaging_mode || "AUTOMATIC",
+                metaMessengerEnabled: acc.default_messenger_enabled || false,
+                metaInstagramDmEnabled: acc.default_instagram_dm_enabled || false,
+                metaWhatsappEnabled: acc.default_whatsapp_enabled || false,
+                metaWhatsappNumber: acc.default_whatsapp_number || "",
+                metaBillingEvent: acc.default_billing_event || "IMPRESSIONS",
+                metaClickWindow: acc.default_click_window || 7,
+                metaViewWindow: acc.default_view_window || 1,
+                metaAdvantagePlusPlacements: acc.default_advantage_plus_placements ?? true,
+              });
+            });
+          }
+        });
+      } else if (platformId === 'tiktok' && tiktokAdAccounts.length > 0) {
+        // Create markets from all TikTok ad accounts with main_markets
+        tiktokAdAccounts.forEach((acc: any) => {
+          const accountMarkets = Array.isArray(acc.main_markets) ? acc.main_markets : [];
+          if (accountMarkets.length > 0) {
+            accountMarkets.forEach((marketCode: string, idx: number) => {
+              markets.push({
+                id: `${marketCode}-${acc.advertiser_id}-${Date.now()}-${idx}`,
+                name: marketCode,
+                budgetPercentage: 0, // Will be normalized later
+                adAccountId: acc.advertiser_id,
+                accountName: acc.account_name,
+                tiktokPixelId: acc.default_pixel_id || "",
+                tiktokIdentityId: acc.default_identity_id || "",
+                tiktokCatalogId: acc.default_catalog_id || "",
+                tiktokProductSetId: acc.default_product_set_id || "",
+                tiktokOptimizationEvent: acc.default_optimization_event || "",
+                tiktokOptimizationLocation: acc.default_optimization_location || "",
+                tiktokBidStrategy: acc.default_bid_strategy || 'BID_TYPE_NO_BID',
+                tiktokBidAmount: acc.default_bid_amount || undefined,
+                tiktokLandingPageUrl: acc.default_landing_page_url || "",
+                tiktokPlacementType: acc.default_placement_type || 'PLACEMENT_TYPE_AUTOMATIC',
+                tiktokPlacements: Array.isArray(acc.default_placements) ? acc.default_placements : ['PLACEMENT_TIKTOK'],
+                tiktokAppId: acc.default_app_id || "",
+                tiktokAppName: acc.default_app_name || "",
+                tiktokClickWindow: acc.default_click_window || 7,
+                tiktokViewWindow: acc.default_view_window || 1,
+                tiktokEventCountEnabled: acc.default_event_count_enabled || false,
+                phases: [],
+                adFormats: [],
+                countries: [marketCode],
+                ageMin: selectedClient.default_age_min ?? 18,
+                ageMax: selectedClient.default_age_max ?? 65,
+                gender: selectedClient.default_gender || "all",
+                languages: Array.isArray(selectedClient.default_languages) ? selectedClient.default_languages : [],
+                publisherPlatforms: ["tiktok"],
+                positions: {},
+                detailedTargeting: [],
+                isCBOEnabled: false,
+                isLifetimeBudget: false,
+              });
+            });
+          }
+        });
+      }
+      
+      // If no markets were created from ad accounts, create a fallback temporary market
+      if (markets.length === 0) {
+        markets = [{
           id: `temp-market-${platformId}-${Date.now()}`,
           name: clientMarkets[0] || 'US',
           budgetPercentage: 100,
@@ -277,25 +393,47 @@ export function MediaPlanEditor() {
           conversionEvent: "",
           phases: [],
           adFormats: [],
-          // Filter out US for TikTok platforms
           countries: platformId === 'tiktok' ? clientMarkets.filter((m: string) => m !== 'US') : clientMarkets,
           ageMin: selectedClient.default_age_min ?? 18,
           ageMax: selectedClient.default_age_max ?? 65,
           gender: selectedClient.default_gender || "all",
           languages: Array.isArray(selectedClient.default_languages) ? selectedClient.default_languages : [],
-          publisherPlatforms: ["facebook"],
+          publisherPlatforms: platformId === 'tiktok' ? ["tiktok"] : ["facebook"],
           positions: {},
           detailedTargeting: [],
           isCBOEnabled: false,
           isLifetimeBudget: false,
-        }],
+        }];
+      } else {
+        // Normalize budget percentages across all markets for this platform
+        const budgetPerMarket = 100 / markets.length;
+        markets = markets.map(m => ({ ...m, budgetPercentage: Math.round(budgetPerMarket * 10) / 10 }));
+      }
+
+      return {
+        id: platformId,
+        name: platformName,
+        budgetPercentage: Math.round(normalizedPercentage * 10) / 10,
+        enabled: true,
+        markets,
       };
     });
 
-    console.log('Created platforms:', newPlatforms);
+    console.log('Created platforms with auto-populated markets:', newPlatforms);
+
+    // Count total markets created from ad accounts
+    const totalAutoMarkets = newPlatforms.reduce((sum, p) => {
+      const autoMarkets = p.markets.filter(m => m.adAccountId && m.adAccountId !== "");
+      return sum + autoMarkets.length;
+    }, 0);
 
     setPlatformsWithMarkets(newPlatforms);
-    toast.success(`Auto-populated ${newPlatforms.length} platform(s) from ${selectedClient.name}. Select an ad account for each platform to auto-create markets.`, { duration: 5000 });
+    
+    if (totalAutoMarkets > 0) {
+      toast.success(`Auto-populated ${newPlatforms.length} platform(s) with ${totalAutoMarkets} market(s) from linked ad accounts.`, { duration: 5000 });
+    } else {
+      toast.success(`Auto-populated ${newPlatforms.length} platform(s) from ${selectedClient.name}. Select an ad account for each platform to auto-create markets.`, { duration: 5000 });
+    }
   };
   
   // Unified targeting (Step 2)
