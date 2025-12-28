@@ -686,30 +686,91 @@ export function AdSetSplitManager({
 
       case "audience_selection":
         // Audience selection split options: Custom, Lookalike, Retargeting, Broad
-        const AUDIENCE_SELECTION_OPTIONS = [
+        const AUDIENCE_TYPE_OPTIONS = [
           { value: "custom", label: "Custom Audiences" },
           { value: "lookalike", label: "Lookalike Audiences" },
           { value: "retargeting", label: "Retargeting Audiences" },
           { value: "broad", label: "Broad Targeting" },
         ];
+        
+        // Filter available audiences based on selected type
+        const selectedType = adSet.dimensionValue as string;
+        const filteredAudiences = availableAudiences.filter(a => {
+          if (selectedType === "custom") return a.type === "custom" || a.type === "custom_audience";
+          if (selectedType === "lookalike") return a.type === "lookalike" || a.type === "lookalike_audience";
+          if (selectedType === "retargeting") return a.type === "retargeting" || a.type === "website_custom_audience";
+          return false; // "broad" doesn't have specific audiences
+        });
+        
+        const selectedAudienceIds = adSet.audiences?.map(a => a.id) || [];
+        
         return (
-          <Select
-            value={adSet.dimensionValue as string}
-            onValueChange={(value) => updateAdSet(adSet.id, { 
-              dimensionValue: value,
-            })}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select audience type" />
-            </SelectTrigger>
-            <SelectContent>
-              {AUDIENCE_SELECTION_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="space-y-3">
+            {/* Audience Type Selector */}
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Audience Type</Label>
+              <Select
+                value={selectedType}
+                onValueChange={(value) => updateAdSet(adSet.id, { 
+                  dimensionValue: value,
+                  audiences: [], // Clear selected audiences when type changes
+                })}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select audience type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {AUDIENCE_TYPE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {/* Audience Lists Multi-Select - only for non-broad types */}
+            {selectedType && selectedType !== "broad" && (
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">
+                  Select {AUDIENCE_TYPE_OPTIONS.find(o => o.value === selectedType)?.label || "Audiences"}
+                </Label>
+                {filteredAudiences.length > 0 ? (
+                  <MultiSelect
+                    options={filteredAudiences.map(a => ({
+                      value: a.id,
+                      label: a.name,
+                    }))}
+                    value={selectedAudienceIds}
+                    onChange={(ids) => {
+                      const selectedAudiences = ids.map(id => {
+                        const aud = availableAudiences.find(a => a.id === id);
+                        return aud ? {
+                          id: aud.id,
+                          name: aud.name,
+                          type: aud.type,
+                          source: 'audience_selection_split',
+                        } : null;
+                      }).filter(Boolean) as typeof adSet.audiences;
+                      updateAdSet(adSet.id, { audiences: selectedAudiences });
+                    }}
+                    placeholder={`Select ${selectedType} audiences...`}
+                    className="w-full"
+                  />
+                ) : (
+                  <p className="text-xs text-muted-foreground italic p-2 border rounded bg-muted/30">
+                    No {selectedType} audiences available. Add audiences in the Audience Selection section above.
+                  </p>
+                )}
+              </div>
+            )}
+            
+            {selectedType === "broad" && (
+              <p className="text-xs text-muted-foreground italic p-2 border rounded bg-muted/30">
+                Broad targeting uses no specific audience lists - targeting is based on demographics only.
+              </p>
+            )}
+          </div>
         );
 
       default:
