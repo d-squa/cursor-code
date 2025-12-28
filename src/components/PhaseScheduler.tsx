@@ -1736,27 +1736,8 @@ export function PhaseScheduler({
 
                       {/* Audience Selection - hidden when broad targeting is active */}
                       {(() => {
-                        const audienceStrategy = getAudienceStrategyConfig(platformName, phase.objective, phase.optimizationGoal);
-                        // For Custom strategy (manual) OR Custom strategy focus, always show all audience types
-                        const isCustomStrategy =
-                          strategy === "manual" || (strategyFocus || "").toLowerCase() === "custom";
-                        // Only show if at least one audience type is visible OR if using custom strategy
-                        const hasVisibleAudiences =
-                          isCustomStrategy ||
-                          audienceStrategy.showRetargetingAudiences ||
-                          audienceStrategy.showLookalikeAudiences;
-                        
-                        if (phase.useBroadTargeting || !hasVisibleAudiences) return null;
-                        
-                        // Override audience strategy for custom - show all audience types
-                        const effectiveStrategy = isCustomStrategy
-                          ? {
-                              ...audienceStrategy,
-                              showRetargetingAudiences: true,
-                              showLookalikeAudiences: true,
-                            }
-                          : audienceStrategy;
-                        
+                        if (phase.useBroadTargeting) return null;
+
                         return (
                           <SplittableSection
                             dimension="audience_selection"
@@ -1775,7 +1756,7 @@ export function PhaseScheduler({
                                 availableAudiences: phase.audiences?.map(a => ({ id: a.id, name: a.name, type: a.type })),
                                 availableOptimizationGoals: getOptimizationGoalsForPhase(phase.objective || ''),
                               }) : undefined;
-                              updatePhaseFields(phase.id, { 
+                              updatePhaseFields(phase.id, {
                                 adSetSplitDimension: newDimension,
                                 adSets: newAdSets,
                                 useCBO: useCBO,
@@ -1805,8 +1786,8 @@ export function PhaseScheduler({
                                   platform={platformName}
                                   basicTargeting={undefined}
                                   overrideTargeting={phase.overrideTargeting}
-                                  showRetargetingAudiences={effectiveStrategy.showRetargetingAudiences}
-                                  showLookalikeAudiences={effectiveStrategy.showLookalikeAudiences}
+                                  showRetargetingAudiences={true}
+                                  showLookalikeAudiences={true}
                                   autoExcludeEnabled={phase.autoExcludeAudiences || false}
                                   onAutoExcludeChange={(enabled) => {
                                     updatePhaseField(phase.id, "autoExcludeAudiences", enabled);
