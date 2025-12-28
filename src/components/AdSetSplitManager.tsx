@@ -7,13 +7,14 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Plus, Trash2, GripVertical, Split, X, Lightbulb, Ban } from "lucide-react";
+import { Plus, Trash2, GripVertical, Split, X, Lightbulb, Ban, Loader2 } from "lucide-react";
 import { AdSetConfig, AdSetSplitDimension } from "@/types/mediaplan";
 import { LANGUAGE_OPTIONS } from "@/utils/targetingOptions";
 import { MARKET_OPTIONS } from "@/utils/markets";
 import { getPlacementsForSelection } from "@/utils/placements";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { Switch } from "@/components/ui/switch";
+import { supabase } from "@/integrations/supabase/client";
 
 interface AdSetSplitManagerProps {
   dimension: AdSetSplitDimension;
@@ -28,6 +29,8 @@ interface AdSetSplitManagerProps {
   availablePlacements?: string[];
   availableAudiences?: Array<{ id: string; name: string; type: string }>;
   availableOptimizationGoals?: Array<{ value: string; label: string }>;
+  // Ad account for fetching audiences
+  adAccountId?: string;
   // Current phase values for context
   currentGender?: string;
   currentAgeMin?: number;
@@ -233,6 +236,7 @@ export function AdSetSplitManager({
   availablePlacements = [],
   availableAudiences = [],
   availableOptimizationGoals = [],
+  adAccountId,
   currentGender,
   currentAgeMin,
   currentAgeMax,
@@ -245,6 +249,10 @@ export function AdSetSplitManager({
   // State for cross-exclude (default true for audience_selection)
   const [localAutoCrossExclude, setLocalAutoCrossExclude] = useState(autoCrossExclude);
   
+  // State for fetched audiences (for audience_selection dimension)
+  const [fetchedAudiences, setFetchedAudiences] = useState<Array<{ id: string; name: string; type: string; source?: string }>>([]);
+  const [audiencesLoading, setAudiencesLoading] = useState(false);
+  
   // Audience selection options for cross-exclude
   const AUDIENCE_SELECTION_OPTIONS = [
     { value: "custom", label: "Custom Audiences" },
@@ -252,6 +260,48 @@ export function AdSetSplitManager({
     { value: "retargeting", label: "Retargeting Audiences" },
     { value: "broad", label: "Broad Targeting" },
   ];
+  
+  // Fetch audiences when dimension is audience_selection and adAccountId is available
+  useEffect(() => {
+    if (dimension !== 'audience_selection' || !adAccountId) {
+      return;
+    }
+    
+    const fetchAudiences = async () => {
+      setAudiencesLoading(true);
+      try {
+        // Fetch all audience types: custom_audiences and saved_audiences
+        const { data, error } = await supabase.functions.invoke('fetch-meta-audiences', {
+          body: { 
+            adAccountId, 
+            sources: ['custom_audiences', 'saved_audiences']
+          }
+        });
+        
+        if (error) {
+          console.error('Error fetching audiences:', error);
+          return;
+        }
+        
+        const audiences = data?.audiences || [];
+        // Map to consistent format with type based on subtype
+        const mappedAudiences = audiences.map((aud: any) => ({
+          id: aud.id,
+          name: aud.name,
+          type: aud.subtype || aud.source || 'Custom Audience',
+          source: aud.source,
+        }));
+        
+        setFetchedAudiences(mappedAudiences);
+      } catch (err) {
+        console.error('Error fetching audiences:', err);
+      } finally {
+        setAudiencesLoading(false);
+      }
+    };
+    
+    fetchAudiences();
+  }, [dimension, adAccountId]);
   
   // Calculate excluded audiences for each ad set when using audience_selection dimension
   const adSetsWithExclusions = useMemo(() => {
@@ -693,24 +743,25 @@ export function AdSetSplitManager({
           { value: "broad", label: "Broad Targeting" },
         ];
         
-        // Filter available audiences based on selected type
-        // Audiences have 'type' like "Custom Audience", "Lookalike Audience" from matrix
+        // Use fetched audiences for the dropdown
+        const audiencesToFilter = fetchedAudiences.length > 0 ? fetchedAudiences : availableAudiences;
+        
+        // Filter audiences based on selected type
         const selectedType = adSet.dimensionValue as string;
-        const filteredAudiences = availableAudiences.filter(a => {
+        const filteredAudiences = audiencesToFilter.filter(a => {
           const typeLower = (a.type || '').toLowerCase();
           
           if (selectedType === "custom") {
-            // Match "Custom Audience" or any custom-like type
+            // Match custom audiences but not lookalikes
             return typeLower.includes("custom") && !typeLower.includes("lookalike");
           }
           if (selectedType === "lookalike") {
-            // Match "Lookalike Audience" or any lookalike-like type
+            // Match lookalike audiences
             return typeLower.includes("lookalike");
           }
           if (selectedType === "retargeting") {
-            // Retargeting = Custom Audiences that are website/app based
-            // In our matrix, all Custom Audiences in Conversion phase are retargeting
-            return typeLower.includes("custom") && !typeLower.includes("lookalike");
+            // Retargeting = website/app-based custom audiences
+            return (typeLower.includes("custom") || typeLower.includes("website") || typeLower.includes("app")) && !typeLower.includes("lookalike");
           }
           return false; // "broad" doesn't have specific audiences
         });
@@ -748,7 +799,12 @@ export function AdSetSplitManager({
                 <Label className="text-xs text-muted-foreground">
                   Select {AUDIENCE_TYPE_OPTIONS.find(o => o.value === selectedType)?.label || "Audiences"}
                 </Label>
-                {filteredAudiences.length > 0 ? (
+                {audiencesLoading ? (
+                  <div className="flex items-center gap-2 p-2 border rounded bg-muted/30">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span className="text-xs text-muted-foreground">Loading audiences...</span>
+                  </div>
+                ) : filteredAudiences.length > 0 ? (
                   <MultiSelect
                     options={filteredAudiences.map(a => ({
                       value: a.id,
@@ -757,7 +813,7 @@ export function AdSetSplitManager({
                     value={selectedAudienceIds}
                     onChange={(ids) => {
                       const selectedAudiences = ids.map(id => {
-                        const aud = availableAudiences.find(a => a.id === id);
+                        const aud = audiencesToFilter.find(a => a.id === id);
                         return aud ? {
                           id: aud.id,
                           name: aud.name,
@@ -772,7 +828,7 @@ export function AdSetSplitManager({
                   />
                 ) : (
                   <p className="text-xs text-muted-foreground italic p-2 border rounded bg-muted/30">
-                    No {selectedType} audiences available. Add audiences in the Audience Selection section above.
+                    No {selectedType} audiences available. {!adAccountId ? 'Connect an ad account to load audiences.' : 'Create audiences in your ad platform.'}
                   </p>
                 )}
               </div>
