@@ -21,7 +21,6 @@ export const META_PUBLISHER_OPTIONS = [
   { value: "instagram", label: "Instagram" },
   { value: "audience_network", label: "Audience Network" },
   { value: "messenger", label: "Messenger" },
-  { value: "threads", label: "Threads" },
 ];
 
 // TikTok placement options for split
@@ -30,6 +29,38 @@ export const TIKTOK_PLACEMENT_OPTIONS = [
   { value: "PLACEMENT_PANGLE", label: "Pangle" },
   { value: "PLACEMENT_TOPBUZZ", label: "TopBuzz/BuzzVideo" },
 ];
+
+// Meta positions per publisher
+export const META_POSITIONS: Record<string, Array<{ value: string; label: string }>> = {
+  facebook: [
+    { value: "feed", label: "Feed" },
+    { value: "right_hand_column", label: "Right Hand Column" },
+    { value: "marketplace", label: "Marketplace" },
+    { value: "video_feeds", label: "Video Feeds" },
+    { value: "story", label: "Stories" },
+    { value: "search", label: "Search Results" },
+    { value: "instream_video", label: "In-Stream Video" },
+    { value: "reels", label: "Reels" },
+  ],
+  instagram: [
+    { value: "stream", label: "Feed" },
+    { value: "story", label: "Stories" },
+    { value: "explore", label: "Explore" },
+    { value: "explore_home", label: "Explore Home" },
+    { value: "reels", label: "Reels" },
+    { value: "profile_feed", label: "Profile Feed" },
+    { value: "search", label: "Search Results" },
+  ],
+  audience_network: [
+    { value: "classic", label: "Native, Banner, Interstitial" },
+    { value: "rewarded_video", label: "Rewarded Video" },
+  ],
+  messenger: [
+    { value: "messenger_home", label: "Inbox" },
+    { value: "story", label: "Stories" },
+    { value: "sponsored_messages", label: "Sponsored Messages" },
+  ],
+};
 
 // Get taxonomy suffix for a dimension value
 function getTaxonomySuffix(
@@ -293,7 +324,8 @@ export function createInitialAdSets(
 // Get ad set field overrides based on dimension
 function getAdSetFieldsForDimension(
   dimension: AdSetSplitDimension,
-  value: string | { min: number; max: number }
+  value: string | { min: number; max: number },
+  context?: { platformId?: string }
 ): Partial<AdSetConfig> {
   switch (dimension) {
     case "gender":
@@ -301,7 +333,14 @@ function getAdSetFieldsForDimension(
     case "device":
       return { devices: [value as string] };
     case "placement":
-      return { placements: [value as string] };
+      const publisher = value as string;
+      // Get default position for the publisher
+      const positions = META_POSITIONS[publisher];
+      const defaultPosition = positions?.[0]?.value;
+      return { 
+        publisherPlatforms: [publisher],
+        positions: defaultPosition ? { [publisher]: [defaultPosition] } : undefined,
+      };
     case "language":
       return { languages: [value as string] };
     case "location":

@@ -303,54 +303,150 @@ export function AdSetSplitManager({
     }));
   };
 
-  // Build placement options from available placements
-  // For Meta: use publisher platforms (facebook, instagram, etc.)
-  // For TikTok: use TikTok placement options
-  const getPlacementOptions = () => {
-    if (platformId === "tiktok") {
-      // TikTok placement options
-      return [
-        { value: "PLACEMENT_TIKTOK", label: "TikTok" },
-        { value: "PLACEMENT_PANGLE", label: "Pangle" },
-        { value: "PLACEMENT_TOPBUZZ", label: "TopBuzz/BuzzVideo" },
-      ];
-    }
-    // Meta publisher platforms
-    return [
-      { value: "facebook", label: "Facebook" },
-      { value: "instagram", label: "Instagram" },
-      { value: "audience_network", label: "Audience Network" },
-      { value: "messenger", label: "Messenger" },
-      { value: "threads", label: "Threads" },
-    ];
+  // Meta publisher platforms
+  const META_PUBLISHER_OPTIONS = [
+    { value: "facebook", label: "Facebook" },
+    { value: "instagram", label: "Instagram" },
+    { value: "audience_network", label: "Audience Network" },
+    { value: "messenger", label: "Messenger" },
+  ];
+
+  // TikTok placement options
+  const TIKTOK_PLACEMENT_OPTIONS_LIST = [
+    { value: "PLACEMENT_TIKTOK", label: "TikTok" },
+    { value: "PLACEMENT_PANGLE", label: "Pangle" },
+    { value: "PLACEMENT_TOPBUZZ", label: "TopBuzz/BuzzVideo" },
+  ];
+
+  // Meta positions per publisher
+  const META_POSITIONS: Record<string, Array<{ value: string; label: string }>> = {
+    facebook: [
+      { value: "feed", label: "Feed" },
+      { value: "right_hand_column", label: "Right Hand Column" },
+      { value: "marketplace", label: "Marketplace" },
+      { value: "video_feeds", label: "Video Feeds" },
+      { value: "story", label: "Stories" },
+      { value: "search", label: "Search Results" },
+      { value: "instream_video", label: "In-Stream Video" },
+      { value: "reels", label: "Reels" },
+    ],
+    instagram: [
+      { value: "stream", label: "Feed" },
+      { value: "story", label: "Stories" },
+      { value: "explore", label: "Explore" },
+      { value: "explore_home", label: "Explore Home" },
+      { value: "reels", label: "Reels" },
+      { value: "profile_feed", label: "Profile Feed" },
+      { value: "search", label: "Search Results" },
+    ],
+    audience_network: [
+      { value: "classic", label: "Native, Banner, Interstitial" },
+      { value: "rewarded_video", label: "Rewarded Video" },
+    ],
+    messenger: [
+      { value: "messenger_home", label: "Inbox" },
+      { value: "story", label: "Stories" },
+      { value: "sponsored_messages", label: "Sponsored Messages" },
+    ],
+  };
+
+  // Get positions for a specific publisher
+  const getPositionsForPublisher = (publisher: string): Array<{ value: string; label: string }> => {
+    return META_POSITIONS[publisher] || [];
   };
 
   // Render dimension-specific input
   const renderDimensionInput = (adSet: AdSetConfig) => {
     switch (dimension) {
       case "placement":
-        const placementOptions = getPlacementOptions();
+        if (platformId === "tiktok") {
+          // TikTok: simple placement dropdown
+          return (
+            <Select
+              value={adSet.dimensionValue as string}
+              onValueChange={(value) => updateAdSet(adSet.id, { 
+                dimensionValue: value,
+                tiktokPlacements: [value],
+              })}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select TikTok placement" />
+              </SelectTrigger>
+              <SelectContent>
+                {TIKTOK_PLACEMENT_OPTIONS_LIST.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          );
+        }
+        
+        // Meta: Publisher + Positions dropdowns
+        const currentPublisher = adSet.publisherPlatforms?.[0] || "";
+        const currentPositions = adSet.positions?.[currentPublisher as keyof typeof adSet.positions] || [];
+        const availablePositions = getPositionsForPublisher(currentPublisher);
+        
         return (
-          <Select
-            value={adSet.dimensionValue as string}
-            onValueChange={(value) => updateAdSet(adSet.id, { 
-              dimensionValue: value,
-              placements: [value],
-              tiktokPlacements: platformId === "tiktok" ? [value] : undefined,
-              publisherPlatforms: platformId !== "tiktok" ? [value] : undefined,
-            })}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select placement/publisher" />
-            </SelectTrigger>
-            <SelectContent>
-              {placementOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="space-y-2">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Publisher</Label>
+              <Select
+                value={currentPublisher}
+                onValueChange={(value) => {
+                  // Reset positions when publisher changes
+                  const defaultPositions = getPositionsForPublisher(value);
+                  updateAdSet(adSet.id, { 
+                    dimensionValue: value,
+                    publisherPlatforms: [value],
+                    positions: {
+                      [value]: defaultPositions.slice(0, 1).map(p => p.value)
+                    },
+                  });
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select publisher" />
+                </SelectTrigger>
+                <SelectContent>
+                  {META_PUBLISHER_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {currentPublisher && availablePositions.length > 0 && (
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Positions</Label>
+                <Select
+                  value={currentPositions[0] || ""}
+                  onValueChange={(value) => {
+                    updateAdSet(adSet.id, { 
+                      positions: {
+                        ...adSet.positions,
+                        [currentPublisher]: [value]
+                      },
+                    });
+                  }}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select position" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availablePositions.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
         );
 
       case "optimization_goal":
