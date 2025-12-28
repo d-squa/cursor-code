@@ -725,9 +725,9 @@ export function AdSetSplitManager({
         );
 
       case "audience_selection":
-        // Audience selection split options: Custom, Lookalike, Retargeting, Broad
+        // Audience selection split options: Custom (mix & match all), Lookalike, Retargeting, Broad
         const AUDIENCE_TYPE_OPTIONS = [
-          { value: "custom", label: "Custom Audiences" },
+          { value: "custom", label: "Custom (Mix & Match)" },
           { value: "lookalike", label: "Lookalike Audiences" },
           { value: "retargeting", label: "Retargeting Audiences" },
           { value: "broad", label: "Broad Targeting" },
@@ -751,9 +751,10 @@ export function AdSetSplitManager({
             key.includes("video") ||
             key.includes("event");
 
+          // Custom = show ALL audience types (mix & match)
+          if (selectedType === "custom") return !isSaved;
           if (selectedType === "lookalike") return isLookalike;
           if (selectedType === "retargeting") return isRetargeting && !isLookalike;
-          if (selectedType === "custom") return !isSaved && !isLookalike && !isRetargeting;
           return false; // "broad" doesn't have specific audiences
         });
         
@@ -763,7 +764,7 @@ export function AdSetSplitManager({
           <div className="space-y-3">
             {/* Audience Type Selector */}
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Audience Type</Label>
+              <Label className="text-xs text-muted-foreground">Strategy Type</Label>
               <Select
                 value={selectedType}
                 onValueChange={(value) => updateAdSet(adSet.id, { 
@@ -772,7 +773,7 @@ export function AdSetSplitManager({
                 })}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select audience type" />
+                  <SelectValue placeholder="Select strategy type" />
                 </SelectTrigger>
                 <SelectContent>
                   {AUDIENCE_TYPE_OPTIONS.map((option) => (
@@ -788,7 +789,7 @@ export function AdSetSplitManager({
             {selectedType && selectedType !== "broad" && (
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">
-                  Select {AUDIENCE_TYPE_OPTIONS.find(o => o.value === selectedType)?.label || "Audiences"}
+                  {selectedType === "custom" ? "Select Audiences (All Types)" : `Select ${AUDIENCE_TYPE_OPTIONS.find(o => o.value === selectedType)?.label || "Audiences"}`}
                 </Label>
                 {audiencesLoading ? (
                   <div className="flex items-center gap-2 p-2 border rounded bg-muted/30">
@@ -814,12 +815,12 @@ export function AdSetSplitManager({
                       }).filter(Boolean) as typeof adSet.audiences;
                       updateAdSet(adSet.id, { audiences: selectedAudiences });
                     }}
-                    placeholder={`Select ${selectedType} audiences...`}
+                    placeholder={selectedType === "custom" ? "Select any audiences..." : `Select ${selectedType} audiences...`}
                     className="w-full"
                   />
                 ) : (
                   <p className="text-xs text-muted-foreground italic p-2 border rounded bg-muted/30">
-                    No {selectedType} audiences available. {!adAccountId ? 'Connect an ad account to load audiences.' : 'Create audiences in your ad platform.'}
+                    No audiences available. {!adAccountId ? 'Connect an ad account to load audiences.' : 'Create audiences in your ad platform.'}
                   </p>
                 )}
               </div>
