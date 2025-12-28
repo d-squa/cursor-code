@@ -2755,11 +2755,21 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           } else {
             tiktokOptGoal = "CLICK";
           }
+        } else if (mappedObjective === "LEAD_GENERATION") {
+          // LEAD_GENERATION objective
+          const phaseOptGoal = (phase.optimizationGoal || "").toUpperCase();
+          const allowedLeadGoals = new Set([
+            "LEAD_GENERATION",
+            "LEADS",
+            "CONVERSION_LEADS",
+            "PREFERRED_LEAD",
+          ]);
+          tiktokOptGoal = allowedLeadGoals.has(phaseOptGoal) ? phaseOptGoal : "LEAD_GENERATION";
         } else if (mappedObjective === "REACH") {
           tiktokOptGoal = "REACH";
-        } else if (mappedObjective === "VIDEO_VIEW") {
+        } else if (mappedObjective === "VIDEO_VIEWS" || mappedObjective === "VIDEO_VIEW") {
           tiktokOptGoal = "VIDEO_VIEW";
-        } else if (mappedObjective === "APP_INSTALL") {
+        } else if (mappedObjective === "APP_PROMOTION" || mappedObjective === "APP_INSTALL") {
           tiktokOptGoal = "INSTALL";
         } else {
           // Default fallback
@@ -2832,9 +2842,12 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           console.warn(`⚠️ No bid amount configured - TikTok may require bid amount for CPC/CPM billing events`);
         }
         
-        // Get optimization location (defaults fetched from tiktok_ad_accounts if not specified)
-        const optimizationLocation = phase.tiktokOptimizationLocation || market.tiktokOptimizationLocation || "Website";
-        
+        // Get optimization location
+        // Default to Website unless LEAD_GENERATION (defaults to Instant Form)
+        let optimizationLocation = phase.tiktokOptimizationLocation || market.tiktokOptimizationLocation;
+        if (!optimizationLocation) {
+          optimizationLocation = mappedObjective === 'LEAD_GENERATION' ? 'Instant Form' : 'Website';
+        }
         // Get app details for app campaigns
         const appName = phase.tiktokAppName || market.tiktokAppName;
         const appId = phase.tiktokAppId || market.tiktokAppId;

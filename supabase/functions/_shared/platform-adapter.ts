@@ -328,12 +328,13 @@ class TikTokAdapter implements PlatformAdapter {
         const mapping: Record<string, string> = {
           'REACH': 'CPM',
           'CLICK': 'CPC',
+          'TRAFFIC_LANDING_PAGE_VIEW': 'CPC',
           'LANDING_PAGE': 'OCPM',
-          'LANDING_PAGE_VIEW': 'OCPM', // Added missing mapping
+          'LANDING_PAGE_VIEW': 'OCPM', // legacy alias (do not send to API)
           '6S_VIDEO_VIEW': 'CPV',
           '15S_VIDEO_VIEW': 'CPV',
-          'VIDEO_VIEW': 'CPV', // Added VIDEO_VIEW mapping
-          'FOCUSED_VIEW': 'CPV', // Added FOCUSED_VIEW mapping
+          'VIDEO_VIEW': 'CPV',
+          'FOCUSED_VIEW': 'CPV',
           'CONVERT': 'OCPM',
           'VALUE': 'OCPM',
           'APP_INSTALL': 'CPC',
@@ -396,7 +397,7 @@ class TikTokAdapter implements PlatformAdapter {
       // Some objectives don't support optimization location
       const objectivesWithoutLocation = ['REACH', 'VIDEO_VIEWS', 'VIDEO_VIEW', 'FOCUSED_VIEW', '6S_VIDEO_VIEW', '15S_VIDEO_VIEW', 'COMMUNITY_INTERACTION', 'PROFILE_VISIT', 'FOLLOW'];
       // TRAFFIC/CLICK objectives only support Website/App destinations, not Lead Gen types
-      const trafficObjectives = ['TRAFFIC', 'CLICK', 'LANDING_PAGE', 'LANDING_PAGE_VIEW', 'LANDING_PAGE_VIEWS'];
+      const trafficObjectives = ['TRAFFIC', 'CLICK', 'TRAFFIC_LANDING_PAGE_VIEW', 'LANDING_PAGE', 'LANDING_PAGE_VIEW', 'LANDING_PAGE_VIEWS'];
       const isTrafficObjective = trafficObjectives.includes(finalOptimizationGoal.toUpperCase()) ||
                                   trafficObjectives.includes(params.optimizationGoal?.toUpperCase() || '');
       const skipPromotionType = objectivesWithoutLocation.includes(finalOptimizationGoal.toUpperCase()) ||
