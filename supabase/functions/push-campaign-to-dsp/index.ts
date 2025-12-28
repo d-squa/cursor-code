@@ -2780,6 +2780,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
         
         // Map billing event based on objective + optimization goal combination
         // TikTok has strict billing event requirements per objective
+        // IMPORTANT: LEAD_GENERATION requires OCPM billing event
         const billingEventMap: Record<string, Record<string, string>> = {
           "TRAFFIC": {
             "CLICK": "CPC",  // TRAFFIC supports CPC
@@ -2797,6 +2798,12 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           },
           "APP_INSTALL": {
             "INSTALL": "OCPM",
+          },
+          "LEAD_GENERATION": {
+            "LEAD_GENERATION": "OCPM",  // Lead Gen requires OCPM
+            "LEADS": "OCPM",
+            "CONVERSION_LEADS": "OCPM",
+            "PREFERRED_LEAD": "OCPM",
           },
         };
         
