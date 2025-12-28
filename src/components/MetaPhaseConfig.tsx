@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Info } from "lucide-react";
 import { Phase } from "@/types/mediaplan";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { getOptimizationGoalsForObjective, getBillingEventForGoal } from "@/utils/objectiveOptimizationMapping";
 
@@ -29,9 +29,26 @@ export function MetaPhaseConfig({ phase, adAccountDefaults, onUpdate }: MetaPhas
   const { hasAccess } = useFeatureAccess();
   const canInheritDefaults = hasAccess('bid_strategy_defaults');
   
+  // Track if defaults have been applied to prevent infinite loops
+  const defaultsAppliedRef = useRef(false);
+  
+  // Reset defaults tracking when phase ID changes (new phase)
+  useEffect(() => {
+    defaultsAppliedRef.current = false;
+  }, [phase.id]);
+  
   // Auto-populate from defaults when fields are empty - only for enterprise+ users
   useEffect(() => {
-    if (!adAccountDefaults || !canInheritDefaults) return;
+    // Skip if defaults already applied for this phase
+    if (defaultsAppliedRef.current) return;
+    
+    if (!adAccountDefaults || !canInheritDefaults) {
+      defaultsAppliedRef.current = true;
+      return;
+    }
+    
+    // Mark defaults as applied BEFORE making updates to prevent re-runs
+    defaultsAppliedRef.current = true;
     
     // Only auto-populate if field is not already set
     if (!phase.metaBidStrategy && adAccountDefaults.metaBidStrategy) {
