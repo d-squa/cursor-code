@@ -1748,29 +1748,27 @@ export function PhaseScheduler({
                             dimensionLabel="Audience Selection"
                             currentSplitDimension={phase.adSetSplitDimension}
                             onSplitClick={(dim, useCBO) => {
-                              const updatedPhases = phases.map(p => {
-                                if (p.id === phase.id) {
-                                  if (dim === 'none') {
-                                    return { ...p, adSetSplitDimension: undefined, adSets: undefined, useCBO: undefined };
-                                  }
-                                  const initialAdSets = createInitialAdSets(dim, p.name, {
-                                    platformId,
-                                    currentGender: p.targeting?.genders?.[0],
-                                    currentDevices: p.targeting?.devices,
-                                    currentLanguages: p.targeting?.languages,
-                                    currentAgeMin: p.targeting?.ageMin,
-                                    currentAgeMax: p.targeting?.ageMax,
-                                    currentOptimizationGoal: p.optimizationGoal,
-                                    availableAudiences: phase.audiences?.map(a => ({ id: a.id, name: a.name, type: a.type })),
-                                    availableOptimizationGoals: getOptimizationGoalsForPhase(p.objective || ''),
-                                  });
-                                  return { ...p, adSetSplitDimension: dim, adSets: initialAdSets, useCBO };
-                                }
-                                return p;
+                              const newDimension = dim === 'none' ? undefined : dim;
+                              const newAdSets = newDimension ? createInitialAdSets(dim, phase.name, {
+                                platformId: platformId || 'meta',
+                                currentGender: phase.targeting?.genders?.[0] || basicTargeting?.genders?.[0],
+                                currentDevices: phase.targeting?.devices || basicTargeting?.devices,
+                                currentLanguages: phase.targeting?.languages || basicTargeting?.languages,
+                                currentAgeMin: phase.targeting?.ageMin ?? basicTargeting?.ageMin,
+                                currentAgeMax: phase.targeting?.ageMax ?? basicTargeting?.ageMax,
+                                currentOptimizationGoal: phase.optimizationGoal,
+                                availableAudiences: phase.audiences?.map(a => ({ id: a.id, name: a.name, type: a.type })),
+                                availableOptimizationGoals: getOptimizationGoalsForPhase(phase.objective || ''),
+                              }) : undefined;
+                              updatePhaseFields(phase.id, { 
+                                adSetSplitDimension: newDimension,
+                                adSets: newAdSets,
+                                useCBO: useCBO,
                               });
-                              onPhasesChange(updatedPhases);
-                              setExpandedPhases(prev => ({ ...prev, [phase.id]: true }));
-                              setScrollToSplitPhaseId(phase.id);
+                              // Trigger scroll to split manager
+                              if (newDimension) {
+                                setScrollToSplitPhaseId(phase.id);
+                              }
                             }}
                           >
                             <div className="space-y-3">
