@@ -1793,8 +1793,27 @@ export function PhaseScheduler({
                                 overrideTargeting={phase.overrideTargeting}
                                 showRetargetingAudiences={audienceStrategy.showRetargetingAudiences}
                                 showLookalikeAudiences={audienceStrategy.showLookalikeAudiences}
-                                onAudiencesSelected={(audiences) => {
-                                  updatePhaseField(phase.id, "audiences", audiences);
+                                autoExcludeEnabled={phase.autoExcludeAudiences || false}
+                                onAutoExcludeChange={(enabled) => {
+                                  updatePhaseField(phase.id, "autoExcludeAudiences", enabled);
+                                }}
+                                onAudiencesSelected={(audiences, excludedAudiences) => {
+                                  const updatedPhases = phasesRef.current.map(p => {
+                                    if (p.id === phase.id) {
+                                      return {
+                                        ...p,
+                                        audiences,
+                                        excludedAudiences: excludedAudiences?.map(a => ({
+                                          id: a.id,
+                                          name: a.name,
+                                          type: a.type,
+                                          source: a.source,
+                                        })),
+                                      };
+                                    }
+                                    return p;
+                                  });
+                                  onPhasesChange(updatedPhases);
                                 }}
                                 initialSelection={phase.audiences || []}
                               />

@@ -132,6 +132,13 @@ export interface AdSetConfig {
     subtype?: string;
     approximate_count?: number;
   }>;
+  // Excluded audiences for cross-negation
+  excludedAudiences?: Array<{
+    id: string;
+    name: string;
+    type: string;
+    source: string;
+  }>;
 }
 
 // Dimensions available for splitting ad sets
@@ -264,6 +271,15 @@ export interface Phase {
     subtype?: string;
     approximate_count?: number;
   }>;
+  // Excluded audiences for auto-negation
+  excludedAudiences?: Array<{
+    id: string;
+    name: string;
+    type: string;
+    source: string;
+  }>;
+  // Auto-exclude toggle
+  autoExcludeAudiences?: boolean;
 }
 
 export interface Campaign {

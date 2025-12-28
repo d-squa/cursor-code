@@ -3,10 +3,12 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, ChevronDown, ChevronUp } from "lucide-react";
+import { Loader2, ChevronDown, ChevronUp, Ban } from "lucide-react";
 import { toast } from "sonner";
 import { getAudienceTypesForPhase, AudienceTypeMatrixEntry } from "@/utils/audienceTypeMatrix";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 // Helper function to determine funnel phase from objective and optimization goal
 function determineFunnelPhaseFromObjective(objective: string, optimizationGoal: string): string {
@@ -38,7 +40,7 @@ interface PhaseAudienceSelectorProps {
   phaseOptimizationGoal?: string;
   adAccountId: string;
   platform?: string;
-  onAudiencesSelected: (audiences: SelectedAudience[]) => void;
+  onAudiencesSelected: (audiences: SelectedAudience[], excludedAudiences?: SelectedAudience[]) => void;
   initialSelection?: SelectedAudience[];
   overrideTargeting?: boolean;
   basicTargeting?: {
@@ -52,6 +54,9 @@ interface PhaseAudienceSelectorProps {
   // Visibility controls from audience strategy mapping
   showRetargetingAudiences?: boolean;
   showLookalikeAudiences?: boolean;
+  // Auto-exclude feature
+  autoExcludeEnabled?: boolean;
+  onAutoExcludeChange?: (enabled: boolean) => void;
 }
 
 export interface SelectedAudience {
@@ -87,6 +92,8 @@ export function PhaseAudienceSelector({
   overrideTargeting = false,
   showRetargetingAudiences = true,
   showLookalikeAudiences = true,
+  autoExcludeEnabled = false,
+  onAutoExcludeChange,
 }: PhaseAudienceSelectorProps) {
   // Determine if this is a brand awareness campaign first (needed for state initialization)
   const isBrandAwareness = phaseObjective?.toLowerCase().includes('awareness') || 
@@ -284,24 +291,32 @@ export function PhaseAudienceSelector({
   // Update parent when selection changes
   useEffect(() => {
     const selected: SelectedAudience[] = [];
+    const excluded: SelectedAudience[] = [];
+    
     Object.entries(audiencesByType).forEach(([source, audiences]) => {
       audiences.forEach(aud => {
+        const entry = matrixEntries.find(e => e.source === source);
+        const audienceData: SelectedAudience = {
+          id: aud.id,
+          name: aud.name,
+          type: entry?.type || 'Unknown',
+          source: source,
+          subtype: aud.subtype,
+          approximate_count: aud.approximate_count_lower_bound,
+          audienceSize: aud.audienceSize
+        };
+        
         if (selectedAudiences.has(aud.id)) {
-          const entry = matrixEntries.find(e => e.source === source);
-          selected.push({
-            id: aud.id,
-            name: aud.name,
-            type: entry?.type || 'Unknown',
-            source: source,
-            subtype: aud.subtype,
-            approximate_count: aud.approximate_count_lower_bound,
-            audienceSize: aud.audienceSize
-          });
+          selected.push(audienceData);
+        } else if (autoExcludeEnabled) {
+          // When auto-exclude is enabled, add non-selected audiences to excluded list
+          excluded.push(audienceData);
         }
       });
     });
-    onAudiencesSelected(selected);
-  }, [selectedAudiences, audiencesByType, matrixEntries]);
+    
+    onAudiencesSelected(selected, autoExcludeEnabled ? excluded : undefined);
+  }, [selectedAudiences, audiencesByType, matrixEntries, autoExcludeEnabled]);
 
   const formatAudienceSize = (size?: number) => {
     if (!size) return '';
@@ -312,6 +327,28 @@ export function PhaseAudienceSelector({
 
   return (
     <div className="space-y-4">
+      {/* Auto-Exclude Toggle */}
+      {onAutoExcludeChange && (
+        <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+          <div className="flex items-center gap-2">
+            <Ban className="h-4 w-4 text-muted-foreground" />
+            <div>
+              <Label htmlFor="auto-exclude" className="text-sm font-medium cursor-pointer">
+                Auto-Exclude Unselected Audiences
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Automatically negate audiences that aren't selected to prevent overlap
+              </p>
+            </div>
+          </div>
+          <Switch
+            id="auto-exclude"
+            checked={autoExcludeEnabled}
+            onCheckedChange={onAutoExcludeChange}
+          />
+        </div>
+      )}
+      
       {loading && (
         <div className="flex items-center justify-center py-8">
           <Loader2 className="w-6 h-6 animate-spin" />

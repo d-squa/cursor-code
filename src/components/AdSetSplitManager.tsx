@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,12 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Plus, Trash2, GripVertical, Split, X, Lightbulb } from "lucide-react";
+import { Plus, Trash2, GripVertical, Split, X, Lightbulb, Ban } from "lucide-react";
 import { AdSetConfig, AdSetSplitDimension } from "@/types/mediaplan";
 import { LANGUAGE_OPTIONS } from "@/utils/targetingOptions";
 import { MARKET_OPTIONS } from "@/utils/markets";
 import { getPlacementsForSelection } from "@/utils/placements";
 import { MultiSelect } from "@/components/ui/multi-select";
+import { Switch } from "@/components/ui/switch";
 
 interface AdSetSplitManagerProps {
   dimension: AdSetSplitDimension;
@@ -34,6 +35,9 @@ interface AdSetSplitManagerProps {
   currentLanguages?: string[];
   currentLocations?: string[];
   currentDevices?: string[];
+  // Cross-exclude for audience_selection
+  autoCrossExclude?: boolean;
+  onAutoCrossExcludeChange?: (enabled: boolean) => void;
 }
 
 const DIMENSION_LABELS: Record<AdSetSplitDimension, string> = {
@@ -235,7 +239,58 @@ export function AdSetSplitManager({
   currentLanguages,
   currentLocations,
   currentDevices,
+  autoCrossExclude = true,
+  onAutoCrossExcludeChange,
 }: AdSetSplitManagerProps) {
+  // State for cross-exclude (default true for audience_selection)
+  const [localAutoCrossExclude, setLocalAutoCrossExclude] = useState(autoCrossExclude);
+  
+  // Audience selection options for cross-exclude
+  const AUDIENCE_SELECTION_OPTIONS = [
+    { value: "custom", label: "Custom Audiences" },
+    { value: "lookalike", label: "Lookalike Audiences" },
+    { value: "retargeting", label: "Retargeting Audiences" },
+    { value: "broad", label: "Broad Targeting" },
+  ];
+  
+  // Calculate excluded audiences for each ad set when using audience_selection dimension
+  const adSetsWithExclusions = useMemo(() => {
+    if (dimension !== 'audience_selection' || !localAutoCrossExclude) {
+      return adSets;
+    }
+    
+    return adSets.map(adSet => {
+      // Get all other ad sets' dimension values
+      const otherValues = adSets
+        .filter(as => as.id !== adSet.id)
+        .map(as => as.dimensionValue as string)
+        .filter(Boolean);
+      
+      // Create excluded audiences based on other ad sets' selections
+      const excludedAudiences = otherValues.map(value => {
+        const option = AUDIENCE_SELECTION_OPTIONS.find(o => o.value === value);
+        return {
+          id: value,
+          name: option?.label || value,
+          type: value,
+          source: 'audience_selection_split',
+        };
+      });
+      
+      return {
+        ...adSet,
+        excludedAudiences,
+      };
+    });
+  }, [adSets, dimension, localAutoCrossExclude]);
+  
+  // Update parent when cross-exclude changes
+  useEffect(() => {
+    if (dimension === 'audience_selection' && localAutoCrossExclude) {
+      onAdSetsChange(adSetsWithExclusions);
+    }
+  }, [adSetsWithExclusions, localAutoCrossExclude, dimension]);
+  
   // Calculate total budget percentage
   const totalBudget = adSets.reduce((sum, as) => sum + as.budgetPercentage, 0);
 
@@ -698,6 +753,31 @@ export function AdSetSplitManager({
             <strong>Tip:</strong> Complete your ad set configuration first, then split. This way you only configure once instead of updating each ad set separately.
           </AlertDescription>
         </Alert>
+
+        {/* Auto Cross-Exclude Toggle - only show for audience_selection */}
+        {dimension === 'audience_selection' && (
+          <div className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+            <div className="flex items-center gap-2">
+              <Ban className="h-4 w-4 text-muted-foreground" />
+              <div>
+                <Label htmlFor="cross-exclude" className="text-sm font-medium cursor-pointer">
+                  Auto Cross-Exclude
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Each ad set automatically excludes audiences from other ad sets
+                </p>
+              </div>
+            </div>
+            <Switch
+              id="cross-exclude"
+              checked={localAutoCrossExclude}
+              onCheckedChange={(checked) => {
+                setLocalAutoCrossExclude(checked);
+                onAutoCrossExcludeChange?.(checked);
+              }}
+            />
+          </div>
+        )}
 
         {/* Budget summary - only show for ABO */}
         {!useCBO && (
