@@ -422,6 +422,198 @@ function generateTimestampSuffix(): string {
     String(now.getSeconds()).padStart(2, '0');
 }
 
+// ============= AD SET SPLIT HELPERS =============
+
+interface AdSetConfig {
+  id: string;
+  name: string;
+  dimensionValue: string | string[] | number | { min: number; max: number };
+  budgetPercentage: number;
+  placements?: string[];
+  tiktokPlacements?: string[];
+  publisherPlatforms?: string[];
+  positions?: {
+    facebook?: string[];
+    instagram?: string[];
+    audience_network?: string[];
+    messenger?: string[];
+    threads?: string[];
+  };
+  languages?: (number | string)[];
+  countries?: string[];
+  gender?: string;
+  devices?: string[];
+  ageMin?: number;
+  ageMax?: number;
+  optimizationGoal?: string;
+  audiences?: Array<{
+    id: string;
+    name: string;
+    type: string;
+    source: string;
+  }>;
+  excludedAudiences?: Array<{
+    id: string;
+    name: string;
+    type: string;
+    source: string;
+  }>;
+}
+
+// Apply ad set split overrides to Meta targeting object
+function applyMetaAdSetOverrides(
+  baseTargeting: any,
+  adSet: AdSetConfig,
+  dimension: string
+): any {
+  const targeting = { ...baseTargeting };
+  
+  // Apply dimension-specific overrides
+  switch (dimension) {
+    case 'gender':
+      if (adSet.gender) {
+        const genderMap: Record<string, number[]> = {
+          'male': [1],
+          'female': [2],
+          'all': [],
+        };
+        const genders = genderMap[adSet.gender.toLowerCase()];
+        if (genders && genders.length > 0) {
+          targeting.genders = genders;
+        } else {
+          delete targeting.genders; // All genders
+        }
+      }
+      break;
+      
+    case 'device':
+      if (adSet.devices && adSet.devices.length > 0) {
+        targeting.device_platforms = adSet.devices;
+      }
+      break;
+      
+    case 'age':
+      if (adSet.ageMin !== undefined) targeting.age_min = adSet.ageMin;
+      if (adSet.ageMax !== undefined) targeting.age_max = adSet.ageMax;
+      break;
+      
+    case 'language':
+      if (adSet.languages && adSet.languages.length > 0) {
+        // Convert to Meta locale IDs if needed
+        const locales = adSet.languages
+          .map((lang: string | number) => parseInt(String(lang)))
+          .filter((l: number) => !isNaN(l));
+        if (locales.length > 0) {
+          targeting.locales = locales;
+        }
+      }
+      break;
+      
+    case 'location':
+      if (adSet.countries && adSet.countries.length > 0) {
+        targeting.geo_locations = { countries: adSet.countries };
+      }
+      break;
+      
+    case 'audience':
+    case 'audience_selection':
+      // Add custom audiences from the ad set
+      if (adSet.audiences && adSet.audiences.length > 0) {
+        targeting.custom_audiences = adSet.audiences.map(a => ({ id: a.id }));
+      }
+      // Add excluded audiences
+      if (adSet.excludedAudiences && adSet.excludedAudiences.length > 0) {
+        targeting.excluded_custom_audiences = adSet.excludedAudiences.map(a => ({ id: a.id }));
+      }
+      break;
+  }
+  
+  return targeting;
+}
+
+// Apply ad set split overrides to TikTok targeting object
+function applyTikTokAdSetOverrides(
+  baseTargeting: any,
+  adSet: AdSetConfig,
+  dimension: string
+): any {
+  const targeting = { ...baseTargeting };
+  
+  switch (dimension) {
+    case 'gender':
+      if (adSet.gender) {
+        // Map string values to numeric for TikTok adapter
+        const genderMap: Record<string, number[]> = {
+          'male': [1],
+          'female': [2],
+          'all': [],
+        };
+        const genders = genderMap[adSet.gender.toLowerCase()];
+        targeting.genders = genders || [];
+      }
+      break;
+      
+    case 'device':
+      if (adSet.devices && adSet.devices.length > 0) {
+        targeting.devices = adSet.devices;
+      }
+      break;
+      
+    case 'age':
+      if (adSet.ageMin !== undefined) targeting.age_min = adSet.ageMin;
+      if (adSet.ageMax !== undefined) targeting.age_max = adSet.ageMax;
+      break;
+      
+    case 'language':
+      if (adSet.languages && adSet.languages.length > 0) {
+        targeting.languages = adSet.languages;
+      }
+      break;
+      
+    case 'location':
+      if (adSet.countries && adSet.countries.length > 0) {
+        targeting.geo_locations = { countries: adSet.countries };
+      }
+      break;
+  }
+  
+  return targeting;
+}
+
+// Get Meta placement overrides from ad set
+function getMetaPlacementOverrides(adSet: AdSetConfig): {
+  publisherPlatforms?: string[];
+  positions?: Record<string, string[]>;
+} {
+  const overrides: { publisherPlatforms?: string[]; positions?: Record<string, string[]> } = {};
+  
+  if (adSet.publisherPlatforms && adSet.publisherPlatforms.length > 0) {
+    overrides.publisherPlatforms = adSet.publisherPlatforms;
+  }
+  
+  if (adSet.positions && Object.keys(adSet.positions).length > 0) {
+    overrides.positions = adSet.positions;
+  }
+  
+  return overrides;
+}
+
+// Get TikTok placement overrides from ad set
+function getTikTokPlacementOverrides(adSet: AdSetConfig): {
+  placements?: string[];
+  placementType?: string;
+} {
+  if (adSet.tiktokPlacements && adSet.tiktokPlacements.length > 0) {
+    return {
+      placements: adSet.tiktokPlacements,
+      placementType: 'PLACEMENT_TYPE_NORMAL',
+    };
+  }
+  return {};
+}
+
+// ============= END AD SET SPLIT HELPERS =============
+
 // ============= END TAXONOMY HELPERS =============
 
 // ============= UPDATE LAUNCH STATUS HELPER =============
@@ -1985,195 +2177,173 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           finalBidStrategy = "LOWEST_COST_WITHOUT_CAP";
         }
 
-        // Create ad set - try to use taxonomy name first
-        const adsetTaxonomyContext: TaxonomyContext = {
-          platform: 'meta',
-          objective: objective,
-          optimizationGoal: optimizationGoal,
-          phaseBudget: phaseBudget,
-          budgetType: budgetType,
-          ageMin: effectiveBasicTargeting.ageMin || 18,
-          ageMax: effectiveBasicTargeting.ageMax || 65,
-          gender: effectiveBasicTargeting.genders?.[0],
-          location: market.name,
-          devices: effectiveBasicTargeting.devices,
-          languages: effectiveBasicTargeting.languages,
-          placementType: advantagePlusPlacements ? 'automatic' : 'manual',
-          advantagePlusPlacements: advantagePlusPlacements,
-          targetingType: effectiveBasicTargeting.targetingExpansion ? 'expand' : 'native',
-          startDate: phase.startDate || campaign.start_date,
-          endDate: phase.endDate || campaign.end_date,
-        };
+        // ============= AD SET SPLIT SUPPORT =============
+        // If phase has adSets defined (split), iterate over each ad set
+        // Otherwise, create a single ad set for the phase
+        const adSetSplitDimension = phase.adSetSplitDimension || 'none';
+        const adSetsToCreate: Array<AdSetConfig & { adSetBudget: number; adSetLifetimeBudget: number | null; adSetDailyBudget: number | null }> = [];
+        const useCBO = phase.useCBO === true; // Campaign Budget Optimization
         
-        const adsetTaxonomyName = adAccountId ? await generateTaxonomyName(
-          supabase,
-          campaign.user_id,
-          adAccountId,
-          'meta',
-          'adset',
-          adsetTaxonomyContext,
-          phase.adsetTaxonomyValues
-        ) : null;
-        
-        const defaultAdSetName = `${phase.name} - Ad Set_${generateTimestampSuffix()}`;
-        
-        const adSetPayload: any = {
-          name: adsetTaxonomyName || defaultAdSetName,
-          campaign_id: campaignData.id,
-          billing_event: metaBillingEvent,
-          optimization_goal: optimizationGoal,
-          bid_strategy: finalBidStrategy,
-          status: "PAUSED",
-          start_time: startDate.toISOString(),
-          end_time: endDate.toISOString(),
-          targeting: targeting,
-        };
-
-        // Add attribution settings - always include for consistency
-        adSetPayload.attribution_spec = [
-          {
-            event_type: "CLICK_THROUGH",
-            window_days: metaClickWindow
-          },
-          {
-            event_type: "VIEW_THROUGH", 
-            window_days: metaViewWindow
+        if (phase.adSets && Array.isArray(phase.adSets) && phase.adSets.length > 0 && adSetSplitDimension !== 'none') {
+          console.log(`📦 AD SET SPLIT DETECTED: ${phase.adSets.length} ad sets with dimension '${adSetSplitDimension}'`);
+          console.log(`📦 CBO mode: ${useCBO ? 'ON (platform distributes budget)' : 'OFF (manual budget per ad set)'}`);
+          
+          for (const adSetConfig of phase.adSets as AdSetConfig[]) {
+            // Calculate budget for this ad set based on percentage
+            const adSetBudgetPercentage = adSetConfig.budgetPercentage || (100 / phase.adSets.length);
+            const adSetBudget = useCBO ? phaseBudget : (phaseBudget * adSetBudgetPercentage / 100);
+            const adSetLifetimeBudget = useCBO ? null : (budgetType === 'lifetime' ? Math.round(adSetBudget * 100) : null);
+            const adSetDailyBudget = useCBO ? null : (budgetType === 'daily' ? Math.round(adSetBudget / durationDays * 100) : null);
+            
+            adSetsToCreate.push({
+              ...adSetConfig,
+              adSetBudget,
+              adSetLifetimeBudget,
+              adSetDailyBudget,
+            });
           }
-        ];
-        console.log(`✅ Attribution windows set: click=${metaClickWindow}d, view=${metaViewWindow}d`);
-
-        // Add destination URL for traffic campaigns
-        if (metaLandingPageUrl && (optimizationGoal === 'LINK_CLICKS' || optimizationGoal === 'LANDING_PAGE_VIEWS')) {
-          adSetPayload.destination_type = metaOptimizationLocation;
-          console.log(`✅ Destination type: ${metaOptimizationLocation}, Landing page: ${metaLandingPageUrl}`);
-        }
-
-        // DSA (Digital Services Act) compliance fields - required for EU ads
-        // Use ad account name or campaign name as beneficiary/payor
-        const dsaBeneficiary = campaign.name || "Advertiser";
-        const dsaPayor = campaign.name || "Advertiser";
-        adSetPayload.dsa_beneficiary = dsaBeneficiary;
-        adSetPayload.dsa_payor = dsaPayor;
-        console.log(`✅ DSA compliance: beneficiary="${dsaBeneficiary}", payor="${dsaPayor}"`);
-
-        console.log(`✅ Bid strategy validated: ${finalBidStrategy} (requested: ${requestedBidStrategy}, compatible: ${isCompatible})`);
-        console.log(`✅ Billing event: ${metaBillingEvent}`);
-        
-        // Add bid amount if bid strategy requires it AND it's compatible
-        if ((finalBidStrategy === 'LOWEST_COST_WITH_BID_CAP' || finalBidStrategy === 'COST_CAP') && 
-            metaBidAmount && metaBidAmount > 0) {
-          adSetPayload.bid_amount = Math.round(metaBidAmount * 100); // Convert to cents
-          console.log(`✅ Adding Meta bid amount: €${metaBidAmount} (${adSetPayload.bid_amount} cents) for strategy ${finalBidStrategy}`);
+        } else {
+          // No split - create single ad set with full phase budget
+          adSetsToCreate.push({
+            id: 'default',
+            name: phase.name,
+            dimensionValue: '',
+            budgetPercentage: 100,
+            adSetBudget: phaseBudget,
+            adSetLifetimeBudget: lifetimeBudget,
+            adSetDailyBudget: dailyBudget,
+          });
         }
         
-        // Add conversion tracking for conversion-optimized ad sets (including VALUE)
-        // Use phase-level pixel/conversionEvent if available, otherwise fall back to market-level
-        console.log(`🔍 Conversion tracking lookup for phase "${phase.name}":`, {
-          phasePixel: phase.pixel,
-          marketPixel: market.pixel,
-          phaseConversionEvent: phase.conversionEvent,
-          marketConversionEvent: market.conversionEvent,
-          optimizationGoal: adSetPayload.optimization_goal
-        });
-        
-        const effectivePixel = phase.pixel || market.pixel;
-        const effectiveConversionEvent = phase.conversionEvent || market.conversionEvent;
-        
-        console.log(`🔍 Effective values: pixel=${effectivePixel}, event=${effectiveConversionEvent}`);
-        
-        if (effectivePixel && effectiveConversionEvent && (adSetPayload.optimization_goal === 'OFFSITE_CONVERSIONS' || adSetPayload.optimization_goal === 'VALUE')) {
-          // Meta's valid custom_event_type values
-          const validEventTypes = [
-            'AD_IMPRESSION', 'RATE', 'TUTORIAL_COMPLETION', 'CONTACT', 'CUSTOMIZE_PRODUCT', 
-            'DONATE', 'FIND_LOCATION', 'SCHEDULE', 'START_TRIAL', 'SUBMIT_APPLICATION', 
-            'SUBSCRIBE', 'ADD_TO_CART', 'ADD_TO_WISHLIST', 'INITIATED_CHECKOUT', 
-            'ADD_PAYMENT_INFO', 'PURCHASE', 'LEAD', 'COMPLETE_REGISTRATION', 'CONTENT_VIEW', 
-            'SEARCH', 'SERVICE_BOOKING_REQUEST', 'MESSAGING_CONVERSATION_STARTED_7D', 
-            'LEVEL_ACHIEVED', 'ACHIEVEMENT_UNLOCKED', 'SPENT_CREDITS', 'LISTING_INTERACTION', 
-            'D2_RETENTION', 'D7_RETENTION', 'OTHER'
-          ];
-          // Normalize and validate conversion event
-          const normalizedEvent = effectiveConversionEvent.toUpperCase().trim();
-          const eventType = validEventTypes.includes(normalizedEvent) ? normalizedEvent : 'OTHER';
-          if (!validEventTypes.includes(normalizedEvent)) {
-            console.warn(`Invalid conversion event "${effectiveConversionEvent}" for market ${market.name}, using "OTHER" as fallback`);
+        // Create each ad set
+        for (let adSetIdx = 0; adSetIdx < adSetsToCreate.length; adSetIdx++) {
+          const adSetConfig = adSetsToCreate[adSetIdx];
+          
+          // Apply targeting overrides from ad set split
+          let adSetTargeting = { ...targeting };
+          if (adSetSplitDimension !== 'none' && adSetConfig.id !== 'default') {
+            adSetTargeting = applyMetaAdSetOverrides(adSetTargeting, adSetConfig, adSetSplitDimension);
+            console.log(`📦 Applied ${adSetSplitDimension} targeting override for ad set ${adSetConfig.name}`);
           }
-          adSetPayload.promoted_object = {
-            pixel_id: effectivePixel,
-            custom_event_type: eventType,
+          
+          // Apply placement overrides from ad set split (placement dimension)
+          let adSetPublisherPlatforms = phase.publisherPlatforms || (market as any).metaPublisherPlatforms;
+          let adSetPositions = phase.positions || (market as any).metaPositions;
+          let adSetAdvantagePlus = advantagePlusPlacements;
+          
+          if (adSetSplitDimension === 'placement' && adSetConfig.id !== 'default') {
+            const placementOverrides = getMetaPlacementOverrides(adSetConfig);
+            if (placementOverrides.publisherPlatforms && placementOverrides.publisherPlatforms.length > 0) {
+              adSetPublisherPlatforms = placementOverrides.publisherPlatforms;
+              adSetAdvantagePlus = false; // Force manual when split by placement
+            }
+            if (placementOverrides.positions) {
+              adSetPositions = placementOverrides.positions;
+            }
+            console.log(`📦 Placement split override: publishers=${JSON.stringify(adSetPublisherPlatforms)}, positions=${JSON.stringify(adSetPositions)}`);
+          }
+          
+          // Apply placement targeting to ad set targeting object
+          if (!adSetAdvantagePlus && adSetPublisherPlatforms && Array.isArray(adSetPublisherPlatforms)) {
+            const filteredPlatforms = adSetPublisherPlatforms.filter((p: string) => p !== 'messenger');
+            if (filteredPlatforms.length > 0) {
+              adSetTargeting.publisher_platforms = filteredPlatforms;
+            }
+            
+            // Apply positions
+            if (adSetPositions && Object.keys(adSetPositions).length > 0) {
+              const validFacebookPositions = ['feed', 'instant_article', 'instream_video', 'marketplace', 'search', 'video_feeds', 'story'];
+              const validInstagramPositions = ['stream', 'story', 'explore', 'explore_home', 'reels'];
+              const validAudienceNetworkPositions = ['classic', 'instream_video', 'rewarded_video'];
+              
+              if (adSetPositions.facebook && adSetPositions.facebook.length > 0) {
+                const filtered = adSetPositions.facebook.filter((p: string) => validFacebookPositions.includes(p));
+                if (filtered.length > 0) adSetTargeting.facebook_positions = filtered;
+              }
+              if (adSetPositions.instagram && adSetPositions.instagram.length > 0) {
+                const filtered = adSetPositions.instagram.filter((p: string) => validInstagramPositions.includes(p));
+                if (filtered.length > 0) adSetTargeting.instagram_positions = filtered;
+              }
+              if (adSetPositions.audience_network && adSetPositions.audience_network.length > 0) {
+                const filtered = adSetPositions.audience_network.filter((p: string) => validAudienceNetworkPositions.includes(p));
+                if (filtered.length > 0) adSetTargeting.audience_network_positions = filtered;
+              }
+            }
+          }
+          
+          // Build ad set taxonomy context
+          const adsetTaxonomyContext: TaxonomyContext = {
+            platform: 'meta',
+            objective: objective,
+            optimizationGoal: adSetConfig.optimizationGoal || optimizationGoal,
+            phaseBudget: adSetConfig.adSetBudget,
+            budgetType: budgetType,
+            ageMin: adSetConfig.ageMin || effectiveBasicTargeting.ageMin || 18,
+            ageMax: adSetConfig.ageMax || effectiveBasicTargeting.ageMax || 65,
+            gender: adSetConfig.gender || effectiveBasicTargeting.genders?.[0],
+            location: adSetConfig.countries?.[0] || market.name,
+            devices: adSetConfig.devices || effectiveBasicTargeting.devices,
+            languages: adSetConfig.languages || effectiveBasicTargeting.languages,
+            placementType: adSetAdvantagePlus ? 'automatic' : 'manual',
+            advantagePlusPlacements: adSetAdvantagePlus,
+            targetingType: effectiveBasicTargeting.targetingExpansion ? 'expand' : 'native',
+            startDate: phase.startDate || campaign.start_date,
+            endDate: phase.endDate || campaign.end_date,
           };
-          console.info(`✅ Including promoted_object for optimization_goal=${adSetPayload.optimization_goal} with pixel=${effectivePixel}, event=${eventType}`);
-        } else if ((adSetPayload.optimization_goal === 'OFFSITE_CONVERSIONS' || adSetPayload.optimization_goal === 'VALUE') && (!effectivePixel || !effectiveConversionEvent)) {
-          // This should be caught by validation earlier, but log a warning just in case
-          console.error(`⚠️ Missing pixel or conversion event for ${adSetPayload.optimization_goal} optimization`);
-          console.error(`  Phase data:`, JSON.stringify({ pixel: phase.pixel, conversionEvent: phase.conversionEvent }));
-          console.error(`  Market data:`, JSON.stringify({ pixel: market.pixel, conversionEvent: market.conversionEvent, name: market.name }));
-        } else if (adSetPayload.optimization_goal !== 'OFFSITE_CONVERSIONS' && (effectivePixel || effectiveConversionEvent)) {
-          console.info(`Skipping promoted_object for optimization_goal=${adSetPayload.optimization_goal}`);
-        }
-        
-        // Set budget (convert to cents)
-        if (lifetimeBudget) {
-          adSetPayload.lifetime_budget = lifetimeBudget;
-        } else if (dailyBudget) {
-          adSetPayload.daily_budget = dailyBudget;
-        }
-
-        console.log("Creating Meta ad set:", adSetPayload);
-
-        const adSetResponse = await fetch(
-          `https://graph.facebook.com/v22.0/${adAccountPath}/adsets`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              ...adSetPayload,
-              access_token: platform.access_token,
-            }),
-          }
-        );
-
-        let adSetData = await adSetResponse.json();
-        
-        // Check for VALUE optimization errors and determine fallback strategy
-        // Error subcodes:
-        // - 2446368: Pixel not eligible for VALUE optimization
-        // - 2446146: VALUE optimization not available (unverified business account)
-        // - 1815117: Billing event invalid for optimization goal
-        const valueOptErrorCodes = [2446368, 2446146, 1815117];
-        const isValueOptError = adSetData.error && 
-          valueOptErrorCodes.includes(adSetData.error.error_subcode) && 
-          (adSetPayload.optimization_goal === 'VALUE' || 
-           (adSetData.error.error_data && adSetData.error.error_data.includes('billing_event')));
-        
-        if (isValueOptError) {
-          const errorSubcode = adSetData.error.error_subcode;
-          let fallbackReason = '';
           
-          if (errorSubcode === 2446368) {
-            fallbackReason = `Pixel ${market.pixel} not eligible for VALUE optimization`;
-          } else if (errorSubcode === 2446146) {
-            fallbackReason = `VALUE optimization not available for this ad account (unverified business)`;
-          } else if (errorSubcode === 1815117) {
-            fallbackReason = `Billing event ${adSetPayload.billing_event} incompatible with optimization goal ${adSetPayload.optimization_goal}`;
+          const adsetTaxonomyName = adAccountId ? await generateTaxonomyName(
+            supabase,
+            campaign.user_id,
+            adAccountId,
+            'meta',
+            'adset',
+            adsetTaxonomyContext,
+            phase.adsetTaxonomyValues
+          ) : null;
+          
+          // Generate ad set name with split info
+          const splitSuffix = adSetConfig.id !== 'default' ? `_${adSetConfig.name}` : '';
+          const defaultAdSetName = `${phase.name}${splitSuffix} - Ad Set_${generateTimestampSuffix()}`;
+          
+          const adSetPayload: any = {
+            name: adsetTaxonomyName || defaultAdSetName,
+            campaign_id: campaignData.id,
+            billing_event: metaBillingEvent,
+            optimization_goal: adSetConfig.optimizationGoal || optimizationGoal,
+            bid_strategy: finalBidStrategy,
+            status: "PAUSED",
+            start_time: startDate.toISOString(),
+            end_time: endDate.toISOString(),
+            targeting: adSetTargeting,
+          };
+
+          // Add attribution settings
+          adSetPayload.attribution_spec = [
+            { event_type: "CLICK_THROUGH", window_days: metaClickWindow },
+            { event_type: "VIEW_THROUGH", window_days: metaViewWindow }
+          ];
+          
+          // Add destination URL for traffic campaigns
+          if (metaLandingPageUrl && (adSetPayload.optimization_goal === 'LINK_CLICKS' || adSetPayload.optimization_goal === 'LANDING_PAGE_VIEWS')) {
+            adSetPayload.destination_type = metaOptimizationLocation;
+          }
+
+          // DSA compliance
+          adSetPayload.dsa_beneficiary = campaign.name || "Advertiser";
+          adSetPayload.dsa_payor = campaign.name || "Advertiser";
+          
+          // Add bid amount if required
+          if ((finalBidStrategy === 'LOWEST_COST_WITH_BID_CAP' || finalBidStrategy === 'COST_CAP') && 
+              metaBidAmount && metaBidAmount > 0) {
+            adSetPayload.bid_amount = Math.round(metaBidAmount * 100);
           }
           
-          // Determine fallback strategy based on available pixel/conversion event
-          // Only fallback to OFFSITE_CONVERSIONS if we have pixel + conversion event
-          // Otherwise fall back to LINK_CLICKS (traffic objective)
-          const canUseConversionFallback = effectivePixel && effectiveConversionEvent;
+          // Add conversion tracking
+          const effectivePixel = phase.pixel || market.pixel;
+          const effectiveConversionEvent = phase.conversionEvent || market.conversionEvent;
           
-          if (canUseConversionFallback) {
-            console.warn(`${fallbackReason}. Retrying with OFFSITE_CONVERSIONS...`);
-            
-            // Fallback: Use OFFSITE_CONVERSIONS which is available to all accounts
-            adSetPayload.optimization_goal = 'OFFSITE_CONVERSIONS';
-            // Ensure billing_event is compatible with OFFSITE_CONVERSIONS
-            adSetPayload.billing_event = 'IMPRESSIONS';
-            
-            // CRITICAL: Add promoted_object for OFFSITE_CONVERSIONS - it's required
+          if (effectivePixel && effectiveConversionEvent && 
+              (adSetPayload.optimization_goal === 'OFFSITE_CONVERSIONS' || adSetPayload.optimization_goal === 'VALUE')) {
             const validEventTypes = [
               'AD_IMPRESSION', 'RATE', 'TUTORIAL_COMPLETION', 'CONTACT', 'CUSTOMIZE_PRODUCT', 
               'DONATE', 'FIND_LOCATION', 'SCHEDULE', 'START_TRIAL', 'SUBMIT_APPLICATION', 
@@ -2185,75 +2355,84 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
             ];
             const normalizedEvent = effectiveConversionEvent.toUpperCase().trim();
             const eventType = validEventTypes.includes(normalizedEvent) ? normalizedEvent : 'OTHER';
-            
-            adSetPayload.promoted_object = {
-              pixel_id: effectivePixel,
-              custom_event_type: eventType,
-            };
-            console.log(`✅ Added promoted_object for OFFSITE_CONVERSIONS fallback: pixel=${effectivePixel}, event=${eventType}`);
-          } else {
-            console.warn(`${fallbackReason}. No pixel/conversion event available, retrying with LINK_CLICKS (traffic)...`);
-            
-            // Fallback to traffic objective when no conversion tracking is available
-            adSetPayload.optimization_goal = 'LINK_CLICKS';
-            adSetPayload.billing_event = 'LINK_CLICKS';
-            // Remove promoted_object as it's not needed for traffic
-            delete adSetPayload.promoted_object;
+            adSetPayload.promoted_object = { pixel_id: effectivePixel, custom_event_type: eventType };
           }
           
-          console.log("Retrying Meta ad set creation with fallback:", {
-            optimization_goal: adSetPayload.optimization_goal,
-            billing_event: adSetPayload.billing_event,
-            has_promoted_object: !!adSetPayload.promoted_object
-          });
-          
-          const retryResponse = await fetch(
+          // Set budget (only if not CBO, or first ad set with CBO gets no budget - platform handles)
+          if (!useCBO) {
+            if (adSetConfig.adSetLifetimeBudget) {
+              adSetPayload.lifetime_budget = adSetConfig.adSetLifetimeBudget;
+            } else if (adSetConfig.adSetDailyBudget) {
+              adSetPayload.daily_budget = adSetConfig.adSetDailyBudget;
+            }
+          }
+          // With CBO, budget is set at campaign level (already done) - ad sets don't have individual budgets
+
+          console.log(`Creating Meta ad set [${adSetIdx + 1}/${adSetsToCreate.length}]:`, adSetPayload.name);
+
+          const adSetResponse = await fetch(
             `https://graph.facebook.com/v22.0/${adAccountPath}/adsets`,
             {
               method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                ...adSetPayload,
-                access_token: platform.access_token,
-              }),
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ ...adSetPayload, access_token: platform.access_token }),
             }
           );
+
+          let adSetData = await adSetResponse.json();
           
-          adSetData = await retryResponse.json();
+          // Handle VALUE optimization errors with fallback
+          const valueOptErrorCodes = [2446368, 2446146, 1815117];
+          const isValueOptError = adSetData.error && 
+            valueOptErrorCodes.includes(adSetData.error.error_subcode) && 
+            adSetPayload.optimization_goal === 'VALUE';
           
-          if (!adSetData.error) {
-            console.log(`✓ Ad set created successfully with ${adSetPayload.optimization_goal} fallback for ${phase.name}`);
+          if (isValueOptError) {
+            console.warn(`VALUE optimization error, retrying with OFFSITE_CONVERSIONS...`);
+            adSetPayload.optimization_goal = 'OFFSITE_CONVERSIONS';
+            adSetPayload.billing_event = 'IMPRESSIONS';
+            
+            const retryResponse = await fetch(
+              `https://graph.facebook.com/v22.0/${adAccountPath}/adsets`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ...adSetPayload, access_token: platform.access_token }),
+              }
+            );
+            adSetData = await retryResponse.json();
           }
-        }
-        
-        if (adSetData.error) {
-          console.error("Meta Ad Set Creation Error:", adSetData.error);
-          const errorMsg = adSetData.error.message || JSON.stringify(adSetData.error);
-          errors.push({
+          
+          if (adSetData.error) {
+            console.error("Meta Ad Set Creation Error:", adSetData.error);
+            errors.push({
+              market: market.name,
+              phase: phase.name,
+              error: adSetData.error.message || JSON.stringify(adSetData.error),
+              type: 'adset_creation',
+              campaignId: campaignData.id,
+              apiResponse: adSetData.error,
+              fieldPath: 'step3'
+            });
+            continue; // Continue to next ad set
+          }
+
+          console.log(`✅ Meta ad set created: ${adSetData.id} (${adSetPayload.name})`);
+
+          results.push({
+            platform: "Meta",
             market: market.name,
             phase: phase.name,
-            error: errorMsg,
-            type: 'adset_creation',
             campaignId: campaignData.id,
-            apiResponse: adSetData.error,
-            fieldPath: 'step3'
+            adSetId: adSetData.id,
+            adSetName: adSetPayload.name,
+            budget: adSetConfig.adSetBudget,
+            budgetType: budgetType,
+            splitDimension: adSetSplitDimension !== 'none' ? adSetSplitDimension : undefined,
           });
-          continue;
         }
-
-        console.log("Meta ad set created:", adSetData.id);
-
-        results.push({
-          platform: "Meta",
-          market: market.name,
-          phase: phase.name,
-          campaignId: campaignData.id,
-          adSetId: adSetData.id,
-          budget: phaseBudget,
-          budgetType: budgetType,
-        });
+        // ============= END AD SET SPLIT SUPPORT =============
+        
       } catch (error: any) {
         console.error(`Error processing market ${market.name}, phase ${phase.name}:`, error);
         errors.push({
