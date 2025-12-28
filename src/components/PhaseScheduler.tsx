@@ -1648,6 +1648,10 @@ export function PhaseScheduler({
                                         adSetSplitDimension: newDimension,
                                         adSets: newAdSets,
                                       });
+                                      // Trigger scroll to split manager
+                                      if (newDimension) {
+                                        setScrollToSplitPhaseId(phase.id);
+                                      }
                                     }}
                                   />
                                 </>
@@ -1899,6 +1903,10 @@ export function PhaseScheduler({
                             adSetSplitDimension: newDimension,
                             adSets: newAdSets,
                           });
+                          // Trigger scroll to split manager
+                          if (newDimension) {
+                            setScrollToSplitPhaseId(phase.id);
+                          }
                         }}
                         disabled={!phase.objective}
                       >

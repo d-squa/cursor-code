@@ -12,6 +12,7 @@ import { AdSetConfig, AdSetSplitDimension } from "@/types/mediaplan";
 import { LANGUAGE_OPTIONS } from "@/utils/targetingOptions";
 import { MARKET_OPTIONS } from "@/utils/markets";
 import { getPlacementsForSelection } from "@/utils/placements";
+import { MultiSelect } from "@/components/ui/multi-select";
 
 interface AdSetSplitManagerProps {
   dimension: AdSetSplitDimension;
@@ -150,18 +151,34 @@ function generateAdSetName(
       valueSuffix = genderOpt?.taxonomy || String(dimensionValue).toUpperCase().slice(0, 3);
       break;
     case "device":
-      const deviceOpt = DEVICE_OPTIONS.find(d => d.value === dimensionValue);
-      valueSuffix = deviceOpt?.taxonomy || String(dimensionValue).toUpperCase().slice(0, 3);
+      if (Array.isArray(dimensionValue)) {
+        valueSuffix = dimensionValue.map(d => 
+          DEVICE_OPTIONS.find(opt => opt.value === d)?.taxonomy || d.toUpperCase().slice(0, 3)
+        ).join('+');
+      } else {
+        const deviceOpt = DEVICE_OPTIONS.find(d => d.value === dimensionValue);
+        valueSuffix = deviceOpt?.taxonomy || String(dimensionValue).toUpperCase().slice(0, 3);
+      }
       break;
     case "placement":
       valueSuffix = String(dimensionValue).replace(/\s+/g, '').toUpperCase().slice(0, 6);
       break;
     case "language":
-      const langOpt = LANGUAGE_OPTIONS.find(l => l.value === dimensionValue);
-      valueSuffix = langOpt?.label.split(' ')[0].toUpperCase().slice(0, 3) || String(dimensionValue).toUpperCase();
+      if (Array.isArray(dimensionValue)) {
+        valueSuffix = dimensionValue.map(l => 
+          LANGUAGE_OPTIONS.find(opt => opt.value === l)?.label.split(' ')[0].toUpperCase().slice(0, 3) || l.toUpperCase()
+        ).join('+');
+      } else {
+        const langOpt = LANGUAGE_OPTIONS.find(l => l.value === dimensionValue);
+        valueSuffix = langOpt?.label.split(' ')[0].toUpperCase().slice(0, 3) || String(dimensionValue).toUpperCase();
+      }
       break;
     case "location":
-      valueSuffix = String(dimensionValue).toUpperCase();
+      if (Array.isArray(dimensionValue)) {
+        valueSuffix = dimensionValue.map(l => l.toUpperCase()).join('+');
+      } else {
+        valueSuffix = String(dimensionValue).toUpperCase();
+      }
       break;
     case "optimization_goal":
       const goalOpt = options.availableOptimizationGoals?.find(g => g.value === dimensionValue);
@@ -497,47 +514,35 @@ export function AdSetSplitManager({
         );
 
       case "language":
+        const langValues = Array.isArray(adSet.dimensionValue) 
+          ? adSet.dimensionValue as string[]
+          : adSet.dimensionValue ? [adSet.dimensionValue as string] : [];
         return (
-          <Select
-            value={adSet.dimensionValue as string}
-            onValueChange={(value) => updateAdSet(adSet.id, { 
-              dimensionValue: value,
-              languages: [value],
+          <MultiSelect
+            options={LANGUAGE_OPTIONS.map(l => ({ value: l.value, label: l.label }))}
+            value={langValues}
+            onChange={(values) => updateAdSet(adSet.id, { 
+              dimensionValue: values,
+              languages: values,
             })}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select language" />
-            </SelectTrigger>
-            <SelectContent>
-              {LANGUAGE_OPTIONS.map((lang) => (
-                <SelectItem key={lang.value} value={lang.value}>
-                  {lang.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            placeholder="Select languages"
+          />
         );
 
       case "location":
+        const locValues = Array.isArray(adSet.dimensionValue) 
+          ? adSet.dimensionValue as string[]
+          : adSet.dimensionValue ? [adSet.dimensionValue as string] : [];
         return (
-          <Select
-            value={adSet.dimensionValue as string}
-            onValueChange={(value) => updateAdSet(adSet.id, { 
-              dimensionValue: value,
-              countries: [value],
+          <MultiSelect
+            options={MARKET_OPTIONS.map(m => ({ value: m.value, label: m.label }))}
+            value={locValues}
+            onChange={(values) => updateAdSet(adSet.id, { 
+              dimensionValue: values,
+              countries: values,
             })}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select location" />
-            </SelectTrigger>
-            <SelectContent>
-              {MARKET_OPTIONS.map((market) => (
-                <SelectItem key={market.value} value={market.value}>
-                  {market.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            placeholder="Select locations"
+          />
         );
 
       case "gender":
@@ -563,25 +568,19 @@ export function AdSetSplitManager({
         );
 
       case "device":
+        const deviceValues = Array.isArray(adSet.dimensionValue) 
+          ? adSet.dimensionValue as string[]
+          : adSet.dimensionValue ? [adSet.dimensionValue as string] : [];
         return (
-          <Select
-            value={adSet.dimensionValue as string}
-            onValueChange={(value) => updateAdSet(adSet.id, { 
-              dimensionValue: value,
-              devices: [value],
+          <MultiSelect
+            options={DEVICE_OPTIONS.map(d => ({ value: d.value, label: d.label }))}
+            value={deviceValues}
+            onChange={(values) => updateAdSet(adSet.id, { 
+              dimensionValue: values,
+              devices: values,
             })}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select device" />
-            </SelectTrigger>
-            <SelectContent>
-              {DEVICE_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            placeholder="Select devices"
+          />
         );
 
       case "age":
