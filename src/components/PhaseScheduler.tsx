@@ -2522,6 +2522,7 @@ export function PhaseScheduler({
                             availablePlacements={getPlacementsForSelection(platformName, phase.assetTypes || [])}
                             availableOptimizationGoals={getOptimizationGoalsForPhase(phase.objective || "").map(g => ({ value: g.value, label: g.label }))}
                             availableAudiences={phase.audiences?.map(a => ({ id: a.id, name: a.name, type: a.type })) || []}
+                            adAccountId={adAccountId}
                             currentGender={phase.targeting?.genders?.[0] || basicTargeting?.genders?.[0]}
                             currentAgeMin={phase.targeting?.ageMin ?? basicTargeting?.ageMin}
                             currentAgeMax={phase.targeting?.ageMax ?? basicTargeting?.ageMax}
