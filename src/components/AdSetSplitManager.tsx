@@ -694,17 +694,23 @@ export function AdSetSplitManager({
         ];
         
         // Filter available audiences based on selected type
+        // Audiences have 'type' like "Custom Audience", "Lookalike Audience" from matrix
         const selectedType = adSet.dimensionValue as string;
         const filteredAudiences = availableAudiences.filter(a => {
-          const typeLower = a.type?.toLowerCase() || '';
+          const typeLower = (a.type || '').toLowerCase();
+          
           if (selectedType === "custom") {
-            return typeLower === "custom" || typeLower === "custom_audience" || typeLower === "custom audience";
+            // Match "Custom Audience" or any custom-like type
+            return typeLower.includes("custom") && !typeLower.includes("lookalike");
           }
           if (selectedType === "lookalike") {
-            return typeLower === "lookalike" || typeLower === "lookalike_audience" || typeLower === "lookalike audience";
+            // Match "Lookalike Audience" or any lookalike-like type
+            return typeLower.includes("lookalike");
           }
           if (selectedType === "retargeting") {
-            return typeLower === "retargeting" || typeLower === "website_custom_audience" || typeLower === "website" || typeLower.includes("retarget");
+            // Retargeting = Custom Audiences that are website/app based
+            // In our matrix, all Custom Audiences in Conversion phase are retargeting
+            return typeLower.includes("custom") && !typeLower.includes("lookalike");
           }
           return false; // "broad" doesn't have specific audiences
         });
