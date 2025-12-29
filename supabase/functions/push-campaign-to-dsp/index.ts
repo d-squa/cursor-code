@@ -2358,11 +2358,16 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           const splitSuffix = adSetConfig.id !== 'default' ? `_${adSetConfig.name}` : '';
           const defaultAdSetName = `${phase.name}${splitSuffix} - Ad Set_${generateTimestampSuffix()}`;
           
+          // CRITICAL: Each ad set may have its own optimization goal, so billing event must match
+          const adSetOptimizationGoal = adSetConfig.optimizationGoal || optimizationGoal;
+          const adSetBillingEvent = getBillingEventForOptimizationGoal(adSetOptimizationGoal, userBillingEvent);
+          console.log(`📊 Ad set "${adSetConfig.name}" - optimization_goal: ${adSetOptimizationGoal}, billing_event: ${adSetBillingEvent}`);
+          
           const adSetPayload: any = {
             name: adsetTaxonomyName || defaultAdSetName,
             campaign_id: campaignData.id,
-            billing_event: metaBillingEvent,
-            optimization_goal: adSetConfig.optimizationGoal || optimizationGoal,
+            billing_event: adSetBillingEvent,
+            optimization_goal: adSetOptimizationGoal,
             bid_strategy: finalBidStrategy,
             status: "PAUSED",
             start_time: startDate.toISOString(),
