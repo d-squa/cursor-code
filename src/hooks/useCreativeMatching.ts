@@ -223,18 +223,25 @@ export function useCreativeMatching(campaignId?: string) {
     return digestedAssets;
   }, []);
 
-  // Run the matching algorithm
-  const runMatching = useCallback(() => {
+  // Run the matching algorithm - accepts optional structures to handle async loading
+  const runMatching = useCallback((structuresOverride?: CampaignStructure[]) => {
     setState(prev => {
-      if (prev.assets.length === 0 || prev.structures.length === 0) {
-        toast.error('Please upload assets and load a campaign first');
+      const structuresToUse = structuresOverride || prev.structures;
+      
+      if (prev.assets.length === 0) {
+        toast.error('Please add some creatives first');
+        return prev;
+      }
+      
+      if (structuresToUse.length === 0) {
+        toast.error('Please select an ActiPlan first');
         return prev;
       }
 
       const results: UIMatchingResult[] = prev.assets.map(asset => {
         const matches: UICreativeMatch[] = [];
         
-        for (const structure of prev.structures) {
+        for (const structure of structuresToUse) {
           // Hard constraint check
           const hardConstraintsMet = checkHardConstraints(asset.hardConstraints, structure);
           if (!hardConstraintsMet && (asset.hardConstraints.market || asset.hardConstraints.language || asset.hardConstraints.variant)) {
@@ -278,7 +285,13 @@ export function useCreativeMatching(campaignId?: string) {
         };
       });
 
-      return { ...prev, results, currentStep: 'review' as const };
+      // Also update structures if override was provided
+      return { 
+        ...prev, 
+        structures: structuresToUse,
+        results, 
+        currentStep: 'review' as const 
+      };
     });
   }, []);
 

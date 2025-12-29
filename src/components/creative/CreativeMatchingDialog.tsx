@@ -184,8 +184,13 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
   const handleRunMatching = useCallback(async () => {
     if (!selectedCampaignId) { toast.error('Please select an ActiPlan first'); return; }
     if (state.assets.length === 0) { toast.error('Please add some creatives first'); return; }
-    if (state.structures.length === 0) { await loadCampaignStructures(selectedCampaignId); }
-    runMatching();
+    
+    // Load structures and pass them directly to runMatching to avoid race condition
+    let structures = state.structures;
+    if (structures.length === 0) { 
+      structures = await loadCampaignStructures(selectedCampaignId) || []; 
+    }
+    runMatching(structures);
   }, [state.assets, state.structures, runMatching, loadCampaignStructures, selectedCampaignId]);
 
   const stepProgress = state.currentStep === 'upload' ? 0 : state.currentStep === 'match' ? 33 : state.currentStep === 'review' ? 66 : 100;
