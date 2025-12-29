@@ -176,6 +176,7 @@ export default function LaunchStatus() {
     try {
       const { data, error } = await supabase.functions.invoke("validate-campaign-launch", {
         body: { campaignId },
+        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : undefined,
       });
 
       if (error) throw error;
@@ -189,7 +190,25 @@ export default function LaunchStatus() {
       await loadData();
     } catch (error: any) {
       console.error("Validation error:", error);
-      toast.error("Validation failed: " + error.message);
+
+      const ctx = (error as any)?.context as Response | undefined;
+      if (ctx) {
+        let details = "";
+        try {
+          details = JSON.stringify(await ctx.clone().json());
+        } catch {
+          try {
+            details = await ctx.clone().text();
+          } catch {
+            // ignore
+          }
+        }
+        toast.error(`Validation failed (${ctx.status})`, {
+          description: details || error.message,
+        });
+      } else {
+        toast.error("Validation failed: " + error.message);
+      }
     } finally {
       setValidating(false);
     }
@@ -205,6 +224,7 @@ export default function LaunchStatus() {
         "validate-campaign-launch",
         {
           body: { campaignId },
+          headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : undefined,
         },
       );
 

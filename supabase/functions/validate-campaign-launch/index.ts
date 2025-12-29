@@ -317,18 +317,36 @@ const handler = async (req: Request): Promise<Response> => {
 
     if (campaignError) throw campaignError;
 
-    if (campaign.user_id !== user.id) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), { 
-        status: 403,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+    const campaignOwnerId = campaign.user_id as string;
+
+    let canAccess = campaignOwnerId === user.id;
+    if (!canAccess && campaign.team_id) {
+      const { data: roleRows, error: roleError } = await supabase
+        .from("user_roles")
+        .select("id")
+        .eq("team_id", campaign.team_id)
+        .eq("user_id", user.id)
+        .limit(1);
+
+      if (roleError) throw roleError;
+      canAccess = (roleRows?.length || 0) > 0;
     }
 
-    // Get connected platforms
+    if (!canAccess) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    // Get connected platforms for the campaign owner (push runs under the owner's connections)
     const { data: platforms } = await supabase
       .from("connected_platforms")
       .select("*")
-      .eq("user_id", user.id)
+      .eq("user_id", campaignOwnerId)
       .eq("is_active", true);
 
     const result: ValidationResult = {
