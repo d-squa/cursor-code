@@ -2139,10 +2139,9 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
             'IMPRESSIONS': 'IMPRESSIONS',
             'BRAND_AWARENESS': 'IMPRESSIONS',
             'AD_RECALL_LIFT': 'IMPRESSIONS',
-            // Traffic - LINK_CLICKS or IMPRESSIONS
+            // Traffic - LINK_CLICKS or IMPRESSIONS (Meta restricts per optimization goal)
             'LINK_CLICKS': 'LINK_CLICKS',
-            'LANDING_PAGE_VIEWS': 'LINK_CLICKS',
-            // Engagement - IMPRESSIONS or specific event
+            'LANDING_PAGE_VIEWS': 'IMPRESSIONS',
             'POST_ENGAGEMENT': 'IMPRESSIONS',
             'PAGE_LIKES': 'IMPRESSIONS',
             'EVENT_RESPONSES': 'IMPRESSIONS',
