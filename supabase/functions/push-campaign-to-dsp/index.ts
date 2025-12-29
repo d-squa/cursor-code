@@ -2400,9 +2400,17 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           adSetPayload.dsa_payor = campaign.name || "Advertiser";
           
           // Add bid amount if required by the ad set's bid strategy
-          if ((adSetBidStrategy === 'LOWEST_COST_WITH_BID_CAP' || adSetBidStrategy === 'COST_CAP') && 
-              adSetBidAmount && adSetBidAmount > 0) {
-            adSetPayload.bid_amount = Math.round(adSetBidAmount * 100);
+          // CRITICAL: LOWEST_COST_WITH_BID_CAP and COST_CAP REQUIRE a bid_amount
+          const requiresBidAmount = adSetBidStrategy === 'LOWEST_COST_WITH_BID_CAP' || adSetBidStrategy === 'COST_CAP';
+          if (requiresBidAmount) {
+            if (adSetBidAmount && adSetBidAmount > 0) {
+              adSetPayload.bid_amount = Math.round(adSetBidAmount * 100);
+              console.log(`💰 Bid amount set: ${adSetPayload.bid_amount} cents for strategy ${adSetBidStrategy}`);
+            } else {
+              // FALLBACK: If bid strategy requires amount but none provided, fall back to LOWEST_COST_WITHOUT_CAP
+              console.warn(`⚠️ Bid strategy ${adSetBidStrategy} requires bid_amount but none provided. Falling back to LOWEST_COST_WITHOUT_CAP`);
+              adSetPayload.bid_strategy = 'LOWEST_COST_WITHOUT_CAP';
+            }
           }
           
           // Add conversion tracking
