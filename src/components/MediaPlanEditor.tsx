@@ -21,7 +21,7 @@ import { PhaseAudienceSelector, SelectedAudience } from "./PhaseAudienceSelector
 import { CampaignForecast } from "./CampaignForecast";
 import { PhaseScheduler } from "./PhaseScheduler";
 import { getDefaultPhases, generateAutoDetectPhases } from "@/utils/funnelPhases";
-import { Calendar, Download, Rocket, Loader2, ChevronDown, ChevronUp, Copy, Trash2, Plus, Lock } from "lucide-react";
+import { Calendar, Download, Rocket, Loader2, ChevronDown, ChevronUp, Copy, Trash2, Plus, Lock, Wand2 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
@@ -40,6 +40,7 @@ import { MARKET_OPTIONS } from "@/utils/markets";
 import { CampaignBudgetTypeDialog } from "./CampaignBudgetTypeDialog";
 import BulkBudgetTypeDialog from "./BulkBudgetTypeDialog";
 import { normalizeLanguageValues } from "@/utils/targetingOptions";
+import { CreativeMatchingDialog } from "@/components/creative/CreativeMatchingDialog";
 
 // Helper: map internal focus to funnel template key
 const mapFocusToTemplate = (focus?: string): string | undefined => {
@@ -101,6 +102,7 @@ export function MediaPlanEditor() {
   const [expandedPlatforms, setExpandedPlatforms] = useState<Record<string, boolean>>({});
   const [bulkBudgetDialogOpen, setBulkBudgetDialogOpen] = useState(false);
   const [bulkPlatform, setBulkPlatform] = useState<PlatformWithMarkets | null>(null);
+  const [creativeMatcherOpen, setCreativeMatcherOpen] = useState(false);
   const [teamName, setTeamName] = useState<string>("");
   
   // Taxonomy validation state - track per market
@@ -2089,11 +2091,19 @@ export function MediaPlanEditor() {
                 <CardTitle>Step 3: Strategy Configuration</CardTitle>
                 <CardDescription>Choose your campaign strategy approach</CardDescription>
               </div>
-              {currentStep > 3 && (
-                <Button variant="ghost" size="sm" onClick={() => setCurrentStep(3)}>
-                  Edit
-                </Button>
-              )}
+              <div className="flex items-center gap-2">
+                {savedCampaignId && (
+                  <Button variant="outline" size="sm" onClick={() => setCreativeMatcherOpen(true)}>
+                    <Wand2 className="h-4 w-4 mr-2" />
+                    Match Creatives
+                  </Button>
+                )}
+                {currentStep > 3 && (
+                  <Button variant="ghost" size="sm" onClick={() => setCurrentStep(3)}>
+                    Edit
+                  </Button>
+                )}
+              </div>
             </div>
           </CardHeader>
           {currentStep === 3 ? (
@@ -2800,6 +2810,14 @@ export function MediaPlanEditor() {
           ));
           toast.success("Budget types updated across markets.");
         }}
+      />
+
+      {/* Creative Matching Dialog */}
+      <CreativeMatchingDialog
+        open={creativeMatcherOpen}
+        onOpenChange={setCreativeMatcherOpen}
+        campaignId={savedCampaignId || undefined}
+        campaignName={campaignName}
       />
     </div>
   );
