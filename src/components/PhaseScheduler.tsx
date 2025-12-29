@@ -2408,9 +2408,12 @@ export function PhaseScheduler({
                               onPhasesChange(phases.map(p => p.id === phase.id ? { ...p, budgetType: bt } : p));
                               
                               // Ask if user wants to apply budget type to all phases
+                              // Use setTimeout to defer dialog opening until after Select closes
                               if (onApplyBudgetTypeToAll && bt) {
                                 setPendingBudgetType(bt);
-                                setBudgetTypeDialogOpen(true);
+                                setTimeout(() => {
+                                  setBudgetTypeDialogOpen(true);
+                                }, 100);
                               }
                             }}
                           >
