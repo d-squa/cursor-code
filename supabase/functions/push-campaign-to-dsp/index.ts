@@ -852,15 +852,33 @@ const handler = async (req: Request): Promise<Response> => {
 
     if (campaignError) throw campaignError;
 
-    // Verify user owns the campaign
-    if (campaign.user_id !== user.id) {
-      return new Response(JSON.stringify({ error: 'Unauthorized: You do not own this campaign' }), { 
-        status: 403,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+    const campaignOwnerId = campaign.user_id as string;
+
+    // Allow access if user owns the campaign OR is a member of the campaign's team
+    let canAccess = campaignOwnerId === user.id;
+    if (!canAccess && campaign.team_id) {
+      const { data: roleRows, error: roleError } = await supabase
+        .from("user_roles")
+        .select("id")
+        .eq("team_id", campaign.team_id)
+        .eq("user_id", user.id)
+        .limit(1);
+
+      if (roleError) throw roleError;
+      canAccess = (roleRows?.length || 0) > 0;
     }
 
-    console.log("Pushing campaign to DSP:", campaign.name, "for user:", user.id);
+    if (!canAccess) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized: You do not have access to this campaign" }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    console.log("Pushing campaign to DSP:", campaign.name, "for user:", user.id, "campaign owner:", campaignOwnerId);
 
     // ============= SERVER-SIDE DAILY LIMIT CHECK =============
     // Check subscription tier and enforce daily DSP push limits
