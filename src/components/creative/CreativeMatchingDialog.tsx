@@ -55,7 +55,9 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
     }
   }, [initialCampaignId, initialCampaignName]);
 
-  const { state, stats, loadCampaignStructures, processFiles, addLibraryCreatives, runMatching, acceptMatch, rejectMatch, clearRejection, removeAsset, clearAll, saveMatches } = useCreativeMatching(selectedCampaignId);
+  const effectiveCampaignId = selectedCampaignId ?? initialCampaignId;
+
+  const { state, stats, loadCampaignStructures, processFiles, addLibraryCreatives, runMatching, acceptMatch, rejectMatch, clearRejection, removeAsset, clearAll, saveMatches } = useCreativeMatching(effectiveCampaignId);
 
   // Load available campaigns when dialog opens (if no campaignId provided)
   useEffect(() => {
@@ -182,19 +184,20 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
   }, [libraryCreatives, selectedCreativeIds, addLibraryCreatives]);
 
   const handleRunMatching = async () => {
-    if (!selectedCampaignId) { toast.error('Please select an ActiPlan first'); return; }
+    const campaignIdToUse = effectiveCampaignId;
+    if (!campaignIdToUse) { toast.error('Please select an ActiPlan first'); return; }
     if (state.assets.length === 0) { toast.error('Please add some creatives first'); return; }
-    
+
     // Load structures and pass them directly to runMatching to avoid race condition
     let structures = state.structures;
-    if (structures.length === 0) { 
-      structures = await loadCampaignStructures(selectedCampaignId) || []; 
+    if (structures.length === 0) {
+      structures = await loadCampaignStructures(campaignIdToUse) || [];
     }
     runMatching(structures);
   };
 
   const stepProgress = state.currentStep === 'upload' ? 0 : state.currentStep === 'match' ? 33 : state.currentStep === 'review' ? 66 : 100;
-  const needsCampaignSelection = !initialCampaignId && !selectedCampaignId;
+  const needsCampaignSelection = !effectiveCampaignId;
 
   // Filter library creatives that are not already assigned to a campaign
   const availableCreatives = libraryCreatives.filter(c => !c.campaignId);
@@ -231,7 +234,7 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
                 No ActiPlans found. Create one first to use the Creative Matcher.
               </div>
             ) : (
-              <Select onValueChange={handleCampaignSelect}>
+              <Select value={selectedCampaignId} onValueChange={handleCampaignSelect}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select an ActiPlan..." />
                 </SelectTrigger>
