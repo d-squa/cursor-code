@@ -116,7 +116,7 @@ const STATUS_CONFIG: Record<StatusType, { label: string; color: string; icon: Re
 export default function LaunchStatus() {
   const { campaignId } = useParams<{ campaignId: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const { dailyLimit, remaining, canCreate, refetch: refetchLimits } = useActiplanLimits();
   const { tier } = useFeatureAccess();
 
