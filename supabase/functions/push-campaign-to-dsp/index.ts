@@ -2370,11 +2370,18 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           
           // Set budget (only if not CBO, or first ad set with CBO gets no budget - platform handles)
           if (!useCBO) {
-            if (adSetConfig.adSetLifetimeBudget) {
-              adSetPayload.lifetime_budget = adSetConfig.adSetLifetimeBudget;
-            } else if (adSetConfig.adSetDailyBudget) {
-              adSetPayload.daily_budget = adSetConfig.adSetDailyBudget;
+            // CRITICAL: Meta requires either daily_budget OR lifetime_budget for non-CBO ad sets
+            // If budgetType is 'lifetime', set lifetime_budget; otherwise set daily_budget
+            // Ensure minimum of 100 cents ($1) to avoid "Missing Daily Budget" errors
+            if (budgetType === 'lifetime') {
+              const lifetimeBudgetCents = adSetConfig.adSetLifetimeBudget || Math.round(adSetConfig.adSetBudget * 100);
+              adSetPayload.lifetime_budget = Math.max(lifetimeBudgetCents, 100); // Min $1
+            } else {
+              // Daily budget
+              const dailyBudgetCents = adSetConfig.adSetDailyBudget || Math.round((adSetConfig.adSetBudget / durationDays) * 100);
+              adSetPayload.daily_budget = Math.max(dailyBudgetCents, 100); // Min $1/day
             }
+            console.log(`📊 Ad set budget: ${budgetType === 'lifetime' ? 'lifetime=' + adSetPayload.lifetime_budget : 'daily=' + adSetPayload.daily_budget} cents`);
           }
           // With CBO, budget is set at campaign level (already done) - ad sets don't have individual budgets
 
