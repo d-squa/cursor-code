@@ -3,12 +3,13 @@ import { useState, useCallback } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { FolderUp, FileSpreadsheet, LayoutGrid, Plus, Download } from 'lucide-react';
+import { FolderUp, FileSpreadsheet, LayoutGrid, Plus, Download, Wand2 } from 'lucide-react';
 import { useCreatives } from '@/hooks/useCreatives';
 import { CreativeGrid } from '@/components/creative/CreativeGrid';
 import { FolderUpload } from '@/components/creative/FolderUpload';
 import { SpreadsheetUpload } from '@/components/creative/SpreadsheetUpload';
 import { CreativeEditor } from '@/components/creative/CreativeEditor';
+import { CreativeMatchingDialog } from '@/components/creative/CreativeMatchingDialog';
 import type { Creative, CreativeFilters, Platform } from '@/types/creative';
 import { toast } from 'sonner';
 import { generateSampleTaxonomyStructure } from '@/utils/creativeValidation';
@@ -17,6 +18,7 @@ export default function CreativeLibrary() {
   const [activeTab, setActiveTab] = useState('library');
   const [filters, setFilters] = useState<CreativeFilters>({});
   const [editingCreative, setEditingCreative] = useState<Creative | null>(null);
+  const [isMatchingDialogOpen, setIsMatchingDialogOpen] = useState(false);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
 
   const {
@@ -107,6 +109,10 @@ export default function CreativeLibrary() {
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="secondary">{creatives.length} creatives</Badge>
+          <Button variant="default" size="sm" onClick={() => setIsMatchingDialogOpen(true)}>
+            <Wand2 className="h-4 w-4 mr-2" />
+            Match to ActiPlan
+          </Button>
           <Button variant="outline" size="sm" onClick={handleDownloadSampleStructure}>
             <Download className="h-4 w-4 mr-2" />
             Folder Guide
@@ -168,6 +174,12 @@ export default function CreativeLibrary() {
         onOpenChange={setIsEditorOpen}
         onSave={handleSave}
         isSaving={isUpdating}
+      />
+
+      {/* Creative Matching Dialog */}
+      <CreativeMatchingDialog
+        open={isMatchingDialogOpen}
+        onOpenChange={setIsMatchingDialogOpen}
       />
     </div>
   );
