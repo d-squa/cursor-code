@@ -91,6 +91,16 @@ export interface CampaignStructure {
   formatConstraints: string[];
   optimizationGoal?: string;
   phases?: string[];
+  funnelStage?: string;
+  // Ad set split dimensions for precise matching
+  deviceConstraints?: string[];
+  genderConstraint?: string;
+  ageConstraints?: { min: number; max: number };
+  audienceTypeConstraint?: string;
+  audiences?: Array<{ id: string; name: string; type: string }>;
+  // Budget info
+  budgetAmount?: number;
+  budgetType?: 'daily' | 'lifetime';
 }
 
 export interface UIMatchingResult {
@@ -130,7 +140,7 @@ export function useCreativeMatching(campaignId?: string) {
     currentStep: 'upload',
   });
 
-  // Load campaign structures from an ActiPlan
+  // Load campaign structures from an ActiPlan - extracts ALL ad set configurations
   const loadCampaignStructures = useCallback(async (campaignIdToLoad: string): Promise<CampaignStructure[]> => {
     if (!user) return [];
     setState(prev => ({ ...prev, isProcessing: true }));
@@ -166,10 +176,22 @@ export function useCreativeMatching(campaignId?: string) {
           const phases: any[] = Array.isArray(market?.phases) ? market.phases : [];
 
           for (const phase of phases) {
+            // Base structure data from phase/market level
+            const baseStructureData = {
+              campaignId: campaignIdToLoad,
+              campaignName: (campaign as any).name,
+              platform: platformId,
+              objective: (campaign as any).objective,
+              market: market?.name,
+              funnelStage: phase?.funnelStage,
+            };
+
+            // Get placement constraints from multiple sources
             const placementConstraints =
               (Array.isArray(phase?.publisherPlatforms) && phase.publisherPlatforms) ||
               (Array.isArray(market?.publisherPlatforms) && market.publisherPlatforms) ||
               (Array.isArray(market?.metaPublisherPlatforms) && market.metaPublisherPlatforms) ||
+              (Array.isArray(phase?.tiktokPlacements) && phase.tiktokPlacements) ||
               [];
 
             const formatConstraints =
@@ -179,24 +201,68 @@ export function useCreativeMatching(campaignId?: string) {
 
             const language =
               (Array.isArray(market?.languages) && market.languages[0]) ||
+              (Array.isArray(phase?.languages) && phase.languages[0]) ||
               market?.language ||
               undefined;
 
-            structures.push({
-              id: `${campaignIdToLoad}-${platformKey}-${market?.id ?? market?.name ?? 'market'}-${phase?.name ?? 'phase'}`,
-              campaignId: campaignIdToLoad,
-              campaignName: (campaign as any).name,
-              platform: platformId,
-              adSetId: market?.id,
-              adSetName: `${market?.name ?? 'Market'} - ${phase?.name ?? 'Phase'}`,
-              objective: (campaign as any).objective,
-              market: market?.name,
-              language,
-              placementConstraints,
-              formatConstraints,
-              optimizationGoal: phase?.optimizationGoal,
-              phases: phase?.name ? [phase.name] : undefined,
-            });
+            // Check if phase has ad set splits
+            const adSets: any[] = Array.isArray(phase?.adSets) ? phase.adSets : [];
+            const splitDimension = phase?.adSetSplitDimension || 'none';
+
+            if (adSets.length > 0 && splitDimension !== 'none') {
+              // Create a structure for EACH ad set configuration
+              for (const adSet of adSets) {
+                const adSetStructure: CampaignStructure = {
+                  id: `${campaignIdToLoad}-${platformKey}-${market?.id ?? market?.name ?? 'market'}-${phase?.name ?? 'phase'}-${adSet.id}`,
+                  ...baseStructureData,
+                  adSetId: adSet.id,
+                  adSetName: `${market?.name ?? 'Market'} - ${phase?.name ?? 'Phase'} - ${adSet.name}`,
+                  placementConstraints: adSet.placements || adSet.tiktokPlacements || placementConstraints,
+                  formatConstraints,
+                  language: adSet.languages?.[0] || language,
+                  optimizationGoal: adSet.optimizationGoal || phase?.optimizationGoal,
+                  phases: phase?.name ? [phase.name] : undefined,
+                  // Ad set split dimensions
+                  deviceConstraints: adSet.devices,
+                  genderConstraint: adSet.gender || (splitDimension === 'gender' ? adSet.dimensionValue : undefined),
+                  ageConstraints: (adSet.ageMin !== undefined && adSet.ageMax !== undefined)
+                    ? { min: adSet.ageMin, max: adSet.ageMax }
+                    : (splitDimension === 'age' && typeof adSet.dimensionValue === 'object')
+                      ? adSet.dimensionValue
+                      : undefined,
+                  audienceTypeConstraint: extractAudienceType(adSet.audiences, splitDimension, adSet.dimensionValue),
+                  audiences: adSet.audiences,
+                  budgetAmount: calculateBudgetFromPercentage(adSet.budgetPercentage, phase, market, campaign),
+                  budgetType: phase?.budgetType,
+                };
+                structures.push(adSetStructure);
+              }
+            } else {
+              // No splits - create single structure from phase
+              structures.push({
+                id: `${campaignIdToLoad}-${platformKey}-${market?.id ?? market?.name ?? 'market'}-${phase?.name ?? 'phase'}`,
+                ...baseStructureData,
+                adSetId: market?.id,
+                adSetName: `${market?.name ?? 'Market'} - ${phase?.name ?? 'Phase'}`,
+                placementConstraints,
+                formatConstraints,
+                language,
+                optimizationGoal: phase?.optimizationGoal,
+                phases: phase?.name ? [phase.name] : undefined,
+                // Phase-level targeting
+                deviceConstraints: phase?.targeting?.devices,
+                genderConstraint: phase?.gender || market?.gender,
+                ageConstraints: (phase?.ageMin !== undefined && phase?.ageMax !== undefined)
+                  ? { min: phase.ageMin, max: phase.ageMax }
+                  : (market?.ageMin !== undefined && market?.ageMax !== undefined)
+                    ? { min: market.ageMin, max: market.ageMax }
+                    : undefined,
+                audienceTypeConstraint: extractAudienceType(phase?.audiences, 'none', undefined),
+                audiences: phase?.audiences,
+                budgetAmount: calculateBudgetFromPercentage(phase?.budgetPercentage, phase, market, campaign),
+                budgetType: phase?.budgetType,
+              });
+            }
           }
         }
       }
@@ -301,7 +367,7 @@ export function useCreativeMatching(campaignId?: string) {
     return digestedAssets;
   }, []);
 
-  // Run the matching algorithm - accepts optional structures to handle async loading
+  // Run the matching algorithm - compares creatives against ALL ad set configurations
   const runMatching = useCallback((structuresOverride?: CampaignStructure[]) => {
     setState(prev => {
       const structuresToUse = structuresOverride || prev.structures;
@@ -316,50 +382,187 @@ export function useCreativeMatching(campaignId?: string) {
         return prev;
       }
 
+      // Determine if this is a single-market or single-platform plan
+      const uniqueMarkets = new Set(structuresToUse.map(s => s.market).filter(Boolean));
+      const uniquePlatforms = new Set(structuresToUse.map(s => s.platform).filter(Boolean));
+      const isSingleMarketPlan = uniqueMarkets.size === 1;
+      const isSinglePlatformPlan = uniquePlatforms.size === 1;
+
       const results: UIMatchingResult[] = prev.assets.map(asset => {
         const matches: UICreativeMatch[] = [];
         
+        // Extract signals from filename/path for inference
+        const inferredSignals = extractInferredSignals(asset.filePath, asset.fileName);
+        
         for (const structure of structuresToUse) {
-          // Hard constraint check
-          const hardConstraintsMet = checkHardConstraints(asset.hardConstraints, structure);
-          if (!hardConstraintsMet && (asset.hardConstraints.market || asset.hardConstraints.language || asset.hardConstraints.variant)) {
-            continue;
+          // Hard constraint check with inference support
+          const hardCheckResult = checkHardConstraintsEnhanced(
+            asset.hardConstraints,
+            structure,
+            { isSingleMarketPlan, isSinglePlatformPlan, inferredSignals }
+          );
+          
+          if (!hardCheckResult.passed && hardCheckResult.failures.length > 0) {
+            continue; // Skip this structure - hard constraint failed
           }
           
-          // Soft compatibility scoring
+          // Soft compatibility scoring with all ad set dimensions
           let score = 80;
           const reasoning: string[] = [];
           const issues: UICreativeMatch['compatibilityIssues'] = [];
           
-          // Platform match
-          reasoning.push(`Compatible with ${structure.platform}`);
+          // Add any hard constraint notes
+          hardCheckResult.notes.forEach(note => reasoning.push(note));
           
-          // Aspect ratio check
+          // Apply inference penalty if used
+          if (hardCheckResult.inferenceUsed) {
+            score -= 5;
+            reasoning.push('Some constraints inferred from filename');
+          }
+          
+          // 1. Platform match (check inferred platform too)
+          const platformMatch = inferredSignals.platform === structure.platform;
+          if (platformMatch) {
+            score += 10;
+            reasoning.push(`Platform ${structure.platform} matches filename signal`);
+          } else if (asset.compatibilitySignals?.platform === structure.platform) {
+            score += 10;
+            reasoning.push(`Compatible with ${structure.platform}`);
+          } else {
+            reasoning.push(`Assumed compatible with ${structure.platform}`);
+          }
+          
+          // 2. Aspect ratio check
           if (asset.technicalAttributes.aspectRatio) {
             const isVertical = (asset.technicalAttributes.height || 0) > (asset.technicalAttributes.width || 0);
             if (structure.platform === 'tiktok' || structure.platform === 'snapchat') {
               if (isVertical) { score += 10; reasoning.push('Vertical format preferred'); }
-              else { score -= 10; issues.push({ type: 'aspect_ratio', severity: 'warning', message: 'Vertical format recommended' }); }
+              else { score -= 10; issues.push({ type: 'aspect_ratio', severity: 'warning', message: 'Vertical format recommended', platform: structure.platform }); }
             }
           }
           
-          // Duration check for video
-          if (asset.technicalAttributes.duration && structure.platform === 'tiktok') {
-            if (asset.technicalAttributes.duration > 60) {
-              score -= 20; issues.push({ type: 'duration', severity: 'error', message: 'Video exceeds 60s limit' });
+          // 3. Duration check for video
+          if (asset.technicalAttributes.duration) {
+            if (structure.platform === 'tiktok' && asset.technicalAttributes.duration > 60) {
+              score -= 20; issues.push({ type: 'duration', severity: 'error', message: 'Video exceeds 60s limit', platform: 'tiktok' });
             }
           }
           
-          matches.push({ structure, confidenceScore: Math.max(0, Math.min(100, score)), reasoning, compatibilityIssues: issues, hardConstraintsMet });
+          // 4. Device constraint check
+          if (structure.deviceConstraints && structure.deviceConstraints.length > 0) {
+            if (inferredSignals.device) {
+              if (structure.deviceConstraints.includes(inferredSignals.device)) {
+                score += 8;
+                reasoning.push(`Device ${inferredSignals.device} matches ad set target`);
+              } else {
+                score -= 15;
+                issues.push({ type: 'device' as any, severity: 'warning', message: `Creative for ${inferredSignals.device}, ad set targets ${structure.deviceConstraints.join(', ')}` });
+              }
+            }
+          }
+          
+          // 5. Gender constraint check
+          if (structure.genderConstraint && structure.genderConstraint !== 'all') {
+            if (inferredSignals.gender) {
+              if (inferredSignals.gender === structure.genderConstraint || inferredSignals.gender === 'all') {
+                score += 8;
+                reasoning.push(`Gender targeting matches: ${structure.genderConstraint}`);
+              } else {
+                score -= 20;
+                issues.push({ type: 'gender' as any, severity: 'error', message: `Creative for ${inferredSignals.gender}, ad set targets ${structure.genderConstraint}` });
+              }
+            }
+          }
+          
+          // 6. Age constraint check
+          if (structure.ageConstraints && inferredSignals.ageMin !== undefined) {
+            const ageOverlap = checkAgeOverlap(
+              { min: inferredSignals.ageMin, max: inferredSignals.ageMax || 65 },
+              structure.ageConstraints
+            );
+            if (ageOverlap) {
+              score += 8;
+              reasoning.push(`Age bracket overlaps with ad set: ${structure.ageConstraints.min}-${structure.ageConstraints.max}`);
+            } else {
+              score -= 15;
+              issues.push({ type: 'age' as any, severity: 'warning', message: `Creative age ${inferredSignals.ageMin}-${inferredSignals.ageMax} doesn't match ${structure.ageConstraints.min}-${structure.ageConstraints.max}` });
+            }
+          }
+          
+          // 7. Audience type check
+          if (structure.audienceTypeConstraint) {
+            if (inferredSignals.audienceType) {
+              if (inferredSignals.audienceType === structure.audienceTypeConstraint) {
+                score += 10;
+                reasoning.push(`Audience type matches: ${structure.audienceTypeConstraint}`);
+              } else {
+                score -= 12;
+                issues.push({ type: 'audience' as any, severity: 'warning', message: `Creative for ${inferredSignals.audienceType}, ad set uses ${structure.audienceTypeConstraint}` });
+              }
+            }
+          }
+          
+          // 8. Optimization goal check
+          if (structure.optimizationGoal) {
+            if (inferredSignals.optimizationGoal) {
+              if (inferredSignals.optimizationGoal === structure.optimizationGoal) {
+                score += 10;
+                reasoning.push(`Optimization goal matches: ${structure.optimizationGoal}`);
+              } else {
+                score -= 10;
+                issues.push({ type: 'objective', severity: 'warning', message: `Creative for ${inferredSignals.optimizationGoal}, ad set optimizes for ${structure.optimizationGoal}`, suggestion: 'Consider if creative messaging aligns with goal' });
+              }
+            }
+          }
+          
+          // 9. Placement check (from inferred signals)
+          if (structure.placementConstraints && structure.placementConstraints.length > 0) {
+            if (inferredSignals.placement) {
+              const placementMatch = structure.placementConstraints.some(p => 
+                p.toLowerCase().includes(inferredSignals.placement!) || 
+                inferredSignals.placement!.includes(p.toLowerCase())
+              );
+              if (placementMatch) {
+                score += 8;
+                reasoning.push(`Placement ${inferredSignals.placement} matches ad set`);
+              }
+            }
+          }
+          
+          matches.push({ 
+            structure, 
+            confidenceScore: Math.max(0, Math.min(100, score)), 
+            reasoning, 
+            compatibilityIssues: issues, 
+            hardConstraintsMet: hardCheckResult.passed 
+          });
         }
         
+        // Sort by confidence score descending
         matches.sort((a, b) => b.confidenceScore - a.confidenceScore);
+        
+        // Generate no-match reasons if empty
+        const noMatchReasons: string[] = [];
+        if (matches.length === 0) {
+          if (asset.hardConstraints.market) {
+            noMatchReasons.push(`No structures found for market: ${asset.hardConstraints.market}`);
+          }
+          if (asset.hardConstraints.language) {
+            noMatchReasons.push(`No structures found for language: ${asset.hardConstraints.language}`);
+          }
+          if (inferredSignals.platform && !structuresToUse.some(s => s.platform === inferredSignals.platform)) {
+            noMatchReasons.push(`Platform ${inferredSignals.platform} inferred from filename not in ActiPlan`);
+          }
+          if (noMatchReasons.length === 0) {
+            noMatchReasons.push('No compatible structures found');
+          }
+        }
         
         return {
           assetId: asset.id,
           matches,
           bestMatch: matches[0],
-          noMatchReasons: matches.length === 0 ? ['No compatible structures found'] : undefined,
+          noMatchReasons: matches.length === 0 ? noMatchReasons : undefined,
         };
       });
 
@@ -532,6 +735,55 @@ function calculateAspectRatio(w: number, h: number): string {
   const gcd = (a: number, b: number): number => b === 0 ? a : gcd(b, a % b);
   const d = gcd(w, h);
   return `${w/d}:${h/d}`;
+}
+
+// Extract audience type from audiences array or split dimension
+function extractAudienceType(
+  audiences: Array<{ id: string; name: string; type: string }> | undefined,
+  splitDimension: string,
+  dimensionValue: any
+): string | undefined {
+  if (splitDimension === 'audience' || splitDimension === 'audience_selection') {
+    // Determine type from first audience or dimension value
+    if (audiences && audiences.length > 0) {
+      const firstType = audiences[0].type?.toLowerCase();
+      if (firstType?.includes('lookalike') || firstType?.includes('lal')) return 'lookalike';
+      if (firstType?.includes('custom') || firstType?.includes('retarget')) return 'retargeting';
+      if (firstType?.includes('interest')) return 'interest';
+      if (firstType?.includes('broad')) return 'broad';
+      return firstType;
+    }
+    if (typeof dimensionValue === 'string') return dimensionValue;
+  }
+  
+  if (audiences && audiences.length > 0) {
+    // Infer from audience names/types
+    const types = audiences.map(a => a.type?.toLowerCase()).filter(Boolean);
+    if (types.some(t => t.includes('lookalike'))) return 'lookalike';
+    if (types.some(t => t.includes('retarget') || t.includes('custom'))) return 'retargeting';
+    if (types.some(t => t.includes('interest'))) return 'interest';
+  }
+  
+  return undefined;
+}
+
+// Calculate budget from percentage cascade
+function calculateBudgetFromPercentage(
+  percentage: number | undefined,
+  phase: any,
+  market: any,
+  campaign: any
+): number | undefined {
+  if (!percentage) return undefined;
+  
+  const totalBudget = (campaign as any)?.total_budget || 0;
+  if (!totalBudget) return undefined;
+  
+  const marketPct = market?.budgetPercentage || 100;
+  const phasePct = phase?.budgetPercentage || 100;
+  
+  // Calculate: total * market% * phase% * adSet%
+  return totalBudget * (marketPct / 100) * (phasePct / 100) * (percentage / 100);
 }
 
 function inferConstraintsFromPath(path: string): HardConstraints {
