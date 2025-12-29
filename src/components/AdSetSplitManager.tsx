@@ -656,25 +656,99 @@ export function AdSetSplitManager({
       case "optimization_goal":
         // Read from optimizationGoal field first (persisted), fallback to dimensionValue
         const optGoalValue = adSet.optimizationGoal || adSet.dimensionValue as string || "";
+        
+        // Get the billing event for this optimization goal from the mapping
+        const goalOption = availableOptimizationGoals.find(g => g.value === optGoalValue);
+        const suggestedBillingEvent = (goalOption as any)?.billingEvent;
+        
+        // Bid strategy options
+        const BID_STRATEGY_OPTIONS = platformId === 'tiktok' 
+          ? [
+              { value: "BID_TYPE_NO_BID", label: "Lowest Cost (No Bid Cap)" },
+              { value: "BID_TYPE_CUSTOM", label: "Cost Cap / Bid Cap" },
+            ]
+          : [
+              { value: "LOWEST_COST_WITHOUT_CAP", label: "Lowest Cost (No Cap)" },
+              { value: "LOWEST_COST_WITH_BID_CAP", label: "Bid Cap" },
+              { value: "COST_CAP", label: "Cost Cap" },
+            ];
+        
+        const requiresBidAmount = platformId === 'tiktok' 
+          ? adSet.bidStrategy === 'BID_TYPE_CUSTOM'
+          : adSet.bidStrategy === 'LOWEST_COST_WITH_BID_CAP' || adSet.bidStrategy === 'COST_CAP';
+        
         return (
-          <Select
-            value={optGoalValue}
-            onValueChange={(value) => updateAdSet(adSet.id, { 
-              dimensionValue: value,
-              optimizationGoal: value,
-            })}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Select optimization goal" />
-            </SelectTrigger>
-            <SelectContent>
-              {availableOptimizationGoals.map((goal) => (
-                <SelectItem key={goal.value} value={goal.value}>
-                  {goal.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="space-y-3">
+            {/* Optimization Goal Selector */}
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Optimization Goal</Label>
+              <Select
+                value={optGoalValue}
+                onValueChange={(value) => {
+                  const newGoalOption = availableOptimizationGoals.find(g => g.value === value);
+                  const newBillingEvent = (newGoalOption as any)?.billingEvent;
+                  updateAdSet(adSet.id, { 
+                    dimensionValue: value,
+                    optimizationGoal: value,
+                    billingEvent: newBillingEvent || adSet.billingEvent,
+                  });
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select optimization goal" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableOptimizationGoals.map((goal) => (
+                    <SelectItem key={goal.value} value={goal.value}>
+                      {goal.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {/* Bid Strategy Selector */}
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Bid Strategy</Label>
+              <Select
+                value={adSet.bidStrategy || (platformId === 'tiktok' ? 'BID_TYPE_NO_BID' : 'LOWEST_COST_WITHOUT_CAP')}
+                onValueChange={(value) => updateAdSet(adSet.id, { bidStrategy: value })}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select bid strategy" />
+                </SelectTrigger>
+                <SelectContent>
+                  {BID_STRATEGY_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {/* Bid Amount (only shown when required by bid strategy) */}
+            {requiresBidAmount && (
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Bid Amount ($)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  placeholder="e.g., 5.00"
+                  value={adSet.bidAmount || ''}
+                  onChange={(e) => updateAdSet(adSet.id, { bidAmount: parseFloat(e.target.value) || undefined })}
+                />
+              </div>
+            )}
+            
+            {/* Billing Event (auto-set based on goal, but can be overridden) */}
+            {suggestedBillingEvent && (
+              <div className="text-xs text-muted-foreground mt-1">
+                Billing: <span className="font-medium">{suggestedBillingEvent}</span>
+              </div>
+            )}
+          </div>
         );
 
       case "audience":
