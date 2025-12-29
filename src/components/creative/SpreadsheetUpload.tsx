@@ -76,6 +76,37 @@ const normalizeColumnName = (name: string): string => {
     'note': 'notes',
     'notes_by_spark': 'notes',
     'creative_name': 'name',
+    // New fields from content calendar
+    'brand': 'brand_name',
+    'brand_name': 'brand_name',
+    'campaign': 'campaign_name',
+    'campaign_name': 'campaign_name',
+    'product': 'product_category',
+    'product_category': 'product_category',
+    'category': 'product_category',
+    'placement': 'placement',
+    'media_type': 'media_type',
+    'ad_type': 'ad_type',
+    'priority': 'priority',
+    'approval': 'approval_status',
+    'approval_status': 'approval_status',
+    'assigned': 'assigned_to',
+    'assigned_to': 'assigned_to',
+    'owner': 'assigned_to',
+    'flight_start': 'flight_start_date',
+    'flight_start_date': 'flight_start_date',
+    'start_date': 'flight_start_date',
+    'flight_end': 'flight_end_date',
+    'flight_end_date': 'flight_end_date',
+    'end_date': 'flight_end_date',
+    'primary_text_ar': 'primary_text_ar',
+    'headline_ar': 'headline_ar',
+    'description_ar': 'description_ar',
+    'caption_ar': 'caption_ar',
+    'content_pillar': 'content_pillar',
+    'pillar': 'content_pillar',
+    'campaign_theme': 'campaign_theme',
+    'theme': 'campaign_theme',
   };
   
   return columnMap[normalized] || normalized;
@@ -225,6 +256,30 @@ export function SpreadsheetUpload({ onUploadComplete, isUploading = false }: Spr
           assetsLink: getValue('assets_link'),
           status: getValue('status'),
           notes: getValue('notes'),
+          // New fields
+          brandName: getValue('brand_name'),
+          campaignName: getValue('campaign_name'),
+          productCategory: getValue('product_category'),
+          placement: getValue('placement'),
+          mediaType: getValue('media_type'),
+          adType: getValue('ad_type'),
+          priority: getValue('priority'),
+          approvalStatus: getValue('approval_status'),
+          assignedTo: getValue('assigned_to'),
+          flightStartDate: getValue('flight_start_date'),
+          flightEndDate: getValue('flight_end_date'),
+          primaryText: getValue('primary_text'),
+          primaryTextAr: getValue('primary_text_ar'),
+          headline: getValue('headline'),
+          headlineAr: getValue('headline_ar'),
+          description: getValue('description'),
+          descriptionAr: getValue('description_ar'),
+          caption: getValue('caption'),
+          captionAr: getValue('caption_ar'),
+          callToAction: getValue('cta') || getValue('call_to_action'),
+          destinationUrl: getValue('destination_url'),
+          contentPillar: getValue('content_pillar'),
+          campaignTheme: getValue('campaign_theme'),
           // Derived fields for backward compatibility
           phase: objective || 'Awareness',
           creativeType: deriveCreativeType(format),
@@ -268,35 +323,44 @@ export function SpreadsheetUpload({ onUploadComplete, isUploading = false }: Spr
   // Download template matching the content calendar format
   const handleDownloadTemplate = useCallback(() => {
     const templateData = [
-      ['Name', 'Platform', 'Markets', 'Objective', 'Language', 'Format', 'Actual Length (Details)', 'Dimensions', 'Caption Char Limit', 'Headline Char Limit', 'Description Char Limit', 'CTA Char Limit', 'Material Delivery Deadline', 'Launch Date', 'Specs Link', 'Assets Link', 'Notes', 'Status'],
-      ['Summer Campaign Video 1', 'Meta', 'UAE, KSA, Qatar, Bahrain, Oman', 'Awareness', 'EN/AR', 'Video - Feed', '6, 15, 30 sec', 'Aspect Ratio: 1:1\n1080x1080px', '125 CL', '27 CL', '27 CL', '-', 'Dec-18', 'Nov-15', 'https://www.facebook.com/business/ads-guide/update', '', 'Additional assets needed', 'Pending'],
-      ['TikTok Awareness Video', 'TikTok', 'UAE, KSA', 'Awareness', 'EN/AR', 'Video - TikTok', '6, 15, 30 sec', 'Aspect Ratio: 9:16\n1080x1920px', '100 CL', '55 CL', '-', '-', 'Nov-6', 'Nov-15', 'https://ads.tiktok.com/help/category', '', '', 'Ready'],
-      ['Snapchat Story Ad', 'Snapchat', 'UAE', 'Awareness', 'EN/AR', 'Video - Snap Ads', '6 sec', 'Aspect Ratio: 9:16\n1080x1920px', '-', '34 CL', '-', '-', 'Nov-29', 'Nov-28', '', '', 'First Commercial slot', 'Pending'],
-      ['Instagram Carousel', 'Meta', 'UAE, KSA, Qatar', 'Consideration', 'EN/AR', 'Image/Carousel', '-', 'Aspect Ratio: 1:1\n1080x1080px', '125 CL', '27 CL', '27 CL', '-', 'Dec-4', 'Dec-5', '', '', '', 'Draft'],
+      [
+        'Name', 'Brand', 'Campaign', 'Platform', 'Markets', 'Objective', 'Language', 'Format', 
+        'Placement', 'Media Type', 'Actual Length (Details)', 'Dimensions', 'Priority', 'Assigned To',
+        'Flight Start Date', 'Flight End Date', 'Material Delivery Deadline', 'Launch Date', 
+        'Primary Text', 'Primary Text (AR)', 'Headline', 'Headline (AR)', 'Description', 'Description (AR)',
+        'Caption', 'Caption (AR)', 'CTA', 'Destination URL', 'Content Pillar', 'Campaign Theme',
+        'Specs Link', 'Assets Link', 'Approval Status', 'Status', 'Notes'
+      ],
+      [
+        'Summer Campaign Video 1', 'BrandX', 'Summer 2025', 'Meta', 'UAE, KSA, Qatar', 'Awareness', 'EN/AR', 'Video - Feed',
+        'Feed', 'Video', '6, 15, 30 sec', '1080x1080px', 'High', 'John Doe',
+        '2025-01-15', '2025-02-15', 'Dec-18', 'Jan-15',
+        'Discover our new collection', 'اكتشف مجموعتنا الجديدة', 'New Arrivals', 'وصل حديثاً', 'Shop now', 'تسوق الآن',
+        'Limited time offer', 'عرض لفترة محدودة', 'Shop Now', 'https://example.com',
+        'Product Launch', 'Summer Vibes',
+        'https://www.facebook.com/business/ads-guide', '', 'Pending Review', 'Draft', 'Additional assets needed'
+      ],
+      [
+        'TikTok Awareness Video', 'BrandX', 'Summer 2025', 'TikTok', 'UAE, KSA', 'Awareness', 'EN/AR', 'Video - TikTok',
+        'TikTok For You', 'Video', '6, 15 sec', '1080x1920px', 'Medium', 'Jane Smith',
+        '2025-01-20', '2025-02-20', 'Nov-6', 'Jan-20',
+        'Check this out!', 'شاهد هذا!', 'Trending Now', 'رائج الآن', '', '',
+        '', '', 'Learn More', 'https://example.com',
+        'Brand Awareness', 'Trendy',
+        'https://ads.tiktok.com/help', '', 'Client Approved', 'Ready', ''
+      ],
     ];
 
     const ws = XLSX.utils.aoa_to_sheet(templateData);
     
     // Set column widths
     ws['!cols'] = [
-      { wch: 25 }, // Name
-      { wch: 12 }, // Platform
-      { wch: 30 }, // Markets
-      { wch: 15 }, // Objective
-      { wch: 10 }, // Language
-      { wch: 18 }, // Format
-      { wch: 18 }, // Actual Length
-      { wch: 25 }, // Dimensions
-      { wch: 12 }, // Caption Char Limit
-      { wch: 12 }, // Headline Char Limit
-      { wch: 12 }, // Description Char Limit
-      { wch: 10 }, // CTA Char Limit
-      { wch: 20 }, // Material Delivery Deadline
-      { wch: 12 }, // Launch Date
-      { wch: 40 }, // Specs Link
-      { wch: 30 }, // Assets Link
-      { wch: 30 }, // Notes
-      { wch: 12 }, // Status
+      { wch: 25 }, { wch: 15 }, { wch: 18 }, { wch: 12 }, { wch: 25 }, { wch: 15 }, { wch: 10 }, { wch: 18 },
+      { wch: 15 }, { wch: 12 }, { wch: 18 }, { wch: 15 }, { wch: 10 }, { wch: 15 },
+      { wch: 15 }, { wch: 15 }, { wch: 20 }, { wch: 12 },
+      { wch: 30 }, { wch: 30 }, { wch: 20 }, { wch: 20 }, { wch: 25 }, { wch: 25 },
+      { wch: 25 }, { wch: 25 }, { wch: 12 }, { wch: 30 }, { wch: 15 }, { wch: 15 },
+      { wch: 35 }, { wch: 35 }, { wch: 15 }, { wch: 12 }, { wch: 30 },
     ];
 
     const wb = XLSX.utils.book_new();
@@ -360,17 +424,38 @@ export function SpreadsheetUpload({ onUploadComplete, isUploading = false }: Spr
           creativeType,
           mediaUrls: row.assetsLink ? [row.assetsLink] : [],
           primaryText: row.primaryText,
+          primaryTextAr: row.primaryTextAr,
           headline: row.headline,
+          headlineAr: row.headlineAr,
           description: row.description,
+          descriptionAr: row.descriptionAr,
           caption: row.caption,
+          captionAr: row.captionAr,
           callToAction: row.callToAction as any,
           destinationUrl: row.destinationUrl || row.specsLink,
           spreadsheetRowNumber: row.rowNumber,
           status: 'draft',
           validationErrors: [],
+          // New direct fields
+          brandName: row.brandName,
+          campaignName: row.campaignName,
+          productCategory: row.productCategory,
+          placement: row.placement,
+          mediaType: row.mediaType,
+          adType: row.adType,
+          priority: row.priority,
+          approvalStatus: row.approvalStatus,
+          assignedTo: row.assignedTo,
+          flightStartDate: row.flightStartDate,
+          flightEndDate: row.flightEndDate,
+          language: row.language,
+          contentPillar: row.contentPillar,
+          campaignTheme: row.campaignTheme,
+          specsLink: row.specsLink,
+          assetsLink: row.assetsLink,
+          deliveryDeadline: row.materialDeliveryDeadline,
           // Store additional metadata
           platformMetadata: {
-            language: row.language,
             markets: row.markets,
             format: row.format,
             actualLength: row.actualLength,
@@ -379,10 +464,7 @@ export function SpreadsheetUpload({ onUploadComplete, isUploading = false }: Spr
             headlineCharLimit: row.headlineCharLimit,
             descriptionCharLimit: row.descriptionCharLimit,
             ctaCharLimit: row.ctaCharLimit,
-            materialDeliveryDeadline: row.materialDeliveryDeadline,
             launchDate: row.launchDate,
-            specsLink: row.specsLink,
-            assetsLink: row.assetsLink,
             notes: row.notes,
             importedStatus: row.status,
           },
