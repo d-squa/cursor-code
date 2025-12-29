@@ -181,7 +181,7 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
     toast.success(`Added ${selected.length} creatives for matching`);
   }, [libraryCreatives, selectedCreativeIds, addLibraryCreatives]);
 
-  const handleRunMatching = useCallback(async () => {
+  const handleRunMatching = async () => {
     if (!selectedCampaignId) { toast.error('Please select an ActiPlan first'); return; }
     if (state.assets.length === 0) { toast.error('Please add some creatives first'); return; }
     
@@ -191,7 +191,7 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
       structures = await loadCampaignStructures(selectedCampaignId) || []; 
     }
     runMatching(structures);
-  }, [state.assets, state.structures, runMatching, loadCampaignStructures, selectedCampaignId]);
+  };
 
   const stepProgress = state.currentStep === 'upload' ? 0 : state.currentStep === 'match' ? 33 : state.currentStep === 'review' ? 66 : 100;
   const needsCampaignSelection = !initialCampaignId && !selectedCampaignId;
