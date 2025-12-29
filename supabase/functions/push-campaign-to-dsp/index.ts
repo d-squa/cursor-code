@@ -446,6 +446,10 @@ interface AdSetConfig {
   ageMin?: number;
   ageMax?: number;
   optimizationGoal?: string;
+  // Bid strategy and related parameters (especially needed for optimization_goal splits)
+  bidStrategy?: string;
+  bidAmount?: number;
+  billingEvent?: string;
   audiences?: Array<{
     id: string;
     name: string;
@@ -2360,15 +2364,20 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           
           // CRITICAL: Each ad set may have its own optimization goal, so billing event must match
           const adSetOptimizationGoal = adSetConfig.optimizationGoal || optimizationGoal;
-          const adSetBillingEvent = getBillingEventForOptimizationGoal(adSetOptimizationGoal, userBillingEvent);
-          console.log(`📊 Ad set "${adSetConfig.name}" - optimization_goal: ${adSetOptimizationGoal}, billing_event: ${adSetBillingEvent}`);
+          const adSetBillingEvent = getBillingEventForOptimizationGoal(adSetOptimizationGoal, adSetConfig.billingEvent || userBillingEvent);
+          
+          // CRITICAL: Each ad set may have its own bid strategy and bid amount (especially for optimization_goal splits)
+          const adSetBidStrategy = adSetConfig.bidStrategy || finalBidStrategy;
+          const adSetBidAmount = adSetConfig.bidAmount ?? metaBidAmount;
+          
+          console.log(`📊 Ad set "${adSetConfig.name}" - optimization_goal: ${adSetOptimizationGoal}, billing_event: ${adSetBillingEvent}, bid_strategy: ${adSetBidStrategy}, bid_amount: ${adSetBidAmount}`);
           
           const adSetPayload: any = {
             name: adsetTaxonomyName || defaultAdSetName,
             campaign_id: campaignData.id,
             billing_event: adSetBillingEvent,
             optimization_goal: adSetOptimizationGoal,
-            bid_strategy: finalBidStrategy,
+            bid_strategy: adSetBidStrategy,
             status: "PAUSED",
             start_time: startDate.toISOString(),
             end_time: endDate.toISOString(),
@@ -2390,10 +2399,10 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           adSetPayload.dsa_beneficiary = campaign.name || "Advertiser";
           adSetPayload.dsa_payor = campaign.name || "Advertiser";
           
-          // Add bid amount if required
-          if ((finalBidStrategy === 'LOWEST_COST_WITH_BID_CAP' || finalBidStrategy === 'COST_CAP') && 
-              metaBidAmount && metaBidAmount > 0) {
-            adSetPayload.bid_amount = Math.round(metaBidAmount * 100);
+          // Add bid amount if required by the ad set's bid strategy
+          if ((adSetBidStrategy === 'LOWEST_COST_WITH_BID_CAP' || adSetBidStrategy === 'COST_CAP') && 
+              adSetBidAmount && adSetBidAmount > 0) {
+            adSetPayload.bid_amount = Math.round(adSetBidAmount * 100);
           }
           
           // Add conversion tracking

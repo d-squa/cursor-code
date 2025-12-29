@@ -124,6 +124,10 @@ export interface AdSetConfig {
   ageMin?: number;
   ageMax?: number;
   optimizationGoal?: string;
+  // Bid strategy and related parameters (especially needed for optimization_goal splits)
+  bidStrategy?: string; // Meta: LOWEST_COST_WITHOUT_CAP, LOWEST_COST_WITH_BID_CAP, COST_CAP; TikTok: BID_TYPE_NO_BID, BID_TYPE_CUSTOM
+  bidAmount?: number; // Required when bidStrategy is LOWEST_COST_WITH_BID_CAP or COST_CAP
+  billingEvent?: string; // Meta: IMPRESSIONS, LINK_CLICKS, etc.; TikTok: OCPM, CPC, CPV, CPM
   audiences?: Array<{
     id: string;
     name: string;
