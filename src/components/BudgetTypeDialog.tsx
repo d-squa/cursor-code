@@ -51,7 +51,7 @@ export function BudgetTypeDialog({
 
         <div className="space-y-4 py-4">
           <RadioGroup value={selectedType} onValueChange={(value) => setSelectedType(value as "daily" | "lifetime")}>
-            <Card className={selectedType === "lifetime" ? "border-primary" : ""}>
+            <Card className={`border-2 transition-colors ${selectedType === "lifetime" ? "border-primary" : "border-transparent"}`}>
               <CardContent className="p-4">
                 <div className="flex items-start space-x-3">
                   <RadioGroupItem value="lifetime" id="lifetime" className="mt-1" />
@@ -78,7 +78,7 @@ export function BudgetTypeDialog({
               </CardContent>
             </Card>
 
-            <Card className={selectedType === "daily" ? "border-primary" : ""}>
+            <Card className={`border-2 transition-colors ${selectedType === "daily" ? "border-primary" : "border-transparent"}`}>
               <CardContent className="p-4">
                 <div className="flex items-start space-x-3">
                   <RadioGroupItem value="daily" id="daily" className="mt-1" />
