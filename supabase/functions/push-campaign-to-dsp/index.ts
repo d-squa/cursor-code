@@ -2455,6 +2455,12 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           }
 
           console.log(`Creating Meta ad set [${adSetIdx + 1}/${adSetsToCreate.length}]:`, adSetPayload.name);
+          console.log("📤 Meta ad set payload (bidding):", {
+            bid_strategy: adSetPayload.bid_strategy,
+            bid_amount: adSetPayload.bid_amount,
+            optimization_goal: adSetPayload.optimization_goal,
+            billing_event: adSetPayload.billing_event,
+          });
 
           const adSetResponse = await fetch(
             `https://graph.facebook.com/v22.0/${adAccountPath}/adsets`,
@@ -2488,9 +2494,38 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
             );
             adSetData = await retryResponse.json();
           }
+
+          // Handle bid_amount required errors (Meta sometimes surfaces this even when we think we’re using lowest-cost)
+          // error_subcode 1815857: Bid amount required for the bid strategy provided
+          const isBidAmountRequiredError = adSetData.error?.error_subcode === 1815857;
+          if (isBidAmountRequiredError) {
+            console.warn(
+              `Bid amount required error (subcode 1815857). Retrying with LOWEST_COST_WITHOUT_CAP and no bid_amount...`
+            );
+            delete adSetPayload.bid_amount;
+            adSetPayload.bid_strategy = 'LOWEST_COST_WITHOUT_CAP';
+
+            const retryResponse = await fetch(
+              `https://graph.facebook.com/v22.0/${adAccountPath}/adsets`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ ...adSetPayload, access_token: platform.access_token }),
+              }
+            );
+            adSetData = await retryResponse.json();
+          }
           
           if (adSetData.error) {
-            console.error("Meta Ad Set Creation Error:", adSetData.error);
+            console.error("Meta Ad Set Creation Error:", {
+              error: adSetData.error,
+              request_bidding: {
+                bid_strategy: adSetPayload.bid_strategy,
+                bid_amount: adSetPayload.bid_amount,
+                optimization_goal: adSetPayload.optimization_goal,
+                billing_event: adSetPayload.billing_event,
+              },
+            });
             errors.push({
               market: market.name,
               phase: phase.name,
