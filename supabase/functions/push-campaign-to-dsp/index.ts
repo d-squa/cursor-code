@@ -2121,7 +2121,7 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
         }
 
         // Validate bid strategy compatibility with optimization goal
-        // COST_CAP and LOWEST_COST_WITH_BID_CAP only work with specific optimization goals
+        // COST_CAP, LOWEST_COST_WITH_BID_CAP, and TARGET_COST only work with specific optimization goals
         const bidStrategyCompatibleGoals = ['OFFSITE_CONVERSIONS', 'VALUE', 'LINK_CLICKS', 'LANDING_PAGE_VIEWS', 'LEAD_GENERATION', 'APP_INSTALLS'];
         // Phase-level Meta fields take priority over market-level
         const requestedBidStrategy = phase.metaBidStrategy || market.metaBidStrategy || "LOWEST_COST_WITHOUT_CAP";
@@ -2223,7 +2223,7 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           console.log(`⚠️ ${objective}/${optimizationGoal} only supports limited attribution (1,0). Forcing click=${metaClickWindow}d, view=${metaViewWindow}d (configured was: ${rawClickWindow}, ${rawViewWindow})`);
         }
         
-        const requiresBidCap = requestedBidStrategy === 'COST_CAP' || requestedBidStrategy === 'LOWEST_COST_WITH_BID_CAP';
+        const requiresBidCap = requestedBidStrategy === 'COST_CAP' || requestedBidStrategy === 'LOWEST_COST_WITH_BID_CAP' || requestedBidStrategy === 'TARGET_COST';
         const isCompatible = bidStrategyCompatibleGoals.includes(optimizationGoal);
         
         let finalBidStrategy = requestedBidStrategy;
@@ -2399,8 +2399,8 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           adSetPayload.dsa_payor = campaign.name || "Advertiser";
           
           // Add bid amount if required by the ad set's bid strategy
-          // CRITICAL: LOWEST_COST_WITH_BID_CAP and COST_CAP REQUIRE a bid_amount
-          const requiresBidAmount = adSetBidStrategy === 'LOWEST_COST_WITH_BID_CAP' || adSetBidStrategy === 'COST_CAP';
+          // CRITICAL: LOWEST_COST_WITH_BID_CAP, COST_CAP, and TARGET_COST REQUIRE a bid_amount
+          const requiresBidAmount = adSetBidStrategy === 'LOWEST_COST_WITH_BID_CAP' || adSetBidStrategy === 'COST_CAP' || adSetBidStrategy === 'TARGET_COST';
           if (requiresBidAmount) {
             if (adSetBidAmount && adSetBidAmount > 0) {
               adSetPayload.bid_amount = Math.round(adSetBidAmount * 100);
