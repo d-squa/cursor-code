@@ -133,6 +133,44 @@ export function useCreativeMatching(campaignId?: string) {
     }
   }, [user]);
 
+  // Add creatives from the library (already in database)
+  const addLibraryCreatives = useCallback((creatives: any[]) => {
+    const digestedAssets: DigestedAsset[] = creatives.map(creative => ({
+      id: creative.id, // Use the actual creative ID from database
+      originalFile: null as any, // No file for library creatives
+      fileName: creative.name,
+      filePath: creative.folderPath || creative.name,
+      mediaType: creative.creativeType === 'video' ? 'video' : 'image' as AssetMediaType,
+      technicalAttributes: {
+        width: creative.width || 0,
+        height: creative.height || 0,
+        aspectRatio: creative.aspectRatio || '',
+        duration: creative.durationSeconds,
+        fileSize: creative.fileSizeBytes || 0,
+      },
+      hardConstraints: {
+        market: creative.market,
+        language: creative.platformMetadata?.language,
+      },
+      compatibilitySignals: {
+        platform: creative.platform,
+        phaseName: creative.phaseName,
+        optimizationGoal: creative.optimizationGoal,
+      },
+      digestedAt: new Date().toISOString(),
+      sourceType: 'library', // Mark as coming from library
+      libraryCreativeId: creative.id, // Store reference to library creative
+    }));
+
+    setState(prev => ({
+      ...prev,
+      assets: [...prev.assets, ...digestedAssets],
+      currentStep: 'match',
+    }));
+    
+    return digestedAssets;
+  }, []);
+
   // Process uploaded files
   const processFiles = useCallback(async (files: File[]) => {
     setState(prev => ({ ...prev, isProcessing: true, currentStep: 'digest' }));
@@ -297,36 +335,56 @@ export function useCreativeMatching(campaignId?: string) {
         const asset = state.assets.find(a => a.id === assetId);
         if (!asset) continue;
 
-        const { data: creative } = await supabase
-          .from('creatives')
-          .insert({
-            name: asset.fileName,
-            user_id: user.id,
-            platform: match.structure.platform,
-            creative_type: asset.mediaType === 'video' ? 'video' : 'image',
-            status: 'ready',
-            market: match.structure.market,
-            phase_name: match.structure.phases?.[0],
-            campaign_id: match.structure.campaignId,
-            width: asset.technicalAttributes.width,
-            height: asset.technicalAttributes.height,
-            aspect_ratio: asset.technicalAttributes.aspectRatio,
-            duration_seconds: asset.technicalAttributes.duration,
-            file_size_bytes: asset.technicalAttributes.fileSize,
-          })
-          .select().single();
+        let creativeId: string;
 
-        if (creative) {
-          assignments.push({
-            creative_id: creative.id,
-            campaign_id: match.structure.campaignId,
-            platform: match.structure.platform,
-            market: match.structure.market || 'GLOBAL',
-            phase_name: match.structure.phases?.[0] || 'default',
-            assigned_by: user.id,
-            status: 'pending',
-          });
+        // Check if this is a library creative (already exists in DB)
+        if (asset.sourceType === 'library' && (asset as any).libraryCreativeId) {
+          creativeId = (asset as any).libraryCreativeId;
+          
+          // Update the existing creative with campaign assignment
+          await supabase
+            .from('creatives')
+            .update({
+              campaign_id: match.structure.campaignId,
+              market: match.structure.market,
+              phase_name: match.structure.phases?.[0],
+              status: 'ready',
+            })
+            .eq('id', creativeId);
+        } else {
+          // Create new creative for uploaded files
+          const { data: creative } = await supabase
+            .from('creatives')
+            .insert({
+              name: asset.fileName,
+              user_id: user.id,
+              platform: match.structure.platform,
+              creative_type: asset.mediaType === 'video' ? 'video' : 'image',
+              status: 'ready',
+              market: match.structure.market,
+              phase_name: match.structure.phases?.[0],
+              campaign_id: match.structure.campaignId,
+              width: asset.technicalAttributes.width,
+              height: asset.technicalAttributes.height,
+              aspect_ratio: asset.technicalAttributes.aspectRatio,
+              duration_seconds: asset.technicalAttributes.duration,
+              file_size_bytes: asset.technicalAttributes.fileSize,
+            })
+            .select().single();
+
+          if (!creative) continue;
+          creativeId = creative.id;
         }
+
+        assignments.push({
+          creative_id: creativeId,
+          campaign_id: match.structure.campaignId,
+          platform: match.structure.platform,
+          market: match.structure.market || 'GLOBAL',
+          phase_name: match.structure.phases?.[0] || 'default',
+          assigned_by: user.id,
+          status: 'pending',
+        });
       }
 
       if (assignments.length > 0) {
@@ -351,7 +409,7 @@ export function useCreativeMatching(campaignId?: string) {
     structureCount: state.structures.length,
   }), [state.assets, state.results, state.acceptedMatches, state.structures]);
 
-  return { state, stats, loadCampaignStructures, processFiles, runMatching, acceptMatch, rejectMatch, clearRejection, removeAsset, clearAll, saveMatches };
+  return { state, stats, loadCampaignStructures, processFiles, addLibraryCreatives, runMatching, acceptMatch, rejectMatch, clearRejection, removeAsset, clearAll, saveMatches };
 }
 
 // Helper functions
