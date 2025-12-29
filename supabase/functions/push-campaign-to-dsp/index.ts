@@ -2766,15 +2766,9 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
             tiktokOptGoal = "CLICK";
           }
         } else if (mappedObjective === "LEAD_GENERATION") {
-          // LEAD_GENERATION objective
-          const phaseOptGoal = (phase.optimizationGoal || "").toUpperCase();
-          const allowedLeadGoals = new Set([
-            "LEAD_GENERATION",
-            "LEADS",
-            "CONVERSION_LEADS",
-            "PREFERRED_LEAD",
-          ]);
-          tiktokOptGoal = allowedLeadGoals.has(phaseOptGoal) ? phaseOptGoal : "LEAD_GENERATION";
+          // TikTok Lead Gen requires FORM_SUBMIT optimization goal (and OCPM billing)
+          // We map any lead-style goals coming from the plan to TikTok's supported enum.
+          tiktokOptGoal = "FORM_SUBMIT";
         } else if (mappedObjective === "REACH") {
           tiktokOptGoal = "REACH";
         } else if (mappedObjective === "VIDEO_VIEWS" || mappedObjective === "VIDEO_VIEW") {
@@ -2810,10 +2804,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
             "INSTALL": "OCPM",
           },
           "LEAD_GENERATION": {
-            "LEAD_GENERATION": "OCPM",  // Lead Gen requires OCPM
-            "LEADS": "OCPM",
-            "CONVERSION_LEADS": "OCPM",
-            "PREFERRED_LEAD": "OCPM",
+            "FORM_SUBMIT": "OCPM", // Lead Gen requires OCPM
           },
         };
         

@@ -488,7 +488,7 @@ class TikTokAdapter implements PlatformAdapter {
       // REACH objective requires manual placement AND only supports PLACEMENT_TIKTOK
       const reachObjectives = ['REACH'];
       // LEAD_GENERATION objectives require manual placement with PLACEMENT_TIKTOK only
-      const leadGenObjectives = ['LEAD_GENERATION', 'LEADS', 'CONVERSION_LEADS', 'PREFERRED_LEAD'];
+      const leadGenObjectives = ['LEAD_GENERATION', 'LEADS', 'CONVERSION_LEADS', 'PREFERRED_LEAD', 'FORM_SUBMIT'];
       const isReachObjective = reachObjectives.includes(finalOptimizationGoal.toUpperCase()) ||
                                 reachObjectives.includes(params.optimizationGoal?.toUpperCase() || '');
       const isLeadGenObjective = leadGenObjectives.includes(finalOptimizationGoal.toUpperCase()) ||
