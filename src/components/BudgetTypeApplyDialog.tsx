@@ -60,8 +60,3 @@ export function BudgetTypeApplyDialog({
     </AlertDialog>
   );
 }
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
-}
