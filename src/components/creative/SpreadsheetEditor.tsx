@@ -46,19 +46,26 @@ interface SpreadsheetEditorProps {
 // Content calendar aligned column definitions
 const COLUMNS = [
   { key: 'name', label: 'Name', width: 180, required: true, type: 'text' },
+  { key: 'brandName', label: 'Brand', width: 120, required: false, type: 'text' },
+  { key: 'campaignName', label: 'Campaign', width: 150, required: false, type: 'text' },
   { key: 'platform', label: 'Platform', width: 100, required: true, type: 'select' },
   { key: 'markets', label: 'Markets', width: 150, required: true, type: 'text' },
   { key: 'objective', label: 'Objective', width: 120, required: true, type: 'select' },
   { key: 'language', label: 'Language', width: 80, required: false, type: 'text' },
   { key: 'format', label: 'Format', width: 140, required: true, type: 'select' },
+  { key: 'placement', label: 'Placement', width: 120, required: false, type: 'select' },
+  { key: 'mediaType', label: 'Media Type', width: 100, required: false, type: 'select' },
   { key: 'actualLength', label: 'Duration', width: 100, required: false, type: 'text' },
   { key: 'dimensions', label: 'Dimensions', width: 140, required: false, type: 'text' },
-  { key: 'captionCharLimit', label: 'Caption Limit', width: 100, required: false, type: 'text' },
-  { key: 'headlineCharLimit', label: 'Headline Limit', width: 100, required: false, type: 'text' },
+  { key: 'priority', label: 'Priority', width: 90, required: false, type: 'select' },
+  { key: 'assignedTo', label: 'Assigned To', width: 120, required: false, type: 'text' },
+  { key: 'flightStartDate', label: 'Flight Start', width: 100, required: false, type: 'text' },
+  { key: 'flightEndDate', label: 'Flight End', width: 100, required: false, type: 'text' },
   { key: 'materialDeliveryDeadline', label: 'Delivery Deadline', width: 120, required: false, type: 'text' },
   { key: 'launchDate', label: 'Launch Date', width: 100, required: false, type: 'text' },
   { key: 'specsLink', label: 'Specs Link', width: 180, required: false, type: 'text' },
   { key: 'assetsLink', label: 'Assets Link', width: 180, required: false, type: 'text' },
+  { key: 'approvalStatus', label: 'Approval', width: 120, required: false, type: 'select' },
   { key: 'status', label: 'Status', width: 100, required: false, type: 'select' },
   { key: 'notes', label: 'Notes', width: 200, required: false, type: 'text' },
 ] as const;
@@ -73,6 +80,10 @@ const FORMATS = [
   'Static Banner', 'Display', 'Native',
   'Dark Post', 'Existing Post', 'Spark Ads'
 ];
+const PLACEMENTS = ['Feed', 'Stories', 'Reels', 'In-Stream', 'Search', 'Explore', 'TikTok For You', 'Spotlight', 'Native', 'Display'];
+const MEDIA_TYPES = ['Video', 'Image', 'GIF', 'Carousel', 'Collection'];
+const PRIORITIES = ['High', 'Medium', 'Low'];
+const APPROVAL_STATUSES = ['Pending Review', 'Internal Approved', 'Client Approved', 'Needs Revision', 'Rejected'];
 const STATUSES = ['Draft', 'Pending', 'Ready', 'In Progress', 'Live', 'Completed', 'On Hold'];
 
 // Validate a single row
