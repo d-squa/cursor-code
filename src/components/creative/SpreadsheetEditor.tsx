@@ -1,4 +1,4 @@
-// Excel-like Grid Editor with inline editing and real-time validation
+// Excel-like Grid Editor with inline editing - aligned with content calendar template
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,64 +36,54 @@ import {
   Redo2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { Platform, CreativeType, SpreadsheetCreativeRow } from '@/types/creative';
-import { VALID_OPTIMIZATION_GOALS, VALID_FUNNEL_STAGES } from '@/utils/creativeValidation';
+import type { SpreadsheetCreativeRow } from '@/types/creative';
 
 interface SpreadsheetEditorProps {
   rows: SpreadsheetCreativeRow[];
   onChange: (rows: SpreadsheetCreativeRow[]) => void;
 }
 
-// Column definitions
+// Content calendar aligned column definitions
 const COLUMNS = [
   { key: 'name', label: 'Name', width: 180, required: true, type: 'text' },
   { key: 'platform', label: 'Platform', width: 100, required: true, type: 'select' },
-  { key: 'market', label: 'Market', width: 80, required: true, type: 'text' },
-  { key: 'phase', label: 'Phase', width: 120, required: true, type: 'select' },
-  { key: 'optimizationGoal', label: 'Optimization Goal', width: 150, required: true, type: 'select' },
-  { key: 'creativeType', label: 'Type', width: 120, required: true, type: 'select' },
-  { key: 'mediaUrl', label: 'Media URL', width: 200, required: false, type: 'text' },
-  { key: 'externalPostId', label: 'Post ID', width: 120, required: false, type: 'text' },
-  { key: 'primaryText', label: 'Primary Text', width: 200, required: false, type: 'text' },
-  { key: 'headline', label: 'Headline', width: 150, required: false, type: 'text' },
-  { key: 'description', label: 'Description', width: 180, required: false, type: 'text' },
-  { key: 'callToAction', label: 'CTA', width: 120, required: false, type: 'select' },
-  { key: 'destinationUrl', label: 'Destination URL', width: 200, required: false, type: 'text' },
+  { key: 'markets', label: 'Markets', width: 150, required: true, type: 'text' },
+  { key: 'objective', label: 'Objective', width: 120, required: true, type: 'select' },
+  { key: 'language', label: 'Language', width: 80, required: false, type: 'text' },
+  { key: 'format', label: 'Format', width: 140, required: true, type: 'select' },
+  { key: 'actualLength', label: 'Duration', width: 100, required: false, type: 'text' },
+  { key: 'dimensions', label: 'Dimensions', width: 140, required: false, type: 'text' },
+  { key: 'captionCharLimit', label: 'Caption Limit', width: 100, required: false, type: 'text' },
+  { key: 'headlineCharLimit', label: 'Headline Limit', width: 100, required: false, type: 'text' },
+  { key: 'materialDeliveryDeadline', label: 'Delivery Deadline', width: 120, required: false, type: 'text' },
+  { key: 'launchDate', label: 'Launch Date', width: 100, required: false, type: 'text' },
+  { key: 'specsLink', label: 'Specs Link', width: 180, required: false, type: 'text' },
+  { key: 'assetsLink', label: 'Assets Link', width: 180, required: false, type: 'text' },
+  { key: 'status', label: 'Status', width: 100, required: false, type: 'select' },
+  { key: 'notes', label: 'Notes', width: 200, required: false, type: 'text' },
 ] as const;
 
 type ColumnKey = typeof COLUMNS[number]['key'];
 
-const PLATFORMS: Platform[] = ['meta', 'tiktok', 'google', 'linkedin', 'snapchat', 'pinterest', 'x'];
-const CREATIVE_TYPES: CreativeType[] = ['dark_post', 'existing_post', 'image', 'video', 'carousel', 'collection', 'instant_experience'];
-const CTAS = ['SHOP_NOW', 'LEARN_MORE', 'SIGN_UP', 'DOWNLOAD', 'BOOK_NOW', 'CONTACT_US', 'GET_QUOTE', 'APPLY_NOW', 'SUBSCRIBE', 'ORDER_NOW', 'INSTALL_APP', 'WATCH_MORE'];
+const PLATFORMS = ['Meta', 'TikTok', 'Google', 'Snapchat', 'LinkedIn', 'Pinterest', 'X', 'DV360', 'Programmatic'];
+const OBJECTIVES = ['Awareness', 'Consideration', 'Conversion', 'Traffic', 'Engagement', 'App Installs', 'Video Views', 'Lead Generation'];
+const FORMATS = [
+  'Video - Feed', 'Video - Stories', 'Video - Reels', 'Video - TikTok', 'Video - Snap Ads',
+  'Image', 'Image/Carousel', 'Carousel', 'Collection',
+  'Static Banner', 'Display', 'Native',
+  'Dark Post', 'Existing Post', 'Spark Ads'
+];
+const STATUSES = ['Draft', 'Pending', 'Ready', 'In Progress', 'Live', 'Completed', 'On Hold'];
 
 // Validate a single row
 function validateRow(row: SpreadsheetCreativeRow): string[] {
   const errors: string[] = [];
   
   if (!row.name?.trim()) errors.push('Name is required');
-  if (!PLATFORMS.includes(row.platform as Platform)) errors.push(`Invalid platform: ${row.platform}`);
-  if (!row.market?.trim() || !/^[A-Z]{2}$/i.test(row.market)) errors.push(`Invalid market code: ${row.market}`);
-  if (row.phase && !VALID_FUNNEL_STAGES.map(s => s.toLowerCase()).includes(row.phase.toLowerCase())) {
-    errors.push(`Invalid phase: ${row.phase}`);
-  }
-  if (!CREATIVE_TYPES.includes(row.creativeType as CreativeType)) errors.push(`Invalid type: ${row.creativeType}`);
-  
-  // Platform-specific optimization goal validation
-  const platform = row.platform as Platform;
-  if (platform && row.optimizationGoal && VALID_OPTIMIZATION_GOALS[platform]) {
-    if (!VALID_OPTIMIZATION_GOALS[platform].includes(row.optimizationGoal.toUpperCase())) {
-      errors.push(`Invalid optimization goal for ${platform}: ${row.optimizationGoal}`);
-    }
-  }
-  
-  // Type-specific validation
-  if (row.creativeType === 'dark_post' && !row.mediaUrl) {
-    errors.push('Dark post requires a media URL');
-  }
-  if (row.creativeType === 'existing_post' && !row.externalPostId) {
-    errors.push('Existing post requires a post ID');
-  }
+  if (!row.platform?.trim()) errors.push('Platform is required');
+  if (!row.markets?.trim()) errors.push('Markets is required');
+  if (!row.objective?.trim()) errors.push('Objective is required');
+  if (!row.format?.trim()) errors.push('Format is required');
   
   return errors;
 }
@@ -103,20 +93,28 @@ function createEmptyRow(rowNumber: number): SpreadsheetCreativeRow {
   return {
     rowNumber,
     name: '',
-    platform: 'meta',
-    market: '',
+    platform: 'Meta',
+    markets: '',
+    objective: 'Awareness',
+    language: 'EN',
+    format: 'Video - Feed',
+    actualLength: '',
+    dimensions: '',
+    captionCharLimit: '',
+    headlineCharLimit: '',
+    descriptionCharLimit: '',
+    ctaCharLimit: '',
+    materialDeliveryDeadline: '',
+    launchDate: '',
+    specsLink: '',
+    assetsLink: '',
+    status: 'Draft',
+    notes: '',
     phase: 'Awareness',
-    optimizationGoal: 'REACH',
-    creativeType: 'dark_post',
-    mediaUrl: '',
-    externalPostId: '',
-    primaryText: '',
-    headline: '',
-    description: '',
-    callToAction: '',
-    destinationUrl: '',
+    creativeType: 'video',
+    market: '',
     isValid: false,
-    validationErrors: ['Name is required', 'Invalid market code: '],
+    validationErrors: ['Name is required', 'Markets is required'],
   };
 }
 
@@ -152,7 +150,7 @@ export function SpreadsheetEditor({ rows, onChange }: SpreadsheetEditorProps) {
 
   // Get cell value
   const getCellValue = (row: SpreadsheetCreativeRow, colKey: ColumnKey): string => {
-    return String(row[colKey] ?? '');
+    return String((row as any)[colKey] ?? '');
   };
 
   // Start editing a cell
@@ -188,7 +186,6 @@ export function SpreadsheetEditor({ rows, onChange }: SpreadsheetEditorProps) {
     const key = cellKey(rowIndex, colKey);
     
     if (e.shiftKey && selectedCells.size > 0) {
-      // Range selection
       const lastSelected = Array.from(selectedCells).pop();
       if (lastSelected) {
         const [lastRow] = lastSelected.split('-').map(Number);
@@ -201,7 +198,6 @@ export function SpreadsheetEditor({ rows, onChange }: SpreadsheetEditorProps) {
         setSelectedCells(newSelection);
       }
     } else if (e.ctrlKey || e.metaKey) {
-      // Toggle selection
       const newSelection = new Set(selectedCells);
       if (newSelection.has(key)) {
         newSelection.delete(key);
@@ -210,7 +206,6 @@ export function SpreadsheetEditor({ rows, onChange }: SpreadsheetEditorProps) {
       }
       setSelectedCells(newSelection);
     } else {
-      // Single selection
       setSelectedCells(new Set([key]));
     }
   }, [selectedCells]);
@@ -267,12 +262,11 @@ export function SpreadsheetEditor({ rows, onChange }: SpreadsheetEditorProps) {
     if (copiedCells.size === 0 || selectedCells.size === 0) return;
     
     const targetKey = Array.from(selectedCells)[0];
-    const [targetRowStr, targetCol] = targetKey.split('-');
+    const [targetRowStr] = targetKey.split('-');
     const targetRow = parseInt(targetRowStr);
     
     const newRows = [...rows];
     
-    // Get the offset from copied cells
     const copiedKeys = Array.from(copiedCells.keys());
     const [firstCopiedRowStr] = copiedKeys[0].split('-');
     const firstCopiedRow = parseInt(firstCopiedRowStr);
@@ -332,7 +326,6 @@ export function SpreadsheetEditor({ rows, onChange }: SpreadsheetEditorProps) {
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
         if (selectedCells.size > 0 && !editingCell) {
           e.preventDefault();
-          // Clear selected cells
           const newRows = [...rows];
           selectedCells.forEach(key => {
             const [rowStr, col] = key.split('-');
@@ -360,9 +353,15 @@ export function SpreadsheetEditor({ rows, onChange }: SpreadsheetEditorProps) {
   const validCount = useMemo(() => rows.filter(r => r.isValid).length, [rows]);
   const invalidCount = useMemo(() => rows.filter(r => !r.isValid).length, [rows]);
 
-  // Get optimization goals for platform
-  const getOptimizationGoals = (platform: string) => {
-    return VALID_OPTIMIZATION_GOALS[platform as Platform] || [];
+  // Get select options based on column
+  const getSelectOptions = (colKey: ColumnKey): string[] => {
+    switch (colKey) {
+      case 'platform': return PLATFORMS;
+      case 'objective': return OBJECTIVES;
+      case 'format': return FORMATS;
+      case 'status': return STATUSES;
+      default: return [];
+    }
   };
 
   return (
@@ -475,68 +474,56 @@ export function SpreadsheetEditor({ rows, onChange }: SpreadsheetEditorProps) {
                   {/* Data cells */}
                   {COLUMNS.map(col => {
                     const key = cellKey(rowIndex, col.key);
-                    const isSelected = selectedCells.has(key);
                     const isEditing = editingCell === key;
+                    const isSelected = selectedCells.has(key);
                     const value = getCellValue(row, col.key);
-                    const hasError = row.validationErrors.some(e => 
-                      e.toLowerCase().includes(col.key.toLowerCase()) || 
-                      e.toLowerCase().includes(col.label.toLowerCase())
-                    );
-
+                    
                     return (
                       <div
                         key={col.key}
                         className={cn(
-                          'p-1 border-r flex items-center cursor-pointer transition-colors',
-                          isSelected && 'bg-primary/10 ring-1 ring-primary ring-inset',
-                          hasError && !isSelected && 'bg-destructive/10'
+                          'p-1 border-r flex items-center cursor-pointer',
+                          isSelected && 'bg-primary/10 ring-1 ring-inset ring-primary',
+                          !value && col.required && 'bg-destructive/5'
                         )}
                         style={{ width: col.width, minWidth: col.width }}
                         onClick={(e) => handleCellClick(rowIndex, col.key, e)}
                         onDoubleClick={() => handleCellDoubleClick(rowIndex, col.key)}
                       >
-                        {isEditing ? (
+                        {isEditing && col.type === 'text' ? (
                           <Input
                             ref={inputRef}
                             value={editValue}
                             onChange={(e) => setEditValue(e.target.value)}
                             onBlur={commitEdit}
-                            className="h-7 text-sm"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') commitEdit();
+                              if (e.key === 'Escape') cancelEdit();
+                            }}
+                            className="h-7 text-xs"
                           />
                         ) : col.type === 'select' ? (
                           <Select
                             value={value}
                             onValueChange={(v) => handleSelectChange(rowIndex, col.key, v)}
                           >
-                            <SelectTrigger className="h-7 text-xs border-0 bg-transparent shadow-none">
-                              <SelectValue />
+                            <SelectTrigger className="h-7 text-xs border-0 shadow-none">
+                              <SelectValue placeholder={`Select ${col.label}`} />
                             </SelectTrigger>
                             <SelectContent>
-                              {col.key === 'platform' && PLATFORMS.map(p => (
-                                <SelectItem key={p} value={p} className="capitalize">{p}</SelectItem>
-                              ))}
-                              {col.key === 'phase' && VALID_FUNNEL_STAGES.map(p => (
-                                <SelectItem key={p} value={p}>{p}</SelectItem>
-                              ))}
-                              {col.key === 'creativeType' && CREATIVE_TYPES.map(t => (
-                                <SelectItem key={t} value={t} className="capitalize">
-                                  {t.replace(/_/g, ' ')}
+                              {getSelectOptions(col.key).map(opt => (
+                                <SelectItem key={opt} value={opt} className="text-xs">
+                                  {opt}
                                 </SelectItem>
-                              ))}
-                              {col.key === 'optimizationGoal' && getOptimizationGoals(row.platform).map(g => (
-                                <SelectItem key={g} value={g}>{g}</SelectItem>
-                              ))}
-                              {col.key === 'callToAction' && CTAS.map(c => (
-                                <SelectItem key={c} value={c}>{c.replace(/_/g, ' ')}</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
                         ) : (
                           <span className={cn(
-                            'text-sm truncate px-1',
+                            'text-xs truncate px-1',
                             !value && 'text-muted-foreground italic'
                           )}>
-                            {value || (col.required ? 'Required' : '-')}
+                            {value || (col.required ? 'Required' : '')}
                           </span>
                         )}
                       </div>
@@ -555,8 +542,8 @@ export function SpreadsheetEditor({ rows, onChange }: SpreadsheetEditorProps) {
                   Insert Row Below
                 </ContextMenuItem>
                 <ContextMenuItem onClick={() => {
-                  const newRow = { ...row, rowNumber: rows.length + 1, name: `${row.name} (copy)` };
-                  updateRows([...rows, newRow]);
+                  const duplicatedRow = { ...row, rowNumber: rows.length + 1 };
+                  updateRows([...rows, duplicatedRow].map((r, i) => ({ ...r, rowNumber: i + 1 })));
                 }}>
                   <Copy className="h-4 w-4 mr-2" />
                   Duplicate Row
@@ -579,21 +566,12 @@ export function SpreadsheetEditor({ rows, onChange }: SpreadsheetEditorProps) {
 
           {/* Empty state */}
           {rows.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-              <p className="text-sm">No rows yet</p>
-              <Button variant="outline" size="sm" className="mt-2" onClick={addRow}>
-                <Plus className="h-4 w-4 mr-1" />
-                Add First Row
-              </Button>
+            <div className="flex items-center justify-center p-8 text-muted-foreground">
+              No rows. Click "Add Row" to start.
             </div>
           )}
         </div>
       </ScrollArea>
-
-      {/* Footer hints */}
-      <div className="p-2 border-t bg-muted/30 text-xs text-muted-foreground flex items-center gap-4">
-        <span>Double-click to edit • Ctrl+C/V to copy/paste • Ctrl+Z to undo • Delete to clear</span>
-      </div>
     </div>
   );
 }
