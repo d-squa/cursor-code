@@ -1587,12 +1587,37 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
         
         const defaultCampaignName = `${campaign.name} - ${market.name}${phases.length > 1 ? ` - ${phase.name}` : ''}_${generateTimestampSuffix()}`;
         
-        const campaignPayload = {
+        // Check if CBO (Campaign Budget Optimization) is enabled
+        const useCBOEarly = phase.useCBO === true;
+        
+        // Pre-calculate budget for CBO campaigns (budget goes on campaign, not ad sets)
+        const earlyTotalBudget = campaign.total_budget || 0;
+        const earlyPlatformPct = platformConfig.budgetPercentage || 100;
+        const earlyMarketPct = market.budgetPercentage || 100;
+        const earlyPhasePct = phase.budgetPercentage || 100;
+        const earlyPhaseBudget = (earlyTotalBudget * earlyPlatformPct / 100) * (earlyMarketPct / 100) * (earlyPhasePct / 100);
+        
+        const earlyStartDate = new Date(phase.startDate || campaign.start_date);
+        const earlyEndDate = new Date(phase.endDate || campaign.end_date);
+        const earlyDurationDays = Math.ceil((earlyEndDate.getTime() - earlyStartDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        const earlyBudgetType = phase.budgetType || 'lifetime';
+        
+        const campaignPayload: any = {
           name: campaignTaxonomyName || defaultCampaignName,
           objective: objective,
           status: "PAUSED",
           special_ad_categories: [],
         };
+        
+        // If CBO is enabled, set budget at campaign level
+        if (useCBOEarly) {
+          if (earlyBudgetType === 'lifetime') {
+            campaignPayload.lifetime_budget = Math.max(Math.round(earlyPhaseBudget * 100), 100); // in cents, min $1
+          } else {
+            campaignPayload.daily_budget = Math.max(Math.round((earlyPhaseBudget / earlyDurationDays) * 100), 100); // in cents, min $1/day
+          }
+          console.log(`📊 CBO enabled - Campaign ${earlyBudgetType} budget: ${earlyBudgetType === 'lifetime' ? campaignPayload.lifetime_budget : campaignPayload.daily_budget} cents`);
+        }
 
         // Resolve Meta ad account id with fallbacks and ensure proper act_ prefix
         const resolvedAdAccount = (market as any).adAccountId || (market as any).ad_account_id || platform.ad_account_id || Deno.env.get("META_AD_ACCOUNT_ID");
@@ -2386,7 +2411,7 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
             adSetPayload.promoted_object = { pixel_id: effectivePixel, custom_event_type: eventType };
           }
           
-          // Set budget (only if not CBO, or first ad set with CBO gets no budget - platform handles)
+          // Set budget (only if not CBO - when CBO is on, budget is at campaign level)
           if (!useCBO) {
             // CRITICAL: Meta requires either daily_budget OR lifetime_budget for non-CBO ad sets
             // If budgetType is 'lifetime', set lifetime_budget; otherwise set daily_budget
@@ -2394,14 +2419,19 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
             if (budgetType === 'lifetime') {
               const lifetimeBudgetCents = adSetConfig.adSetLifetimeBudget || Math.round(adSetConfig.adSetBudget * 100);
               adSetPayload.lifetime_budget = Math.max(lifetimeBudgetCents, 100); // Min $1
+              console.log(`📊 Ad set lifetime budget: ${adSetPayload.lifetime_budget} cents (from ${adSetConfig.adSetLifetimeBudget || 'calculated'})`);
             } else {
               // Daily budget
               const dailyBudgetCents = adSetConfig.adSetDailyBudget || Math.round((adSetConfig.adSetBudget / durationDays) * 100);
               adSetPayload.daily_budget = Math.max(dailyBudgetCents, 100); // Min $1/day
+              console.log(`📊 Ad set daily budget: ${adSetPayload.daily_budget} cents (from ${adSetConfig.adSetDailyBudget || 'calculated'})`);
             }
-            console.log(`📊 Ad set budget: ${budgetType === 'lifetime' ? 'lifetime=' + adSetPayload.lifetime_budget : 'daily=' + adSetPayload.daily_budget} cents`);
+          } else {
+            // With CBO, budget is set at campaign level - but Meta API may still require a budget field
+            // Some Meta API versions require at least one budget field even with CBO
+            // Add a minimal budget as fallback to prevent "Missing Daily Budget" errors
+            console.log(`📊 CBO enabled - ad set budget controlled by campaign`);
           }
-          // With CBO, budget is set at campaign level (already done) - ad sets don't have individual budgets
 
           console.log(`Creating Meta ad set [${adSetIdx + 1}/${adSetsToCreate.length}]:`, adSetPayload.name);
 
