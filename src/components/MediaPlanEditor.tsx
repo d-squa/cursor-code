@@ -947,108 +947,118 @@ export function MediaPlanEditor() {
   }, [platformsWithMarkets, genericConfig.targeting?.adFormats, genericConfig.strategy]);
 
   // Auto-save draft whenever key fields change (including basicTargeting)
+  // IMPORTANT: Guard against saving before hydration completes.
+  // Otherwise, we can overwrite persisted campaign fields with empty defaults during route changes / reloads.
   useEffect(() => {
     if (!savedCampaignId || !user) return;
-    
-    console.log('⏰ Auto-save triggered');
-    
+    if (!isHydrated) {
+      console.log("⏸️ Auto-save skipped (not hydrated yet)");
+      return;
+    }
+
+    console.log("⏰ Auto-save triggered");
+
     const timer = setTimeout(async () => {
       try {
-        const selectedPlatforms = platformsWithMarkets.filter(p => p.id !== "");
-        const budgetAllocation = selectedPlatforms
-          .reduce((acc, p) => ({ ...acc, [p.id]: p.budgetPercentage }), {});
+        const selectedPlatforms = platformsWithMarkets.filter((p) => p.id !== "");
+        const budgetAllocation = selectedPlatforms.reduce((acc, p) => ({ ...acc, [p.id]: p.budgetPercentage }), {});
 
-        await supabase.from("campaigns").update({
-          name: campaignName,
-          bo_number: boNumber.trim() || null,
-          objective: genericConfig.strategyFocus || "conversions",
-          total_budget: parseFloat(totalBudget) || 0,
-          start_date: startDate || null,
-          end_date: endDate || null,
-          platforms: selectedPlatforms.map(p => ({ id: p.id, name: p.name })),
-          budget_allocation: budgetAllocation,
-          market_splits: platformsWithMarkets.reduce((acc, platform) => {
-            console.log(`💾 Auto-saving platform ${platform.id}, markets:`, platform.markets.map(m => ({
-              name: m.name,
-              phases: m.phases?.map(p => ({
-                name: p.name,
-                tiktokFrequencySchedule: p.tiktokFrequencySchedule,
-                tiktokBidStrategy: p.tiktokBidStrategy,
-                tiktokOptimizationLocation: p.tiktokOptimizationLocation
-              }))
-            })));
-            return {
-              ...acc,
-              [platform.id]: platform.markets.map(m => ({
-                id: m.id,
-                name: m.name,
-                budgetPercentage: m.budgetPercentage,
-                accountName: m.accountName,
-                adAccountId: m.adAccountId,
-                page: m.page,
-                pageId: m.pageId,
-                pixel: m.pixel,
-                catalog: m.catalog,
-                productSet: m.productSet,
-                conversionEvent: m.conversionEvent,
-                adFormats: m.adFormats,
-                phases: m.phases,
-                isCBOEnabled: m.isCBOEnabled,
-                isLifetimeBudget: m.isLifetimeBudget,
-                instagramActorId: m.instagramActorId,
-                strategy: m.strategy,
-                strategyFocus: m.strategyFocus,
-                // TikTok-specific fields
-                tiktokPixel: m.tiktokPixel,
-                tiktokIdentity: m.tiktokIdentity,
-                tiktokCatalog: m.tiktokCatalog,
-                tiktokProductSet: m.tiktokProductSet,
-                tiktokOptimizationEvent: m.tiktokOptimizationEvent,
-                tiktokLandingPageUrl: m.tiktokLandingPageUrl,
-                tiktokBidStrategy: m.tiktokBidStrategy,
-                tiktokBidAmount: m.tiktokBidAmount,
-                // TikTok destination fields
-                tiktokOptimizationLocation: m.tiktokOptimizationLocation,
-                tiktokAppId: m.tiktokAppId,
-                tiktokAppName: m.tiktokAppName,
-                tiktokMessagingApp: (m as any).tiktokMessagingApp,
-                tiktokFacebookPageId: (m as any).tiktokFacebookPageId,
-                tiktokMessageEventSet: (m as any).tiktokMessageEventSet,
-                tiktokWhatsappNumber: (m as any).tiktokWhatsappNumber,
-                tiktokZaloAccountId: (m as any).tiktokZaloAccountId,
-                tiktokLineBusinessId: (m as any).tiktokLineBusinessId,
-                tiktokPlacementType: m.tiktokPlacementType,
-                tiktokPlacements: m.tiktokPlacements,
-                tiktokClickWindow: (m as any).tiktokClickWindow,
-                tiktokViewWindow: (m as any).tiktokViewWindow,
-                // Meta fields
-                metaBidStrategy: m.metaBidStrategy,
-                metaBidAmount: m.metaBidAmount,
-                metaOptimizationLocation: (m as any).metaOptimizationLocation,
-                metaAppStore: (m as any).metaAppStore,
-                metaAppId: (m as any).metaAppId,
-                metaMessagingMode: (m as any).metaMessagingMode,
-                metaMessengerEnabled: (m as any).metaMessengerEnabled,
-                metaInstagramDmEnabled: (m as any).metaInstagramDmEnabled,
-                metaWhatsappEnabled: (m as any).metaWhatsappEnabled,
-                metaWhatsappNumber: (m as any).metaWhatsappNumber,
-                metaLandingPageUrl: (m as any).metaLandingPageUrl,
-                metaPublisherPlatforms: m.metaPublisherPlatforms || m.publisherPlatforms,
-                metaPositions: m.metaPositions || m.positions,
-              })),
-            };
-          }, {}),
-          generic_config: {
-            strategy: genericConfig.strategy,
-            strategyFocus: genericConfig.strategyFocus,
-            hasPhases: genericConfig.hasPhases,
-            phases: genericConfig.phases,
-            campaigns: genericConfig.campaigns,
-            targeting: genericConfig.targeting,
-            basicTargeting: basicTargeting, // Include basicTargeting to prevent it from being overwritten
-          } as any,
-        }).eq("id", savedCampaignId);
-        
+        await supabase
+          .from("campaigns")
+          .update({
+            name: campaignName,
+            bo_number: boNumber.trim() || null,
+            objective: genericConfig.strategyFocus || "conversions",
+            total_budget: parseFloat(totalBudget) || 0,
+            start_date: startDate || null,
+            end_date: endDate || null,
+            platforms: selectedPlatforms.map((p) => ({ id: p.id, name: p.name })),
+            budget_allocation: budgetAllocation,
+            market_splits: platformsWithMarkets.reduce((acc, platform) => {
+              console.log(`💾 Auto-saving platform ${platform.id}, markets:`,
+                platform.markets.map((m) => ({
+                  name: m.name,
+                  phases: m.phases?.map((p) => ({
+                    name: p.name,
+                    tiktokFrequencySchedule: p.tiktokFrequencySchedule,
+                    tiktokBidStrategy: p.tiktokBidStrategy,
+                    tiktokOptimizationLocation: p.tiktokOptimizationLocation,
+                  })),
+                })),
+              );
+              return {
+                ...acc,
+                [platform.id]: platform.markets.map((m) => ({
+                  id: m.id,
+                  name: m.name,
+                  budgetPercentage: m.budgetPercentage,
+                  accountName: m.accountName,
+                  adAccountId: m.adAccountId,
+                  page: m.page,
+                  pageId: m.pageId,
+                  pixel: m.pixel,
+                  catalog: m.catalog,
+                  productSet: m.productSet,
+                  conversionEvent: m.conversionEvent,
+                  adFormats: m.adFormats,
+                  phases: m.phases,
+                  isCBOEnabled: m.isCBOEnabled,
+                  isLifetimeBudget: m.isLifetimeBudget,
+                  instagramActorId: m.instagramActorId,
+                  strategy: m.strategy,
+                  strategyFocus: m.strategyFocus,
+                  // TikTok-specific fields
+                  tiktokPixel: m.tiktokPixel,
+                  tiktokIdentity: m.tiktokIdentity,
+                  tiktokCatalog: m.tiktokCatalog,
+                  tiktokProductSet: m.tiktokProductSet,
+                  tiktokOptimizationEvent: m.tiktokOptimizationEvent,
+                  tiktokLandingPageUrl: m.tiktokLandingPageUrl,
+                  tiktokBidStrategy: m.tiktokBidStrategy,
+                  tiktokBidAmount: m.tiktokBidAmount,
+                  // TikTok destination fields
+                  tiktokOptimizationLocation: m.tiktokOptimizationLocation,
+                  tiktokAppId: m.tiktokAppId,
+                  tiktokAppName: m.tiktokAppName,
+                  tiktokMessagingApp: (m as any).tiktokMessagingApp,
+                  tiktokFacebookPageId: (m as any).tiktokFacebookPageId,
+                  tiktokMessageEventSet: (m as any).tiktokMessageEventSet,
+                  tiktokWhatsappNumber: (m as any).tiktokWhatsappNumber,
+                  tiktokZaloAccountId: (m as any).tiktokZaloAccountId,
+                  tiktokLineBusinessId: (m as any).tiktokLineBusinessId,
+                  tiktokPlacementType: m.tiktokPlacementType,
+                  tiktokPlacements: m.tiktokPlacements,
+                  tiktokClickWindow: (m as any).tiktokClickWindow,
+                  tiktokViewWindow: (m as any).tiktokViewWindow,
+                  // Meta fields
+                  metaBidStrategy: m.metaBidStrategy,
+                  metaBidAmount: m.metaBidAmount,
+                  metaOptimizationLocation: (m as any).metaOptimizationLocation,
+                  metaAppStore: (m as any).metaAppStore,
+                  metaAppId: (m as any).metaAppId,
+                  metaMessagingMode: (m as any).metaMessagingMode,
+                  metaMessengerEnabled: (m as any).metaMessengerEnabled,
+                  metaInstagramDmEnabled: (m as any).metaInstagramDmEnabled,
+                  metaWhatsappEnabled: (m as any).metaWhatsappEnabled,
+                  metaWhatsappNumber: (m as any).metaWhatsappNumber,
+                  metaLandingPageUrl: (m as any).metaLandingPageUrl,
+                  metaPublisherPlatforms: m.metaPublisherPlatforms || m.publisherPlatforms,
+                  metaPositions: m.metaPositions || m.positions,
+                })),
+              };
+            }, {}),
+            generic_config: {
+              strategy: genericConfig.strategy,
+              strategyFocus: genericConfig.strategyFocus,
+              hasPhases: genericConfig.hasPhases,
+              phases: genericConfig.phases,
+              campaigns: genericConfig.campaigns,
+              targeting: genericConfig.targeting,
+              basicTargeting: basicTargeting, // Include basicTargeting to prevent it from being overwritten
+            } as any,
+          })
+          .eq("id", savedCampaignId);
+
         console.log("Auto-saved draft");
       } catch (error) {
         console.error("Error auto-saving:", error);
@@ -1056,7 +1066,19 @@ export function MediaPlanEditor() {
     }, 1000); // Debounce for 1 second
 
     return () => clearTimeout(timer);
-  }, [campaignName, boNumber, totalBudget, startDate, endDate, platformsWithMarkets, genericConfig, basicTargeting, savedCampaignId, user]);
+  }, [
+    campaignName,
+    boNumber,
+    totalBudget,
+    startDate,
+    endDate,
+    platformsWithMarkets,
+    genericConfig,
+    basicTargeting,
+    savedCampaignId,
+    user,
+    isHydrated,
+  ]);
 
   const isActivationDetailsComplete = () => {
     const allPlatformsSelected = platformsWithMarkets.every(p => p.id !== "");
