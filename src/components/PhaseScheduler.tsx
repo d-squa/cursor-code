@@ -2602,30 +2602,46 @@ export function PhaseScheduler({
           open={budgetTypeDialogOpen}
           onOpenChange={(open) => {
             setBudgetTypeDialogOpen(open);
-            // When dialog closes, apply the pending budget type to the selected phase
-            if (!open && pendingBudgetPhaseId && pendingBudgetType) {
-              onPhasesChange(phases.map(p => p.id === pendingBudgetPhaseId ? { ...p, budgetType: pendingBudgetType } : p));
+            if (!open) {
               setPendingBudgetPhaseId(null);
+              setPendingBudgetType(null);
             }
           }}
           budgetType={pendingBudgetType}
-          onConfirm={() => {
-            // First apply to the current phase
+          onCancel={() => {
             if (pendingBudgetPhaseId && pendingBudgetType) {
-              onPhasesChange(phases.map(p => p.id === pendingBudgetPhaseId ? { ...p, budgetType: pendingBudgetType } : p));
+              onPhasesChange(
+                phases.map((p) =>
+                  p.id === pendingBudgetPhaseId ? { ...p, budgetType: pendingBudgetType } : p,
+                ),
+              );
             }
-            // Then apply to all phases
+            setPendingBudgetPhaseId(null);
+            setPendingBudgetType(null);
+          }}
+          onConfirm={() => {
             if (onApplyBudgetTypeToAll && pendingBudgetType) {
               onApplyBudgetTypeToAll(pendingBudgetType);
+            } else if (pendingBudgetPhaseId && pendingBudgetType) {
+              onPhasesChange(
+                phases.map((p) =>
+                  p.id === pendingBudgetPhaseId ? { ...p, budgetType: pendingBudgetType } : p,
+                ),
+              );
             }
             setPendingBudgetPhaseId(null);
+            setPendingBudgetType(null);
           }}
           onCustomize={() => {
-            // Apply to current phase before opening customize
             if (pendingBudgetPhaseId && pendingBudgetType) {
-              onPhasesChange(phases.map(p => p.id === pendingBudgetPhaseId ? { ...p, budgetType: pendingBudgetType } : p));
+              onPhasesChange(
+                phases.map((p) =>
+                  p.id === pendingBudgetPhaseId ? { ...p, budgetType: pendingBudgetType } : p,
+                ),
+              );
             }
             setPendingBudgetPhaseId(null);
+            setPendingBudgetType(null);
             onOpenCustomizeBudgetTypes?.();
           }}
         />
