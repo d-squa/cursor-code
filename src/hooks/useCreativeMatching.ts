@@ -4,6 +4,56 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import type { HardConstraints, SupportedPlatform, AssetMediaType } from '@/types/creativeMatching';
+import { generateAdTaxonomyName, AD_TAXONOMY_MAPPINGS, createShortCode } from '@/utils/taxonomyUtils';
+
+// Helper to generate taxonomy-based creative name
+function generateCreativeTaxonomyName(asset: DigestedAsset, structure: CampaignStructure): string {
+  // Build taxonomy name from asset and structure data
+  const parts: string[] = [];
+  
+  // Platform shortcode
+  const platformMap: Record<string, string> = { meta: 'META', tiktok: 'TT', google: 'GADS' };
+  parts.push(platformMap[structure.platform] || structure.platform.toUpperCase());
+  
+  // Market
+  if (structure.market) {
+    parts.push(structure.market.toUpperCase());
+  }
+  
+  // Phase/funnel stage
+  if (structure.phases?.[0]) {
+    const phaseMap: Record<string, string> = { awareness: 'TOF', consideration: 'MOF', conversion: 'BOF' };
+    const phaseLower = structure.phases[0].toLowerCase();
+    parts.push(phaseMap[phaseLower] || createShortCode(structure.phases[0]));
+  }
+  
+  // Format (IMG/VID)
+  parts.push(asset.mediaType === 'video' ? 'VID' : 'IMG');
+  
+  // Aspect ratio if available
+  if (asset.technicalAttributes.aspectRatio) {
+    const arMap: Record<string, string> = { '1:1': 'SQ', '16:9': 'LS', '9:16': 'PT', '4:5': '45' };
+    parts.push(arMap[asset.technicalAttributes.aspectRatio] || asset.technicalAttributes.aspectRatio.replace(':', 'x'));
+  }
+  
+  // Language if specified
+  if (asset.hardConstraints?.language) {
+    parts.push(asset.hardConstraints.language.toUpperCase().substring(0, 2));
+  }
+  
+  // Variant from file path if available
+  if (asset.hardConstraints?.variant) {
+    parts.push(asset.hardConstraints.variant.toUpperCase());
+  }
+  
+  // Fallback to cleaned filename if no parts
+  if (parts.length < 3) {
+    const cleanName = asset.fileName.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30);
+    return cleanName.toUpperCase();
+  }
+  
+  return parts.join('_');
+}
 
 // UI-focused types for the matching workflow
 export interface DigestedAsset {
@@ -393,11 +443,14 @@ export function useCreativeMatching(campaignId?: string) {
             })
             .eq('id', creativeId);
         } else {
+          // Generate taxonomy-based name for the creative
+          const taxonomyName = generateCreativeTaxonomyName(asset, match.structure);
+          
           // Create new creative for uploaded files
           const { data: creative } = await supabase
             .from('creatives')
             .insert({
-              name: asset.fileName,
+              name: taxonomyName,
               user_id: user.id,
               platform: match.structure.platform,
               creative_type: asset.mediaType === 'video' ? 'video' : 'image',
@@ -410,6 +463,8 @@ export function useCreativeMatching(campaignId?: string) {
               aspect_ratio: asset.technicalAttributes.aspectRatio,
               duration_seconds: asset.technicalAttributes.duration,
               file_size_bytes: asset.technicalAttributes.fileSize,
+              original_filename: asset.fileName,
+              language: asset.hardConstraints?.language,
             })
             .select().single();
 
