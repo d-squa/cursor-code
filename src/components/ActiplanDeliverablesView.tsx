@@ -54,6 +54,15 @@ interface ActiplanDeliverablesViewProps {
           result: number;
           costPerResult: number;
           resultRate: number;
+          adSets?: Array<{
+            adSetName: string;
+            budget: number;
+            budgetPercentage: number;
+            impressions: number;
+            reach: number;
+            result: number;
+            costPerResult: number;
+          }>;
         }>;
       }>;
     }>;
@@ -270,15 +279,33 @@ export function ActiplanDeliverablesView({ actiplanForecast }: ActiplanDeliverab
                         </TableHeader>
                         <TableBody>
                           {market.phases.map((phase, idx) => (
-                            <TableRow key={idx}>
-                              <TableCell className="font-medium">{phase.phaseName}</TableCell>
-                              <TableCell>{phase.kpi}</TableCell>
-                              <TableCell>{format(new Date(phase.startDate), 'MMM d, yyyy')}</TableCell>
-                              <TableCell>{format(new Date(phase.endDate), 'MMM d, yyyy')}</TableCell>
-                              <TableCell>${formatNumber(phase.budget)}</TableCell>
-                              <TableCell>{formatNumber(phase.result)}</TableCell>
-                              <TableCell>${phase.costPerResult.toFixed(3)}</TableCell>
-                            </TableRow>
+                            <>
+                              <TableRow key={idx}>
+                                <TableCell className="font-medium">{phase.phaseName}</TableCell>
+                                <TableCell>{phase.kpi}</TableCell>
+                                <TableCell>{format(new Date(phase.startDate), 'MMM d, yyyy')}</TableCell>
+                                <TableCell>{format(new Date(phase.endDate), 'MMM d, yyyy')}</TableCell>
+                                <TableCell>${formatNumber(phase.budget)}</TableCell>
+                                <TableCell>{formatNumber(phase.result)}</TableCell>
+                                <TableCell>${phase.costPerResult.toFixed(3)}</TableCell>
+                              </TableRow>
+                              {/* Display Ad Set splits if present */}
+                              {phase.adSets && phase.adSets.length > 0 && phase.adSets.map((adSet, adSetIdx) => (
+                                <TableRow key={`${idx}-adset-${adSetIdx}`} className="bg-muted/30">
+                                  <TableCell className="pl-8 text-muted-foreground">
+                                    ↳ {adSet.adSetName}
+                                  </TableCell>
+                                  <TableCell className="text-muted-foreground">{phase.kpi}</TableCell>
+                                  <TableCell className="text-muted-foreground">-</TableCell>
+                                  <TableCell className="text-muted-foreground">-</TableCell>
+                                  <TableCell className="text-muted-foreground">
+                                    ${formatNumber(adSet.budget)} ({adSet.budgetPercentage.toFixed(0)}%)
+                                  </TableCell>
+                                  <TableCell className="text-muted-foreground">{formatNumber(adSet.result)}</TableCell>
+                                  <TableCell className="text-muted-foreground">${adSet.costPerResult.toFixed(3)}</TableCell>
+                                </TableRow>
+                              ))}
+                            </>
                           ))}
                         </TableBody>
                       </Table>

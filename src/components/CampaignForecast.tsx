@@ -56,6 +56,16 @@ interface ForecastMetrics {
   dataSource?: 'live_api' | 'estimated'; // Track whether data is from live API or estimated
 }
 
+interface AdSetForecast {
+  adSetName: string;
+  budget: number;
+  budgetPercentage: number;
+  impressions: number;
+  reach: number;
+  result: number;
+  costPerResult: number;
+}
+
 interface PhaseForecast {
   phaseName: string;
   budget: number;
@@ -66,6 +76,7 @@ interface PhaseForecast {
   result: number;
   costPerResult: number;
   resultRate: number;
+  adSets?: AdSetForecast[];
 }
 
 interface MarketForecast {
@@ -1015,6 +1026,30 @@ export function CampaignForecast({
                 resultLabel: getResultLabel(optimizationGoal)
               });
 
+              // Build ad set forecasts if phase has ad set splits
+              let adSetForecasts: AdSetForecast[] | undefined;
+              if (phase.adSets && phase.adSets.length > 0) {
+                console.log(`    → Phase ${phase.name} has ${phase.adSets.length} ad set splits`);
+                adSetForecasts = phase.adSets.map((adSet: any) => {
+                  const adSetBudgetPct = adSet.budgetPercentage || (100 / phase.adSets.length);
+                  const adSetBudget = (campaignBudget * adSetBudgetPct) / 100;
+                  const adSetImpressions = Math.round(phaseImpressions * (adSetBudgetPct / 100));
+                  const adSetReach = Math.round(phaseReach * (adSetBudgetPct / 100));
+                  const adSetResult = Math.round(result * (adSetBudgetPct / 100));
+                  const adSetCostPerResult = adSetResult > 0 ? adSetBudget / adSetResult : 0;
+                  
+                  return {
+                    adSetName: adSet.name || `Ad Set ${adSet.id?.substring(0, 6) || 'Unknown'}`,
+                    budget: adSetBudget,
+                    budgetPercentage: adSetBudgetPct,
+                    impressions: adSetImpressions,
+                    reach: adSetReach,
+                    result: adSetResult,
+                    costPerResult: parseFloat(adSetCostPerResult.toFixed(2)),
+                  };
+                });
+              }
+
               // Store phase forecast
               phaseForecasts.push({
                 phaseName: phase.name,
@@ -1026,6 +1061,7 @@ export function CampaignForecast({
                 result,
                 costPerResult: parseFloat(costPerResult.toFixed(2)),
                 resultRate: parseFloat(resultRate.toFixed(2)),
+                adSets: adSetForecasts,
               });
 
               // Aggregate results by goal
