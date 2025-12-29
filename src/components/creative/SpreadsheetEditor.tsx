@@ -370,6 +370,10 @@ export function SpreadsheetEditor({ rows, onChange }: SpreadsheetEditorProps) {
       case 'platform': return PLATFORMS;
       case 'objective': return OBJECTIVES;
       case 'format': return FORMATS;
+      case 'placement': return PLACEMENTS;
+      case 'mediaType': return MEDIA_TYPES;
+      case 'priority': return PRIORITIES;
+      case 'approvalStatus': return APPROVAL_STATUSES;
       case 'status': return STATUSES;
       default: return [];
     }
