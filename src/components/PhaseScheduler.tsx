@@ -172,6 +172,7 @@ export function PhaseScheduler({
   const [expandedPhases, setExpandedPhases] = useState<{ [key: string]: boolean }>({});
   const [budgetTypeDialogOpen, setBudgetTypeDialogOpen] = useState(false);
   const [pendingBudgetType, setPendingBudgetType] = useState<"daily" | "lifetime" | null>(null);
+  const [pendingBudgetPhaseId, setPendingBudgetPhaseId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const splitManagerRefs = useRef<{ [phaseId: string]: HTMLDivElement | null }>({});
   const [scrollToSplitPhaseId, setScrollToSplitPhaseId] = useState<string | null>(null);
@@ -2405,15 +2406,16 @@ export function PhaseScheduler({
                             value={phase.budgetType || "none"}
                             onValueChange={(value: string) => {
                               const bt = value === "none" ? null : (value as "daily" | "lifetime");
-                              onPhasesChange(phases.map(p => p.id === phase.id ? { ...p, budgetType: bt } : p));
                               
-                              // Ask if user wants to apply budget type to all phases
-                              // Use setTimeout to defer dialog opening until after Select closes
+                              // If we have the apply-to-all callback and a valid budget type,
+                              // defer the update until after dialog interaction to prevent flicker
                               if (onApplyBudgetTypeToAll && bt) {
                                 setPendingBudgetType(bt);
-                                setTimeout(() => {
-                                  setBudgetTypeDialogOpen(true);
-                                }, 100);
+                                setPendingBudgetPhaseId(phase.id);
+                                setBudgetTypeDialogOpen(true);
+                              } else {
+                                // No dialog, just update immediately
+                                onPhasesChange(phases.map(p => p.id === phase.id ? { ...p, budgetType: bt } : p));
                               }
                             }}
                           >
@@ -2598,14 +2600,34 @@ export function PhaseScheduler({
       {pendingBudgetType && (
         <BudgetTypeApplyDialog
           open={budgetTypeDialogOpen}
-          onOpenChange={setBudgetTypeDialogOpen}
+          onOpenChange={(open) => {
+            setBudgetTypeDialogOpen(open);
+            // When dialog closes, apply the pending budget type to the selected phase
+            if (!open && pendingBudgetPhaseId && pendingBudgetType) {
+              onPhasesChange(phases.map(p => p.id === pendingBudgetPhaseId ? { ...p, budgetType: pendingBudgetType } : p));
+              setPendingBudgetPhaseId(null);
+            }
+          }}
           budgetType={pendingBudgetType}
           onConfirm={() => {
+            // First apply to the current phase
+            if (pendingBudgetPhaseId && pendingBudgetType) {
+              onPhasesChange(phases.map(p => p.id === pendingBudgetPhaseId ? { ...p, budgetType: pendingBudgetType } : p));
+            }
+            // Then apply to all phases
             if (onApplyBudgetTypeToAll && pendingBudgetType) {
               onApplyBudgetTypeToAll(pendingBudgetType);
             }
+            setPendingBudgetPhaseId(null);
           }}
-          onCustomize={onOpenCustomizeBudgetTypes}
+          onCustomize={() => {
+            // Apply to current phase before opening customize
+            if (pendingBudgetPhaseId && pendingBudgetType) {
+              onPhasesChange(phases.map(p => p.id === pendingBudgetPhaseId ? { ...p, budgetType: pendingBudgetType } : p));
+            }
+            setPendingBudgetPhaseId(null);
+            onOpenCustomizeBudgetTypes?.();
+          }}
         />
       )}
     </Card>
