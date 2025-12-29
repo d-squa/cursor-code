@@ -432,7 +432,7 @@ export function validateFolderPath(path: string): {
   
   // We no longer require strict folder structure - just try to extract what we can
   
-  // Platform map for detection
+  // Platform map for detection - includes programmatic platforms
   const platformMap: Record<string, Platform> = {
     meta: 'meta', facebook: 'meta', fb: 'meta',
     tiktok: 'tiktok', tt: 'tiktok',
@@ -441,6 +441,9 @@ export function validateFolderPath(path: string): {
     snapchat: 'snapchat', snap: 'snapchat',
     pinterest: 'pinterest', pin: 'pinterest',
     x: 'x', twitter: 'x',
+    // Programmatic platforms
+    programmatic: 'google', dv360: 'google', 'display & video 360': 'google',
+    dsp: 'google', 'display video': 'google',
   };
 
   // Phase map for detection
@@ -463,48 +466,157 @@ export function validateFolderPath(path: string): {
     instant_experience: 'instant_experience', ix: 'instant_experience', canvas: 'instant_experience',
   };
 
-  // Market codes
+  // Market codes - 2-letter ISO country codes
   const marketCodes = ['US', 'UK', 'DE', 'FR', 'ES', 'IT', 'JP', 'KR', 'BR', 'MX', 'CA', 'AU', 'IN', 'NL', 'BE', 'CH', 'AT', 'PL', 'SE', 'NO', 'DK', 'FI', 'PT', 'CZ', 'HU', 'RO', 'GR', 'IE', 'SG', 'MY', 'TH', 'VN', 'PH', 'ID', 'TW', 'HK', 'AE', 'SA', 'EG', 'ZA', 'NG', 'KE', 'AR', 'CO', 'CL', 'PE'];
+  
+  // Language map - maps language names and codes to market codes
+  const languageToMarketMap: Record<string, string> = {
+    // Arabic
+    arabic: 'AE', ar: 'AE', ara: 'AE',
+    // English
+    english: 'US', en: 'US', eng: 'US',
+    // Spanish
+    spanish: 'ES', es: 'ES', esp: 'ES', espanol: 'ES',
+    // French
+    french: 'FR', fr: 'FR', fra: 'FR', francais: 'FR',
+    // German
+    german: 'DE', de: 'DE', deu: 'DE', deutsch: 'DE',
+    // Italian
+    italian: 'IT', it: 'IT', ita: 'IT', italiano: 'IT',
+    // Portuguese
+    portuguese: 'BR', pt: 'BR', por: 'BR', portugues: 'BR',
+    // Japanese
+    japanese: 'JP', ja: 'JP', jpn: 'JP',
+    // Korean
+    korean: 'KR', ko: 'KR', kor: 'KR',
+    // Chinese
+    chinese: 'CN', zh: 'CN', zho: 'CN', mandarin: 'CN',
+    // Hindi
+    hindi: 'IN', hi: 'IN', hin: 'IN',
+    // Dutch
+    dutch: 'NL', nl: 'NL', nld: 'NL', nederlands: 'NL',
+    // Turkish
+    turkish: 'TR', tr: 'TR', tur: 'TR',
+    // Russian
+    russian: 'RU', ru: 'RU', rus: 'RU',
+    // Thai
+    thai: 'TH', th: 'TH', tha: 'TH',
+    // Vietnamese
+    vietnamese: 'VN', vi: 'VN', vie: 'VN',
+    // Indonesian
+    indonesian: 'ID', bahasa: 'ID',
+    // Malay
+    malay: 'MY', ms: 'MY', msa: 'MY',
+  };
 
-  // Scan all parts to extract metadata (order-independent)
+  // Helper function to tokenize a string into searchable tokens
+  const tokenize = (str: string): string[] => {
+    // Split by common delimiters: space, underscore, hyphen, camelCase boundaries
+    return str
+      .replace(/([a-z])([A-Z])/g, '$1 $2') // camelCase to spaces
+      .split(/[\s_\-./\\]+/) // split by delimiters
+      .filter(t => t.length > 0);
+  };
+
+  // Collect all tokens from all parts (folder names + filename)
+  const allTokens: string[] = [];
   for (const part of parts) {
-    const partLower = part.toLowerCase();
-    const partUpper = part.toUpperCase();
-    
-    // Try to detect platform
-    if (!parsed.platform && platformMap[partLower]) {
-      parsed.platform = platformMap[partLower];
-      continue;
+    allTokens.push(...tokenize(part));
+  }
+
+  // Also analyze the full path as a string for pattern matching
+  const fullPathLower = path.toLowerCase();
+  const fullPathUpper = path.toUpperCase();
+
+  // ===== DETECT PLATFORM =====
+  // First, try exact token matches
+  for (const token of allTokens) {
+    const tokenLower = token.toLowerCase();
+    if (!parsed.platform && platformMap[tokenLower]) {
+      parsed.platform = platformMap[tokenLower];
+      break;
     }
-    
-    // Try to detect market (2-letter country code)
-    if (!parsed.market && marketCodes.includes(partUpper)) {
-      parsed.market = partUpper;
-      continue;
+  }
+  // If not found, try substring matching in full path
+  if (!parsed.platform) {
+    for (const [key, value] of Object.entries(platformMap)) {
+      if (fullPathLower.includes(key)) {
+        parsed.platform = value;
+        break;
+      }
     }
-    
-    // Try to detect phase
-    if (!parsed.phase && phaseMap[partLower]) {
-      parsed.phase = phaseMap[partLower];
-      continue;
+  }
+
+  // ===== DETECT MARKET/LANGUAGE =====
+  // First try exact 2-letter market codes from tokens
+  for (const token of allTokens) {
+    const tokenUpper = token.toUpperCase();
+    if (!parsed.market && marketCodes.includes(tokenUpper) && token.length === 2) {
+      parsed.market = tokenUpper;
+      break;
     }
-    
-    // Try to detect creative type
-    const typeKey = partLower.replace(/[_\s-]/g, '_');
+  }
+  // If not found, try language names
+  if (!parsed.market) {
+    for (const token of allTokens) {
+      const tokenLower = token.toLowerCase();
+      if (languageToMarketMap[tokenLower]) {
+        parsed.market = languageToMarketMap[tokenLower];
+        break;
+      }
+    }
+  }
+  // If still not found, try substring matching for language names
+  if (!parsed.market) {
+    for (const [key, value] of Object.entries(languageToMarketMap)) {
+      // Only match longer language names as substrings (avoid false positives with short codes)
+      if (key.length >= 4 && fullPathLower.includes(key)) {
+        parsed.market = value;
+        break;
+      }
+    }
+  }
+
+  // ===== DETECT PHASE =====
+  for (const token of allTokens) {
+    const tokenLower = token.toLowerCase();
+    if (!parsed.phase && phaseMap[tokenLower]) {
+      parsed.phase = phaseMap[tokenLower];
+      break;
+    }
+  }
+
+  // ===== DETECT CREATIVE TYPE =====
+  for (const token of allTokens) {
+    const tokenLower = token.toLowerCase();
+    const typeKey = tokenLower.replace(/[_\s-]/g, '_');
     if (!parsed.creativeType && typeMap[typeKey]) {
       parsed.creativeType = typeMap[typeKey];
-      continue;
+      break;
     }
-    
-    // Try to detect optimization goal (if platform already detected)
-    if (parsed.platform && !parsed.optimizationGoal) {
-      const goalRaw = partUpper.replace(/[_\s-]/g, '_');
+  }
+
+  // ===== DETECT OPTIMIZATION GOAL =====
+  if (parsed.platform && !parsed.optimizationGoal) {
+    for (const token of allTokens) {
+      const goalRaw = token.toUpperCase().replace(/[_\s-]/g, '_');
       const validGoals = VALID_OPTIMIZATION_GOALS[parsed.platform];
       if (validGoals?.includes(goalRaw)) {
         parsed.optimizationGoal = goalRaw;
-        continue;
+        break;
       }
     }
+  }
+
+  // ===== DETECT DIMENSIONS (for format inference) =====
+  // Look for patterns like 1080x1920, 970x90, 1440x1800
+  const dimensionMatch = path.match(/(\d{2,4})x(\d{2,4})/i);
+  if (dimensionMatch) {
+    const width = parseInt(dimensionMatch[1], 10);
+    const height = parseInt(dimensionMatch[2], 10);
+    // Store dimensions for potential use in matching
+    (parsed as any).detectedWidth = width;
+    (parsed as any).detectedHeight = height;
   }
 
   // Add warnings for missing recommended fields, but don't fail validation
