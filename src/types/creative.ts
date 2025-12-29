@@ -136,17 +136,45 @@ export interface ParsedFolderStructure {
   validationErrors: string[];
 }
 
-// Spreadsheet row for import
+// Spreadsheet row for import - aligned with content calendar template
 export interface SpreadsheetCreativeRow {
   rowNumber: number;
   
-  // Required fields
+  // Core fields from content calendar
   name: string;
   platform: string;
-  market: string;
-  phase: string;
-  optimizationGoal: string;
-  creativeType: string;
+  markets: string;           // Multiple markets comma-separated (e.g., "UAE, KSA, Qatar")
+  objective: string;         // Campaign objective (e.g., "Awareness", "Consideration", "Conversion")
+  language: string;          // Language codes (e.g., "EN/AR", "EN", "AR")
+  format: string;            // Creative format (e.g., "Video - Feed", "Image/Carousel", "Video - Stories")
+  
+  // Dimensions & specs
+  dimensions: string;        // e.g., "1080x1080px", "Aspect Ratio: 9:16"
+  actualLength: string;      // Duration (e.g., "6, 15, 30 sec")
+  
+  // Character limits (from content calendar specs)
+  captionCharLimit?: string;
+  headlineCharLimit?: string;
+  descriptionCharLimit?: string;
+  ctaCharLimit?: string;
+  
+  // Scheduling
+  materialDeliveryDeadline?: string;
+  launchDate?: string;
+  
+  // Links & references
+  specsLink?: string;
+  assetsLink?: string;
+  
+  // Status & notes
+  status?: string;
+  notes?: string;
+  
+  // Legacy fields for backward compatibility
+  phase?: string;             // Alias for objective
+  optimizationGoal?: string;
+  creativeType?: string;      // Derived from format
+  market?: string;            // Single market (first from markets list)
   
   // Media
   mediaUrl?: string;
