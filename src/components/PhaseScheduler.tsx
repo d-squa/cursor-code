@@ -2471,6 +2471,7 @@ export function PhaseScheduler({
                               </div>
                             </div>
                           )}
+                        </div>
                       </div>
 
                       {/* Publisher Platforms & Placements with Split Button */}
