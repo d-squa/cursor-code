@@ -26,6 +26,16 @@ interface InferredSignals {
   aspectRatio?: string;
   market?: string;
   language?: string;
+  // Ad set split dimensions
+  device?: string;
+  gender?: string;
+  ageMin?: number;
+  ageMax?: number;
+  audienceType?: string;
+  optimizationGoal?: string;
+  // Additional context
+  variant?: string;
+  contentPillar?: string;
   confidence: 'inferred' | 'explicit';
   sources: string[];
 }
@@ -62,12 +72,114 @@ const PLATFORM_KEYWORDS: Record<string, string[]> = {
   'google': ['google', 'youtube', 'yt', 'gdn'],
 };
 
+// Device keywords
+const DEVICE_KEYWORDS: Record<string, string[]> = {
+  'mobile': ['mobile', 'mob', 'phone', 'ios', 'android', 'iphone', 'smartphone'],
+  'desktop': ['desktop', 'dsk', 'desk', 'pc', 'web', 'browser'],
+  'tablet': ['tablet', 'tab', 'ipad'],
+  'ctv': ['ctv', 'tv', 'connected_tv', 'smart_tv', 'ott'],
+};
+
+// Gender keywords
+const GENDER_KEYWORDS: Record<string, string[]> = {
+  'male': ['male', 'men', 'man', 'guys', 'him', 'his', 'm_only', 'male_only'],
+  'female': ['female', 'women', 'woman', 'girls', 'her', 'hers', 'f_only', 'female_only'],
+  'all': ['all', 'both', 'unisex', 'universal', 'all_genders'],
+};
+
+// Audience type keywords
+const AUDIENCE_TYPE_KEYWORDS: Record<string, string[]> = {
+  'broad': ['broad', 'brd', 'open', 'prospecting', 'cold', 'mass', 'general'],
+  'lookalike': ['lookalike', 'lal', 'lkl', 'similar', 'act_alike', 'actalike'],
+  'retargeting': ['retargeting', 'ret', 'rtg', 'remarketing', 'rmkt', 'remarket', 'warm', 'engaged'],
+  'custom': ['custom', 'cus', 'ca', 'custom_audience', 'first_party', '1p'],
+  'interest': ['interest', 'int', 'interests', 'behavior', 'behavioral'],
+  'demographic': ['demo', 'demographic', 'demographics'],
+  'value_based': ['value', 'val', 'highvalue', 'high_value', 'vip', 'purchasers'],
+};
+
+// Optimization goal keywords
+const OPTIMIZATION_GOAL_KEYWORDS: Record<string, string[]> = {
+  'conversions': ['conversion', 'conv', 'purchase', 'sale', 'sales', 'buy', 'checkout', 'complete_payment'],
+  'app_installs': ['install', 'app_install', 'download', 'app_event', 'app_promotion'],
+  'leads': ['lead', 'leads', 'signup', 'sign_up', 'register', 'registration', 'form', 'submit'],
+  'traffic': ['traffic', 'clicks', 'click', 'link_click', 'landing_page', 'website_visit'],
+  'engagement': ['engagement', 'engage', 'post_engagement', 'reactions', 'comments', 'shares'],
+  'reach': ['reach', 'awareness', 'brand_awareness', 'impressions', 'impr', 'cpm'],
+  'video_views': ['video_view', 'views', 'watch', 'thruplay', 'video_completion', 'vv', 'cpv'],
+  'messages': ['message', 'msg', 'messaging', 'dm', 'whatsapp', 'messenger', 'chat'],
+  'catalog_sales': ['catalog', 'dpa', 'dynamic', 'product_catalog', 'shopping'],
+};
+
+// Language keywords (extended)
+const LANGUAGE_KEYWORDS: Record<string, string[]> = {
+  'en': ['en', 'eng', 'english', 'uk', 'us'],
+  'ar': ['ar', 'ara', 'arabic', 'arb'],
+  'es': ['es', 'esp', 'spanish', 'espanol', 'castellano'],
+  'fr': ['fr', 'fra', 'french', 'francais'],
+  'de': ['de', 'deu', 'german', 'deutsch'],
+  'pt': ['pt', 'por', 'portuguese', 'portugues', 'br'],
+  'it': ['it', 'ita', 'italian', 'italiano'],
+  'nl': ['nl', 'nld', 'dutch', 'nederlands'],
+  'tr': ['tr', 'tur', 'turkish', 'turkce'],
+  'ru': ['ru', 'rus', 'russian'],
+  'ja': ['ja', 'jpn', 'japanese', 'jp'],
+  'ko': ['ko', 'kor', 'korean', 'kr'],
+  'zh': ['zh', 'zho', 'chinese', 'cn', 'mandarin', 'cantonese'],
+  'hi': ['hi', 'hin', 'hindi', 'in'],
+  'th': ['th', 'tha', 'thai'],
+  'vi': ['vi', 'vie', 'vietnamese', 'vn'],
+  'id': ['id', 'ind', 'indonesian', 'bahasa'],
+  'ms': ['ms', 'msa', 'malay', 'melayu'],
+  'tl': ['tl', 'fil', 'tagalog', 'filipino', 'ph'],
+};
+
+// Age bracket patterns
+const AGE_BRACKET_PATTERNS = [
+  { pattern: /[_\-\/](18[\-_]24|18_24|1824|young|youth|gen_?z)[_\-\.\/]/i, min: 18, max: 24 },
+  { pattern: /[_\-\/](25[\-_]34|25_34|2534|millennials?)[_\-\.\/]/i, min: 25, max: 34 },
+  { pattern: /[_\-\/](35[\-_]44|35_44|3544)[_\-\.\/]/i, min: 35, max: 44 },
+  { pattern: /[_\-\/](45[\-_]54|45_54|4554)[_\-\.\/]/i, min: 45, max: 54 },
+  { pattern: /[_\-\/](55[\-_]64|55_64|5564|seniors?)[_\-\.\/]/i, min: 55, max: 64 },
+  { pattern: /[_\-\/](65\+?|65plus|elderly)[_\-\.\/]/i, min: 65, max: 99 },
+  { pattern: /[_\-\/](18[\-_]34|18_34|1834)[_\-\.\/]/i, min: 18, max: 34 },
+  { pattern: /[_\-\/](18[\-_]44|18_44|1844)[_\-\.\/]/i, min: 18, max: 44 },
+  { pattern: /[_\-\/](25[\-_]44|25_44|2544)[_\-\.\/]/i, min: 25, max: 44 },
+  { pattern: /[_\-\/](35[\-_]54|35_54|3554)[_\-\.\/]/i, min: 35, max: 54 },
+  { pattern: /[_\-\/](25[\-_]54|25_54|2554|core)[_\-\.\/]/i, min: 25, max: 54 },
+  { pattern: /[_\-\/](45[\-_]65|45_65|4565)[_\-\.\/]/i, min: 45, max: 65 },
+  // Generic age range pattern: age_XX_YY or XX-YY
+  { pattern: /age[_\-]?(\d{2})[_\-](\d{2})/i, min: -1, max: -1, dynamic: true },
+];
+
+// Creative variant patterns
+const VARIANT_PATTERNS = [
+  /[_\-\/]v([1-9]|[a-z])[_\-\.\/]/i,           // v1, v2, vA, vB
+  /[_\-\/]var(?:iant)?[_\-]?([1-9]|[a-z])[_\-\.\/]/i, // variant_1, var_a
+  /[_\-\/]version[_\-]?([1-9]|[a-z])[_\-\.\/]/i, // version_1, version_a
+  /[_\-\/]copy[_\-]?([1-9]|[a-z])[_\-\.\/]/i,   // copy_1, copy_a
+  /[_\-\/]([abc])[_\-\.\/]/i,                   // _a_, _b_, _c_
+];
+
+// Content pillar patterns
+const CONTENT_PILLAR_KEYWORDS: Record<string, string[]> = {
+  'awareness': ['awareness', 'brand', 'branding', 'intro', 'introduction'],
+  'education': ['education', 'edu', 'learn', 'how_to', 'tutorial', 'tips'],
+  'entertainment': ['entertainment', 'fun', 'funny', 'humor', 'viral', 'trending'],
+  'promotion': ['promo', 'promotion', 'offer', 'sale', 'discount', 'deal'],
+  'testimonial': ['testimonial', 'review', 'ugc', 'user_generated', 'customer_story'],
+  'product': ['product', 'prod', 'feature', 'demo', 'showcase'],
+  'lifestyle': ['lifestyle', 'life', 'aspirational', 'inspiration'],
+};
+
 // Aspect ratio patterns (from dimensions in filename like 1080x1920)
 const DIMENSION_PATTERNS = /(\d{3,4})x(\d{3,4})/i;
 const RATIO_PATTERNS = /(\d+)[x:](\d+)/i;
 
 /**
  * Extract signals from filename and folder path
+ * Includes: placement, format, platform, aspect ratio, market, language,
+ * device, gender, age bracket, audience type, optimization goal, variant, content pillar
  */
 export function extractSignalsFromPath(
   filename: string,
@@ -76,7 +188,8 @@ export function extractSignalsFromPath(
   const sources: string[] = [];
   const signals: InferredSignals = { confidence: 'inferred', sources };
   
-  const textToSearch = `${folderPath || ''} ${filename}`.toLowerCase();
+  // Normalize text: add delimiters for easier matching
+  const textToSearch = ` ${(folderPath || '')} ${filename} `.toLowerCase().replace(/\//g, ' / ');
   
   // Extract dimensions from filename (e.g., "1080x1920", "1920x1080")
   const dimMatch = textToSearch.match(DIMENSION_PATTERNS);
@@ -124,10 +237,84 @@ export function extractSignalsFromPath(
     if (signals.platform) break;
   }
   
+  // Search for device keywords
+  for (const [device, keywords] of Object.entries(DEVICE_KEYWORDS)) {
+    for (const keyword of keywords) {
+      if (textToSearch.includes(keyword)) {
+        signals.device = device;
+        sources.push(`device keyword: ${keyword}`);
+        break;
+      }
+    }
+    if (signals.device) break;
+  }
+  
+  // Search for gender keywords
+  for (const [gender, keywords] of Object.entries(GENDER_KEYWORDS)) {
+    for (const keyword of keywords) {
+      if (textToSearch.includes(keyword)) {
+        signals.gender = gender;
+        sources.push(`gender keyword: ${keyword}`);
+        break;
+      }
+    }
+    if (signals.gender) break;
+  }
+  
+  // Search for audience type keywords
+  for (const [audienceType, keywords] of Object.entries(AUDIENCE_TYPE_KEYWORDS)) {
+    for (const keyword of keywords) {
+      if (textToSearch.includes(keyword)) {
+        signals.audienceType = audienceType;
+        sources.push(`audience type keyword: ${keyword}`);
+        break;
+      }
+    }
+    if (signals.audienceType) break;
+  }
+  
+  // Search for optimization goal keywords
+  for (const [goal, keywords] of Object.entries(OPTIMIZATION_GOAL_KEYWORDS)) {
+    for (const keyword of keywords) {
+      if (textToSearch.includes(keyword)) {
+        signals.optimizationGoal = goal;
+        sources.push(`optimization goal keyword: ${keyword}`);
+        break;
+      }
+    }
+    if (signals.optimizationGoal) break;
+  }
+  
+  // Search for content pillar keywords
+  for (const [pillar, keywords] of Object.entries(CONTENT_PILLAR_KEYWORDS)) {
+    for (const keyword of keywords) {
+      if (textToSearch.includes(keyword)) {
+        signals.contentPillar = pillar;
+        sources.push(`content pillar keyword: ${keyword}`);
+        break;
+      }
+    }
+    if (signals.contentPillar) break;
+  }
+  
+  // Search for language keywords (extended)
+  for (const [lang, keywords] of Object.entries(LANGUAGE_KEYWORDS)) {
+    for (const keyword of keywords) {
+      // Use word boundary matching for short codes
+      const pattern = new RegExp(`[_\\-\\s\\/]${keyword}[_\\-\\s\\.\\/]`, 'i');
+      if (pattern.test(textToSearch)) {
+        signals.language = lang;
+        sources.push(`language keyword: ${keyword}`);
+        break;
+      }
+    }
+    if (signals.language) break;
+  }
+  
   // Common market codes in filenames
   const marketPatterns = [
-    /[_\-\/](uae|ae|sa|kw|qa|bh|om|eg|jo|lb|iq)[_\-\.\/]/i,
-    /[_\-\/](us|uk|gb|de|fr|es|it|nl|au|ca|jp|kr|in|br|mx)[_\-\.\/]/i,
+    /[_\-\/\s](uae|ae|sa|kw|qa|bh|om|eg|jo|lb|iq|ma|dz|tn)[_\-\.\s\/]/i,
+    /[_\-\/\s](us|uk|gb|de|fr|es|it|nl|au|ca|jp|kr|in|br|mx|tr|id|my|sg|ph|vn|th)[_\-\.\s\/]/i,
   ];
   for (const pattern of marketPatterns) {
     const match = textToSearch.match(pattern);
@@ -138,12 +325,32 @@ export function extractSignalsFromPath(
     }
   }
   
-  // Language codes
-  const langPatterns = /[_\-\/](en|ar|es|fr|de|it|pt|nl|ja|ko|zh|hi)[_\-\.\/]/i;
-  const langMatch = textToSearch.match(langPatterns);
-  if (langMatch) {
-    signals.language = langMatch[1].toLowerCase();
-    sources.push(`language code from path: ${langMatch[1]}`);
+  // Age bracket detection
+  for (const agePattern of AGE_BRACKET_PATTERNS) {
+    const match = textToSearch.match(agePattern.pattern);
+    if (match) {
+      if (agePattern.dynamic && match[1] && match[2]) {
+        // Dynamic pattern: extract actual ages
+        signals.ageMin = parseInt(match[1]);
+        signals.ageMax = parseInt(match[2]);
+        sources.push(`age bracket from path: ${signals.ageMin}-${signals.ageMax}`);
+      } else {
+        signals.ageMin = agePattern.min;
+        signals.ageMax = agePattern.max;
+        sources.push(`age bracket from path: ${agePattern.min}-${agePattern.max}`);
+      }
+      break;
+    }
+  }
+  
+  // Variant detection
+  for (const variantPattern of VARIANT_PATTERNS) {
+    const match = textToSearch.match(variantPattern);
+    if (match && match[1]) {
+      signals.variant = match[1].toUpperCase();
+      sources.push(`variant from path: ${match[1]}`);
+      break;
+    }
   }
   
   return signals;
