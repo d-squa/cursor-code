@@ -39,6 +39,7 @@ interface ParsedFile {
   parsed: Partial<ParsedFolderStructure>;
   isValid: boolean;
   errors: string[];
+  warnings: string[];
   preview?: string;
   dimensions?: { width: number; height: number };
 }
@@ -71,7 +72,7 @@ export function FolderUpload({ onUploadComplete, onUploadFile, isUploading = fal
 
       // Parse folder path to extract taxonomy
       const folderPath = path.split('/').slice(0, -1).join('/');
-      const { isValid, parsed: taxonomy, errors } = validateFolderPath(folderPath);
+      const { isValid, parsed: taxonomy, errors, warnings } = validateFolderPath(folderPath);
 
       // Generate preview for images
       let preview: string | undefined;
@@ -100,8 +101,9 @@ export function FolderUpload({ onUploadComplete, onUploadFile, isUploading = fal
           isValid,
           validationErrors: errors,
         },
-        isValid,
+        isValid, // Always true now with lenient validation
         errors,
+        warnings,
         preview,
         dimensions,
       });
@@ -237,9 +239,10 @@ export function FolderUpload({ onUploadComplete, onUploadFile, isUploading = fal
     }
   }, [parsedFiles, onUploadFile, onUploadComplete]);
 
-  // Stats
-  const validCount = parsedFiles.filter(f => f.isValid).length;
-  const invalidCount = parsedFiles.filter(f => !f.isValid).length;
+  // Stats - count files with and without metadata
+  const validCount = parsedFiles.length;
+  const withMetadataCount = parsedFiles.filter(f => f.parsed.platform || f.parsed.market).length;
+  const withoutMetadataCount = parsedFiles.filter(f => !f.parsed.platform && !f.parsed.market).length;
 
   // Group by folder path
   const groupedFiles = parsedFiles.reduce((acc, file) => {
@@ -312,12 +315,17 @@ export function FolderUpload({ onUploadComplete, onUploadFile, isUploading = fal
             <div className="flex items-center gap-4">
               <Badge variant="secondary" className="gap-1">
                 <CheckCircle className="h-3 w-3 text-green-500" />
-                {validCount} valid
+                {validCount} files ready
               </Badge>
-              {invalidCount > 0 && (
-                <Badge variant="destructive" className="gap-1">
-                  <XCircle className="h-3 w-3" />
-                  {invalidCount} invalid
+              {withMetadataCount > 0 && (
+                <Badge variant="outline" className="gap-1">
+                  {withMetadataCount} with metadata
+                </Badge>
+              )}
+              {withoutMetadataCount > 0 && (
+                <Badge variant="outline" className="gap-1 text-amber-600">
+                  <AlertTriangle className="h-3 w-3" />
+                  {withoutMetadataCount} without metadata
                 </Badge>
               )}
             </div>
@@ -334,20 +342,19 @@ export function FolderUpload({ onUploadComplete, onUploadFile, isUploading = fal
                         <Badge variant="outline" className="ml-2">
                           {files.length} files
                         </Badge>
-                        {files.some(f => !f.isValid) && (
-                          <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                        {files.some(f => f.warnings.length > 0) && (
+                          <AlertTriangle className="h-4 w-4 text-amber-500" />
                         )}
                       </div>
                     </AccordionTrigger>
                     <AccordionContent className="px-4">
                       <div className="space-y-2">
-                        {files.map((f, i) => (
+                        {files.map((f, i) => {
+                          const hasMetadata = f.parsed.platform || f.parsed.market;
+                          return (
                           <div
                             key={i}
-                            className={cn(
-                              'flex items-center gap-3 p-2 rounded-md',
-                              f.isValid ? 'bg-muted/50' : 'bg-destructive/10'
-                            )}
+                            className="flex items-center gap-3 p-2 rounded-md bg-muted/50"
                           >
                             {f.preview ? (
                               <img
@@ -372,20 +379,20 @@ export function FolderUpload({ onUploadComplete, onUploadFile, isUploading = fal
                                 {f.parsed.phase && (
                                   <Badge variant="outline" className="text-xs">{f.parsed.phase}</Badge>
                                 )}
+                                {!hasMetadata && (
+                                  <Badge variant="outline" className="text-xs text-amber-600">No metadata</Badge>
+                                )}
                               </div>
-                              {f.errors.length > 0 && (
-                                <p className="text-xs text-destructive mt-1">
-                                  {f.errors[0]}
+                              {f.warnings.length > 0 && (
+                                <p className="text-xs text-amber-600 mt-1">
+                                  {f.warnings[0]}
                                 </p>
                               )}
                             </div>
-                            {f.isValid ? (
-                              <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
-                            ) : (
-                              <XCircle className="h-4 w-4 text-destructive shrink-0" />
-                            )}
+                            <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </AccordionContent>
                   </AccordionItem>
