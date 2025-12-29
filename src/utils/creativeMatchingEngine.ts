@@ -69,8 +69,11 @@ const PLATFORM_KEYWORDS: Record<string, string[]> = {
   'linkedin': ['linkedin', 'li', 'lnkd'],
   'x': ['twitter', 'x', 'twt'],
   'pinterest': ['pinterest', 'pin', 'pins'],
-  'google': ['google', 'youtube', 'yt', 'gdn'],
+  'google': ['google', 'youtube', 'yt', 'gdn', 'uac', 'universal_app', 'app_campaign', 'aci', 'ace'],
 };
+
+// UAC-specific patterns: Universal App Campaign implies Google + app_installs
+const UAC_KEYWORDS = ['uac', 'universal_app', 'app_campaign', 'google_app', 'aci', 'ace'];
 
 // Device keywords
 const DEVICE_KEYWORDS: Record<string, string[]> = {
@@ -231,6 +234,12 @@ export function extractSignalsFromPath(
       if (textToSearch.includes(keyword)) {
         signals.platform = platform;
         sources.push(`platform keyword: ${keyword}`);
+        
+        // UAC detection: also implies app_installs optimization goal
+        if (UAC_KEYWORDS.some(uacKw => textToSearch.includes(uacKw))) {
+          signals.optimizationGoal = 'app_installs';
+          sources.push(`optimization goal inferred from UAC keyword`);
+        }
         break;
       }
     }
