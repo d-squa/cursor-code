@@ -343,14 +343,65 @@ export function AdSetSplitManager({
   // Calculate total budget percentage
   const totalBudget = adSets.reduce((sum, as) => sum + as.budgetPercentage, 0);
 
+  // Meta publisher platforms - defined early for use in getDimensionFields
+  const META_PUBLISHER_OPTIONS = [
+    { value: "facebook", label: "Facebook" },
+    { value: "instagram", label: "Instagram" },
+    { value: "audience_network", label: "Audience Network" },
+    { value: "messenger", label: "Messenger" },
+  ];
+
+  // TikTok placement options - defined early for use in getDefaultDimensionValue
+  const TIKTOK_PLACEMENT_OPTIONS_LIST = [
+    { value: "PLACEMENT_TIKTOK", label: "TikTok" },
+    { value: "PLACEMENT_PANGLE", label: "Pangle" },
+    { value: "PLACEMENT_TOPBUZZ", label: "TopBuzz/BuzzVideo" },
+  ];
+
+  // Meta positions per publisher - defined early for use in getDimensionFields
+  const META_POSITIONS: Record<string, Array<{ value: string; label: string }>> = {
+    facebook: [
+      { value: "feed", label: "Feed" },
+      { value: "right_hand_column", label: "Right Hand Column" },
+      { value: "marketplace", label: "Marketplace" },
+      { value: "video_feeds", label: "Video Feeds" },
+      { value: "story", label: "Stories" },
+      { value: "search", label: "Search Results" },
+      { value: "instream_video", label: "In-Stream Video" },
+      { value: "reels", label: "Reels" },
+    ],
+    instagram: [
+      { value: "stream", label: "Feed" },
+      { value: "story", label: "Stories" },
+      { value: "explore", label: "Explore" },
+      { value: "explore_home", label: "Explore Home" },
+      { value: "reels", label: "Reels" },
+      { value: "profile_feed", label: "Profile Feed" },
+      { value: "search", label: "Search Results" },
+    ],
+    audience_network: [
+      { value: "classic", label: "Native, Banner, Interstitial" },
+      { value: "rewarded_video", label: "Rewarded Video" },
+    ],
+    messenger: [
+      { value: "messenger_home", label: "Inbox" },
+      { value: "story", label: "Stories" },
+      { value: "sponsored_messages", label: "Sponsored Messages" },
+    ],
+  };
+
   // Get default value based on dimension and current phase values
   function getDefaultDimensionValue(dim: AdSetSplitDimension, excludeValues: Array<string | { min: number; max: number }> = []): string | string[] | number | { min: number; max: number } {
-    const options = { availablePlacements, availableAudiences, availableOptimizationGoals };
+    const isTikTok = platformId === 'tiktok';
     
     switch (dim) {
       case "placement":
-        const unusedPlacement = availablePlacements.find(p => !excludeValues.includes(p));
-        return unusedPlacement || availablePlacements[0] || "Feed";
+        if (isTikTok) {
+          const unusedTikTokPlacement = TIKTOK_PLACEMENT_OPTIONS_LIST.find(p => !excludeValues.includes(p.value));
+          return unusedTikTokPlacement?.value || TIKTOK_PLACEMENT_OPTIONS_LIST[0]?.value || "PLACEMENT_TIKTOK";
+        }
+        const unusedPlacement = META_PUBLISHER_OPTIONS.find(p => !excludeValues.includes(p.value));
+        return unusedPlacement?.value || META_PUBLISHER_OPTIONS[0]?.value || "facebook";
       case "optimization_goal":
         const unusedGoal = availableOptimizationGoals.find(g => !excludeValues.includes(g.value));
         return unusedGoal?.value || availableOptimizationGoals[0]?.value || "";
@@ -381,6 +432,40 @@ export function AdSetSplitManager({
     }
   }
 
+  // Get dimension-specific field overrides for an ad set
+  function getDimensionFields(dim: AdSetSplitDimension, value: string | string[] | number | { min: number; max: number }): Partial<AdSetConfig> {
+    const isTikTok = platformId === 'tiktok';
+    
+    switch (dim) {
+      case "placement":
+        if (isTikTok) {
+          return { tiktokPlacements: [value as string] };
+        }
+        const publisher = value as string;
+        const positions = META_POSITIONS[publisher];
+        const defaultPosition = positions?.[0]?.value;
+        return { 
+          publisherPlatforms: [publisher],
+          positions: defaultPosition ? { [publisher]: [defaultPosition] } : undefined,
+        };
+      case "gender":
+        return { gender: value as string };
+      case "device":
+        return { devices: Array.isArray(value) ? value : [value as string] };
+      case "language":
+        return { languages: Array.isArray(value) ? value : [value as string] };
+      case "location":
+        return { countries: Array.isArray(value) ? value : [value as string] };
+      case "optimization_goal":
+        return { optimizationGoal: value as string };
+      case "age":
+        const ageVal = value as { min: number; max: number };
+        return { ageMin: ageVal.min, ageMax: ageVal.max };
+      default:
+        return {};
+    }
+  }
+
   // Add new ad set with intelligent defaults
   const addAdSet = () => {
     const existingValues = adSets.map(as => as.dimensionValue);
@@ -390,6 +475,7 @@ export function AdSetSplitManager({
       name: generateAdSetName(phaseName, dimension, newValue, { availableOptimizationGoals, availableAudiences }),
       dimensionValue: newValue,
       budgetPercentage: Math.max(0, Math.round((100 - totalBudget) / 1) || Math.round(100 / (adSets.length + 1))),
+      ...getDimensionFields(dimension, newValue),
     };
     
     // Rebalance budgets
@@ -441,53 +527,6 @@ export function AdSetSplitManager({
       }
       return as;
     }));
-  };
-
-  // Meta publisher platforms
-  const META_PUBLISHER_OPTIONS = [
-    { value: "facebook", label: "Facebook" },
-    { value: "instagram", label: "Instagram" },
-    { value: "audience_network", label: "Audience Network" },
-    { value: "messenger", label: "Messenger" },
-  ];
-
-  // TikTok placement options
-  const TIKTOK_PLACEMENT_OPTIONS_LIST = [
-    { value: "PLACEMENT_TIKTOK", label: "TikTok" },
-    { value: "PLACEMENT_PANGLE", label: "Pangle" },
-    { value: "PLACEMENT_TOPBUZZ", label: "TopBuzz/BuzzVideo" },
-  ];
-
-  // Meta positions per publisher
-  const META_POSITIONS: Record<string, Array<{ value: string; label: string }>> = {
-    facebook: [
-      { value: "feed", label: "Feed" },
-      { value: "right_hand_column", label: "Right Hand Column" },
-      { value: "marketplace", label: "Marketplace" },
-      { value: "video_feeds", label: "Video Feeds" },
-      { value: "story", label: "Stories" },
-      { value: "search", label: "Search Results" },
-      { value: "instream_video", label: "In-Stream Video" },
-      { value: "reels", label: "Reels" },
-    ],
-    instagram: [
-      { value: "stream", label: "Feed" },
-      { value: "story", label: "Stories" },
-      { value: "explore", label: "Explore" },
-      { value: "explore_home", label: "Explore Home" },
-      { value: "reels", label: "Reels" },
-      { value: "profile_feed", label: "Profile Feed" },
-      { value: "search", label: "Search Results" },
-    ],
-    audience_network: [
-      { value: "classic", label: "Native, Banner, Interstitial" },
-      { value: "rewarded_video", label: "Rewarded Video" },
-    ],
-    messenger: [
-      { value: "messenger_home", label: "Inbox" },
-      { value: "story", label: "Stories" },
-      { value: "sponsored_messages", label: "Sponsored Messages" },
-    ],
   };
 
   // Get positions for a specific publisher
