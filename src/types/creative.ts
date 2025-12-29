@@ -148,6 +148,27 @@ export interface SpreadsheetCreativeRow {
   language: string;          // Language codes (e.g., "EN/AR", "EN", "AR")
   format: string;            // Creative format (e.g., "Video - Feed", "Image/Carousel", "Video - Stories")
   
+  // New fields from content calendar templates
+  brandName?: string;        // Brand or product line
+  campaignName?: string;     // Campaign name
+  productCategory?: string;  // Product category (e.g., "Leathergoods", "Bags")
+  placement?: string;        // Ad placement (Feed, Stories, Reels)
+  mediaType?: string;        // Video/Image/GIF/Carousel
+  adType?: string;           // Paid/Organic/Spark
+  priority?: string;         // High/Medium/Low
+  approvalStatus?: string;   // Client approved, Internal review, etc.
+  assignedTo?: string;       // Team member assigned
+  flightStartDate?: string;  // Campaign flight start
+  flightEndDate?: string;    // Campaign flight end
+  contentPillar?: string;    // Content pillar or theme
+  campaignTheme?: string;    // Specific campaign theme
+  
+  // Arabic copy variations
+  primaryTextAr?: string;
+  headlineAr?: string;
+  descriptionAr?: string;
+  captionAr?: string;
+  
   // Dimensions & specs
   dimensions: string;        // e.g., "1080x1080px", "Aspect Ratio: 9:16"
   actualLength: string;      // Duration (e.g., "6, 15, 30 sec")
@@ -161,6 +182,7 @@ export interface SpreadsheetCreativeRow {
   // Scheduling
   materialDeliveryDeadline?: string;
   launchDate?: string;
+  deliveryDeadline?: string;
   
   // Links & references
   specsLink?: string;

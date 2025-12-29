@@ -747,35 +747,57 @@ export type Database = {
       }
       creatives: {
         Row: {
+          ad_type: string | null
+          approval_status: string | null
           aspect_ratio: string | null
+          assets_link: string | null
+          assigned_to: string | null
+          brand_name: string | null
           call_to_action: string | null
           campaign_id: string | null
+          campaign_name: string | null
+          campaign_theme: string | null
           caption: string | null
+          caption_ar: string | null
+          client_id: string | null
+          content_pillar: string | null
           created_at: string
           creative_type: Database["public"]["Enums"]["creative_type"]
+          delivery_deadline: string | null
           description: string | null
+          description_ar: string | null
           destination_url: string | null
           duration_seconds: number | null
           external_account_name: string | null
           external_page_id: string | null
           external_post_id: string | null
           file_size_bytes: number | null
+          flight_end_date: string | null
+          flight_start_date: string | null
           folder_path: string | null
           funnel_stage: string | null
           headline: string | null
+          headline_ar: string | null
           height: number | null
           id: string
           import_batch_id: string | null
           is_valid: boolean | null
+          language: string | null
           market: string | null
+          media_type: string | null
           media_urls: string[] | null
           name: string
           optimization_goal: string | null
           original_filename: string | null
           phase_name: string | null
+          placement: string | null
           platform: string
           platform_metadata: Json | null
           primary_text: string | null
+          primary_text_ar: string | null
+          priority: string | null
+          product_category: string | null
+          specs_link: string | null
           spreadsheet_row_number: number | null
           status: Database["public"]["Enums"]["creative_status"]
           team_id: string | null
@@ -786,35 +808,57 @@ export type Database = {
           width: number | null
         }
         Insert: {
+          ad_type?: string | null
+          approval_status?: string | null
           aspect_ratio?: string | null
+          assets_link?: string | null
+          assigned_to?: string | null
+          brand_name?: string | null
           call_to_action?: string | null
           campaign_id?: string | null
+          campaign_name?: string | null
+          campaign_theme?: string | null
           caption?: string | null
+          caption_ar?: string | null
+          client_id?: string | null
+          content_pillar?: string | null
           created_at?: string
           creative_type?: Database["public"]["Enums"]["creative_type"]
+          delivery_deadline?: string | null
           description?: string | null
+          description_ar?: string | null
           destination_url?: string | null
           duration_seconds?: number | null
           external_account_name?: string | null
           external_page_id?: string | null
           external_post_id?: string | null
           file_size_bytes?: number | null
+          flight_end_date?: string | null
+          flight_start_date?: string | null
           folder_path?: string | null
           funnel_stage?: string | null
           headline?: string | null
+          headline_ar?: string | null
           height?: number | null
           id?: string
           import_batch_id?: string | null
           is_valid?: boolean | null
+          language?: string | null
           market?: string | null
+          media_type?: string | null
           media_urls?: string[] | null
           name: string
           optimization_goal?: string | null
           original_filename?: string | null
           phase_name?: string | null
+          placement?: string | null
           platform: string
           platform_metadata?: Json | null
           primary_text?: string | null
+          primary_text_ar?: string | null
+          priority?: string | null
+          product_category?: string | null
+          specs_link?: string | null
           spreadsheet_row_number?: number | null
           status?: Database["public"]["Enums"]["creative_status"]
           team_id?: string | null
@@ -825,35 +869,57 @@ export type Database = {
           width?: number | null
         }
         Update: {
+          ad_type?: string | null
+          approval_status?: string | null
           aspect_ratio?: string | null
+          assets_link?: string | null
+          assigned_to?: string | null
+          brand_name?: string | null
           call_to_action?: string | null
           campaign_id?: string | null
+          campaign_name?: string | null
+          campaign_theme?: string | null
           caption?: string | null
+          caption_ar?: string | null
+          client_id?: string | null
+          content_pillar?: string | null
           created_at?: string
           creative_type?: Database["public"]["Enums"]["creative_type"]
+          delivery_deadline?: string | null
           description?: string | null
+          description_ar?: string | null
           destination_url?: string | null
           duration_seconds?: number | null
           external_account_name?: string | null
           external_page_id?: string | null
           external_post_id?: string | null
           file_size_bytes?: number | null
+          flight_end_date?: string | null
+          flight_start_date?: string | null
           folder_path?: string | null
           funnel_stage?: string | null
           headline?: string | null
+          headline_ar?: string | null
           height?: number | null
           id?: string
           import_batch_id?: string | null
           is_valid?: boolean | null
+          language?: string | null
           market?: string | null
+          media_type?: string | null
           media_urls?: string[] | null
           name?: string
           optimization_goal?: string | null
           original_filename?: string | null
           phase_name?: string | null
+          placement?: string | null
           platform?: string
           platform_metadata?: Json | null
           primary_text?: string | null
+          primary_text_ar?: string | null
+          priority?: string | null
+          product_category?: string | null
+          specs_link?: string | null
           spreadsheet_row_number?: number | null
           status?: Database["public"]["Enums"]["creative_status"]
           team_id?: string | null
@@ -869,6 +935,13 @@ export type Database = {
             columns: ["campaign_id"]
             isOneToOne: false
             referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "creatives_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
             referencedColumns: ["id"]
           },
           {
