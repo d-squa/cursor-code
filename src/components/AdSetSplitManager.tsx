@@ -654,9 +654,11 @@ export function AdSetSplitManager({
         );
 
       case "optimization_goal":
+        // Read from optimizationGoal field first (persisted), fallback to dimensionValue
+        const optGoalValue = adSet.optimizationGoal || adSet.dimensionValue as string || "";
         return (
           <Select
-            value={adSet.dimensionValue as string}
+            value={optGoalValue}
             onValueChange={(value) => updateAdSet(adSet.id, { 
               dimensionValue: value,
               optimizationGoal: value,
@@ -698,9 +700,12 @@ export function AdSetSplitManager({
         );
 
       case "language":
-        const langValues = Array.isArray(adSet.dimensionValue) 
-          ? adSet.dimensionValue as string[]
-          : adSet.dimensionValue ? [adSet.dimensionValue as string] : [];
+        // Read from languages field first (persisted), fallback to dimensionValue
+        const langValues = Array.isArray(adSet.languages) 
+          ? adSet.languages as string[]
+          : Array.isArray(adSet.dimensionValue) 
+            ? adSet.dimensionValue as string[]
+            : adSet.dimensionValue ? [adSet.dimensionValue as string] : [];
         return (
           <MultiSelect
             options={LANGUAGE_OPTIONS.map(l => ({ value: l.value, label: l.label }))}
@@ -714,9 +719,12 @@ export function AdSetSplitManager({
         );
 
       case "location":
-        const locValues = Array.isArray(adSet.dimensionValue) 
-          ? adSet.dimensionValue as string[]
-          : adSet.dimensionValue ? [adSet.dimensionValue as string] : [];
+        // Read from countries field first (persisted), fallback to dimensionValue
+        const locValues = Array.isArray(adSet.countries) 
+          ? adSet.countries as string[]
+          : Array.isArray(adSet.dimensionValue) 
+            ? adSet.dimensionValue as string[]
+            : adSet.dimensionValue ? [adSet.dimensionValue as string] : [];
         return (
           <MultiSelect
             options={MARKET_OPTIONS.map(m => ({ value: m.value, label: m.label }))}
@@ -730,9 +738,11 @@ export function AdSetSplitManager({
         );
 
       case "gender":
+        // Read from gender field first (persisted), fallback to dimensionValue
+        const genderValue = adSet.gender || adSet.dimensionValue as string || "";
         return (
           <Select
-            value={adSet.dimensionValue as string}
+            value={genderValue}
             onValueChange={(value) => updateAdSet(adSet.id, { 
               dimensionValue: value,
               gender: value,
@@ -752,9 +762,12 @@ export function AdSetSplitManager({
         );
 
       case "device":
-        const deviceValues = Array.isArray(adSet.dimensionValue) 
-          ? adSet.dimensionValue as string[]
-          : adSet.dimensionValue ? [adSet.dimensionValue as string] : [];
+        // Read from devices field first (persisted), fallback to dimensionValue
+        const deviceValues = Array.isArray(adSet.devices) 
+          ? adSet.devices as string[]
+          : Array.isArray(adSet.dimensionValue) 
+            ? adSet.dimensionValue as string[]
+            : adSet.dimensionValue ? [adSet.dimensionValue as string] : [];
         return (
           <MultiSelect
             options={DEVICE_OPTIONS.map(d => ({ value: d.value, label: d.label }))}
@@ -768,7 +781,10 @@ export function AdSetSplitManager({
         );
 
       case "age":
-        const ageValue = adSet.dimensionValue as { min: number; max: number };
+        // Read from ageMin/ageMax fields first (persisted), fallback to dimensionValue
+        const ageValue = (adSet.ageMin !== undefined && adSet.ageMax !== undefined)
+          ? { min: adSet.ageMin, max: adSet.ageMax }
+          : adSet.dimensionValue as { min: number; max: number } || { min: 18, max: 65 };
         return (
           <div className="flex items-center gap-2">
             <Input
