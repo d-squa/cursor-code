@@ -2400,6 +2400,7 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           
           // Add bid amount if required by the ad set's bid strategy
           // CRITICAL: LOWEST_COST_WITH_BID_CAP, COST_CAP, and TARGET_COST REQUIRE a bid_amount
+          // CRITICAL: LOWEST_COST_WITHOUT_CAP must NOT have bid_amount in payload at all
           const requiresBidAmount = adSetBidStrategy === 'LOWEST_COST_WITH_BID_CAP' || adSetBidStrategy === 'COST_CAP' || adSetBidStrategy === 'TARGET_COST';
           if (requiresBidAmount) {
             if (adSetBidAmount && adSetBidAmount > 0) {
@@ -2409,7 +2410,13 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
               // FALLBACK: If bid strategy requires amount but none provided, fall back to LOWEST_COST_WITHOUT_CAP
               console.warn(`⚠️ Bid strategy ${adSetBidStrategy} requires bid_amount but none provided. Falling back to LOWEST_COST_WITHOUT_CAP`);
               adSetPayload.bid_strategy = 'LOWEST_COST_WITHOUT_CAP';
+              // Ensure bid_amount is NOT in the payload for LOWEST_COST_WITHOUT_CAP
+              delete adSetPayload.bid_amount;
             }
+          } else {
+            // For strategies that don't require bid_amount (like LOWEST_COST_WITHOUT_CAP),
+            // ensure bid_amount is NOT included in the payload at all - Meta rejects it
+            delete adSetPayload.bid_amount;
           }
           
           // Add conversion tracking
@@ -2457,9 +2464,10 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           console.log(`Creating Meta ad set [${adSetIdx + 1}/${adSetsToCreate.length}]:`, adSetPayload.name);
           console.log("📤 Meta ad set payload (bidding):", {
             bid_strategy: adSetPayload.bid_strategy,
-            bid_amount: adSetPayload.bid_amount,
+            bid_amount: adSetPayload.bid_amount ?? '(not set)',
             optimization_goal: adSetPayload.optimization_goal,
             billing_event: adSetPayload.billing_event,
+            has_bid_amount_field: 'bid_amount' in adSetPayload,
           });
 
           const adSetResponse = await fetch(
