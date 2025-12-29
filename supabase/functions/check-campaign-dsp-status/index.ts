@@ -100,11 +100,25 @@ const handler = async (req: Request): Promise<Response> => {
     // Get campaign to find owner
     const { data: campaign } = await supabase
       .from('campaigns')
-      .select('user_id')
+      .select('user_id, team_id')
       .eq('id', campaignId)
       .single();
 
-    if (campaign?.user_id !== user.id) {
+    // Check if user has access (owner OR team member)
+    let canAccess = campaign?.user_id === user.id;
+    
+    if (!canAccess && campaign?.team_id) {
+      const { data: teamRole } = await supabase
+        .from('user_roles')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('team_id', campaign.team_id)
+        .maybeSingle();
+      
+      canAccess = !!teamRole;
+    }
+
+    if (!canAccess) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { 
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
