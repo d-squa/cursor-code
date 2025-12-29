@@ -2503,25 +2503,50 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
             adSetData = await retryResponse.json();
           }
 
-          // Handle bid_amount required errors (Meta sometimes surfaces this even when we think we’re using lowest-cost)
+          // Handle bid_amount required errors
           // error_subcode 1815857: Bid amount required for the bid strategy provided
           const isBidAmountRequiredError = adSetData.error?.error_subcode === 1815857;
           if (isBidAmountRequiredError) {
-            console.warn(
-              `Bid amount required error (subcode 1815857). Retrying with LOWEST_COST_WITHOUT_CAP and no bid_amount...`
-            );
-            delete adSetPayload.bid_amount;
-            adSetPayload.bid_strategy = 'LOWEST_COST_WITHOUT_CAP';
+            const attempted = {
+              bid_strategy: adSetPayload.bid_strategy,
+              bid_amount: adSetPayload.bid_amount,
+              has_bid_amount_field: 'bid_amount' in adSetPayload,
+              optimization_goal: adSetPayload.optimization_goal,
+              billing_event: adSetPayload.billing_event,
+            };
 
-            const retryResponse = await fetch(
-              `https://graph.facebook.com/v22.0/${adAccountPath}/adsets`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ ...adSetPayload, access_token: platform.access_token }),
+            const attemptedStrategy = String(adSetPayload.bid_strategy || '');
+            const attemptedRequiresAmount = ['LOWEST_COST_WITH_BID_CAP', 'COST_CAP', 'TARGET_COST'].includes(attemptedStrategy);
+            const attemptedBidAmount = Number(adSetPayload.bid_amount);
+            const hasPositiveBidAmount = Number.isFinite(attemptedBidAmount) && attemptedBidAmount > 0;
+
+            console.warn(`Bid amount required error (subcode 1815857). Attempted bidding:`, attempted);
+
+            // If Meta complains while we’re *already* using a strategy that should not need bid_amount,
+            // try omitting bid_strategy entirely and letting Meta default to lowest cost.
+            if (!attemptedRequiresAmount) {
+              console.warn(`Retrying 1815857 by omitting bid_strategy + bid_amount (Meta default bidding)...`);
+              delete adSetPayload.bid_amount;
+              delete adSetPayload.bid_strategy;
+
+              const retryResponse = await fetch(
+                `https://graph.facebook.com/v22.0/${adAccountPath}/adsets`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ ...adSetPayload, access_token: platform.access_token }),
+                }
+              );
+              adSetData = await retryResponse.json();
+            } else {
+              // If the strategy really requires an amount, do NOT override the user’s intent.
+              // Let the error bubble so we can surface the true configuration issue.
+              if (!hasPositiveBidAmount) {
+                console.warn(`Not retrying 1815857 because ${attemptedStrategy} requires a positive bid_amount, but none was provided.`);
+              } else {
+                console.warn(`Not retrying 1815857 because ${attemptedStrategy} already had bid_amount set; keeping original error for diagnosis.`);
               }
-            );
-            adSetData = await retryResponse.json();
+            }
           }
           
           if (adSetData.error) {
