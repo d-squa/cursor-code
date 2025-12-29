@@ -422,6 +422,9 @@ export function PhaseScheduler({
   }, [startDate, endDate, strategy, strategyFocus, platformName, phases.length]);
 
 
+  // Track if we've already applied defaults for each phase (by phase ID) to prevent re-triggering
+  const appliedDestinationDefaultsRef = useRef<Set<string>>(new Set());
+  
   // Auto-populate destination fields from defaults when phases have objectives that require destinations
   // This handles the case where phases are auto-generated with objectives already set (e.g., auto-generate strategy)
   useEffect(() => {
@@ -433,6 +436,9 @@ export function PhaseScheduler({
     
     let hasUpdates = false;
     const updatedPhases = phases.map(phase => {
+      // Skip if we've already processed this phase's defaults
+      if (appliedDestinationDefaultsRef.current.has(phase.id)) return phase;
+      
       if (!phase.objective) return phase;
       
       const validDestinations = getDestinationsForObjective(platformType, phase.objective);
@@ -512,13 +518,18 @@ export function PhaseScheduler({
         }
       }
       
+      // Mark this phase as processed
+      if (hasUpdates) {
+        appliedDestinationDefaultsRef.current.add(phase.id);
+      }
+      
       return updatedPhase;
     });
     
     if (hasUpdates) {
       onPhasesChange(updatedPhases);
     }
-  }, [phases, adAccountDefaults, platformName]);
+  }, [phases.length, adAccountDefaults, platformName]);
 
   // Auto-populate Meta placement defaults from adAccountDefaults.
   // Important: defaults can change AFTER phases are created (e.g. user selects ad account).
@@ -571,7 +582,9 @@ export function PhaseScheduler({
       adAccountDefaults.metaAdvantagePlusPlacements != null &&
       prev.metaAdvantagePlusPlacements !== adAccountDefaults.metaAdvantagePlusPlacements;
 
-    const updatedPhases = phases.map((phase) => {
+    // Use current phases from ref to avoid stale closure
+    const currentPhases = phasesRef.current;
+    const updatedPhases = currentPhases.map((phase) => {
       const shouldApplyPublishers =
         hasDefaultPublishers &&
         (!phase.publisherPlatforms ||
@@ -613,11 +626,12 @@ export function PhaseScheduler({
       metaAdvantagePlusPlacements: adAccountDefaults.metaAdvantagePlusPlacements,
     };
 
-    const changed = updatedPhases.some((p, i) => p !== phases[i]);
+    const changed = updatedPhases.some((p, i) => p !== currentPhases[i]);
     if (changed) {
+      phasesRef.current = updatedPhases;
       onPhasesChange(updatedPhases);
     }
-  }, [adAccountDefaults, phases, platformName, onPhasesChange]);
+  }, [adAccountDefaults, platformName, onPhasesChange]);
 
   const getDefaultObjectiveForFocus = (focus: string, phaseName: string): string => {
     const isTikTok = platformName.toLowerCase().includes("tiktok");
