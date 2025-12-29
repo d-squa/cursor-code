@@ -81,10 +81,10 @@ export function useCreativeMatching(campaignId?: string) {
   });
 
   // Load campaign structures from an ActiPlan
-  const loadCampaignStructures = useCallback(async (campaignIdToLoad: string) => {
-    if (!user) return;
+  const loadCampaignStructures = useCallback(async (campaignIdToLoad: string): Promise<CampaignStructure[]> => {
+    if (!user) return [];
     setState(prev => ({ ...prev, isProcessing: true }));
-    
+
     try {
       const { data: campaign, error } = await supabase
         .from('campaigns')
@@ -95,29 +95,57 @@ export function useCreativeMatching(campaignId?: string) {
       if (error) throw error;
 
       const structures: CampaignStructure[] = [];
-      const platforms = campaign.platforms as any[] || [];
+
+      const platformsRaw = (campaign as any)?.platforms;
+      const platforms: any[] = Array.isArray(platformsRaw) ? platformsRaw : [];
+
+      const marketSplitsRaw = (campaign as any)?.market_splits;
+      const marketSplits: Record<string, any> = marketSplitsRaw && typeof marketSplitsRaw === 'object' ? marketSplitsRaw : {};
 
       for (const platform of platforms) {
-        const platformId = platform.id?.toLowerCase() as SupportedPlatform;
-        const markets = platform.markets || [];
+        const platformKey = String(platform?.id ?? '').toLowerCase();
+        const platformId = platformKey as SupportedPlatform;
+
+        const marketsRaw = Array.isArray(platform?.markets)
+          ? platform.markets
+          : (Array.isArray((marketSplits as any)[platformKey]) ? (marketSplits as any)[platformKey] : []);
+
+        const markets: any[] = Array.isArray(marketsRaw) ? marketsRaw : [];
 
         for (const market of markets) {
-          const phases = market.phases || [];
+          const phases: any[] = Array.isArray(market?.phases) ? market.phases : [];
+
           for (const phase of phases) {
+            const placementConstraints =
+              (Array.isArray(phase?.publisherPlatforms) && phase.publisherPlatforms) ||
+              (Array.isArray(market?.publisherPlatforms) && market.publisherPlatforms) ||
+              (Array.isArray(market?.metaPublisherPlatforms) && market.metaPublisherPlatforms) ||
+              [];
+
+            const formatConstraints =
+              (Array.isArray(market?.adFormats) && market.adFormats) ||
+              (Array.isArray(phase?.adFormats) && phase.adFormats) ||
+              [];
+
+            const language =
+              (Array.isArray(market?.languages) && market.languages[0]) ||
+              market?.language ||
+              undefined;
+
             structures.push({
-              id: `${campaignIdToLoad}-${platform.id}-${market.id}-${phase.name}`,
+              id: `${campaignIdToLoad}-${platformKey}-${market?.id ?? market?.name ?? 'market'}-${phase?.name ?? 'phase'}`,
               campaignId: campaignIdToLoad,
-              campaignName: campaign.name,
+              campaignName: (campaign as any).name,
               platform: platformId,
-              adSetId: market.id,
-              adSetName: `${market.name} - ${phase.name}`,
-              objective: campaign.objective,
-              market: market.name,
-              language: market.languages?.[0],
-              placementConstraints: market.publisherPlatforms || [],
-              formatConstraints: market.adFormats || [],
-              optimizationGoal: phase.optimizationGoal,
-              phases: [phase.name],
+              adSetId: market?.id,
+              adSetName: `${market?.name ?? 'Market'} - ${phase?.name ?? 'Phase'}`,
+              objective: (campaign as any).objective,
+              market: market?.name,
+              language,
+              placementConstraints,
+              formatConstraints,
+              optimizationGoal: phase?.optimizationGoal,
+              phases: phase?.name ? [phase.name] : undefined,
             });
           }
         }
@@ -127,7 +155,7 @@ export function useCreativeMatching(campaignId?: string) {
       return structures;
     } catch (error) {
       console.error('Error loading campaign structures:', error);
-      toast.error('Failed to load campaign structures');
+      toast.error('Failed to load campaign structure for this ActiPlan');
       setState(prev => ({ ...prev, isProcessing: false }));
       return [];
     }
@@ -227,14 +255,14 @@ export function useCreativeMatching(campaignId?: string) {
   const runMatching = useCallback((structuresOverride?: CampaignStructure[]) => {
     setState(prev => {
       const structuresToUse = structuresOverride || prev.structures;
-      
+
       if (prev.assets.length === 0) {
         toast.error('Please add some creatives first');
         return prev;
       }
-      
+
       if (structuresToUse.length === 0) {
-        toast.error('Please select an ActiPlan first');
+        toast.error(campaignId ? 'No campaign structure found for this ActiPlan' : 'Please select an ActiPlan first');
         return prev;
       }
 
@@ -293,7 +321,7 @@ export function useCreativeMatching(campaignId?: string) {
         currentStep: 'review' as const 
       };
     });
-  }, []);
+  }, [campaignId]);
 
   const acceptMatch = useCallback((assetId: string, match: UICreativeMatch) => {
     setState(prev => {
