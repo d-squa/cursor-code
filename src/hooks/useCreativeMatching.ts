@@ -805,3 +805,194 @@ function checkHardConstraints(assetConstraints: HardConstraints, structure: Camp
   if (assetConstraints.variant && structure.variant && assetConstraints.variant !== structure.variant) return false;
   return true;
 }
+
+// Inferred signals interface for enhanced matching
+interface InferredSignals {
+  platform?: string;
+  market?: string;
+  language?: string;
+  device?: string;
+  gender?: string;
+  ageMin?: number;
+  ageMax?: number;
+  audienceType?: string;
+  optimizationGoal?: string;
+  placement?: string;
+  format?: string;
+}
+
+// Extract inferred signals from filename/path
+function extractInferredSignals(filePath: string, fileName: string): InferredSignals {
+  const text = ` ${filePath} ${fileName} `.toLowerCase();
+  const signals: InferredSignals = {};
+  
+  // Platform detection (including UAC for Google App campaigns)
+  const platformPatterns: Record<string, string> = {
+    'meta': 'meta', 'facebook': 'meta', 'fb': 'meta', 'instagram': 'meta', 'ig': 'meta',
+    'tiktok': 'tiktok', 'tt': 'tiktok',
+    'google': 'google', 'youtube': 'google', 'yt': 'google', 'uac': 'google', 'gdn': 'google',
+    'snapchat': 'snapchat', 'snap': 'snapchat',
+    'linkedin': 'linkedin', 'li': 'linkedin',
+    'pinterest': 'pinterest', 'pin': 'pinterest'
+  };
+  for (const [kw, plat] of Object.entries(platformPatterns)) {
+    if (text.includes(kw)) { signals.platform = plat; break; }
+  }
+  
+  // Market codes
+  const marketMatch = text.match(/[_\-\/\s](uae|ae|sa|kw|qa|bh|om|eg|jo|lb|us|uk|gb|de|fr|es|it|nl|au|ca|jp|kr|in|br|mx|tr|id|my|sg|ph|vn|th)[_\-\.\s\/]/i);
+  if (marketMatch) signals.market = marketMatch[1].toUpperCase();
+  
+  // Language
+  const langMatch = text.match(/[_\-\s\/](en|ar|es|fr|de|pt|it|nl|tr|ru|ja|ko|zh|hi|th|vi|id|ms|tl)[_\-\.\s\/]/i);
+  if (langMatch) signals.language = langMatch[1].toLowerCase();
+  
+  // Device
+  const devicePatterns: Record<string, string> = {
+    'mobile': 'mobile', 'mob': 'mobile', 'phone': 'mobile', 'ios': 'mobile', 'android': 'mobile',
+    'desktop': 'desktop', 'dsk': 'desktop', 'desk': 'desktop', 'pc': 'desktop',
+    'tablet': 'tablet', 'tab': 'tablet', 'ipad': 'tablet',
+    'ctv': 'ctv', 'tv': 'ctv', 'ott': 'ctv'
+  };
+  for (const [kw, dev] of Object.entries(devicePatterns)) {
+    if (text.includes(kw)) { signals.device = dev; break; }
+  }
+  
+  // Gender
+  if (text.includes('female') || text.includes('women') || text.includes('woman') || text.includes('f_only')) {
+    signals.gender = 'female';
+  } else if (text.includes('male') || text.includes('men') || text.includes('man') || text.includes('m_only')) {
+    signals.gender = 'male';
+  } else if (text.includes('all_gender') || text.includes('unisex')) {
+    signals.gender = 'all';
+  }
+  
+  // Age brackets
+  const ageBrackets = [
+    { pattern: /(18[\-_]24|1824|gen_?z|youth)/i, min: 18, max: 24 },
+    { pattern: /(25[\-_]34|2534|millennials?)/i, min: 25, max: 34 },
+    { pattern: /(35[\-_]44|3544)/i, min: 35, max: 44 },
+    { pattern: /(45[\-_]54|4554)/i, min: 45, max: 54 },
+    { pattern: /(55[\-_]64|5564|seniors?)/i, min: 55, max: 64 },
+    { pattern: /(65\+|65plus)/i, min: 65, max: 99 },
+    { pattern: /(18[\-_]34|1834)/i, min: 18, max: 34 },
+    { pattern: /(25[\-_]54|2554|core)/i, min: 25, max: 54 },
+  ];
+  for (const ab of ageBrackets) {
+    if (ab.pattern.test(text)) {
+      signals.ageMin = ab.min;
+      signals.ageMax = ab.max;
+      break;
+    }
+  }
+  // Generic age pattern
+  const genericAge = text.match(/age[_\-]?(\d{2})[_\-](\d{2})/i);
+  if (genericAge && !signals.ageMin) {
+    signals.ageMin = parseInt(genericAge[1]);
+    signals.ageMax = parseInt(genericAge[2]);
+  }
+  
+  // Audience type
+  const audPatterns: Record<string, string> = {
+    'broad': 'broad', 'brd': 'broad', 'open': 'broad', 'prospecting': 'broad', 'cold': 'broad',
+    'lookalike': 'lookalike', 'lal': 'lookalike', 'lkl': 'lookalike', 'similar': 'lookalike',
+    'retargeting': 'retargeting', 'ret': 'retargeting', 'rtg': 'retargeting', 'remarketing': 'retargeting', 'warm': 'retargeting',
+    'custom': 'custom', 'ca': 'custom', 'first_party': 'custom', '1p': 'custom',
+    'interest': 'interest', 'int': 'interest'
+  };
+  for (const [kw, aud] of Object.entries(audPatterns)) {
+    if (text.includes(kw)) { signals.audienceType = aud; break; }
+  }
+  
+  // Optimization goal (UAC implies app_installs)
+  const goalPatterns: Record<string, string> = {
+    'uac': 'app_installs', 'app_install': 'app_installs', 'install': 'app_installs', 'download': 'app_installs',
+    'conversion': 'conversions', 'purchase': 'conversions', 'sale': 'conversions', 'checkout': 'conversions',
+    'lead': 'leads', 'signup': 'leads', 'register': 'leads', 'form': 'leads',
+    'traffic': 'traffic', 'click': 'traffic', 'landing': 'traffic',
+    'video_view': 'video_views', 'watch': 'video_views', 'thruplay': 'video_views',
+    'engagement': 'engagement', 'engage': 'engagement',
+    'reach': 'reach', 'awareness': 'reach',
+    'message': 'messages', 'msg': 'messages', 'whatsapp': 'messages', 'messenger': 'messages'
+  };
+  for (const [kw, goal] of Object.entries(goalPatterns)) {
+    if (text.includes(kw)) { signals.optimizationGoal = goal; break; }
+  }
+  
+  // Placement
+  const placementPatterns: Record<string, string> = {
+    'feed': 'feed', 'newsfeed': 'feed', 'home': 'feed',
+    'stories': 'stories', 'story': 'stories', 'str': 'stories',
+    'reels': 'reels', 'reel': 'reels', 'rls': 'reels',
+    'explore': 'explore', 'exp': 'explore', 'discovery': 'explore',
+    'shorts': 'shorts', 'short': 'shorts',
+    'fyp': 'for_you', 'foryou': 'for_you',
+    'instream': 'in_stream', 'preroll': 'in_stream', 'midroll': 'in_stream'
+  };
+  for (const [kw, pl] of Object.entries(placementPatterns)) {
+    if (text.includes(kw)) { signals.placement = pl; break; }
+  }
+  
+  // Format
+  const formatPatterns: Record<string, string> = {
+    'carousel': 'carousel', 'car': 'carousel', 'swipe': 'carousel', 'multi': 'carousel',
+    'single': 'single', 'static': 'single',
+    'video': 'video', 'vid': 'video', 'mp4': 'video', 'mov': 'video',
+    'collection': 'collection', 'catalog': 'collection'
+  };
+  for (const [kw, fmt] of Object.entries(formatPatterns)) {
+    if (text.includes(kw)) { signals.format = fmt; break; }
+  }
+  
+  return signals;
+}
+
+// Enhanced hard constraints check with inference support
+function checkHardConstraintsEnhanced(
+  assetConstraints: HardConstraints,
+  structure: CampaignStructure,
+  options: { isSingleMarketPlan: boolean; isSinglePlatformPlan: boolean; inferredSignals: InferredSignals }
+): { passed: boolean; failures: Array<{ constraint: string; expected: string; actual: string }>; notes: string[]; inferenceUsed: boolean } {
+  const failures: Array<{ constraint: string; expected: string; actual: string }> = [];
+  const notes: string[] = [];
+  let inferenceUsed = false;
+
+  // Market check
+  if (assetConstraints.market && structure.market) {
+    if (assetConstraints.market.toUpperCase() !== structure.market.toUpperCase()) {
+      failures.push({ constraint: 'market', expected: structure.market, actual: assetConstraints.market });
+    }
+  } else if (!assetConstraints.market && structure.market) {
+    if (options.isSingleMarketPlan) {
+      notes.push(`Market assumed: ${structure.market} (single-market plan)`);
+      inferenceUsed = true;
+    } else if (options.inferredSignals.market?.toUpperCase() === structure.market.toUpperCase()) {
+      notes.push(`Market inferred from filename: ${options.inferredSignals.market}`);
+      inferenceUsed = true;
+    }
+  }
+
+  // Language check
+  if (assetConstraints.language && structure.language) {
+    if (assetConstraints.language.toLowerCase() !== structure.language.toLowerCase()) {
+      failures.push({ constraint: 'language', expected: structure.language, actual: assetConstraints.language });
+    }
+  } else if (!assetConstraints.language && structure.language && options.inferredSignals.language) {
+    if (options.inferredSignals.language.toLowerCase() === structure.language.toLowerCase()) {
+      notes.push(`Language inferred: ${options.inferredSignals.language}`);
+      inferenceUsed = true;
+    }
+  }
+
+  // Variant check
+  if (assetConstraints.variant && structure.variant && assetConstraints.variant !== structure.variant) {
+    failures.push({ constraint: 'variant', expected: structure.variant, actual: assetConstraints.variant });
+  }
+
+  return { passed: failures.length === 0, failures, notes, inferenceUsed };
+}
+
+// Check if age ranges overlap
+function checkAgeOverlap(a: { min: number; max: number }, b: { min: number; max: number }): boolean {
+  return a.min <= b.max && b.min <= a.max;
+}
