@@ -910,18 +910,56 @@ export function getDefaultAdSetParams(platform: 'meta' | 'tiktok'): TaxonomyPara
   ];
 }
 
-// Generate default ad taxonomy params
+// Generate default ad taxonomy params - aligned with content calendar spreadsheet columns
 export function getDefaultAdParams(): TaxonomyParam[] {
   return [
+    {
+      id: 'postNumber',
+      key: 'POST',
+      label: 'Post Number',
+      type: 'mixed',
+      system: true,
+      required: false,
+      description: 'Auto-filled from Content Calendar → Post Number. Unique identifier for the post/creative within the campaign.',
+    },
+    {
+      id: 'brandName',
+      key: 'BRD',
+      label: 'Brand/Product',
+      type: 'text',
+      system: false,
+      required: false,
+      description: 'Auto-filled from Content Calendar → Brand Name or Product Category. Identifies the brand or product being promoted.',
+    },
     {
       id: 'adFormat',
       key: 'FMT',
       label: 'Ad Format',
       type: 'options',
-      options: ['IMG', 'VID', 'CAR', 'COL', 'DYN'],
+      options: ['IMG', 'VID', 'CAR', 'COL', 'DYN', 'STR', 'RLS'],
       system: true,
       required: true,
-      description: 'Auto-filled from Creative Setup → Ad format type. IMG=Single Image, VID=Video, CAR=Carousel, COL=Collection, DYN=Dynamic Creative.',
+      description: 'Auto-filled from Content Calendar → Format. IMG=Single Image, VID=Video, CAR=Carousel, COL=Collection, DYN=Dynamic, STR=Stories, RLS=Reels.',
+    },
+    {
+      id: 'placement',
+      key: 'PLC',
+      label: 'Placement',
+      type: 'options',
+      options: ['FEED', 'STR', 'RLS', 'EXP', 'SRCH'],
+      system: true,
+      required: false,
+      description: 'Auto-filled from Content Calendar → Placement. FEED=Feed, STR=Stories, RLS=Reels, EXP=Explore, SRCH=Search.',
+    },
+    {
+      id: 'postType',
+      key: 'TYP',
+      label: 'Post Type',
+      type: 'options',
+      options: ['ORG', 'DRK', 'SPK', 'PAD'],
+      system: true,
+      required: false,
+      description: 'Auto-filled from Content Calendar → Organic vs Dark. ORG=Organic Post, DRK=Dark Post, SPK=Spark Ad, PAD=Paid Ad.',
     },
     {
       id: 'creativeVariant',
@@ -930,7 +968,7 @@ export function getDefaultAdParams(): TaxonomyParam[] {
       type: 'mixed',
       system: true,
       required: true,
-      description: 'Auto-filled from Creative Setup → Variant identifier. Used to distinguish different creative versions (A/B testing, etc.).',
+      description: 'Auto-filled from Creative Setup → Variant identifier. Used to distinguish different creative versions (A/B testing, etc.). e.g., A, B, C or 01, 02, 03.',
     },
     {
       id: 'copyVariant',
@@ -939,19 +977,180 @@ export function getDefaultAdParams(): TaxonomyParam[] {
       type: 'mixed',
       system: false,
       required: true,
-      description: 'User-defined copy variant identifier. Use to track different ad copy versions for the same creative.',
+      description: 'User-defined copy variant identifier. Use to track different ad copy versions for the same creative. e.g., V1, V2 or SHORT, LONG.',
     },
     {
       id: 'language',
       key: 'LNG',
       label: 'Language',
       type: 'options',
-      options: ['EN', 'ES', 'DE', 'FR', 'IT', 'PT', 'NL'],
-      system: false,
+      options: ['EN', 'AR', 'ES', 'DE', 'FR', 'IT', 'PT', 'NL', 'TR', 'RU', 'ZH', 'JA', 'KO'],
+      system: true,
       required: true,
-      description: 'User-defined language code for the ad creative. Helps identify ads in different languages for multi-language campaigns.',
+      description: 'Auto-filled from Content Calendar → Language. Language code for the ad creative. EN=English, AR=Arabic, ES=Spanish, etc.',
+    },
+    {
+      id: 'contentPillar',
+      key: 'PLR',
+      label: 'Content Pillar',
+      type: 'text',
+      system: false,
+      required: false,
+      description: 'Auto-filled from Content Calendar → Content Pillar/Theme. The strategic content category or theme.',
+    },
+    {
+      id: 'priority',
+      key: 'PRI',
+      label: 'Priority',
+      type: 'options',
+      options: ['HI', 'MD', 'LO'],
+      system: false,
+      required: false,
+      description: 'Auto-filled from Content Calendar → Priority. HI=High priority, MD=Medium priority, LO=Low priority.',
     },
   ];
+}
+
+// Value mappings for ad taxonomy fields (extending VALUE_MAPPINGS)
+export const AD_TAXONOMY_MAPPINGS: Record<string, Record<string, string>> = {
+  adFormat: {
+    'image': 'IMG',
+    'video': 'VID',
+    'carousel': 'CAR',
+    'collection': 'COL',
+    'dynamic': 'DYN',
+    'stories': 'STR',
+    'reels': 'RLS',
+    'Video - Feed': 'VID',
+    'Video - Stories': 'STR',
+    'Video - Reels': 'RLS',
+    'Image/Carousel': 'CAR',
+    'Single Image': 'IMG',
+    'Static': 'IMG',
+    'GIF': 'IMG',
+  },
+  placement: {
+    'feed': 'FEED',
+    'Feed': 'FEED',
+    'stories': 'STR',
+    'Stories': 'STR',
+    'reels': 'RLS',
+    'Reels': 'RLS',
+    'explore': 'EXP',
+    'Explore': 'EXP',
+    'search': 'SRCH',
+    'Search': 'SRCH',
+  },
+  postType: {
+    'organic': 'ORG',
+    'Organic': 'ORG',
+    'dark': 'DRK',
+    'Dark': 'DRK',
+    'Dark Post': 'DRK',
+    'spark': 'SPK',
+    'Spark': 'SPK',
+    'Spark Ad': 'SPK',
+    'paid': 'PAD',
+    'Paid': 'PAD',
+    'Paid Ad': 'PAD',
+  },
+  priority: {
+    'high': 'HI',
+    'High': 'HI',
+    'medium': 'MD',
+    'Medium': 'MD',
+    'low': 'LO',
+    'Low': 'LO',
+  },
+  language: {
+    'English': 'EN',
+    'Arabic': 'AR',
+    'Spanish': 'ES',
+    'German': 'DE',
+    'French': 'FR',
+    'Italian': 'IT',
+    'Portuguese': 'PT',
+    'Dutch': 'NL',
+    'Turkish': 'TR',
+    'Russian': 'RU',
+    'Chinese': 'ZH',
+    'Japanese': 'JA',
+    'Korean': 'KO',
+    'EN': 'EN',
+    'AR': 'AR',
+    'EN/AR': 'ENAR',
+    'AR/EN': 'ENAR',
+  },
+};
+
+// Generate ad taxonomy name from creative data
+export function generateAdTaxonomyName(
+  creative: {
+    postNumber?: string;
+    brandName?: string;
+    format?: string;
+    placement?: string;
+    postType?: string;
+    creativeVariant?: string;
+    copyVariant?: string;
+    language?: string;
+    contentPillar?: string;
+    priority?: string;
+    name?: string;
+  },
+  template?: TaxonomyParam[]
+): string {
+  const params = template || getDefaultAdParams();
+  const parts: string[] = [];
+
+  for (const param of params) {
+    if (param.required === false && !param.system) continue;
+
+    let value = '';
+    switch (param.id) {
+      case 'postNumber':
+        value = creative.postNumber || '';
+        break;
+      case 'brandName':
+        value = creative.brandName ? createShortCode(creative.brandName) : '';
+        break;
+      case 'adFormat':
+        value = creative.format ? (AD_TAXONOMY_MAPPINGS.adFormat[creative.format] || createShortCode(creative.format)) : '';
+        break;
+      case 'placement':
+        value = creative.placement ? (AD_TAXONOMY_MAPPINGS.placement[creative.placement] || createShortCode(creative.placement)) : '';
+        break;
+      case 'postType':
+        value = creative.postType ? (AD_TAXONOMY_MAPPINGS.postType[creative.postType] || createShortCode(creative.postType)) : '';
+        break;
+      case 'creativeVariant':
+        value = creative.creativeVariant || 'A';
+        break;
+      case 'copyVariant':
+        value = creative.copyVariant || 'V1';
+        break;
+      case 'language':
+        value = creative.language ? (AD_TAXONOMY_MAPPINGS.language[creative.language] || creative.language.toUpperCase().substring(0, 2)) : '';
+        break;
+      case 'contentPillar':
+        value = creative.contentPillar ? createShortCode(creative.contentPillar) : '';
+        break;
+      case 'priority':
+        value = creative.priority ? (AD_TAXONOMY_MAPPINGS.priority[creative.priority] || '') : '';
+        break;
+    }
+
+    if (value) {
+      parts.push(value);
+    }
+  }
+
+  // Fallback to creative name if no taxonomy parts
+  if (parts.length === 0 && creative.name) {
+    return creative.name.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 50);
+  }
+
+  return parts.join('_');
 }
 
 // Validate taxonomy string
