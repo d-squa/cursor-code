@@ -2406,16 +2406,19 @@ export function PhaseScheduler({
                             value={phase.budgetType || "none"}
                             onValueChange={(value: string) => {
                               const bt = value === "none" ? null : (value as "daily" | "lifetime");
-                              
-                              // If we have the apply-to-all callback and a valid budget type,
-                              // defer the update until after dialog interaction to prevent flicker
+
+                              // Apply immediately so the UI doesn't snap back / flicker.
+                              onPhasesChange(
+                                phasesRef.current.map((p) =>
+                                  p.id === phase.id ? { ...p, budgetType: bt } : p,
+                                ),
+                              );
+
+                              // Ask whether to apply this type to all phases.
                               if (onApplyBudgetTypeToAll && bt) {
                                 setPendingBudgetType(bt);
                                 setPendingBudgetPhaseId(phase.id);
                                 setBudgetTypeDialogOpen(true);
-                              } else {
-                                // No dialog, just update immediately
-                                onPhasesChange(phases.map(p => p.id === phase.id ? { ...p, budgetType: bt } : p));
                               }
                             }}
                           >
@@ -2433,11 +2436,9 @@ export function PhaseScheduler({
                           )}
                           
                           {/* Daily Budget Breakdown */}
-                          {(() => {
-                            console.log("Phase:", phase.id, "budgetType:", phase.budgetType, "marketBudget:", marketBudget);
-                            return phase.budgetType === "daily" && marketBudget && marketBudget > 0 ? (
-                              <div className="mt-3 p-3 rounded-md bg-muted/30 border border-border">
-                                <div className="text-xs font-semibold text-muted-foreground mb-2">Daily Budget Breakdown</div>
+                          {phase.budgetType === "daily" && marketBudget && marketBudget > 0 && (
+                            <div className="mt-3 p-3 rounded-md bg-muted/30 border border-border">
+                              <div className="text-xs font-semibold text-muted-foreground mb-2">Daily Budget Breakdown</div>
                               <div className="space-y-2 text-sm">
                                 <div className="flex items-center justify-between">
                                   <span className="text-muted-foreground">Phase Budget:</span>
@@ -2469,9 +2470,7 @@ export function PhaseScheduler({
                                 </div>
                               </div>
                             </div>
-                            ) : null;
-                          })()}
-                        </div>
+                          )}
                       </div>
 
                       {/* Publisher Platforms & Placements with Split Button */}
@@ -2608,40 +2607,12 @@ export function PhaseScheduler({
             }
           }}
           budgetType={pendingBudgetType}
-          onCancel={() => {
-            if (pendingBudgetPhaseId && pendingBudgetType) {
-              onPhasesChange(
-                phases.map((p) =>
-                  p.id === pendingBudgetPhaseId ? { ...p, budgetType: pendingBudgetType } : p,
-                ),
-              );
-            }
-            setPendingBudgetPhaseId(null);
-            setPendingBudgetType(null);
-          }}
           onConfirm={() => {
-            if (onApplyBudgetTypeToAll && pendingBudgetType) {
+            if (onApplyBudgetTypeToAll) {
               onApplyBudgetTypeToAll(pendingBudgetType);
-            } else if (pendingBudgetPhaseId && pendingBudgetType) {
-              onPhasesChange(
-                phases.map((p) =>
-                  p.id === pendingBudgetPhaseId ? { ...p, budgetType: pendingBudgetType } : p,
-                ),
-              );
             }
-            setPendingBudgetPhaseId(null);
-            setPendingBudgetType(null);
           }}
           onCustomize={() => {
-            if (pendingBudgetPhaseId && pendingBudgetType) {
-              onPhasesChange(
-                phases.map((p) =>
-                  p.id === pendingBudgetPhaseId ? { ...p, budgetType: pendingBudgetType } : p,
-                ),
-              );
-            }
-            setPendingBudgetPhaseId(null);
-            setPendingBudgetType(null);
             onOpenCustomizeBudgetTypes?.();
           }}
         />
