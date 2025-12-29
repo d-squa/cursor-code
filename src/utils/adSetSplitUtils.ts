@@ -325,7 +325,7 @@ export function createInitialAdSets(
       name: generateAdSetName(phaseName, dimension, primaryValue, options),
       dimensionValue: primaryValue,
       budgetPercentage: 50,
-      ...getAdSetFieldsForDimension(dimension, primaryValue),
+      ...getAdSetFieldsForDimension(dimension, primaryValue, { platformId: context.platformId }),
     },
   ];
 
@@ -337,7 +337,7 @@ export function createInitialAdSets(
       name: generateAdSetName(phaseName, dimension, comp.value, options),
       dimensionValue: comp.value,
       budgetPercentage: 50,
-      ...getAdSetFieldsForDimension(dimension, comp.value),
+      ...getAdSetFieldsForDimension(dimension, comp.value, { platformId: context.platformId }),
     });
   }
 
@@ -350,20 +350,31 @@ function getAdSetFieldsForDimension(
   value: string | { min: number; max: number },
   context?: { platformId?: string }
 ): Partial<AdSetConfig> {
+  const isTikTok = context?.platformId === 'tiktok';
+  
   switch (dimension) {
     case "gender":
       return { gender: value as string };
     case "device":
       return { devices: [value as string] };
     case "placement":
-      const publisher = value as string;
-      // Get default position for the publisher
-      const positions = META_POSITIONS[publisher];
-      const defaultPosition = positions?.[0]?.value;
-      return { 
-        publisherPlatforms: [publisher],
-        positions: defaultPosition ? { [publisher]: [defaultPosition] } : undefined,
-      };
+      if (isTikTok) {
+        // TikTok placement handling
+        const tiktokPlacement = value as string;
+        return { 
+          tiktokPlacements: [tiktokPlacement],
+        };
+      } else {
+        // Meta publisher platform handling
+        const publisher = value as string;
+        // Get default position for the publisher
+        const positions = META_POSITIONS[publisher];
+        const defaultPosition = positions?.[0]?.value;
+        return { 
+          publisherPlatforms: [publisher],
+          positions: defaultPosition ? { [publisher]: [defaultPosition] } : undefined,
+        };
+      }
     case "language":
       return { languages: [value as string] };
     case "location":
