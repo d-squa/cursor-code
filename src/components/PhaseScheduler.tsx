@@ -2518,6 +2518,9 @@ export function PhaseScheduler({
                             onAdvantagePlusPlacementsChange={(enabled) =>
                               updatePhaseField(phase.id, "advantagePlusPlacements", enabled)
                             }
+                            onBatchUpdate={(updates) => 
+                              updatePhaseFields(phase.id, updates)
+                            }
                           />
                         </div>
                       </SplittableSection>

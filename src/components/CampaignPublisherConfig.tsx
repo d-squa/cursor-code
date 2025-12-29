@@ -25,6 +25,7 @@ interface CampaignPublisherConfigProps {
     threads?: string[];
   }) => void;
   onAdvantagePlusPlacementsChange?: (enabled: boolean) => void;
+  onBatchUpdate?: (updates: Record<string, any>) => void;
 }
 
 // Platform-specific placement options
@@ -52,6 +53,7 @@ export function CampaignPublisherConfig({
   onPublisherPlatformsChange,
   onPositionsChange,
   onAdvantagePlusPlacementsChange,
+  onBatchUpdate,
 }: CampaignPublisherConfigProps) {
   const getAvailablePublisherPlatforms = () => {
     if (platformName.includes("Meta")) {
@@ -149,7 +151,6 @@ export function CampaignPublisherConfig({
             }`}
             onClick={() => {
               if (advantagePlusPlacements !== false) {
-                onAdvantagePlusPlacementsChange?.(false);
                 // Auto-select all publishers and their placements when switching to manual
                 const allPublishers = availablePublisherPlatforms;
                 const allPositions: typeof positions = {};
@@ -158,8 +159,18 @@ export function CampaignPublisherConfig({
                     allPositions[publisher as keyof typeof positions] = availablePlacements[publisher];
                   }
                 });
-                onPublisherPlatformsChange(allPublishers);
-                onPositionsChange(allPositions);
+                // Use batch update if available to ensure all fields are updated atomically
+                if (onBatchUpdate) {
+                  onBatchUpdate({
+                    advantagePlusPlacements: false,
+                    publisherPlatforms: allPublishers,
+                    positions: allPositions,
+                  });
+                } else {
+                  onAdvantagePlusPlacementsChange?.(false);
+                  onPublisherPlatformsChange(allPublishers);
+                  onPositionsChange(allPositions);
+                }
               }
             }}
           >
@@ -170,7 +181,6 @@ export function CampaignPublisherConfig({
                 checked={advantagePlusPlacements === false}
                 onChange={() => {
                   if (advantagePlusPlacements !== false) {
-                    onAdvantagePlusPlacementsChange?.(false);
                     // Auto-select all publishers and their placements when switching to manual
                     const allPublishers = availablePublisherPlatforms;
                     const allPositions: typeof positions = {};
@@ -179,8 +189,18 @@ export function CampaignPublisherConfig({
                         allPositions[publisher as keyof typeof positions] = availablePlacements[publisher];
                       }
                     });
-                    onPublisherPlatformsChange(allPublishers);
-                    onPositionsChange(allPositions);
+                    // Use batch update if available
+                    if (onBatchUpdate) {
+                      onBatchUpdate({
+                        advantagePlusPlacements: false,
+                        publisherPlatforms: allPublishers,
+                        positions: allPositions,
+                      });
+                    } else {
+                      onAdvantagePlusPlacementsChange?.(false);
+                      onPublisherPlatformsChange(allPublishers);
+                      onPositionsChange(allPositions);
+                    }
                   }
                 }}
                 className="h-4 w-4 text-primary"
