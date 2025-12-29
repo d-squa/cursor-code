@@ -105,3 +105,12 @@ verify_jwt = true
 
 [functions.send-dsp-push-notification]
 verify_jwt = true
+
+[functions.validate-campaign-launch]
+verify_jwt = false
+
+[functions.push-campaign-to-dsp]
+verify_jwt = false
+
+[functions.check-campaign-dsp-status]
+verify_jwt = false
