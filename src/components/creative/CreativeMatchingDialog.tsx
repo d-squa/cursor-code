@@ -37,11 +37,19 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
   const [selectedCampaignName, setSelectedCampaignName] = useState<string>(initialCampaignName || '');
   const [isLoadingCampaigns, setIsLoadingCampaigns] = useState(false);
 
+  // Sync state with props when they change (e.g., opening dialog from different ActiPlans)
+  useEffect(() => {
+    if (initialCampaignId) {
+      setSelectedCampaignId(initialCampaignId);
+      setSelectedCampaignName(initialCampaignName || '');
+    }
+  }, [initialCampaignId, initialCampaignName]);
+
   const { state, stats, loadCampaignStructures, processFiles, runMatching, acceptMatch, rejectMatch, clearRejection, removeAsset, clearAll, saveMatches } = useCreativeMatching(selectedCampaignId);
 
   // Load available campaigns when dialog opens (if no campaignId provided)
   useEffect(() => {
-    if (open && !initialCampaignId && user) {
+    if (open && !initialCampaignId && !selectedCampaignId && user) {
       setIsLoadingCampaigns(true);
       supabase
         .from('campaigns')
@@ -54,7 +62,7 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
           setIsLoadingCampaigns(false);
         });
     }
-  }, [open, initialCampaignId, user]);
+  }, [open, initialCampaignId, selectedCampaignId, user]);
 
   // Reset state when dialog closes
   useEffect(() => {

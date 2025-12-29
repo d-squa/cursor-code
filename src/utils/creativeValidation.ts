@@ -416,24 +416,23 @@ export function validateCreative(creative: Partial<Creative>): CreativeValidatio
 }
 
 // Validate folder structure against ActiPlan taxonomy
+// Returns parsed data even if validation fails - validation is now lenient
 export function validateFolderPath(path: string): { 
   isValid: boolean; 
   parsed: Partial<CreativeTaxonomy>; 
   errors: string[];
+  warnings: string[];
 } {
   const errors: string[] = [];
+  const warnings: string[] = [];
   const parts = path.split('/').filter(p => p.trim());
   
   // Expected structure: Platform/Market/Phase/OptimizationGoal/CreativeType
   const parsed: Partial<CreativeTaxonomy> = {};
   
-  if (parts.length < 2) {
-    errors.push('Folder structure must have at least Platform/Market levels');
-    return { isValid: false, parsed, errors };
-  }
-
-  // Parse platform
-  const platformRaw = parts[0]?.toLowerCase();
+  // We no longer require strict folder structure - just try to extract what we can
+  
+  // Platform map for detection
   const platformMap: Record<string, Platform> = {
     meta: 'meta', facebook: 'meta', fb: 'meta',
     tiktok: 'tiktok', tt: 'tiktok',
@@ -443,79 +442,86 @@ export function validateFolderPath(path: string): {
     pinterest: 'pinterest', pin: 'pinterest',
     x: 'x', twitter: 'x',
   };
-  
-  if (platformMap[platformRaw]) {
-    parsed.platform = platformMap[platformRaw];
-  } else {
-    errors.push(`Unknown platform: \"${parts[0]}\". Valid: Meta, TikTok, Google, LinkedIn, Snapchat, Pinterest, X`);
-  }
 
-  // Parse market (country code)
-  if (parts[1]) {
-    const market = parts[1].toUpperCase();
-    // Simple validation - 2-letter country code
-    if (/^[A-Z]{2}$/.test(market)) {
-      parsed.market = market;
-    } else {
-      errors.push(`Invalid market code: \"${parts[1]}\". Use 2-letter country code (e.g., US, UK, DE)`);
-    }
-  }
+  // Phase map for detection
+  const phaseMap: Record<string, string> = {
+    awareness: 'Awareness', awa: 'Awareness', top: 'Awareness',
+    consideration: 'Consideration', con: 'Consideration', mid: 'Consideration',
+    conversion: 'Conversion', conv: 'Conversion', bot: 'Conversion', bottom: 'Conversion',
+    retention: 'Retention', ret: 'Retention',
+    loyalty: 'Loyalty', loy: 'Loyalty',
+  };
 
-  // Parse phase (optional)
-  if (parts[2]) {
-    const phaseRaw = parts[2].toLowerCase();
-    const phaseMap: Record<string, string> = {
-      awareness: 'Awareness', awa: 'Awareness', top: 'Awareness',
-      consideration: 'Consideration', con: 'Consideration', mid: 'Consideration',
-      conversion: 'Conversion', conv: 'Conversion', bot: 'Conversion', bottom: 'Conversion',
-      retention: 'Retention', ret: 'Retention',
-      loyalty: 'Loyalty', loy: 'Loyalty',
-    };
+  // Creative type map for detection
+  const typeMap: Record<string, CreativeType> = {
+    dark_post: 'dark_post', darkpost: 'dark_post', dark: 'dark_post',
+    existing_post: 'existing_post', existing: 'existing_post', post: 'existing_post',
+    image: 'image', img: 'image', static: 'image',
+    video: 'video', vid: 'video',
+    carousel: 'carousel', car: 'carousel',
+    collection: 'collection', col: 'collection',
+    instant_experience: 'instant_experience', ix: 'instant_experience', canvas: 'instant_experience',
+  };
+
+  // Market codes
+  const marketCodes = ['US', 'UK', 'DE', 'FR', 'ES', 'IT', 'JP', 'KR', 'BR', 'MX', 'CA', 'AU', 'IN', 'NL', 'BE', 'CH', 'AT', 'PL', 'SE', 'NO', 'DK', 'FI', 'PT', 'CZ', 'HU', 'RO', 'GR', 'IE', 'SG', 'MY', 'TH', 'VN', 'PH', 'ID', 'TW', 'HK', 'AE', 'SA', 'EG', 'ZA', 'NG', 'KE', 'AR', 'CO', 'CL', 'PE'];
+
+  // Scan all parts to extract metadata (order-independent)
+  for (const part of parts) {
+    const partLower = part.toLowerCase();
+    const partUpper = part.toUpperCase();
     
-    if (phaseMap[phaseRaw]) {
-      parsed.phase = phaseMap[phaseRaw];
-    } else if (VALID_FUNNEL_STAGES.map(s => s.toLowerCase()).includes(phaseRaw)) {
-      parsed.phase = phaseRaw.charAt(0).toUpperCase() + phaseRaw.slice(1);
-    } else {
-      errors.push(`Unknown phase: \"${parts[2]}\". Valid: Awareness, Consideration, Conversion, Retention, Loyalty`);
+    // Try to detect platform
+    if (!parsed.platform && platformMap[partLower]) {
+      parsed.platform = platformMap[partLower];
+      continue;
     }
-  }
-
-  // Parse optimization goal (optional)
-  if (parts[3] && parsed.platform) {
-    const goalRaw = parts[3].toUpperCase().replace(/[_\\s-]/g, '_');
-    const validGoals = VALID_OPTIMIZATION_GOALS[parsed.platform];
-    if (validGoals?.includes(goalRaw)) {
-      parsed.optimizationGoal = goalRaw;
-    } else {
-      errors.push(`Invalid optimization goal \"${parts[3]}\" for ${parsed.platform}`);
-    }
-  }
-
-  // Parse creative type (optional)
-  if (parts[4]) {
-    const typeRaw = parts[4].toLowerCase().replace(/[_\\s-]/g, '_');
-    const typeMap: Record<string, CreativeType> = {
-      dark_post: 'dark_post', darkpost: 'dark_post', dark: 'dark_post',
-      existing_post: 'existing_post', existing: 'existing_post', post: 'existing_post',
-      image: 'image', img: 'image', static: 'image',
-      video: 'video', vid: 'video',
-      carousel: 'carousel', car: 'carousel',
-      collection: 'collection', col: 'collection',
-      instant_experience: 'instant_experience', ix: 'instant_experience', canvas: 'instant_experience',
-    };
     
-    if (typeMap[typeRaw]) {
-      parsed.creativeType = typeMap[typeRaw];
-    } else {
-      errors.push(`Unknown creative type: \"${parts[4]}\"`);
+    // Try to detect market (2-letter country code)
+    if (!parsed.market && marketCodes.includes(partUpper)) {
+      parsed.market = partUpper;
+      continue;
+    }
+    
+    // Try to detect phase
+    if (!parsed.phase && phaseMap[partLower]) {
+      parsed.phase = phaseMap[partLower];
+      continue;
+    }
+    
+    // Try to detect creative type
+    const typeKey = partLower.replace(/[_\s-]/g, '_');
+    if (!parsed.creativeType && typeMap[typeKey]) {
+      parsed.creativeType = typeMap[typeKey];
+      continue;
+    }
+    
+    // Try to detect optimization goal (if platform already detected)
+    if (parsed.platform && !parsed.optimizationGoal) {
+      const goalRaw = partUpper.replace(/[_\s-]/g, '_');
+      const validGoals = VALID_OPTIMIZATION_GOALS[parsed.platform];
+      if (validGoals?.includes(goalRaw)) {
+        parsed.optimizationGoal = goalRaw;
+        continue;
+      }
     }
   }
 
+  // Add warnings for missing recommended fields, but don't fail validation
+  if (!parsed.platform) {
+    warnings.push('Platform not detected from folder path');
+  }
+  if (!parsed.market) {
+    warnings.push('Market not detected from folder path');
+  }
+
+  // Files are always valid now - we just extract what we can
+  // The actual validation happens at a higher level
   return {
-    isValid: errors.length === 0,
+    isValid: true, // Always valid - metadata extraction is best-effort
     parsed,
     errors,
+    warnings,
   };
 }
 
