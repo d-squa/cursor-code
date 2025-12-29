@@ -2120,13 +2120,33 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           }
         }
 
+        // ============= BID STRATEGY TRACKING =============
+        // Log the FULL path of bid strategy values to trace where they come from
+        console.log(`\n🎯 === BID STRATEGY DEBUG for ${market.name} / ${phase.name} ===`);
+        console.log(`📥 Raw market data:`, {
+          'market.metaBidStrategy': (market as any).metaBidStrategy,
+          'market.metaBidAmount': (market as any).metaBidAmount,
+        });
+        console.log(`📥 Raw phase data:`, {
+          'phase.metaBidStrategy': (phase as any).metaBidStrategy,
+          'phase.metaBidAmount': (phase as any).metaBidAmount,
+        });
+        
         // Validate bid strategy compatibility with optimization goal
         // COST_CAP, LOWEST_COST_WITH_BID_CAP, and TARGET_COST only work with specific optimization goals
         const bidStrategyCompatibleGoals = ['OFFSITE_CONVERSIONS', 'VALUE', 'LINK_CLICKS', 'LANDING_PAGE_VIEWS', 'LEAD_GENERATION', 'APP_INSTALLS'];
+        
         // Phase-level Meta fields take priority over market-level
-        const requestedBidStrategy = phase.metaBidStrategy || market.metaBidStrategy || "LOWEST_COST_WITHOUT_CAP";
-        const metaBidAmount = phase.metaBidAmount || market.metaBidAmount;
+        const requestedBidStrategy = phase.metaBidStrategy || (market as any).metaBidStrategy || "LOWEST_COST_WITHOUT_CAP";
+        const metaBidAmount = phase.metaBidAmount || (market as any).metaBidAmount;
         const userBillingEvent = phase.metaBillingEvent || (market as any).metaBillingEvent;
+        
+        console.log(`🔧 Resolved values (phase > market > default):`, {
+          requestedBidStrategy,
+          metaBidAmount,
+          userBillingEvent,
+        });
+
         const metaLandingPageUrl = phase.metaLandingPageUrl || (market as any).metaLandingPageUrl;
         
         // Meta billing_event + optimization_goal compatibility mapping
@@ -2223,6 +2243,7 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           console.log(`⚠️ ${objective}/${optimizationGoal} only supports limited attribution (1,0). Forcing click=${metaClickWindow}d, view=${metaViewWindow}d (configured was: ${rawClickWindow}, ${rawViewWindow})`);
         }
         
+        // ============= BID STRATEGY COMPATIBILITY CHECK =============
         const requiresBidCap = requestedBidStrategy === 'COST_CAP' || requestedBidStrategy === 'LOWEST_COST_WITH_BID_CAP' || requestedBidStrategy === 'TARGET_COST';
         const isCompatible = bidStrategyCompatibleGoals.includes(optimizationGoal);
         
@@ -2232,6 +2253,16 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           console.warn(`Falling back to LOWEST_COST_WITHOUT_CAP for ${optimizationGoal}`);
           finalBidStrategy = "LOWEST_COST_WITHOUT_CAP";
         }
+        
+        console.log(`📊 Bid Strategy Decision:`, {
+          requestedBidStrategy,
+          finalBidStrategy,
+          wasOverridden: requestedBidStrategy !== finalBidStrategy,
+          reasonForOverride: requiresBidCap && !isCompatible ? `${requestedBidStrategy} incompatible with ${optimizationGoal}` : 'none',
+          metaBidAmount,
+          optimizationGoal,
+          isCompatibleWithBidCap: isCompatible,
+        });
 
         // ============= AD SET SPLIT SUPPORT =============
         // If phase has adSets defined (split), iterate over each ad set
@@ -2369,7 +2400,14 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           const adSetBidStrategy = adSetConfig.bidStrategy || finalBidStrategy;
           const adSetBidAmount = adSetConfig.bidAmount ?? metaBidAmount;
           
-          console.log(`📊 Ad set "${adSetConfig.name}" - optimization_goal: ${adSetOptimizationGoal}, billing_event: ${adSetBillingEvent}, bid_strategy: ${adSetBidStrategy}, bid_amount: ${adSetBidAmount}`);
+          // ============= AD SET LEVEL BID STRATEGY LOGGING =============
+          console.log(`\n💼 === AD SET BID STRATEGY for "${adSetConfig.name}" ===`);
+          console.log(`📥 adSetConfig.bidStrategy: ${adSetConfig.bidStrategy ?? '(not set)'}`);
+          console.log(`📥 adSetConfig.bidAmount: ${adSetConfig.bidAmount ?? '(not set)'}`);
+          console.log(`📤 Using finalBidStrategy from phase: ${finalBidStrategy}`);
+          console.log(`📤 Using metaBidAmount from phase: ${metaBidAmount ?? '(not set)'}`);
+          console.log(`🎯 FINAL adSetBidStrategy: ${adSetBidStrategy}`);
+          console.log(`🎯 FINAL adSetBidAmount: ${adSetBidAmount ?? '(not set)'}`);
           
           const adSetPayload: any = {
             name: adsetTaxonomyName || defaultAdSetName,
