@@ -15,9 +15,17 @@ interface Props {
   budgetType: "daily" | "lifetime";
   onConfirm: () => void;
   onCustomize?: () => void;
+  onCancel?: () => void;
 }
 
-export function BudgetTypeApplyDialog({ open, onOpenChange, budgetType, onConfirm, onCustomize }: Props) {
+export function BudgetTypeApplyDialog({
+  open,
+  onOpenChange,
+  budgetType,
+  onConfirm,
+  onCustomize,
+  onCancel,
+}: Props) {
   const handleConfirm = () => {
     onConfirm();
     onOpenChange(false);
@@ -26,6 +34,10 @@ export function BudgetTypeApplyDialog({ open, onOpenChange, budgetType, onConfir
   const handleCustomize = () => {
     onCustomize?.();
     onOpenChange(false);
+  };
+
+  const handleCancel = () => {
+    onCancel?.();
   };
 
   return (
@@ -40,9 +52,14 @@ export function BudgetTypeApplyDialog({ open, onOpenChange, budgetType, onConfir
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>No, just this phase</AlertDialogCancel>
+          <AlertDialogCancel onClick={handleCancel}>No, just this phase</AlertDialogCancel>
           <AlertDialogAction onClick={handleCustomize}>Customize…</AlertDialogAction>
           <AlertDialogAction onClick={handleConfirm}>Yes, apply to all</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
