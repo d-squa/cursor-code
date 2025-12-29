@@ -29,6 +29,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
+import { AssignedCreativesView } from "@/components/creative/AssignedCreativesView";
 
 interface LaunchStatusEntry {
   id: string;
@@ -672,6 +673,13 @@ export default function LaunchStatus() {
             </Button>
           </CardContent>
         </Card>
+      )}
+
+      {/* Assigned Creatives Section */}
+      {campaignId && (
+        <div className="mb-6">
+          <AssignedCreativesView campaignId={campaignId} onRefresh={loadData} />
+        </div>
       )}
 
       {/* Status by Platform */}
