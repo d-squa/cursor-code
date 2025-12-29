@@ -148,6 +148,13 @@ export interface SpreadsheetCreativeRow {
   language: string;          // Language codes (e.g., "EN/AR", "EN", "AR")
   format: string;            // Creative format (e.g., "Video - Feed", "Image/Carousel", "Video - Stories")
   
+  // ZNM content calendar fields
+  postNumber?: string;       // Post number identifier
+  postType?: string;         // Post type (e.g., "Brand Post", "ZNM Launch Post")
+  organicVsDark?: string;    // Organic or Dark post
+  existingPostLink?: string; // Link to existing post or dark asset
+  optimizationGoal?: string; // Optimization goal (e.g., "Video Views", "Reach")
+  
   // New fields from content calendar templates
   brandName?: string;        // Brand or product line
   campaignName?: string;     // Campaign name
@@ -194,7 +201,6 @@ export interface SpreadsheetCreativeRow {
   
   // Legacy fields for backward compatibility
   phase?: string;             // Alias for objective
-  optimizationGoal?: string;
   creativeType?: string;      // Derived from format
   market?: string;            // Single market (first from markets list)
   

@@ -41,42 +41,105 @@ const normalizeColumnName = (name: string): string => {
     .replace(/_+/g, '_')
     .replace(/^_|_$/g, '');
   
-  // Map common variations
+  // Map common variations - aligned with ZNM content calendar format
   const columnMap: Record<string, string> = {
+    // Core identifiers
+    'post_number': 'post_number',
+    'post_no': 'post_number',
+    'number': 'post_number',
+    'post_type': 'post_type',
+    'post_name': 'name',
+    'creative_name': 'name',
+    
+    // Platform and market
     'market': 'markets',
     'country': 'markets',
     'countries': 'markets',
+    
+    // Funnel/objective
     'phase': 'objective',
     'funnel_stage': 'objective',
     'funnel_phase': 'objective',
+    'optimization': 'optimization_goal',
+    'optimization_goal': 'optimization_goal',
+    
+    // Organic vs Paid
+    'organic_vs_dark': 'organic_vs_dark',
+    'organic_dark': 'organic_vs_dark',
+    'organic': 'organic_vs_dark',
+    'dark': 'organic_vs_dark',
+    
+    // Language
     'lang': 'language',
     'languages': 'language',
+    
+    // Format and type
     'type': 'format',
     'creative_type': 'format',
     'ad_format': 'format',
+    
+    // Duration and dimensions
     'duration': 'actual_length',
     'length': 'actual_length',
     'actual_length_details': 'actual_length',
     'size': 'dimensions',
     'dimension': 'dimensions',
     'aspect_ratio': 'dimensions',
+    
+    // Character limits
     'caption_character_limit': 'caption_char_limit',
     'headline_character_limit': 'headline_char_limit',
     'description_character_limit': 'description_char_limit',
     'cta_character_limit': 'cta_char_limit',
+    
+    // Dates and deadlines
     'delivery_deadline': 'material_delivery_deadline',
     'deadline': 'material_delivery_deadline',
     'tbwa_asset_delivery_dates': 'material_delivery_deadline',
+    'start_date': 'flight_start_date',
+    'end_date': 'flight_end_date',
+    'flight_start': 'flight_start_date',
+    'flight_start_date': 'flight_start_date',
+    'flight_end': 'flight_end_date',
+    'flight_end_date': 'flight_end_date',
+    
+    // Links
     'specs': 'specs_link',
     'spec_doc': 'specs_link',
     'link_for_spec_doc': 'specs_link',
     'assets': 'assets_link',
     'links_to_assets': 'assets_link',
-    'asset_link': 'assets_link',
+    
+    // Existing post links (platform-specific variations from ZNM calendar)
+    'facebook_existing_post_link_or_dark_asset': 'existing_post_link',
+    'facebookexisting_post_link_or_dark_asset': 'existing_post_link',
+    'instagram_existing_post_link_or_dark_asset': 'existing_post_link',
+    'instagramexisting_post_link_or_dark_asset': 'existing_post_link',
+    'x_existing_post_link_or_dark_asset': 'existing_post_link',
+    'existing_post_link_or_dark_asset': 'existing_post_link',
+    'existing_post_link': 'existing_post_link',
+    'post_link': 'existing_post_link',
+    'asset_link': 'existing_post_link',
+    
+    // Caption for dark posts
+    'caption_if_dark_post': 'caption',
+    'dark_post_caption': 'caption',
+    
+    // Call to action
+    'call_to_action': 'call_to_action',
+    'cta': 'call_to_action',
+    
+    // Landing page
+    'landing_page': 'destination_url',
+    'landing_page_url': 'destination_url',
+    'destination': 'destination_url',
+    
+    // Notes and comments
     'note': 'notes',
     'notes_by_spark': 'notes',
-    'creative_name': 'name',
-    // New fields from content calendar
+    'comments': 'notes',
+    
+    // Brand and campaign info
     'brand': 'brand_name',
     'brand_name': 'brand_name',
     'campaign': 'campaign_name',
@@ -84,6 +147,8 @@ const normalizeColumnName = (name: string): string => {
     'product': 'product_category',
     'product_category': 'product_category',
     'category': 'product_category',
+    
+    // Additional fields
     'placement': 'placement',
     'media_type': 'media_type',
     'ad_type': 'ad_type',
@@ -93,16 +158,14 @@ const normalizeColumnName = (name: string): string => {
     'assigned': 'assigned_to',
     'assigned_to': 'assigned_to',
     'owner': 'assigned_to',
-    'flight_start': 'flight_start_date',
-    'flight_start_date': 'flight_start_date',
-    'start_date': 'flight_start_date',
-    'flight_end': 'flight_end_date',
-    'flight_end_date': 'flight_end_date',
-    'end_date': 'flight_end_date',
+    
+    // Arabic text fields
     'primary_text_ar': 'primary_text_ar',
     'headline_ar': 'headline_ar',
     'description_ar': 'description_ar',
     'caption_ar': 'caption_ar',
+    
+    // Content organization
     'content_pillar': 'content_pillar',
     'pillar': 'content_pillar',
     'campaign_theme': 'campaign_theme',
@@ -256,7 +319,13 @@ export function SpreadsheetUpload({ onUploadComplete, isUploading = false }: Spr
           assetsLink: getValue('assets_link'),
           status: getValue('status'),
           notes: getValue('notes'),
-          // New fields
+          // ZNM content calendar fields
+          postNumber: getValue('post_number'),
+          postType: getValue('post_type'),
+          organicVsDark: getValue('organic_vs_dark'),
+          existingPostLink: getValue('existing_post_link'),
+          optimizationGoal: getValue('optimization_goal'),
+          // Additional fields
           brandName: getValue('brand_name'),
           campaignName: getValue('campaign_name'),
           productCategory: getValue('product_category'),
@@ -277,7 +346,7 @@ export function SpreadsheetUpload({ onUploadComplete, isUploading = false }: Spr
           caption: getValue('caption'),
           captionAr: getValue('caption_ar'),
           callToAction: getValue('cta') || getValue('call_to_action'),
-          destinationUrl: getValue('destination_url'),
+          destinationUrl: getValue('destination_url') || getValue('landing_page'),
           contentPillar: getValue('content_pillar'),
           campaignTheme: getValue('campaign_theme'),
           // Derived fields for backward compatibility
