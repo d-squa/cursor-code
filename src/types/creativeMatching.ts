@@ -40,6 +40,29 @@ export interface HardConstraints {
   variant?: string;      // Variant identifier (e.g., 'A', 'B', 'control')
 }
 
+// Extended constraints that can be inferred from filename/path
+export interface InferrableConstraints extends HardConstraints {
+  // Device targeting
+  device?: 'mobile' | 'desktop' | 'tablet' | 'ctv' | 'all';
+  
+  // Demographic targeting
+  gender?: 'male' | 'female' | 'all';
+  ageMin?: number;
+  ageMax?: number;
+  
+  // Audience targeting
+  audienceType?: 'broad' | 'lookalike' | 'retargeting' | 'custom' | 'interest' | 'demographic' | 'value_based';
+  
+  // Optimization goal
+  optimizationGoal?: string;
+  
+  // Content attributes
+  placement?: string;
+  format?: string;
+  aspectRatio?: string;
+  contentPillar?: string;
+}
+
 // =============================================================================
 // ASSET TECHNICAL ATTRIBUTES (DIGESTION LAYER)
 // =============================================================================
@@ -222,6 +245,12 @@ export interface ActiPlanTarget {
   // Additional metadata
   optimizationGoal?: string;
   funnelStage?: string;
+  
+  // Ad set split dimensions (for precise matching)
+  deviceConstraints?: string[];        // ['mobile', 'desktop', 'tablet']
+  genderConstraint?: string;           // 'male', 'female', 'all'
+  ageConstraints?: { min: number; max: number };
+  audienceTypeConstraint?: string;     // 'broad', 'lookalike', 'retargeting', 'custom'
   
   // Budget info (for display purposes)
   budgetAmount?: number;
