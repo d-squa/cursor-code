@@ -911,6 +911,14 @@ interface InferredSignals {
   sources: Record<string, string>;
 }
 
+// Helper to check for whole word match (not part of another word)
+// This prevents "card" from matching "car" (carousel) or "carousel" from matching "rouse"
+function matchesWholeWord(text: string, word: string): boolean {
+  // Match word surrounded by word boundaries: start/end of string, whitespace, or common separators
+  const regex = new RegExp(`(^|[\\s_\\-\\.\\/\\[\\]\\(\\)])${word}($|[\\s_\\-\\.\\/\\[\\]\\(\\)])`, 'i');
+  return regex.test(text);
+}
+
 // Extract inferred signals from filename/path with source tracking
 function extractInferredSignals(filePath: string, fileName: string): InferredSignals {
   const text = ` ${filePath} ${fileName} `.toLowerCase();
@@ -926,7 +934,7 @@ function extractInferredSignals(filePath: string, fileName: string): InferredSig
     'pinterest': 'pinterest', 'pin': 'pinterest'
   };
   for (const [kw, plat] of Object.entries(platformPatterns)) {
-    if (text.includes(kw)) { 
+    if (matchesWholeWord(text, kw)) { 
       signals.platform = plat; 
       signals.sources.platform = `filename contains "${kw}"`;
       break; 
@@ -947,7 +955,7 @@ function extractInferredSignals(filePath: string, fileName: string): InferredSig
     signals.sources.language = `filename contains "${langMatch[1]}"`;
   }
   
-  // Device
+  // Device - use whole word matching
   const devicePatterns: Record<string, string> = {
     'mobile': 'mobile', 'mob': 'mobile', 'phone': 'mobile', 'ios': 'mobile', 'android': 'mobile',
     'desktop': 'desktop', 'dsk': 'desktop', 'desk': 'desktop', 'pc': 'desktop',
@@ -955,17 +963,17 @@ function extractInferredSignals(filePath: string, fileName: string): InferredSig
     'ctv': 'ctv', 'tv': 'ctv', 'ott': 'ctv'
   };
   for (const [kw, dev] of Object.entries(devicePatterns)) {
-    if (text.includes(kw)) { 
+    if (matchesWholeWord(text, kw)) { 
       signals.device = dev; 
       signals.sources.device = `filename contains "${kw}"`;
       break; 
     }
   }
   
-  // Gender
+  // Gender - use whole word matching
   const genderKeywords = ['female', 'women', 'woman', 'f_only', 'male', 'men', 'man', 'm_only', 'all_gender', 'unisex'];
   for (const gkw of genderKeywords) {
-    if (text.includes(gkw)) {
+    if (matchesWholeWord(text, gkw)) {
       if (['female', 'women', 'woman', 'f_only'].includes(gkw)) {
         signals.gender = 'female';
       } else if (['male', 'men', 'man', 'm_only'].includes(gkw)) {
@@ -1008,7 +1016,7 @@ function extractInferredSignals(filePath: string, fileName: string): InferredSig
     signals.sources.age = `filename contains age pattern "${signals.ageMin}-${signals.ageMax}"`;
   }
   
-  // Audience type
+  // Audience type - use whole word matching
   const audPatterns: Record<string, string> = {
     'broad': 'broad', 'brd': 'broad', 'open': 'broad', 'prospecting': 'broad', 'cold': 'broad',
     'lookalike': 'lookalike', 'lal': 'lookalike', 'lkl': 'lookalike', 'similar': 'lookalike',
@@ -1017,14 +1025,14 @@ function extractInferredSignals(filePath: string, fileName: string): InferredSig
     'interest': 'interest', 'int': 'interest'
   };
   for (const [kw, aud] of Object.entries(audPatterns)) {
-    if (text.includes(kw)) { 
+    if (matchesWholeWord(text, kw)) { 
       signals.audienceType = aud; 
       signals.sources.audienceType = `filename contains "${kw}"`;
       break; 
     }
   }
   
-  // Optimization goal (UAC implies app_installs)
+  // Optimization goal - use whole word matching (UAC implies app_installs)
   const goalPatterns: Record<string, string> = {
     'uac': 'app_installs', 'app_install': 'app_installs', 'install': 'app_installs', 'download': 'app_installs',
     'conversion': 'conversions', 'purchase': 'conversions', 'sale': 'conversions', 'checkout': 'conversions',
@@ -1036,14 +1044,14 @@ function extractInferredSignals(filePath: string, fileName: string): InferredSig
     'message': 'messages', 'msg': 'messages', 'whatsapp': 'messages', 'messenger': 'messages'
   };
   for (const [kw, goal] of Object.entries(goalPatterns)) {
-    if (text.includes(kw)) { 
+    if (matchesWholeWord(text, kw)) { 
       signals.optimizationGoal = goal; 
       signals.sources.optimizationGoal = `filename contains "${kw}"`;
       break; 
     }
   }
   
-  // Placement
+  // Placement - use whole word matching
   const placementPatterns: Record<string, string> = {
     'feed': 'feed', 'newsfeed': 'feed', 'home': 'feed',
     'stories': 'stories', 'story': 'stories', 'str': 'stories',
@@ -1054,22 +1062,23 @@ function extractInferredSignals(filePath: string, fileName: string): InferredSig
     'instream': 'in_stream', 'preroll': 'in_stream', 'midroll': 'in_stream'
   };
   for (const [kw, pl] of Object.entries(placementPatterns)) {
-    if (text.includes(kw)) { 
+    if (matchesWholeWord(text, kw)) { 
       signals.placement = pl; 
       signals.sources.placement = `filename contains "${kw}"`;
       break; 
     }
   }
   
-  // Format
+  // Format - use whole word matching to avoid partial matches (e.g., "card" matching "car")
+  // IMPORTANT: Removed 'car' shorthand to prevent false positives like "card" → "carousel"
   const formatPatterns: Record<string, string> = {
-    'carousel': 'carousel', 'car': 'carousel', 'swipe': 'carousel', 'multi': 'carousel',
+    'carousel': 'carousel', 'swipe': 'carousel', 'multi': 'carousel',
     'single': 'single', 'static': 'single',
     'video': 'video', 'vid': 'video', 'mp4': 'video', 'mov': 'video',
     'collection': 'collection', 'catalog': 'collection'
   };
   for (const [kw, fmt] of Object.entries(formatPatterns)) {
-    if (text.includes(kw)) { 
+    if (matchesWholeWord(text, kw)) { 
       signals.format = fmt; 
       signals.sources.format = `filename contains "${kw}"`;
       break; 
