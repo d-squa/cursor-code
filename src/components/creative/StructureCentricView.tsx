@@ -1,5 +1,5 @@
 // Structure-centric view: shows each ad set with its assigned creatives
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -16,11 +16,23 @@ import {
   Info,
   Layers,
   Target,
-  AlertCircle
+  AlertCircle,
+  Lightbulb,
+  Sparkles
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MatchConfidenceIndicator } from './MatchConfidenceIndicator';
-import type { StructureMatchResult, UnassignedAsset, DigestedAsset, UICreativeMatch } from '@/hooks/useCreativeMatching';
+import type { StructureMatchResult, UnassignedAsset, DigestedAsset, UICreativeMatch, CampaignStructure } from '@/hooks/useCreativeMatching';
+
+// Suggestion for empty ad sets
+interface EmptyAdSetSuggestion {
+  structure: CampaignStructure;
+  suggestedAssets: Array<{
+    asset: DigestedAsset;
+    blockingReason: string;
+    isPlatformOnly: boolean;
+  }>;
+}
 
 interface StructureCentricViewProps {
   structureResults: StructureMatchResult[];
@@ -348,6 +360,124 @@ function UnassignedAssetsPanel({ unassignedAssets }: { unassignedAssets: Unassig
   );
 }
 
+// Suggestions panel for empty ad sets
+function SuggestionsPanel({ 
+  suggestions, 
+  acceptedMatches,
+  onAcceptSuggestion 
+}: { 
+  suggestions: EmptyAdSetSuggestion[];
+  acceptedMatches: Map<string, UICreativeMatch>;
+  onAcceptSuggestion: (assetId: string, structure: CampaignStructure) => void;
+}) {
+  const [isExpanded, setIsExpanded] = useState(true);
+  
+  if (suggestions.length === 0) return null;
+  
+  const totalSuggestions = suggestions.reduce((sum, s) => sum + s.suggestedAssets.length, 0);
+  
+  return (
+    <Card className="border-blue-500/30 bg-blue-500/5">
+      <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
+        <CollapsibleTrigger asChild>
+          <CardHeader className="cursor-pointer hover:bg-blue-500/10 transition-colors pb-2">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center shrink-0">
+                <Lightbulb className="h-5 w-5 text-blue-600" />
+              </div>
+              <div className="flex-1">
+                <CardTitle className="text-sm font-medium text-blue-700">
+                  Suggestions for Empty Ad Sets
+                </CardTitle>
+                <p className="text-xs text-blue-600/80">
+                  Creatives that could fit if platform constraint is relaxed
+                </p>
+              </div>
+              <Badge variant="outline" className="border-blue-500/50 text-blue-600">
+                {totalSuggestions} suggestions
+              </Badge>
+              {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </div>
+          </CardHeader>
+        </CollapsibleTrigger>
+        
+        <CollapsibleContent>
+          <CardContent className="pt-0 space-y-3">
+            {suggestions.map((suggestion) => {
+              const { structure, suggestedAssets } = suggestion;
+              
+              return (
+                <div key={structure.id} className="p-3 rounded-lg border border-blue-500/20 bg-background">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Target className="h-4 w-4 text-blue-600" />
+                    <span className="text-sm font-medium">{structure.adSetName}</span>
+                    <Badge variant="outline" className="text-[10px] py-0 px-1">
+                      {structure.platform}
+                    </Badge>
+                  </div>
+                  
+                  <div className="space-y-2 mt-2">
+                    {suggestedAssets.map(({ asset, blockingReason, isPlatformOnly }) => {
+                      const isAccepted = acceptedMatches.has(`${asset.id}:${structure.id}`);
+                      
+                      return (
+                        <div 
+                          key={asset.id}
+                          className={cn(
+                            "p-2 rounded border flex items-center gap-2",
+                            isAccepted ? "bg-emerald-500/10 border-emerald-500/30" : "bg-muted/30"
+                          )}
+                        >
+                          <AssetThumbnail asset={asset} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium truncate">{asset.fileName}</p>
+                            <p className="text-[10px] text-muted-foreground">{blockingReason}</p>
+                          </div>
+                          {isPlatformOnly && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger>
+                                  <Badge variant="outline" className="text-[10px] py-0 px-1 border-blue-500/50 text-blue-600">
+                                    <Sparkles className="h-3 w-3 mr-0.5" />
+                                    Platform only
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="text-xs">Only platform constraint is blocking this match</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                          {isAccepted ? (
+                            <Badge className="bg-emerald-500 shrink-0 text-[10px]">
+                              <Check className="h-3 w-3 mr-1" />
+                              Accepted
+                            </Badge>
+                          ) : (
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              className="h-7 text-xs border-blue-500/50 text-blue-600 hover:bg-blue-500/10"
+                              onClick={() => onAcceptSuggestion(asset.id, structure)}
+                            >
+                              <Check className="h-3 w-3 mr-1" />
+                              Apply
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </CollapsibleContent>
+      </Collapsible>
+    </Card>
+  );
+}
+
 export function StructureCentricView({
   structureResults,
   unassignedAssets,
@@ -364,6 +494,52 @@ export function StructureCentricView({
 
   const totalAssigned = structureResults.reduce((sum, r) => sum + r.assignedAssets.length, 0);
   const structuresWithAssets = structureResults.filter(r => r.assignedAssets.length > 0).length;
+  
+  // Find suggestions for empty ad sets from unassigned assets
+  const suggestions = useMemo((): EmptyAdSetSuggestion[] => {
+    const emptyStructures = structureResults.filter(r => r.assignedAssets.length === 0);
+    if (emptyStructures.length === 0 || unassignedAssets.length === 0) return [];
+    
+    const result: EmptyAdSetSuggestion[] = [];
+    
+    for (const emptyResult of emptyStructures) {
+      const structure = emptyResult.structure;
+      const suggestedAssets: EmptyAdSetSuggestion['suggestedAssets'] = [];
+      
+      for (const unassigned of unassignedAssets) {
+        const { asset, reasons, closestMatches } = unassigned;
+        
+        // Check if this structure is in closest matches
+        const closestMatch = closestMatches?.find(m => m.structure.id === structure.id);
+        
+        // Check if platform is the main blocking reason
+        const platformBlockReasons = reasons.filter(r => 
+          r.toLowerCase().includes('platform') || 
+          r.toLowerCase().includes('meta') || 
+          r.toLowerCase().includes('tiktok') || 
+          r.toLowerCase().includes('google')
+        );
+        
+        const isPlatformOnly = platformBlockReasons.length > 0 && 
+          platformBlockReasons.length === reasons.length;
+        
+        // Include if platform is the main constraint OR if it's in closest matches with decent score
+        if (isPlatformOnly || (closestMatch && closestMatch.score >= 30)) {
+          suggestedAssets.push({
+            asset,
+            blockingReason: platformBlockReasons[0] || reasons[0] || 'No specific constraint detected',
+            isPlatformOnly
+          });
+        }
+      }
+      
+      if (suggestedAssets.length > 0) {
+        result.push({ structure, suggestedAssets });
+      }
+    }
+    
+    return result;
+  }, [structureResults, unassignedAssets]);
 
   return (
     <div className="space-y-4">
@@ -381,11 +557,24 @@ export function StructureCentricView({
           <span className="text-muted-foreground">Unassigned:</span>{' '}
           <span className="font-medium text-amber-600">{unassignedAssets.length}</span>
         </div>
+        {suggestions.length > 0 && (
+          <div>
+            <span className="text-muted-foreground">Suggestions:</span>{' '}
+            <span className="font-medium text-blue-600">{suggestions.reduce((s, x) => s + x.suggestedAssets.length, 0)}</span>
+          </div>
+        )}
       </div>
 
       <ScrollArea className="h-[400px] pr-4">
         <div className="space-y-3">
-          {/* Unassigned assets panel first if there are any */}
+          {/* Suggestions panel for empty ad sets */}
+          <SuggestionsPanel 
+            suggestions={suggestions} 
+            acceptedMatches={acceptedMatches}
+            onAcceptSuggestion={onAcceptAsset} 
+          />
+          
+          {/* Unassigned assets panel */}
           <UnassignedAssetsPanel unassignedAssets={unassignedAssets} />
           
           {/* Structure cards */}
