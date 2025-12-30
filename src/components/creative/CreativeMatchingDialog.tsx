@@ -59,7 +59,7 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
 
   const effectiveCampaignId = selectedCampaignId ?? initialCampaignId;
 
-  const { state, stats, loadCampaignStructures, processFiles, addLibraryCreatives, runMatching, acceptMatch, rejectMatch, clearRejection, clearAcceptedMatch, removeAsset, clearAll, saveMatches } = useCreativeMatching(effectiveCampaignId);
+  const { state, stats, loadCampaignStructures, processFiles, addLibraryCreatives, runMatching, acceptMatch, rejectMatch, clearRejection, clearAcceptedMatch, removeAsset, clearAll, saveMatches, skipTextAssets } = useCreativeMatching(effectiveCampaignId);
 
   // Load available campaigns when dialog opens (if no campaignId provided)
   useEffect(() => {
@@ -198,7 +198,7 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
     runMatching(structures);
   };
 
-  const stepProgress = state.currentStep === 'upload' ? 0 : state.currentStep === 'match' ? 33 : state.currentStep === 'review' ? 66 : 100;
+  const stepProgress = state.currentStep === 'upload' ? 0 : state.currentStep === 'match' ? 25 : state.currentStep === 'review' ? 50 : state.currentStep === 'text_assets' ? 75 : 100;
   const needsCampaignSelection = !effectiveCampaignId;
 
   // Filter library creatives that are not already assigned to a campaign
@@ -503,6 +503,25 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
                       </div>
                     </ScrollArea>
                   )}
+                </div>
+              )}
+
+              {/* Text Assets step */}
+              {state.currentStep === 'text_assets' && (
+                <div className="space-y-4">
+                  <div className="text-center py-6">
+                    <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
+                      <Wand2 className="h-6 w-6 text-primary" />
+                    </div>
+                    <h3 className="text-lg font-semibold mb-2">Configure Text Assets</h3>
+                    <p className="text-muted-foreground text-sm mb-4">
+                      {stats.acceptedCount} creatives saved. You can now configure copy, CTAs, and tracking in the Creative Library.
+                    </p>
+                    <Button onClick={skipTextAssets}>
+                      <Check className="h-4 w-4 mr-2" />
+                      Continue to Finish
+                    </Button>
+                  </div>
                 </div>
               )}
 
