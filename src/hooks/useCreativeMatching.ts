@@ -315,13 +315,31 @@ export function useCreativeMatching(campaignId?: string) {
     return digestedAssets;
   }, []);
 
-  // Process uploaded files
+  // Process uploaded files - only accept image and video files
   const processFiles = useCallback(async (files: File[]) => {
     setState(prev => ({ ...prev, isProcessing: true, currentStep: 'digest' }));
     const digestedAssets: DigestedAsset[] = [];
+    
+    // Allowed media MIME types
+    const allowedTypes = [
+      'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
+      'video/mp4', 'video/quicktime', 'video/webm', 'video/avi', 'video/mov', 'video/mpeg'
+    ];
+    
+    // Allowed file extensions as fallback
+    const allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.mp4', '.mov', '.webm', '.avi', '.mpeg'];
 
     for (const file of files) {
       try {
+        // Skip non-media files (documents, spreadsheets, etc.)
+        const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
+        const isAllowedType = allowedTypes.includes(file.type) || allowedExtensions.includes(fileExtension);
+        
+        if (!isAllowedType) {
+          console.warn(`Skipping non-media file: ${file.name} (type: ${file.type})`);
+          continue;
+        }
+        
         const filePath = (file as any).webkitRelativePath || file.name;
         const mediaType: AssetMediaType = file.type.startsWith('video/') ? 'video' : 'image';
         
@@ -924,14 +942,15 @@ function extractInferredSignals(filePath: string, fileName: string): InferredSig
   const text = ` ${filePath} ${fileName} `.toLowerCase();
   const signals: InferredSignals = { sources: {} };
   
-  // Platform detection (including UAC for Google App campaigns)
+  // Platform detection - ONLY use full words or very explicit abbreviations
+  // Removed risky short abbreviations (li, ig, fb, tt, etc.) that can match within words
   const platformPatterns: Record<string, string> = {
-    'meta': 'meta', 'facebook': 'meta', 'fb': 'meta', 'instagram': 'meta', 'ig': 'meta',
-    'tiktok': 'tiktok', 'tt': 'tiktok',
-    'google': 'google', 'youtube': 'google', 'yt': 'google', 'uac': 'google', 'gdn': 'google',
+    'meta': 'meta', 'facebook': 'meta', 'instagram': 'meta',
+    'tiktok': 'tiktok',
+    'google': 'google', 'youtube': 'google', 'gdn': 'google',
     'snapchat': 'snapchat', 'snap': 'snapchat',
-    'linkedin': 'linkedin', 'li': 'linkedin',
-    'pinterest': 'pinterest', 'pin': 'pinterest'
+    'linkedin': 'linkedin',
+    'pinterest': 'pinterest'
   };
   for (const [kw, plat] of Object.entries(platformPatterns)) {
     if (matchesWholeWord(text, kw)) { 
