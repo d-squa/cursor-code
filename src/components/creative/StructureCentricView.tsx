@@ -119,24 +119,16 @@ function StructureCard({
                     </>
                   )}
                 </div>
-                {/* Show taxonomy elements with parameter names */}
+                {/* Show taxonomy elements compact inline */}
                 {structure.taxonomyElements && Object.keys(structure.taxonomyElements).length > 0 && (
-                  <div className="flex flex-wrap gap-1 mt-1.5">
-                    {Object.entries(structure.taxonomyElements).slice(0, 6).map(([param, value]) => (
-                      <Badge 
-                        key={param} 
-                        variant="outline" 
-                        className="text-[9px] py-0 px-1.5 bg-muted/50"
-                      >
-                        <span className="text-muted-foreground">{param}:</span>{' '}
-                        <span className="font-medium">{value}</span>
-                      </Badge>
+                  <div className="text-[10px] text-muted-foreground mt-1 leading-relaxed">
+                    {Object.entries(structure.taxonomyElements).map(([param, value], idx) => (
+                      <span key={param}>
+                        {idx > 0 && <span className="mx-1">•</span>}
+                        <span className="text-muted-foreground/70">{param}:</span>
+                        <span className="font-medium text-foreground/80">{value}</span>
+                      </span>
                     ))}
-                    {Object.keys(structure.taxonomyElements).length > 6 && (
-                      <Badge variant="outline" className="text-[9px] py-0 px-1">
-                        +{Object.keys(structure.taxonomyElements).length - 6}
-                      </Badge>
-                    )}
                   </div>
                 )}
               </div>
