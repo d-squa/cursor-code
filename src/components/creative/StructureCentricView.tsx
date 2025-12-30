@@ -106,19 +106,39 @@ function StructureCard({
                   {structure.market && (
                     <span>{structure.market}</span>
                   )}
+                  {structure.language && (
+                    <>
+                      <span>•</span>
+                      <span className="uppercase">{structure.language}</span>
+                    </>
+                  )}
                   {structure.funnelStage && (
                     <>
                       <span>•</span>
                       <span className="capitalize">{structure.funnelStage}</span>
                     </>
                   )}
-                  {structure.optimizationGoal && (
-                    <>
-                      <span>•</span>
-                      <span>{structure.optimizationGoal}</span>
-                    </>
-                  )}
                 </div>
+                {/* Show taxonomy elements with parameter names */}
+                {structure.taxonomyElements && Object.keys(structure.taxonomyElements).length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {Object.entries(structure.taxonomyElements).slice(0, 6).map(([param, value]) => (
+                      <Badge 
+                        key={param} 
+                        variant="outline" 
+                        className="text-[9px] py-0 px-1.5 bg-muted/50"
+                      >
+                        <span className="text-muted-foreground">{param}:</span>{' '}
+                        <span className="font-medium">{value}</span>
+                      </Badge>
+                    ))}
+                    {Object.keys(structure.taxonomyElements).length > 6 && (
+                      <Badge variant="outline" className="text-[9px] py-0 px-1">
+                        +{Object.keys(structure.taxonomyElements).length - 6}
+                      </Badge>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <Badge variant={hasAssets ? "secondary" : "outline"} className="shrink-0">
