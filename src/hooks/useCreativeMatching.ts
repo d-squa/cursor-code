@@ -635,6 +635,14 @@ export function useCreativeMatching(campaignId?: string) {
     });
   }, []);
 
+  const clearAcceptedMatch = useCallback((assetId: string) => {
+    setState(prev => {
+      const newAccepted = new Map(prev.acceptedMatches);
+      newAccepted.delete(assetId);
+      return { ...prev, acceptedMatches: newAccepted };
+    });
+  }, []);
+
   const removeAsset = useCallback((assetId: string) => {
     setState(prev => ({
       ...prev,
@@ -740,7 +748,7 @@ export function useCreativeMatching(campaignId?: string) {
     structureCount: state.structures.length,
   }), [state.assets, state.results, state.acceptedMatches, state.structures]);
 
-  return { state, stats, loadCampaignStructures, processFiles, addLibraryCreatives, runMatching, acceptMatch, rejectMatch, clearRejection, removeAsset, clearAll, saveMatches };
+  return { state, stats, loadCampaignStructures, processFiles, addLibraryCreatives, runMatching, acceptMatch, rejectMatch, clearRejection, clearAcceptedMatch, removeAsset, clearAll, saveMatches };
 }
 
 // Helper functions
