@@ -741,10 +741,12 @@ export function useCreativeMatching(campaignId?: string) {
     });
   }, [campaignId]);
 
+  // Use composite key: assetId:structureId so each asset-structure pair is independent
   const acceptMatch = useCallback((assetId: string, match: UICreativeMatch) => {
+    const compositeKey = `${assetId}:${match.structure.id}`;
     setState(prev => {
       const newAccepted = new Map(prev.acceptedMatches);
-      newAccepted.set(assetId, match);
+      newAccepted.set(compositeKey, match);
       return { ...prev, acceptedMatches: newAccepted };
     });
   }, []);
@@ -768,10 +770,21 @@ export function useCreativeMatching(campaignId?: string) {
     });
   }, []);
 
-  const clearAcceptedMatch = useCallback((assetId: string) => {
+  // Clear accepted match using composite key: assetId:structureId
+  const clearAcceptedMatch = useCallback((assetId: string, structureId?: string) => {
     setState(prev => {
       const newAccepted = new Map(prev.acceptedMatches);
-      newAccepted.delete(assetId);
+      if (structureId) {
+        // Clear specific asset-structure pair
+        newAccepted.delete(`${assetId}:${structureId}`);
+      } else {
+        // Clear all matches for this asset (backward compatibility)
+        for (const key of newAccepted.keys()) {
+          if (key.startsWith(`${assetId}:`)) {
+            newAccepted.delete(key);
+          }
+        }
+      }
       return { ...prev, acceptedMatches: newAccepted };
     });
   }, []);
@@ -799,7 +812,9 @@ export function useCreativeMatching(campaignId?: string) {
 
     try {
       const assignments: any[] = [];
-      for (const [assetId, match] of state.acceptedMatches) {
+      for (const [compositeKey, match] of state.acceptedMatches) {
+        // Parse composite key: assetId:structureId
+        const assetId = compositeKey.split(':')[0];
         const asset = state.assets.find(a => a.id === assetId);
         if (!asset) continue;
 
