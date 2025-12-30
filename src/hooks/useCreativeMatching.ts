@@ -947,7 +947,8 @@ function extractInferredSignals(filePath: string, fileName: string): InferredSig
   const platformPatterns: Record<string, string> = {
     'meta': 'meta', 'facebook': 'meta', 'instagram': 'meta',
     'tiktok': 'tiktok',
-    'google': 'google', 'youtube': 'google', 'gdn': 'google',
+    'google': 'google', 'youtube': 'google', 'gdn': 'google', 'pmax': 'google',
+    'dv360': 'dv360', 'programmatic': 'dv360',
     'snapchat': 'snapchat', 'snap': 'snapchat',
     'linkedin': 'linkedin',
     'pinterest': 'pinterest'
