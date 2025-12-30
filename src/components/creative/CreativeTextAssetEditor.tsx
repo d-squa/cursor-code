@@ -1,8 +1,7 @@
-// Creative Text Asset Editor - Excel-like grid for editing creative copy
-// Shows hierarchical structure: ActiPlan > Platform > Market > Phase > Ad Set > Creative
+// Creative Text Asset Editor - Excel-like grid with hierarchical paste
+// Simplified flat table with collapsible group rows
 
-import { useState, useCallback, useMemo, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -10,35 +9,29 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { 
   ChevronDown, 
   ChevronRight, 
   Image, 
   Video, 
   AlertCircle, 
-  Check, 
-  Link2, 
-  Tag, 
-  ExternalLink,
-  Copy,
-  Wand2,
-  Save
+  Clipboard,
+  Save,
+  Layers,
+  Globe,
+  Target,
+  LayoutGrid
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { 
   CreativeTextAssetRow, 
-  UtmConfig,
   TextAssetFieldConfig 
 } from '@/types/creativeTextAssets';
 import { 
   PLATFORM_TEXT_FIELDS, 
   PLATFORM_CTAS, 
   validateTextAssetRow,
-  generateAutoUtm,
-  buildUrlWithUtm,
   getCharacterStatus
 } from '@/types/creativeTextAssets';
 import type { CallToAction, Platform } from '@/types/creative';
@@ -52,530 +45,118 @@ interface CreativeTextAssetEditorProps {
   isSaving: boolean;
 }
 
-// Grouped structure for hierarchical display
-interface GroupedStructure {
-  platform: string;
-  markets: {
-    market: string;
-    phases: {
-      phase: string;
-      adSets: {
-        adSet: string;
-        rows: CreativeTextAssetRow[];
-      }[];
-    }[];
-  }[];
+// Hierarchy types
+type HierarchyLevel = 'campaign' | 'platform' | 'market' | 'phase' | 'adset' | 'creative';
+
+interface HierarchyNode {
+  level: HierarchyLevel;
+  key: string;
+  label: string;
+  parentKey?: string;
+  rowIds: string[];
+  childCount: number;
 }
 
-// Group rows by hierarchy
-function groupRows(rows: CreativeTextAssetRow[]): GroupedStructure[] {
-  const platformMap = new Map<string, Map<string, Map<string, Map<string, CreativeTextAssetRow[]>>>>();
-  
+// Build flat hierarchy with all levels
+function buildHierarchy(rows: CreativeTextAssetRow[]): { nodes: HierarchyNode[]; rowsByKey: Map<string, CreativeTextAssetRow> } {
+  const rowsByKey = new Map<string, CreativeTextAssetRow>();
+  rows.forEach(r => rowsByKey.set(r.id, r));
+
+  const nodes: HierarchyNode[] = [];
+  const platformSet = new Set<string>();
+  const marketSet = new Set<string>();
+  const phaseSet = new Set<string>();
+  const adsetSet = new Set<string>();
+
+  // Group rows
   for (const row of rows) {
-    if (!platformMap.has(row.platform)) {
-      platformMap.set(row.platform, new Map());
-    }
-    const marketMap = platformMap.get(row.platform)!;
-    
-    if (!marketMap.has(row.market)) {
-      marketMap.set(row.market, new Map());
-    }
-    const phaseMap = marketMap.get(row.market)!;
-    
-    if (!phaseMap.has(row.phase)) {
-      phaseMap.set(row.phase, new Map());
-    }
-    const adSetMap = phaseMap.get(row.phase)!;
-    
-    if (!adSetMap.has(row.adSet)) {
-      adSetMap.set(row.adSet, []);
-    }
-    adSetMap.get(row.adSet)!.push(row);
+    platformSet.add(row.platform);
+    marketSet.add(`${row.platform}|${row.market}`);
+    phaseSet.add(`${row.platform}|${row.market}|${row.phase}`);
+    adsetSet.add(`${row.platform}|${row.market}|${row.phase}|${row.adSet}`);
   }
-  
-  const result: GroupedStructure[] = [];
-  for (const [platform, marketMap] of platformMap) {
-    const markets = [];
-    for (const [market, phaseMap] of marketMap) {
-      const phases = [];
-      for (const [phase, adSetMap] of phaseMap) {
-        const adSets = [];
-        for (const [adSet, groupRows] of adSetMap) {
-          adSets.push({ adSet, rows: groupRows });
-        }
-        phases.push({ phase, adSets });
-      }
-      markets.push({ market, phases });
-    }
-    result.push({ platform, markets });
+
+  // Platform nodes
+  for (const platform of platformSet) {
+    const platformRows = rows.filter(r => r.platform === platform);
+    nodes.push({
+      level: 'platform',
+      key: `platform:${platform}`,
+      label: platform,
+      rowIds: platformRows.map(r => r.id),
+      childCount: platformRows.length
+    });
   }
-  
-  return result;
-}
 
-// Character counter component with visual feedback
-function CharacterCounter({ 
-  value, 
-  field 
-}: { 
-  value: string; 
-  field: TextAssetFieldConfig;
-}) {
-  if (!field.maxLength) return null;
-  
-  const length = value?.length || 0;
-  const status = getCharacterStatus(value || '', field);
-  
-  const statusColors = {
-    ok: 'text-muted-foreground',
-    warning: 'text-amber-500',
-    error: 'text-destructive',
-    over: 'text-destructive font-semibold'
-  };
-  
-  return (
-    <div className={cn('text-[10px] mt-0.5 flex items-center gap-1', statusColors[status])}>
-      <span>{length}</span>
-      <span>/</span>
-      <span>{field.maxLength}</span>
-      {field.recommendedLength && length > field.recommendedLength && length <= field.maxLength && (
-        <span className="text-amber-500">(rec: {field.recommendedLength})</span>
-      )}
-      {status === 'over' && (
-        <AlertCircle className="h-3 w-3 inline ml-0.5" />
-      )}
-    </div>
-  );
-}
-
-// Cell editor component with character limit indicator
-function CellEditor({ 
-  value, 
-  field,
-  platform,
-  onChange,
-  onBlur,
-  showCounter = true
-}: { 
-  value: string;
-  field: TextAssetFieldConfig;
-  platform: Platform;
-  onChange: (value: string) => void;
-  onBlur?: () => void;
-  showCounter?: boolean;
-}) {
-  const status = getCharacterStatus(value || '', field);
-  const isOverLimit = status === 'over';
-  
-  if (field.id === 'callToAction') {
-    const ctas = PLATFORM_CTAS[platform] || PLATFORM_CTAS.meta;
-    return (
-      <Select value={value} onValueChange={onChange}>
-        <SelectTrigger className="h-8 text-xs">
-          <SelectValue placeholder="Select CTA" />
-        </SelectTrigger>
-        <SelectContent className="bg-popover z-50">
-          {ctas.map(cta => (
-            <SelectItem key={cta} value={cta} className="text-xs">
-              {cta.replace(/_/g, ' ')}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    );
+  // Market nodes
+  for (const marketKey of marketSet) {
+    const [platform, market] = marketKey.split('|');
+    const marketRows = rows.filter(r => r.platform === platform && r.market === market);
+    nodes.push({
+      level: 'market',
+      key: `market:${marketKey}`,
+      label: market,
+      parentKey: `platform:${platform}`,
+      rowIds: marketRows.map(r => r.id),
+      childCount: marketRows.length
+    });
   }
-  
-  if (field.multiline) {
-    return (
-      <div className="space-y-0.5">
-        <textarea
-          value={value || ''}
-          onChange={(e) => onChange(e.target.value)}
-          onBlur={onBlur}
-          placeholder={field.placeholder}
-          className={cn(
-            "w-full h-16 px-2 py-1 text-xs border rounded resize-none focus:outline-none focus:ring-1 focus:ring-primary bg-background",
-            isOverLimit && "border-destructive focus:ring-destructive",
-            status === 'warning' && "border-amber-500/50"
-          )}
-        />
-        {showCounter && <CharacterCounter value={value || ''} field={field} />}
-      </div>
-    );
+
+  // Phase nodes
+  for (const phaseKey of phaseSet) {
+    const [platform, market, phase] = phaseKey.split('|');
+    const phaseRows = rows.filter(r => r.platform === platform && r.market === market && r.phase === phase);
+    nodes.push({
+      level: 'phase',
+      key: `phase:${phaseKey}`,
+      label: phase,
+      parentKey: `market:${platform}|${market}`,
+      rowIds: phaseRows.map(r => r.id),
+      childCount: phaseRows.length
+    });
   }
-  
-  return (
-    <div className="space-y-0.5">
-      <Input
-        value={value || ''}
-        onChange={(e) => onChange(e.target.value)}
-        onBlur={onBlur}
-        placeholder={field.placeholder}
-        className={cn(
-          "h-8 text-xs",
-          isOverLimit && "border-destructive focus:ring-destructive",
-          status === 'warning' && "border-amber-500/50"
-        )}
-      />
-      {showCounter && field.maxLength && <CharacterCounter value={value || ''} field={field} />}
-    </div>
-  );
+
+  // AdSet nodes
+  for (const adsetKey of adsetSet) {
+    const [platform, market, phase, adSet] = adsetKey.split('|');
+    const adsetRows = rows.filter(r => r.platform === platform && r.market === market && r.phase === phase && r.adSet === adSet);
+    nodes.push({
+      level: 'adset',
+      key: `adset:${adsetKey}`,
+      label: adSet,
+      parentKey: `phase:${platform}|${market}|${phase}`,
+      rowIds: adsetRows.map(r => r.id),
+      childCount: adsetRows.length
+    });
+  }
+
+  return { nodes, rowsByKey };
 }
 
-// Row editor component
-function RowEditor({ 
-  row, 
-  onRowChange,
-  isSelected,
-  onSelect
-}: { 
-  row: CreativeTextAssetRow;
-  onRowChange: (updates: Partial<CreativeTextAssetRow>) => void;
-  isSelected: boolean;
-  onSelect: (selected: boolean) => void;
-}) {
-  const platform = row.platform.toLowerCase() as Platform;
-  const fields = PLATFORM_TEXT_FIELDS[platform] || PLATFORM_TEXT_FIELDS.meta;
-  const errors = validateTextAssetRow(row);
-  const hasErrors = errors.length > 0;
-  
-  return (
-    <TableRow className={cn(
-      hasErrors && "bg-destructive/5",
-      isSelected && "bg-primary/5"
-    )}>
-      <TableCell className="w-10">
-        <Checkbox checked={isSelected} onCheckedChange={onSelect} />
-      </TableCell>
-      <TableCell className="min-w-[180px]">
-        <div className="flex items-center gap-2">
-          {row.mediaType === 'video' ? (
-            <Video className="h-4 w-4 text-muted-foreground" />
-          ) : (
-            <Image className="h-4 w-4 text-muted-foreground" />
-          )}
-          <span className="text-xs font-medium truncate" title={row.creativeName}>
-            {row.creativeName}
-          </span>
-          {hasErrors && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger>
-                  <AlertCircle className="h-3.5 w-3.5 text-destructive" />
-                </TooltipTrigger>
-                <TooltipContent side="right" className="max-w-xs">
-                  <ul className="text-xs space-y-1">
-                    {errors.map((err, i) => (
-                      <li key={i}>{err}</li>
-                    ))}
-                  </ul>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
-        </div>
-      </TableCell>
-      
-      {/* Primary Text */}
-      <TableCell className="min-w-[200px]">
-        <CellEditor
-          value={row.primaryText}
-          field={fields.find(f => f.id === 'primaryText') || { id: 'primaryText', label: 'Primary Text', required: true }}
-          platform={platform}
-          onChange={(value) => onRowChange({ primaryText: value })}
-        />
-      </TableCell>
-      
-      {/* Headline */}
-      <TableCell className="min-w-[150px]">
-        <CellEditor
-          value={row.headline}
-          field={fields.find(f => f.id === 'headline') || { id: 'headline', label: 'Headline', required: false }}
-          platform={platform}
-          onChange={(value) => onRowChange({ headline: value })}
-        />
-      </TableCell>
-      
-      {/* Description */}
-      <TableCell className="min-w-[150px]">
-        <CellEditor
-          value={row.description}
-          field={fields.find(f => f.id === 'description') || { id: 'description', label: 'Description', required: false }}
-          platform={platform}
-          onChange={(value) => onRowChange({ description: value })}
-        />
-      </TableCell>
-      
-      {/* CTA */}
-      <TableCell className="min-w-[120px]">
-        <CellEditor
-          value={row.callToAction}
-          field={{ id: 'callToAction', label: 'CTA', required: true }}
-          platform={platform}
-          onChange={(value) => onRowChange({ callToAction: value as CallToAction })}
-        />
-      </TableCell>
-      
-      {/* Destination URL */}
-      <TableCell className="min-w-[200px]">
-        <Input
-          value={row.destinationUrl}
-          onChange={(e) => onRowChange({ destinationUrl: e.target.value })}
-          placeholder="https://"
-          className="h-8 text-xs"
-        />
-      </TableCell>
-      
-      {/* Auto UTM Toggle */}
-      <TableCell className="w-20">
-        <div className="flex items-center justify-center">
-          <Checkbox
-            checked={row.autoBuildUtm}
-            onCheckedChange={(checked) => onRowChange({ autoBuildUtm: checked === true })}
-          />
-        </div>
-      </TableCell>
-      
-      {/* Click Tracker */}
-      <TableCell className="min-w-[150px]">
-        <Input
-          value={row.clickTracker || ''}
-          onChange={(e) => onRowChange({ clickTracker: e.target.value })}
-          placeholder="Click tracker URL"
-          className="h-8 text-xs"
-        />
-      </TableCell>
-      
-      {/* Impression Tracker */}
-      <TableCell className="min-w-[150px]">
-        <Input
-          value={row.impressionTracker || ''}
-          onChange={(e) => onRowChange({ impressionTracker: e.target.value })}
-          placeholder="Impression tracker URL"
-          className="h-8 text-xs"
-        />
-      </TableCell>
-    </TableRow>
-  );
+// Parse clipboard text (tab-separated values from Excel)
+function parseClipboardData(text: string): { primaryText?: string; headline?: string; description?: string; callToAction?: string; destinationUrl?: string }[] {
+  const lines = text.trim().split('\n');
+  return lines.map(line => {
+    const cols = line.split('\t');
+    return {
+      primaryText: cols[0]?.trim() || undefined,
+      headline: cols[1]?.trim() || undefined,
+      description: cols[2]?.trim() || undefined,
+      callToAction: cols[3]?.trim() || undefined,
+      destinationUrl: cols[4]?.trim() || undefined,
+    };
+  });
 }
 
-// Ad Set group section
-function AdSetSection({ 
-  adSet, 
-  rows,
-  selectedIds,
-  onRowChange,
-  onSelectRow,
-  defaultExpanded = true
-}: { 
-  adSet: string;
-  rows: CreativeTextAssetRow[];
-  selectedIds: Set<string>;
-  onRowChange: (id: string, updates: Partial<CreativeTextAssetRow>) => void;
-  onSelectRow: (id: string, selected: boolean) => void;
-  defaultExpanded?: boolean;
-}) {
-  const [isOpen, setIsOpen] = useState(defaultExpanded);
-  const validCount = rows.filter(r => validateTextAssetRow(r).length === 0).length;
-  
+// Character counter
+function CharCounter({ value, maxLength }: { value: string; maxLength?: number }) {
+  if (!maxLength) return null;
+  const len = value?.length || 0;
+  const isOver = len > maxLength;
   return (
-    <Collapsible open={isOpen} onOpenChange={setIsOpen} className="border rounded-lg mb-2">
-      <CollapsibleTrigger className="w-full px-3 py-2 flex items-center justify-between hover:bg-muted/50">
-        <div className="flex items-center gap-2">
-          {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-          <span className="text-sm font-medium">{adSet}</span>
-          <Badge variant="secondary" className="text-xs">
-            {rows.length} creative{rows.length !== 1 ? 's' : ''}
-          </Badge>
-        </div>
-        <div className="flex items-center gap-2">
-          {validCount === rows.length ? (
-            <Badge className="bg-emerald-500 text-xs">
-              <Check className="h-3 w-3 mr-1" />
-              Ready
-            </Badge>
-          ) : (
-            <Badge variant="outline" className="text-xs">
-              {validCount}/{rows.length} valid
-            </Badge>
-          )}
-        </div>
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-10"></TableHead>
-                <TableHead className="min-w-[180px]">Creative</TableHead>
-                <TableHead className="min-w-[200px]">Primary Text</TableHead>
-                <TableHead className="min-w-[150px]">Headline</TableHead>
-                <TableHead className="min-w-[150px]">Description</TableHead>
-                <TableHead className="min-w-[120px]">CTA</TableHead>
-                <TableHead className="min-w-[200px]">Destination URL</TableHead>
-                <TableHead className="w-20 text-center">Auto UTM</TableHead>
-                <TableHead className="min-w-[150px]">Click Tracker</TableHead>
-                <TableHead className="min-w-[150px]">Impression Tracker</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map(row => (
-                <RowEditor
-                  key={row.id}
-                  row={row}
-                  onRowChange={(updates) => onRowChange(row.id, updates)}
-                  isSelected={selectedIds.has(row.id)}
-                  onSelect={(selected) => onSelectRow(row.id, selected)}
-                />
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </CollapsibleContent>
-    </Collapsible>
-  );
-}
-
-// Phase group section
-function PhaseSection({ 
-  phase, 
-  adSets,
-  selectedIds,
-  onRowChange,
-  onSelectRow
-}: { 
-  phase: string;
-  adSets: { adSet: string; rows: CreativeTextAssetRow[] }[];
-  selectedIds: Set<string>;
-  onRowChange: (id: string, updates: Partial<CreativeTextAssetRow>) => void;
-  onSelectRow: (id: string, selected: boolean) => void;
-}) {
-  const [isOpen, setIsOpen] = useState(true);
-  const totalCreatives = adSets.reduce((sum, as) => sum + as.rows.length, 0);
-  
-  return (
-    <Collapsible open={isOpen} onOpenChange={setIsOpen} className="mb-3">
-      <CollapsibleTrigger className="w-full px-4 py-2 flex items-center gap-2 bg-muted/30 rounded-lg hover:bg-muted/50">
-        {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-        <span className="font-medium">{phase}</span>
-        <Badge variant="outline" className="text-xs ml-auto">
-          {adSets.length} ad set{adSets.length !== 1 ? 's' : ''} • {totalCreatives} creative{totalCreatives !== 1 ? 's' : ''}
-        </Badge>
-      </CollapsibleTrigger>
-      <CollapsibleContent className="pl-4 mt-2">
-        {adSets.map(({ adSet, rows }) => (
-          <AdSetSection
-            key={adSet}
-            adSet={adSet}
-            rows={rows}
-            selectedIds={selectedIds}
-            onRowChange={onRowChange}
-            onSelectRow={onSelectRow}
-          />
-        ))}
-      </CollapsibleContent>
-    </Collapsible>
-  );
-}
-
-// Market group section
-function MarketSection({ 
-  market, 
-  phases,
-  selectedIds,
-  onRowChange,
-  onSelectRow
-}: { 
-  market: string;
-  phases: { phase: string; adSets: { adSet: string; rows: CreativeTextAssetRow[] }[] }[];
-  selectedIds: Set<string>;
-  onRowChange: (id: string, updates: Partial<CreativeTextAssetRow>) => void;
-  onSelectRow: (id: string, selected: boolean) => void;
-}) {
-  const [isOpen, setIsOpen] = useState(true);
-  
-  return (
-    <Collapsible open={isOpen} onOpenChange={setIsOpen} className="mb-4">
-      <CollapsibleTrigger className="w-full px-4 py-2.5 flex items-center gap-2 bg-muted/50 rounded-lg hover:bg-muted/70">
-        {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-        <span className="font-semibold">{market}</span>
-        <Badge variant="secondary" className="ml-auto">
-          {phases.length} phase{phases.length !== 1 ? 's' : ''}
-        </Badge>
-      </CollapsibleTrigger>
-      <CollapsibleContent className="pl-4 mt-2">
-        {phases.map(({ phase, adSets }) => (
-          <PhaseSection
-            key={phase}
-            phase={phase}
-            adSets={adSets}
-            selectedIds={selectedIds}
-            onRowChange={onRowChange}
-            onSelectRow={onSelectRow}
-          />
-        ))}
-      </CollapsibleContent>
-    </Collapsible>
-  );
-}
-
-// Platform group section
-function PlatformSection({ 
-  platform, 
-  markets,
-  selectedIds,
-  onRowChange,
-  onSelectRow
-}: { 
-  platform: string;
-  markets: { market: string; phases: { phase: string; adSets: { adSet: string; rows: CreativeTextAssetRow[] }[] }[] }[];
-  selectedIds: Set<string>;
-  onRowChange: (id: string, updates: Partial<CreativeTextAssetRow>) => void;
-  onSelectRow: (id: string, selected: boolean) => void;
-}) {
-  const [isOpen, setIsOpen] = useState(true);
-  
-  const platformIcon = {
-    meta: '📘',
-    tiktok: '🎵',
-    google: '🔍',
-    linkedin: '💼',
-    snapchat: '👻',
-    pinterest: '📌',
-    x: '✖️',
-  }[platform.toLowerCase()] || '📱';
-  
-  return (
-    <Card className="mb-4">
-      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-        <CollapsibleTrigger asChild>
-          <CardHeader className="cursor-pointer hover:bg-muted/30">
-            <div className="flex items-center gap-3">
-              {isOpen ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
-              <span className="text-xl">{platformIcon}</span>
-              <CardTitle className="capitalize">{platform}</CardTitle>
-              <Badge className="ml-auto">
-                {markets.length} market{markets.length !== 1 ? 's' : ''}
-              </Badge>
-            </div>
-          </CardHeader>
-        </CollapsibleTrigger>
-        <CollapsibleContent>
-          <CardContent>
-            {markets.map(({ market, phases }) => (
-              <MarketSection
-                key={market}
-                market={market}
-                phases={phases}
-                selectedIds={selectedIds}
-                onRowChange={onRowChange}
-                onSelectRow={onSelectRow}
-              />
-            ))}
-          </CardContent>
-        </CollapsibleContent>
-      </Collapsible>
-    </Card>
+    <span className={cn("text-[10px] ml-1", isOver ? "text-destructive" : "text-muted-foreground")}>
+      {len}/{maxLength}
+    </span>
   );
 }
 
@@ -587,94 +168,191 @@ export function CreativeTextAssetEditor({
   onSave,
   isSaving
 }: CreativeTextAssetEditorProps) {
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [bulkCta, setBulkCta] = useState<string>('');
-  const [bulkUrl, setBulkUrl] = useState<string>('');
-  
-  const groupedData = useMemo(() => groupRows(rows), [rows]);
+  const tableRef = useRef<HTMLDivElement>(null);
+
+  const { nodes, rowsByKey } = useMemo(() => buildHierarchy(rows), [rows]);
   
   const validCount = useMemo(() => 
     rows.filter(r => validateTextAssetRow(r).length === 0).length
   , [rows]);
-  
-  const handleSelectRow = useCallback((id: string, selected: boolean) => {
-    setSelectedIds(prev => {
+
+  // Toggle collapse
+  const toggleCollapse = useCallback((key: string) => {
+    setCollapsed(prev => {
       const next = new Set(prev);
-      if (selected) {
-        next.add(id);
+      if (next.has(key)) {
+        next.delete(key);
       } else {
-        next.delete(id);
+        next.add(key);
       }
       return next;
     });
   }, []);
-  
-  const handleSelectAll = useCallback(() => {
-    if (selectedIds.size === rows.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(rows.map(r => r.id)));
+
+  // Check if a node should be visible (all ancestors expanded)
+  const isNodeVisible = useCallback((node: HierarchyNode): boolean => {
+    if (!node.parentKey) return true;
+    if (collapsed.has(node.parentKey)) return false;
+    const parent = nodes.find(n => n.key === node.parentKey);
+    return parent ? isNodeVisible(parent) : true;
+  }, [collapsed, nodes]);
+
+  // Check if creative row should be visible
+  const isCreativeVisible = useCallback((row: CreativeTextAssetRow): boolean => {
+    const adsetKey = `adset:${row.platform}|${row.market}|${row.phase}|${row.adSet}`;
+    if (collapsed.has(adsetKey)) return false;
+    
+    const phaseKey = `phase:${row.platform}|${row.market}|${row.phase}`;
+    if (collapsed.has(phaseKey)) return false;
+    
+    const marketKey = `market:${row.platform}|${row.market}`;
+    if (collapsed.has(marketKey)) return false;
+    
+    const platformKey = `platform:${row.platform}`;
+    if (collapsed.has(platformKey)) return false;
+    
+    return true;
+  }, [collapsed]);
+
+  // Paste handler for a group
+  const handlePasteToGroup = useCallback(async (rowIds: string[], level: HierarchyLevel) => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text.trim()) {
+        toast.error('Clipboard is empty');
+        return;
+      }
+
+      const parsed = parseClipboardData(text);
+      if (parsed.length === 0) {
+        toast.error('No valid data in clipboard');
+        return;
+      }
+
+      // Apply first row to all if only one row pasted, otherwise map 1:1
+      if (parsed.length === 1) {
+        const updates: Partial<CreativeTextAssetRow> = {};
+        if (parsed[0].primaryText) updates.primaryText = parsed[0].primaryText;
+        if (parsed[0].headline) updates.headline = parsed[0].headline;
+        if (parsed[0].description) updates.description = parsed[0].description;
+        if (parsed[0].callToAction) updates.callToAction = parsed[0].callToAction as CallToAction;
+        if (parsed[0].destinationUrl) updates.destinationUrl = parsed[0].destinationUrl;
+        
+        onBulkUpdate(rowIds, updates);
+        toast.success(`Pasted to ${rowIds.length} creatives`);
+      } else {
+        // Map each pasted row to corresponding creative
+        const count = Math.min(parsed.length, rowIds.length);
+        for (let i = 0; i < count; i++) {
+          const updates: Partial<CreativeTextAssetRow> = {};
+          if (parsed[i].primaryText) updates.primaryText = parsed[i].primaryText;
+          if (parsed[i].headline) updates.headline = parsed[i].headline;
+          if (parsed[i].description) updates.description = parsed[i].description;
+          if (parsed[i].callToAction) updates.callToAction = parsed[i].callToAction as CallToAction;
+          if (parsed[i].destinationUrl) updates.destinationUrl = parsed[i].destinationUrl;
+          onRowChange(rowIds[i], updates);
+        }
+        toast.success(`Pasted ${count} rows`);
+      }
+    } catch (err) {
+      toast.error('Failed to read clipboard');
     }
-  }, [rows, selectedIds.size]);
-  
-  const handleBulkApply = useCallback(() => {
-    if (selectedIds.size === 0) {
-      toast.error('Select rows first');
-      return;
+  }, [onBulkUpdate, onRowChange]);
+
+  // Level icons
+  const getLevelIcon = (level: HierarchyLevel) => {
+    switch (level) {
+      case 'platform': return <Layers className="h-4 w-4" />;
+      case 'market': return <Globe className="h-4 w-4" />;
+      case 'phase': return <Target className="h-4 w-4" />;
+      case 'adset': return <LayoutGrid className="h-4 w-4" />;
+      default: return null;
+    }
+  };
+
+  // Level indentation
+  const getLevelIndent = (level: HierarchyLevel) => {
+    switch (level) {
+      case 'platform': return 'pl-2';
+      case 'market': return 'pl-8';
+      case 'phase': return 'pl-14';
+      case 'adset': return 'pl-20';
+      case 'creative': return 'pl-26';
+      default: return '';
+    }
+  };
+
+  // Level background colors
+  const getLevelBg = (level: HierarchyLevel) => {
+    switch (level) {
+      case 'platform': return 'bg-primary/10';
+      case 'market': return 'bg-secondary/50';
+      case 'phase': return 'bg-muted/50';
+      case 'adset': return 'bg-muted/30';
+      default: return '';
+    }
+  };
+
+  // Build visible rows for table
+  const visibleItems = useMemo(() => {
+    const items: { type: 'node' | 'row'; data: HierarchyNode | CreativeTextAssetRow }[] = [];
+    
+    // Sort nodes by hierarchy order
+    const platformNodes = nodes.filter(n => n.level === 'platform').sort((a, b) => a.label.localeCompare(b.label));
+    
+    for (const platformNode of platformNodes) {
+      items.push({ type: 'node', data: platformNode });
+      if (collapsed.has(platformNode.key)) continue;
+      
+      const marketNodes = nodes.filter(n => n.level === 'market' && n.parentKey === platformNode.key).sort((a, b) => a.label.localeCompare(b.label));
+      for (const marketNode of marketNodes) {
+        items.push({ type: 'node', data: marketNode });
+        if (collapsed.has(marketNode.key)) continue;
+        
+        const phaseNodes = nodes.filter(n => n.level === 'phase' && n.parentKey === marketNode.key).sort((a, b) => a.label.localeCompare(b.label));
+        for (const phaseNode of phaseNodes) {
+          items.push({ type: 'node', data: phaseNode });
+          if (collapsed.has(phaseNode.key)) continue;
+          
+          const adsetNodes = nodes.filter(n => n.level === 'adset' && n.parentKey === phaseNode.key).sort((a, b) => a.label.localeCompare(b.label));
+          for (const adsetNode of adsetNodes) {
+            items.push({ type: 'node', data: adsetNode });
+            if (collapsed.has(adsetNode.key)) continue;
+            
+            // Add creative rows for this adset
+            const adsetRows = adsetNode.rowIds.map(id => rowsByKey.get(id)!).filter(Boolean);
+            for (const row of adsetRows) {
+              items.push({ type: 'row', data: row });
+            }
+          }
+        }
+      }
     }
     
-    const updates: Partial<CreativeTextAssetRow> = {};
-    if (bulkCta) updates.callToAction = bulkCta as CallToAction;
-    if (bulkUrl) updates.destinationUrl = bulkUrl;
-    
-    if (Object.keys(updates).length === 0) {
-      toast.error('Enter values to apply');
-      return;
-    }
-    
-    onBulkUpdate(Array.from(selectedIds), updates);
-    toast.success(`Updated ${selectedIds.size} rows`);
-    setBulkCta('');
-    setBulkUrl('');
-  }, [selectedIds, bulkCta, bulkUrl, onBulkUpdate]);
-  
-  const handleAutoUtmAll = useCallback(() => {
-    const ids = selectedIds.size > 0 ? Array.from(selectedIds) : rows.map(r => r.id);
-    onBulkUpdate(ids, { autoBuildUtm: true });
-    toast.success(`Enabled auto UTM for ${ids.length} rows`);
-  }, [selectedIds, rows, onBulkUpdate]);
-  
-  const handleCopyFromFirst = useCallback(() => {
-    if (selectedIds.size < 2) {
-      toast.error('Select at least 2 rows');
-      return;
-    }
-    
-    const ids = Array.from(selectedIds);
-    const firstRow = rows.find(r => r.id === ids[0]);
-    if (!firstRow) return;
-    
-    const updates: Partial<CreativeTextAssetRow> = {
-      primaryText: firstRow.primaryText,
-      headline: firstRow.headline,
-      description: firstRow.description,
-      callToAction: firstRow.callToAction,
-      destinationUrl: firstRow.destinationUrl,
-      autoBuildUtm: firstRow.autoBuildUtm,
-    };
-    
-    onBulkUpdate(ids.slice(1), updates);
-    toast.success(`Copied to ${ids.length - 1} rows`);
-  }, [selectedIds, rows, onBulkUpdate]);
-  
+    return items;
+  }, [nodes, collapsed, rowsByKey]);
+
+  // Handle cell input change
+  const handleCellChange = useCallback((rowId: string, field: keyof CreativeTextAssetRow, value: string) => {
+    onRowChange(rowId, { [field]: value });
+  }, [onRowChange]);
+
+  // Get field config for platform
+  const getFieldConfig = (platform: string, fieldId: string): TextAssetFieldConfig | undefined => {
+    const fields = PLATFORM_TEXT_FIELDS[platform.toLowerCase() as Platform] || PLATFORM_TEXT_FIELDS.meta;
+    return fields.find(f => f.id === fieldId);
+  };
+
   return (
-    <div className="space-y-4">
+    <div className="h-full flex flex-col bg-background">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between px-4 py-3 border-b bg-card shrink-0">
         <div>
-          <h3 className="text-lg font-semibold">Creative Text Assets</h3>
+          <h3 className="text-lg font-semibold">Text Asset Editor</h3>
           <p className="text-sm text-muted-foreground">
-            Configure copy, CTAs, and tracking for {rows.length} creatives
+            {rows.length} creatives • Paste from Excel: Primary Text, Headline, Description, CTA, URL (tab-separated)
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -682,9 +360,7 @@ export function CreativeTextAssetEditor({
             {validCount}/{rows.length} ready
           </Badge>
           <Button onClick={onSave} disabled={isSaving || validCount === 0}>
-            {isSaving ? (
-              <>Saving...</>
-            ) : (
+            {isSaving ? 'Saving...' : (
               <>
                 <Save className="h-4 w-4 mr-2" />
                 Save & Continue
@@ -693,73 +369,207 @@ export function CreativeTextAssetEditor({
           </Button>
         </div>
       </div>
-      
-      {/* Bulk actions toolbar */}
-      <Card className="p-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2">
-            <Checkbox
-              checked={selectedIds.size === rows.length && rows.length > 0}
-              onCheckedChange={handleSelectAll}
-            />
-            <span className="text-sm text-muted-foreground">
-              {selectedIds.size} selected
-            </span>
+
+      {/* Excel-like grid */}
+      <div className="flex-1 overflow-hidden" ref={tableRef}>
+        <ScrollArea className="h-full">
+          <div className="min-w-[1400px]">
+            {/* Table header */}
+            <div className="sticky top-0 z-10 bg-muted border-b grid grid-cols-[300px_200px_150px_150px_120px_200px_100px] gap-px font-medium text-sm">
+              <div className="px-3 py-2 bg-muted">Creative / Group</div>
+              <div className="px-3 py-2 bg-muted">Primary Text</div>
+              <div className="px-3 py-2 bg-muted">Headline</div>
+              <div className="px-3 py-2 bg-muted">Description</div>
+              <div className="px-3 py-2 bg-muted">CTA</div>
+              <div className="px-3 py-2 bg-muted">Destination URL</div>
+              <div className="px-3 py-2 bg-muted text-center">Auto UTM</div>
+            </div>
+
+            {/* Table body */}
+            <div className="divide-y">
+              {visibleItems.map((item, idx) => {
+                if (item.type === 'node') {
+                  const node = item.data as HierarchyNode;
+                  const isCollapsed = collapsed.has(node.key);
+                  
+                  return (
+                    <div
+                      key={node.key}
+                      className={cn(
+                        "grid grid-cols-[300px_200px_150px_150px_120px_200px_100px] gap-px",
+                        getLevelBg(node.level),
+                        "hover:bg-accent/50 cursor-pointer"
+                      )}
+                    >
+                      <div
+                        className={cn("px-3 py-2 flex items-center gap-2", getLevelIndent(node.level))}
+                        onClick={() => toggleCollapse(node.key)}
+                      >
+                        {isCollapsed ? (
+                          <ChevronRight className="h-4 w-4 shrink-0" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 shrink-0" />
+                        )}
+                        {getLevelIcon(node.level)}
+                        <span className="font-medium truncate">{node.label}</span>
+                        <Badge variant="secondary" className="text-xs ml-auto shrink-0">
+                          {node.childCount}
+                        </Badge>
+                      </div>
+                      
+                      {/* Paste buttons spanning remaining columns */}
+                      <div className="col-span-6 px-3 py-2 flex items-center">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 text-xs"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handlePasteToGroup(node.rowIds, node.level);
+                                }}
+                              >
+                                <Clipboard className="h-3 w-3 mr-1" />
+                                Paste to all {node.level === 'adset' ? 'creatives' : `under this ${node.level}`}
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              Paste from clipboard to {node.childCount} creatives
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
+                    </div>
+                  );
+                } else {
+                  const row = item.data as CreativeTextAssetRow;
+                  const platform = row.platform.toLowerCase() as Platform;
+                  const errors = validateTextAssetRow(row);
+                  const hasErrors = errors.length > 0;
+                  const primaryField = getFieldConfig(row.platform, 'primaryText');
+                  const headlineField = getFieldConfig(row.platform, 'headline');
+                  const descField = getFieldConfig(row.platform, 'description');
+                  
+                  return (
+                    <div
+                      key={row.id}
+                      className={cn(
+                        "grid grid-cols-[300px_200px_150px_150px_120px_200px_100px] gap-px",
+                        hasErrors && "bg-destructive/5",
+                        "hover:bg-accent/20"
+                      )}
+                    >
+                      {/* Creative name */}
+                      <div className={cn("px-3 py-1.5 flex items-center gap-2", getLevelIndent('creative'))}>
+                        {row.mediaType === 'video' ? (
+                          <Video className="h-4 w-4 text-muted-foreground shrink-0" />
+                        ) : (
+                          <Image className="h-4 w-4 text-muted-foreground shrink-0" />
+                        )}
+                        <span className="text-sm truncate" title={row.creativeName}>
+                          {row.creativeName}
+                        </span>
+                        {hasErrors && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger>
+                                <AlertCircle className="h-3.5 w-3.5 text-destructive shrink-0" />
+                              </TooltipTrigger>
+                              <TooltipContent side="right" className="max-w-xs">
+                                <ul className="text-xs space-y-1">
+                                  {errors.map((err, i) => <li key={i}>{err}</li>)}
+                                </ul>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                      </div>
+                      
+                      {/* Primary Text */}
+                      <div className="px-1 py-1">
+                        <div className="flex items-center">
+                          <Input
+                            value={row.primaryText || ''}
+                            onChange={(e) => handleCellChange(row.id, 'primaryText', e.target.value)}
+                            className="h-7 text-xs border-transparent hover:border-input focus:border-input bg-transparent"
+                            placeholder="Primary text..."
+                          />
+                          <CharCounter value={row.primaryText || ''} maxLength={primaryField?.maxLength} />
+                        </div>
+                      </div>
+                      
+                      {/* Headline */}
+                      <div className="px-1 py-1">
+                        <div className="flex items-center">
+                          <Input
+                            value={row.headline || ''}
+                            onChange={(e) => handleCellChange(row.id, 'headline', e.target.value)}
+                            className="h-7 text-xs border-transparent hover:border-input focus:border-input bg-transparent"
+                            placeholder="Headline..."
+                          />
+                          <CharCounter value={row.headline || ''} maxLength={headlineField?.maxLength} />
+                        </div>
+                      </div>
+                      
+                      {/* Description */}
+                      <div className="px-1 py-1">
+                        <div className="flex items-center">
+                          <Input
+                            value={row.description || ''}
+                            onChange={(e) => handleCellChange(row.id, 'description', e.target.value)}
+                            className="h-7 text-xs border-transparent hover:border-input focus:border-input bg-transparent"
+                            placeholder="Description..."
+                          />
+                          <CharCounter value={row.description || ''} maxLength={descField?.maxLength} />
+                        </div>
+                      </div>
+                      
+                      {/* CTA */}
+                      <div className="px-1 py-1">
+                        <Select
+                          value={row.callToAction || ''}
+                          onValueChange={(v) => handleCellChange(row.id, 'callToAction', v)}
+                        >
+                          <SelectTrigger className="h-7 text-xs border-transparent hover:border-input bg-transparent">
+                            <SelectValue placeholder="CTA" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-popover z-50">
+                            {(PLATFORM_CTAS[platform] || PLATFORM_CTAS.meta).map(cta => (
+                              <SelectItem key={cta} value={cta} className="text-xs">
+                                {cta.replace(/_/g, ' ')}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      {/* URL */}
+                      <div className="px-1 py-1">
+                        <Input
+                          value={row.destinationUrl || ''}
+                          onChange={(e) => handleCellChange(row.id, 'destinationUrl', e.target.value)}
+                          className="h-7 text-xs border-transparent hover:border-input focus:border-input bg-transparent"
+                          placeholder="https://..."
+                        />
+                      </div>
+                      
+                      {/* Auto UTM */}
+                      <div className="px-3 py-1.5 flex items-center justify-center">
+                        <Checkbox
+                          checked={row.autoBuildUtm || false}
+                          onCheckedChange={(checked) => onRowChange(row.id, { autoBuildUtm: checked === true })}
+                        />
+                      </div>
+                    </div>
+                  );
+                }
+              })}
+            </div>
           </div>
-          
-          <div className="h-6 w-px bg-border" />
-          
-          <Select value={bulkCta} onValueChange={setBulkCta}>
-            <SelectTrigger className="w-[150px] h-8">
-              <SelectValue placeholder="Bulk CTA" />
-            </SelectTrigger>
-            <SelectContent>
-              {PLATFORM_CTAS.meta.map(cta => (
-                <SelectItem key={cta} value={cta} className="text-xs">
-                  {cta.replace(/_/g, ' ')}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          
-          <Input
-            value={bulkUrl}
-            onChange={(e) => setBulkUrl(e.target.value)}
-            placeholder="Bulk destination URL"
-            className="w-[200px] h-8"
-          />
-          
-          <Button size="sm" variant="secondary" onClick={handleBulkApply} disabled={selectedIds.size === 0}>
-            Apply to Selected
-          </Button>
-          
-          <div className="h-6 w-px bg-border" />
-          
-          <Button size="sm" variant="ghost" onClick={handleAutoUtmAll}>
-            <Tag className="h-4 w-4 mr-1" />
-            Auto UTM
-          </Button>
-          
-          <Button size="sm" variant="ghost" onClick={handleCopyFromFirst} disabled={selectedIds.size < 2}>
-            <Copy className="h-4 w-4 mr-1" />
-            Copy First to All
-          </Button>
-        </div>
-      </Card>
-      
-      {/* Hierarchical structure */}
-      <ScrollArea className="h-[500px] pr-4">
-        {groupedData.map(({ platform, markets }) => (
-          <PlatformSection
-            key={platform}
-            platform={platform}
-            markets={markets}
-            selectedIds={selectedIds}
-            onRowChange={onRowChange}
-            onSelectRow={handleSelectRow}
-          />
-        ))}
-      </ScrollArea>
+        </ScrollArea>
+      </div>
     </div>
   );
 }
