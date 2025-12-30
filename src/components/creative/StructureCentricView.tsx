@@ -377,6 +377,235 @@ function UnassignedAssetsPanel({ unassignedAssets }: { unassignedAssets: Unassig
   );
 }
 
+// Panel for assigned ad sets with matched creatives
+function AssignedAssetsPanel({ 
+  structureResults, 
+  acceptedMatches,
+  onAcceptAsset,
+  onRejectAsset,
+  onAcceptAll
+}: { 
+  structureResults: StructureMatchResult[];
+  acceptedMatches: Map<string, UICreativeMatch>;
+  onAcceptAsset: (assetId: string, structure: StructureMatchResult['structure']) => void;
+  onRejectAsset: (assetId: string, structureId: string) => void;
+  onAcceptAll: () => void;
+}) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [expandedAdSets, setExpandedAdSets] = useState<Set<string>>(new Set());
+  
+  const resultsWithAssets = structureResults.filter(r => r.assignedAssets.length > 0);
+  
+  if (resultsWithAssets.length === 0) return null;
+  
+  const totalAssigned = resultsWithAssets.reduce((sum, r) => sum + r.assignedAssets.length, 0);
+  const totalAccepted = resultsWithAssets.reduce((sum, r) => {
+    return sum + r.assignedAssets.filter(a => acceptedMatches.has(`${a.asset.id}:${r.structure.id}`)).length;
+  }, 0);
+  const hasUnaccepted = totalAccepted < totalAssigned;
+  
+  const toggleAdSet = (id: string) => {
+    setExpandedAdSets(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+  
+  return (
+    <Card className="border-emerald-500/30 bg-emerald-500/5">
+      <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
+        <CollapsibleTrigger asChild>
+          <CardHeader className="cursor-pointer hover:bg-emerald-500/10 transition-colors pb-2">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center shrink-0">
+                <Layers className="h-5 w-5 text-emerald-600" />
+              </div>
+              <div className="flex-1">
+                <CardTitle className="text-sm font-medium text-emerald-700">
+                  Matched Creatives
+                </CardTitle>
+                <p className="text-xs text-emerald-600/80">
+                  {resultsWithAssets.length} ad sets with {totalAssigned} creatives
+                </p>
+              </div>
+              {hasUnaccepted && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-xs px-3 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/20"
+                  onClick={(e) => { e.stopPropagation(); onAcceptAll(); }}
+                >
+                  <Check className="h-3.5 w-3.5 mr-1.5" />
+                  Apply All
+                </Button>
+              )}
+              <Badge variant="outline" className="border-emerald-500/50 text-emerald-600">
+                {totalAccepted}/{totalAssigned}
+              </Badge>
+              {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </div>
+          </CardHeader>
+        </CollapsibleTrigger>
+        
+        <CollapsibleContent>
+          <CardContent className="pt-0 space-y-2">
+            {resultsWithAssets.map((result) => {
+              const { structure, assignedAssets } = result;
+              const isAdSetExpanded = expandedAdSets.has(structure.id);
+              const acceptedCount = assignedAssets.filter(a => acceptedMatches.has(`${a.asset.id}:${structure.id}`)).length;
+              const hasAdSetUnaccepted = acceptedCount < assignedAssets.length;
+              
+              return (
+                <div key={structure.id} className="border rounded-lg bg-background">
+                  <Collapsible open={isAdSetExpanded} onOpenChange={() => toggleAdSet(structure.id)}>
+                    <CollapsibleTrigger asChild>
+                      <div className="flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/50 transition-colors">
+                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                          <Target className="h-4 w-4 text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium truncate">{structure.adSetName}</span>
+                            {acceptedCount > 0 && (
+                              <Badge className="bg-emerald-500 text-[10px] py-0">
+                                {acceptedCount} accepted
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                            <Badge variant="outline" className="text-[10px] py-0 px-1">
+                              {structure.platform}
+                            </Badge>
+                            {structure.market && <span>{structure.market}</span>}
+                            {structure.language && (
+                              <>
+                                <span>•</span>
+                                <span className="uppercase">{structure.language}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {hasAdSetUnaccepted && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 text-[10px] px-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10"
+                              onClick={(e) => { 
+                                e.stopPropagation(); 
+                                assignedAssets.forEach(a => onAcceptAsset(a.asset.id, structure));
+                              }}
+                            >
+                              <Check className="h-3 w-3 mr-1" />
+                              Accept All
+                            </Button>
+                          )}
+                          <Badge variant="secondary" className="shrink-0 text-xs">
+                            {assignedAssets.length}
+                          </Badge>
+                          {isAdSetExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        </div>
+                      </div>
+                    </CollapsibleTrigger>
+                    
+                    <CollapsibleContent>
+                      <div className="px-3 pb-3 space-y-2">
+                        {assignedAssets.map((assignedAsset) => {
+                          const { asset, confidenceScore, reasoning, matchedCriteria, issues } = assignedAsset;
+                          const isAccepted = acceptedMatches.has(`${asset.id}:${structure.id}`);
+                          
+                          return (
+                            <div 
+                              key={asset.id}
+                              className={cn(
+                                "p-2 rounded-lg border flex items-center gap-3",
+                                isAccepted ? "bg-emerald-500/10 border-emerald-500/30" : "bg-muted/30"
+                              )}
+                            >
+                              <AssetThumbnail asset={asset} />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-medium truncate">{asset.fileName}</span>
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="h-5 w-5 p-0">
+                                          <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="right" className="p-3 max-w-xs">
+                                        <div className="space-y-2">
+                                          <p className="font-semibold text-xs border-b pb-1">Why matched:</p>
+                                          <ul className="space-y-1 text-xs">
+                                            {reasoning.map((r, i) => (
+                                              <li key={i} className="flex items-start gap-1">
+                                                <Check className="h-3 w-3 text-emerald-500 shrink-0 mt-0.5" />
+                                                <span>{r}</span>
+                                              </li>
+                                            ))}
+                                          </ul>
+                                          {issues.length > 0 && (
+                                            <>
+                                              <p className="font-semibold text-xs border-t pt-2 text-amber-600">Warnings:</p>
+                                              <ul className="space-y-1 text-xs">
+                                                {issues.map((issue, i) => (
+                                                  <li key={i} className="text-amber-600">{issue.message}</li>
+                                                ))}
+                                              </ul>
+                                            </>
+                                          )}
+                                        </div>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                </div>
+                                <MatchCriteriaList criteria={matchedCriteria} />
+                              </div>
+                              <MatchConfidenceIndicator score={confidenceScore} size="sm" />
+                              {isAccepted ? (
+                                <Badge className="bg-emerald-500 shrink-0">
+                                  <Check className="h-3 w-3 mr-1" />
+                                  Accepted
+                                </Badge>
+                              ) : (
+                                <div className="flex gap-1 shrink-0">
+                                  <Button 
+                                    size="sm" 
+                                    onClick={() => onAcceptAsset(asset.id, structure)}
+                                    className="bg-emerald-500 hover:bg-emerald-600"
+                                  >
+                                    <Check className="h-4 w-4" />
+                                  </Button>
+                                  <Button 
+                                    size="sm" 
+                                    variant="ghost"
+                                    onClick={() => onRejectAsset(asset.id, structure.id)}
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+                </div>
+              );
+            })}
+          </CardContent>
+        </CollapsibleContent>
+      </Collapsible>
+    </Card>
+  );
+}
+
 // Suggestions panel for empty ad sets
 function SuggestionsPanel({ 
   suggestions, 
@@ -424,22 +653,22 @@ function SuggestionsPanel({
                   Suggestions for Empty Ad Sets
                 </CardTitle>
                 <p className="text-xs text-blue-600/80">
-                  Creatives that could fit if platform constraint is relaxed
+                  {suggestions.length} ad sets could use {totalSuggestions} creatives
                 </p>
               </div>
               {unacceptedCount > 0 && (
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="h-6 text-[10px] px-2 text-blue-600 hover:text-blue-700 hover:bg-blue-500/10"
+                  className="h-7 text-xs px-3 text-blue-600 hover:text-blue-700 hover:bg-blue-500/20"
                   onClick={handleApplyAll}
                 >
-                  <Check className="h-3 w-3 mr-1" />
-                  Apply All ({unacceptedCount})
+                  <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+                  Apply All
                 </Button>
               )}
               <Badge variant="outline" className="border-blue-500/50 text-blue-600">
-                {totalSuggestions} suggestions
+                {totalSuggestions}
               </Badge>
               {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </div>
@@ -450,83 +679,79 @@ function SuggestionsPanel({
           <CardContent className="pt-0 space-y-3">
             {suggestions.map((suggestion) => {
               const { structure, suggestedAssets } = suggestion;
-              const structureUnacceptedCount = suggestedAssets.filter(sa => !acceptedMatches.has(`${sa.asset.id}:${structure.id}`)).length;
-              
-              const handleApplyAllForStructure = () => {
-                suggestedAssets.forEach(sa => {
-                  if (!acceptedMatches.has(`${sa.asset.id}:${structure.id}`)) {
-                    onAcceptSuggestion(sa.asset.id, structure);
-                  }
-                });
-              };
+              const acceptedCount = suggestedAssets.filter(sa => 
+                acceptedMatches.has(`${sa.asset.id}:${structure.id}`)
+              ).length;
+              const hasUnaccepted = acceptedCount < suggestedAssets.length;
               
               return (
                 <div key={structure.id} className="p-3 rounded-lg border border-blue-500/20 bg-background">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Target className="h-4 w-4 text-blue-600" />
-                    <span className="text-sm font-medium flex-1">{structure.adSetName}</span>
-                    <Badge variant="outline" className="text-[10px] py-0 px-1">
-                      {structure.platform}
-                    </Badge>
-                    {structureUnacceptedCount > 0 && (
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                      <Target className="h-4 w-4 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{structure.adSetName}</p>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Badge variant="outline" className="text-[10px] py-0 px-1">
+                          {structure.platform}
+                        </Badge>
+                        {structure.market && <span>{structure.market}</span>}
+                      </div>
+                    </div>
+                    {hasUnaccepted && (
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="h-5 text-[10px] px-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-500/10"
-                        onClick={handleApplyAllForStructure}
+                        className="h-6 text-[10px] px-2 text-blue-600 hover:text-blue-700 hover:bg-blue-500/10"
+                        onClick={() => {
+                          suggestedAssets.forEach(sa => {
+                            if (!acceptedMatches.has(`${sa.asset.id}:${structure.id}`)) {
+                              onAcceptSuggestion(sa.asset.id, structure);
+                            }
+                          });
+                        }}
                       >
-                        <Check className="h-3 w-3 mr-0.5" />
+                        <Check className="h-3 w-3 mr-1" />
                         Apply All
                       </Button>
                     )}
+                    <Badge variant="secondary" className="text-xs">
+                      {suggestedAssets.length}
+                    </Badge>
                   </div>
                   
-                  <div className="space-y-2 mt-2">
-                    {suggestedAssets.map(({ asset, blockingReason, isPlatformOnly }) => {
-                      const isAccepted = acceptedMatches.has(`${asset.id}:${structure.id}`);
+                  <div className="space-y-2 pl-11">
+                    {suggestedAssets.map((sa) => {
+                      const isAccepted = acceptedMatches.has(`${sa.asset.id}:${structure.id}`);
                       
                       return (
                         <div 
-                          key={asset.id}
+                          key={sa.asset.id}
                           className={cn(
-                            "p-2 rounded border flex items-center gap-2",
+                            "p-2 rounded-lg border flex items-center gap-3",
                             isAccepted ? "bg-emerald-500/10 border-emerald-500/30" : "bg-muted/30"
                           )}
                         >
-                          <AssetThumbnail asset={asset} />
+                          <AssetThumbnail asset={sa.asset} />
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs font-medium truncate">{asset.fileName}</p>
-                            <p className="text-[10px] text-muted-foreground">{blockingReason}</p>
+                            <p className="text-sm font-medium truncate">{sa.asset.fileName}</p>
+                            <p className="text-[10px] text-amber-600 mt-0.5">
+                              {sa.blockingReason}
+                            </p>
                           </div>
-                          {isPlatformOnly && (
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger>
-                                  <Badge variant="outline" className="text-[10px] py-0 px-1 border-blue-500/50 text-blue-600">
-                                    <Sparkles className="h-3 w-3 mr-0.5" />
-                                    Platform only
-                                  </Badge>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p className="text-xs">Only platform constraint is blocking this match</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          )}
                           {isAccepted ? (
-                            <Badge className="bg-emerald-500 shrink-0 text-[10px]">
+                            <Badge className="bg-emerald-500 shrink-0">
                               <Check className="h-3 w-3 mr-1" />
                               Accepted
                             </Badge>
                           ) : (
                             <Button 
                               size="sm" 
-                              variant="outline"
-                              className="h-7 text-xs border-blue-500/50 text-blue-600 hover:bg-blue-500/10"
-                              onClick={() => onAcceptSuggestion(asset.id, structure)}
+                              onClick={() => onAcceptSuggestion(sa.asset.id, structure)}
+                              className="bg-blue-500 hover:bg-blue-600"
                             >
-                              <Check className="h-3 w-3 mr-1" />
-                              Apply
+                              <Check className="h-4 w-4" />
                             </Button>
                           )}
                         </div>
@@ -632,6 +857,19 @@ export function StructureCentricView({
 
       <ScrollArea className="h-[400px] pr-4">
         <div className="space-y-3">
+          {/* Assigned creatives panel - grouped under one foldable card */}
+          <AssignedAssetsPanel 
+            structureResults={sortedResults}
+            acceptedMatches={acceptedMatches}
+            onAcceptAsset={onAcceptAsset}
+            onRejectAsset={onRejectAsset}
+            onAcceptAll={() => {
+              sortedResults.forEach(result => {
+                result.assignedAssets.forEach(a => onAcceptAsset(a.asset.id, result.structure));
+              });
+            }}
+          />
+          
           {/* Suggestions panel for empty ad sets */}
           <SuggestionsPanel 
             suggestions={suggestions} 
@@ -641,20 +879,6 @@ export function StructureCentricView({
           
           {/* Unassigned assets panel */}
           <UnassignedAssetsPanel unassignedAssets={unassignedAssets} />
-          
-          {/* Structure cards */}
-          {sortedResults.map((result) => (
-            <StructureCard
-              key={result.structure.id}
-              result={result}
-              acceptedMatches={acceptedMatches}
-              onAcceptAsset={(assetId) => onAcceptAsset(assetId, result.structure)}
-              onRejectAsset={(assetId) => onRejectAsset(assetId, result.structure.id)}
-              onAcceptAll={() => {
-                result.assignedAssets.forEach(a => onAcceptAsset(a.asset.id, result.structure));
-              }}
-            />
-          ))}
         </div>
       </ScrollArea>
     </div>
