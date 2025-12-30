@@ -395,7 +395,39 @@ export function useCreativeMatching(campaignId?: string) {
         const inferredSignals = extractInferredSignals(asset.filePath, asset.fileName);
         
         for (const structure of structuresToUse) {
-          // Hard constraint check with inference support
+          // ============ HARD CONSTRAINT CHECKS (must pass to match) ============
+          
+          // 1. Platform hard constraint - if creative specifies a platform, it MUST match
+          if (inferredSignals.platform && inferredSignals.platform !== structure.platform) {
+            continue; // Skip - platform mismatch is a hard fail
+          }
+          if (asset.compatibilitySignals?.platform && asset.compatibilitySignals.platform !== structure.platform) {
+            continue; // Skip - explicit platform mismatch
+          }
+          
+          // 2. Format hard constraint - if creative specifies a format, it must be compatible
+          if (inferredSignals.format && structure.formatConstraints && structure.formatConstraints.length > 0) {
+            const formatMatch = structure.formatConstraints.some(f => 
+              f.toLowerCase().includes(inferredSignals.format!) || 
+              inferredSignals.format!.includes(f.toLowerCase())
+            );
+            if (!formatMatch) {
+              continue; // Skip - format mismatch is a hard fail
+            }
+          }
+          
+          // 3. Optimization goal hard constraint - if creative specifies a goal, it must match
+          if (inferredSignals.optimizationGoal && structure.optimizationGoal) {
+            const goalMatch = inferredSignals.optimizationGoal === structure.optimizationGoal ||
+              // Allow some flexibility for related goals
+              (inferredSignals.optimizationGoal === 'conversions' && structure.optimizationGoal.includes('purchase')) ||
+              (inferredSignals.optimizationGoal === 'app_installs' && structure.optimizationGoal.includes('install'));
+            if (!goalMatch) {
+              continue; // Skip - optimization goal mismatch is a hard fail
+            }
+          }
+          
+          // Hard constraint check for market/language/variant with inference support
           const hardCheckResult = checkHardConstraintsEnhanced(
             asset.hardConstraints,
             structure,
@@ -406,7 +438,7 @@ export function useCreativeMatching(campaignId?: string) {
             continue; // Skip this structure - hard constraint failed
           }
           
-          // Soft compatibility scoring with all ad set dimensions
+          // ============ SOFT COMPATIBILITY SCORING ============
           let score = 80;
           const reasoning: string[] = [];
           const issues: UICreativeMatch['compatibilityIssues'] = [];
@@ -420,16 +452,26 @@ export function useCreativeMatching(campaignId?: string) {
             reasoning.push('Some constraints inferred from filename');
           }
           
-          // 1. Platform match (check inferred platform too)
-          const platformMatch = inferredSignals.platform === structure.platform;
-          if (platformMatch) {
+          // 1. Platform match - already validated as hard constraint, add reasoning
+          if (inferredSignals.platform === structure.platform) {
             score += 10;
             reasoning.push(`Platform: matched to ${structure.platform} (${inferredSignals.sources.platform || 'inferred from file'})`);
           } else if (asset.compatibilitySignals?.platform === structure.platform) {
             score += 10;
             reasoning.push(`Platform: compatible with ${structure.platform} (from creative metadata)`);
-          } else {
-            reasoning.push(`Platform: assumed compatible with ${structure.platform}`);
+          } else if (!inferredSignals.platform && !asset.compatibilitySignals?.platform) {
+            // No platform specified - compatible with any
+            reasoning.push(`Platform: no platform specified, compatible with ${structure.platform}`);
+          }
+          
+          // 2. Format match - add reasoning if matched
+          if (inferredSignals.format) {
+            reasoning.push(`Format: matched "${inferredSignals.format}" to ad set (${inferredSignals.sources.format})`);
+          }
+          
+          // 3. Optimization goal match - add reasoning if matched
+          if (inferredSignals.optimizationGoal && structure.optimizationGoal) {
+            reasoning.push(`Goal: matched "${inferredSignals.optimizationGoal}" to ${structure.optimizationGoal} (${inferredSignals.sources.optimizationGoal})`);
           }
           
           // 2. Aspect ratio check
@@ -518,19 +560,8 @@ export function useCreativeMatching(campaignId?: string) {
             }
           }
           
-          // 8. Optimization goal check
-          if (structure.optimizationGoal) {
-            if (inferredSignals.optimizationGoal) {
-              const goalSource = inferredSignals.sources.optimizationGoal;
-              if (inferredSignals.optimizationGoal === structure.optimizationGoal) {
-                score += 10;
-                reasoning.push(`Goal: matched "${inferredSignals.optimizationGoal}" to ad set optimizing for ${structure.optimizationGoal} (${goalSource})`);
-              } else {
-                score -= 10;
-                issues.push({ type: 'objective', severity: 'warning', message: `Creative for ${inferredSignals.optimizationGoal} (${goalSource}), but ad set optimizes for ${structure.optimizationGoal}`, suggestion: 'Consider if creative messaging aligns with goal' });
-              }
-            }
-          }
+          // 8. Optimization goal check - already a hard constraint, this adds to score if matched
+          // (Skip duplicate scoring since it's handled above as hard constraint)
           
           // 9. Placement check (from inferred signals)
           if (structure.placementConstraints && structure.placementConstraints.length > 0) {
@@ -576,17 +607,34 @@ export function useCreativeMatching(campaignId?: string) {
         // Generate no-match reasons if empty
         const noMatchReasons: string[] = [];
         if (matches.length === 0) {
+          // Platform mismatch
+          if (inferredSignals.platform) {
+            const platformExists = structuresToUse.some(s => s.platform === inferredSignals.platform);
+            if (!platformExists) {
+              noMatchReasons.push(`Platform "${inferredSignals.platform}" (${inferredSignals.sources.platform}) not found in ActiPlan`);
+            }
+          }
+          
+          // Format mismatch
+          if (inferredSignals.format) {
+            noMatchReasons.push(`Format "${inferredSignals.format}" (${inferredSignals.sources.format}) doesn't match any ad set formats`);
+          }
+          
+          // Goal mismatch
+          if (inferredSignals.optimizationGoal) {
+            noMatchReasons.push(`Goal "${inferredSignals.optimizationGoal}" (${inferredSignals.sources.optimizationGoal}) doesn't match any ad set goals`);
+          }
+          
+          // Market mismatch
           if (asset.hardConstraints.market) {
-            noMatchReasons.push(`No structures found for market: ${asset.hardConstraints.market}`);
+            noMatchReasons.push(`Market "${asset.hardConstraints.market}" not found in ActiPlan`);
           }
           if (asset.hardConstraints.language) {
-            noMatchReasons.push(`No structures found for language: ${asset.hardConstraints.language}`);
+            noMatchReasons.push(`Language "${asset.hardConstraints.language}" not found in ActiPlan`);
           }
-          if (inferredSignals.platform && !structuresToUse.some(s => s.platform === inferredSignals.platform)) {
-            noMatchReasons.push(`Platform ${inferredSignals.platform} inferred from filename not in ActiPlan`);
-          }
+          
           if (noMatchReasons.length === 0) {
-            noMatchReasons.push('No compatible structures found');
+            noMatchReasons.push('No compatible structures found - check platform, format, or goal constraints');
           }
         }
         
