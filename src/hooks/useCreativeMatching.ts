@@ -101,6 +101,8 @@ export interface CampaignStructure {
   // Budget info
   budgetAmount?: number;
   budgetType?: 'daily' | 'lifetime';
+  // Parsed taxonomy elements from adSetName for display and matching
+  taxonomyElements?: Record<string, string>;
 }
 
 export interface UIMatchingResult {
@@ -216,15 +218,28 @@ export function useCreativeMatching(campaignId?: string) {
         }
       }
       
-      // Helper to generate taxonomy-based adset name
+      // Helper to generate taxonomy-based adset name and extract elements for matching
       const generateAdSetTaxonomyName = (
         platformKey: string,
         context: TaxonomyContext
-      ): string => {
+      ): { name: string; elements: Record<string, string> } => {
         const template = taxonomyTemplates[platformKey] || getDefaultAdSetParams(platformKey as 'meta' | 'tiktok');
         const values = extractTaxonomyValues(template, context);
         const taxonomyName = generateTaxonomyString(template, values);
-        return taxonomyName || `${context.market}_${context.funnelStage}_${context.optimizationGoal}`.toUpperCase();
+        
+        // Build elements for display: paramLabel -> value
+        const elements: Record<string, string> = {};
+        for (const param of template) {
+          const value = values[param.id] || 'ALL';
+          // Use the label from template or format the id
+          const label = param.label || param.id.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+          elements[label] = value;
+        }
+        
+        return {
+          name: taxonomyName || `${context.market}_${context.funnelStage}_${context.optimizationGoal}`.toUpperCase(),
+          elements
+        };
       };
 
       for (const platform of platforms) {
@@ -297,11 +312,14 @@ export function useCreativeMatching(campaignId?: string) {
                   phaseBudget: calculateBudgetFromPercentage(adSet.budgetPercentage, phase, market, campaign),
                 };
                 
+                const taxonomyResult = generateAdSetTaxonomyName(platformKey, taxonomyContext);
+                
                 const adSetStructure: CampaignStructure = {
                   id: `${campaignIdToLoad}-${platformKey}-${market?.id ?? market?.name ?? 'market'}-${phase?.name ?? 'phase'}-${adSet.id}`,
                   ...baseStructureData,
                   adSetId: adSet.id,
-                  adSetName: generateAdSetTaxonomyName(platformKey, taxonomyContext),
+                  adSetName: taxonomyResult.name,
+                  taxonomyElements: taxonomyResult.elements,
                   placementConstraints: adSet.placements || adSet.tiktokPlacements || placementConstraints,
                   formatConstraints,
                   language: adSet.languages?.[0] || language,
@@ -342,13 +360,15 @@ export function useCreativeMatching(campaignId?: string) {
                 targetingType: extractTargetingType(phase?.audiences),
                 phaseBudget: calculateBudgetFromPercentage(phase?.budgetPercentage, phase, market, campaign),
               };
+              const taxonomyResult = generateAdSetTaxonomyName(platformKey, taxonomyContext);
               
               // No splits - create single structure from phase
               structures.push({
                 id: `${campaignIdToLoad}-${platformKey}-${market?.id ?? market?.name ?? 'market'}-${phase?.name ?? 'phase'}`,
                 ...baseStructureData,
                 adSetId: market?.id,
-                adSetName: generateAdSetTaxonomyName(platformKey, taxonomyContext),
+                adSetName: taxonomyResult.name,
+                taxonomyElements: taxonomyResult.elements,
                 placementConstraints,
                 formatConstraints,
                 language,
@@ -575,24 +595,16 @@ export function useCreativeMatching(campaignId?: string) {
         if (!assignedAssetIds.has(asset.id)) {
           const inferredSignals = assetSignalsMap.get(asset.id)!;
           
-          // Build extracted signals summary for display
-          const extractedSignals: Record<string, string> = {};
-          if (inferredSignals.platform) extractedSignals['Platform'] = inferredSignals.platform;
-          if (inferredSignals.market) extractedSignals['Market'] = inferredSignals.market;
-          if (inferredSignals.language) extractedSignals['Language'] = inferredSignals.language;
-          if (inferredSignals.funnelStage) extractedSignals['Funnel Stage'] = inferredSignals.funnelStage;
-          if (inferredSignals.optimizationGoal) extractedSignals['Goal'] = inferredSignals.optimizationGoal;
-          if (inferredSignals.placement) extractedSignals['Placement'] = inferredSignals.placement;
-          if (inferredSignals.format) extractedSignals['Format'] = inferredSignals.format;
-          if (inferredSignals.device) extractedSignals['Device'] = inferredSignals.device;
-          if (inferredSignals.gender) extractedSignals['Gender'] = inferredSignals.gender;
-          if (inferredSignals.ageMin) extractedSignals['Age'] = `${inferredSignals.ageMin}-${inferredSignals.ageMax}`;
-          if (inferredSignals.audienceType) extractedSignals['Audience'] = inferredSignals.audienceType;
-          if (inferredSignals.publisher) extractedSignals['Publisher'] = inferredSignals.publisher;
-          if (inferredSignals.contentPillar) extractedSignals['Content Pillar'] = inferredSignals.contentPillar;
-          if (inferredSignals.variant) extractedSignals['Variant'] = inferredSignals.variant;
-          if (inferredSignals.aspectRatio) extractedSignals['Aspect Ratio'] = inferredSignals.aspectRatio;
-          if (asset.technicalAttributes.aspectRatio) extractedSignals['Detected AR'] = asset.technicalAttributes.aspectRatio;
+          // Build extracted signals summary for display using helper function
+          const extractedSignals = formatExtractedSignalsForDisplay(inferredSignals);
+          
+          // Add technical attributes
+          if (asset.technicalAttributes.aspectRatio) {
+            extractedSignals['Detected AR'] = asset.technicalAttributes.aspectRatio;
+          }
+          if (asset.technicalAttributes.width && asset.technicalAttributes.height) {
+            extractedSignals['Resolution'] = `${asset.technicalAttributes.width}×${asset.technicalAttributes.height}`;
+          }
 
           // Find closest matches with blocking reasons
           const closestMatches: UnassignedAsset['closestMatches'] = [];
@@ -963,6 +975,48 @@ interface InferredSignals {
   sources: Record<string, string>;
 }
 
+// Helper to format extracted signals for display with parameter names
+function formatExtractedSignalsForDisplay(signals: InferredSignals): Record<string, string> {
+  const display: Record<string, string> = {};
+  
+  // Map signal keys to human-readable parameter names
+  const parameterNames: Record<string, string> = {
+    platform: 'Platform',
+    market: 'Market',
+    language: 'Language',
+    device: 'Device',
+    gender: 'Gender',
+    audienceType: 'Audience Type',
+    optimizationGoal: 'Optimization Goal',
+    placement: 'Placement',
+    format: 'Format',
+    publisher: 'Publisher',
+    funnelStage: 'Funnel Stage',
+    productName: 'Product',
+    contentPillar: 'Content Pillar',
+    variant: 'Variant',
+    fileType: 'File Type',
+    dimensions: 'Dimensions',
+    aspectRatio: 'Aspect Ratio',
+  };
+  
+  // Build display object with parameter names as keys
+  for (const [key, value] of Object.entries(signals)) {
+    if (key === 'sources' || key === 'ageMin' || key === 'ageMax') continue;
+    if (value !== undefined && value !== null && value !== '') {
+      const displayName = parameterNames[key] || key;
+      display[displayName] = String(value).toUpperCase();
+    }
+  }
+  
+  // Handle age range specially
+  if (signals.ageMin !== undefined || signals.ageMax !== undefined) {
+    display['Age Range'] = `${signals.ageMin || '?'}-${signals.ageMax || '?'}`;
+  }
+  
+  return display;
+}
+
 // Helper to check for whole word match (not part of another word)
 // This prevents "card" from matching "car" (carousel) or "carousel" from matching "rouse"
 function matchesWholeWord(text: string, word: string): boolean {
@@ -1286,6 +1340,7 @@ function checkAgeOverlap(a: { min: number; max: number }, b: { min: number; max:
 }
 
 // Core matching function: match asset signals against structure taxonomy
+// Enforces STRICT platform and language checks - no cross-platform or cross-language matches
 function matchAssetToStructure(
   asset: DigestedAsset,
   signals: InferredSignals,
@@ -1305,59 +1360,73 @@ function matchAssetToStructure(
 
   // === HARD CONSTRAINTS (blocking) ===
   
-  // Platform must match if specified
-  if (signals.platform && signals.platform !== structure.platform) {
-    blockingReasons.push(`Platform "${signals.platform}" ≠ "${structure.platform}"`);
-    return { isMatch: false, score: 0, matchedCriteria, blockingReasons, issues };
-  }
-  
-  // Market must match if specified (unless single market plan)
-  if (signals.market && structure.market) {
-    if (signals.market.toUpperCase() !== structure.market.toUpperCase()) {
-      blockingReasons.push(`Market "${signals.market}" ≠ "${structure.market}"`);
+  // STRICT: Platform must match if specified in asset
+  if (signals.platform) {
+    if (signals.platform !== structure.platform) {
+      blockingReasons.push(`Platform mismatch: asset is "${signals.platform.toUpperCase()}" but ad set is "${structure.platform.toUpperCase()}"`);
       return { isMatch: false, score: 0, matchedCriteria, blockingReasons, issues };
     }
-    matchedCriteria.push({ criterion: 'Market', reason: `"${signals.market}" matches ad set (${signals.sources.market})` });
+    matchedCriteria.push({ criterion: 'Platform', reason: `"${signals.platform}" matches (${signals.sources.platform})` });
+    score += 15;
+  } else if (!options.isSinglePlatformPlan) {
+    // No platform specified and multiple platforms in plan - it's ambiguous
+    issues.push({ type: 'platform', severity: 'warning', message: 'No platform specified in filename; matches all platforms' });
+  }
+  
+  // STRICT: Language must match if specified in asset OR structure
+  if (signals.language || structure.language) {
+    const assetLang = signals.language?.toLowerCase();
+    const structureLang = structure.language?.toLowerCase();
+    
+    if (assetLang && structureLang) {
+      if (assetLang !== structureLang) {
+        blockingReasons.push(`Language mismatch: asset is "${assetLang.toUpperCase()}" but ad set requires "${structureLang.toUpperCase()}"`);
+        return { isMatch: false, score: 0, matchedCriteria, blockingReasons, issues };
+      }
+      matchedCriteria.push({ criterion: 'Language', reason: `"${assetLang}" matches (${signals.sources.language})` });
+      score += 10;
+    } else if (structureLang && !assetLang) {
+      // Structure has language but asset doesn't specify - warn but allow
+      issues.push({ type: 'language', severity: 'warning', message: `No language in filename; ad set expects "${structureLang.toUpperCase()}"` });
+    }
+  }
+  
+  // STRICT: Market must match if specified (unless single market plan)
+  if (signals.market && structure.market) {
+    if (signals.market.toUpperCase() !== structure.market.toUpperCase()) {
+      blockingReasons.push(`Market mismatch: asset is "${signals.market}" but ad set is "${structure.market}"`);
+      return { isMatch: false, score: 0, matchedCriteria, blockingReasons, issues };
+    }
+    matchedCriteria.push({ criterion: 'Market', reason: `"${signals.market}" matches (${signals.sources.market})` });
     score += 10;
   } else if (options.isSingleMarketPlan && structure.market) {
     matchedCriteria.push({ criterion: 'Market', reason: `Assumed "${structure.market}" (single-market plan)` });
   }
 
-  // Language must match if specified
-  if (signals.language && structure.language) {
-    if (signals.language.toLowerCase() !== structure.language.toLowerCase()) {
-      blockingReasons.push(`Language "${signals.language}" ≠ "${structure.language}"`);
-      return { isMatch: false, score: 0, matchedCriteria, blockingReasons, issues };
-    }
-    matchedCriteria.push({ criterion: 'Language', reason: `"${signals.language}" matches (${signals.sources.language})` });
-    score += 8;
-  }
-
   // === SOFT CRITERIA (scoring) ===
   
-  // Platform match
-  if (signals.platform === structure.platform) {
-    matchedCriteria.push({ criterion: 'Platform', reason: `"${signals.platform}" (${signals.sources.platform})` });
-    score += 15;
-  } else if (!signals.platform) {
-    matchedCriteria.push({ criterion: 'Platform', reason: `Compatible with ${structure.platform} (no platform specified)` });
-  }
-
   // Funnel stage match
   if (signals.funnelStage && structure.funnelStage) {
     if (signals.funnelStage === structure.funnelStage.toLowerCase()) {
       matchedCriteria.push({ criterion: 'Funnel', reason: `"${signals.funnelStage}" matches phase (${signals.sources.funnelStage})` });
       score += 12;
+    } else {
+      issues.push({ type: 'funnel', severity: 'warning', message: `Funnel stage "${signals.funnelStage}" ≠ "${structure.funnelStage}"` });
+      score -= 5;
     }
   }
 
   // Optimization goal match
   if (signals.optimizationGoal && structure.optimizationGoal) {
-    const goalMatch = signals.optimizationGoal === structure.optimizationGoal ||
+    const goalMatch = signals.optimizationGoal === structure.optimizationGoal.toLowerCase() ||
       structure.optimizationGoal.toLowerCase().includes(signals.optimizationGoal);
     if (goalMatch) {
       matchedCriteria.push({ criterion: 'Goal', reason: `"${signals.optimizationGoal}" → ${structure.optimizationGoal} (${signals.sources.optimizationGoal})` });
       score += 10;
+    } else {
+      // Goal mismatch is a soft warning but reduces score
+      issues.push({ type: 'optimization', severity: 'warning', message: `Optimization "${signals.optimizationGoal}" ≠ "${structure.optimizationGoal}"` });
+      score -= 8;
     }
   }
 
@@ -1414,6 +1483,17 @@ function matchAssetToStructure(
     if (placementMatch) {
       matchedCriteria.push({ criterion: 'Placement', reason: `"${signals.placement}" (${signals.sources.placement})` });
       score += 8;
+    }
+  }
+  
+  // Publisher match (within platform ecosystem)
+  if (signals.publisher && structure.placementConstraints?.length) {
+    const publisherMatch = structure.placementConstraints.some(p => 
+      p.toLowerCase().includes(signals.publisher!) || signals.publisher === p.toLowerCase()
+    );
+    if (publisherMatch) {
+      matchedCriteria.push({ criterion: 'Publisher', reason: `"${signals.publisher}" matches placements (${signals.sources.publisher})` });
+      score += 6;
     }
   }
 
