@@ -1,5 +1,5 @@
 // Hook for creative-to-plan matching workflow
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
@@ -173,6 +173,12 @@ export function useCreativeMatching(campaignId?: string) {
     isProcessing: false,
     currentStep: 'upload',
   });
+  
+  // Use a ref to always access the latest state in callbacks (avoids stale closure issues)
+  const stateRef = useRef(state);
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   // Load campaign structures from an ActiPlan - extracts ALL ad set configurations
   const loadCampaignStructures = useCallback(async (campaignIdToLoad: string): Promise<CampaignStructure[]> => {
@@ -809,15 +815,17 @@ export function useCreativeMatching(campaignId?: string) {
   }, []);
 
   const saveMatches = useCallback(async () => {
-    if (!user || state.acceptedMatches.size === 0) { toast.error('No matches to save'); return; }
+    // Use stateRef to always get the latest state (avoids stale closure issues)
+    const currentState = stateRef.current;
+    if (!user || currentState.acceptedMatches.size === 0) { toast.error('No matches to save'); return; }
     setState(prev => ({ ...prev, isProcessing: true }));
 
     try {
       const assignments: any[] = [];
-      for (const [compositeKey, match] of state.acceptedMatches) {
+      for (const [compositeKey, match] of currentState.acceptedMatches) {
         // Parse composite key: assetId:structureId
         const assetId = compositeKey.split(':')[0];
-        const asset = state.assets.find(a => a.id === assetId);
+        const asset = currentState.assets.find(a => a.id === assetId);
         if (!asset) continue;
 
         let creativeId: string;
@@ -882,8 +890,8 @@ export function useCreativeMatching(campaignId?: string) {
         
         // Build saved assignments for text asset editor
         const savedAssignments = (insertedAssignments || []).map((a: any) => {
-          const asset = state.assets.find(as => {
-            const match = Array.from(state.acceptedMatches.entries()).find(([key]) => key.startsWith(as.id + ':'));
+          const asset = currentState.assets.find(as => {
+            const match = Array.from(currentState.acceptedMatches.entries()).find(([key]) => key.startsWith(as.id + ':'));
             return match && match[1].structure.campaignId === a.campaign_id;
           });
           return {
@@ -907,7 +915,7 @@ export function useCreativeMatching(campaignId?: string) {
       toast.error('Failed to save matches');
       setState(prev => ({ ...prev, isProcessing: false }));
     }
-  }, [user, state.acceptedMatches, state.assets]);
+  }, [user]); // Only depend on user - we use stateRef for state access
 
   const stats = useMemo(() => ({
     totalAssets: state.assets.length,

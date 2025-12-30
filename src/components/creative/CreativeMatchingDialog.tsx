@@ -452,17 +452,19 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
                           acceptMatch(assetId, match);
                         } else {
                           // Handle suggestions - asset is unassigned but user wants to force-apply
+                          // Look in unassignedAssets first
                           const unassignedAsset = state.unassignedAssets.find(u => u.asset.id === assetId);
-                          if (unassignedAsset) {
-                            const match: UICreativeMatch = {
-                              structure,
-                              confidenceScore: 50, // Lower confidence for manual override
-                              reasoning: ['Manually applied by user (platform constraint relaxed)'],
-                              compatibilityIssues: [],
-                              hardConstraintsMet: false,
-                            };
-                            acceptMatch(assetId, match);
-                          }
+                          
+                          // Create match regardless - for suggestions, we may not find the asset in the state arrays
+                          // due to the way suggestions are computed. The key is to accept the match.
+                          const match: UICreativeMatch = {
+                            structure,
+                            confidenceScore: unassignedAsset ? 50 : 40, // Lower confidence for manual override
+                            reasoning: ['Manually applied by user (platform constraint relaxed)'],
+                            compatibilityIssues: [],
+                            hardConstraintsMet: false,
+                          };
+                          acceptMatch(assetId, match);
                         }
                       }}
                       onRejectAsset={(assetId, structureId) => rejectMatch(assetId, structureId)}
