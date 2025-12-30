@@ -155,7 +155,9 @@ export interface MatchingState {
   acceptedMatches: Map<string, UICreativeMatch>;
   rejectedMatches: Map<string, Set<string>>;
   isProcessing: boolean;
-  currentStep: 'upload' | 'digest' | 'match' | 'review' | 'complete';
+  currentStep: 'upload' | 'digest' | 'match' | 'review' | 'text_assets' | 'complete';
+  // Saved assignment IDs for text asset editing
+  savedAssignments?: Array<{ id: string; creativeId: string; platform: string; market: string; phaseName: string; creativeName: string; mediaType: 'image' | 'video' }>;
 }
 
 export function useCreativeMatching(campaignId?: string) {
@@ -876,11 +878,30 @@ export function useCreativeMatching(campaignId?: string) {
       }
 
       if (assignments.length > 0) {
-        await supabase.from('creative_assignments').insert(assignments);
+        const { data: insertedAssignments } = await supabase.from('creative_assignments').insert(assignments).select();
+        
+        // Build saved assignments for text asset editor
+        const savedAssignments = (insertedAssignments || []).map((a: any) => {
+          const asset = state.assets.find(as => {
+            const match = Array.from(state.acceptedMatches.entries()).find(([key]) => key.startsWith(as.id + ':'));
+            return match && match[1].structure.campaignId === a.campaign_id;
+          });
+          return {
+            id: a.id,
+            creativeId: a.creative_id,
+            platform: a.platform,
+            market: a.market,
+            phaseName: a.phase_name,
+            creativeName: asset?.fileName || 'Creative',
+            mediaType: (asset?.mediaType || 'image') as 'image' | 'video',
+          };
+        });
+        
+        toast.success(`Saved ${assignments.length} creative assignments`);
+        setState(prev => ({ ...prev, isProcessing: false, currentStep: 'text_assets', savedAssignments }));
+      } else {
+        setState(prev => ({ ...prev, isProcessing: false, currentStep: 'complete' }));
       }
-
-      toast.success(`Saved ${assignments.length} creative assignments`);
-      setState(prev => ({ ...prev, isProcessing: false, currentStep: 'complete' }));
     } catch (error) {
       console.error('Error saving matches:', error);
       toast.error('Failed to save matches');
@@ -897,7 +918,11 @@ export function useCreativeMatching(campaignId?: string) {
     structureCount: state.structures.length,
   }), [state.assets, state.results, state.acceptedMatches, state.structures]);
 
-  return { state, stats, loadCampaignStructures, processFiles, addLibraryCreatives, runMatching, acceptMatch, rejectMatch, clearRejection, clearAcceptedMatch, removeAsset, clearAll, saveMatches };
+  const skipTextAssets = useCallback(() => {
+    setState(prev => ({ ...prev, currentStep: 'complete' }));
+  }, []);
+
+  return { state, stats, loadCampaignStructures, processFiles, addLibraryCreatives, runMatching, acceptMatch, rejectMatch, clearRejection, clearAcceptedMatch, removeAsset, clearAll, saveMatches, skipTextAssets };
 }
 
 // Helper functions
