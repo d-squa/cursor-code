@@ -5,62 +5,71 @@ import type { CallToAction, Platform } from './creative';
 
 export type CreativeFormat = 'image' | 'video' | 'carousel' | 'collection' | 'dark_post' | 'existing_post';
 
+// Character limit configuration with warning threshold
+export interface CharacterLimit {
+  max: number;
+  recommended?: number;
+  warningThreshold?: number; // Percentage at which to show warning (e.g., 80 = 80%)
+}
+
 // Text asset fields configuration per format
 export interface TextAssetFieldConfig {
   id: string;
   label: string;
   required: boolean;
   maxLength?: number;
+  recommendedLength?: number;
   placeholder?: string;
   multiline?: boolean;
   helpText?: string;
+  warningThreshold?: number; // 0-100, percentage
 }
 
-// Platform-specific text fields
+// Platform-specific text fields with character limits
 export const PLATFORM_TEXT_FIELDS: Record<Platform, TextAssetFieldConfig[]> = {
   meta: [
-    { id: 'primaryText', label: 'Primary Text', required: true, maxLength: 125, placeholder: 'Main ad copy...', multiline: true, helpText: 'Recommended: 125 chars' },
-    { id: 'headline', label: 'Headline', required: false, maxLength: 40, placeholder: 'Headline', helpText: 'Recommended: 40 chars' },
-    { id: 'description', label: 'Description', required: false, maxLength: 30, placeholder: 'Link description', helpText: 'Recommended: 30 chars' },
+    { id: 'primaryText', label: 'Primary Text', required: true, maxLength: 500, recommendedLength: 125, placeholder: 'Main ad copy...', multiline: true, helpText: 'Recommended: 125 chars, Max: 500', warningThreshold: 80 },
+    { id: 'headline', label: 'Headline', required: false, maxLength: 255, recommendedLength: 40, placeholder: 'Headline', helpText: 'Recommended: 40 chars, Max: 255', warningThreshold: 80 },
+    { id: 'description', label: 'Description', required: false, maxLength: 125, recommendedLength: 30, placeholder: 'Link description', helpText: 'Recommended: 30 chars, Max: 125', warningThreshold: 80 },
     { id: 'callToAction', label: 'Call to Action', required: true, placeholder: 'Select CTA' },
-    { id: 'destinationUrl', label: 'Destination URL', required: true, placeholder: 'https://' },
-    { id: 'displayLink', label: 'Display Link', required: false, maxLength: 30, placeholder: 'yoursite.com' },
+    { id: 'destinationUrl', label: 'Destination URL', required: true, maxLength: 2000, placeholder: 'https://' },
+    { id: 'displayLink', label: 'Display Link', required: false, maxLength: 30, placeholder: 'yoursite.com', helpText: 'Max: 30 chars' },
   ],
   tiktok: [
-    { id: 'primaryText', label: 'Ad Text', required: true, maxLength: 100, placeholder: 'Ad copy...', multiline: true, helpText: 'Max: 100 chars' },
+    { id: 'primaryText', label: 'Ad Text', required: true, maxLength: 100, recommendedLength: 80, placeholder: 'Ad copy...', multiline: true, helpText: 'Max: 100 chars', warningThreshold: 90 },
     { id: 'callToAction', label: 'Call to Action', required: true, placeholder: 'Select CTA' },
-    { id: 'destinationUrl', label: 'Destination URL', required: true, placeholder: 'https://' },
-    { id: 'displayName', label: 'Display Name', required: false, maxLength: 40, placeholder: 'Brand name' },
+    { id: 'destinationUrl', label: 'Destination URL', required: true, maxLength: 2000, placeholder: 'https://' },
+    { id: 'displayName', label: 'Display Name', required: false, maxLength: 40, placeholder: 'Brand name', helpText: 'Max: 40 chars' },
   ],
   google: [
-    { id: 'headline', label: 'Headlines', required: true, maxLength: 30, placeholder: 'Headline 1', helpText: 'Up to 15 headlines, 30 chars each' },
-    { id: 'description', label: 'Descriptions', required: true, maxLength: 90, placeholder: 'Description', multiline: true, helpText: 'Up to 4 descriptions, 90 chars each' },
-    { id: 'destinationUrl', label: 'Final URL', required: true, placeholder: 'https://' },
-    { id: 'displayPath', label: 'Display Path', required: false, maxLength: 15, placeholder: 'path' },
+    { id: 'headline', label: 'Headlines', required: true, maxLength: 30, recommendedLength: 25, placeholder: 'Headline 1', helpText: 'Up to 15 headlines, 30 chars each', warningThreshold: 85 },
+    { id: 'description', label: 'Descriptions', required: true, maxLength: 90, recommendedLength: 80, placeholder: 'Description', multiline: true, helpText: 'Up to 4 descriptions, 90 chars each', warningThreshold: 90 },
+    { id: 'destinationUrl', label: 'Final URL', required: true, maxLength: 2000, placeholder: 'https://' },
+    { id: 'displayPath', label: 'Display Path', required: false, maxLength: 15, placeholder: 'path', helpText: 'Max: 15 chars' },
   ],
   linkedin: [
-    { id: 'primaryText', label: 'Introductory Text', required: true, maxLength: 600, placeholder: 'Ad text...', multiline: true, helpText: 'Recommended: 150 chars' },
-    { id: 'headline', label: 'Headline', required: true, maxLength: 200, placeholder: 'Headline', helpText: 'Recommended: 70 chars' },
-    { id: 'description', label: 'Description', required: false, maxLength: 300, placeholder: 'Description' },
+    { id: 'primaryText', label: 'Introductory Text', required: true, maxLength: 600, recommendedLength: 150, placeholder: 'Ad text...', multiline: true, helpText: 'Recommended: 150 chars, Max: 600', warningThreshold: 75 },
+    { id: 'headline', label: 'Headline', required: true, maxLength: 200, recommendedLength: 70, placeholder: 'Headline', helpText: 'Recommended: 70 chars, Max: 200', warningThreshold: 80 },
+    { id: 'description', label: 'Description', required: false, maxLength: 300, recommendedLength: 100, placeholder: 'Description', helpText: 'Max: 300 chars' },
     { id: 'callToAction', label: 'Call to Action', required: true, placeholder: 'Select CTA' },
-    { id: 'destinationUrl', label: 'Destination URL', required: true, placeholder: 'https://' },
+    { id: 'destinationUrl', label: 'Destination URL', required: true, maxLength: 2000, placeholder: 'https://' },
   ],
   snapchat: [
-    { id: 'headline', label: 'Headline', required: true, maxLength: 34, placeholder: 'Headline', helpText: 'Max: 34 chars' },
-    { id: 'brandName', label: 'Brand Name', required: true, maxLength: 25, placeholder: 'Brand' },
+    { id: 'headline', label: 'Headline', required: true, maxLength: 34, recommendedLength: 30, placeholder: 'Headline', helpText: 'Max: 34 chars', warningThreshold: 88 },
+    { id: 'brandName', label: 'Brand Name', required: true, maxLength: 25, placeholder: 'Brand', helpText: 'Max: 25 chars' },
     { id: 'callToAction', label: 'Call to Action', required: true, placeholder: 'Select CTA' },
-    { id: 'destinationUrl', label: 'Website URL', required: true, placeholder: 'https://' },
+    { id: 'destinationUrl', label: 'Website URL', required: true, maxLength: 2000, placeholder: 'https://' },
   ],
   pinterest: [
-    { id: 'primaryText', label: 'Pin Title', required: true, maxLength: 100, placeholder: 'Title' },
-    { id: 'description', label: 'Pin Description', required: false, maxLength: 500, placeholder: 'Description', multiline: true },
-    { id: 'destinationUrl', label: 'Destination Link', required: true, placeholder: 'https://' },
+    { id: 'primaryText', label: 'Pin Title', required: true, maxLength: 100, recommendedLength: 60, placeholder: 'Title', helpText: 'Max: 100 chars', warningThreshold: 80 },
+    { id: 'description', label: 'Pin Description', required: false, maxLength: 500, recommendedLength: 200, placeholder: 'Description', multiline: true, helpText: 'Max: 500 chars' },
+    { id: 'destinationUrl', label: 'Destination Link', required: true, maxLength: 2000, placeholder: 'https://' },
   ],
   x: [
-    { id: 'primaryText', label: 'Tweet Text', required: true, maxLength: 280, placeholder: 'Tweet...', multiline: true },
-    { id: 'headline', label: 'Card Title', required: false, maxLength: 70, placeholder: 'Title' },
-    { id: 'description', label: 'Card Description', required: false, maxLength: 200, placeholder: 'Description' },
-    { id: 'destinationUrl', label: 'Website URL', required: true, placeholder: 'https://' },
+    { id: 'primaryText', label: 'Tweet Text', required: true, maxLength: 280, recommendedLength: 250, placeholder: 'Tweet...', multiline: true, helpText: 'Max: 280 chars', warningThreshold: 89 },
+    { id: 'headline', label: 'Card Title', required: false, maxLength: 70, recommendedLength: 50, placeholder: 'Title', helpText: 'Max: 70 chars' },
+    { id: 'description', label: 'Card Description', required: false, maxLength: 200, recommendedLength: 100, placeholder: 'Description', helpText: 'Max: 200 chars' },
+    { id: 'destinationUrl', label: 'Website URL', required: true, maxLength: 2000, placeholder: 'https://' },
   ],
 };
 
@@ -164,6 +173,20 @@ export function generateAutoUtm(row: CreativeTextAssetRow): UtmConfig {
   };
 }
 
+// Get character count status for visual feedback
+export function getCharacterStatus(value: string, field: TextAssetFieldConfig): 'ok' | 'warning' | 'error' | 'over' {
+  if (!field.maxLength) return 'ok';
+  
+  const length = value?.length || 0;
+  const max = field.maxLength;
+  const threshold = field.warningThreshold || 80;
+  
+  if (length > max) return 'over';
+  if (field.recommendedLength && length > field.recommendedLength) return 'warning';
+  if (length >= (max * threshold / 100)) return 'warning';
+  return 'ok';
+}
+
 // Validate a text asset row based on platform requirements
 export function validateTextAssetRow(row: CreativeTextAssetRow): string[] {
   const errors: string[] = [];
@@ -178,7 +201,7 @@ export function validateTextAssetRow(row: CreativeTextAssetRow): string[] {
     }
     
     if (value && field.maxLength && String(value).length > field.maxLength) {
-      errors.push(`${field.label} exceeds ${field.maxLength} characters`);
+      errors.push(`${field.label} exceeds ${field.maxLength} characters (${String(value).length}/${field.maxLength})`);
     }
   }
   

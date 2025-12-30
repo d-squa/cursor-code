@@ -17,6 +17,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCreativeMatching, UICreativeMatch, DigestedAsset, CampaignStructure } from '@/hooks/useCreativeMatching';
 import { CreativeMatchCard } from './CreativeMatchCard';
 import { StructureCentricView } from './StructureCentricView';
+import { TextAssetsStep } from './TextAssetsStep';
 import type { Creative } from '@/types/creative';
 
 interface CreativeMatchingDialogProps {
@@ -506,23 +507,14 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
                 </div>
               )}
 
-              {/* Text Assets step */}
+              {/* Text Assets step - Inline editor */}
               {state.currentStep === 'text_assets' && (
-                <div className="space-y-4">
-                  <div className="text-center py-6">
-                    <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
-                      <Wand2 className="h-6 w-6 text-primary" />
-                    </div>
-                    <h3 className="text-lg font-semibold mb-2">Configure Text Assets</h3>
-                    <p className="text-muted-foreground text-sm mb-4">
-                      {stats.acceptedCount} creatives saved. You can now configure copy, CTAs, and tracking in the Creative Library.
-                    </p>
-                    <Button onClick={skipTextAssets}>
-                      <Check className="h-4 w-4 mr-2" />
-                      Continue to Finish
-                    </Button>
-                  </div>
-                </div>
+                <TextAssetsStep
+                  campaignId={effectiveCampaignId!}
+                  campaignName={selectedCampaignName}
+                  savedAssignments={state.savedAssignments}
+                  onComplete={skipTextAssets}
+                />
               )}
 
               {/* Complete step */}
