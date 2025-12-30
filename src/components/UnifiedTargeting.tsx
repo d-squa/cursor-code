@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Search, X, CheckCircle2 } from "lucide-react";
+import { Loader2, Search, X, CheckCircle2, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,7 @@ import { MultiSelect } from "@/components/ui/multi-select";
 import { DEVICE_OPTIONS, LANGUAGE_OPTIONS, GENDER_OPTIONS } from "@/utils/targetingOptions";
 import { SplittableSection } from "./SplittableSection";
 import { AdSetSplitDimension } from "@/types/mediaplan";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 export interface UnifiedTargetingItem {
   id: string;
@@ -344,37 +345,49 @@ export function UnifiedTargeting({
 
       {/* Selected Items */}
       {selectedItems.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-green-600" />
-              Selected Targeting ({selectedItems.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {selectedItems.map((item, index) => (
-                <div
-                  key={`${getItemKey(item)}_${index}`}
-                  className="flex items-center justify-between p-3 rounded-lg border bg-accent/50"
-                >
+        <Collapsible defaultOpen={false}>
+          <Card>
+            <CollapsibleTrigger asChild>
+              <CardHeader className="cursor-pointer hover:bg-accent/50 transition-colors">
+                <CardTitle className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium">{item.name}</span>
-                    {getPlatformBadge(item.platforms)}
-                    <Badge variant="outline" className="text-xs">{item.category}</Badge>
+                    <CheckCircle2 className="h-5 w-5 text-green-600" />
+                    Selected Targeting ({selectedItems.length})
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleRemoveItem(item)}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
+                  <ChevronDown className="h-5 w-5 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                </CardTitle>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent>
+                <div className="space-y-2">
+                  {selectedItems.map((item, index) => (
+                    <div
+                      key={`${getItemKey(item)}_${index}`}
+                      className="flex items-center justify-between p-3 rounded-lg border bg-accent/50"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{item.name}</span>
+                        {getPlatformBadge(item.platforms)}
+                        <Badge variant="outline" className="text-xs">{item.category}</Badge>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveItem(item);
+                        }}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
       )}
     </div>
   );
