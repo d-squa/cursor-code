@@ -543,21 +543,33 @@ export function useCreativeMatching(campaignId?: string) {
       const isSingleMarketPlan = uniqueMarkets.size === 1;
       const isSinglePlatformPlan = uniquePlatforms.size === 1;
 
-      // Step 1: Extract signals from ALL assets upfront
+      // Step 1: Extract signals from ALL assets and pre-validate dimensions
       const assetSignalsMap = new Map<string, InferredSignals>();
+      const invalidDimensionAssets = new Map<string, string>(); // assetId -> reason
+      
       for (const asset of prev.assets) {
         const signals = extractInferredSignals(asset.filePath, asset.fileName);
         assetSignalsMap.set(asset.id, signals);
+        
+        // PRIORITY 1: Pre-filter assets with invalid dimensions BEFORE any matching
+        const { width, height } = asset.technicalAttributes;
+        const dimensionCheck = isValidAdDimensions(width, height);
+        if (!dimensionCheck.valid) {
+          invalidDimensionAssets.set(asset.id, dimensionCheck.reason || 'Invalid dimensions');
+        }
       }
+      
+      // Only include valid assets for matching
+      const validAssets = prev.assets.filter(a => !invalidDimensionAssets.has(a.id));
 
-      // Step 2: For each structure, find fitting assets
+      // Step 2: For each structure, find fitting assets (only from valid assets)
       const structureResults: StructureMatchResult[] = [];
       const assignedAssetIds = new Set<string>();
 
       for (const structure of structuresToUse) {
         const assignedAssets: StructureMatchResult['assignedAssets'] = [];
 
-        for (const asset of prev.assets) {
+        for (const asset of validAssets) {
           const inferredSignals = assetSignalsMap.get(asset.id)!;
           
           // Match asset signals against structure taxonomy elements
@@ -591,6 +603,7 @@ export function useCreativeMatching(campaignId?: string) {
 
       // Step 3: Identify unassigned assets with reasons
       const unassignedAssets: UnassignedAsset[] = [];
+      
       for (const asset of prev.assets) {
         if (!assignedAssetIds.has(asset.id)) {
           const inferredSignals = assetSignalsMap.get(asset.id)!;
@@ -606,7 +619,24 @@ export function useCreativeMatching(campaignId?: string) {
             extractedSignals['Resolution'] = `${asset.technicalAttributes.width}×${asset.technicalAttributes.height}`;
           }
 
-          // Find closest matches with blocking reasons
+          const reasons: string[] = [];
+          
+          // PRIORITY CHECK: Was this asset filtered out due to invalid dimensions?
+          if (invalidDimensionAssets.has(asset.id)) {
+            const dimensionReason = invalidDimensionAssets.get(asset.id)!;
+            reasons.push(`⛔ ${dimensionReason}`);
+            
+            // No need to find closest matches for dimension-invalid assets
+            unassignedAssets.push({
+              asset,
+              extractedSignals,
+              reasons,
+              closestMatches: [], // No matches attempted due to dimension filter
+            });
+            continue;
+          }
+
+          // Find closest matches with blocking reasons (for dimension-valid but unmatched assets)
           const closestMatches: UnassignedAsset['closestMatches'] = [];
           for (const structure of structuresToUse) {
             const matchResult = matchAssetToStructure(
@@ -628,8 +658,7 @@ export function useCreativeMatching(campaignId?: string) {
           // Sort by score descending
           closestMatches.sort((a, b) => b.score - a.score);
 
-          // Build reasons list
-          const reasons: string[] = [];
+          // Build reasons list from closest match blocking reasons
           if (closestMatches.length > 0) {
             const topMatch = closestMatches[0];
             reasons.push(...topMatch.blockingReasons);
@@ -1339,8 +1368,54 @@ function checkAgeOverlap(a: { min: number; max: number }, b: { min: number; max:
   return a.min <= b.max && b.min <= a.max;
 }
 
+// Standard social media ad format minimum dimensions
+const MINIMUM_AD_DIMENSIONS = {
+  minWidth: 200,   // Absolute minimum width for any ad format
+  minHeight: 200,  // Absolute minimum height for any ad format
+  minArea: 100000, // Minimum pixel area (e.g. 400x250 = 100k)
+};
+
+// Check if dimensions are valid for social media ad formats
+function isValidAdDimensions(width?: number, height?: number): { 
+  valid: boolean; 
+  reason?: string;
+} {
+  if (!width || !height) {
+    return { valid: false, reason: 'No dimensions detected in metadata' };
+  }
+  
+  // Too small - likely a logo or icon
+  if (width < MINIMUM_AD_DIMENSIONS.minWidth || height < MINIMUM_AD_DIMENSIONS.minHeight) {
+    return { 
+      valid: false, 
+      reason: `Dimensions too small (${width}x${height}). Min: ${MINIMUM_AD_DIMENSIONS.minWidth}x${MINIMUM_AD_DIMENSIONS.minHeight}` 
+    };
+  }
+  
+  // Check pixel area - catches skinny or tiny assets
+  const area = width * height;
+  if (area < MINIMUM_AD_DIMENSIONS.minArea) {
+    return { 
+      valid: false, 
+      reason: `Pixel area too small (${area.toLocaleString()} px). Min: ${MINIMUM_AD_DIMENSIONS.minArea.toLocaleString()} px` 
+    };
+  }
+  
+  // Check aspect ratio isn't extreme (e.g. 20:1 banners that don't fit any ad format)
+  const ratio = Math.max(width, height) / Math.min(width, height);
+  if (ratio > 5) { // More than 5:1 is too extreme for standard ad formats
+    return { 
+      valid: false, 
+      reason: `Extreme aspect ratio (${ratio.toFixed(1)}:1). Standard ad formats are max 5:1` 
+    };
+  }
+  
+  return { valid: true };
+}
+
 // Core matching function: match asset signals against structure taxonomy
 // Enforces STRICT platform and language checks - no cross-platform or cross-language matches
+// PRIORITY 1: Check metadata (dimensions) FIRST to filter unsuitable creatives early
 function matchAssetToStructure(
   asset: DigestedAsset,
   signals: InferredSignals,
@@ -1357,6 +1432,22 @@ function matchAssetToStructure(
   const blockingReasons: string[] = [];
   const issues: Array<{ type: string; severity: 'warning' | 'error'; message: string }> = [];
   let score = 50; // Base score
+
+  // === PRIORITY 1: METADATA VALIDATION (check first!) ===
+  // Validate dimensions from metadata BEFORE any other matching logic
+  const { width, height } = asset.technicalAttributes;
+  const dimensionCheck = isValidAdDimensions(width, height);
+  
+  if (!dimensionCheck.valid) {
+    blockingReasons.push(`Invalid ad dimensions: ${dimensionCheck.reason}`);
+    return { isMatch: false, score: 0, matchedCriteria, blockingReasons, issues };
+  }
+  
+  // Dimensions are valid, add to matched criteria
+  matchedCriteria.push({ 
+    criterion: 'Dimensions', 
+    reason: `Valid ad format: ${width}x${height} (${asset.technicalAttributes.aspectRatio || 'unknown ratio'})` 
+  });
 
   // === HARD CONSTRAINTS (blocking) ===
   
