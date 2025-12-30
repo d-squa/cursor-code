@@ -996,6 +996,7 @@ interface InferredSignals {
   // Extended criteria
   publisher?: string;         // Facebook, Instagram, TikTok, etc.
   funnelStage?: string;       // awareness, consideration, conversion
+  campaignType?: string;      // e.g. UAC, PMax, Demand Gen
   productName?: string;       // Extracted product/campaign name
   contentPillar?: string;     // Brand, Product, Promo, etc.
   variant?: string;           // A, B, Control, etc.
@@ -1023,6 +1024,7 @@ function formatExtractedSignalsForDisplay(signals: InferredSignals): Record<stri
     format: 'Format',
     publisher: 'Publisher',
     funnelStage: 'Funnel Stage',
+    campaignType: 'Campaign Type',
     productName: 'Product',
     contentPillar: 'Content Pillar',
     variant: 'Variant',
@@ -1081,7 +1083,12 @@ function extractInferredSignals(filePath: string, fileName: string): InferredSig
   const platformPatterns: Record<string, string> = {
     'meta': 'meta', 'facebook': 'meta', 'instagram': 'meta',
     'tiktok': 'tiktok',
-    'google': 'google', 'youtube': 'google', 'gdn': 'google', 'pmax': 'google',
+    // Google (include common product/campaign-type shorthands)
+    'google': 'google', 'googleads': 'google', 'gads': 'google',
+    'youtube': 'google', 'gdn': 'google',
+    'pmax': 'google', 'performance_max': 'google',
+    'uac': 'google', 'universal_app': 'google', 'app_campaign': 'google', 'google_app': 'google',
+    'demand_gen': 'google', 'demandgen': 'google',
     'dv360': 'dv360', 'programmatic': 'dv360',
     'snapchat': 'snapchat', 'snap': 'snapchat',
     'linkedin': 'linkedin',
@@ -1092,6 +1099,30 @@ function extractInferredSignals(filePath: string, fileName: string): InferredSig
       signals.platform = plat; 
       signals.sources.platform = `filename contains "${kw}"`;
       break; 
+    }
+  }
+
+  // Campaign type detection (used as a hard boundary when ad sets specify it)
+  if (matchesWholeWord(text, 'uac') || matchesWholeWord(text, 'universal_app') || matchesWholeWord(text, 'app_campaign') || matchesWholeWord(text, 'google_app')) {
+    signals.campaignType = 'uac';
+    signals.sources.campaignType = 'filename contains "uac" campaign type keyword';
+    if (!signals.platform) {
+      signals.platform = 'google';
+      signals.sources.platform = 'inferred from campaign type (UAC)';
+    }
+  } else if (matchesWholeWord(text, 'pmax') || matchesWholeWord(text, 'performance_max') || text.includes('performance max')) {
+    signals.campaignType = 'pmax';
+    signals.sources.campaignType = 'filename contains "pmax" campaign type keyword';
+    if (!signals.platform) {
+      signals.platform = 'google';
+      signals.sources.platform = 'inferred from campaign type (PMax)';
+    }
+  } else if (matchesWholeWord(text, 'demand_gen') || matchesWholeWord(text, 'demandgen') || text.includes('demand gen')) {
+    signals.campaignType = 'demand_gen';
+    signals.sources.campaignType = 'filename contains "demand gen" campaign type keyword';
+    if (!signals.platform) {
+      signals.platform = 'google';
+      signals.sources.platform = 'inferred from campaign type (Demand Gen)';
     }
   }
   
@@ -1508,17 +1539,74 @@ function matchAssetToStructure(
 
   // === HARD CONSTRAINTS (blocking) ===
   
-  // STRICT: Platform must match if specified in asset
-  if (signals.platform) {
-    if (signals.platform !== structure.platform) {
-      blockingReasons.push(`Platform mismatch: asset is "${signals.platform.toUpperCase()}" but ad set is "${structure.platform.toUpperCase()}"`);
+  // STRICT: Platform is a HARD boundary.
+  // - If the plan has multiple platforms, the asset must state a platform (via filename OR existing creative metadata).
+  // - For single-platform plans, we can safely assume the platform.
+  const assetPlatformRaw =
+    (typeof (asset as any).compatibilitySignals?.platform === 'string'
+      ? String((asset as any).compatibilitySignals.platform)
+      : undefined) ||
+    signals.platform;
+
+  const assetPlatform = assetPlatformRaw?.toLowerCase();
+
+  if (!assetPlatform) {
+    if (!options.isSinglePlatformPlan) {
+      blockingReasons.push(
+        `Platform required: ActiPlan contains multiple platforms, but asset has no platform keyword (add "meta", "tiktok", "google", etc. to filename)`
+      );
       return { isMatch: false, score: 0, matchedCriteria, blockingReasons, issues };
     }
-    matchedCriteria.push({ criterion: 'Platform', reason: `"${signals.platform}" matches (${signals.sources.platform})` });
+
+    matchedCriteria.push({
+      criterion: 'Platform',
+      reason: `Assumed "${structure.platform.toUpperCase()}" (single-platform plan)`,
+    });
+  } else {
+    if (assetPlatform !== structure.platform) {
+      blockingReasons.push(
+        `Platform mismatch: asset is "${assetPlatform.toUpperCase()}" but ad set is "${structure.platform.toUpperCase()}"`
+      );
+      return { isMatch: false, score: 0, matchedCriteria, blockingReasons, issues };
+    }
+
+    matchedCriteria.push({
+      criterion: 'Platform',
+      reason: `"${assetPlatform}" matches (${signals.sources.platform || 'creative metadata'})`,
+    });
     score += 15;
-  } else if (!options.isSinglePlatformPlan) {
-    // No platform specified and multiple platforms in plan - it's ambiguous
-    issues.push({ type: 'platform', severity: 'warning', message: 'No platform specified in filename; matches all platforms' });
+  }
+
+  // STRICT: Campaign Type must match if the ad set taxonomy specifies it (e.g., UAC, PMAX)
+  const taxonomyCampaignType = Object.entries(structure.taxonomyElements ?? {}).find(([k]) =>
+    /campaign\s*type/i.test(k)
+  )?.[1];
+
+  const normalizeCampaignType = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  const requiredCampaignType = taxonomyCampaignType ? normalizeCampaignType(taxonomyCampaignType) : undefined;
+  if (requiredCampaignType && requiredCampaignType !== 'all') {
+    const assetCampaignType = signals.campaignType ? normalizeCampaignType(signals.campaignType) : undefined;
+
+    if (!assetCampaignType) {
+      blockingReasons.push(
+        `Campaign type required: ad set requires "${taxonomyCampaignType}" but asset has no campaign type keyword (e.g., "uac", "pmax")`
+      );
+      return { isMatch: false, score: 0, matchedCriteria, blockingReasons, issues };
+    }
+
+    if (assetCampaignType !== requiredCampaignType) {
+      blockingReasons.push(
+        `Campaign type mismatch: asset is "${signals.campaignType}" but ad set requires "${taxonomyCampaignType}"`
+      );
+      return { isMatch: false, score: 0, matchedCriteria, blockingReasons, issues };
+    }
+
+    matchedCriteria.push({
+      criterion: 'Campaign Type',
+      reason: `"${taxonomyCampaignType}" matches (${signals.sources.campaignType || 'filename'})`,
+    });
+    score += 10;
   }
   
   // STRICT: Language must match if specified in structure
