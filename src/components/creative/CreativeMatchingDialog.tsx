@@ -57,7 +57,7 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
 
   const effectiveCampaignId = selectedCampaignId ?? initialCampaignId;
 
-  const { state, stats, loadCampaignStructures, processFiles, addLibraryCreatives, runMatching, acceptMatch, rejectMatch, clearRejection, removeAsset, clearAll, saveMatches } = useCreativeMatching(effectiveCampaignId);
+  const { state, stats, loadCampaignStructures, processFiles, addLibraryCreatives, runMatching, acceptMatch, rejectMatch, clearRejection, clearAcceptedMatch, removeAsset, clearAll, saveMatches } = useCreativeMatching(effectiveCampaignId);
 
   // Load available campaigns when dialog opens (if no campaignId provided)
   useEffect(() => {
@@ -422,6 +422,7 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
                           onAccept={(match: UICreativeMatch) => acceptMatch(result.assetId, match)}
                           onReject={(structureId: string) => rejectMatch(result.assetId, structureId)}
                           onClearRejection={(structureId: string) => clearRejection(result.assetId, structureId)}
+                          onClearAccepted={() => clearAcceptedMatch(result.assetId)}
                           onRemove={() => removeAsset(result.assetId)}
                         />
                       );

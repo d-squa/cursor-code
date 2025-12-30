@@ -30,6 +30,7 @@ interface CreativeMatchCardProps {
   onAccept: (match: UICreativeMatch) => void;
   onReject: (structureId: string) => void;
   onClearRejection: (structureId: string) => void;
+  onClearAccepted: () => void;
   onRemove: () => void;
 }
 
@@ -197,6 +198,7 @@ export function CreativeMatchCard({
   onAccept,
   onReject,
   onClearRejection,
+  onClearAccepted,
   onRemove,
 }: CreativeMatchCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -314,7 +316,7 @@ export function CreativeMatchCard({
                   <MatchedElementsBadges match={acceptedMatch} />
                 </div>
                 <MatchConfidenceIndicator score={acceptedMatch.confidenceScore} size="sm" />
-                <Button size="sm" variant="ghost" onClick={() => onClearRejection(acceptedMatch.structure.id)}>
+                <Button size="sm" variant="ghost" onClick={onClearAccepted}>
                   <RotateCcw className="h-4 w-4 mr-1" />Change
                 </Button>
               </div>
