@@ -5,6 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import type { HardConstraints, SupportedPlatform, AssetMediaType } from '@/types/creativeMatching';
 import { generateAdTaxonomyName, AD_TAXONOMY_MAPPINGS, createShortCode, getDefaultAdSetParams, extractTaxonomyValues, generateTaxonomyString, TaxonomyContext, TaxonomyParam } from '@/utils/taxonomyUtils';
+import { validateCreativeForAds, findCompatibleFormats, PLATFORM_AD_SPECS } from '@/utils/platformAdSpecs';
 
 // Helper to generate taxonomy-based creative name
 function generateCreativeTaxonomyName(asset: DigestedAsset, structure: CampaignStructure): string {
@@ -552,8 +553,9 @@ export function useCreativeMatching(campaignId?: string) {
         assetSignalsMap.set(asset.id, signals);
         
         // PRIORITY 1: Pre-filter assets with invalid dimensions BEFORE any matching
+        // Use platform ad specs to validate if creative fits ANY standard ad format
         const { width, height } = asset.technicalAttributes;
-        const dimensionCheck = isValidAdDimensions(width, height);
+        const dimensionCheck = isValidAdDimensions(width, height, asset.mediaType);
         if (!dimensionCheck.valid) {
           invalidDimensionAssets.set(asset.id, dimensionCheck.reason || 'Invalid dimensions');
         }
@@ -1368,49 +1370,55 @@ function checkAgeOverlap(a: { min: number; max: number }, b: { min: number; max:
   return a.min <= b.max && b.min <= a.max;
 }
 
-// Standard social media ad format minimum dimensions
-const MINIMUM_AD_DIMENSIONS = {
-  minWidth: 200,   // Absolute minimum width for any ad format
-  minHeight: 200,  // Absolute minimum height for any ad format
-  minArea: 100000, // Minimum pixel area (e.g. 400x250 = 100k)
-};
-
-// Check if dimensions are valid for social media ad formats
-function isValidAdDimensions(width?: number, height?: number): { 
+// Check if dimensions are valid for social media ad formats using platform specs
+function isValidAdDimensions(
+  width?: number, 
+  height?: number,
+  mediaType?: AssetMediaType,
+  targetPlatform?: string
+): { 
   valid: boolean; 
   reason?: string;
+  compatibleFormats?: Array<{ platform: string; format: string; placement: string }>;
 } {
   if (!width || !height) {
     return { valid: false, reason: 'No dimensions detected in metadata' };
   }
   
-  // Too small - likely a logo or icon
-  if (width < MINIMUM_AD_DIMENSIONS.minWidth || height < MINIMUM_AD_DIMENSIONS.minHeight) {
+  // Use the comprehensive platform ad specs validation
+  const validation = validateCreativeForAds(
+    width, 
+    height, 
+    mediaType === 'video' ? 'video' : 'image'
+  );
+  
+  if (!validation.isValid) {
     return { 
       valid: false, 
-      reason: `Dimensions too small (${width}x${height}). Min: ${MINIMUM_AD_DIMENSIONS.minWidth}x${MINIMUM_AD_DIMENSIONS.minHeight}` 
+      reason: validation.reason || `Dimensions ${width}x${height} don't fit any standard ad format`
     };
   }
   
-  // Check pixel area - catches skinny or tiny assets
-  const area = width * height;
-  if (area < MINIMUM_AD_DIMENSIONS.minArea) {
-    return { 
-      valid: false, 
-      reason: `Pixel area too small (${area.toLocaleString()} px). Min: ${MINIMUM_AD_DIMENSIONS.minArea.toLocaleString()} px` 
-    };
+  // If target platform specified, check if compatible with that platform
+  if (targetPlatform) {
+    const platformCompatible = validation.compatibleFormats.some(
+      f => f.platform === targetPlatform.toLowerCase()
+    );
+    
+    if (!platformCompatible) {
+      const compatiblePlatforms = [...new Set(validation.compatibleFormats.map(f => f.platform))];
+      return {
+        valid: false,
+        reason: `Dimensions ${width}x${height} not compatible with ${targetPlatform}. Compatible: ${compatiblePlatforms.join(', ')}`,
+        compatibleFormats: validation.compatibleFormats,
+      };
+    }
   }
   
-  // Check aspect ratio isn't extreme (e.g. 20:1 banners that don't fit any ad format)
-  const ratio = Math.max(width, height) / Math.min(width, height);
-  if (ratio > 5) { // More than 5:1 is too extreme for standard ad formats
-    return { 
-      valid: false, 
-      reason: `Extreme aspect ratio (${ratio.toFixed(1)}:1). Standard ad formats are max 5:1` 
-    };
-  }
-  
-  return { valid: true };
+  return { 
+    valid: true, 
+    compatibleFormats: validation.compatibleFormats 
+  };
 }
 
 // Core matching function: match asset signals against structure taxonomy
@@ -1435,19 +1443,40 @@ function matchAssetToStructure(
 
   // === PRIORITY 1: METADATA VALIDATION (check first!) ===
   // Validate dimensions from metadata BEFORE any other matching logic
+  // Also check platform-specific format compatibility
   const { width, height } = asset.technicalAttributes;
-  const dimensionCheck = isValidAdDimensions(width, height);
+  const dimensionCheck = isValidAdDimensions(width, height, asset.mediaType, structure.platform);
   
   if (!dimensionCheck.valid) {
     blockingReasons.push(`Invalid ad dimensions: ${dimensionCheck.reason}`);
     return { isMatch: false, score: 0, matchedCriteria, blockingReasons, issues };
   }
   
-  // Dimensions are valid, add to matched criteria
+  // Check if dimensions are compatible with this specific platform's ad formats
+  const platformFormats = findCompatibleFormats(
+    width || 0, 
+    height || 0, 
+    asset.mediaType === 'video' ? 'video' : 'image',
+    structure.platform
+  );
+  
+  if (platformFormats.length === 0) {
+    blockingReasons.push(`Dimensions ${width}x${height} not compatible with ${structure.platform.toUpperCase()} ad formats`);
+    return { isMatch: false, score: 0, matchedCriteria, blockingReasons, issues };
+  }
+  
+  // Dimensions are valid for this platform, add to matched criteria with format details
+  const formatNames = platformFormats.map(f => f.format.name).slice(0, 2).join(', ');
+  const exactMatch = platformFormats.some(f => f.compatibility === 'exact');
   matchedCriteria.push({ 
     criterion: 'Dimensions', 
-    reason: `Valid ad format: ${width}x${height} (${asset.technicalAttributes.aspectRatio || 'unknown ratio'})` 
+    reason: `${exactMatch ? 'Exact' : 'Compatible'} format for ${structure.platform}: ${formatNames} (${width}x${height})` 
   });
+  
+  // Bonus score for exact dimension match
+  if (exactMatch) {
+    score += 10;
+  }
 
   // === HARD CONSTRAINTS (blocking) ===
   
