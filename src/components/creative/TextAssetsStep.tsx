@@ -229,18 +229,20 @@ export function TextAssetsStep({
   }
 
   return (
-    <div className="space-y-4">
-      <CreativeTextAssetEditor
-        rows={rows}
-        campaignName={campaignName}
-        onRowChange={handleRowChange}
-        onBulkUpdate={handleBulkUpdate}
-        onSave={handleSave}
-        isSaving={isSaving}
-      />
+    <div className="h-full flex flex-col">
+      <div className="flex-1 overflow-hidden">
+        <CreativeTextAssetEditor
+          rows={rows}
+          campaignName={campaignName}
+          onRowChange={handleRowChange}
+          onBulkUpdate={handleBulkUpdate}
+          onSave={handleSave}
+          isSaving={isSaving}
+        />
+      </div>
       
       {/* Skip option */}
-      <div className="flex items-center justify-between pt-2 border-t">
+      <div className="flex items-center justify-between pt-4 border-t mt-4">
         <p className="text-sm text-muted-foreground">
           You can also configure text assets later in the Creative Library
         </p>

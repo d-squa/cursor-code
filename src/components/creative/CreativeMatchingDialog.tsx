@@ -205,6 +205,38 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
   // Filter library creatives that are not already assigned to a campaign
   const availableCreatives = libraryCreatives.filter(c => !c.campaignId);
 
+  // Text Assets step should render full-screen, not inside dialog
+  if (state.currentStep === 'text_assets' && open) {
+    return (
+      <div className="fixed inset-0 z-50 bg-background flex flex-col">
+        {/* Full-screen header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b bg-background">
+          <div className="flex items-center gap-3">
+            <Wand2 className="h-5 w-5 text-primary" />
+            <h1 className="text-xl font-semibold">Text Asset Editor</h1>
+            {selectedCampaignName && <Badge variant="secondary">{selectedCampaignName}</Badge>}
+          </div>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>
+            Close
+          </Button>
+        </div>
+        
+        {/* Full-screen content */}
+        <div className="flex-1 overflow-hidden p-6">
+          <TextAssetsStep
+            campaignId={effectiveCampaignId!}
+            campaignName={selectedCampaignName}
+            savedAssignments={state.savedAssignments}
+            onComplete={() => {
+              skipTextAssets();
+              onOpenChange(false);
+            }}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col">
@@ -509,15 +541,8 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
                 </div>
               )}
 
-              {/* Text Assets step - Inline editor */}
-              {state.currentStep === 'text_assets' && (
-                <TextAssetsStep
-                  campaignId={effectiveCampaignId!}
-                  campaignName={selectedCampaignName}
-                  savedAssignments={state.savedAssignments}
-                  onComplete={skipTextAssets}
-                />
-              )}
+              {/* Text Assets step is now rendered full-screen outside dialog */}
+
 
               {/* Complete step */}
               {state.currentStep === 'complete' && (
