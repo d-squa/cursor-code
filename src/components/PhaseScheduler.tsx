@@ -2564,36 +2564,95 @@ export function PhaseScheduler({
                       )}
 
                       {/* Ad Set Split Manager - shown at bottom of phase */}
-                      {phase.adSetSplitDimension && phase.adSetSplitDimension !== 'none' && phase.adSets && (
-                        <div 
-                          ref={(el) => { splitManagerRefs.current[phase.id] = el; }}
-                          className="mt-4"
-                        >
-                          <AdSetSplitManager
-                            dimension={phase.adSetSplitDimension}
-                            adSets={phase.adSets}
-                            platformName={platformName}
-                            platformId={platformId || 'meta'}
-                            phaseName={phase.name}
-                            useCBO={phase.useCBO}
-                            onAdSetsChange={(adSets) => updatePhaseField(phase.id, "adSets", adSets)}
-                            onRemoveSplit={() => updatePhaseFields(phase.id, { 
-                              adSetSplitDimension: undefined,
-                              adSets: undefined,
-                              useCBO: undefined,
-                            })}
-                            availablePlacements={getPlacementsForSelection(platformName, phase.assetTypes || [])}
-                            availableOptimizationGoals={getOptimizationGoalsForPhase(phase.objective || "").map(g => ({ value: g.value, label: g.label }))}
-                            availableAudiences={phase.audiences?.map(a => ({ id: a.id, name: a.name, type: a.type })) || []}
-                            adAccountId={adAccountId}
-                            currentGender={phase.targeting?.genders?.[0] || basicTargeting?.genders?.[0]}
-                            currentAgeMin={phase.targeting?.ageMin ?? basicTargeting?.ageMin}
-                            currentAgeMax={phase.targeting?.ageMax ?? basicTargeting?.ageMax}
-                            currentDevices={phase.targeting?.devices || basicTargeting?.devices}
-                            currentLanguages={phase.targeting?.languages || basicTargeting?.languages}
-                          />
-                        </div>
-                      )}
+                      {/* Show split manager if phase has its own split OR inherits from basic targeting (when not overriding) */}
+                      {(() => {
+                        // Determine effective split dimension
+                        const hasOwnSplit = phase.adSetSplitDimension && phase.adSetSplitDimension !== 'none';
+                        const hasInheritedSplit = !phase.overrideTargeting && 
+                          basicTargeting?.defaultAdSetSplitDimension && 
+                          basicTargeting.defaultAdSetSplitDimension !== 'none';
+                        
+                        const effectiveDimension = hasOwnSplit 
+                          ? phase.adSetSplitDimension 
+                          : (hasInheritedSplit ? basicTargeting?.defaultAdSetSplitDimension : undefined);
+                        
+                        if (!effectiveDimension || effectiveDimension === 'none') return null;
+                        
+                        // If inheriting split but phase doesn't have adSets configured yet, show a message
+                        const needsConfiguration = hasInheritedSplit && !hasOwnSplit && (!phase.adSets || phase.adSets.length === 0);
+                        
+                        return (
+                          <div 
+                            ref={(el) => { splitManagerRefs.current[phase.id] = el; }}
+                            className="mt-4"
+                          >
+                            {needsConfiguration ? (
+                              <div className="p-4 border rounded-lg bg-muted/50 space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <p className="text-sm font-medium">
+                                      Inherited Ad Set Split: <span className="text-primary">{effectiveDimension.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}</span>
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                      From campaign-level default targeting. Configure the split values for this phase.
+                                    </p>
+                                  </div>
+                                  <Button
+                                    size="sm"
+                                    onClick={() => {
+                                      // Initialize the phase with the inherited split
+                                      updatePhaseFields(phase.id, {
+                                        adSetSplitDimension: effectiveDimension,
+                                        adSets: [{
+                                          id: crypto.randomUUID(),
+                                          name: `${phase.name}_1`,
+                                          dimensionValue: '',
+                                          budgetPercentage: 50,
+                                        }, {
+                                          id: crypto.randomUUID(),
+                                          name: `${phase.name}_2`,
+                                          dimensionValue: '',
+                                          budgetPercentage: 50,
+                                        }],
+                                        useCBO: basicTargeting?.defaultAdSetSplitUseCBO,
+                                      });
+                                    }}
+                                  >
+                                    Configure Split
+                                  </Button>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                  To disable this split for this phase only, enable "Override Targeting" above.
+                                </p>
+                              </div>
+                            ) : phase.adSets && phase.adSets.length > 0 ? (
+                              <AdSetSplitManager
+                                dimension={effectiveDimension}
+                                adSets={phase.adSets}
+                                platformName={platformName}
+                                platformId={platformId || 'meta'}
+                                phaseName={phase.name}
+                                useCBO={phase.useCBO}
+                                onAdSetsChange={(adSets) => updatePhaseField(phase.id, "adSets", adSets)}
+                                onRemoveSplit={() => updatePhaseFields(phase.id, { 
+                                  adSetSplitDimension: undefined,
+                                  adSets: undefined,
+                                  useCBO: undefined,
+                                })}
+                                availablePlacements={getPlacementsForSelection(platformName, phase.assetTypes || [])}
+                                availableOptimizationGoals={getOptimizationGoalsForPhase(phase.objective || "").map(g => ({ value: g.value, label: g.label }))}
+                                availableAudiences={phase.audiences?.map(a => ({ id: a.id, name: a.name, type: a.type })) || []}
+                                adAccountId={adAccountId}
+                                currentGender={phase.targeting?.genders?.[0] || basicTargeting?.genders?.[0]}
+                                currentAgeMin={phase.targeting?.ageMin ?? basicTargeting?.ageMin}
+                                currentAgeMax={phase.targeting?.ageMax ?? basicTargeting?.ageMax}
+                                currentDevices={phase.targeting?.devices || basicTargeting?.devices}
+                                currentLanguages={phase.targeting?.languages || basicTargeting?.languages}
+                              />
+                            ) : null}
+                          </div>
+                        );
+                      })()}
 
                     </div>
                   </CollapsibleContent>
