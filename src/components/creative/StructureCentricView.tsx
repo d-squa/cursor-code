@@ -72,7 +72,9 @@ function StructureCard({
   const [isExpanded, setIsExpanded] = useState(result.assignedAssets.length > 0);
   const { structure, assignedAssets } = result;
   
-  const acceptedCount = assignedAssets.filter(a => acceptedMatches.has(a.asset.id)).length;
+  // Check accepted status using composite key: assetId:structureId
+  const isAssetAccepted = (assetId: string) => acceptedMatches.has(`${assetId}:${structure.id}`);
+  const acceptedCount = assignedAssets.filter(a => isAssetAccepted(a.asset.id)).length;
   const hasAssets = assignedAssets.length > 0;
 
   return (
@@ -153,7 +155,8 @@ function StructureCard({
               <div className="space-y-2">
                 {assignedAssets.map((assignedAsset) => {
                   const { asset, confidenceScore, reasoning, matchedCriteria, issues } = assignedAsset;
-                  const isAccepted = acceptedMatches.has(asset.id);
+                  // Use composite key to check if this specific asset-structure pair is accepted
+                  const isAccepted = isAssetAccepted(asset.id);
                   
                   return (
                     <div 
