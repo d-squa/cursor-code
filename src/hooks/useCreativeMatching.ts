@@ -118,10 +118,37 @@ export interface UICreativeMatch {
   hardConstraintsMet: boolean;
 }
 
+// Structure-centric result: for each ad set, which assets fit
+export interface StructureMatchResult {
+  structure: CampaignStructure;
+  assignedAssets: Array<{
+    asset: DigestedAsset;
+    confidenceScore: number;
+    reasoning: string[];
+    matchedCriteria: string[];  // Which extracted criteria matched taxonomy elements
+    issues: Array<{ type: string; severity: 'warning' | 'error'; message: string }>;
+  }>;
+}
+
+// Unassigned asset with explanation
+export interface UnassignedAsset {
+  asset: DigestedAsset;
+  extractedSignals: Record<string, string>;  // What we found in the filename
+  reasons: string[];  // Why it couldn't be assigned
+  closestMatches?: Array<{
+    structure: CampaignStructure;
+    score: number;
+    blockingReasons: string[];
+  }>;
+}
+
 export interface MatchingState {
   assets: DigestedAsset[];
   structures: CampaignStructure[];
   results: UIMatchingResult[];
+  // Structure-centric results
+  structureResults: StructureMatchResult[];
+  unassignedAssets: UnassignedAsset[];
   acceptedMatches: Map<string, UICreativeMatch>;
   rejectedMatches: Map<string, Set<string>>;
   isProcessing: boolean;
@@ -134,6 +161,8 @@ export function useCreativeMatching(campaignId?: string) {
     assets: [],
     structures: [],
     results: [],
+    structureResults: [],
+    unassignedAssets: [],
     acceptedMatches: new Map(),
     rejectedMatches: new Map(),
     isProcessing: false,
@@ -472,7 +501,8 @@ export function useCreativeMatching(campaignId?: string) {
     return digestedAssets;
   }, []);
 
-  // Run the matching algorithm - compares creatives against ALL ad set configurations
+  // Run the matching algorithm - STRUCTURE-CENTRIC approach
+  // For each campaign/adset, find assets that fit based on taxonomy matching
   const runMatching = useCallback((structuresOverride?: CampaignStructure[]) => {
     setState(prev => {
       const structuresToUse = structuresOverride || prev.structures;
@@ -493,269 +523,176 @@ export function useCreativeMatching(campaignId?: string) {
       const isSingleMarketPlan = uniqueMarkets.size === 1;
       const isSinglePlatformPlan = uniquePlatforms.size === 1;
 
-      const results: UIMatchingResult[] = prev.assets.map(asset => {
-        const matches: UICreativeMatch[] = [];
-        
-        // Extract signals from filename/path for inference
-        const inferredSignals = extractInferredSignals(asset.filePath, asset.fileName);
-        
-        for (const structure of structuresToUse) {
-          // ============ HARD CONSTRAINT CHECKS (must pass to match) ============
+      // Step 1: Extract signals from ALL assets upfront
+      const assetSignalsMap = new Map<string, InferredSignals>();
+      for (const asset of prev.assets) {
+        const signals = extractInferredSignals(asset.filePath, asset.fileName);
+        assetSignalsMap.set(asset.id, signals);
+      }
+
+      // Step 2: For each structure, find fitting assets
+      const structureResults: StructureMatchResult[] = [];
+      const assignedAssetIds = new Set<string>();
+
+      for (const structure of structuresToUse) {
+        const assignedAssets: StructureMatchResult['assignedAssets'] = [];
+
+        for (const asset of prev.assets) {
+          const inferredSignals = assetSignalsMap.get(asset.id)!;
           
-          // 1. Platform hard constraint - if creative specifies a platform, it MUST match
-          if (inferredSignals.platform && inferredSignals.platform !== structure.platform) {
-            continue; // Skip - platform mismatch is a hard fail
-          }
-          if (asset.compatibilitySignals?.platform && asset.compatibilitySignals.platform !== structure.platform) {
-            continue; // Skip - explicit platform mismatch
-          }
-          
-          // 2. Format hard constraint - if creative specifies a format, it must be compatible
-          if (inferredSignals.format && structure.formatConstraints && structure.formatConstraints.length > 0) {
-            const formatMatch = structure.formatConstraints.some(f => 
-              f.toLowerCase().includes(inferredSignals.format!) || 
-              inferredSignals.format!.includes(f.toLowerCase())
-            );
-            if (!formatMatch) {
-              continue; // Skip - format mismatch is a hard fail
-            }
-          }
-          
-          // 3. Optimization goal hard constraint - if creative specifies a goal, it must match
-          if (inferredSignals.optimizationGoal && structure.optimizationGoal) {
-            const goalMatch = inferredSignals.optimizationGoal === structure.optimizationGoal ||
-              // Allow some flexibility for related goals
-              (inferredSignals.optimizationGoal === 'conversions' && structure.optimizationGoal.includes('purchase')) ||
-              (inferredSignals.optimizationGoal === 'app_installs' && structure.optimizationGoal.includes('install'));
-            if (!goalMatch) {
-              continue; // Skip - optimization goal mismatch is a hard fail
-            }
-          }
-          
-          // Hard constraint check for market/language/variant with inference support
-          const hardCheckResult = checkHardConstraintsEnhanced(
-            asset.hardConstraints,
+          // Match asset signals against structure taxonomy elements
+          const matchResult = matchAssetToStructure(
+            asset,
+            inferredSignals,
             structure,
-            { isSingleMarketPlan, isSinglePlatformPlan, inferredSignals }
+            { isSingleMarketPlan, isSinglePlatformPlan }
           );
-          
-          if (!hardCheckResult.passed && hardCheckResult.failures.length > 0) {
-            continue; // Skip this structure - hard constraint failed
+
+          if (matchResult.isMatch) {
+            assignedAssets.push({
+              asset,
+              confidenceScore: matchResult.score,
+              reasoning: matchResult.matchedCriteria.map(c => `${c.criterion}: ${c.reason}`),
+              matchedCriteria: matchResult.matchedCriteria.map(c => c.criterion),
+              issues: matchResult.issues,
+            });
+            assignedAssetIds.add(asset.id);
           }
+        }
+
+        // Sort by confidence score descending
+        assignedAssets.sort((a, b) => b.confidenceScore - a.confidenceScore);
+
+        structureResults.push({
+          structure,
+          assignedAssets,
+        });
+      }
+
+      // Step 3: Identify unassigned assets with reasons
+      const unassignedAssets: UnassignedAsset[] = [];
+      for (const asset of prev.assets) {
+        if (!assignedAssetIds.has(asset.id)) {
+          const inferredSignals = assetSignalsMap.get(asset.id)!;
           
-          // ============ SOFT COMPATIBILITY SCORING ============
-          let score = 80;
-          const reasoning: string[] = [];
-          const issues: UICreativeMatch['compatibilityIssues'] = [];
-          
-          // Add any hard constraint notes
-          hardCheckResult.notes.forEach(note => reasoning.push(note));
-          
-          // Apply inference penalty if used
-          if (hardCheckResult.inferenceUsed) {
-            score -= 5;
-            reasoning.push('Some constraints inferred from filename');
-          }
-          
-          // 1. Platform match - already validated as hard constraint, add reasoning
-          if (inferredSignals.platform === structure.platform) {
-            score += 10;
-            reasoning.push(`Platform: matched to ${structure.platform} (${inferredSignals.sources.platform || 'inferred from file'})`);
-          } else if (asset.compatibilitySignals?.platform === structure.platform) {
-            score += 10;
-            reasoning.push(`Platform: compatible with ${structure.platform} (from creative metadata)`);
-          } else if (!inferredSignals.platform && !asset.compatibilitySignals?.platform) {
-            // No platform specified - compatible with any
-            reasoning.push(`Platform: no platform specified, compatible with ${structure.platform}`);
-          }
-          
-          // 2. Format match - add reasoning if matched
-          if (inferredSignals.format) {
-            reasoning.push(`Format: matched "${inferredSignals.format}" to ad set (${inferredSignals.sources.format})`);
-          }
-          
-          // 3. Optimization goal match - add reasoning if matched
-          if (inferredSignals.optimizationGoal && structure.optimizationGoal) {
-            reasoning.push(`Goal: matched "${inferredSignals.optimizationGoal}" to ${structure.optimizationGoal} (${inferredSignals.sources.optimizationGoal})`);
-          }
-          
-          // 2. Aspect ratio check
-          if (asset.technicalAttributes.aspectRatio) {
-            const isVertical = (asset.technicalAttributes.height || 0) > (asset.technicalAttributes.width || 0);
-            const aspectRatio = asset.technicalAttributes.aspectRatio;
-            if (structure.platform === 'tiktok' || structure.platform === 'snapchat') {
-              if (isVertical) { 
-                score += 10; 
-                reasoning.push(`Aspect Ratio: ${aspectRatio} is vertical format, preferred for ${structure.platform}`);
-              } else { 
-                score -= 10; 
-                issues.push({ type: 'aspect_ratio', severity: 'warning', message: `Aspect ratio ${aspectRatio} is horizontal, vertical format recommended for ${structure.platform}`, platform: structure.platform }); 
-              }
-            } else {
-              reasoning.push(`Aspect Ratio: ${aspectRatio} (${asset.technicalAttributes.width}x${asset.technicalAttributes.height})`);
-            }
-          }
-          
-          // 3. Duration check for video
-          if (asset.technicalAttributes.duration) {
-            const duration = Math.round(asset.technicalAttributes.duration);
-            if (structure.platform === 'tiktok' && asset.technicalAttributes.duration > 60) {
-              score -= 20; 
-              issues.push({ type: 'duration', severity: 'error', message: `Video is ${duration}s, exceeds 60s limit for TikTok`, platform: 'tiktok' });
-            } else {
-              reasoning.push(`Duration: ${duration}s video is within limits`);
-            }
-          }
-          
-          // 4. Device constraint check
-          if (structure.deviceConstraints && structure.deviceConstraints.length > 0) {
-            if (inferredSignals.device) {
-              const deviceSource = inferredSignals.sources.device;
-              if (structure.deviceConstraints.includes(inferredSignals.device)) {
-                score += 8;
-                reasoning.push(`Device: matched "${inferredSignals.device}" to ad set targeting ${structure.deviceConstraints.join('/')} (${deviceSource})`);
-              } else {
-                score -= 15;
-                issues.push({ type: 'device' as any, severity: 'warning', message: `Creative targets ${inferredSignals.device} (${deviceSource}), but ad set targets ${structure.deviceConstraints.join(', ')}` });
-              }
-            }
-          }
-          
-          // 5. Gender constraint check
-          if (structure.genderConstraint && structure.genderConstraint !== 'all') {
-            if (inferredSignals.gender) {
-              const genderSource = inferredSignals.sources.gender;
-              if (inferredSignals.gender === structure.genderConstraint || inferredSignals.gender === 'all') {
-                score += 8;
-                reasoning.push(`Gender: matched "${inferredSignals.gender}" to ad set targeting ${structure.genderConstraint} (${genderSource})`);
-              } else {
-                score -= 20;
-                issues.push({ type: 'gender' as any, severity: 'error', message: `Creative targets ${inferredSignals.gender} (${genderSource}), but ad set targets ${structure.genderConstraint}` });
-              }
-            }
-          }
-          
-          // 6. Age constraint check
-          if (structure.ageConstraints && inferredSignals.ageMin !== undefined) {
-            const ageSource = inferredSignals.sources.age;
-            const ageOverlap = checkAgeOverlap(
-              { min: inferredSignals.ageMin, max: inferredSignals.ageMax || 65 },
-              structure.ageConstraints
+          // Build extracted signals summary for display
+          const extractedSignals: Record<string, string> = {};
+          if (inferredSignals.platform) extractedSignals['Platform'] = inferredSignals.platform;
+          if (inferredSignals.market) extractedSignals['Market'] = inferredSignals.market;
+          if (inferredSignals.language) extractedSignals['Language'] = inferredSignals.language;
+          if (inferredSignals.funnelStage) extractedSignals['Funnel Stage'] = inferredSignals.funnelStage;
+          if (inferredSignals.optimizationGoal) extractedSignals['Goal'] = inferredSignals.optimizationGoal;
+          if (inferredSignals.placement) extractedSignals['Placement'] = inferredSignals.placement;
+          if (inferredSignals.format) extractedSignals['Format'] = inferredSignals.format;
+          if (inferredSignals.device) extractedSignals['Device'] = inferredSignals.device;
+          if (inferredSignals.gender) extractedSignals['Gender'] = inferredSignals.gender;
+          if (inferredSignals.ageMin) extractedSignals['Age'] = `${inferredSignals.ageMin}-${inferredSignals.ageMax}`;
+          if (inferredSignals.audienceType) extractedSignals['Audience'] = inferredSignals.audienceType;
+          if (inferredSignals.publisher) extractedSignals['Publisher'] = inferredSignals.publisher;
+          if (inferredSignals.contentPillar) extractedSignals['Content Pillar'] = inferredSignals.contentPillar;
+          if (inferredSignals.variant) extractedSignals['Variant'] = inferredSignals.variant;
+          if (inferredSignals.aspectRatio) extractedSignals['Aspect Ratio'] = inferredSignals.aspectRatio;
+          if (asset.technicalAttributes.aspectRatio) extractedSignals['Detected AR'] = asset.technicalAttributes.aspectRatio;
+
+          // Find closest matches with blocking reasons
+          const closestMatches: UnassignedAsset['closestMatches'] = [];
+          for (const structure of structuresToUse) {
+            const matchResult = matchAssetToStructure(
+              asset,
+              inferredSignals,
+              structure,
+              { isSingleMarketPlan, isSinglePlatformPlan }
             );
-            if (ageOverlap) {
-              score += 8;
-              reasoning.push(`Age: ${inferredSignals.ageMin}-${inferredSignals.ageMax} overlaps with ad set ${structure.ageConstraints.min}-${structure.ageConstraints.max} (${ageSource})`);
-            } else {
-              score -= 15;
-              issues.push({ type: 'age' as any, severity: 'warning', message: `Creative age ${inferredSignals.ageMin}-${inferredSignals.ageMax} (${ageSource}) doesn't match ad set ${structure.ageConstraints.min}-${structure.ageConstraints.max}` });
+            
+            if (matchResult.blockingReasons.length > 0 || matchResult.score > 0) {
+              closestMatches.push({
+                structure,
+                score: matchResult.score,
+                blockingReasons: matchResult.blockingReasons,
+              });
             }
           }
-          
-          // 7. Audience type check
-          if (structure.audienceTypeConstraint) {
-            if (inferredSignals.audienceType) {
-              const audSource = inferredSignals.sources.audienceType;
-              if (inferredSignals.audienceType === structure.audienceTypeConstraint) {
-                score += 10;
-                reasoning.push(`Audience: matched "${inferredSignals.audienceType}" to ad set using ${structure.audienceTypeConstraint} (${audSource})`);
-              } else {
-                score -= 12;
-                issues.push({ type: 'audience' as any, severity: 'warning', message: `Creative for ${inferredSignals.audienceType} (${audSource}), but ad set uses ${structure.audienceTypeConstraint}` });
+
+          // Sort by score descending
+          closestMatches.sort((a, b) => b.score - a.score);
+
+          // Build reasons list
+          const reasons: string[] = [];
+          if (closestMatches.length > 0) {
+            const topMatch = closestMatches[0];
+            reasons.push(...topMatch.blockingReasons);
+          } else {
+            if (inferredSignals.platform) {
+              const platformExists = structuresToUse.some(s => s.platform === inferredSignals.platform);
+              if (!platformExists) {
+                reasons.push(`Platform "${inferredSignals.platform}" not in ActiPlan`);
               }
             }
-          }
-          
-          // 8. Optimization goal check - already a hard constraint, this adds to score if matched
-          // (Skip duplicate scoring since it's handled above as hard constraint)
-          
-          // 9. Placement check (from inferred signals)
-          if (structure.placementConstraints && structure.placementConstraints.length > 0) {
-            if (inferredSignals.placement) {
-              const placementSource = inferredSignals.sources.placement;
-              const placementMatch = structure.placementConstraints.some(p => 
-                p.toLowerCase().includes(inferredSignals.placement!) || 
-                inferredSignals.placement!.includes(p.toLowerCase())
-              );
-              if (placementMatch) {
-                score += 8;
-                reasoning.push(`Placement: matched "${inferredSignals.placement}" to ad set (${placementSource})`);
-              }
-            }
-          }
-          
-          // 10. Market match
-          if (structure.market) {
             if (inferredSignals.market) {
-              const marketSource = inferredSignals.sources.market;
-              if (inferredSignals.market === structure.market) {
-                score += 5;
-                reasoning.push(`Market: matched "${inferredSignals.market}" to ad set targeting ${structure.market} (${marketSource})`);
+              const marketExists = structuresToUse.some(s => s.market?.toUpperCase() === inferredSignals.market?.toUpperCase());
+              if (!marketExists) {
+                reasons.push(`Market "${inferredSignals.market}" not in ActiPlan`);
               }
-            } else if (asset.hardConstraints.market && asset.hardConstraints.market === structure.market) {
-              score += 5;
-              reasoning.push(`Market: matched "${asset.hardConstraints.market}" to ad set (from creative metadata)`);
+            }
+            if (reasons.length === 0) {
+              reasons.push('Could not match any taxonomy elements');
             }
           }
-          
-          matches.push({ 
-            structure, 
-            confidenceScore: Math.max(0, Math.min(100, score)), 
-            reasoning, 
-            compatibilityIssues: issues, 
-            hardConstraintsMet: hardCheckResult.passed 
+
+          unassignedAssets.push({
+            asset,
+            extractedSignals,
+            reasons,
+            closestMatches: closestMatches.slice(0, 3), // Top 3 closest
           });
         }
+      }
+
+      // Step 4: Also build legacy results format for backward compatibility
+      const results: UIMatchingResult[] = prev.assets.map(asset => {
+        const inferredSignals = assetSignalsMap.get(asset.id)!;
+        const matches: UICreativeMatch[] = [];
         
-        // Sort by confidence score descending
-        matches.sort((a, b) => b.confidenceScore - a.confidenceScore);
-        
-        // Generate no-match reasons if empty
-        const noMatchReasons: string[] = [];
-        if (matches.length === 0) {
-          // Platform mismatch
-          if (inferredSignals.platform) {
-            const platformExists = structuresToUse.some(s => s.platform === inferredSignals.platform);
-            if (!platformExists) {
-              noMatchReasons.push(`Platform "${inferredSignals.platform}" (${inferredSignals.sources.platform}) not found in ActiPlan`);
-            }
-          }
+        for (const structure of structuresToUse) {
+          const matchResult = matchAssetToStructure(
+            asset,
+            inferredSignals,
+            structure,
+            { isSingleMarketPlan, isSinglePlatformPlan }
+          );
           
-          // Format mismatch
-          if (inferredSignals.format) {
-            noMatchReasons.push(`Format "${inferredSignals.format}" (${inferredSignals.sources.format}) doesn't match any ad set formats`);
-          }
-          
-          // Goal mismatch
-          if (inferredSignals.optimizationGoal) {
-            noMatchReasons.push(`Goal "${inferredSignals.optimizationGoal}" (${inferredSignals.sources.optimizationGoal}) doesn't match any ad set goals`);
-          }
-          
-          // Market mismatch
-          if (asset.hardConstraints.market) {
-            noMatchReasons.push(`Market "${asset.hardConstraints.market}" not found in ActiPlan`);
-          }
-          if (asset.hardConstraints.language) {
-            noMatchReasons.push(`Language "${asset.hardConstraints.language}" not found in ActiPlan`);
-          }
-          
-          if (noMatchReasons.length === 0) {
-            noMatchReasons.push('No compatible structures found - check platform, format, or goal constraints');
+          if (matchResult.isMatch) {
+            matches.push({
+              structure,
+              confidenceScore: matchResult.score,
+              reasoning: matchResult.matchedCriteria.map(c => `${c.criterion}: ${c.reason}`),
+              compatibilityIssues: matchResult.issues,
+              hardConstraintsMet: matchResult.blockingReasons.length === 0,
+            });
           }
         }
+        
+        // Sort by confidence
+        matches.sort((a, b) => b.confidenceScore - a.confidenceScore);
+        
+        const noMatchReasons = matches.length === 0 
+          ? unassignedAssets.find(u => u.asset.id === asset.id)?.reasons || ['No match found']
+          : undefined;
         
         return {
           assetId: asset.id,
           matches,
           bestMatch: matches[0],
-          noMatchReasons: matches.length === 0 ? noMatchReasons : undefined,
+          noMatchReasons,
         };
       });
 
-      // Also update structures if override was provided
       return { 
         ...prev, 
         structures: structuresToUse,
-        results, 
+        results,
+        structureResults,
+        unassignedAssets,
         currentStep: 'review' as const 
       };
     });
@@ -807,6 +744,7 @@ export function useCreativeMatching(campaignId?: string) {
   const clearAll = useCallback(() => {
     setState({
       assets: [], structures: [], results: [],
+      structureResults: [], unassignedAssets: [],
       acceptedMatches: new Map(), rejectedMatches: new Map(),
       isProcessing: false, currentStep: 'upload',
     });
@@ -1012,6 +950,15 @@ interface InferredSignals {
   optimizationGoal?: string;
   placement?: string;
   format?: string;
+  // Extended criteria
+  publisher?: string;         // Facebook, Instagram, TikTok, etc.
+  funnelStage?: string;       // awareness, consideration, conversion
+  productName?: string;       // Extracted product/campaign name
+  contentPillar?: string;     // Brand, Product, Promo, etc.
+  variant?: string;           // A, B, Control, etc.
+  fileType?: string;          // jpg, mp4, etc.
+  dimensions?: string;        // 1080x1920, etc.
+  aspectRatio?: string;       // 9:16, 1:1, etc.
   // Source tracking for reasoning display
   sources: Record<string, string>;
 }
@@ -1029,8 +976,23 @@ function extractInferredSignals(filePath: string, fileName: string): InferredSig
   const text = ` ${filePath} ${fileName} `.toLowerCase();
   const signals: InferredSignals = { sources: {} };
   
+  // Extract file type from extension
+  const extMatch = fileName.match(/\.(\w+)$/i);
+  if (extMatch) {
+    signals.fileType = extMatch[1].toLowerCase();
+    signals.sources.fileType = `file extension ".${extMatch[1]}"`;
+  }
+  
+  // Extract dimensions from filename (e.g., 1080x1920, 1920x1080)
+  const dimMatch = text.match(/(\d{3,4})x(\d{3,4})/i);
+  if (dimMatch) {
+    signals.dimensions = `${dimMatch[1]}x${dimMatch[2]}`;
+    const w = parseInt(dimMatch[1]), h = parseInt(dimMatch[2]);
+    signals.aspectRatio = calculateAspectRatioFromDims(w, h);
+    signals.sources.dimensions = `filename contains "${dimMatch[0]}"`;
+  }
+  
   // Platform detection - ONLY use full words or very explicit abbreviations
-  // Removed risky short abbreviations (li, ig, fb, tt, etc.) that can match within words
   const platformPatterns: Record<string, string> = {
     'meta': 'meta', 'facebook': 'meta', 'instagram': 'meta',
     'tiktok': 'tiktok',
@@ -1048,18 +1010,81 @@ function extractInferredSignals(filePath: string, fileName: string): InferredSig
     }
   }
   
-  // Market codes
-  const marketMatch = text.match(/[_\-\/\s](uae|ae|sa|kw|qa|bh|om|eg|jo|lb|us|uk|gb|de|fr|es|it|nl|au|ca|jp|kr|in|br|mx|tr|id|my|sg|ph|vn|th)[_\-\.\s\/]/i);
+  // Publisher platforms (within Meta/TikTok ecosystem)
+  const publisherPatterns: Record<string, string> = {
+    'facebook': 'facebook', 'fb': 'facebook',
+    'instagram': 'instagram', 'ig': 'instagram', 'insta': 'instagram',
+    'audience_network': 'audience_network', 'an': 'audience_network',
+    'messenger': 'messenger', 'msg': 'messenger',
+    'whatsapp': 'whatsapp', 'wa': 'whatsapp',
+    'pangle': 'pangle', 'global_app': 'global_app_bundle'
+  };
+  for (const [kw, pub] of Object.entries(publisherPatterns)) {
+    if (matchesWholeWord(text, kw)) {
+      signals.publisher = pub;
+      signals.sources.publisher = `filename contains "${kw}"`;
+      break;
+    }
+  }
+  
+  // Market codes (expanded list including MENA)
+  const marketMatch = text.match(/[_\-\/\s\[](uae|ae|sa|kw|qa|bh|om|eg|jo|lb|us|uk|gb|de|fr|es|it|nl|au|ca|jp|kr|in|br|mx|tr|id|my|sg|ph|vn|th|za|ng|ke|pl|cz|hu|ro|gr|pt|se|no|dk|fi|be|ch|at|ie|nz)[_\-\.\s\/\]]/i);
   if (marketMatch) {
     signals.market = marketMatch[1].toUpperCase();
     signals.sources.market = `filename contains "${marketMatch[1]}"`;
   }
   
   // Language
-  const langMatch = text.match(/[_\-\s\/](en|ar|es|fr|de|pt|it|nl|tr|ru|ja|ko|zh|hi|th|vi|id|ms|tl)[_\-\.\s\/]/i);
+  const langMatch = text.match(/[_\-\s\/\[](en|ar|es|fr|de|pt|it|nl|tr|ru|ja|ko|zh|hi|th|vi|id|ms|tl|pl|cs|hu|ro|el|sv|no|da|fi|he)[_\-\.\s\/\]]/i);
   if (langMatch) {
     signals.language = langMatch[1].toLowerCase();
     signals.sources.language = `filename contains "${langMatch[1]}"`;
+  }
+  
+  // Funnel stage / campaign type
+  const funnelPatterns: Record<string, string> = {
+    'awareness': 'awareness', 'awr': 'awareness', 'awrns': 'awareness', 'tof': 'awareness', 'top_funnel': 'awareness', 'brand': 'awareness',
+    'consideration': 'consideration', 'cons': 'consideration', 'mof': 'consideration', 'mid_funnel': 'consideration', 'traffic': 'consideration', 'engagement': 'consideration',
+    'conversion': 'conversion', 'conv': 'conversion', 'bof': 'conversion', 'bottom_funnel': 'conversion', 'purchase': 'conversion', 'sales': 'conversion'
+  };
+  for (const [kw, stage] of Object.entries(funnelPatterns)) {
+    if (matchesWholeWord(text, kw)) {
+      signals.funnelStage = stage;
+      signals.sources.funnelStage = `filename contains "${kw}"`;
+      break;
+    }
+  }
+  
+  // Content pillar
+  const pillarPatterns: Record<string, string> = {
+    'brand': 'brand', 'branding': 'brand', 'brand_story': 'brand',
+    'product': 'product', 'prod': 'product', 'pdp': 'product',
+    'promo': 'promo', 'promotion': 'promo', 'offer': 'promo', 'sale': 'promo', 'discount': 'promo',
+    'ugc': 'ugc', 'user_generated': 'ugc', 'creator': 'ugc', 'influencer': 'ugc',
+    'testimonial': 'testimonial', 'review': 'testimonial',
+    'tutorial': 'tutorial', 'how_to': 'tutorial', 'demo': 'tutorial',
+    'lifestyle': 'lifestyle', 'lf': 'lifestyle'
+  };
+  for (const [kw, pillar] of Object.entries(pillarPatterns)) {
+    if (matchesWholeWord(text, kw)) {
+      signals.contentPillar = pillar;
+      signals.sources.contentPillar = `filename contains "${kw}"`;
+      break;
+    }
+  }
+  
+  // Variant detection
+  const variantMatch = text.match(/[_\-\s\/\[](v[0-9]+|var[_\-]?[a-z0-9]+|variant[_\-]?[a-z0-9]+|a|b|c|control|test|challenger)[_\-\.\s\/\]]/i);
+  if (variantMatch) {
+    signals.variant = variantMatch[1].toUpperCase();
+    signals.sources.variant = `filename contains "${variantMatch[1]}"`;
+  }
+  
+  // Product name extraction (look for product_ or prod_ prefix)
+  const productMatch = text.match(/(?:product|prod)[_\-]([a-z0-9_]+)/i);
+  if (productMatch) {
+    signals.productName = productMatch[1].replace(/_/g, ' ');
+    signals.sources.productName = `filename contains "product_${productMatch[1]}"`;
   }
   
   // Device - use whole word matching
@@ -1108,6 +1133,7 @@ function extractInferredSignals(filePath: string, fileName: string): InferredSig
     if (ab.pattern.test(text)) {
       signals.ageMin = ab.min;
       signals.ageMax = ab.max;
+      signals.sources.age = `filename contains age pattern "${signals.ageMin}-${signals.ageMax}"`;
       break;
     }
   }
@@ -1116,11 +1142,7 @@ function extractInferredSignals(filePath: string, fileName: string): InferredSig
   if (genericAge && !signals.ageMin) {
     signals.ageMin = parseInt(genericAge[1]);
     signals.ageMax = parseInt(genericAge[2]);
-  }
-  
-  // Age bracket with source
-  if (signals.ageMin) {
-    signals.sources.age = `filename contains age pattern "${signals.ageMin}-${signals.ageMax}"`;
+    signals.sources.age = `filename contains "age_${signals.ageMin}-${signals.ageMax}"`;
   }
   
   // Audience type - use whole word matching
@@ -1139,7 +1161,7 @@ function extractInferredSignals(filePath: string, fileName: string): InferredSig
     }
   }
   
-  // Optimization goal - use whole word matching (UAC implies app_installs)
+  // Optimization goal - use whole word matching
   const goalPatterns: Record<string, string> = {
     'uac': 'app_installs', 'app_install': 'app_installs', 'install': 'app_installs', 'download': 'app_installs',
     'conversion': 'conversions', 'purchase': 'conversions', 'sale': 'conversions', 'checkout': 'conversions',
@@ -1166,7 +1188,10 @@ function extractInferredSignals(filePath: string, fileName: string): InferredSig
     'explore': 'explore', 'exp': 'explore', 'discovery': 'explore',
     'shorts': 'shorts', 'short': 'shorts',
     'fyp': 'for_you', 'foryou': 'for_you',
-    'instream': 'in_stream', 'preroll': 'in_stream', 'midroll': 'in_stream'
+    'instream': 'in_stream', 'preroll': 'in_stream', 'midroll': 'in_stream',
+    'right_column': 'right_column', 'right_hand': 'right_column',
+    'marketplace': 'marketplace', 'mktplace': 'marketplace',
+    'search': 'search', 'search_results': 'search'
   };
   for (const [kw, pl] of Object.entries(placementPatterns)) {
     if (matchesWholeWord(text, kw)) { 
@@ -1176,13 +1201,13 @@ function extractInferredSignals(filePath: string, fileName: string): InferredSig
     }
   }
   
-  // Format - use whole word matching to avoid partial matches (e.g., "card" matching "car")
-  // IMPORTANT: Removed 'car' shorthand to prevent false positives like "card" → "carousel"
+  // Format - use whole word matching
   const formatPatterns: Record<string, string> = {
     'carousel': 'carousel', 'swipe': 'carousel', 'multi': 'carousel',
     'single': 'single', 'static': 'single',
     'video': 'video', 'vid': 'video', 'mp4': 'video', 'mov': 'video',
-    'collection': 'collection', 'catalog': 'collection'
+    'collection': 'collection', 'catalog': 'collection',
+    'slideshow': 'slideshow', 'gif': 'gif'
   };
   for (const [kw, fmt] of Object.entries(formatPatterns)) {
     if (matchesWholeWord(text, kw)) { 
@@ -1193,6 +1218,21 @@ function extractInferredSignals(filePath: string, fileName: string): InferredSig
   }
   
   return signals;
+}
+
+// Helper to calculate aspect ratio from dimensions
+function calculateAspectRatioFromDims(w: number, h: number): string {
+  const gcd = (a: number, b: number): number => b === 0 ? a : gcd(b, a % b);
+  const d = gcd(w, h);
+  const ratioW = w / d, ratioH = h / d;
+  // Map common ratios to standard names
+  if (ratioW === 16 && ratioH === 9) return '16:9';
+  if (ratioW === 9 && ratioH === 16) return '9:16';
+  if (ratioW === 1 && ratioH === 1) return '1:1';
+  if (ratioW === 4 && ratioH === 5) return '4:5';
+  if (ratioW === 5 && ratioH === 4) return '5:4';
+  // For non-standard, return simplified
+  return `${ratioW}:${ratioH}`;
 }
 
 // Enhanced hard constraints check with inference support
@@ -1243,4 +1283,142 @@ function checkHardConstraintsEnhanced(
 // Check if age ranges overlap
 function checkAgeOverlap(a: { min: number; max: number }, b: { min: number; max: number }): boolean {
   return a.min <= b.max && b.min <= a.max;
+}
+
+// Core matching function: match asset signals against structure taxonomy
+function matchAssetToStructure(
+  asset: DigestedAsset,
+  signals: InferredSignals,
+  structure: CampaignStructure,
+  options: { isSingleMarketPlan: boolean; isSinglePlatformPlan: boolean }
+): {
+  isMatch: boolean;
+  score: number;
+  matchedCriteria: Array<{ criterion: string; reason: string }>;
+  blockingReasons: string[];
+  issues: Array<{ type: string; severity: 'warning' | 'error'; message: string }>;
+} {
+  const matchedCriteria: Array<{ criterion: string; reason: string }> = [];
+  const blockingReasons: string[] = [];
+  const issues: Array<{ type: string; severity: 'warning' | 'error'; message: string }> = [];
+  let score = 50; // Base score
+
+  // === HARD CONSTRAINTS (blocking) ===
+  
+  // Platform must match if specified
+  if (signals.platform && signals.platform !== structure.platform) {
+    blockingReasons.push(`Platform "${signals.platform}" ≠ "${structure.platform}"`);
+    return { isMatch: false, score: 0, matchedCriteria, blockingReasons, issues };
+  }
+  
+  // Market must match if specified (unless single market plan)
+  if (signals.market && structure.market) {
+    if (signals.market.toUpperCase() !== structure.market.toUpperCase()) {
+      blockingReasons.push(`Market "${signals.market}" ≠ "${structure.market}"`);
+      return { isMatch: false, score: 0, matchedCriteria, blockingReasons, issues };
+    }
+    matchedCriteria.push({ criterion: 'Market', reason: `"${signals.market}" matches ad set (${signals.sources.market})` });
+    score += 10;
+  } else if (options.isSingleMarketPlan && structure.market) {
+    matchedCriteria.push({ criterion: 'Market', reason: `Assumed "${structure.market}" (single-market plan)` });
+  }
+
+  // Language must match if specified
+  if (signals.language && structure.language) {
+    if (signals.language.toLowerCase() !== structure.language.toLowerCase()) {
+      blockingReasons.push(`Language "${signals.language}" ≠ "${structure.language}"`);
+      return { isMatch: false, score: 0, matchedCriteria, blockingReasons, issues };
+    }
+    matchedCriteria.push({ criterion: 'Language', reason: `"${signals.language}" matches (${signals.sources.language})` });
+    score += 8;
+  }
+
+  // === SOFT CRITERIA (scoring) ===
+  
+  // Platform match
+  if (signals.platform === structure.platform) {
+    matchedCriteria.push({ criterion: 'Platform', reason: `"${signals.platform}" (${signals.sources.platform})` });
+    score += 15;
+  } else if (!signals.platform) {
+    matchedCriteria.push({ criterion: 'Platform', reason: `Compatible with ${structure.platform} (no platform specified)` });
+  }
+
+  // Funnel stage match
+  if (signals.funnelStage && structure.funnelStage) {
+    if (signals.funnelStage === structure.funnelStage.toLowerCase()) {
+      matchedCriteria.push({ criterion: 'Funnel', reason: `"${signals.funnelStage}" matches phase (${signals.sources.funnelStage})` });
+      score += 12;
+    }
+  }
+
+  // Optimization goal match
+  if (signals.optimizationGoal && structure.optimizationGoal) {
+    const goalMatch = signals.optimizationGoal === structure.optimizationGoal ||
+      structure.optimizationGoal.toLowerCase().includes(signals.optimizationGoal);
+    if (goalMatch) {
+      matchedCriteria.push({ criterion: 'Goal', reason: `"${signals.optimizationGoal}" → ${structure.optimizationGoal} (${signals.sources.optimizationGoal})` });
+      score += 10;
+    }
+  }
+
+  // Device match
+  if (signals.device && structure.deviceConstraints?.length) {
+    if (structure.deviceConstraints.includes(signals.device)) {
+      matchedCriteria.push({ criterion: 'Device', reason: `"${signals.device}" matches targeting (${signals.sources.device})` });
+      score += 8;
+    } else {
+      issues.push({ type: 'device', severity: 'warning', message: `Device "${signals.device}" not in ad set targeting` });
+      score -= 10;
+    }
+  }
+
+  // Gender match
+  if (signals.gender && structure.genderConstraint && structure.genderConstraint !== 'all') {
+    if (signals.gender === structure.genderConstraint || signals.gender === 'all') {
+      matchedCriteria.push({ criterion: 'Gender', reason: `"${signals.gender}" matches (${signals.sources.gender})` });
+      score += 8;
+    } else {
+      issues.push({ type: 'gender', severity: 'error', message: `Gender "${signals.gender}" ≠ "${structure.genderConstraint}"` });
+      score -= 15;
+    }
+  }
+
+  // Audience type match
+  if (signals.audienceType && structure.audienceTypeConstraint) {
+    if (signals.audienceType === structure.audienceTypeConstraint) {
+      matchedCriteria.push({ criterion: 'Audience', reason: `"${signals.audienceType}" matches (${signals.sources.audienceType})` });
+      score += 10;
+    } else {
+      issues.push({ type: 'audience', severity: 'warning', message: `Audience "${signals.audienceType}" ≠ "${structure.audienceTypeConstraint}"` });
+      score -= 8;
+    }
+  }
+
+  // Aspect ratio check for video platforms
+  if (asset.technicalAttributes.aspectRatio) {
+    const isVertical = (asset.technicalAttributes.height || 0) > (asset.technicalAttributes.width || 0);
+    if ((structure.platform === 'tiktok' || structure.platform === 'snapchat') && !isVertical) {
+      issues.push({ type: 'aspect_ratio', severity: 'warning', message: 'Horizontal format, vertical recommended' });
+      score -= 5;
+    } else if (isVertical && (structure.platform === 'tiktok' || structure.platform === 'snapchat')) {
+      matchedCriteria.push({ criterion: 'Aspect Ratio', reason: `Vertical format preferred for ${structure.platform}` });
+      score += 5;
+    }
+  }
+
+  // Placement match
+  if (signals.placement && structure.placementConstraints?.length) {
+    const placementMatch = structure.placementConstraints.some(p => 
+      p.toLowerCase().includes(signals.placement!) || signals.placement!.includes(p.toLowerCase())
+    );
+    if (placementMatch) {
+      matchedCriteria.push({ criterion: 'Placement', reason: `"${signals.placement}" (${signals.sources.placement})` });
+      score += 8;
+    }
+  }
+
+  // Consider it a match if score is above threshold and no blocking reasons
+  const isMatch = blockingReasons.length === 0 && score >= 50;
+  
+  return { isMatch, score: Math.max(0, Math.min(100, score)), matchedCriteria, blockingReasons, issues };
 }
