@@ -39,6 +39,9 @@ export interface UnifiedTargetingConfig {
   retargetingAudienceIds?: string[];
   lookalikeAudienceIds?: string[];
   customAudienceIds?: string[];
+  // Default ad set split - applies to all phases unless overridden
+  defaultAdSetSplitDimension?: AdSetSplitDimension;
+  defaultAdSetSplitUseCBO?: boolean;
 }
 
 interface UnifiedTargetingProps {
@@ -62,6 +65,20 @@ export function UnifiedTargeting({
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<UnifiedTargetingItem[]>([]);
+
+  // Labels for split dimensions
+  const SPLIT_DIMENSION_LABELS: Record<AdSetSplitDimension, string> = {
+    none: "None",
+    placement: "Placement",
+    optimization_goal: "Optimization Goal",
+    audience: "Audience",
+    audience_selection: "Audience Selection",
+    language: "Language",
+    location: "Location",
+    gender: "Gender",
+    device: "Device",
+    age: "Age Range",
+  };
 
   // Ensure selectedItems is always an array
   const selectedItems = Array.isArray(targeting.selectedItems) ? targeting.selectedItems : [];
@@ -389,6 +406,68 @@ export function UnifiedTargeting({
           </Card>
         </Collapsible>
       )}
+
+      {/* Default Ad Set Split Configuration */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            Default Ad Set Split
+            {targeting.defaultAdSetSplitDimension && targeting.defaultAdSetSplitDimension !== 'none' && (
+              <Badge variant="secondary">{SPLIT_DIMENSION_LABELS[targeting.defaultAdSetSplitDimension]}</Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Configure a default ad set split that will be applied to all phases. Individual phases can override this using the "Override Targeting" toggle.
+          </p>
+          <div className="flex items-center gap-4">
+            <div className="flex-1">
+              <Label className="mb-2 block">Split Dimension</Label>
+              <Select
+                value={targeting.defaultAdSetSplitDimension || 'none'}
+                onValueChange={(value) => {
+                  const dim = value as AdSetSplitDimension;
+                  updateField('defaultAdSetSplitDimension', dim === 'none' ? undefined : dim);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="No split (single ad set)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No split (single ad set)</SelectItem>
+                  <SelectItem value="gender">Gender</SelectItem>
+                  <SelectItem value="age">Age Range</SelectItem>
+                  <SelectItem value="device">Device</SelectItem>
+                  <SelectItem value="language">Language</SelectItem>
+                  <SelectItem value="placement">Placement</SelectItem>
+                  <SelectItem value="optimization_goal">Optimization Goal</SelectItem>
+                  <SelectItem value="audience_selection">Audience Selection</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {targeting.defaultAdSetSplitDimension && targeting.defaultAdSetSplitDimension !== 'none' && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  updateField('defaultAdSetSplitDimension', undefined);
+                  updateField('defaultAdSetSplitUseCBO', undefined);
+                }}
+              >
+                <X className="h-4 w-4 mr-1" />
+                Clear
+              </Button>
+            )}
+          </div>
+          {targeting.defaultAdSetSplitDimension && targeting.defaultAdSetSplitDimension !== 'none' && (
+            <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-lg">
+              <strong>Note:</strong> The specific ad set configurations (e.g., which genders, age ranges, etc.) will be set at the phase level. 
+              To disable this split for a specific phase, turn on "Override Targeting" and set the split to "None".
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
