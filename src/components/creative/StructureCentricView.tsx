@@ -74,20 +74,25 @@ function StructureCard({
   result, 
   acceptedMatches,
   onAcceptAsset, 
-  onRejectAsset 
+  onRejectAsset,
+  onAcceptAll
 }: { 
   result: StructureMatchResult;
   acceptedMatches: Map<string, UICreativeMatch>;
   onAcceptAsset: (assetId: string) => void;
   onRejectAsset: (assetId: string) => void;
+  onAcceptAll: () => void;
 }) {
-  const [isExpanded, setIsExpanded] = useState(result.assignedAssets.length > 0);
+  // Default to collapsed
+  const [isExpanded, setIsExpanded] = useState(false);
   const { structure, assignedAssets } = result;
   
   // Check accepted status using composite key: assetId:structureId
   const isAssetAccepted = (assetId: string) => acceptedMatches.has(`${assetId}:${structure.id}`);
   const acceptedCount = assignedAssets.filter(a => isAssetAccepted(a.asset.id)).length;
   const hasAssets = assignedAssets.length > 0;
+  const allAccepted = hasAssets && acceptedCount === assignedAssets.length;
+  const hasUnaccepted = hasAssets && acceptedCount < assignedAssets.length;
 
   return (
     <Card className={cn(
@@ -147,6 +152,17 @@ function StructureCard({
                 )}
               </div>
               <div className="flex items-center gap-2">
+                {hasUnaccepted && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-6 text-[10px] px-2 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10"
+                    onClick={(e) => { e.stopPropagation(); onAcceptAll(); }}
+                  >
+                    <Check className="h-3 w-3 mr-1" />
+                    Accept All
+                  </Button>
+                )}
                 <Badge variant={hasAssets ? "secondary" : "outline"} className="shrink-0">
                   <Layers className="h-3 w-3 mr-1" />
                   {assignedAssets.length}
@@ -254,7 +270,8 @@ function StructureCard({
 }
 
 function UnassignedAssetsPanel({ unassignedAssets }: { unassignedAssets: UnassignedAsset[] }) {
-  const [isExpanded, setIsExpanded] = useState(true);
+  // Default to collapsed
+  const [isExpanded, setIsExpanded] = useState(false);
   
   if (unassignedAssets.length === 0) return null;
   
@@ -370,11 +387,28 @@ function SuggestionsPanel({
   acceptedMatches: Map<string, UICreativeMatch>;
   onAcceptSuggestion: (assetId: string, structure: CampaignStructure) => void;
 }) {
-  const [isExpanded, setIsExpanded] = useState(true);
+  // Default to collapsed
+  const [isExpanded, setIsExpanded] = useState(false);
   
   if (suggestions.length === 0) return null;
   
   const totalSuggestions = suggestions.reduce((sum, s) => sum + s.suggestedAssets.length, 0);
+  
+  // Count how many are not yet accepted
+  const unacceptedCount = suggestions.reduce((sum, s) => {
+    return sum + s.suggestedAssets.filter(sa => !acceptedMatches.has(`${sa.asset.id}:${s.structure.id}`)).length;
+  }, 0);
+  
+  const handleApplyAll = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    suggestions.forEach(s => {
+      s.suggestedAssets.forEach(sa => {
+        if (!acceptedMatches.has(`${sa.asset.id}:${s.structure.id}`)) {
+          onAcceptSuggestion(sa.asset.id, s.structure);
+        }
+      });
+    });
+  };
   
   return (
     <Card className="border-blue-500/30 bg-blue-500/5">
@@ -393,6 +427,17 @@ function SuggestionsPanel({
                   Creatives that could fit if platform constraint is relaxed
                 </p>
               </div>
+              {unacceptedCount > 0 && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 text-[10px] px-2 text-blue-600 hover:text-blue-700 hover:bg-blue-500/10"
+                  onClick={handleApplyAll}
+                >
+                  <Check className="h-3 w-3 mr-1" />
+                  Apply All ({unacceptedCount})
+                </Button>
+              )}
               <Badge variant="outline" className="border-blue-500/50 text-blue-600">
                 {totalSuggestions} suggestions
               </Badge>
@@ -405,15 +450,35 @@ function SuggestionsPanel({
           <CardContent className="pt-0 space-y-3">
             {suggestions.map((suggestion) => {
               const { structure, suggestedAssets } = suggestion;
+              const structureUnacceptedCount = suggestedAssets.filter(sa => !acceptedMatches.has(`${sa.asset.id}:${structure.id}`)).length;
+              
+              const handleApplyAllForStructure = () => {
+                suggestedAssets.forEach(sa => {
+                  if (!acceptedMatches.has(`${sa.asset.id}:${structure.id}`)) {
+                    onAcceptSuggestion(sa.asset.id, structure);
+                  }
+                });
+              };
               
               return (
                 <div key={structure.id} className="p-3 rounded-lg border border-blue-500/20 bg-background">
                   <div className="flex items-center gap-2 mb-2">
                     <Target className="h-4 w-4 text-blue-600" />
-                    <span className="text-sm font-medium">{structure.adSetName}</span>
+                    <span className="text-sm font-medium flex-1">{structure.adSetName}</span>
                     <Badge variant="outline" className="text-[10px] py-0 px-1">
                       {structure.platform}
                     </Badge>
+                    {structureUnacceptedCount > 0 && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-5 text-[10px] px-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-500/10"
+                        onClick={handleApplyAllForStructure}
+                      >
+                        <Check className="h-3 w-3 mr-0.5" />
+                        Apply All
+                      </Button>
+                    )}
                   </div>
                   
                   <div className="space-y-2 mt-2">
@@ -585,6 +650,9 @@ export function StructureCentricView({
               acceptedMatches={acceptedMatches}
               onAcceptAsset={(assetId) => onAcceptAsset(assetId, result.structure)}
               onRejectAsset={(assetId) => onRejectAsset(assetId, result.structure.id)}
+              onAcceptAll={() => {
+                result.assignedAssets.forEach(a => onAcceptAsset(a.asset.id, result.structure));
+              }}
             />
           ))}
         </div>

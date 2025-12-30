@@ -439,6 +439,7 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
                         // Build a UICreativeMatch from the structure result
                         const structureResult = state.structureResults.find(r => r.structure.id === structure.id);
                         const assignedAsset = structureResult?.assignedAssets.find(a => a.asset.id === assetId);
+                        
                         if (assignedAsset) {
                           const match: UICreativeMatch = {
                             structure,
@@ -448,6 +449,19 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
                             hardConstraintsMet: true,
                           };
                           acceptMatch(assetId, match);
+                        } else {
+                          // Handle suggestions - asset is unassigned but user wants to force-apply
+                          const unassignedAsset = state.unassignedAssets.find(u => u.asset.id === assetId);
+                          if (unassignedAsset) {
+                            const match: UICreativeMatch = {
+                              structure,
+                              confidenceScore: 50, // Lower confidence for manual override
+                              reasoning: ['Manually applied by user (platform constraint relaxed)'],
+                              compatibilityIssues: [],
+                              hardConstraintsMet: false,
+                            };
+                            acceptMatch(assetId, match);
+                          }
                         }
                       }}
                       onRejectAsset={(assetId, structureId) => rejectMatch(assetId, structureId)}
