@@ -475,12 +475,22 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
                         {state.results.map(result => {
                           const asset = state.assets.find(a => a.id === result.assetId);
                           if (!asset) return null;
+                          
+                          // Find accepted match for this asset using composite key pattern
+                          let acceptedMatch: UICreativeMatch | undefined;
+                          for (const [key, match] of state.acceptedMatches.entries()) {
+                            if (key.startsWith(`${result.assetId}:`)) {
+                              acceptedMatch = match;
+                              break;
+                            }
+                          }
+                          
                           return (
                             <CreativeMatchCard
                               key={result.assetId}
                               result={result}
                               asset={asset}
-                              acceptedMatch={state.acceptedMatches.get(result.assetId)}
+                              acceptedMatch={acceptedMatch}
                               rejectedStructureIds={state.rejectedMatches.get(result.assetId) || new Set()}
                               onAccept={(match: UICreativeMatch) => acceptMatch(result.assetId, match)}
                               onReject={(structureId: string) => rejectMatch(result.assetId, structureId)}
