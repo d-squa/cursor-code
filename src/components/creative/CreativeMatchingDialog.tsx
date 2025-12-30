@@ -10,12 +10,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent } from '@/components/ui/card';
-import { Upload, FolderUp, Wand2, Check, AlertTriangle, Loader2, ArrowLeft, Save, LayoutGrid, Image, Video, CheckCircle2 } from 'lucide-react';
+import { Upload, FolderUp, Wand2, Check, AlertTriangle, Loader2, ArrowLeft, Save, LayoutGrid, Image, Video, CheckCircle2, Layers, List } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { useCreativeMatching, UICreativeMatch, DigestedAsset } from '@/hooks/useCreativeMatching';
+import { useCreativeMatching, UICreativeMatch, DigestedAsset, CampaignStructure } from '@/hooks/useCreativeMatching';
 import { CreativeMatchCard } from './CreativeMatchCard';
+import { StructureCentricView } from './StructureCentricView';
 import type { Creative } from '@/types/creative';
 
 interface CreativeMatchingDialogProps {
@@ -37,6 +38,7 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
   const folderInputRef = useRef<HTMLInputElement>(null);
   const [activeSourceTab, setActiveSourceTab] = useState<'library' | 'upload'>('library');
   const [activeUploadTab, setActiveUploadTab] = useState('files');
+  const [activeViewMode, setActiveViewMode] = useState<'structure' | 'asset'>('structure');
   const [campaigns, setCampaigns] = useState<CampaignOption[]>([]);
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | undefined>(initialCampaignId);
   const [selectedCampaignName, setSelectedCampaignName] = useState<string>(initialCampaignName || '');
@@ -407,28 +409,77 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
 
               {/* Review step */}
               {state.currentStep === 'review' && (
-                <ScrollArea className="h-[400px] pr-4">
-                  <div className="space-y-4">
-                    {state.results.map(result => {
-                      const asset = state.assets.find(a => a.id === result.assetId);
-                      if (!asset) return null;
-                      return (
-                        <CreativeMatchCard
-                          key={result.assetId}
-                          result={result}
-                          asset={asset}
-                          acceptedMatch={state.acceptedMatches.get(result.assetId)}
-                          rejectedStructureIds={state.rejectedMatches.get(result.assetId) || new Set()}
-                          onAccept={(match: UICreativeMatch) => acceptMatch(result.assetId, match)}
-                          onReject={(structureId: string) => rejectMatch(result.assetId, structureId)}
-                          onClearRejection={(structureId: string) => clearRejection(result.assetId, structureId)}
-                          onClearAccepted={() => clearAcceptedMatch(result.assetId)}
-                          onRemove={() => removeAsset(result.assetId)}
-                        />
-                      );
-                    })}
+                <div className="space-y-3">
+                  {/* View mode toggle */}
+                  <div className="flex items-center justify-between">
+                    <Tabs value={activeViewMode} onValueChange={(v) => setActiveViewMode(v as 'structure' | 'asset')}>
+                      <TabsList className="h-8">
+                        <TabsTrigger value="structure" className="gap-1.5 text-xs px-3">
+                          <Layers className="h-3.5 w-3.5" />
+                          By Ad Set
+                        </TabsTrigger>
+                        <TabsTrigger value="asset" className="gap-1.5 text-xs px-3">
+                          <List className="h-3.5 w-3.5" />
+                          By Creative
+                        </TabsTrigger>
+                      </TabsList>
+                    </Tabs>
+                    <div className="text-xs text-muted-foreground">
+                      {state.structureResults.filter(r => r.assignedAssets.length > 0).length} ad sets with matches
+                    </div>
                   </div>
-                </ScrollArea>
+
+                  {/* Structure-centric view */}
+                  {activeViewMode === 'structure' && (
+                    <StructureCentricView
+                      structureResults={state.structureResults}
+                      unassignedAssets={state.unassignedAssets}
+                      acceptedMatches={state.acceptedMatches}
+                      onAcceptAsset={(assetId, structure) => {
+                        // Build a UICreativeMatch from the structure result
+                        const structureResult = state.structureResults.find(r => r.structure.id === structure.id);
+                        const assignedAsset = structureResult?.assignedAssets.find(a => a.asset.id === assetId);
+                        if (assignedAsset) {
+                          const match: UICreativeMatch = {
+                            structure,
+                            confidenceScore: assignedAsset.confidenceScore,
+                            reasoning: assignedAsset.reasoning,
+                            compatibilityIssues: assignedAsset.issues,
+                            hardConstraintsMet: true,
+                          };
+                          acceptMatch(assetId, match);
+                        }
+                      }}
+                      onRejectAsset={(assetId, structureId) => rejectMatch(assetId, structureId)}
+                    />
+                  )}
+
+                  {/* Asset-centric view (legacy) */}
+                  {activeViewMode === 'asset' && (
+                    <ScrollArea className="h-[400px] pr-4">
+                      <div className="space-y-4">
+                        {state.results.map(result => {
+                          const asset = state.assets.find(a => a.id === result.assetId);
+                          if (!asset) return null;
+                          return (
+                            <CreativeMatchCard
+                              key={result.assetId}
+                              result={result}
+                              asset={asset}
+                              acceptedMatch={state.acceptedMatches.get(result.assetId)}
+                              rejectedStructureIds={state.rejectedMatches.get(result.assetId) || new Set()}
+                              onAccept={(match: UICreativeMatch) => acceptMatch(result.assetId, match)}
+                              onReject={(structureId: string) => rejectMatch(result.assetId, structureId)}
+                              onClearRejection={(structureId: string) => clearRejection(result.assetId, structureId)}
+                              onClearAccepted={() => clearAcceptedMatch(result.assetId)}
+                              onRemove={() => removeAsset(result.assetId)}
+                            />
+                          );
+                        })}
+                      </div>
+                    </ScrollArea>
+                  )}
+                </div>
               )}
 
               {/* Complete step */}
