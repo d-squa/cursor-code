@@ -33,81 +33,116 @@ interface CreativeMatchCardProps {
   onRemove: () => void;
 }
 
-// Compact inline display of matched elements
+// Compact inline badges showing key match points with sources
 function MatchedElementsBadges({ match }: { match: UICreativeMatch }) {
-  const { structure, reasoning } = match;
+  const { reasoning } = match;
   
-  // Parse reasoning to extract matched elements
-  const matchedElements: Array<{ label: string; value: string; type: 'success' | 'inferred' }> = [];
+  // Extract key matches with sources from reasoning
+  const keyMatches: Array<{ label: string; hasSource: boolean }> = [];
   
-  // Add structure-based matches
-  if (structure.platform) {
-    matchedElements.push({ label: 'Platform', value: structure.platform.toUpperCase(), type: 'success' });
-  }
-  if (structure.market) {
-    matchedElements.push({ label: 'Market', value: structure.market, type: 'success' });
-  }
-  if (structure.phases?.[0]) {
-    matchedElements.push({ label: 'Phase', value: structure.phases[0], type: 'success' });
-  }
-  if (structure.optimizationGoal) {
-    matchedElements.push({ label: 'Goal', value: structure.optimizationGoal, type: 'success' });
-  }
-  if (structure.funnelStage) {
-    matchedElements.push({ label: 'Funnel', value: structure.funnelStage, type: 'success' });
-  }
-  if (structure.genderConstraint) {
-    matchedElements.push({ label: 'Gender', value: structure.genderConstraint, type: 'success' });
-  }
-  if (structure.deviceConstraints?.length) {
-    matchedElements.push({ label: 'Device', value: structure.deviceConstraints.join(', '), type: 'success' });
-  }
-  if (structure.audienceTypeConstraint) {
-    matchedElements.push({ label: 'Audience', value: structure.audienceTypeConstraint, type: 'success' });
-  }
-
-  // Check reasoning for inferred matches
   reasoning.forEach(reason => {
-    if (reason.toLowerCase().includes('inferred')) {
-      const inferredMatch = reason.match(/inferred\s+(\w+)/i);
-      if (inferredMatch) {
-        matchedElements.push({ label: 'Inferred', value: inferredMatch[1], type: 'inferred' });
+    const sourceMatch = reason.match(/filename contains "([^"]+)"/);
+    if (sourceMatch) {
+      // Extract the type from the beginning of the reason
+      const typeMatch = reason.match(/^([^:]+):/);
+      if (typeMatch) {
+        keyMatches.push({ label: `${typeMatch[1]}: "${sourceMatch[1]}"`, hasSource: true });
       }
     }
   });
-
-  if (matchedElements.length === 0) return null;
-
+  
+  if (keyMatches.length === 0) return null;
+  
   return (
     <div className="flex flex-wrap gap-1 mt-1">
-      {matchedElements.slice(0, 5).map((elem, idx) => (
+      {keyMatches.slice(0, 4).map((elem, idx) => (
         <Badge 
           key={idx} 
           variant="outline" 
-          className={cn(
-            "text-[10px] py-0 px-1.5",
-            elem.type === 'inferred' && "border-dashed border-amber-500/50 text-amber-600"
-          )}
+          className="text-[10px] py-0 px-1.5 border-dashed border-amber-500/50 text-amber-600"
         >
-          {elem.label}: {elem.value}
+          {elem.label}
         </Badge>
       ))}
-      {matchedElements.length > 5 && (
+      {keyMatches.length > 4 && (
         <Badge variant="outline" className="text-[10px] py-0 px-1.5">
-          +{matchedElements.length - 5} more
+          +{keyMatches.length - 4} more
         </Badge>
       )}
     </div>
   );
 }
 
-// Detailed reasoning tooltip content
+// Parse a reasoning string to extract the type, value, and source
+function parseReasoning(reason: string): { type: string; value: string; source?: string } | null {
+  // Pattern: "Type: matched "value" to ... (source)" or "Type: value ... (source)"
+  const matchWithSource = reason.match(/^([^:]+):\s*(?:matched\s+"([^"]+)"|([^(]+))\s*(?:\([^)]+\))?.*?\(([^)]+)\)$/);
+  if (matchWithSource) {
+    return {
+      type: matchWithSource[1].trim(),
+      value: matchWithSource[2] || matchWithSource[3]?.trim() || '',
+      source: matchWithSource[4]
+    };
+  }
+  
+  // Pattern: "Type: value is..." or "Type: value..."
+  const simpleMatch = reason.match(/^([^:]+):\s*(.+)$/);
+  if (simpleMatch) {
+    return {
+      type: simpleMatch[1].trim(),
+      value: simpleMatch[2].trim()
+    };
+  }
+  
+  return null;
+}
+
+// Detailed reasoning display with sources
+function MatchReasoningList({ reasoning }: { reasoning: string[] }) {
+  if (reasoning.length === 0) return null;
+  
+  return (
+    <div className="space-y-1.5 text-xs">
+      {reasoning.map((reason, idx) => {
+        const parsed = parseReasoning(reason);
+        if (!parsed) {
+          return (
+            <div key={idx} className="flex items-start gap-1.5 text-muted-foreground">
+              <span className="text-emerald-500 shrink-0 mt-0.5">✓</span>
+              <span>{reason}</span>
+            </div>
+          );
+        }
+        
+        const hasSource = parsed.source && parsed.source.includes('filename contains');
+        
+        return (
+          <div key={idx} className="flex items-start gap-1.5">
+            <span className="text-emerald-500 shrink-0 mt-0.5">✓</span>
+            <div className="flex flex-col">
+              <span className="text-foreground font-medium">{parsed.type}</span>
+              <span className="text-muted-foreground">{parsed.value}</span>
+              {hasSource && (
+                <span className="text-amber-600 text-[10px] italic">
+                  → {parsed.source}
+                </span>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Detailed reasoning tooltip content with source information
 function MatchReasoningTooltip({ match }: { match: UICreativeMatch }) {
   const { reasoning, compatibilityIssues, hardConstraintsMet } = match;
   const warnings = compatibilityIssues.filter(i => i.severity === 'warning');
+  const errors = compatibilityIssues.filter(i => i.severity === 'error');
   
   return (
-    <div className="space-y-2 max-w-xs">
+    <div className="space-y-3 max-w-sm">
       <div className="flex items-center gap-2">
         <span className={cn("text-xs font-medium", hardConstraintsMet ? "text-emerald-500" : "text-destructive")}>
           {hardConstraintsMet ? "✓ All constraints met" : "✗ Constraint issues"}
@@ -115,13 +150,22 @@ function MatchReasoningTooltip({ match }: { match: UICreativeMatch }) {
       </div>
       
       {reasoning.length > 0 && (
-        <div className="space-y-1">
-          <p className="text-xs font-medium text-foreground">Matched Elements:</p>
+        <div className="space-y-1.5">
+          <p className="text-xs font-semibold text-foreground border-b border-border pb-1">
+            Match Reasoning
+          </p>
+          <MatchReasoningList reasoning={reasoning} />
+        </div>
+      )}
+      
+      {errors.length > 0 && (
+        <div className="space-y-1 pt-2 border-t border-destructive/30">
+          <p className="text-xs font-medium text-destructive">Errors:</p>
           <ul className="text-xs space-y-0.5">
-            {reasoning.map((reason, idx) => (
-              <li key={idx} className="text-muted-foreground flex items-start gap-1">
-                <span className="text-emerald-500 shrink-0">✓</span>
-                <span>{reason}</span>
+            {errors.map((issue, idx) => (
+              <li key={idx} className="text-destructive flex items-start gap-1">
+                <X className="h-3 w-3 shrink-0 mt-0.5" />
+                <span>{issue.message}</span>
               </li>
             ))}
           </ul>
@@ -129,11 +173,14 @@ function MatchReasoningTooltip({ match }: { match: UICreativeMatch }) {
       )}
       
       {warnings.length > 0 && (
-        <div className="space-y-1 pt-1 border-t border-border">
+        <div className="space-y-1 pt-2 border-t border-amber-500/30">
           <p className="text-xs font-medium text-amber-600">Warnings:</p>
           <ul className="text-xs space-y-0.5">
             {warnings.slice(0, 3).map((issue, idx) => (
-              <li key={idx} className="text-amber-600">{issue.message}</li>
+              <li key={idx} className="text-amber-600 flex items-start gap-1">
+                <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5" />
+                <span>{issue.message}</span>
+              </li>
             ))}
           </ul>
         </div>
