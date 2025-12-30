@@ -20,7 +20,8 @@ import {
   Layers,
   Globe,
   Target,
-  LayoutGrid
+  LayoutGrid,
+  Copy
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -160,6 +161,23 @@ function CharCounter({ value, maxLength }: { value: string; maxLength?: number }
   );
 }
 
+// Inline text inputs state for hierarchy levels
+interface GroupTextInputs {
+  primaryText: string;
+  headline: string;
+  description: string;
+  callToAction: string;
+  destinationUrl: string;
+}
+
+const defaultGroupInputs: GroupTextInputs = {
+  primaryText: '',
+  headline: '',
+  description: '',
+  callToAction: '',
+  destinationUrl: '',
+};
+
 export function CreativeTextAssetEditor({
   rows,
   campaignName,
@@ -170,8 +188,8 @@ export function CreativeTextAssetEditor({
 }: CreativeTextAssetEditorProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [groupInputs, setGroupInputs] = useState<Map<string, GroupTextInputs>>(new Map());
   const tableRef = useRef<HTMLDivElement>(null);
-
   const { nodes, rowsByKey } = useMemo(() => buildHierarchy(rows), [rows]);
   
   const validCount = useMemo(() => 
@@ -260,6 +278,65 @@ export function CreativeTextAssetEditor({
       toast.error('Failed to read clipboard');
     }
   }, [onBulkUpdate, onRowChange]);
+
+  // Get/set group inputs
+  const getGroupInputs = useCallback((key: string): GroupTextInputs => {
+    return groupInputs.get(key) || { ...defaultGroupInputs };
+  }, [groupInputs]);
+
+  const updateGroupInput = useCallback((key: string, field: keyof GroupTextInputs, value: string) => {
+    setGroupInputs(prev => {
+      const next = new Map(prev);
+      const current = next.get(key) || { ...defaultGroupInputs };
+      next.set(key, { ...current, [field]: value });
+      return next;
+    });
+  }, []);
+
+  // Apply text to all rows in a group
+  const handleApplyToGroup = useCallback((rowIds: string[], key: string, field: keyof GroupTextInputs) => {
+    const inputs = groupInputs.get(key);
+    if (!inputs) return;
+    
+    const value = inputs[field];
+    if (!value.trim()) {
+      toast.error(`Enter ${field.replace(/([A-Z])/g, ' $1').toLowerCase()} first`);
+      return;
+    }
+
+    const updates: Partial<CreativeTextAssetRow> = {};
+    if (field === 'callToAction') {
+      updates[field] = value as CallToAction;
+    } else {
+      updates[field] = value;
+    }
+    
+    onBulkUpdate(rowIds, updates);
+    toast.success(`Applied to ${rowIds.length} creatives`);
+  }, [groupInputs, onBulkUpdate]);
+
+  // Apply all filled fields to group
+  const handleApplyAllToGroup = useCallback((rowIds: string[], key: string) => {
+    const inputs = groupInputs.get(key);
+    if (!inputs) return;
+    
+    const updates: Partial<CreativeTextAssetRow> = {};
+    let hasValue = false;
+    
+    if (inputs.primaryText.trim()) { updates.primaryText = inputs.primaryText; hasValue = true; }
+    if (inputs.headline.trim()) { updates.headline = inputs.headline; hasValue = true; }
+    if (inputs.description.trim()) { updates.description = inputs.description; hasValue = true; }
+    if (inputs.callToAction.trim()) { updates.callToAction = inputs.callToAction as CallToAction; hasValue = true; }
+    if (inputs.destinationUrl.trim()) { updates.destinationUrl = inputs.destinationUrl; hasValue = true; }
+    
+    if (!hasValue) {
+      toast.error('Enter at least one field to apply');
+      return;
+    }
+    
+    onBulkUpdate(rowIds, updates);
+    toast.success(`Applied to ${rowIds.length} creatives`);
+  }, [groupInputs, onBulkUpdate]);
 
   // Level icons
   const getLevelIcon = (level: HierarchyLevel) => {
@@ -391,55 +468,255 @@ export function CreativeTextAssetEditor({
                 if (item.type === 'node') {
                   const node = item.data as HierarchyNode;
                   const isCollapsed = collapsed.has(node.key);
+                  const inputs = getGroupInputs(node.key);
                   
                   return (
-                    <div
-                      key={node.key}
-                      className={cn(
-                        "grid grid-cols-[300px_200px_150px_150px_120px_200px_100px] gap-px",
-                        getLevelBg(node.level),
-                        "hover:bg-accent/50 cursor-pointer"
-                      )}
-                    >
+                    <div key={node.key} className={cn("border-b", getLevelBg(node.level))}>
+                      {/* Header row */}
                       <div
-                        className={cn("px-3 py-2 flex items-center gap-2", getLevelIndent(node.level))}
-                        onClick={() => toggleCollapse(node.key)}
-                      >
-                        {isCollapsed ? (
-                          <ChevronRight className="h-4 w-4 shrink-0" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4 shrink-0" />
+                        className={cn(
+                          "grid grid-cols-[300px_200px_150px_150px_120px_200px_100px] gap-px",
+                          "hover:bg-accent/50 cursor-pointer"
                         )}
-                        {getLevelIcon(node.level)}
-                        <span className="font-medium truncate">{node.label}</span>
-                        <Badge variant="secondary" className="text-xs ml-auto shrink-0">
-                          {node.childCount}
-                        </Badge>
+                      >
+                        <div
+                          className={cn("px-3 py-2 flex items-center gap-2", getLevelIndent(node.level))}
+                          onClick={() => toggleCollapse(node.key)}
+                        >
+                          {isCollapsed ? (
+                            <ChevronRight className="h-4 w-4 shrink-0" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4 shrink-0" />
+                          )}
+                          {getLevelIcon(node.level)}
+                          <span className="font-medium truncate">{node.label}</span>
+                          <Badge variant="secondary" className="text-xs ml-auto shrink-0">
+                            {node.childCount}
+                          </Badge>
+                        </div>
+                        
+                        {/* Paste button spanning remaining columns */}
+                        <div className="col-span-6 px-3 py-2 flex items-center gap-2">
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 text-xs"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handlePasteToGroup(node.rowIds, node.level);
+                                  }}
+                                >
+                                  <Clipboard className="h-3 w-3 mr-1" />
+                                  Paste to all
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                Paste from clipboard to {node.childCount} creatives
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                          
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 text-xs"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleApplyAllToGroup(node.rowIds, node.key);
+                                  }}
+                                >
+                                  <Copy className="h-3 w-3 mr-1" />
+                                  Apply all fields
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                Apply all filled fields below to {node.childCount} creatives
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </div>
                       </div>
                       
-                      {/* Paste buttons spanning remaining columns */}
-                      <div className="col-span-6 px-3 py-2 flex items-center">
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-7 text-xs"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handlePasteToGroup(node.rowIds, node.level);
-                                }}
+                      {/* Input row with Apply buttons */}
+                      <div className="grid grid-cols-[300px_200px_150px_150px_120px_200px_100px] gap-px bg-background/50">
+                        <div className={cn("px-3 py-1.5 text-xs text-muted-foreground italic", getLevelIndent(node.level))}>
+                          Enter text to apply to all {node.childCount} creatives
+                        </div>
+                        
+                        {/* Primary Text input */}
+                        <div className="px-1 py-1">
+                          <div className="flex items-center gap-1">
+                            <Input
+                              value={inputs.primaryText}
+                              onChange={(e) => updateGroupInput(node.key, 'primaryText', e.target.value)}
+                              className="h-7 text-xs flex-1"
+                              placeholder="Primary text..."
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-7 w-7 shrink-0"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleApplyToGroup(node.rowIds, node.key, 'primaryText');
+                                    }}
+                                  >
+                                    <Copy className="h-3 w-3" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Apply to all</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
+                        </div>
+                        
+                        {/* Headline input */}
+                        <div className="px-1 py-1">
+                          <div className="flex items-center gap-1">
+                            <Input
+                              value={inputs.headline}
+                              onChange={(e) => updateGroupInput(node.key, 'headline', e.target.value)}
+                              className="h-7 text-xs flex-1"
+                              placeholder="Headline..."
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-7 w-7 shrink-0"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleApplyToGroup(node.rowIds, node.key, 'headline');
+                                    }}
+                                  >
+                                    <Copy className="h-3 w-3" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Apply to all</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
+                        </div>
+                        
+                        {/* Description input */}
+                        <div className="px-1 py-1">
+                          <div className="flex items-center gap-1">
+                            <Input
+                              value={inputs.description}
+                              onChange={(e) => updateGroupInput(node.key, 'description', e.target.value)}
+                              className="h-7 text-xs flex-1"
+                              placeholder="Description..."
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-7 w-7 shrink-0"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleApplyToGroup(node.rowIds, node.key, 'description');
+                                    }}
+                                  >
+                                    <Copy className="h-3 w-3" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Apply to all</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
+                        </div>
+                        
+                        {/* CTA select */}
+                        <div className="px-1 py-1">
+                          <div className="flex items-center gap-1">
+                            <Select
+                              value={inputs.callToAction}
+                              onValueChange={(v) => updateGroupInput(node.key, 'callToAction', v)}
+                            >
+                              <SelectTrigger 
+                                className="h-7 text-xs flex-1" 
+                                onClick={(e) => e.stopPropagation()}
                               >
-                                <Clipboard className="h-3 w-3 mr-1" />
-                                Paste to all {node.level === 'adset' ? 'creatives' : `under this ${node.level}`}
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              Paste from clipboard to {node.childCount} creatives
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
+                                <SelectValue placeholder="CTA" />
+                              </SelectTrigger>
+                              <SelectContent className="bg-popover z-50">
+                                {PLATFORM_CTAS.meta.map(cta => (
+                                  <SelectItem key={cta} value={cta} className="text-xs">
+                                    {cta.replace(/_/g, ' ')}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-7 w-7 shrink-0"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleApplyToGroup(node.rowIds, node.key, 'callToAction');
+                                    }}
+                                  >
+                                    <Copy className="h-3 w-3" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Apply to all</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
+                        </div>
+                        
+                        {/* URL input */}
+                        <div className="px-1 py-1">
+                          <div className="flex items-center gap-1">
+                            <Input
+                              value={inputs.destinationUrl}
+                              onChange={(e) => updateGroupInput(node.key, 'destinationUrl', e.target.value)}
+                              className="h-7 text-xs flex-1"
+                              placeholder="https://..."
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-7 w-7 shrink-0"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleApplyToGroup(node.rowIds, node.key, 'destinationUrl');
+                                    }}
+                                  >
+                                    <Copy className="h-3 w-3" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Apply to all</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
+                        </div>
+                        
+                        {/* Empty cell for UTM column */}
+                        <div className="px-3 py-1.5" />
                       </div>
                     </div>
                   );
