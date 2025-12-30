@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import type { HardConstraints, SupportedPlatform, AssetMediaType } from '@/types/creativeMatching';
-import { generateAdTaxonomyName, AD_TAXONOMY_MAPPINGS, createShortCode } from '@/utils/taxonomyUtils';
+import { generateAdTaxonomyName, AD_TAXONOMY_MAPPINGS, createShortCode, getDefaultAdSetParams, extractTaxonomyValues, generateTaxonomyString, TaxonomyContext, TaxonomyParam } from '@/utils/taxonomyUtils';
 
 // Helper to generate taxonomy-based creative name
 function generateCreativeTaxonomyName(asset: DigestedAsset, structure: CampaignStructure): string {
@@ -161,6 +161,42 @@ export function useCreativeMatching(campaignId?: string) {
 
       const marketSplitsRaw = (campaign as any)?.market_splits;
       const marketSplits: Record<string, any> = marketSplitsRaw && typeof marketSplitsRaw === 'object' ? marketSplitsRaw : {};
+      
+      // Fetch taxonomy templates for all platforms
+      const taxonomyTemplates: Record<string, TaxonomyParam[]> = {};
+      for (const platform of platforms) {
+        const platformKey = String(platform?.id ?? '').toLowerCase();
+        const adAccountId = platform?.adAccountId || platform?.ad_account_id;
+        
+        if (adAccountId) {
+          try {
+            const { data: templateData } = await supabase
+              .from('taxonomy_templates')
+              .select('template')
+              .eq('ad_account_id', adAccountId)
+              .eq('entity_type', 'adset')
+              .eq('platform', platformKey)
+              .maybeSingle();
+            
+            if (templateData?.template) {
+              taxonomyTemplates[platformKey] = templateData.template as unknown as TaxonomyParam[];
+            }
+          } catch (e) {
+            console.warn(`Could not fetch taxonomy template for ${platformKey}:`, e);
+          }
+        }
+      }
+      
+      // Helper to generate taxonomy-based adset name
+      const generateAdSetTaxonomyName = (
+        platformKey: string,
+        context: TaxonomyContext
+      ): string => {
+        const template = taxonomyTemplates[platformKey] || getDefaultAdSetParams(platformKey as 'meta' | 'tiktok');
+        const values = extractTaxonomyValues(template, context);
+        const taxonomyName = generateTaxonomyString(template, values);
+        return taxonomyName || `${context.market}_${context.funnelStage}_${context.optimizationGoal}`.toUpperCase();
+      };
 
       for (const platform of platforms) {
         const platformKey = String(platform?.id ?? '').toLowerCase();
@@ -212,11 +248,31 @@ export function useCreativeMatching(campaignId?: string) {
             if (adSets.length > 0 && splitDimension !== 'none') {
               // Create a structure for EACH ad set configuration
               for (const adSet of adSets) {
+                // Build taxonomy context for this adset
+                const taxonomyContext: TaxonomyContext = {
+                  platform: platformKey,
+                  country: market?.name,
+                  market: market?.name,
+                  funnelStage: phase?.funnelStage,
+                  optimizationGoal: adSet.optimizationGoal || phase?.optimizationGoal,
+                  optimizationLocation: phase?.optimizationLocation,
+                  budgetType: phase?.budgetType,
+                  ageMin: adSet.ageMin ?? phase?.ageMin ?? market?.ageMin,
+                  ageMax: adSet.ageMax ?? phase?.ageMax ?? market?.ageMax,
+                  gender: adSet.gender || phase?.gender || market?.gender,
+                  devices: adSet.devices || phase?.targeting?.devices,
+                  placementType: phase?.advantagePlusPlacements ? 'automatic' : 'manual',
+                  publisherPlatforms: adSet.placements || placementConstraints,
+                  languages: adSet.languages || phase?.languages || market?.languages,
+                  targetingType: extractTargetingType(adSet.audiences),
+                  phaseBudget: calculateBudgetFromPercentage(adSet.budgetPercentage, phase, market, campaign),
+                };
+                
                 const adSetStructure: CampaignStructure = {
                   id: `${campaignIdToLoad}-${platformKey}-${market?.id ?? market?.name ?? 'market'}-${phase?.name ?? 'phase'}-${adSet.id}`,
                   ...baseStructureData,
                   adSetId: adSet.id,
-                  adSetName: `${market?.name ?? 'Market'} - ${phase?.name ?? 'Phase'} - ${adSet.name}`,
+                  adSetName: generateAdSetTaxonomyName(platformKey, taxonomyContext),
                   placementConstraints: adSet.placements || adSet.tiktokPlacements || placementConstraints,
                   formatConstraints,
                   language: adSet.languages?.[0] || language,
@@ -238,12 +294,32 @@ export function useCreativeMatching(campaignId?: string) {
                 structures.push(adSetStructure);
               }
             } else {
+              // Build taxonomy context for phase-level adset
+              const taxonomyContext: TaxonomyContext = {
+                platform: platformKey,
+                country: market?.name,
+                market: market?.name,
+                funnelStage: phase?.funnelStage,
+                optimizationGoal: phase?.optimizationGoal,
+                optimizationLocation: phase?.optimizationLocation,
+                budgetType: phase?.budgetType,
+                ageMin: phase?.ageMin ?? market?.ageMin,
+                ageMax: phase?.ageMax ?? market?.ageMax,
+                gender: phase?.gender || market?.gender,
+                devices: phase?.targeting?.devices,
+                placementType: phase?.advantagePlusPlacements ? 'automatic' : 'manual',
+                publisherPlatforms: placementConstraints,
+                languages: phase?.languages || market?.languages,
+                targetingType: extractTargetingType(phase?.audiences),
+                phaseBudget: calculateBudgetFromPercentage(phase?.budgetPercentage, phase, market, campaign),
+              };
+              
               // No splits - create single structure from phase
               structures.push({
                 id: `${campaignIdToLoad}-${platformKey}-${market?.id ?? market?.name ?? 'market'}-${phase?.name ?? 'phase'}`,
                 ...baseStructureData,
                 adSetId: market?.id,
-                adSetName: `${market?.name ?? 'Market'} - ${phase?.name ?? 'Phase'}`,
+                adSetName: generateAdSetTaxonomyName(platformKey, taxonomyContext),
                 placementConstraints,
                 formatConstraints,
                 language,
@@ -276,6 +352,17 @@ export function useCreativeMatching(campaignId?: string) {
       return [];
     }
   }, [user]);
+  
+  // Helper to extract targeting type from audiences
+  function extractTargetingType(audiences: any[] | undefined): string | undefined {
+    if (!audiences || audiences.length === 0) return 'broad';
+    const types = new Set(audiences.map((a: any) => a?.type?.toLowerCase()));
+    if (types.has('custom') && types.has('lookalike')) return 'mix';
+    if (types.has('custom')) return 'retargeting';
+    if (types.has('lookalike')) return 'lookalike';
+    if (types.has('saved') || types.has('interest')) return 'native';
+    return 'broad';
+  }
 
   // Add creatives from the library (already in database)
   const addLibraryCreatives = useCallback((creatives: any[]) => {
