@@ -886,14 +886,28 @@ export function useCreativeMatching(campaignId?: string) {
       }
 
       if (assignments.length > 0) {
-        const { data: insertedAssignments } = await supabase.from('creative_assignments').insert(assignments).select();
+        const { data: insertedAssignments, error: insertError } = await supabase.from('creative_assignments').insert(assignments).select();
+        
+        if (insertError) {
+          console.error('Error inserting assignments:', insertError);
+          throw insertError;
+        }
+        
+        console.log('Inserted assignments:', insertedAssignments);
         
         // Build saved assignments for text asset editor
         const savedAssignments = (insertedAssignments || []).map((a: any) => {
+          // Find the corresponding asset - use the creative_id to match back
           const asset = currentState.assets.find(as => {
-            const match = Array.from(currentState.acceptedMatches.entries()).find(([key]) => key.startsWith(as.id + ':'));
-            return match && match[1].structure.campaignId === a.campaign_id;
+            // Look through accepted matches to find this asset
+            for (const [key, m] of currentState.acceptedMatches.entries()) {
+              if (key.startsWith(as.id + ':') && m.structure.campaignId === a.campaign_id) {
+                return true;
+              }
+            }
+            return false;
           });
+          
           return {
             id: a.id,
             creativeId: a.creative_id,
@@ -905,9 +919,12 @@ export function useCreativeMatching(campaignId?: string) {
           };
         });
         
+        console.log('Built savedAssignments:', savedAssignments);
+        
         toast.success(`Saved ${assignments.length} creative assignments`);
         setState(prev => ({ ...prev, isProcessing: false, currentStep: 'text_assets', savedAssignments }));
       } else {
+        toast.info('No assignments to save');
         setState(prev => ({ ...prev, isProcessing: false, currentStep: 'complete' }));
       }
     } catch (error) {

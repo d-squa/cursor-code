@@ -43,7 +43,10 @@ export function TextAssetsStep({
   // Load creative assignments with their structure data
   useEffect(() => {
     const loadAssignments = async () => {
+      console.log('TextAssetsStep: Loading with savedAssignments:', savedAssignments);
+      
       if (!savedAssignments || savedAssignments.length === 0) {
+        console.log('TextAssetsStep: No saved assignments provided');
         setIsLoading(false);
         return;
       }
@@ -51,6 +54,7 @@ export function TextAssetsStep({
       try {
         // Get assignment IDs from the saved matches
         const assignmentIds = savedAssignments.map(a => a.id);
+        console.log('TextAssetsStep: Fetching assignments with IDs:', assignmentIds);
         
         // Fetch assignments with creative data
         const { data: assignments, error } = await supabase
@@ -79,7 +83,12 @@ export function TextAssetsStep({
           `)
           .in('id', assignmentIds);
 
-        if (error) throw error;
+        if (error) {
+          console.error('TextAssetsStep: Error fetching assignments:', error);
+          throw error;
+        }
+
+        console.log('TextAssetsStep: Fetched assignments:', assignments);
 
         // Transform to CreativeTextAssetRow format
         const transformedRows: CreativeTextAssetRow[] = (assignments || []).map((assignment: any) => {
@@ -111,6 +120,7 @@ export function TextAssetsStep({
           };
         });
 
+        console.log('TextAssetsStep: Transformed rows:', transformedRows.length);
         setRows(transformedRows);
       } catch (error) {
         console.error('Error loading assignments:', error);
