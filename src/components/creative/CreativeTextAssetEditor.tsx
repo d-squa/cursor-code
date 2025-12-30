@@ -38,7 +38,8 @@ import {
   PLATFORM_CTAS, 
   validateTextAssetRow,
   generateAutoUtm,
-  buildUrlWithUtm 
+  buildUrlWithUtm,
+  getCharacterStatus
 } from '@/types/creativeTextAssets';
 import type { CallToAction, Platform } from '@/types/creative';
 
@@ -112,20 +113,60 @@ function groupRows(rows: CreativeTextAssetRow[]): GroupedStructure[] {
   return result;
 }
 
-// Cell editor component
+// Character counter component with visual feedback
+function CharacterCounter({ 
+  value, 
+  field 
+}: { 
+  value: string; 
+  field: TextAssetFieldConfig;
+}) {
+  if (!field.maxLength) return null;
+  
+  const length = value?.length || 0;
+  const status = getCharacterStatus(value || '', field);
+  
+  const statusColors = {
+    ok: 'text-muted-foreground',
+    warning: 'text-amber-500',
+    error: 'text-destructive',
+    over: 'text-destructive font-semibold'
+  };
+  
+  return (
+    <div className={cn('text-[10px] mt-0.5 flex items-center gap-1', statusColors[status])}>
+      <span>{length}</span>
+      <span>/</span>
+      <span>{field.maxLength}</span>
+      {field.recommendedLength && length > field.recommendedLength && length <= field.maxLength && (
+        <span className="text-amber-500">(rec: {field.recommendedLength})</span>
+      )}
+      {status === 'over' && (
+        <AlertCircle className="h-3 w-3 inline ml-0.5" />
+      )}
+    </div>
+  );
+}
+
+// Cell editor component with character limit indicator
 function CellEditor({ 
   value, 
   field,
   platform,
   onChange,
-  onBlur
+  onBlur,
+  showCounter = true
 }: { 
   value: string;
   field: TextAssetFieldConfig;
   platform: Platform;
   onChange: (value: string) => void;
   onBlur?: () => void;
+  showCounter?: boolean;
 }) {
+  const status = getCharacterStatus(value || '', field);
+  const isOverLimit = status === 'over';
+  
   if (field.id === 'callToAction') {
     const ctas = PLATFORM_CTAS[platform] || PLATFORM_CTAS.meta;
     return (
@@ -133,7 +174,7 @@ function CellEditor({
         <SelectTrigger className="h-8 text-xs">
           <SelectValue placeholder="Select CTA" />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="bg-popover z-50">
           {ctas.map(cta => (
             <SelectItem key={cta} value={cta} className="text-xs">
               {cta.replace(/_/g, ' ')}
@@ -146,26 +187,38 @@ function CellEditor({
   
   if (field.multiline) {
     return (
-      <textarea
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onBlur={onBlur}
-        placeholder={field.placeholder}
-        className="w-full h-16 px-2 py-1 text-xs border rounded resize-none focus:outline-none focus:ring-1 focus:ring-primary bg-background"
-        maxLength={field.maxLength}
-      />
+      <div className="space-y-0.5">
+        <textarea
+          value={value || ''}
+          onChange={(e) => onChange(e.target.value)}
+          onBlur={onBlur}
+          placeholder={field.placeholder}
+          className={cn(
+            "w-full h-16 px-2 py-1 text-xs border rounded resize-none focus:outline-none focus:ring-1 focus:ring-primary bg-background",
+            isOverLimit && "border-destructive focus:ring-destructive",
+            status === 'warning' && "border-amber-500/50"
+          )}
+        />
+        {showCounter && <CharacterCounter value={value || ''} field={field} />}
+      </div>
     );
   }
   
   return (
-    <Input
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      onBlur={onBlur}
-      placeholder={field.placeholder}
-      className="h-8 text-xs"
-      maxLength={field.maxLength}
-    />
+    <div className="space-y-0.5">
+      <Input
+        value={value || ''}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
+        placeholder={field.placeholder}
+        className={cn(
+          "h-8 text-xs",
+          isOverLimit && "border-destructive focus:ring-destructive",
+          status === 'warning' && "border-amber-500/50"
+        )}
+      />
+      {showCounter && field.maxLength && <CharacterCounter value={value || ''} field={field} />}
+    </div>
   );
 }
 
