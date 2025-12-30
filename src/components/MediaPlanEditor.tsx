@@ -2373,34 +2373,42 @@ export function MediaPlanEditor() {
                             <CollapsibleContent className="px-4 pb-4">
                               <div className="space-y-4">
                                 {platform.markets.map(market => (
-                                  <Card key={market.id} className="p-4">
-                                    <div className="flex items-center justify-between mb-4">
-                                      <h4 className="font-medium">
-                                        {getMarketLabel(market.name)}
-                                      </h4>
-                                      <div className="flex gap-1">
-                                        <Button
-                                          type="button"
-                                          variant="ghost"
-                                          size="sm"
-                                          className="h-8 w-8 p-0 hover:bg-accent"
-                                          onClick={() => duplicateMarket(platform.id, market.id)}
-                                          title="Duplicate market"
-                                        >
-                                          <Copy className="h-4 w-4" />
-                                        </Button>
-                                        <Button
-                                          type="button"
-                                          variant="ghost"
-                                          size="sm"
-                                          className="h-8 w-8 p-0 hover:bg-destructive/20"
-                                          onClick={() => deleteMarket(platform.id, market.id)}
-                                          title="Delete market"
-                                        >
-                                          <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                      </div>
-                                    </div>
+                                  <Collapsible key={market.id} defaultOpen={false}>
+                                    <Card className="overflow-hidden">
+                                      <CollapsibleTrigger asChild>
+                                        <div className="flex items-center justify-between p-4 cursor-pointer hover:bg-accent/50 transition-colors">
+                                          <div className="flex items-center gap-2">
+                                            <h4 className="font-medium">
+                                              {getMarketLabel(market.name)}
+                                            </h4>
+                                            <ChevronDown className="h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                                          </div>
+                                          <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                                            <Button
+                                              type="button"
+                                              variant="ghost"
+                                              size="sm"
+                                              className="h-8 w-8 p-0 hover:bg-accent"
+                                              onClick={() => duplicateMarket(platform.id, market.id)}
+                                              title="Duplicate market"
+                                            >
+                                              <Copy className="h-4 w-4" />
+                                            </Button>
+                                            <Button
+                                              type="button"
+                                              variant="ghost"
+                                              size="sm"
+                                              className="h-8 w-8 p-0 hover:bg-destructive/20"
+                                              onClick={() => deleteMarket(platform.id, market.id)}
+                                              title="Delete market"
+                                            >
+                                              <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                          </div>
+                                        </div>
+                                      </CollapsibleTrigger>
+                                      <CollapsibleContent>
+                                        <div className="px-4 pb-4">
                                 
                                 {/* Per-Market Strategy Configuration */}
                                 <div className="space-y-4 mb-6 p-4 bg-muted/50 rounded-lg">
@@ -2627,8 +2635,11 @@ export function MediaPlanEditor() {
                                   }}
                                   onTaxonomyValidationChange={(isComplete, missingCount) => handleMarketTaxonomyValidation(market.id, isComplete, missingCount)}
                                   />
-                                </Card>
-                              ))}
+                                        </div>
+                                      </CollapsibleContent>
+                                    </Card>
+                                  </Collapsible>
+                                ))}
                               </div>
                             </CollapsibleContent>
                           </Collapsible>
