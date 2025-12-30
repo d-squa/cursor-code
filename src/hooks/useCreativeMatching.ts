@@ -1119,11 +1119,39 @@ function extractInferredSignals(filePath: string, fileName: string): InferredSig
     signals.sources.market = `filename contains "${marketMatch[1]}"`;
   }
   
-  // Language
-  const langMatch = text.match(/[_\-\s\/\[](en|ar|es|fr|de|pt|it|nl|tr|ru|ja|ko|zh|hi|th|vi|id|ms|tl|pl|cs|hu|ro|el|sv|no|da|fi|he)[_\-\.\s\/\]]/i);
-  if (langMatch) {
-    signals.language = langMatch[1].toLowerCase();
-    signals.sources.language = `filename contains "${langMatch[1]}"`;
+  // Language detection - expanded with full names and common variations
+  const languagePatterns: Record<string, string> = {
+    // Full names
+    'english': 'en', 'arabic': 'ar', 'spanish': 'es', 'french': 'fr', 'german': 'de',
+    'portuguese': 'pt', 'italian': 'it', 'dutch': 'nl', 'turkish': 'tr', 'russian': 'ru',
+    'japanese': 'ja', 'korean': 'ko', 'chinese': 'zh', 'hindi': 'hi', 'thai': 'th',
+    'vietnamese': 'vi', 'indonesian': 'id', 'malay': 'ms', 'tagalog': 'tl', 'polish': 'pl',
+    'czech': 'cs', 'hungarian': 'hu', 'romanian': 'ro', 'greek': 'el', 'swedish': 'sv',
+    'norwegian': 'no', 'danish': 'da', 'finnish': 'fi', 'hebrew': 'he',
+    // ISO codes as words
+    'eng': 'en', 'ara': 'ar', 'arb': 'ar', 'spa': 'es', 'fra': 'fr', 'deu': 'de',
+    'por': 'pt', 'ita': 'it', 'nld': 'nl', 'tur': 'tr', 'rus': 'ru', 'jpn': 'ja',
+    'kor': 'ko', 'zho': 'zh', 'hin': 'hi', 'tha': 'th', 'vie': 'vi', 'ind': 'id',
+    'msa': 'ms', 'tgl': 'tl', 'pol': 'pl', 'ces': 'cs', 'hun': 'hu', 'ron': 'ro',
+    'ell': 'el', 'swe': 'sv', 'nor': 'no', 'dan': 'da', 'fin': 'fi', 'heb': 'he',
+  };
+  
+  // First try to match full language names using whole word matching
+  for (const [name, code] of Object.entries(languagePatterns)) {
+    if (matchesWholeWord(text, name)) {
+      signals.language = code;
+      signals.sources.language = `filename contains "${name}"`;
+      break;
+    }
+  }
+  
+  // If no full name match, try ISO 2-letter codes with strict boundary matching
+  if (!signals.language) {
+    const langMatch = text.match(/[_\-\s\/\[\(](en|ar|es|fr|de|pt|it|nl|tr|ru|ja|ko|zh|hi|th|vi|id|ms|tl|pl|cs|hu|ro|el|sv|no|da|fi|he)[_\-\.\s\/\]\)]/i);
+    if (langMatch) {
+      signals.language = langMatch[1].toLowerCase();
+      signals.sources.language = `filename contains "${langMatch[1]}"`;
+    }
   }
   
   // Funnel stage / campaign type
@@ -1493,22 +1521,30 @@ function matchAssetToStructure(
     issues.push({ type: 'platform', severity: 'warning', message: 'No platform specified in filename; matches all platforms' });
   }
   
-  // STRICT: Language must match if specified in asset OR structure
-  if (signals.language || structure.language) {
+  // STRICT: Language must match if specified in structure
+  // If ad set has a language requirement, asset MUST have matching language - no exceptions
+  if (structure.language) {
+    const structureLang = structure.language.toLowerCase();
     const assetLang = signals.language?.toLowerCase();
-    const structureLang = structure.language?.toLowerCase();
     
-    if (assetLang && structureLang) {
-      if (assetLang !== structureLang) {
-        blockingReasons.push(`Language mismatch: asset is "${assetLang.toUpperCase()}" but ad set requires "${structureLang.toUpperCase()}"`);
-        return { isMatch: false, score: 0, matchedCriteria, blockingReasons, issues };
-      }
-      matchedCriteria.push({ criterion: 'Language', reason: `"${assetLang}" matches (${signals.sources.language})` });
-      score += 10;
-    } else if (structureLang && !assetLang) {
-      // Structure has language but asset doesn't specify - warn but allow
-      issues.push({ type: 'language', severity: 'warning', message: `No language in filename; ad set expects "${structureLang.toUpperCase()}"` });
+    if (!assetLang) {
+      // Ad set requires a language but asset has no language signal - BLOCK
+      blockingReasons.push(`Language required: ad set requires "${structureLang.toUpperCase()}" but asset has no language specified in filename`);
+      return { isMatch: false, score: 0, matchedCriteria, blockingReasons, issues };
     }
+    
+    if (assetLang !== structureLang) {
+      // Language mismatch - BLOCK
+      blockingReasons.push(`Language mismatch: asset is "${assetLang.toUpperCase()}" but ad set requires "${structureLang.toUpperCase()}"`);
+      return { isMatch: false, score: 0, matchedCriteria, blockingReasons, issues };
+    }
+    
+    // Languages match
+    matchedCriteria.push({ criterion: 'Language', reason: `"${assetLang.toUpperCase()}" matches (${signals.sources.language})` });
+    score += 10;
+  } else if (signals.language) {
+    // Asset has language but structure doesn't require one - just note it
+    matchedCriteria.push({ criterion: 'Language', reason: `Asset language: "${signals.language.toUpperCase()}" (${signals.sources.language})` });
   }
   
   // STRICT: Market must match if specified (unless single market plan)
