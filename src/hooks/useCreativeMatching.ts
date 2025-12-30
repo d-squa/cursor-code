@@ -1608,7 +1608,40 @@ function matchAssetToStructure(
     });
     score += 10;
   }
+
+  // STRICT: Video-only optimization goals cannot match image assets
+  // ThruPlay, Video Views, 6s Video View, 15s Video View, Focused View are video-exclusive
+  const VIDEO_ONLY_GOALS = [
+    'tpl', 'thruplay',
+    'vv', 'video_view', 'video_views', 'videoview', 'videoviews',
+    '6sv', '6s_video_view', '6s_video_views',
+    '15sv', '15s_video_view', '15s_video_views',
+    'fcv', 'focused_view', 'focusedview',
+    'cpv', 'cost_per_view',
+  ];
   
+  const taxonomyOptGoal = Object.entries(structure.taxonomyElements ?? {}).find(([k]) =>
+    /optimization\s*goal/i.test(k)
+  )?.[1];
+  
+  const normalizedGoal = (taxonomyOptGoal || structure.optimizationGoal || '').toLowerCase().replace(/[^a-z0-9_]/g, '');
+  const isVideoOnlyGoal = VIDEO_ONLY_GOALS.some(g => normalizedGoal.includes(g));
+  
+  if (isVideoOnlyGoal && asset.mediaType !== 'video') {
+    blockingReasons.push(
+      `Media type mismatch: optimization goal "${taxonomyOptGoal || structure.optimizationGoal}" requires VIDEO but asset is IMAGE`
+    );
+    return { isMatch: false, score: 0, matchedCriteria, blockingReasons, issues };
+  }
+  
+  if (isVideoOnlyGoal && asset.mediaType === 'video') {
+    matchedCriteria.push({
+      criterion: 'Media Type',
+      reason: `Video asset matches video-only goal "${taxonomyOptGoal || structure.optimizationGoal}"`,
+    });
+    score += 5;
+  }
+
   // STRICT: Language must match if specified in structure
   // If ad set has a language requirement, asset MUST have matching language - no exceptions
   if (structure.language) {
