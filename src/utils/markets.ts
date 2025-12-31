@@ -35,6 +35,11 @@ export const MARKET_OPTIONS: MarketOption[] = [
   { label: "UAE", value: "AE" },
   { label: "Saudi Arabia", value: "SA" },
   { label: "Kuwait", value: "KW" },
+  { label: "Bahrain", value: "BH" },
+  { label: "Egypt", value: "EG" },
+  { label: "Qatar", value: "QA" },
+  { label: "Oman", value: "OM" },
+  { label: "Lebanon", value: "LB" },
 ];
 
 // TikTok-specific market options (excludes restricted markets like US)
