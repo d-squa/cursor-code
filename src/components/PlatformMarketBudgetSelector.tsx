@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, X, Copy, Loader2, ChevronDown, ChevronRight, ChevronsUpDown } from "lucide-react";
+import { Plus, X, Copy, Loader2, ChevronDown, ChevronRight, ChevronsUpDown, Link2, Link2Off } from "lucide-react";
 import { PlatformWithMarkets, Market } from "@/types/mediaplan";
 import { AdFormatSelector } from "./AdFormatSelector";
 import { PhaseScheduler } from "./PhaseScheduler";
@@ -87,6 +87,10 @@ export function PlatformMarketBudgetSelector({
   // Collapsible state for platforms and markets
   const [expandedPlatforms, setExpandedPlatforms] = useState<Record<number, boolean>>({});
   const [expandedMarkets, setExpandedMarkets] = useState<Record<string, boolean>>({});
+  
+  // Budget lock state - when enabled, budgets redistribute proportionally to always sum to 100%
+  const [budgetLocked, setBudgetLocked] = useState(false);
+  
   
   const togglePlatformExpanded = (index: number) => {
     setExpandedPlatforms(prev => ({ ...prev, [index]: !(prev[index] === true) }));
@@ -752,13 +756,46 @@ export function PlatformMarketBudgetSelector({
   };
 
   const updatePlatformBudget = (index: number, percentage: number) => {
-    setPlatforms(
-      platforms.map((p, i) => 
-        i === index 
-          ? { ...p, budgetPercentage: Math.max(0, Math.min(100, percentage)) }
-          : p
-      )
-    );
+    const newPercentage = Math.max(0, Math.min(100, percentage));
+    
+    if (budgetLocked && platforms.length > 1) {
+      // Calculate the difference and redistribute to other platforms proportionally
+      const currentPlatform = platforms[index];
+      const diff = newPercentage - currentPlatform.budgetPercentage;
+      
+      // Get total budget of other platforms
+      const otherPlatformsTotalBudget = platforms.reduce((sum, p, i) => 
+        i !== index ? sum + p.budgetPercentage : sum, 0
+      );
+      
+      setPlatforms(
+        platforms.map((p, i) => {
+          if (i === index) {
+            return { ...p, budgetPercentage: newPercentage };
+          }
+          
+          // Redistribute proportionally among other platforms
+          if (otherPlatformsTotalBudget > 0) {
+            const proportion = p.budgetPercentage / otherPlatformsTotalBudget;
+            const adjustment = diff * proportion;
+            return { ...p, budgetPercentage: Math.max(0, p.budgetPercentage - adjustment) };
+          } else if (platforms.length > 1) {
+            // If other platforms have 0 budget, distribute equally
+            const equalShare = diff / (platforms.length - 1);
+            return { ...p, budgetPercentage: Math.max(0, p.budgetPercentage - equalShare) };
+          }
+          return p;
+        })
+      );
+    } else {
+      setPlatforms(
+        platforms.map((p, i) => 
+          i === index 
+            ? { ...p, budgetPercentage: newPercentage }
+            : p
+        )
+      );
+    }
   };
 
   const addMarket = (index: number) => {
@@ -863,19 +900,55 @@ export function PlatformMarketBudgetSelector({
   };
 
   const updateMarketBudget = (platformIndex: number, marketId: string, percentage: number) => {
+    const newPercentage = Math.max(0, Math.min(100, percentage));
+    
     setPlatforms(
-      platforms.map((p, i) => 
-        i === platformIndex 
-          ? { 
-              ...p, 
-              markets: p.markets.map(m => 
-                m.id === marketId 
-                  ? { ...m, budgetPercentage: Math.max(0, Math.min(100, percentage)) }
-                  : m
-              )
-            }
-          : p
-      )
+      platforms.map((p, i) => {
+        if (i !== platformIndex) return p;
+        
+        const currentMarket = p.markets.find(m => m.id === marketId);
+        if (!currentMarket) return p;
+        
+        if (budgetLocked && p.markets.length > 1) {
+          // Calculate the difference and redistribute to other markets proportionally
+          const diff = newPercentage - currentMarket.budgetPercentage;
+          
+          // Get total budget of other markets
+          const otherMarketsTotalBudget = p.markets.reduce((sum, m) => 
+            m.id !== marketId ? sum + m.budgetPercentage : sum, 0
+          );
+          
+          return {
+            ...p,
+            markets: p.markets.map(m => {
+              if (m.id === marketId) {
+                return { ...m, budgetPercentage: newPercentage };
+              }
+              
+              // Redistribute proportionally among other markets
+              if (otherMarketsTotalBudget > 0) {
+                const proportion = m.budgetPercentage / otherMarketsTotalBudget;
+                const adjustment = diff * proportion;
+                return { ...m, budgetPercentage: Math.max(0, m.budgetPercentage - adjustment) };
+              } else if (p.markets.length > 1) {
+                // If other markets have 0 budget, distribute equally
+                const equalShare = diff / (p.markets.length - 1);
+                return { ...m, budgetPercentage: Math.max(0, m.budgetPercentage - equalShare) };
+              }
+              return m;
+            })
+          };
+        } else {
+          return {
+            ...p,
+            markets: p.markets.map(m => 
+              m.id === marketId 
+                ? { ...m, budgetPercentage: newPercentage }
+                : m
+            )
+          };
+        }
+      })
     );
   };
 
@@ -924,6 +997,21 @@ export function PlatformMarketBudgetSelector({
         <div className="flex items-center justify-between">
           <CardTitle>Platform & Market Selection</CardTitle>
           <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant={budgetLocked ? "default" : "outline"}
+              size="sm"
+              onClick={() => setBudgetLocked(!budgetLocked)}
+              className="gap-1"
+              title={budgetLocked ? "Budget lock enabled - budgets redistribute to stay at 100%" : "Enable budget lock to auto-redistribute budgets"}
+            >
+              {budgetLocked ? (
+                <Link2 className="h-3 w-3" />
+              ) : (
+                <Link2Off className="h-3 w-3" />
+              )}
+              {budgetLocked ? "Linked" : "Link Budgets"}
+            </Button>
             <Button
               type="button"
               variant="outline"
