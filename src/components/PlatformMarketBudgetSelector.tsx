@@ -992,14 +992,36 @@ export function PlatformMarketBudgetSelector({
                         step={0.5}
                         className="w-full"
                       />
-                      <Input
-                        type="number"
-                        value={platform.budgetPercentage.toFixed(1)}
-                        onChange={(e) => updatePlatformBudget(platformIndex, parseFloat(e.target.value) || 0)}
-                        className="h-8 text-sm"
-                        min="0"
-                        max="100"
-                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-[10px] text-muted-foreground">Percentage (%)</Label>
+                          <Input
+                            type="number"
+                            value={platform.budgetPercentage.toFixed(1)}
+                            onChange={(e) => updatePlatformBudget(platformIndex, parseFloat(e.target.value) || 0)}
+                            className="h-8 text-sm"
+                            min="0"
+                            max="100"
+                            step="0.1"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] text-muted-foreground">Amount ($)</Label>
+                          <Input
+                            type="number"
+                            value={Math.round((totalBudget * platform.budgetPercentage) / 100)}
+                            onChange={(e) => {
+                              const amount = parseFloat(e.target.value) || 0;
+                              if (totalBudget > 0) {
+                                const percentage = (amount / totalBudget) * 100;
+                                updatePlatformBudget(platformIndex, Math.max(0, Math.min(100, percentage)));
+                              }
+                            }}
+                            className="h-8 text-sm"
+                            min="0"
+                          />
+                        </div>
+                      </div>
                     </div>
 
                     <div className="space-y-3">
