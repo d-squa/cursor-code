@@ -422,11 +422,15 @@ export function PhaseScheduler({
   }, [startDate, endDate, strategy, strategyFocus, platformName, phases.length]);
 
 
-  // Track if we've already applied defaults for each phase (by phase ID) to prevent re-triggering
-  const appliedDestinationDefaultsRef = useRef<Set<string>>(new Set());
+  // Track if we've already applied defaults for each phase (by phase ID + objective) to prevent re-triggering
+  const appliedDestinationDefaultsRef = useRef<Map<string, string>>(new Map());
   
   // Auto-populate destination fields from defaults when phases have objectives that require destinations
   // This handles the case where phases are auto-generated with objectives already set (e.g., auto-generate strategy)
+  // IMPORTANT: Use a stable ref to avoid triggering this effect when onPhasesChange identity changes
+  const onPhasesChangeRef = useRef(onPhasesChange);
+  onPhasesChangeRef.current = onPhasesChange;
+  
   useEffect(() => {
     if (!adAccountDefaults || phases.length === 0) return;
     
@@ -436,15 +440,24 @@ export function PhaseScheduler({
     
     let hasUpdates = false;
     const updatedPhases = phases.map(phase => {
-      // Skip if we've already processed this phase's defaults
-      if (appliedDestinationDefaultsRef.current.has(phase.id)) return phase;
-      
+      // Skip phases without objectives
       if (!phase.objective) return phase;
       
+      // Create a unique key for this phase + objective combination
+      const phaseKey = `${phase.id}:${phase.objective}`;
+      
+      // Skip if we've already processed this phase with this objective
+      if (appliedDestinationDefaultsRef.current.get(phase.id) === phase.objective) return phase;
+      
       const validDestinations = getDestinationsForObjective(platformType, phase.objective);
-      if (validDestinations.length === 0) return phase;
+      if (validDestinations.length === 0) {
+        // Mark as processed even if no destinations needed
+        appliedDestinationDefaultsRef.current.set(phase.id, phase.objective);
+        return phase;
+      }
       
       const updatedPhase = { ...phase };
+      let phaseHasUpdates = false;
       
       if (isMeta) {
         // Check if optimization goal requires a specific destination
@@ -454,14 +467,14 @@ export function PhaseScheduler({
         if (!phase.metaOptimizationLocation) {
           // First priority: use destination required by optimization goal
           if (goalRequiredDestination && validDestinations.some(d => d.value === goalRequiredDestination)) {
-            hasUpdates = true;
+            phaseHasUpdates = true;
             updatedPhase.metaOptimizationLocation = goalRequiredDestination;
           }
           // Second priority: use account default destination
           else if (adAccountDefaults.metaOptimizationLocation) {
             const defaultDest = adAccountDefaults.metaOptimizationLocation;
             if (validDestinations.some(d => d.value === defaultDest)) {
-              hasUpdates = true;
+              phaseHasUpdates = true;
               updatedPhase.metaOptimizationLocation = defaultDest;
             }
           }
@@ -470,7 +483,7 @@ export function PhaseScheduler({
           const setDest = updatedPhase.metaOptimizationLocation;
           if (setDest === 'WEBSITE') {
             if (!phase.metaLandingPageUrl && adAccountDefaults.metaLandingPageUrl) {
-              hasUpdates = true;
+              phaseHasUpdates = true;
               updatedPhase.metaLandingPageUrl = adAccountDefaults.metaLandingPageUrl;
             }
           } else if (setDest === 'APP') {
@@ -488,7 +501,7 @@ export function PhaseScheduler({
         }
         // Always populate landing page URL if missing (fallback for when WEBSITE destination isn't explicitly set)
         if (!updatedPhase.metaLandingPageUrl && !phase.metaLandingPageUrl && adAccountDefaults.metaLandingPageUrl) {
-          hasUpdates = true;
+          phaseHasUpdates = true;
           updatedPhase.metaLandingPageUrl = adAccountDefaults.metaLandingPageUrl;
         }
       } else if (isTikTok) {
@@ -496,7 +509,7 @@ export function PhaseScheduler({
         if (!phase.tiktokOptimizationLocation && adAccountDefaults.tiktokOptimizationLocation) {
           const defaultDest = adAccountDefaults.tiktokOptimizationLocation;
           if (validDestinations.some(d => d.value === defaultDest)) {
-            hasUpdates = true;
+            phaseHasUpdates = true;
             updatedPhase.tiktokOptimizationLocation = defaultDest;
             if (defaultDest === 'App') {
               updatedPhase.tiktokAppId = phase.tiktokAppId || adAccountDefaults.tiktokAppId;
@@ -513,23 +526,26 @@ export function PhaseScheduler({
         }
         // Always populate landing page URL if missing
         if (!phase.tiktokLandingPageUrl && adAccountDefaults.tiktokLandingPageUrl) {
-          hasUpdates = true;
+          phaseHasUpdates = true;
           updatedPhase.tiktokLandingPageUrl = adAccountDefaults.tiktokLandingPageUrl;
         }
       }
       
-      // Mark this phase as processed
-      if (hasUpdates) {
-        appliedDestinationDefaultsRef.current.add(phase.id);
+      // Mark this phase as processed with this objective
+      appliedDestinationDefaultsRef.current.set(phase.id, phase.objective);
+      
+      if (phaseHasUpdates) {
+        hasUpdates = true;
       }
       
-      return updatedPhase;
+      return phaseHasUpdates ? updatedPhase : phase;
     });
     
     if (hasUpdates) {
-      onPhasesChange(updatedPhases);
+      // Use ref to avoid dependency on onPhasesChange
+      onPhasesChangeRef.current(updatedPhases);
     }
-  }, [phases.length, adAccountDefaults, platformName]);
+  }, [phases, adAccountDefaults, platformName]);
 
   // Auto-populate Meta placement defaults from adAccountDefaults.
   // Important: defaults can change AFTER phases are created (e.g. user selects ad account).
@@ -629,9 +645,9 @@ export function PhaseScheduler({
     const changed = updatedPhases.some((p, i) => p !== currentPhases[i]);
     if (changed) {
       phasesRef.current = updatedPhases;
-      onPhasesChange(updatedPhases);
+      onPhasesChangeRef.current(updatedPhases);
     }
-  }, [adAccountDefaults, platformName, onPhasesChange]);
+  }, [adAccountDefaults, platformName]);
 
   const getDefaultObjectiveForFocus = (focus: string, phaseName: string): string => {
     const isTikTok = platformName.toLowerCase().includes("tiktok");
