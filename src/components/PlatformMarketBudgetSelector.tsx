@@ -2001,7 +2001,7 @@ export function PlatformMarketBudgetSelector({
                              </div>
 
                             {/* Market Budget */}
-                            <div className="space-y-1">
+                            <div className="space-y-2">
                               <div className="flex items-center justify-between text-xs">
                                 <span className="text-muted-foreground">Market Budget</span>
                                 <Badge variant="outline" className="text-xs">
@@ -2017,6 +2017,37 @@ export function PlatformMarketBudgetSelector({
                                 step={0.5}
                                 className="w-full"
                               />
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-1">
+                                  <Label className="text-[10px] text-muted-foreground">Percentage (%)</Label>
+                                  <Input
+                                    type="number"
+                                    value={market.budgetPercentage.toFixed(1)}
+                                    onChange={(e) => updateMarketBudget(platformIndex, market.id, parseFloat(e.target.value) || 0)}
+                                    className="h-7 text-xs"
+                                    min="0"
+                                    max="100"
+                                    step="0.1"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className="text-[10px] text-muted-foreground">Amount ($)</Label>
+                                  <Input
+                                    type="number"
+                                    value={Math.round(marketBudget)}
+                                    onChange={(e) => {
+                                      const amount = parseFloat(e.target.value) || 0;
+                                      const platformBudget = (totalBudget * platform.budgetPercentage) / 100;
+                                      if (platformBudget > 0) {
+                                        const percentage = (amount / platformBudget) * 100;
+                                        updateMarketBudget(platformIndex, market.id, Math.max(0, Math.min(100, percentage)));
+                                      }
+                                    }}
+                                    className="h-7 text-xs"
+                                    min="0"
+                                  />
+                                </div>
+                              </div>
                             </div>
 
                             {/* Phase Scheduler - Per Market */}
