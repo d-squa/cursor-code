@@ -91,6 +91,51 @@ export function PlatformMarketBudgetSelector({
   // Budget lock state - when enabled, budgets redistribute proportionally to always sum to 100%
   const [budgetLocked, setBudgetLocked] = useState(false);
   
+  // When budget lock is enabled, normalize all platforms and their markets to 100% if they exceed it
+  useEffect(() => {
+    if (!budgetLocked) return;
+    
+    // Check if platform totals exceed 100%
+    const totalPlatformBudget = platforms.reduce((sum, p) => sum + p.budgetPercentage, 0);
+    
+    if (totalPlatformBudget > 100) {
+      // Normalize platform budgets proportionally to 100%
+      const normalizedPlatforms = platforms.map(p => ({
+        ...p,
+        budgetPercentage: totalPlatformBudget > 0 
+          ? (p.budgetPercentage / totalPlatformBudget) * 100 
+          : 100 / platforms.length,
+      }));
+      
+      setPlatforms(normalizedPlatforms);
+    }
+    
+    // Also check each platform's markets
+    const platformsNeedingMarketNormalization = platforms.filter(p => {
+      const totalMarketBudget = p.markets.reduce((sum, m) => sum + m.budgetPercentage, 0);
+      return totalMarketBudget > 100;
+    });
+    
+    if (platformsNeedingMarketNormalization.length > 0) {
+      setPlatforms(prev => prev.map(p => {
+        const totalMarketBudget = p.markets.reduce((sum, m) => sum + m.budgetPercentage, 0);
+        
+        if (totalMarketBudget > 100) {
+          return {
+            ...p,
+            markets: p.markets.map(m => ({
+              ...m,
+              budgetPercentage: totalMarketBudget > 0 
+                ? (m.budgetPercentage / totalMarketBudget) * 100 
+                : 100 / p.markets.length,
+            })),
+          };
+        }
+        return p;
+      }));
+    }
+  }, [budgetLocked]);
+  
   // Fixed budget state - items that are fixed don't change when others are adjusted
   const [fixedPlatforms, setFixedPlatforms] = useState<Record<number, boolean>>({});
   const [fixedMarkets, setFixedMarkets] = useState<Record<string, boolean>>({});
