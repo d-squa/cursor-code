@@ -1036,7 +1036,7 @@ export function PlatformMarketBudgetSelector({
                             />
                           </div>
                           {/* Always visible slider */}
-                          <div className="w-32" onClick={(e) => e.stopPropagation()}>
+                          <div className="w-48" onClick={(e) => e.stopPropagation()}>
                             <Slider
                               value={[platform.budgetPercentage]}
                               onValueChange={([value]) => updatePlatformBudget(platformIndex, value)}
@@ -1173,7 +1173,7 @@ export function PlatformMarketBudgetSelector({
                                       />
                                     </div>
                                     {/* Always visible slider */}
-                                    <div className="w-24" onClick={(e) => e.stopPropagation()}>
+                                    <div className="w-40" onClick={(e) => e.stopPropagation()}>
                                       <Slider
                                         value={[market.budgetPercentage]}
                                         onValueChange={([value]) => updateMarketBudget(platformIndex, market.id, value)}
