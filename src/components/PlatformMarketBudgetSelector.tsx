@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, X, Copy, Loader2, ChevronDown, ChevronRight, ChevronsUpDown, Link2, Link2Off } from "lucide-react";
+import { Plus, X, Copy, Loader2, ChevronDown, ChevronRight, ChevronsUpDown, Link2, Link2Off, Pin, PinOff } from "lucide-react";
 import { PlatformWithMarkets, Market } from "@/types/mediaplan";
 import { AdFormatSelector } from "./AdFormatSelector";
 import { PhaseScheduler } from "./PhaseScheduler";
@@ -90,6 +90,18 @@ export function PlatformMarketBudgetSelector({
   
   // Budget lock state - when enabled, budgets redistribute proportionally to always sum to 100%
   const [budgetLocked, setBudgetLocked] = useState(false);
+  
+  // Fixed budget state - items that are fixed don't change when others are adjusted
+  const [fixedPlatforms, setFixedPlatforms] = useState<Record<number, boolean>>({});
+  const [fixedMarkets, setFixedMarkets] = useState<Record<string, boolean>>({});
+  
+  const togglePlatformFixed = (index: number) => {
+    setFixedPlatforms(prev => ({ ...prev, [index]: !prev[index] }));
+  };
+  
+  const toggleMarketFixed = (marketId: string) => {
+    setFixedMarkets(prev => ({ ...prev, [marketId]: !prev[marketId] }));
+  };
   
   
   const togglePlatformExpanded = (index: number) => {
@@ -759,14 +771,13 @@ export function PlatformMarketBudgetSelector({
     const newPercentage = Math.max(0, Math.min(100, percentage));
     
     if (budgetLocked && platforms.length > 1) {
-      // Calculate the difference and redistribute to other platforms proportionally
+      // Calculate the difference and redistribute to other non-fixed platforms proportionally
       const currentPlatform = platforms[index];
       const diff = newPercentage - currentPlatform.budgetPercentage;
       
-      // Get total budget of other platforms
-      const otherPlatformsTotalBudget = platforms.reduce((sum, p, i) => 
-        i !== index ? sum + p.budgetPercentage : sum, 0
-      );
+      // Get total budget of other non-fixed platforms
+      const otherNonFixedPlatforms = platforms.filter((_, i) => i !== index && !fixedPlatforms[i]);
+      const otherNonFixedTotalBudget = otherNonFixedPlatforms.reduce((sum, p) => sum + p.budgetPercentage, 0);
       
       setPlatforms(
         platforms.map((p, i) => {
@@ -774,14 +785,19 @@ export function PlatformMarketBudgetSelector({
             return { ...p, budgetPercentage: newPercentage };
           }
           
-          // Redistribute proportionally among other platforms
-          if (otherPlatformsTotalBudget > 0) {
-            const proportion = p.budgetPercentage / otherPlatformsTotalBudget;
+          // Skip fixed platforms - they don't change
+          if (fixedPlatforms[i]) {
+            return p;
+          }
+          
+          // Redistribute proportionally among other non-fixed platforms
+          if (otherNonFixedTotalBudget > 0) {
+            const proportion = p.budgetPercentage / otherNonFixedTotalBudget;
             const adjustment = diff * proportion;
             return { ...p, budgetPercentage: Math.max(0, p.budgetPercentage - adjustment) };
-          } else if (platforms.length > 1) {
-            // If other platforms have 0 budget, distribute equally
-            const equalShare = diff / (platforms.length - 1);
+          } else if (otherNonFixedPlatforms.length > 0) {
+            // If other non-fixed platforms have 0 budget, distribute equally among them
+            const equalShare = diff / otherNonFixedPlatforms.length;
             return { ...p, budgetPercentage: Math.max(0, p.budgetPercentage - equalShare) };
           }
           return p;
@@ -910,13 +926,12 @@ export function PlatformMarketBudgetSelector({
         if (!currentMarket) return p;
         
         if (budgetLocked && p.markets.length > 1) {
-          // Calculate the difference and redistribute to other markets proportionally
+          // Calculate the difference and redistribute to other non-fixed markets proportionally
           const diff = newPercentage - currentMarket.budgetPercentage;
           
-          // Get total budget of other markets
-          const otherMarketsTotalBudget = p.markets.reduce((sum, m) => 
-            m.id !== marketId ? sum + m.budgetPercentage : sum, 0
-          );
+          // Get non-fixed markets (excluding the one being changed)
+          const otherNonFixedMarkets = p.markets.filter(m => m.id !== marketId && !fixedMarkets[m.id]);
+          const otherNonFixedTotalBudget = otherNonFixedMarkets.reduce((sum, m) => sum + m.budgetPercentage, 0);
           
           return {
             ...p,
@@ -925,14 +940,19 @@ export function PlatformMarketBudgetSelector({
                 return { ...m, budgetPercentage: newPercentage };
               }
               
-              // Redistribute proportionally among other markets
-              if (otherMarketsTotalBudget > 0) {
-                const proportion = m.budgetPercentage / otherMarketsTotalBudget;
+              // Skip fixed markets - they don't change
+              if (fixedMarkets[m.id]) {
+                return m;
+              }
+              
+              // Redistribute proportionally among other non-fixed markets
+              if (otherNonFixedTotalBudget > 0) {
+                const proportion = m.budgetPercentage / otherNonFixedTotalBudget;
                 const adjustment = diff * proportion;
                 return { ...m, budgetPercentage: Math.max(0, m.budgetPercentage - adjustment) };
-              } else if (p.markets.length > 1) {
-                // If other markets have 0 budget, distribute equally
-                const equalShare = diff / (p.markets.length - 1);
+              } else if (otherNonFixedMarkets.length > 0) {
+                // If other non-fixed markets have 0 budget, distribute equally among them
+                const equalShare = diff / otherNonFixedMarkets.length;
                 return { ...m, budgetPercentage: Math.max(0, m.budgetPercentage - equalShare) };
               }
               return m;
@@ -1163,6 +1183,24 @@ export function PlatformMarketBudgetSelector({
                               className="w-full"
                             />
                           </div>
+                          {/* Fixed budget toggle for platform */}
+                          <Button
+                            type="button"
+                            variant={fixedPlatforms[platformIndex] ? "secondary" : "ghost"}
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              togglePlatformFixed(platformIndex);
+                            }}
+                            className="h-7 w-7 p-0"
+                            title={fixedPlatforms[platformIndex] ? "Budget is fixed (won't change when others adjust)" : "Fix budget (prevent changes when others adjust)"}
+                          >
+                            {fixedPlatforms[platformIndex] ? (
+                              <Pin className="h-3 w-3" />
+                            ) : (
+                              <PinOff className="h-3 w-3" />
+                            )}
+                          </Button>
                         </div>
                       )}
                     </div>
@@ -1312,6 +1350,24 @@ export function PlatformMarketBudgetSelector({
                                         className="w-full"
                                       />
                                     </div>
+                                    {/* Fixed budget toggle for market */}
+                                    <Button
+                                      type="button"
+                                      variant={fixedMarkets[market.id] ? "secondary" : "ghost"}
+                                      size="sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleMarketFixed(market.id);
+                                      }}
+                                      className="h-6 w-6 p-0"
+                                      title={fixedMarkets[market.id] ? "Budget is fixed (won't change when others adjust)" : "Fix budget (prevent changes when others adjust)"}
+                                    >
+                                      {fixedMarkets[market.id] ? (
+                                        <Pin className="h-3 w-3" />
+                                      ) : (
+                                        <PinOff className="h-3 w-3" />
+                                      )}
+                                    </Button>
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-1">
