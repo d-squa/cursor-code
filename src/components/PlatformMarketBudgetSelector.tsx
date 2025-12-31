@@ -5,14 +5,14 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, X, Copy, Loader2 } from "lucide-react";
+import { Plus, X, Copy, Loader2, ChevronDown, ChevronRight } from "lucide-react";
 import { PlatformWithMarkets, Market } from "@/types/mediaplan";
 import { AdFormatSelector } from "./AdFormatSelector";
 import { PhaseScheduler } from "./PhaseScheduler";
 import { getTestPresets, getRFTestPreset } from "@/utils/testPresets";
 import { supabase } from "@/integrations/supabase/client";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { ChevronDown } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import React, { useState, useEffect } from "react";
 import { MARKET_OPTIONS, TIKTOK_MARKET_OPTIONS } from "@/utils/markets";
@@ -83,6 +83,18 @@ export function PlatformMarketBudgetSelector({
   const [tiktokProductSets, setTiktokProductSets] = useState<Array<{ id: string; name: string; catalogId: string; advertiserId: string }>>([]);
   const [loadingTiktokProductSets, setLoadingTiktokProductSets] = useState(false);
   const [tiktokAdAccountDefaults, setTiktokAdAccountDefaults] = useState<Record<string, any>>({});
+  
+  // Collapsible state for platforms and markets
+  const [expandedPlatforms, setExpandedPlatforms] = useState<Record<number, boolean>>({});
+  const [expandedMarkets, setExpandedMarkets] = useState<Record<string, boolean>>({});
+  
+  const togglePlatformExpanded = (index: number) => {
+    setExpandedPlatforms(prev => ({ ...prev, [index]: !prev[index] }));
+  };
+  
+  const toggleMarketExpanded = (marketId: string) => {
+    setExpandedMarkets(prev => ({ ...prev, [marketId]: !prev[marketId] }));
+  };
   
   const totalAllocated = platforms.reduce((sum, p) => sum + p.budgetPercentage, 0);
   const usedPlatformIds = platforms.map(p => p.id).filter(id => id !== "");
@@ -950,152 +962,287 @@ export function PlatformMarketBudgetSelector({
             const availablePlatforms = getAvailablePlatforms(platform.id);
             
             return (
-              <div key={platformIndex} className="space-y-3 p-4 border rounded-lg">
-                <div className="flex items-center justify-between gap-3">
-                  <Select
-                    value={platform.id}
-                    onValueChange={(value) => updatePlatformSelection(platformIndex, value)}
-                  >
-                    <SelectTrigger className="w-[200px]">
-                      <SelectValue placeholder="Select platform" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availablePlatforms.map((ap) => (
-                        <SelectItem key={ap.id} value={ap.id}>
-                          {ap.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  
-                  <div className="flex items-center gap-2">
-                    <Badge variant="secondary">
-                      {platform.budgetPercentage.toFixed(1)}% (${((totalBudget * platform.budgetPercentage) / 100).toLocaleString()})
-                    </Badge>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => duplicatePlatform(platformIndex)}
-                      className="h-7 w-7 p-0"
-                      disabled={platforms.length >= AVAILABLE_PLATFORMS.length}
-                    >
-                      <Copy className="h-3 w-3" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removePlatform(platformIndex)}
-                      className="h-7 w-7 p-0"
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
+              <Collapsible
+                key={platformIndex}
+                open={expandedPlatforms[platformIndex] !== false}
+                onOpenChange={() => togglePlatformExpanded(platformIndex)}
+                className="border rounded-lg"
+              >
+                <div className="p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <CollapsibleTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                          {expandedPlatforms[platformIndex] !== false ? (
+                            <ChevronDown className="h-4 w-4" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </CollapsibleTrigger>
+                      <Select
+                        value={platform.id}
+                        onValueChange={(value) => updatePlatformSelection(platformIndex, value)}
+                      >
+                        <SelectTrigger className="w-[180px]">
+                          <SelectValue placeholder="Select platform" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availablePlatforms.map((ap) => (
+                            <SelectItem key={ap.id} value={ap.id}>
+                              {ap.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      {/* Inline editable budget inputs when collapsed */}
+                      {expandedPlatforms[platformIndex] === false && platform.id && (
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1">
+                            <Input
+                              type="number"
+                              value={platform.budgetPercentage.toFixed(1)}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                updatePlatformBudget(platformIndex, parseFloat(e.target.value) || 0);
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              className="h-7 w-16 text-xs text-center"
+                              min="0"
+                              max="100"
+                              step="0.1"
+                            />
+                            <span className="text-xs text-muted-foreground">%</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs text-muted-foreground">$</span>
+                            <Input
+                              type="number"
+                              value={Math.round((totalBudget * platform.budgetPercentage) / 100)}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                const amount = parseFloat(e.target.value) || 0;
+                                if (totalBudget > 0) {
+                                  const percentage = (amount / totalBudget) * 100;
+                                  updatePlatformBudget(platformIndex, Math.max(0, Math.min(100, percentage)));
+                                }
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              className="h-7 w-24 text-xs"
+                              min="0"
+                            />
+                          </div>
+                        </div>
+                      )}
+                      {/* Badge shown when expanded */}
+                      {expandedPlatforms[platformIndex] !== false && (
+                        <Badge variant="secondary">
+                          {platform.budgetPercentage.toFixed(1)}% (${((totalBudget * platform.budgetPercentage) / 100).toLocaleString()})
+                        </Badge>
+                      )}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          duplicatePlatform(platformIndex);
+                        }}
+                        className="h-7 w-7 p-0"
+                        disabled={platforms.length >= AVAILABLE_PLATFORMS.length}
+                      >
+                        <Copy className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removePlatform(platformIndex);
+                        }}
+                        className="h-7 w-7 p-0"
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
                   </div>
                 </div>
 
-                {platform.id && (
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label className="text-sm">Platform Budget Allocation</Label>
-                      <Slider
-                        value={[platform.budgetPercentage]}
-                        onValueChange={([value]) => updatePlatformBudget(platformIndex, value)}
-                        min={0}
-                        max={100}
-                        step={0.5}
-                        className="w-full"
-                      />
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="space-y-1">
-                          <Label className="text-[10px] text-muted-foreground">Percentage (%)</Label>
-                          <Input
-                            type="number"
-                            value={platform.budgetPercentage.toFixed(1)}
-                            onChange={(e) => updatePlatformBudget(platformIndex, parseFloat(e.target.value) || 0)}
-                            className="h-8 text-sm"
-                            min="0"
-                            max="100"
-                            step="0.1"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label className="text-[10px] text-muted-foreground">Amount ($)</Label>
-                          <Input
-                            type="number"
-                            value={Math.round((totalBudget * platform.budgetPercentage) / 100)}
-                            onChange={(e) => {
-                              const amount = parseFloat(e.target.value) || 0;
-                              if (totalBudget > 0) {
-                                const percentage = (amount / totalBudget) * 100;
-                                updatePlatformBudget(platformIndex, Math.max(0, Math.min(100, percentage)));
-                              }
-                            }}
-                            className="h-8 text-sm"
-                            min="0"
-                          />
+                <CollapsibleContent>
+                  {platform.id && (
+                    <div className="px-4 pb-4 space-y-4">
+                      <div className="space-y-2">
+                        <Label className="text-sm">Platform Budget Allocation</Label>
+                        <Slider
+                          value={[platform.budgetPercentage]}
+                          onValueChange={([value]) => updatePlatformBudget(platformIndex, value)}
+                          min={0}
+                          max={100}
+                          step={0.5}
+                          className="w-full"
+                        />
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <Label className="text-[10px] text-muted-foreground">Percentage (%)</Label>
+                            <Input
+                              type="number"
+                              value={platform.budgetPercentage.toFixed(1)}
+                              onChange={(e) => updatePlatformBudget(platformIndex, parseFloat(e.target.value) || 0)}
+                              className="h-8 text-sm"
+                              min="0"
+                              max="100"
+                              step="0.1"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[10px] text-muted-foreground">Amount ($)</Label>
+                            <Input
+                              type="number"
+                              value={Math.round((totalBudget * platform.budgetPercentage) / 100)}
+                              onChange={(e) => {
+                                const amount = parseFloat(e.target.value) || 0;
+                                if (totalBudget > 0) {
+                                  const percentage = (amount / totalBudget) * 100;
+                                  updatePlatformBudget(platformIndex, Math.max(0, Math.min(100, percentage)));
+                                }
+                              }}
+                              className="h-8 text-sm"
+                              min="0"
+                            />
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-sm">Markets</Label>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => addMarket(platformIndex)}
-                          className="h-7 gap-1"
-                        >
-                          <Plus className="h-3 w-3" />
-                          Add Market
-                        </Button>
-                      </div>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm">Markets</Label>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => addMarket(platformIndex)}
+                            className="h-7 gap-1"
+                          >
+                            <Plus className="h-3 w-3" />
+                            Add Market
+                          </Button>
+                        </div>
 
                       {platform.markets.map((market) => {
                         const marketBudget = (totalBudget * platform.budgetPercentage * market.budgetPercentage) / 10000;
 
                         return (
-                          <div key={market.id} className="p-3 bg-muted/50 rounded-md space-y-3">
-                            <div className="flex items-center justify-between gap-2">
-                              <Select
-                                value={market.name}
-                                onValueChange={(value) => updateMarketName(platformIndex, market.id, value)}
-                              >
-                                <SelectTrigger className="h-7 text-sm flex-1">
-                                  <SelectValue placeholder="Select market" />
-                                </SelectTrigger>
-                                <SelectContent className="max-h-[300px]">
-                                  {MARKET_OPTIONS.map((option) => (
-                                    <SelectItem key={option.value} value={option.value}>
-                                      {option.label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <div className="flex items-center gap-1">
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => duplicateMarket(platformIndex, market.id)}
-                                  className="h-7 w-7 p-0"
-                                >
-                                  <Copy className="h-3 w-3" />
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => removeMarket(platformIndex, market.id)}
-                                  className="h-7 w-7 p-0"
-                                  disabled={platform.markets.length === 1}
-                                >
-                                  <X className="h-3 w-3" />
-                                </Button>
+                          <Collapsible
+                            key={market.id}
+                            open={expandedMarkets[market.id] !== false}
+                            onOpenChange={() => toggleMarketExpanded(market.id)}
+                            className="bg-muted/50 rounded-md"
+                          >
+                            <div className="p-3">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2 flex-1">
+                                  <CollapsibleTrigger asChild>
+                                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                                      {expandedMarkets[market.id] !== false ? (
+                                        <ChevronDown className="h-3 w-3" />
+                                      ) : (
+                                        <ChevronRight className="h-3 w-3" />
+                                      )}
+                                    </Button>
+                                  </CollapsibleTrigger>
+                                  <Select
+                                    value={market.name}
+                                    onValueChange={(value) => updateMarketName(platformIndex, market.id, value)}
+                                  >
+                                    <SelectTrigger className="h-7 text-sm w-[120px]">
+                                      <SelectValue placeholder="Select market" />
+                                    </SelectTrigger>
+                                    <SelectContent className="max-h-[300px]">
+                                      {MARKET_OPTIONS.map((option) => (
+                                        <SelectItem key={option.value} value={option.value}>
+                                          {option.label}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  
+                                  {/* Inline editable budget inputs when collapsed */}
+                                  {expandedMarkets[market.id] === false && (
+                                    <div className="flex items-center gap-2 ml-2">
+                                      <div className="flex items-center gap-1">
+                                        <Input
+                                          type="number"
+                                          value={market.budgetPercentage.toFixed(1)}
+                                          onChange={(e) => {
+                                            e.stopPropagation();
+                                            updateMarketBudget(platformIndex, market.id, parseFloat(e.target.value) || 0);
+                                          }}
+                                          onClick={(e) => e.stopPropagation()}
+                                          className="h-6 w-14 text-xs text-center"
+                                          min="0"
+                                          max="100"
+                                          step="0.1"
+                                        />
+                                        <span className="text-xs text-muted-foreground">%</span>
+                                      </div>
+                                      <div className="flex items-center gap-1">
+                                        <span className="text-xs text-muted-foreground">$</span>
+                                        <Input
+                                          type="number"
+                                          value={Math.round(marketBudget)}
+                                          onChange={(e) => {
+                                            e.stopPropagation();
+                                            const amount = parseFloat(e.target.value) || 0;
+                                            const platformBudget = (totalBudget * platform.budgetPercentage) / 100;
+                                            if (platformBudget > 0) {
+                                              const percentage = (amount / platformBudget) * 100;
+                                              updateMarketBudget(platformIndex, market.id, Math.max(0, Math.min(100, percentage)));
+                                            }
+                                          }}
+                                          onClick={(e) => e.stopPropagation()}
+                                          className="h-6 w-20 text-xs"
+                                          min="0"
+                                        />
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      duplicateMarket(platformIndex, market.id);
+                                    }}
+                                    className="h-7 w-7 p-0"
+                                  >
+                                    <Copy className="h-3 w-3" />
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      removeMarket(platformIndex, market.id);
+                                    }}
+                                    className="h-7 w-7 p-0"
+                                    disabled={platform.markets.length === 1}
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                </div>
                               </div>
                             </div>
+
+                            <CollapsibleContent>
+                              <div className="px-3 pb-3 space-y-3">
 
                             {/* Platform Configuration Fields - Only for Meta */}
                             {platform.name.toLowerCase().includes("meta") && (
@@ -2144,7 +2291,9 @@ export function PlatformMarketBudgetSelector({
                                 />
                               </div>
                             )}
-                          </div>
+                              </div>
+                            </CollapsibleContent>
+                          </Collapsible>
                         );
                       })}
 
@@ -2156,9 +2305,10 @@ export function PlatformMarketBudgetSelector({
                     </div>
                   </div>
                 )}
-              </div>
-            );
-          })}
+              </CollapsibleContent>
+            </Collapsible>
+          );
+        })}
         </div>
 
         {platforms.length > 0 && (
