@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, X, Copy, Loader2, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, X, Copy, Loader2, ChevronDown, ChevronRight, ChevronsUpDown } from "lucide-react";
 import { PlatformWithMarkets, Market } from "@/types/mediaplan";
 import { AdFormatSelector } from "./AdFormatSelector";
 import { PhaseScheduler } from "./PhaseScheduler";
@@ -89,11 +89,30 @@ export function PlatformMarketBudgetSelector({
   const [expandedMarkets, setExpandedMarkets] = useState<Record<string, boolean>>({});
   
   const togglePlatformExpanded = (index: number) => {
-    setExpandedPlatforms(prev => ({ ...prev, [index]: !prev[index] }));
+    setExpandedPlatforms(prev => ({ ...prev, [index]: !(prev[index] === true) }));
   };
   
   const toggleMarketExpanded = (marketId: string) => {
-    setExpandedMarkets(prev => ({ ...prev, [marketId]: !prev[marketId] }));
+    setExpandedMarkets(prev => ({ ...prev, [marketId]: !(prev[marketId] === true) }));
+  };
+  
+  const toggleAllPlatforms = () => {
+    const allExpanded = platforms.every((_, i) => expandedPlatforms[i] === true);
+    const newState: Record<number, boolean> = {};
+    platforms.forEach((_, i) => {
+      newState[i] = !allExpanded;
+    });
+    setExpandedPlatforms(newState);
+  };
+  
+  const toggleAllMarketsForPlatform = (platformIndex: number) => {
+    const platform = platforms[platformIndex];
+    const allMarketsExpanded = platform.markets.every(m => expandedMarkets[m.id] === true);
+    const newState = { ...expandedMarkets };
+    platform.markets.forEach(m => {
+      newState[m.id] = !allMarketsExpanded;
+    });
+    setExpandedMarkets(newState);
   };
   
   const totalAllocated = platforms.reduce((sum, p) => sum + p.budgetPercentage, 0);
@@ -946,6 +965,16 @@ export function PlatformMarketBudgetSelector({
               type="button"
               variant="outline"
               size="sm"
+              onClick={toggleAllPlatforms}
+              className="gap-1"
+            >
+              <ChevronsUpDown className="h-3 w-3" />
+              {platforms.every((_, i) => expandedPlatforms[i] === true) ? "Collapse All" : "Expand All"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
               onClick={addPlatform}
               className="gap-1"
               disabled={platforms.length >= AVAILABLE_PLATFORMS.length}
@@ -964,7 +993,7 @@ export function PlatformMarketBudgetSelector({
             return (
               <Collapsible
                 key={platformIndex}
-                open={expandedPlatforms[platformIndex] !== false}
+                open={expandedPlatforms[platformIndex] === true}
                 onOpenChange={() => togglePlatformExpanded(platformIndex)}
                 className="border rounded-lg"
               >
@@ -973,7 +1002,7 @@ export function PlatformMarketBudgetSelector({
                     <div className="flex items-center gap-2">
                       <CollapsibleTrigger asChild>
                         <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
-                          {expandedPlatforms[platformIndex] !== false ? (
+                          {expandedPlatforms[platformIndex] === true ? (
                             <ChevronDown className="h-4 w-4" />
                           ) : (
                             <ChevronRight className="h-4 w-4" />
@@ -1085,16 +1114,28 @@ export function PlatformMarketBudgetSelector({
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
                           <Label className="text-sm">Markets</Label>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => addMarket(platformIndex)}
-                            className="h-7 gap-1"
-                          >
-                            <Plus className="h-3 w-3" />
-                            Add Market
-                          </Button>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => toggleAllMarketsForPlatform(platformIndex)}
+                              className="h-7 gap-1"
+                            >
+                              <ChevronsUpDown className="h-3 w-3" />
+                              {platform.markets.every(m => expandedMarkets[m.id] === true) ? "Collapse All" : "Expand All"}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => addMarket(platformIndex)}
+                              className="h-7 gap-1"
+                            >
+                              <Plus className="h-3 w-3" />
+                              Add Market
+                            </Button>
+                          </div>
                         </div>
 
                       {platform.markets.map((market) => {
@@ -1103,7 +1144,7 @@ export function PlatformMarketBudgetSelector({
                         return (
                           <Collapsible
                             key={market.id}
-                            open={expandedMarkets[market.id] !== false}
+                            open={expandedMarkets[market.id] === true}
                             onOpenChange={() => toggleMarketExpanded(market.id)}
                             className="bg-muted/50 rounded-md"
                           >
@@ -1112,7 +1153,7 @@ export function PlatformMarketBudgetSelector({
                                 <div className="flex items-center gap-2 flex-1">
                                   <CollapsibleTrigger asChild>
                                     <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                                      {expandedMarkets[market.id] !== false ? (
+                                      {expandedMarkets[market.id] === true ? (
                                         <ChevronDown className="h-3 w-3" />
                                       ) : (
                                         <ChevronRight className="h-3 w-3" />
