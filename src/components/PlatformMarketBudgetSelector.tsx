@@ -997,9 +997,9 @@ export function PlatformMarketBudgetSelector({
                       </Select>
                     </div>
                     
-                    <div className="flex items-center gap-2">
-                      {/* Inline editable budget inputs when collapsed */}
-                      {expandedPlatforms[platformIndex] === false && platform.id && (
+                    <div className="flex items-center gap-2 flex-1">
+                      {/* Always visible budget inputs */}
+                      {platform.id && (
                         <div className="flex items-center gap-2">
                           <div className="flex items-center gap-1">
                             <Input
@@ -1035,14 +1035,21 @@ export function PlatformMarketBudgetSelector({
                               min="0"
                             />
                           </div>
+                          {/* Always visible slider */}
+                          <div className="w-32" onClick={(e) => e.stopPropagation()}>
+                            <Slider
+                              value={[platform.budgetPercentage]}
+                              onValueChange={([value]) => updatePlatformBudget(platformIndex, value)}
+                              min={0}
+                              max={100}
+                              step={0.5}
+                              className="w-full"
+                            />
+                          </div>
                         </div>
                       )}
-                      {/* Badge shown when expanded */}
-                      {expandedPlatforms[platformIndex] !== false && (
-                        <Badge variant="secondary">
-                          {platform.budgetPercentage.toFixed(1)}% (${((totalBudget * platform.budgetPercentage) / 100).toLocaleString()})
-                        </Badge>
-                      )}
+                    </div>
+                    <div className="flex items-center gap-1">
                       <Button
                         type="button"
                         variant="ghost"
@@ -1075,48 +1082,6 @@ export function PlatformMarketBudgetSelector({
                 <CollapsibleContent>
                   {platform.id && (
                     <div className="px-4 pb-4 space-y-4">
-                      <div className="space-y-2">
-                        <Label className="text-sm">Platform Budget Allocation</Label>
-                        <Slider
-                          value={[platform.budgetPercentage]}
-                          onValueChange={([value]) => updatePlatformBudget(platformIndex, value)}
-                          min={0}
-                          max={100}
-                          step={0.5}
-                          className="w-full"
-                        />
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="space-y-1">
-                            <Label className="text-[10px] text-muted-foreground">Percentage (%)</Label>
-                            <Input
-                              type="number"
-                              value={platform.budgetPercentage.toFixed(1)}
-                              onChange={(e) => updatePlatformBudget(platformIndex, parseFloat(e.target.value) || 0)}
-                              className="h-8 text-sm"
-                              min="0"
-                              max="100"
-                              step="0.1"
-                            />
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-[10px] text-muted-foreground">Amount ($)</Label>
-                            <Input
-                              type="number"
-                              value={Math.round((totalBudget * platform.budgetPercentage) / 100)}
-                              onChange={(e) => {
-                                const amount = parseFloat(e.target.value) || 0;
-                                if (totalBudget > 0) {
-                                  const percentage = (amount / totalBudget) * 100;
-                                  updatePlatformBudget(platformIndex, Math.max(0, Math.min(100, percentage)));
-                                }
-                              }}
-                              className="h-8 text-sm"
-                              min="0"
-                            />
-                          </div>
-                        </div>
-                      </div>
-
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
                           <Label className="text-sm">Markets</Label>
@@ -1170,46 +1135,55 @@ export function PlatformMarketBudgetSelector({
                                     </SelectContent>
                                   </Select>
                                   
-                                  {/* Inline editable budget inputs when collapsed */}
-                                  {expandedMarkets[market.id] === false && (
-                                    <div className="flex items-center gap-2 ml-2">
-                                      <div className="flex items-center gap-1">
-                                        <Input
-                                          type="number"
-                                          value={market.budgetPercentage.toFixed(1)}
-                                          onChange={(e) => {
-                                            e.stopPropagation();
-                                            updateMarketBudget(platformIndex, market.id, parseFloat(e.target.value) || 0);
-                                          }}
-                                          onClick={(e) => e.stopPropagation()}
-                                          className="h-6 w-14 text-xs text-center"
-                                          min="0"
-                                          max="100"
-                                          step="0.1"
-                                        />
-                                        <span className="text-xs text-muted-foreground">%</span>
-                                      </div>
-                                      <div className="flex items-center gap-1">
-                                        <span className="text-xs text-muted-foreground">$</span>
-                                        <Input
-                                          type="number"
-                                          value={Math.round(marketBudget)}
-                                          onChange={(e) => {
-                                            e.stopPropagation();
-                                            const amount = parseFloat(e.target.value) || 0;
-                                            const platformBudget = (totalBudget * platform.budgetPercentage) / 100;
-                                            if (platformBudget > 0) {
-                                              const percentage = (amount / platformBudget) * 100;
-                                              updateMarketBudget(platformIndex, market.id, Math.max(0, Math.min(100, percentage)));
-                                            }
-                                          }}
-                                          onClick={(e) => e.stopPropagation()}
-                                          className="h-6 w-20 text-xs"
-                                          min="0"
-                                        />
-                                      </div>
+                                  {/* Always visible budget inputs */}
+                                  <div className="flex items-center gap-2 ml-2">
+                                    <div className="flex items-center gap-1">
+                                      <Input
+                                        type="number"
+                                        value={market.budgetPercentage.toFixed(1)}
+                                        onChange={(e) => {
+                                          e.stopPropagation();
+                                          updateMarketBudget(platformIndex, market.id, parseFloat(e.target.value) || 0);
+                                        }}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="h-6 w-14 text-xs text-center"
+                                        min="0"
+                                        max="100"
+                                        step="0.1"
+                                      />
+                                      <span className="text-xs text-muted-foreground">%</span>
                                     </div>
-                                  )}
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-xs text-muted-foreground">$</span>
+                                      <Input
+                                        type="number"
+                                        value={Math.round(marketBudget)}
+                                        onChange={(e) => {
+                                          e.stopPropagation();
+                                          const amount = parseFloat(e.target.value) || 0;
+                                          const platformBudget = (totalBudget * platform.budgetPercentage) / 100;
+                                          if (platformBudget > 0) {
+                                            const percentage = (amount / platformBudget) * 100;
+                                            updateMarketBudget(platformIndex, market.id, Math.max(0, Math.min(100, percentage)));
+                                          }
+                                        }}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="h-6 w-20 text-xs"
+                                        min="0"
+                                      />
+                                    </div>
+                                    {/* Always visible slider */}
+                                    <div className="w-24" onClick={(e) => e.stopPropagation()}>
+                                      <Slider
+                                        value={[market.budgetPercentage]}
+                                        onValueChange={([value]) => updateMarketBudget(platformIndex, market.id, value)}
+                                        min={0}
+                                        max={100}
+                                        step={0.5}
+                                        className="w-full"
+                                      />
+                                    </div>
+                                  </div>
                                 </div>
                                 <div className="flex items-center gap-1">
                                   <Button
