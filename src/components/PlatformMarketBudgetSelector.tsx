@@ -538,17 +538,26 @@ export function PlatformMarketBudgetSelector({
         if (!defaults) return market;
         
         // Check if market is missing key defaults that we should apply
+        const needsPixel = !market.tiktokPixel && defaults.pixelId;
+        const needsIdentity = !market.tiktokIdentity && defaults.identityId;
+        const needsCatalog = !market.tiktokCatalog && defaults.catalogId;
+        const needsProductSet = !market.tiktokProductSet && defaults.productSetId;
+        const needsOptEvent = !market.tiktokOptimizationEvent && defaults.optimizationEvent;
         const needsOptLocation = !market.tiktokOptimizationLocation && defaults.optimizationLocation;
         const needsBidStrategy = !market.tiktokBidStrategy && defaults.bidStrategy;
         const needsLandingPage = !market.tiktokLandingPageUrl && defaults.landingPageUrl;
         const needsPlacementType = !market.tiktokPlacementType && defaults.placementType;
         
-        if (!needsOptLocation && !needsBidStrategy && !needsLandingPage && !needsPlacementType) {
+        if (!needsPixel && !needsIdentity && !needsCatalog && !needsProductSet && !needsOptEvent && 
+            !needsOptLocation && !needsBidStrategy && !needsLandingPage && !needsPlacementType) {
           return market;
         }
         
         hasUpdates = true;
         console.log('🔄 Re-applying TikTok defaults to market:', market.id, {
+          needsPixel,
+          needsIdentity,
+          needsCatalog,
           needsOptLocation,
           needsBidStrategy,
           defaults
@@ -556,6 +565,11 @@ export function PlatformMarketBudgetSelector({
         
         return {
           ...market,
+          tiktokPixel: needsPixel ? defaults.pixelId : market.tiktokPixel,
+          tiktokIdentity: needsIdentity ? defaults.identityId : market.tiktokIdentity,
+          tiktokCatalog: needsCatalog ? defaults.catalogId : market.tiktokCatalog,
+          tiktokProductSet: needsProductSet ? defaults.productSetId : market.tiktokProductSet,
+          tiktokOptimizationEvent: needsOptEvent ? defaults.optimizationEvent : market.tiktokOptimizationEvent,
           tiktokOptimizationLocation: needsOptLocation ? defaults.optimizationLocation : market.tiktokOptimizationLocation,
           tiktokBidStrategy: needsBidStrategy ? defaults.bidStrategy : market.tiktokBidStrategy,
           tiktokLandingPageUrl: needsLandingPage ? defaults.landingPageUrl : market.tiktokLandingPageUrl,
