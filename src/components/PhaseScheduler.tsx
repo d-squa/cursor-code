@@ -2594,8 +2594,18 @@ export function PhaseScheduler({
                         
                         if (!effectiveDimension || effectiveDimension === 'none') return null;
                         
-                        // If inheriting split but phase doesn't have adSets configured yet, show a message
-                        const needsConfiguration = hasInheritedSplit && !hasOwnSplit && (!phase.adSets || phase.adSets.length === 0);
+                        // Determine effective ad sets - use phase's own or inherit from default
+                        const hasOwnAdSets = phase.adSets && phase.adSets.length > 0;
+                        const hasDefaultAdSets = basicTargeting?.defaultAdSets && basicTargeting.defaultAdSets.length > 0;
+                        
+                        // If inheriting and phase doesn't have its own ad sets, use the default ad sets
+                        const isInheritingAdSets = hasInheritedSplit && !hasOwnSplit && !hasOwnAdSets && hasDefaultAdSets;
+                        const effectiveAdSets = hasOwnAdSets 
+                          ? phase.adSets 
+                          : (isInheritingAdSets ? basicTargeting?.defaultAdSets : undefined);
+                        
+                        // If no effective ad sets and no default to inherit, show configuration message
+                        const needsConfiguration = hasInheritedSplit && !hasOwnSplit && !hasOwnAdSets && !hasDefaultAdSets;
                         
                         return (
                           <div 
@@ -2610,7 +2620,7 @@ export function PhaseScheduler({
                                       Inherited Ad Set Split: <span className="text-primary">{effectiveDimension.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}</span>
                                     </p>
                                     <p className="text-xs text-muted-foreground">
-                                      From campaign-level default targeting. Configure the split values for this phase.
+                                      No default ad sets configured. Configure them in the Default Targeting section or create phase-specific splits.
                                     </p>
                                   </div>
                                   <Button
@@ -2641,30 +2651,71 @@ export function PhaseScheduler({
                                   To disable this split for this phase only, enable "Override Targeting" above.
                                 </p>
                               </div>
-                            ) : phase.adSets && phase.adSets.length > 0 ? (
-                              <AdSetSplitManager
-                                dimension={effectiveDimension}
-                                adSets={phase.adSets}
-                                platformName={platformName}
-                                platformId={platformId || 'meta'}
-                                phaseName={phase.name}
-                                useCBO={phase.useCBO}
-                                onAdSetsChange={(adSets) => updatePhaseField(phase.id, "adSets", adSets)}
-                                onRemoveSplit={() => updatePhaseFields(phase.id, { 
-                                  adSetSplitDimension: undefined,
-                                  adSets: undefined,
-                                  useCBO: undefined,
-                                })}
-                                availablePlacements={getPlacementsForSelection(platformName, phase.assetTypes || [])}
-                                availableOptimizationGoals={getOptimizationGoalsForPhase(phase.objective || "").map(g => ({ value: g.value, label: g.label }))}
-                                availableAudiences={phase.audiences?.map(a => ({ id: a.id, name: a.name, type: a.type })) || []}
-                                adAccountId={adAccountId}
-                                currentGender={phase.targeting?.genders?.[0] || basicTargeting?.genders?.[0]}
-                                currentAgeMin={phase.targeting?.ageMin ?? basicTargeting?.ageMin}
-                                currentAgeMax={phase.targeting?.ageMax ?? basicTargeting?.ageMax}
-                                currentDevices={phase.targeting?.devices || basicTargeting?.devices}
-                                currentLanguages={phase.targeting?.languages || basicTargeting?.languages}
-                              />
+                            ) : effectiveAdSets && effectiveAdSets.length > 0 ? (
+                              <div className="space-y-2">
+                                {/* Show indicator when inheriting from default */}
+                                {isInheritingAdSets && (
+                                  <div className="flex items-center justify-between p-2 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
+                                    <p className="text-xs text-blue-700 dark:text-blue-300">
+                                      <strong>Inheriting from default:</strong> These ad sets are configured at the campaign level. 
+                                      Enable "Override Targeting" to customize for this phase.
+                                    </p>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => {
+                                        // Copy the default ad sets to the phase so user can customize
+                                        const copiedAdSets = effectiveAdSets.map(adSet => ({
+                                          ...adSet,
+                                          id: crypto.randomUUID(), // Generate new IDs
+                                          name: adSet.name.replace('Default_', `${phase.name}_`),
+                                        }));
+                                        updatePhaseFields(phase.id, {
+                                          adSetSplitDimension: effectiveDimension,
+                                          adSets: copiedAdSets,
+                                          useCBO: basicTargeting?.defaultAdSetSplitUseCBO,
+                                        });
+                                      }}
+                                    >
+                                      Override
+                                    </Button>
+                                  </div>
+                                )}
+                                <AdSetSplitManager
+                                  dimension={effectiveDimension}
+                                  adSets={effectiveAdSets}
+                                  platformName={platformName}
+                                  platformId={platformId || 'meta'}
+                                  phaseName={phase.name}
+                                  useCBO={phase.useCBO ?? basicTargeting?.defaultAdSetSplitUseCBO}
+                                  onAdSetsChange={(adSets) => {
+                                    // If inheriting, first copy to phase then update
+                                    if (isInheritingAdSets) {
+                                      updatePhaseFields(phase.id, {
+                                        adSetSplitDimension: effectiveDimension,
+                                        adSets: adSets,
+                                        useCBO: basicTargeting?.defaultAdSetSplitUseCBO,
+                                      });
+                                    } else {
+                                      updatePhaseField(phase.id, "adSets", adSets);
+                                    }
+                                  }}
+                                  onRemoveSplit={() => updatePhaseFields(phase.id, { 
+                                    adSetSplitDimension: undefined,
+                                    adSets: undefined,
+                                    useCBO: undefined,
+                                  })}
+                                  availablePlacements={getPlacementsForSelection(platformName, phase.assetTypes || [])}
+                                  availableOptimizationGoals={getOptimizationGoalsForPhase(phase.objective || "").map(g => ({ value: g.value, label: g.label }))}
+                                  availableAudiences={phase.audiences?.map(a => ({ id: a.id, name: a.name, type: a.type })) || []}
+                                  adAccountId={adAccountId}
+                                  currentGender={phase.targeting?.genders?.[0] || basicTargeting?.genders?.[0]}
+                                  currentAgeMin={phase.targeting?.ageMin ?? basicTargeting?.ageMin}
+                                  currentAgeMax={phase.targeting?.ageMax ?? basicTargeting?.ageMax}
+                                  currentDevices={phase.targeting?.devices || basicTargeting?.devices}
+                                  currentLanguages={phase.targeting?.languages || basicTargeting?.languages}
+                                />
+                              </div>
                             ) : null}
                           </div>
                         );
