@@ -1896,7 +1896,7 @@ export function PhaseScheduler({
                           )}
                         </div>
                         <Select
-                          value={phase.objective || ""}
+                          value={phase.objective || undefined}
                           onValueChange={(value) => {
                             const isTikTok = platformName.toLowerCase().includes('tiktok');
                             const isMeta = !isTikTok;
@@ -2035,7 +2035,7 @@ export function PhaseScheduler({
                         <div className="space-y-2">
                           <Label htmlFor={`optimization-${phase.id}`}>Optimization Goal</Label>
                           <Select
-                            value={phase.optimizationGoal || ""}
+                            value={phase.optimizationGoal || undefined}
                             onValueChange={(value) => {
                               const isMeta = !platformName.toLowerCase().includes('tiktok');
                               
