@@ -15,6 +15,7 @@ import { SplittableSection } from "./SplittableSection";
 import { AdSetSplitDimension, AdSetSplitDimensionPerPlatform } from "@/types/mediaplan";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { BudgetOptimizationDialog } from "./BudgetOptimizationDialog";
 
 export interface UnifiedTargetingItem {
   id: string;
@@ -92,6 +93,12 @@ export function UnifiedTargeting({
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<UnifiedTargetingItem[]>([]);
+  
+  // State for CBO/ABO dialog
+  const [pendingSplitSelection, setPendingSplitSelection] = useState<{
+    platformId: string;
+    dimension: AdSetSplitDimension;
+  } | null>(null);
 
   // Labels for split dimensions
   const SPLIT_DIMENSION_LABELS: Record<AdSetSplitDimension, string> = {
@@ -473,8 +480,8 @@ export function UnifiedTargeting({
               return dimPerPlatform[pId] || targeting.defaultAdSetSplitDimension || 'none';
             };
             
-            // Helper to update dimension for a platform
-            const updatePlatformDimension = (pId: string, dim: AdSetSplitDimension) => {
+            // Helper to update dimension for a platform (called after CBO/ABO selection)
+            const updatePlatformDimension = (pId: string, dim: AdSetSplitDimension, useCBO?: boolean) => {
               const newDimPerPlatform = { ...dimPerPlatform };
               const newAdSetsPerPlatform = { ...adSetsPerPlatform };
               
@@ -506,9 +513,20 @@ export function UnifiedTargeting({
                 // Legacy: set if all platforms use same dimension
                 defaultAdSetSplitDimension: allSame && allDimensions[0] !== 'none' ? allDimensions[0] as AdSetSplitDimension : undefined,
                 defaultAdSets: newAdSetsPerPlatform[platforms[0]?.id || platformId],
+                defaultAdSetSplitUseCBO: useCBO,
               };
               onUpdate(updated);
               localStorage.setItem('basicTargeting', JSON.stringify(updated));
+            };
+            
+            // Handler for dimension selection - shows CBO/ABO dialog first
+            const handleDimensionSelect = (pId: string, dim: AdSetSplitDimension) => {
+              if (dim === 'none') {
+                updatePlatformDimension(pId, 'none');
+              } else {
+                // Show CBO/ABO dialog
+                setPendingSplitSelection({ platformId: pId, dimension: dim });
+              }
             };
             
             // Check if any platform has a split configured
@@ -527,7 +545,7 @@ export function UnifiedTargeting({
                       <Label className="mb-2 block">Split Dimension</Label>
                       <Select
                         value={currentDim}
-                        onValueChange={(value) => updatePlatformDimension(p.id, value as AdSetSplitDimension)}
+                        onValueChange={(value) => handleDimensionSelect(p.id, value as AdSetSplitDimension)}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="No split (single ad set)" />
@@ -617,7 +635,7 @@ export function UnifiedTargeting({
                           <Label className="mb-2 block">Split Dimension for {p.name}</Label>
                           <Select
                             value={currentDim}
-                            onValueChange={(value) => updatePlatformDimension(p.id, value as AdSetSplitDimension)}
+                            onValueChange={(value) => handleDimensionSelect(p.id, value as AdSetSplitDimension)}
                           >
                             <SelectTrigger>
                               <SelectValue placeholder="No split (single ad set)" />
@@ -690,6 +708,87 @@ export function UnifiedTargeting({
           })()}
         </CardContent>
       </Card>
+      
+      {/* CBO/ABO Selection Dialog */}
+      <BudgetOptimizationDialog
+        open={!!pendingSplitSelection}
+        onOpenChange={(open) => {
+          if (!open) setPendingSplitSelection(null);
+        }}
+        dimensionLabel={pendingSplitSelection ? SPLIT_DIMENSION_LABELS[pendingSplitSelection.dimension] : ''}
+        onSelectCBO={() => {
+          if (pendingSplitSelection) {
+            const platforms = selectedPlatforms?.length ? selectedPlatforms : [{ id: platformId, name: platformName }];
+            const dimPerPlatform = targeting.defaultAdSetSplitDimensionPerPlatform || {};
+            const adSetsPerPlatform = targeting.defaultAdSetsPerPlatform || {};
+            
+            const newDimPerPlatform = { ...dimPerPlatform, [pendingSplitSelection.platformId]: pendingSplitSelection.dimension };
+            const newAdSetsPerPlatform = { 
+              ...adSetsPerPlatform, 
+              [pendingSplitSelection.platformId]: createInitialAdSets(pendingSplitSelection.dimension, 'Default', {
+                platformId: pendingSplitSelection.platformId,
+                currentGender: targeting.genders?.[0],
+                currentDevices: targeting.devices,
+                currentLanguages: targeting.languages,
+                currentAgeMin: targeting.ageMin,
+                currentAgeMax: targeting.ageMax,
+              })
+            };
+            
+            const allDimensions = platforms.map(p => newDimPerPlatform[p.id] || 'none');
+            const allSame = allDimensions.every(d => d === allDimensions[0]);
+            
+            const updated = {
+              ...targeting,
+              selectedItems,
+              defaultAdSetSplitDimensionPerPlatform: newDimPerPlatform,
+              defaultAdSetsPerPlatform: newAdSetsPerPlatform,
+              defaultAdSetSplitDimension: allSame && allDimensions[0] !== 'none' ? allDimensions[0] as AdSetSplitDimension : undefined,
+              defaultAdSets: newAdSetsPerPlatform[platforms[0]?.id || platformId],
+              defaultAdSetSplitUseCBO: true,
+            };
+            onUpdate(updated);
+            localStorage.setItem('basicTargeting', JSON.stringify(updated));
+          }
+          setPendingSplitSelection(null);
+        }}
+        onSelectABO={() => {
+          if (pendingSplitSelection) {
+            const platforms = selectedPlatforms?.length ? selectedPlatforms : [{ id: platformId, name: platformName }];
+            const dimPerPlatform = targeting.defaultAdSetSplitDimensionPerPlatform || {};
+            const adSetsPerPlatform = targeting.defaultAdSetsPerPlatform || {};
+            
+            const newDimPerPlatform = { ...dimPerPlatform, [pendingSplitSelection.platformId]: pendingSplitSelection.dimension };
+            const newAdSetsPerPlatform = { 
+              ...adSetsPerPlatform, 
+              [pendingSplitSelection.platformId]: createInitialAdSets(pendingSplitSelection.dimension, 'Default', {
+                platformId: pendingSplitSelection.platformId,
+                currentGender: targeting.genders?.[0],
+                currentDevices: targeting.devices,
+                currentLanguages: targeting.languages,
+                currentAgeMin: targeting.ageMin,
+                currentAgeMax: targeting.ageMax,
+              })
+            };
+            
+            const allDimensions = platforms.map(p => newDimPerPlatform[p.id] || 'none');
+            const allSame = allDimensions.every(d => d === allDimensions[0]);
+            
+            const updated = {
+              ...targeting,
+              selectedItems,
+              defaultAdSetSplitDimensionPerPlatform: newDimPerPlatform,
+              defaultAdSetsPerPlatform: newAdSetsPerPlatform,
+              defaultAdSetSplitDimension: allSame && allDimensions[0] !== 'none' ? allDimensions[0] as AdSetSplitDimension : undefined,
+              defaultAdSets: newAdSetsPerPlatform[platforms[0]?.id || platformId],
+              defaultAdSetSplitUseCBO: false,
+            };
+            onUpdate(updated);
+            localStorage.setItem('basicTargeting', JSON.stringify(updated));
+          }
+          setPendingSplitSelection(null);
+        }}
+      />
     </div>
   );
 }
