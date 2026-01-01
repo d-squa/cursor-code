@@ -54,10 +54,23 @@ function AssetThumbnail({ asset }: { asset: DigestedAsset }) {
 function MatchCriteriaList({ criteria }: { criteria: string[] }) {
   if (criteria.length === 0) return null;
   
+  // Icons for common criteria types
+  const getCriteriaIcon = (criterion: string) => {
+    const lower = criterion.toLowerCase();
+    if (lower.includes('dimension')) return '📐';
+    if (lower.includes('platform')) return '📱';
+    if (lower.includes('language')) return '🌐';
+    if (lower.includes('market')) return '📍';
+    if (lower.includes('media')) return '🎬';
+    if (lower.includes('campaign')) return '🎯';
+    return '✓';
+  };
+  
   return (
     <div className="flex flex-wrap gap-1 mt-1">
       {criteria.slice(0, 3).map((c, i) => (
         <Badge key={i} variant="outline" className="text-[10px] py-0 px-1.5 border-emerald-500/50 text-emerald-600">
+          <span className="mr-0.5">{getCriteriaIcon(c)}</span>
           {c}
         </Badge>
       ))}
@@ -138,16 +151,20 @@ function StructureCard({
                     </>
                   )}
                 </div>
-                {/* Show taxonomy elements compact inline */}
-                {structure.taxonomyElements && Object.keys(structure.taxonomyElements).length > 0 && (
+                {/* Show taxonomy elements compact inline - only if we have meaningful elements */}
+                {structure.taxonomyElements && Object.entries(structure.taxonomyElements).length > 0 && (
                   <div className="text-[10px] text-muted-foreground mt-1 leading-relaxed">
-                    {Object.entries(structure.taxonomyElements).map(([param, value], idx) => (
-                      <span key={param}>
-                        {idx > 0 && <span className="mx-1">•</span>}
-                        <span className="text-muted-foreground/70">{param}:</span>
-                        <span className="font-medium text-foreground/80">{value}</span>
-                      </span>
-                    ))}
+                    {Object.entries(structure.taxonomyElements)
+                      .filter(([, value]) => value && value !== '' && value !== 'ALL') // Filter out empty and ALL values
+                      .slice(0, 6) // Limit to first 6 elements for readability
+                      .map(([param, value], idx) => (
+                        <span key={param}>
+                          {idx > 0 && <span className="mx-1">•</span>}
+                          <span className="text-muted-foreground/70">{param}:</span>
+                          <span className="font-medium text-foreground/80 ml-0.5">{value}</span>
+                        </span>
+                      ))
+                    }
                   </div>
                 )}
               </div>
@@ -489,6 +506,22 @@ function AssignedAssetsPanel({
                               </>
                             )}
                           </div>
+                          {/* Show key taxonomy elements inline */}
+                          {structure.taxonomyElements && Object.entries(structure.taxonomyElements).length > 0 && (
+                            <div className="text-[10px] text-muted-foreground mt-1 leading-relaxed">
+                              {Object.entries(structure.taxonomyElements)
+                                .filter(([, value]) => value && value !== '' && value !== 'ALL')
+                                .slice(0, 4)
+                                .map(([param, value], idx) => (
+                                  <span key={param}>
+                                    {idx > 0 && <span className="mx-1">•</span>}
+                                    <span className="text-muted-foreground/70">{param}:</span>
+                                    <span className="font-medium text-foreground/80 ml-0.5">{value}</span>
+                                  </span>
+                                ))
+                              }
+                            </div>
+                          )}
                         </div>
                         <div className="flex items-center gap-2">
                           {hasAdSetUnaccepted && (

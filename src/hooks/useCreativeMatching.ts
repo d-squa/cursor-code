@@ -232,15 +232,33 @@ export function useCreativeMatching(campaignId?: string) {
         platformKey: string,
         context: TaxonomyContext
       ): { name: string; elements: Record<string, string> } => {
-        const template = taxonomyTemplates[platformKey] || getDefaultAdSetParams(platformKey as 'meta' | 'tiktok');
+        // Always use default params as base (they have proper labels), merge with any custom template
+        const defaultTemplate = getDefaultAdSetParams(platformKey as 'meta' | 'tiktok');
+        const customTemplate = taxonomyTemplates[platformKey];
+        
+        // If custom template exists, use it but ensure labels are populated from defaults
+        const template = customTemplate ? customTemplate.map(param => {
+          const defaultParam = defaultTemplate.find(d => d.id === param.id);
+          return {
+            ...param,
+            label: param.label || defaultParam?.label || param.id.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+          };
+        }) : defaultTemplate;
+        
         const values = extractTaxonomyValues(template, context);
         const taxonomyName = generateTaxonomyString(template, values);
         
         // Build elements for display: paramLabel -> value
+        // Only include elements with meaningful values (not empty)
         const elements: Record<string, string> = {};
         for (const param of template) {
-          const value = values[param.id] || 'ALL';
-          // Use the label from template or format the id
+          // Only include system/required params for display
+          if (param.required === false && !param.system) continue;
+          
+          const value = values[param.id];
+          if (!value || value === '') continue; // Skip empty values
+          
+          // Use the label from template
           const label = param.label || param.id.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
           elements[label] = value;
         }
