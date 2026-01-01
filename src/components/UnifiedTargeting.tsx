@@ -28,6 +28,7 @@ export interface UnifiedTargetingItem {
 
 import { AdSetConfig } from "@/types/mediaplan";
 import { AdSetSplitManager } from "./AdSetSplitManager";
+import { createInitialAdSets } from "@/utils/adSetSplitUtils";
 
 // Platform info for rendering tabs
 export interface PlatformInfo {
@@ -465,24 +466,20 @@ export function UnifiedTargeting({
                     localStorage.setItem('basicTargeting', JSON.stringify(updated));
                   } else {
                     // Initialize with default ad sets per platform when selecting a dimension
+                    // Use createInitialAdSets to properly set dimension-specific fields
                     const platforms = selectedPlatforms?.length ? selectedPlatforms : [{ id: platformId, name: platformName }];
                     const newPerPlatform: Record<string, AdSetConfig[]> = {};
                     
                     platforms.forEach(p => {
-                      newPerPlatform[p.id] = [
-                        {
-                          id: crypto.randomUUID(),
-                          name: `Default_${SPLIT_DIMENSION_LABELS[dim]}_1`,
-                          dimensionValue: '',
-                          budgetPercentage: 50,
-                        },
-                        {
-                          id: crypto.randomUUID(),
-                          name: `Default_${SPLIT_DIMENSION_LABELS[dim]}_2`,
-                          dimensionValue: '',
-                          budgetPercentage: 50,
-                        },
-                      ];
+                      // Create properly initialized ad sets with dimension-specific fields
+                      newPerPlatform[p.id] = createInitialAdSets(dim, 'Default', {
+                        platformId: p.id,
+                        currentGender: targeting.genders?.[0],
+                        currentDevices: targeting.devices,
+                        currentLanguages: targeting.languages,
+                        currentAgeMin: targeting.ageMin,
+                        currentAgeMax: targeting.ageMax,
+                      });
                     });
                     
                     const updated = {
