@@ -438,18 +438,49 @@ export function PhaseScheduler({
 
     if (!isTikTok || phases.length === 0) return;
 
+    const tikTokMappings = getObjectivesForPlatform("tiktok");
+    const validTikTokObjectives = new Set(tikTokMappings.map((o) => o.value));
+    const validTikTokGoals = new Set(tikTokMappings.flatMap((o) => o.optimizationGoals.map((g) => g.value)));
+
+    const toCanonical = (input: string) =>
+      input
+        .toUpperCase()
+        .replace(/[^A-Z0-9]+/g, "_")
+        .replace(/_+/g, "_")
+        .replace(/^_|_$/g, "");
+
     const normalizeObjective = (objective?: string) => {
       if (!objective) return objective;
+
       const upper = objective.toUpperCase();
-      if (upper === "SALES" || upper === "CONVERSION" || upper === "CONVERSIONS") return "CONVERSIONS";
+
+      // Common legacy labels
+      if (["SALES", "CONVERSION", "CONVERSIONS"].includes(upper)) return "CONVERSIONS";
+
+      const candidate = toCanonical(objective);
+      if (validTikTokObjectives.has(candidate)) return candidate;
+
+      // Handle labels like "Conversions / Sales" or "Product Sales (Catalog)"
+      if (candidate.startsWith("CONVERSIONS")) return "CONVERSIONS";
+      if (candidate.startsWith("PRODUCT_SALES")) return "PRODUCT_SALES";
+
       return objective;
     };
 
     const normalizeGoal = (goal?: string) => {
       if (!goal) return goal;
       const upper = goal.toUpperCase();
-      if (upper === "CONVERSION" || upper === "CONVERSIONS") return "CONVERT";
-      if (upper === "CONVERSATION" || upper === "CONVERSATIONS") return "MESSAGING";
+
+      // Common legacy labels
+      if (["CONVERSION", "CONVERSIONS"].includes(upper)) return "CONVERT";
+      if (["CONVERSATION", "CONVERSATIONS"].includes(upper)) return "MESSAGING";
+
+      const candidate = toCanonical(goal);
+      if (validTikTokGoals.has(candidate)) return candidate;
+
+      // Handle pluralization
+      if (candidate === "LANDING_PAGE_VIEWS") return "LANDING_PAGE_VIEW";
+
       return goal;
     };
 
