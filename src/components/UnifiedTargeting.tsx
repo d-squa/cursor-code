@@ -25,6 +25,9 @@ export interface UnifiedTargetingItem {
   tiktokId?: string;
 }
 
+import { AdSetConfig } from "@/types/mediaplan";
+import { AdSetSplitManager } from "./AdSetSplitManager";
+
 export interface UnifiedTargetingConfig {
   ageMin?: number;
   ageMax?: number;
@@ -42,6 +45,8 @@ export interface UnifiedTargetingConfig {
   // Default ad set split - applies to all phases unless overridden
   defaultAdSetSplitDimension?: AdSetSplitDimension;
   defaultAdSetSplitUseCBO?: boolean;
+  // Default ad sets configuration - the actual splits that phases will inherit
+  defaultAdSets?: AdSetConfig[];
 }
 
 interface UnifiedTargetingProps {
@@ -52,6 +57,9 @@ interface UnifiedTargetingProps {
   // Split functionality props
   currentSplitDimension?: AdSetSplitDimension;
   onSplitDimensionChange?: (dimension: AdSetSplitDimension, useCBO?: boolean) => void;
+  // Platform info for the default split manager
+  platformId?: string;
+  platformName?: string;
 }
 
 export function UnifiedTargeting({ 
@@ -60,7 +68,9 @@ export function UnifiedTargeting({
   metaAdAccountId, 
   tiktokAdvertiserId,
   currentSplitDimension,
-  onSplitDimensionChange 
+  onSplitDimensionChange,
+  platformId = 'meta',
+  platformName = 'Meta',
 }: UnifiedTargetingProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
@@ -428,7 +438,42 @@ export function UnifiedTargeting({
                 value={targeting.defaultAdSetSplitDimension || 'none'}
                 onValueChange={(value) => {
                   const dim = value as AdSetSplitDimension;
-                  updateField('defaultAdSetSplitDimension', dim === 'none' ? undefined : dim);
+                  if (dim === 'none') {
+                    // Clear everything when setting to none
+                    const updated = {
+                      ...targeting,
+                      selectedItems,
+                      defaultAdSetSplitDimension: undefined,
+                      defaultAdSetSplitUseCBO: undefined,
+                      defaultAdSets: undefined,
+                    };
+                    onUpdate(updated);
+                    localStorage.setItem('basicTargeting', JSON.stringify(updated));
+                  } else {
+                    // Initialize with default ad sets when selecting a dimension
+                    const initialAdSets: AdSetConfig[] = [
+                      {
+                        id: crypto.randomUUID(),
+                        name: `Default_${SPLIT_DIMENSION_LABELS[dim]}_1`,
+                        dimensionValue: '',
+                        budgetPercentage: 50,
+                      },
+                      {
+                        id: crypto.randomUUID(),
+                        name: `Default_${SPLIT_DIMENSION_LABELS[dim]}_2`,
+                        dimensionValue: '',
+                        budgetPercentage: 50,
+                      },
+                    ];
+                    const updated = {
+                      ...targeting,
+                      selectedItems,
+                      defaultAdSetSplitDimension: dim,
+                      defaultAdSets: initialAdSets,
+                    };
+                    onUpdate(updated);
+                    localStorage.setItem('basicTargeting', JSON.stringify(updated));
+                  }
                 }}
               >
                 <SelectTrigger>
@@ -451,8 +496,15 @@ export function UnifiedTargeting({
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  updateField('defaultAdSetSplitDimension', undefined);
-                  updateField('defaultAdSetSplitUseCBO', undefined);
+                  const updated = {
+                    ...targeting,
+                    selectedItems,
+                    defaultAdSetSplitDimension: undefined,
+                    defaultAdSetSplitUseCBO: undefined,
+                    defaultAdSets: undefined,
+                  };
+                  onUpdate(updated);
+                  localStorage.setItem('basicTargeting', JSON.stringify(updated));
                 }}
               >
                 <X className="h-4 w-4 mr-1" />
@@ -460,10 +512,50 @@ export function UnifiedTargeting({
               </Button>
             )}
           </div>
-          {targeting.defaultAdSetSplitDimension && targeting.defaultAdSetSplitDimension !== 'none' && (
+          
+          {/* Show AdSetSplitManager when a dimension is selected */}
+          {targeting.defaultAdSetSplitDimension && targeting.defaultAdSetSplitDimension !== 'none' && targeting.defaultAdSets && (
+            <div className="mt-4">
+              <AdSetSplitManager
+                dimension={targeting.defaultAdSetSplitDimension}
+                adSets={targeting.defaultAdSets}
+                platformName={platformName}
+                platformId={platformId}
+                phaseName="Default"
+                useCBO={targeting.defaultAdSetSplitUseCBO}
+                onAdSetsChange={(adSets) => {
+                  const updated = {
+                    ...targeting,
+                    selectedItems,
+                    defaultAdSets: adSets,
+                  };
+                  onUpdate(updated);
+                  localStorage.setItem('basicTargeting', JSON.stringify(updated));
+                }}
+                onRemoveSplit={() => {
+                  const updated = {
+                    ...targeting,
+                    selectedItems,
+                    defaultAdSetSplitDimension: undefined,
+                    defaultAdSetSplitUseCBO: undefined,
+                    defaultAdSets: undefined,
+                  };
+                  onUpdate(updated);
+                  localStorage.setItem('basicTargeting', JSON.stringify(updated));
+                }}
+                adAccountId={metaAdAccountId || tiktokAdvertiserId}
+                currentGender={targeting.genders?.[0]}
+                currentAgeMin={targeting.ageMin}
+                currentAgeMax={targeting.ageMax}
+                currentDevices={targeting.devices}
+                currentLanguages={targeting.languages}
+              />
+            </div>
+          )}
+          
+          {targeting.defaultAdSetSplitDimension && targeting.defaultAdSetSplitDimension !== 'none' && !targeting.defaultAdSets && (
             <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-lg">
-              <strong>Note:</strong> The specific ad set configurations (e.g., which genders, age ranges, etc.) will be set at the phase level. 
-              To disable this split for a specific phase, turn on "Override Targeting" and set the split to "None".
+              <strong>Note:</strong> Configure the ad set splits above. These settings will be inherited by all phases unless they override targeting.
             </div>
           )}
         </CardContent>
