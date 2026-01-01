@@ -454,6 +454,20 @@ export function PhaseScheduler({
 
       const upper = objective.toUpperCase();
 
+      // Map Meta-style objectives to TikTok equivalents
+      const metaToTikTokObjective: Record<string, string> = {
+        "OUTCOME_AWARENESS": "REACH",
+        "OUTCOME_TRAFFIC": "TRAFFIC",
+        "OUTCOME_ENGAGEMENT": "COMMUNITY_INTERACTION",
+        "OUTCOME_LEADS": "LEAD_GENERATION",
+        "OUTCOME_SALES": "CONVERSIONS",
+        "OUTCOME_APP_PROMOTION": "APP_PROMOTION",
+      };
+      
+      if (metaToTikTokObjective[upper]) {
+        return metaToTikTokObjective[upper];
+      }
+
       // Common legacy labels
       if (["SALES", "CONVERSION", "CONVERSIONS"].includes(upper)) return "CONVERSIONS";
 
@@ -471,9 +485,28 @@ export function PhaseScheduler({
       if (!goal) return goal;
       const upper = goal.toUpperCase();
 
+      // Map Meta-style optimization goals to TikTok equivalents
+      const metaToTikTokGoal: Record<string, string> = {
+        "REACH": "REACH",
+        "LINK_CLICKS": "CLICK",
+        "LANDING_PAGE_VIEWS": "LANDING_PAGE_VIEW",
+        "OFFSITE_CONVERSIONS": "CONVERT",
+        "APP_INSTALLS": "APP_INSTALL",
+        "APP_EVENTS": "APP_EVENT",
+        "LEAD_GENERATION": "FORM",
+        "THRUPLAY": "VIDEO_VIEW",
+        "POST_ENGAGEMENT": "PROFILE_VISIT",
+        "CONVERSATIONS": "MESSAGING",
+        "VALUE": "VALUE",
+      };
+      
+      if (metaToTikTokGoal[upper]) {
+        return metaToTikTokGoal[upper];
+      }
+
       // Common legacy labels
       if (["CONVERSION", "CONVERSIONS"].includes(upper)) return "CONVERT";
-      if (["CONVERSATION", "CONVERSATIONS"].includes(upper)) return "MESSAGING";
+      if (["CONVERSATION"].includes(upper)) return "MESSAGING";
 
       const candidate = toCanonical(goal);
       if (validTikTokGoals.has(candidate)) return candidate;
