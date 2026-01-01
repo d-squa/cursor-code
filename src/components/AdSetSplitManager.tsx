@@ -9,7 +9,7 @@ import { Slider } from "@/components/ui/slider";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Plus, Trash2, GripVertical, Split, X, Lightbulb, Ban, Loader2 } from "lucide-react";
 import { AdSetConfig, AdSetSplitDimension } from "@/types/mediaplan";
-import { LANGUAGE_OPTIONS } from "@/utils/targetingOptions";
+import { LANGUAGE_OPTIONS, normalizeLanguageValues } from "@/utils/targetingOptions";
 import { MARKET_OPTIONS } from "@/utils/markets";
 import { getPlacementsForSelection } from "@/utils/placements";
 import { MultiSelect } from "@/components/ui/multi-select";
@@ -774,20 +774,27 @@ export function AdSetSplitManager({
         );
 
       case "language":
-        // Read from languages field first (persisted), fallback to dimensionValue
-        const langValues = Array.isArray(adSet.languages) 
-          ? adSet.languages as string[]
-          : Array.isArray(adSet.dimensionValue) 
-            ? adSet.dimensionValue as string[]
-            : adSet.dimensionValue ? [adSet.dimensionValue as string] : [];
+        // Stored values may be ISO strings or legacy Meta numeric IDs; normalize to ISO for the UI
+        const langValuesRaw: Array<string | number> = Array.isArray(adSet.languages)
+          ? (adSet.languages as Array<string | number>)
+          : Array.isArray(adSet.dimensionValue)
+            ? (adSet.dimensionValue as Array<string | number>)
+            : adSet.dimensionValue !== undefined && adSet.dimensionValue !== null
+              ? [adSet.dimensionValue as any]
+              : [];
+
+        const langValues = normalizeLanguageValues(langValuesRaw);
+
         return (
           <MultiSelect
-            options={LANGUAGE_OPTIONS.map(l => ({ value: l.value, label: l.label }))}
+            options={LANGUAGE_OPTIONS.map((l) => ({ value: l.value, label: l.label }))}
             value={langValues}
-            onChange={(values) => updateAdSet(adSet.id, { 
-              dimensionValue: values,
-              languages: values,
-            })}
+            onChange={(values) =>
+              updateAdSet(adSet.id, {
+                dimensionValue: values,
+                languages: values,
+              })
+            }
             placeholder="Select languages"
           />
         );

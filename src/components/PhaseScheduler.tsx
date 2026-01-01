@@ -430,7 +430,48 @@ export function PhaseScheduler({
   // IMPORTANT: Use a stable ref to avoid triggering this effect when onPhasesChange identity changes
   const onPhasesChangeRef = useRef(onPhasesChange);
   onPhasesChangeRef.current = onPhasesChange;
-  
+
+  // Normalize legacy TikTok objective/goal values so the dropdowns can hydrate saved campaigns.
+  useEffect(() => {
+    const isTikTok =
+      platformId?.toLowerCase() === "tiktok" || platformName.toLowerCase().includes("tiktok");
+
+    if (!isTikTok || phases.length === 0) return;
+
+    const normalizeObjective = (objective?: string) => {
+      if (!objective) return objective;
+      const upper = objective.toUpperCase();
+      if (upper === "SALES" || upper === "CONVERSION" || upper === "CONVERSIONS") return "CONVERSIONS";
+      return objective;
+    };
+
+    const normalizeGoal = (goal?: string) => {
+      if (!goal) return goal;
+      const upper = goal.toUpperCase();
+      if (upper === "CONVERSION" || upper === "CONVERSIONS") return "CONVERT";
+      if (upper === "CONVERSATION" || upper === "CONVERSATIONS") return "MESSAGING";
+      return goal;
+    };
+
+    let changed = false;
+
+    const updated = phases.map((p) => {
+      const objective = normalizeObjective(p.objective);
+      const optimizationGoal = normalizeGoal(p.optimizationGoal);
+
+      if (objective !== p.objective || optimizationGoal !== p.optimizationGoal) {
+        changed = true;
+        return { ...p, objective, optimizationGoal };
+      }
+
+      return p;
+    });
+
+    if (changed) {
+      onPhasesChangeRef.current(updated);
+    }
+  }, [phases, platformId, platformName]);
+
   useEffect(() => {
     if (!adAccountDefaults || phases.length === 0) return;
     

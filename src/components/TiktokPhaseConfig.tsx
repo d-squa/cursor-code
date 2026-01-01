@@ -191,9 +191,9 @@ export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: Tiktok
   const showAppFields = (
     (objective === "TRAFFIC" && optimizationGoal === "CLICK" && phase.tiktokOptimizationLocation === "App") ||
     (objective === "APP_PROMOTION") ||
-    (objective === "LEAD_GENERATION" && ["CLICK", "CONVERSATION"].includes(optimizationGoal) && phase.tiktokOptimizationLocation === "Instant Messaging Apps") ||
-    (objective === "SALES" && optimizationGoal === "CLICK" && phase.tiktokOptimizationLocation === "App") ||
-    (objective === "SALES" && ["CONVERSION", "VALUE"].includes(optimizationGoal) && phase.tiktokOptimizationLocation === "Website & App")
+    (objective === "LEAD_GENERATION" && ["CLICK", "MESSAGING"].includes(optimizationGoal) && phase.tiktokOptimizationLocation === "Instant Messaging Apps") ||
+    (objective === "CONVERSIONS" && optimizationGoal === "CLICK" && phase.tiktokOptimizationLocation === "App") ||
+    (objective === "CONVERSIONS" && ["CONVERT", "VALUE"].includes(optimizationGoal) && phase.tiktokOptimizationLocation === "Website & App")
   );
 
   const showBidStrategy = true; // Always shown based on matrix
@@ -201,18 +201,18 @@ export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: Tiktok
   const showBidAmount = (phase.tiktokBidStrategy === 'COST_CAP' || phase.tiktokBidStrategy === 'TARGET_COST');
 
   const showAttributionWindows = (
-    (objective === "LEAD_GENERATION" && ["CONVERSION", "CONVERSATION"].includes(optimizationGoal)) ||
-    (objective === "SALES" && ["VALUE", "CONVERSION"].includes(optimizationGoal) && ["Website", "TikTok Instant Page", "Website & App"].includes(phase.tiktokOptimizationLocation || ""))
+    (objective === "LEAD_GENERATION" && ["CONVERT", "MESSAGING"].includes(optimizationGoal)) ||
+    (objective === "CONVERSIONS" && ["VALUE", "CONVERT"].includes(optimizationGoal) && ["Website", "TikTok Instant Page", "Website & App"].includes(phase.tiktokOptimizationLocation || ""))
   );
 
   const showEventCount = (
     (objective === "LEAD_GENERATION") ||
-    (objective === "SALES" && optimizationGoal === "CLICK" && phase.tiktokOptimizationLocation === "App") ||
-    (objective === "SALES" && ["CONVERSION", "VALUE"].includes(optimizationGoal) && phase.tiktokOptimizationLocation === "Website & App")
+    (objective === "CONVERSIONS" && optimizationGoal === "CLICK" && phase.tiktokOptimizationLocation === "App") ||
+    (objective === "CONVERSIONS" && ["CONVERT", "VALUE"].includes(optimizationGoal) && phase.tiktokOptimizationLocation === "Website & App")
   );
 
   const showCatalogProductSet = (
-    objective === "SALES" && ["CONVERSION", "VALUE"].includes(optimizationGoal) && phase.tiktokOptimizationLocation === "Website & App"
+    objective === "CONVERSIONS" && ["CONVERT", "VALUE"].includes(optimizationGoal) && phase.tiktokOptimizationLocation === "Website & App"
   );
 
   const showSmartPlus = ![
