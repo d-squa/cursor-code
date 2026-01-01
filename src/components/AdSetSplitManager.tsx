@@ -775,34 +775,26 @@ export function AdSetSplitManager({
 
       case "language":
         // Stored values may be ISO strings or legacy Meta numeric IDs; normalize to ISO for the UI
-        const langValuesRawUnfiltered: Array<string | number> = Array.isArray(adSet.languages)
-          ? (adSet.languages as Array<string | number>)
-          : Array.isArray(adSet.dimensionValue)
-            ? (adSet.dimensionValue as Array<string | number>)
-            : adSet.dimensionValue !== undefined && adSet.dimensionValue !== null
-              ? [adSet.dimensionValue as any]
-              : [];
-
-        // Treat empty-string values as "unset" (common in legacy/unsplit ad sets)
-        const langValuesRaw = langValuesRawUnfiltered.filter(
-          (v) => !(typeof v === "string" && v.trim() === "")
+        // First, determine the source array - skip empty string dimensionValue entirely
+        let langValuesRaw: Array<string | number> = [];
+        
+        if (Array.isArray(adSet.languages) && adSet.languages.length > 0) {
+          langValuesRaw = adSet.languages as Array<string | number>;
+        } else if (Array.isArray(adSet.dimensionValue) && adSet.dimensionValue.length > 0) {
+          langValuesRaw = adSet.dimensionValue as Array<string | number>;
+        } else if (adSet.dimensionValue && typeof adSet.dimensionValue === 'string' && adSet.dimensionValue.trim() !== '') {
+          langValuesRaw = [adSet.dimensionValue];
+        } else if (typeof adSet.dimensionValue === 'number') {
+          langValuesRaw = [adSet.dimensionValue];
+        }
+        // else: leave as empty array - don't add empty strings
+        
+        // Filter out any remaining empty strings or invalid values
+        langValuesRaw = langValuesRaw.filter(
+          (v) => v !== undefined && v !== null && !(typeof v === "string" && v.trim() === "")
         );
-        // DEBUG: Log raw values before normalization
-        console.log("🔍 [AdSetSplitManager] Language split debug:", {
-          adSetId: adSet.id,
-          adSetName: adSet.name,
-          "adSet.languages": adSet.languages,
-          "adSet.dimensionValue": adSet.dimensionValue,
-          langValuesRaw,
-          langValuesRawTypes: langValuesRaw.map(v => typeof v),
-        });
 
         const langValues = normalizeLanguageValues(langValuesRaw);
-        
-        console.log("🔍 [AdSetSplitManager] After normalization:", {
-          langValues,
-          langValuesMatchOptions: langValues.map(v => LANGUAGE_OPTIONS.some(opt => opt.value === v)),
-        });
 
         return (
           <MultiSelect
