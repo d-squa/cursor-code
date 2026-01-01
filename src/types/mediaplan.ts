@@ -158,6 +158,9 @@ export type AdSetSplitDimension =
   | 'device'
   | 'age';
 
+// Per-platform split dimension configuration
+export type AdSetSplitDimensionPerPlatform = Record<string, AdSetSplitDimension>;
+
 export interface Phase {
   id: string;
   name: string;

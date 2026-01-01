@@ -184,33 +184,55 @@ export function PhaseScheduler({
     phasesRef.current = phases;
   }, [phases]);
   
-  // Track previous default split dimension to detect when it's cleared
+  // Track previous default split dimensions to detect when they're cleared
   const prevDefaultSplitDimensionRef = useRef<AdSetSplitDimension | undefined>(basicTargeting?.defaultAdSetSplitDimension);
+  const prevDefaultSplitDimensionPerPlatformRef = useRef<Record<string, AdSetSplitDimension> | undefined>(basicTargeting?.defaultAdSetSplitDimensionPerPlatform);
   
   // When default split dimension is cleared, remove inherited splits from phases
   useEffect(() => {
     const prevDimension = prevDefaultSplitDimensionRef.current;
+    const prevDimPerPlatform = prevDefaultSplitDimensionPerPlatformRef.current;
     const currentDimension = basicTargeting?.defaultAdSetSplitDimension;
+    const currentDimPerPlatform = basicTargeting?.defaultAdSetSplitDimensionPerPlatform;
     
-    // Update ref for next comparison
+    // Update refs for next comparison
     prevDefaultSplitDimensionRef.current = currentDimension;
+    prevDefaultSplitDimensionPerPlatformRef.current = currentDimPerPlatform;
     
-    // Check if dimension was cleared (had a valid value, now undefined or 'none')
-    const wasValid = prevDimension && prevDimension !== 'none';
-    const isNowCleared = !currentDimension || currentDimension === 'none';
+    // Collect all dimensions that were previously set but are now cleared
+    const clearedDimensions = new Set<AdSetSplitDimension>();
     
-    if (wasValid && isNowCleared) {
-      console.log('🧹 Default split dimension cleared, removing inherited splits from phases');
+    // Check legacy single dimension
+    const wasLegacyValid = prevDimension && prevDimension !== 'none';
+    const isLegacyNowCleared = !currentDimension || currentDimension === 'none';
+    if (wasLegacyValid && isLegacyNowCleared) {
+      clearedDimensions.add(prevDimension);
+    }
+    
+    // Check per-platform dimensions
+    if (prevDimPerPlatform) {
+      Object.entries(prevDimPerPlatform).forEach(([platformId, prevPlatformDim]) => {
+        if (prevPlatformDim && prevPlatformDim !== 'none') {
+          const currentPlatformDim = currentDimPerPlatform?.[platformId];
+          if (!currentPlatformDim || currentPlatformDim === 'none') {
+            clearedDimensions.add(prevPlatformDim);
+          }
+        }
+      });
+    }
+    
+    if (clearedDimensions.size > 0) {
+      console.log('🧹 Default split dimension(s) cleared:', Array.from(clearedDimensions));
       
-      // Find phases that have the same split dimension as the previous default
+      // Find phases that have any of the cleared split dimensions
       const phasesWithInheritedSplit = phasesRef.current.filter(phase => 
-        phase.adSetSplitDimension === prevDimension
+        phase.adSetSplitDimension && clearedDimensions.has(phase.adSetSplitDimension)
       );
       
       if (phasesWithInheritedSplit.length > 0) {
         console.log(`🧹 Clearing splits from ${phasesWithInheritedSplit.length} phase(s)`);
         const updatedPhases = phasesRef.current.map(phase => {
-          if (phase.adSetSplitDimension === prevDimension) {
+          if (phase.adSetSplitDimension && clearedDimensions.has(phase.adSetSplitDimension)) {
             return {
               ...phase,
               adSetSplitDimension: undefined,
@@ -223,7 +245,7 @@ export function PhaseScheduler({
         onPhasesChange(updatedPhases);
       }
     }
-  }, [basicTargeting?.defaultAdSetSplitDimension, onPhasesChange]);
+  }, [basicTargeting?.defaultAdSetSplitDimension, basicTargeting?.defaultAdSetSplitDimensionPerPlatform, onPhasesChange]);
   
   // Taxonomy validation state - track per phase per entity type
   const [taxonomyValidation, setTaxonomyValidation] = useState<Record<string, { campaign: boolean; adset: boolean; campaignMissing: number; adsetMissing: number }>>({});
@@ -2730,15 +2752,19 @@ export function PhaseScheduler({
                       {/* Ad Set Split Manager - shown at bottom of phase */}
                       {/* Show split manager if phase has its own split OR inherits from basic targeting (when not overriding) */}
                       {(() => {
-                        // Determine effective split dimension
+                        // Determine effective split dimension - check per-platform first, then legacy
                         const hasOwnSplit = phase.adSetSplitDimension && phase.adSetSplitDimension !== 'none';
+                        
+                        // Check per-platform dimension first, then fall back to legacy single dimension
+                        const platformDefaultDimension = basicTargeting?.defaultAdSetSplitDimensionPerPlatform?.[platformId || 'meta']
+                          || basicTargeting?.defaultAdSetSplitDimension;
                         const hasInheritedSplit = !phase.overrideTargeting && 
-                          basicTargeting?.defaultAdSetSplitDimension && 
-                          basicTargeting.defaultAdSetSplitDimension !== 'none';
+                          platformDefaultDimension && 
+                          platformDefaultDimension !== 'none';
                         
                         const effectiveDimension = hasOwnSplit 
                           ? phase.adSetSplitDimension 
-                          : (hasInheritedSplit ? basicTargeting?.defaultAdSetSplitDimension : undefined);
+                          : (hasInheritedSplit ? platformDefaultDimension : undefined);
                         
                         if (!effectiveDimension || effectiveDimension === 'none') return null;
                         

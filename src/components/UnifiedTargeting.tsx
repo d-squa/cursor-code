@@ -12,7 +12,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { DEVICE_OPTIONS, LANGUAGE_OPTIONS, GENDER_OPTIONS } from "@/utils/targetingOptions";
 import { SplittableSection } from "./SplittableSection";
-import { AdSetSplitDimension } from "@/types/mediaplan";
+import { AdSetSplitDimension, AdSetSplitDimensionPerPlatform } from "@/types/mediaplan";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -52,7 +52,10 @@ export interface UnifiedTargetingConfig {
   lookalikeAudienceIds?: string[];
   customAudienceIds?: string[];
   // Default ad set split - applies to all phases unless overridden
+  // Legacy: single dimension for all platforms
   defaultAdSetSplitDimension?: AdSetSplitDimension;
+  // NEW: Per-platform split dimensions
+  defaultAdSetSplitDimensionPerPlatform?: AdSetSplitDimensionPerPlatform;
   defaultAdSetSplitUseCBO?: boolean;
   // Legacy: Default ad sets configuration (for backwards compatibility)
   defaultAdSets?: AdSetConfig[];
@@ -436,257 +439,253 @@ export function UnifiedTargeting({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             Default Ad Set Split
-            {targeting.defaultAdSetSplitDimension && targeting.defaultAdSetSplitDimension !== 'none' && (
-              <Badge variant="secondary">{SPLIT_DIMENSION_LABELS[targeting.defaultAdSetSplitDimension]}</Badge>
-            )}
+            {(() => {
+              const platforms = selectedPlatforms?.length ? selectedPlatforms : [{ id: platformId, name: platformName }];
+              const dimPerPlatform = targeting.defaultAdSetSplitDimensionPerPlatform || {};
+              const activePlatforms = platforms.filter(p => {
+                const dim = dimPerPlatform[p.id] || targeting.defaultAdSetSplitDimension;
+                return dim && dim !== 'none';
+              });
+              if (activePlatforms.length === 0) return null;
+              return activePlatforms.map(p => {
+                const dim = dimPerPlatform[p.id] || targeting.defaultAdSetSplitDimension;
+                return dim && dim !== 'none' ? (
+                  <Badge key={p.id} variant="secondary" className="text-xs">
+                    {p.name}: {SPLIT_DIMENSION_LABELS[dim]}
+                  </Badge>
+                ) : null;
+              });
+            })()}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Configure a default ad set split that will be applied to all phases. Individual phases can override this using the "Override Targeting" toggle.
+            Configure default ad set splits per platform. Each platform can have a different split dimension. Individual phases can override these using the "Override Targeting" toggle.
           </p>
-          <div className="flex items-center gap-4">
-            <div className="flex-1">
-              <Label className="mb-2 block">Split Dimension</Label>
-              <Select
-                value={targeting.defaultAdSetSplitDimension || 'none'}
-                onValueChange={(value) => {
-                  const dim = value as AdSetSplitDimension;
-                  if (dim === 'none') {
-                    // Clear everything when setting to none
-                    const updated = {
-                      ...targeting,
-                      selectedItems,
-                      defaultAdSetSplitDimension: undefined,
-                      defaultAdSetSplitUseCBO: undefined,
-                      defaultAdSets: undefined,
-                      defaultAdSetsPerPlatform: undefined,
-                    };
-                    onUpdate(updated);
-                    localStorage.setItem('basicTargeting', JSON.stringify(updated));
-                  } else {
-                    // Initialize with default ad sets per platform when selecting a dimension
-                    // Use createInitialAdSets to properly set dimension-specific fields
-                    const platforms = selectedPlatforms?.length ? selectedPlatforms : [{ id: platformId, name: platformName }];
-                    const newPerPlatform: Record<string, AdSetConfig[]> = {};
-                    
-                    platforms.forEach(p => {
-                      // Create properly initialized ad sets with dimension-specific fields
-                      newPerPlatform[p.id] = createInitialAdSets(dim, 'Default', {
-                        platformId: p.id,
-                        currentGender: targeting.genders?.[0],
-                        currentDevices: targeting.devices,
-                        currentLanguages: targeting.languages,
-                        currentAgeMin: targeting.ageMin,
-                        currentAgeMax: targeting.ageMax,
-                      });
-                    });
-                    
-                    const updated = {
-                      ...targeting,
-                      selectedItems,
-                      defaultAdSetSplitDimension: dim,
-                      defaultAdSetsPerPlatform: newPerPlatform,
-                      // Keep legacy field for backwards compatibility
-                      defaultAdSets: newPerPlatform[platforms[0]?.id || platformId],
-                    };
-                    onUpdate(updated);
-                    localStorage.setItem('basicTargeting', JSON.stringify(updated));
-                  }
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="No split (single ad set)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No split (single ad set)</SelectItem>
-                  <SelectItem value="gender">Gender</SelectItem>
-                  <SelectItem value="age">Age Range</SelectItem>
-                  <SelectItem value="device">Device</SelectItem>
-                  <SelectItem value="language">Language</SelectItem>
-                  <SelectItem value="placement">Placement</SelectItem>
-                  <SelectItem value="optimization_goal">Optimization Goal</SelectItem>
-                  <SelectItem value="audience_selection">Audience Selection</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {targeting.defaultAdSetSplitDimension && targeting.defaultAdSetSplitDimension !== 'none' && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  const updated = {
-                    ...targeting,
-                    selectedItems,
-                    defaultAdSetSplitDimension: undefined,
-                    defaultAdSetSplitUseCBO: undefined,
-                    defaultAdSets: undefined,
-                    defaultAdSetsPerPlatform: undefined,
-                  };
-                  onUpdate(updated);
-                  localStorage.setItem('basicTargeting', JSON.stringify(updated));
-                }}
-              >
-                <X className="h-4 w-4 mr-1" />
-                Clear
-              </Button>
-            )}
-          </div>
           
-          {/* Show per-platform AdSetSplitManager tabs when a dimension is selected */}
-          {targeting.defaultAdSetSplitDimension && targeting.defaultAdSetSplitDimension !== 'none' && (() => {
+          {(() => {
             const platforms = selectedPlatforms?.length ? selectedPlatforms : [{ id: platformId, name: platformName }];
+            const dimPerPlatform = targeting.defaultAdSetSplitDimensionPerPlatform || {};
             const adSetsPerPlatform = targeting.defaultAdSetsPerPlatform || {};
             
-            // Handle legacy data - if we have defaultAdSets but not defaultAdSetsPerPlatform, migrate
-            const effectiveAdSetsPerPlatform = Object.keys(adSetsPerPlatform).length > 0 
-              ? adSetsPerPlatform 
-              : targeting.defaultAdSets 
-                ? { [platformId]: targeting.defaultAdSets }
-                : {};
+            // Helper to get effective dimension for a platform
+            const getEffectiveDimension = (pId: string): AdSetSplitDimension => {
+              return dimPerPlatform[pId] || targeting.defaultAdSetSplitDimension || 'none';
+            };
             
-            if (platforms.length === 1) {
-              // Single platform - no need for tabs
-              const p = platforms[0];
-              const platformAdSets = effectiveAdSetsPerPlatform[p.id] || [];
+            // Helper to update dimension for a platform
+            const updatePlatformDimension = (pId: string, dim: AdSetSplitDimension) => {
+              const newDimPerPlatform = { ...dimPerPlatform };
+              const newAdSetsPerPlatform = { ...adSetsPerPlatform };
               
-              if (platformAdSets.length === 0) {
-                return (
-                  <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-lg">
-                    <strong>Note:</strong> Configure the ad set splits above. These settings will be inherited by all phases unless they override targeting.
-                  </div>
-                );
+              if (dim === 'none') {
+                delete newDimPerPlatform[pId];
+                delete newAdSetsPerPlatform[pId];
+              } else {
+                newDimPerPlatform[pId] = dim;
+                // Create initial ad sets for this platform with the new dimension
+                newAdSetsPerPlatform[pId] = createInitialAdSets(dim, 'Default', {
+                  platformId: pId,
+                  currentGender: targeting.genders?.[0],
+                  currentDevices: targeting.devices,
+                  currentLanguages: targeting.languages,
+                  currentAgeMin: targeting.ageMin,
+                  currentAgeMax: targeting.ageMax,
+                });
               }
               
+              // Check if all platforms have same dimension for backwards compat
+              const allDimensions = platforms.map(p => newDimPerPlatform[p.id] || 'none');
+              const allSame = allDimensions.every(d => d === allDimensions[0]);
+              
+              const updated = {
+                ...targeting,
+                selectedItems,
+                defaultAdSetSplitDimensionPerPlatform: Object.keys(newDimPerPlatform).length > 0 ? newDimPerPlatform : undefined,
+                defaultAdSetsPerPlatform: Object.keys(newAdSetsPerPlatform).length > 0 ? newAdSetsPerPlatform : undefined,
+                // Legacy: set if all platforms use same dimension
+                defaultAdSetSplitDimension: allSame && allDimensions[0] !== 'none' ? allDimensions[0] as AdSetSplitDimension : undefined,
+                defaultAdSets: newAdSetsPerPlatform[platforms[0]?.id || platformId],
+              };
+              onUpdate(updated);
+              localStorage.setItem('basicTargeting', JSON.stringify(updated));
+            };
+            
+            // Check if any platform has a split configured
+            const hasAnySplit = platforms.some(p => getEffectiveDimension(p.id) !== 'none');
+            
+            if (platforms.length === 1) {
+              // Single platform - simple layout
+              const p = platforms[0];
+              const currentDim = getEffectiveDimension(p.id);
+              const platformAdSets = adSetsPerPlatform[p.id] || [];
+              
               return (
-                <div className="mt-4">
-                  <AdSetSplitManager
-                    dimension={targeting.defaultAdSetSplitDimension}
-                    adSets={platformAdSets}
-                    platformName={p.name}
-                    platformId={p.id}
-                    phaseName="Default"
-                    useCBO={targeting.defaultAdSetSplitUseCBO}
-                    onAdSetsChange={(adSets) => {
-                      const newPerPlatform = { ...effectiveAdSetsPerPlatform, [p.id]: adSets };
-                      const updated = {
-                        ...targeting,
-                        selectedItems,
-                        defaultAdSetsPerPlatform: newPerPlatform,
-                        defaultAdSets: adSets, // Keep legacy for backwards compat
-                      };
-                      onUpdate(updated);
-                      localStorage.setItem('basicTargeting', JSON.stringify(updated));
-                    }}
-                    onRemoveSplit={() => {
-                      const updated = {
-                        ...targeting,
-                        selectedItems,
-                        defaultAdSetSplitDimension: undefined,
-                        defaultAdSetSplitUseCBO: undefined,
-                        defaultAdSets: undefined,
-                        defaultAdSetsPerPlatform: undefined,
-                      };
-                      onUpdate(updated);
-                      localStorage.setItem('basicTargeting', JSON.stringify(updated));
-                    }}
-                    adAccountId={p.id === 'meta' ? metaAdAccountId : p.id === 'tiktok' ? tiktokAdvertiserId : p.adAccountId}
-                    currentGender={targeting.genders?.[0]}
-                    currentAgeMin={targeting.ageMin}
-                    currentAgeMax={targeting.ageMax}
-                    currentDevices={targeting.devices}
-                    currentLanguages={targeting.languages}
-                  />
+                <div className="space-y-4">
+                  <div className="flex items-center gap-4">
+                    <div className="flex-1">
+                      <Label className="mb-2 block">Split Dimension</Label>
+                      <Select
+                        value={currentDim}
+                        onValueChange={(value) => updatePlatformDimension(p.id, value as AdSetSplitDimension)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="No split (single ad set)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No split (single ad set)</SelectItem>
+                          <SelectItem value="gender">Gender</SelectItem>
+                          <SelectItem value="age">Age Range</SelectItem>
+                          <SelectItem value="device">Device</SelectItem>
+                          <SelectItem value="language">Language</SelectItem>
+                          <SelectItem value="placement">Placement</SelectItem>
+                          <SelectItem value="optimization_goal">Optimization Goal</SelectItem>
+                          <SelectItem value="audience_selection">Audience Selection</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {currentDim !== 'none' && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => updatePlatformDimension(p.id, 'none')}
+                      >
+                        <X className="h-4 w-4 mr-1" />
+                        Clear
+                      </Button>
+                    )}
+                  </div>
+                  
+                  {currentDim !== 'none' && platformAdSets.length > 0 && (
+                    <AdSetSplitManager
+                      dimension={currentDim}
+                      adSets={platformAdSets}
+                      platformName={p.name}
+                      platformId={p.id}
+                      phaseName="Default"
+                      useCBO={targeting.defaultAdSetSplitUseCBO}
+                      onAdSetsChange={(adSets) => {
+                        const newAdSetsPerPlatform = { ...adSetsPerPlatform, [p.id]: adSets };
+                        const updated = {
+                          ...targeting,
+                          selectedItems,
+                          defaultAdSetsPerPlatform: newAdSetsPerPlatform,
+                          defaultAdSets: adSets,
+                        };
+                        onUpdate(updated);
+                        localStorage.setItem('basicTargeting', JSON.stringify(updated));
+                      }}
+                      onRemoveSplit={() => updatePlatformDimension(p.id, 'none')}
+                      adAccountId={p.id === 'meta' ? metaAdAccountId : p.id === 'tiktok' ? tiktokAdvertiserId : p.adAccountId}
+                      currentGender={targeting.genders?.[0]}
+                      currentAgeMin={targeting.ageMin}
+                      currentAgeMax={targeting.ageMax}
+                      currentDevices={targeting.devices}
+                      currentLanguages={targeting.languages}
+                    />
+                  )}
                 </div>
               );
             }
             
-            // Multiple platforms - show tabs
+            // Multiple platforms - show tabs with per-platform dimension selectors
             return (
-              <div className="mt-4">
-                <Tabs defaultValue={platforms[0]?.id} className="w-full">
-                  <TabsList className="grid w-full" style={{ gridTemplateColumns: `repeat(${platforms.length}, minmax(0, 1fr))` }}>
-                    {platforms.map(p => (
+              <Tabs defaultValue={platforms[0]?.id} className="w-full">
+                <TabsList className="grid w-full" style={{ gridTemplateColumns: `repeat(${platforms.length}, minmax(0, 1fr))` }}>
+                  {platforms.map(p => {
+                    const dim = getEffectiveDimension(p.id);
+                    return (
                       <TabsTrigger key={p.id} value={p.id} className="flex items-center gap-2">
                         {p.name}
-                        {effectiveAdSetsPerPlatform[p.id]?.length ? (
+                        {dim !== 'none' && (
                           <Badge variant="secondary" className="h-5 px-1.5 text-xs">
-                            {effectiveAdSetsPerPlatform[p.id].length}
+                            {SPLIT_DIMENSION_LABELS[dim]}
                           </Badge>
-                        ) : null}
-                      </TabsTrigger>
-                    ))}
-                  </TabsList>
-                  {platforms.map(p => {
-                    const platformAdSets = effectiveAdSetsPerPlatform[p.id] || [];
-                    
-                    return (
-                      <TabsContent key={p.id} value={p.id} className="mt-4">
-                        {platformAdSets.length === 0 ? (
-                          <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-lg">
-                            <strong>Note:</strong> No ad sets configured for {p.name} yet. Select a split dimension above to initialize.
-                          </div>
-                        ) : (
-                          <AdSetSplitManager
-                            dimension={targeting.defaultAdSetSplitDimension!}
-                            adSets={platformAdSets}
-                            platformName={p.name}
-                            platformId={p.id}
-                            phaseName="Default"
-                            useCBO={targeting.defaultAdSetSplitUseCBO}
-                            onAdSetsChange={(adSets) => {
-                              const newPerPlatform = { ...effectiveAdSetsPerPlatform, [p.id]: adSets };
-                              const updated = {
-                                ...targeting,
-                                selectedItems,
-                                defaultAdSetsPerPlatform: newPerPlatform,
-                                // Keep legacy field synced with first platform
-                                defaultAdSets: newPerPlatform[platforms[0]?.id || platformId] || adSets,
-                              };
-                              onUpdate(updated);
-                              localStorage.setItem('basicTargeting', JSON.stringify(updated));
-                            }}
-                            onRemoveSplit={() => {
-                              // Remove just this platform's config
-                              const newPerPlatform = { ...effectiveAdSetsPerPlatform };
-                              delete newPerPlatform[p.id];
-                              
-                              // If no platforms left, clear everything
-                              if (Object.keys(newPerPlatform).length === 0) {
-                                const updated = {
-                                  ...targeting,
-                                  selectedItems,
-                                  defaultAdSetSplitDimension: undefined,
-                                  defaultAdSetSplitUseCBO: undefined,
-                                  defaultAdSets: undefined,
-                                  defaultAdSetsPerPlatform: undefined,
-                                };
-                                onUpdate(updated);
-                                localStorage.setItem('basicTargeting', JSON.stringify(updated));
-                              } else {
-                                const updated = {
-                                  ...targeting,
-                                  selectedItems,
-                                  defaultAdSetsPerPlatform: newPerPlatform,
-                                  defaultAdSets: newPerPlatform[platforms[0]?.id || platformId],
-                                };
-                                onUpdate(updated);
-                                localStorage.setItem('basicTargeting', JSON.stringify(updated));
-                              }
-                            }}
-                            adAccountId={p.id === 'meta' ? metaAdAccountId : p.id === 'tiktok' ? tiktokAdvertiserId : p.adAccountId}
-                            currentGender={targeting.genders?.[0]}
-                            currentAgeMin={targeting.ageMin}
-                            currentAgeMax={targeting.ageMax}
-                            currentDevices={targeting.devices}
-                            currentLanguages={targeting.languages}
-                          />
                         )}
-                      </TabsContent>
+                      </TabsTrigger>
                     );
                   })}
-                </Tabs>
-              </div>
+                </TabsList>
+                {platforms.map(p => {
+                  const currentDim = getEffectiveDimension(p.id);
+                  const platformAdSets = adSetsPerPlatform[p.id] || [];
+                  
+                  return (
+                    <TabsContent key={p.id} value={p.id} className="mt-4 space-y-4">
+                      <div className="flex items-center gap-4">
+                        <div className="flex-1">
+                          <Label className="mb-2 block">Split Dimension for {p.name}</Label>
+                          <Select
+                            value={currentDim}
+                            onValueChange={(value) => updatePlatformDimension(p.id, value as AdSetSplitDimension)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="No split (single ad set)" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">No split (single ad set)</SelectItem>
+                              <SelectItem value="gender">Gender</SelectItem>
+                              <SelectItem value="age">Age Range</SelectItem>
+                              <SelectItem value="device">Device</SelectItem>
+                              <SelectItem value="language">Language</SelectItem>
+                              <SelectItem value="placement">Placement</SelectItem>
+                              <SelectItem value="optimization_goal">Optimization Goal</SelectItem>
+                              <SelectItem value="audience_selection">Audience Selection</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {currentDim !== 'none' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => updatePlatformDimension(p.id, 'none')}
+                          >
+                            <X className="h-4 w-4 mr-1" />
+                            Clear
+                          </Button>
+                        )}
+                      </div>
+                      
+                      {currentDim !== 'none' && platformAdSets.length > 0 ? (
+                        <AdSetSplitManager
+                          dimension={currentDim}
+                          adSets={platformAdSets}
+                          platformName={p.name}
+                          platformId={p.id}
+                          phaseName="Default"
+                          useCBO={targeting.defaultAdSetSplitUseCBO}
+                          onAdSetsChange={(adSets) => {
+                            const newAdSetsPerPlatform = { ...adSetsPerPlatform, [p.id]: adSets };
+                            const updated = {
+                              ...targeting,
+                              selectedItems,
+                              defaultAdSetsPerPlatform: newAdSetsPerPlatform,
+                              defaultAdSets: newAdSetsPerPlatform[platforms[0]?.id || platformId],
+                            };
+                            onUpdate(updated);
+                            localStorage.setItem('basicTargeting', JSON.stringify(updated));
+                          }}
+                          onRemoveSplit={() => updatePlatformDimension(p.id, 'none')}
+                          adAccountId={p.id === 'meta' ? metaAdAccountId : p.id === 'tiktok' ? tiktokAdvertiserId : p.adAccountId}
+                          currentGender={targeting.genders?.[0]}
+                          currentAgeMin={targeting.ageMin}
+                          currentAgeMax={targeting.ageMax}
+                          currentDevices={targeting.devices}
+                          currentLanguages={targeting.languages}
+                        />
+                      ) : currentDim !== 'none' ? (
+                        <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-lg">
+                          <strong>Note:</strong> Initializing ad sets for {p.name}...
+                        </div>
+                      ) : (
+                        <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-lg">
+                          Select a split dimension above to configure ad sets for {p.name}.
+                        </div>
+                      )}
+                    </TabsContent>
+                  );
+                })}
+              </Tabs>
             );
           })()}
         </CardContent>
