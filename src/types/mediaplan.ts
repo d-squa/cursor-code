@@ -174,6 +174,11 @@ export interface Phase {
   adSetSplitDimension?: AdSetSplitDimension;
   adSets?: AdSetConfig[];
   useCBO?: boolean; // Campaign Budget Optimization (true) vs Ad Set Budget Optimization (false)
+  /**
+   * Internal marker used by the UI to know whether the phase split was created by
+   * copying the campaign-level default split.
+   */
+  adSetSplitSource?: 'default' | 'phase';
   // Taxonomy values for naming
   campaignTaxonomyValues?: Record<string, string>;
   adsetTaxonomyValues?: Record<string, string>;
