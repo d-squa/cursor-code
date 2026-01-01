@@ -184,6 +184,47 @@ export function PhaseScheduler({
     phasesRef.current = phases;
   }, [phases]);
   
+  // Track previous default split dimension to detect when it's cleared
+  const prevDefaultSplitDimensionRef = useRef<AdSetSplitDimension | undefined>(basicTargeting?.defaultAdSetSplitDimension);
+  
+  // When default split dimension is cleared, remove inherited splits from phases
+  useEffect(() => {
+    const prevDimension = prevDefaultSplitDimensionRef.current;
+    const currentDimension = basicTargeting?.defaultAdSetSplitDimension;
+    
+    // Update ref for next comparison
+    prevDefaultSplitDimensionRef.current = currentDimension;
+    
+    // Check if dimension was cleared (had a valid value, now undefined or 'none')
+    const wasValid = prevDimension && prevDimension !== 'none';
+    const isNowCleared = !currentDimension || currentDimension === 'none';
+    
+    if (wasValid && isNowCleared) {
+      console.log('🧹 Default split dimension cleared, removing inherited splits from phases');
+      
+      // Find phases that have the same split dimension as the previous default
+      const phasesWithInheritedSplit = phasesRef.current.filter(phase => 
+        phase.adSetSplitDimension === prevDimension
+      );
+      
+      if (phasesWithInheritedSplit.length > 0) {
+        console.log(`🧹 Clearing splits from ${phasesWithInheritedSplit.length} phase(s)`);
+        const updatedPhases = phasesRef.current.map(phase => {
+          if (phase.adSetSplitDimension === prevDimension) {
+            return {
+              ...phase,
+              adSetSplitDimension: undefined,
+              adSets: undefined,
+              useCBO: undefined,
+            };
+          }
+          return phase;
+        });
+        onPhasesChange(updatedPhases);
+      }
+    }
+  }, [basicTargeting?.defaultAdSetSplitDimension, onPhasesChange]);
+  
   // Taxonomy validation state - track per phase per entity type
   const [taxonomyValidation, setTaxonomyValidation] = useState<Record<string, { campaign: boolean; adset: boolean; campaignMissing: number; adsetMissing: number }>>({});
   
