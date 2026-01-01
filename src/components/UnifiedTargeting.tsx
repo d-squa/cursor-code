@@ -14,6 +14,7 @@ import { DEVICE_OPTIONS, LANGUAGE_OPTIONS, GENDER_OPTIONS } from "@/utils/target
 import { SplittableSection } from "./SplittableSection";
 import { AdSetSplitDimension } from "@/types/mediaplan";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export interface UnifiedTargetingItem {
   id: string;
@@ -27,6 +28,13 @@ export interface UnifiedTargetingItem {
 
 import { AdSetConfig } from "@/types/mediaplan";
 import { AdSetSplitManager } from "./AdSetSplitManager";
+
+// Platform info for rendering tabs
+export interface PlatformInfo {
+  id: string;
+  name: string;
+  adAccountId?: string;
+}
 
 export interface UnifiedTargetingConfig {
   ageMin?: number;
@@ -45,8 +53,10 @@ export interface UnifiedTargetingConfig {
   // Default ad set split - applies to all phases unless overridden
   defaultAdSetSplitDimension?: AdSetSplitDimension;
   defaultAdSetSplitUseCBO?: boolean;
-  // Default ad sets configuration - the actual splits that phases will inherit
+  // Legacy: Default ad sets configuration (for backwards compatibility)
   defaultAdSets?: AdSetConfig[];
+  // NEW: Per-platform ad sets configuration
+  defaultAdSetsPerPlatform?: Record<string, AdSetConfig[]>;
 }
 
 interface UnifiedTargetingProps {
@@ -57,9 +67,11 @@ interface UnifiedTargetingProps {
   // Split functionality props
   currentSplitDimension?: AdSetSplitDimension;
   onSplitDimensionChange?: (dimension: AdSetSplitDimension, useCBO?: boolean) => void;
-  // Platform info for the default split manager
+  // Platform info for the default split manager - legacy single platform
   platformId?: string;
   platformName?: string;
+  // NEW: All selected platforms for per-platform configuration
+  selectedPlatforms?: PlatformInfo[];
 }
 
 export function UnifiedTargeting({ 
@@ -71,6 +83,7 @@ export function UnifiedTargeting({
   onSplitDimensionChange,
   platformId = 'meta',
   platformName = 'Meta',
+  selectedPlatforms,
 }: UnifiedTargetingProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
@@ -446,30 +459,39 @@ export function UnifiedTargeting({
                       defaultAdSetSplitDimension: undefined,
                       defaultAdSetSplitUseCBO: undefined,
                       defaultAdSets: undefined,
+                      defaultAdSetsPerPlatform: undefined,
                     };
                     onUpdate(updated);
                     localStorage.setItem('basicTargeting', JSON.stringify(updated));
                   } else {
-                    // Initialize with default ad sets when selecting a dimension
-                    const initialAdSets: AdSetConfig[] = [
-                      {
-                        id: crypto.randomUUID(),
-                        name: `Default_${SPLIT_DIMENSION_LABELS[dim]}_1`,
-                        dimensionValue: '',
-                        budgetPercentage: 50,
-                      },
-                      {
-                        id: crypto.randomUUID(),
-                        name: `Default_${SPLIT_DIMENSION_LABELS[dim]}_2`,
-                        dimensionValue: '',
-                        budgetPercentage: 50,
-                      },
-                    ];
+                    // Initialize with default ad sets per platform when selecting a dimension
+                    const platforms = selectedPlatforms?.length ? selectedPlatforms : [{ id: platformId, name: platformName }];
+                    const newPerPlatform: Record<string, AdSetConfig[]> = {};
+                    
+                    platforms.forEach(p => {
+                      newPerPlatform[p.id] = [
+                        {
+                          id: crypto.randomUUID(),
+                          name: `Default_${SPLIT_DIMENSION_LABELS[dim]}_1`,
+                          dimensionValue: '',
+                          budgetPercentage: 50,
+                        },
+                        {
+                          id: crypto.randomUUID(),
+                          name: `Default_${SPLIT_DIMENSION_LABELS[dim]}_2`,
+                          dimensionValue: '',
+                          budgetPercentage: 50,
+                        },
+                      ];
+                    });
+                    
                     const updated = {
                       ...targeting,
                       selectedItems,
                       defaultAdSetSplitDimension: dim,
-                      defaultAdSets: initialAdSets,
+                      defaultAdSetsPerPlatform: newPerPlatform,
+                      // Keep legacy field for backwards compatibility
+                      defaultAdSets: newPerPlatform[platforms[0]?.id || platformId],
                     };
                     onUpdate(updated);
                     localStorage.setItem('basicTargeting', JSON.stringify(updated));
@@ -502,6 +524,7 @@ export function UnifiedTargeting({
                     defaultAdSetSplitDimension: undefined,
                     defaultAdSetSplitUseCBO: undefined,
                     defaultAdSets: undefined,
+                    defaultAdSetsPerPlatform: undefined,
                   };
                   onUpdate(updated);
                   localStorage.setItem('basicTargeting', JSON.stringify(updated));
@@ -513,51 +536,162 @@ export function UnifiedTargeting({
             )}
           </div>
           
-          {/* Show AdSetSplitManager when a dimension is selected */}
-          {targeting.defaultAdSetSplitDimension && targeting.defaultAdSetSplitDimension !== 'none' && targeting.defaultAdSets && (
-            <div className="mt-4">
-              <AdSetSplitManager
-                dimension={targeting.defaultAdSetSplitDimension}
-                adSets={targeting.defaultAdSets}
-                platformName={platformName}
-                platformId={platformId}
-                phaseName="Default"
-                useCBO={targeting.defaultAdSetSplitUseCBO}
-                onAdSetsChange={(adSets) => {
-                  const updated = {
-                    ...targeting,
-                    selectedItems,
-                    defaultAdSets: adSets,
-                  };
-                  onUpdate(updated);
-                  localStorage.setItem('basicTargeting', JSON.stringify(updated));
-                }}
-                onRemoveSplit={() => {
-                  const updated = {
-                    ...targeting,
-                    selectedItems,
-                    defaultAdSetSplitDimension: undefined,
-                    defaultAdSetSplitUseCBO: undefined,
-                    defaultAdSets: undefined,
-                  };
-                  onUpdate(updated);
-                  localStorage.setItem('basicTargeting', JSON.stringify(updated));
-                }}
-                adAccountId={metaAdAccountId || tiktokAdvertiserId}
-                currentGender={targeting.genders?.[0]}
-                currentAgeMin={targeting.ageMin}
-                currentAgeMax={targeting.ageMax}
-                currentDevices={targeting.devices}
-                currentLanguages={targeting.languages}
-              />
-            </div>
-          )}
-          
-          {targeting.defaultAdSetSplitDimension && targeting.defaultAdSetSplitDimension !== 'none' && !targeting.defaultAdSets && (
-            <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-lg">
-              <strong>Note:</strong> Configure the ad set splits above. These settings will be inherited by all phases unless they override targeting.
-            </div>
-          )}
+          {/* Show per-platform AdSetSplitManager tabs when a dimension is selected */}
+          {targeting.defaultAdSetSplitDimension && targeting.defaultAdSetSplitDimension !== 'none' && (() => {
+            const platforms = selectedPlatforms?.length ? selectedPlatforms : [{ id: platformId, name: platformName }];
+            const adSetsPerPlatform = targeting.defaultAdSetsPerPlatform || {};
+            
+            // Handle legacy data - if we have defaultAdSets but not defaultAdSetsPerPlatform, migrate
+            const effectiveAdSetsPerPlatform = Object.keys(adSetsPerPlatform).length > 0 
+              ? adSetsPerPlatform 
+              : targeting.defaultAdSets 
+                ? { [platformId]: targeting.defaultAdSets }
+                : {};
+            
+            if (platforms.length === 1) {
+              // Single platform - no need for tabs
+              const p = platforms[0];
+              const platformAdSets = effectiveAdSetsPerPlatform[p.id] || [];
+              
+              if (platformAdSets.length === 0) {
+                return (
+                  <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-lg">
+                    <strong>Note:</strong> Configure the ad set splits above. These settings will be inherited by all phases unless they override targeting.
+                  </div>
+                );
+              }
+              
+              return (
+                <div className="mt-4">
+                  <AdSetSplitManager
+                    dimension={targeting.defaultAdSetSplitDimension}
+                    adSets={platformAdSets}
+                    platformName={p.name}
+                    platformId={p.id}
+                    phaseName="Default"
+                    useCBO={targeting.defaultAdSetSplitUseCBO}
+                    onAdSetsChange={(adSets) => {
+                      const newPerPlatform = { ...effectiveAdSetsPerPlatform, [p.id]: adSets };
+                      const updated = {
+                        ...targeting,
+                        selectedItems,
+                        defaultAdSetsPerPlatform: newPerPlatform,
+                        defaultAdSets: adSets, // Keep legacy for backwards compat
+                      };
+                      onUpdate(updated);
+                      localStorage.setItem('basicTargeting', JSON.stringify(updated));
+                    }}
+                    onRemoveSplit={() => {
+                      const updated = {
+                        ...targeting,
+                        selectedItems,
+                        defaultAdSetSplitDimension: undefined,
+                        defaultAdSetSplitUseCBO: undefined,
+                        defaultAdSets: undefined,
+                        defaultAdSetsPerPlatform: undefined,
+                      };
+                      onUpdate(updated);
+                      localStorage.setItem('basicTargeting', JSON.stringify(updated));
+                    }}
+                    adAccountId={p.id === 'meta' ? metaAdAccountId : p.id === 'tiktok' ? tiktokAdvertiserId : p.adAccountId}
+                    currentGender={targeting.genders?.[0]}
+                    currentAgeMin={targeting.ageMin}
+                    currentAgeMax={targeting.ageMax}
+                    currentDevices={targeting.devices}
+                    currentLanguages={targeting.languages}
+                  />
+                </div>
+              );
+            }
+            
+            // Multiple platforms - show tabs
+            return (
+              <div className="mt-4">
+                <Tabs defaultValue={platforms[0]?.id} className="w-full">
+                  <TabsList className="grid w-full" style={{ gridTemplateColumns: `repeat(${platforms.length}, minmax(0, 1fr))` }}>
+                    {platforms.map(p => (
+                      <TabsTrigger key={p.id} value={p.id} className="flex items-center gap-2">
+                        {p.name}
+                        {effectiveAdSetsPerPlatform[p.id]?.length ? (
+                          <Badge variant="secondary" className="h-5 px-1.5 text-xs">
+                            {effectiveAdSetsPerPlatform[p.id].length}
+                          </Badge>
+                        ) : null}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                  {platforms.map(p => {
+                    const platformAdSets = effectiveAdSetsPerPlatform[p.id] || [];
+                    
+                    return (
+                      <TabsContent key={p.id} value={p.id} className="mt-4">
+                        {platformAdSets.length === 0 ? (
+                          <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-lg">
+                            <strong>Note:</strong> No ad sets configured for {p.name} yet. Select a split dimension above to initialize.
+                          </div>
+                        ) : (
+                          <AdSetSplitManager
+                            dimension={targeting.defaultAdSetSplitDimension!}
+                            adSets={platformAdSets}
+                            platformName={p.name}
+                            platformId={p.id}
+                            phaseName="Default"
+                            useCBO={targeting.defaultAdSetSplitUseCBO}
+                            onAdSetsChange={(adSets) => {
+                              const newPerPlatform = { ...effectiveAdSetsPerPlatform, [p.id]: adSets };
+                              const updated = {
+                                ...targeting,
+                                selectedItems,
+                                defaultAdSetsPerPlatform: newPerPlatform,
+                                // Keep legacy field synced with first platform
+                                defaultAdSets: newPerPlatform[platforms[0]?.id || platformId] || adSets,
+                              };
+                              onUpdate(updated);
+                              localStorage.setItem('basicTargeting', JSON.stringify(updated));
+                            }}
+                            onRemoveSplit={() => {
+                              // Remove just this platform's config
+                              const newPerPlatform = { ...effectiveAdSetsPerPlatform };
+                              delete newPerPlatform[p.id];
+                              
+                              // If no platforms left, clear everything
+                              if (Object.keys(newPerPlatform).length === 0) {
+                                const updated = {
+                                  ...targeting,
+                                  selectedItems,
+                                  defaultAdSetSplitDimension: undefined,
+                                  defaultAdSetSplitUseCBO: undefined,
+                                  defaultAdSets: undefined,
+                                  defaultAdSetsPerPlatform: undefined,
+                                };
+                                onUpdate(updated);
+                                localStorage.setItem('basicTargeting', JSON.stringify(updated));
+                              } else {
+                                const updated = {
+                                  ...targeting,
+                                  selectedItems,
+                                  defaultAdSetsPerPlatform: newPerPlatform,
+                                  defaultAdSets: newPerPlatform[platforms[0]?.id || platformId],
+                                };
+                                onUpdate(updated);
+                                localStorage.setItem('basicTargeting', JSON.stringify(updated));
+                              }
+                            }}
+                            adAccountId={p.id === 'meta' ? metaAdAccountId : p.id === 'tiktok' ? tiktokAdvertiserId : p.adAccountId}
+                            currentGender={targeting.genders?.[0]}
+                            currentAgeMin={targeting.ageMin}
+                            currentAgeMax={targeting.ageMax}
+                            currentDevices={targeting.devices}
+                            currentLanguages={targeting.languages}
+                          />
+                        )}
+                      </TabsContent>
+                    );
+                  })}
+                </Tabs>
+              </div>
+            );
+          })()}
         </CardContent>
       </Card>
     </div>

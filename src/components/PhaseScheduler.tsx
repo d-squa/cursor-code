@@ -2596,13 +2596,17 @@ export function PhaseScheduler({
                         
                         // Determine effective ad sets - use phase's own or inherit from default
                         const hasOwnAdSets = phase.adSets && phase.adSets.length > 0;
-                        const hasDefaultAdSets = basicTargeting?.defaultAdSets && basicTargeting.defaultAdSets.length > 0;
+                        
+                        // Check for per-platform default ad sets first, then fall back to legacy
+                        const platformDefaultAdSets = basicTargeting?.defaultAdSetsPerPlatform?.[platformId || 'meta'] 
+                          || basicTargeting?.defaultAdSets;
+                        const hasDefaultAdSets = platformDefaultAdSets && platformDefaultAdSets.length > 0;
                         
                         // If inheriting and phase doesn't have its own ad sets, use the default ad sets
                         const isInheritingAdSets = hasInheritedSplit && !hasOwnSplit && !hasOwnAdSets && hasDefaultAdSets;
                         const effectiveAdSets = hasOwnAdSets 
                           ? phase.adSets 
-                          : (isInheritingAdSets ? basicTargeting?.defaultAdSets : undefined);
+                          : (isInheritingAdSets ? platformDefaultAdSets : undefined);
                         
                         // If no effective ad sets and no default to inherit, show configuration message
                         const needsConfiguration = hasInheritedSplit && !hasOwnSplit && !hasOwnAdSets && !hasDefaultAdSets;

@@ -1995,6 +1995,11 @@ export function MediaPlanEditor() {
                 tiktokAdvertiserId={firstTiktokAdvertiserId || undefined}
                 platformId={platformsWithMarkets.find(p => p.id === 'meta')?.id || platformsWithMarkets[0]?.id || 'meta'}
                 platformName={platformsWithMarkets.find(p => p.id === 'meta')?.name || platformsWithMarkets[0]?.name || 'Meta'}
+                selectedPlatforms={platformsWithMarkets.filter(p => p.enabled).map(p => ({
+                  id: p.id,
+                  name: p.name,
+                  adAccountId: p.id === 'meta' ? firstAdAccountId : p.id === 'tiktok' ? firstTiktokAdvertiserId : undefined,
+                }))}
               />
               <div className="mt-6 flex justify-between">
                 <Button variant="outline" onClick={() => setCurrentStep(1)}>
