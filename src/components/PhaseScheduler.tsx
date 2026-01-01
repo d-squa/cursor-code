@@ -2755,9 +2755,16 @@ export function PhaseScheduler({
                         // Determine effective split dimension - check per-platform first, then legacy
                         const hasOwnSplit = phase.adSetSplitDimension && phase.adSetSplitDimension !== 'none';
                         
-                        // Check per-platform dimension first, then fall back to legacy single dimension
-                        const platformDefaultDimension = basicTargeting?.defaultAdSetSplitDimensionPerPlatform?.[platformId || 'meta']
-                          || basicTargeting?.defaultAdSetSplitDimension;
+                        // Check per-platform dimension first - only fall back to legacy if no per-platform config exists at all
+                        const perPlatformConfig = basicTargeting?.defaultAdSetSplitDimensionPerPlatform;
+                        const hasPerPlatformConfig = perPlatformConfig && Object.keys(perPlatformConfig).length > 0;
+                        
+                        // If per-platform config exists, only use this platform's dimension (no fallback to legacy)
+                        // If no per-platform config, use legacy dimension for backwards compatibility
+                        const platformDefaultDimension = hasPerPlatformConfig 
+                          ? perPlatformConfig[platformId || 'meta'] 
+                          : basicTargeting?.defaultAdSetSplitDimension;
+                        
                         const hasInheritedSplit = !phase.overrideTargeting && 
                           platformDefaultDimension && 
                           platformDefaultDimension !== 'none';
@@ -2771,9 +2778,12 @@ export function PhaseScheduler({
                         // Determine effective ad sets - use phase's own or inherit from default
                         const hasOwnAdSets = phase.adSets && phase.adSets.length > 0;
                         
-                        // Check for per-platform default ad sets first, then fall back to legacy
-                        const platformDefaultAdSets = basicTargeting?.defaultAdSetsPerPlatform?.[platformId || 'meta'] 
-                          || basicTargeting?.defaultAdSets;
+                        // Check for per-platform default ad sets - only fall back to legacy if no per-platform config exists
+                        const perPlatformAdSets = basicTargeting?.defaultAdSetsPerPlatform;
+                        const hasPerPlatformAdSets = perPlatformAdSets && Object.keys(perPlatformAdSets).length > 0;
+                        const platformDefaultAdSets = hasPerPlatformAdSets
+                          ? perPlatformAdSets[platformId || 'meta']
+                          : basicTargeting?.defaultAdSets;
                         const hasDefaultAdSets = platformDefaultAdSets && platformDefaultAdSets.length > 0;
                         
                         // If inheriting and phase doesn't have its own ad sets, use the default ad sets
