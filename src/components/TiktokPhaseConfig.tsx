@@ -87,25 +87,10 @@ export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: Tiktok
     // Skip if defaults already applied for this phase
     if (defaultsAppliedRef.current) return;
     
-    console.log("🔍 TiktokPhaseConfig defaults check:", {
-      hasDefaults: !!adAccountDefaults,
-      canInheritDefaults,
-      defaultOptLocation: adAccountDefaults?.tiktokOptimizationLocation,
-      phaseOptLocation: phase.tiktokOptimizationLocation,
-      defaultBidStrategy: adAccountDefaults?.tiktokBidStrategy,
-      phaseBidStrategy: phase.tiktokBidStrategy,
-      showOptimizationLocation,
-      validLocations: validLocations.map(l => l.value),
-    });
-    
-    if (!adAccountDefaults) {
-      console.log("⚠️ TiktokPhaseConfig: No adAccountDefaults provided");
-      return;
-    }
+    if (!adAccountDefaults) return;
     
     // Skip auto-population for non-enterprise users
     if (!canInheritDefaults) {
-      console.log("⚠️ TiktokPhaseConfig: User doesn't have access to inherit defaults");
       defaultsAppliedRef.current = true; // Mark as done even if we skip
       return;
     }
@@ -124,19 +109,16 @@ export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: Tiktok
         adAccountDefaults.tiktokOptimizationLocation
       );
       if (correctedLocation) {
-        console.log("✅ Setting tiktokOptimizationLocation from defaults (corrected):", correctedLocation);
         onUpdate("tiktokOptimizationLocation", correctedLocation);
       }
     }
     
     // Clear optimization location if objective doesn't support it
     if (phase.tiktokOptimizationLocation && !showOptimizationLocation) {
-      console.log("🧹 Clearing tiktokOptimizationLocation - not supported for this objective");
       onUpdate("tiktokOptimizationLocation", undefined);
     }
     
     if (!phase.tiktokBidStrategy && adAccountDefaults.tiktokBidStrategy) {
-      console.log("✅ Setting tiktokBidStrategy from defaults:", adAccountDefaults.tiktokBidStrategy);
       onUpdate("tiktokBidStrategy", adAccountDefaults.tiktokBidStrategy);
     }
     if (!phase.tiktokPlacementType && adAccountDefaults.tiktokPlacementType) {

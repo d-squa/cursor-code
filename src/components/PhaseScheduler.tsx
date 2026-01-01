@@ -1011,17 +1011,9 @@ export function PhaseScheduler({
   // Get objectives from the centralized mapping
   const getAvailableObjectives = (): ObjectiveMapping[] => {
     if (detectedPlatform) {
-      const objectives = getObjectivesForPlatform(detectedPlatform);
-      console.log("🔍 [PhaseScheduler] getAvailableObjectives:", { 
-        platformName,
-        detectedPlatform, 
-        objectivesCount: objectives.length,
-        objectiveValues: objectives.map(o => o.value)
-      });
-      return objectives;
+      return getObjectivesForPlatform(detectedPlatform);
     }
     // Fallback for unsupported platforms
-    console.log("🔍 [PhaseScheduler] getAvailableObjectives: Using fallback (no detectedPlatform)");
     return [
       { value: "Awareness", label: "Awareness", optimizationGoals: [{ value: "REACH", label: "Reach" }] },
       { value: "Consideration", label: "Consideration", optimizationGoals: [{ value: "CLICKS", label: "Clicks" }] },
@@ -1032,17 +1024,9 @@ export function PhaseScheduler({
   // Get optimization goals for a specific objective
   const getOptimizationGoalsForPhase = (objective: string) => {
     if (!objective || !detectedPlatform) {
-      console.log("🔍 [PhaseScheduler] getOptimizationGoalsForPhase: Early return", { objective, detectedPlatform });
       return [];
     }
-    const goals = getOptimizationGoalsForObjective(detectedPlatform, objective);
-    console.log("🔍 [PhaseScheduler] getOptimizationGoalsForPhase:", { 
-      objective, 
-      detectedPlatform, 
-      goalsFound: goals.length,
-      goals: goals.map(g => g.value)
-    });
-    return goals;
+    return getOptimizationGoalsForObjective(detectedPlatform, objective);
   };
 
   // Auto-select optimization goal based on objective and platform
