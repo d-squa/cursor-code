@@ -775,7 +775,7 @@ export function AdSetSplitManager({
 
       case "language":
         // Stored values may be ISO strings or legacy Meta numeric IDs; normalize to ISO for the UI
-        const langValuesRaw: Array<string | number> = Array.isArray(adSet.languages)
+        const langValuesRawUnfiltered: Array<string | number> = Array.isArray(adSet.languages)
           ? (adSet.languages as Array<string | number>)
           : Array.isArray(adSet.dimensionValue)
             ? (adSet.dimensionValue as Array<string | number>)
@@ -783,6 +783,10 @@ export function AdSetSplitManager({
               ? [adSet.dimensionValue as any]
               : [];
 
+        // Treat empty-string values as "unset" (common in legacy/unsplit ad sets)
+        const langValuesRaw = langValuesRawUnfiltered.filter(
+          (v) => !(typeof v === "string" && v.trim() === "")
+        );
         // DEBUG: Log raw values before normalization
         console.log("🔍 [AdSetSplitManager] Language split debug:", {
           adSetId: adSet.id,

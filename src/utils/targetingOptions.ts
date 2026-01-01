@@ -227,25 +227,29 @@ export const META_LANGUAGE_ID_TO_ISO: Record<number, string> = {
 // Convert stored language values to ISO codes (handles both old numeric IDs and new ISO codes)
 export function normalizeLanguageValues(values: (string | number)[]): string[] {
   console.log("🔍 [normalizeLanguageValues] Input:", values);
-  
-  const result = values.map(val => {
-    // If it's already a valid ISO code in our options, keep it
-    if (typeof val === 'string' && LANGUAGE_OPTIONS.some(opt => opt.value === val)) {
-      console.log(`  ✅ "${val}" is valid ISO code`);
-      return val;
-    }
-    // Try to convert numeric ID to ISO
-    const numericVal = typeof val === 'string' ? parseInt(val, 10) : val;
-    if (!isNaN(numericVal) && META_LANGUAGE_ID_TO_ISO[numericVal]) {
-      const isoCode = META_LANGUAGE_ID_TO_ISO[numericVal];
-      console.log(`  🔄 Converted numeric ID ${numericVal} to ISO "${isoCode}"`);
-      return isoCode;
-    }
-    // Return as string if we can't convert
-    console.log(`  ⚠️ Could not normalize "${val}" (type: ${typeof val})`);
-    return String(val);
-  }).filter((val): val is string => typeof val === 'string');
-  
+
+  const cleaned = values.filter((v) => !(typeof v === "string" && v.trim() === ""));
+
+  const result = cleaned
+    .map((val) => {
+      // If it's already a valid ISO code in our options, keep it
+      if (typeof val === "string" && LANGUAGE_OPTIONS.some((opt) => opt.value === val)) {
+        console.log(`  ✅ "${val}" is valid ISO code`);
+        return val;
+      }
+      // Try to convert numeric ID to ISO
+      const numericVal = typeof val === "string" ? parseInt(val, 10) : val;
+      if (!isNaN(numericVal) && META_LANGUAGE_ID_TO_ISO[numericVal]) {
+        const isoCode = META_LANGUAGE_ID_TO_ISO[numericVal];
+        console.log(`  🔄 Converted numeric ID ${numericVal} to ISO "${isoCode}"`);
+        return isoCode;
+      }
+      // Return as string if we can't convert
+      console.log(`  ⚠️ Could not normalize "${val}" (type: ${typeof val})`);
+      return String(val);
+    })
+    .filter((val): val is string => typeof val === "string");
+
   console.log("🔍 [normalizeLanguageValues] Output:", result);
   return result;
 }
