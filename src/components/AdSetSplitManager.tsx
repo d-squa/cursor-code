@@ -783,7 +783,22 @@ export function AdSetSplitManager({
               ? [adSet.dimensionValue as any]
               : [];
 
+        // DEBUG: Log raw values before normalization
+        console.log("🔍 [AdSetSplitManager] Language split debug:", {
+          adSetId: adSet.id,
+          adSetName: adSet.name,
+          "adSet.languages": adSet.languages,
+          "adSet.dimensionValue": adSet.dimensionValue,
+          langValuesRaw,
+          langValuesRawTypes: langValuesRaw.map(v => typeof v),
+        });
+
         const langValues = normalizeLanguageValues(langValuesRaw);
+        
+        console.log("🔍 [AdSetSplitManager] After normalization:", {
+          langValues,
+          langValuesMatchOptions: langValues.map(v => LANGUAGE_OPTIONS.some(opt => opt.value === v)),
+        });
 
         return (
           <MultiSelect
