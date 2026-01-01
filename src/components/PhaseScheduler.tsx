@@ -1896,7 +1896,7 @@ export function PhaseScheduler({
                           )}
                         </div>
                         <Select
-                          value={phase.objective || undefined}
+                          value={phase.objective ?? ""}
                           onValueChange={(value) => {
                             const isTikTok = platformName.toLowerCase().includes('tiktok');
                             const isMeta = !isTikTok;
@@ -2035,7 +2035,7 @@ export function PhaseScheduler({
                         <div className="space-y-2">
                           <Label htmlFor={`optimization-${phase.id}`}>Optimization Goal</Label>
                           <Select
-                            value={phase.optimizationGoal || undefined}
+                            value={phase.optimizationGoal ?? ""}
                             onValueChange={(value) => {
                               const isMeta = !platformName.toLowerCase().includes('tiktok');
                               
@@ -2630,20 +2630,20 @@ export function PhaseScheduler({
                                   <Button
                                     size="sm"
                                     onClick={() => {
-                                      // Initialize the phase with the inherited split
+                                      // Initialize the phase with the inherited split using proper ad set creation
+                                      const initialAdSets = createInitialAdSets(effectiveDimension!, phase.name, {
+                                        platformId: platformId || 'meta',
+                                        availableOptimizationGoals: getOptimizationGoalsForPhase(phase.objective || "").map(g => ({ value: g.value, label: g.label })),
+                                        currentOptimizationGoal: phase.optimizationGoal,
+                                        currentGender: phase.targeting?.genders?.[0] || basicTargeting?.genders?.[0],
+                                        currentAgeMin: phase.targeting?.ageMin ?? basicTargeting?.ageMin,
+                                        currentAgeMax: phase.targeting?.ageMax ?? basicTargeting?.ageMax,
+                                        currentDevices: phase.targeting?.devices || basicTargeting?.devices,
+                                        currentLanguages: phase.targeting?.languages || basicTargeting?.languages,
+                                      });
                                       updatePhaseFields(phase.id, {
                                         adSetSplitDimension: effectiveDimension,
-                                        adSets: [{
-                                          id: crypto.randomUUID(),
-                                          name: `${phase.name}_1`,
-                                          dimensionValue: '',
-                                          budgetPercentage: 50,
-                                        }, {
-                                          id: crypto.randomUUID(),
-                                          name: `${phase.name}_2`,
-                                          dimensionValue: '',
-                                          budgetPercentage: 50,
-                                        }],
+                                        adSets: initialAdSets,
                                         useCBO: basicTargeting?.defaultAdSetSplitUseCBO,
                                       });
                                     }}
