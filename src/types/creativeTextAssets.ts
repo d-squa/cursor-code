@@ -159,6 +159,8 @@ export interface CreativeTextAssetRow {
   thumbnailUrl?: string;
   mediaType: 'image' | 'video';
   aspectRatio?: string;
+  width?: number;
+  height?: number;
 }
 
 // UTM Builder config

@@ -1,16 +1,18 @@
 // Carousel Creator Component
 // Allows multi-selecting creatives within an ad set to link as carousel cards
+// Includes platform-specific validation for aspect ratios and card limits
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { GripVertical, Image, Video, X, Plus, Layers } from 'lucide-react';
+import { GripVertical, Image, Video, X, Plus, Layers, AlertTriangle, CheckCircle, Layout, Film } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { CreativeTextAssetRow } from '@/types/creativeTextAssets';
 import type { CarouselLink, CarouselCard } from '@/types/carouselTypes';
+import { validateCarouselCreatives, getPlacementBadges, CAROUSEL_PLATFORM_REQUIREMENTS } from '@/utils/placementCompatibility';
 
 interface CarouselCreatorProps {
   selectedRows: CreativeTextAssetRow[];
@@ -30,10 +32,38 @@ export function CarouselCreator({ selectedRows, onCreateCarousel, onCancel, open
       setOrderedCards(selectedRows);
     }
   }, [open, selectedRows]);
+
   // Validate all selected are from same ad set
   const adSetNames = [...new Set(selectedRows.map(r => r.adSet))];
   const isSameAdSet = adSetNames.length === 1;
   const adSetName = adSetNames[0] || 'Unknown';
+  const platform = orderedCards[0]?.platform?.toLowerCase() || 'meta';
+
+  // Platform requirements
+  const platformReqs = CAROUSEL_PLATFORM_REQUIREMENTS[platform] || CAROUSEL_PLATFORM_REQUIREMENTS.meta;
+
+  // Validate carousel creatives for the platform
+  const carouselValidation = useMemo(() => {
+    if (orderedCards.length === 0) return { isValid: false, errors: [], warnings: [], compatiblePlacements: [] };
+    
+    const creatives = orderedCards.map(row => ({
+      width: (row as any).width,
+      height: (row as any).height,
+      aspectRatio: row.aspectRatio,
+      mediaType: row.mediaType,
+    }));
+    
+    return validateCarouselCreatives(creatives, platform);
+  }, [orderedCards, platform]);
+
+  // Get per-card placement badges
+  const cardPlacements = useMemo(() => {
+    return orderedCards.map(row => {
+      const width = (row as any).width;
+      const height = (row as any).height;
+      return getPlacementBadges(width, height, row.mediaType, platform);
+    });
+  }, [orderedCards, platform]);
 
   // Handle drag start
   const handleDragStart = useCallback((index: number) => {
@@ -92,7 +122,7 @@ export function CarouselCreator({ selectedRows, onCreateCarousel, onCancel, open
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onCancel()}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Layers className="h-5 w-5" />
@@ -101,10 +131,64 @@ export function CarouselCreator({ selectedRows, onCreateCarousel, onCancel, open
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {/* Validation warning */}
+          {/* Validation warning - same ad set */}
           {!isSameAdSet && (
-            <div className="bg-destructive/10 text-destructive px-3 py-2 rounded-md text-sm">
+            <div className="bg-destructive/10 text-destructive px-3 py-2 rounded-md text-sm flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
               Selected creatives must be from the same ad set. Found: {adSetNames.join(', ')}
+            </div>
+          )}
+
+          {/* Platform requirements info */}
+          <div className="bg-muted/50 px-3 py-2 rounded-md text-xs space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="font-medium">{platform.charAt(0).toUpperCase() + platform.slice(1)} Carousel Requirements</span>
+              <Badge variant="outline" className="text-[10px]">
+                {platformReqs.minCards}-{platformReqs.maxCards} cards
+              </Badge>
+            </div>
+            <div className="text-muted-foreground">
+              Supported aspect ratios: {platformReqs.aspectRatios.join(', ')}
+              {platformReqs.sameAspectRatio && <span className="ml-1">(all cards must match)</span>}
+            </div>
+          </div>
+
+          {/* Carousel validation errors */}
+          {carouselValidation.errors.length > 0 && (
+            <div className="bg-destructive/10 text-destructive px-3 py-2 rounded-md text-sm space-y-1">
+              {carouselValidation.errors.map((err, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                  {err}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Carousel validation warnings */}
+          {carouselValidation.warnings.length > 0 && (
+            <div className="bg-amber-500/10 text-amber-700 dark:text-amber-400 px-3 py-2 rounded-md text-sm space-y-1">
+              {carouselValidation.warnings.map((warn, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                  {warn}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Compatible placements */}
+          {carouselValidation.isValid && carouselValidation.compatiblePlacements.length > 0 && (
+            <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+              <CheckCircle className="h-4 w-4" />
+              <span>Compatible with:</span>
+              {carouselValidation.compatiblePlacements.map(p => (
+                <Badge key={p} variant="secondary" className="gap-1 text-xs">
+                  {p === 'feed' && <Layout className="h-3 w-3" />}
+                  {p === 'story' && <Film className="h-3 w-3" />}
+                  {p.charAt(0).toUpperCase() + p.slice(1)}
+                </Badge>
+              ))}
             </div>
           )}
 
@@ -127,73 +211,102 @@ export function CarouselCreator({ selectedRows, onCreateCarousel, onCancel, open
           {/* Card ordering */}
           <div className="space-y-2">
             <label className="text-sm font-medium">Card Order (drag to reorder)</label>
-            <div className="space-y-1 border rounded-md p-2 bg-muted/30">
-              {orderedCards.map((row, index) => (
-                <div
-                  key={row.id}
-                  draggable
-                  onDragStart={() => handleDragStart(index)}
-                  onDragOver={(e) => handleDragOver(e, index)}
-                  onDragEnd={handleDragEnd}
-                  className={cn(
-                    "flex items-center gap-2 p-2 bg-background rounded border cursor-move",
-                    draggedIndex === index && "opacity-50"
-                  )}
-                >
-                  <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
-                  
-                  {/* Position number input */}
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Input
-                          type="number"
-                          min={1}
-                          max={orderedCards.length}
-                          value={index + 1}
-                          onChange={(e) => handlePositionChange(index, parseInt(e.target.value) || 1)}
-                          className="w-12 h-7 text-center text-xs"
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      </TooltipTrigger>
-                      <TooltipContent>Card position</TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-
-                  {/* Media type icon */}
-                  {row.mediaType === 'video' ? (
-                    <Video className="h-4 w-4 text-muted-foreground shrink-0" />
-                  ) : (
-                    <Image className="h-4 w-4 text-muted-foreground shrink-0" />
-                  )}
-
-                  {/* Thumbnail */}
-                  {row.thumbnailUrl && (
-                    <img 
-                      src={row.thumbnailUrl} 
-                      alt="" 
-                      className="h-8 w-8 object-cover rounded shrink-0"
-                    />
-                  )}
-
-                  {/* Name */}
-                  <span className="text-sm truncate flex-1">{row.creativeName}</span>
-
-                  {/* Remove button */}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 w-6 p-0"
-                    onClick={() => handleRemoveCard(index)}
-                    disabled={orderedCards.length <= 2}
+            <div className="space-y-1 border rounded-md p-2 bg-muted/30 max-h-[300px] overflow-y-auto">
+              {orderedCards.map((row, index) => {
+                const badges = cardPlacements[index] || [];
+                const carouselBadge = badges.find(b => b.type === 'carousel');
+                const isCarouselCompatible = carouselBadge?.variant !== 'incompatible';
+                
+                return (
+                  <div
+                    key={row.id}
+                    draggable
+                    onDragStart={() => handleDragStart(index)}
+                    onDragOver={(e) => handleDragOver(e, index)}
+                    onDragEnd={handleDragEnd}
+                    className={cn(
+                      "flex items-center gap-2 p-2 bg-background rounded border cursor-move",
+                      draggedIndex === index && "opacity-50",
+                      !isCarouselCompatible && "border-amber-500/50 bg-amber-500/5"
+                    )}
                   >
-                    <X className="h-3 w-3" />
-                  </Button>
-                </div>
-              ))}
+                    <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
+                    
+                    {/* Position number input */}
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Input
+                            type="number"
+                            min={1}
+                            max={orderedCards.length}
+                            value={index + 1}
+                            onChange={(e) => handlePositionChange(index, parseInt(e.target.value) || 1)}
+                            className="w-12 h-7 text-center text-xs"
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </TooltipTrigger>
+                        <TooltipContent>Card position</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+
+                    {/* Media type icon */}
+                    {row.mediaType === 'video' ? (
+                      <Video className="h-4 w-4 text-muted-foreground shrink-0" />
+                    ) : (
+                      <Image className="h-4 w-4 text-muted-foreground shrink-0" />
+                    )}
+
+                    {/* Thumbnail */}
+                    {row.thumbnailUrl && (
+                      <img 
+                        src={row.thumbnailUrl} 
+                        alt="" 
+                        className="h-8 w-8 object-cover rounded shrink-0"
+                      />
+                    )}
+
+                    {/* Name */}
+                    <span className="text-sm truncate flex-1">{row.creativeName}</span>
+
+                    {/* Placement compatibility indicator */}
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Badge 
+                            variant={isCarouselCompatible ? "secondary" : "outline"}
+                            className={cn(
+                              "text-[9px] px-1.5",
+                              isCarouselCompatible ? "bg-green-500/15 text-green-600" : "text-amber-600"
+                            )}
+                          >
+                            {isCarouselCompatible ? '✓' : '⚠'}
+                          </Badge>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {isCarouselCompatible 
+                            ? 'Compatible with carousel format' 
+                            : 'Aspect ratio may not be optimal for carousel'}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+
+                    {/* Remove button */}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0"
+                      onClick={() => handleRemoveCard(index)}
+                      disabled={orderedCards.length <= 2}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                );
+              })}
             </div>
             <p className="text-xs text-muted-foreground">
-              Minimum 2 cards required. Drag cards or type position numbers to reorder.
+              Minimum {platformReqs.minCards} cards required. Drag cards or type position numbers to reorder.
             </p>
           </div>
         </div>
@@ -204,7 +317,7 @@ export function CarouselCreator({ selectedRows, onCreateCarousel, onCancel, open
           </Button>
           <Button 
             onClick={handleCreate}
-            disabled={!isSameAdSet || !carouselName.trim() || orderedCards.length < 2}
+            disabled={!isSameAdSet || !carouselName.trim() || orderedCards.length < platformReqs.minCards || carouselValidation.errors.length > 0}
           >
             <Plus className="h-4 w-4 mr-1" />
             Create Carousel
