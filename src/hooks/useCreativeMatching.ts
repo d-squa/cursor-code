@@ -939,11 +939,42 @@ export function useCreativeMatching(campaignId?: string) {
   const saveMatches = useCallback(async () => {
     // Use stateRef to always get the latest state (avoids stale closure issues)
     const currentState = stateRef.current;
-    if (!user || currentState.acceptedMatches.size === 0) { toast.error('No matches to save'); return; }
+
+    if (!user || currentState.acceptedMatches.size === 0) {
+      toast.error('No matches to save');
+      return;
+    }
+
     setState(prev => ({ ...prev, isProcessing: true }));
+
+    // Cache uploads per asset so a single file matched to multiple structures
+    // doesn't get uploaded multiple times.
+    const uploadedUrlByAssetId = new Map<string, string>();
+
+    const uploadAssetToStorage = async (assetId: string, file: File): Promise<string> => {
+      const cached = uploadedUrlByAssetId.get(assetId);
+      if (cached) return cached;
+
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2)}${fileExt ? `.${fileExt}` : ''}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('creative-assets')
+        .upload(fileName, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('creative-assets')
+        .getPublicUrl(fileName);
+
+      uploadedUrlByAssetId.set(assetId, publicUrl);
+      return publicUrl;
+    };
 
     try {
       const assignments: any[] = [];
+
       for (const [compositeKey, match] of currentState.acceptedMatches) {
         // Parse composite key: assetId:structureId
         const assetId = compositeKey.split(':')[0];
@@ -955,9 +986,9 @@ export function useCreativeMatching(campaignId?: string) {
         // Check if this is a library creative (already exists in DB)
         if (asset.sourceType === 'library' && (asset as any).libraryCreativeId) {
           creativeId = (asset as any).libraryCreativeId;
-          
+
           // Update the existing creative with campaign assignment
-          await supabase
+          const { error: updateError } = await supabase
             .from('creatives')
             .update({
               campaign_id: match.structure.campaignId,
@@ -966,18 +997,25 @@ export function useCreativeMatching(campaignId?: string) {
               status: 'ready',
             })
             .eq('id', creativeId);
+
+          if (updateError) throw updateError;
         } else {
+          // For uploaded files, we must persist the file itself (otherwise refresh loses it).
+          const mediaUrl = await uploadAssetToStorage(assetId, asset.originalFile);
+
           // Generate taxonomy-based name for the creative
           const taxonomyName = generateCreativeTaxonomyName(asset, match.structure);
-          
+
           // Create new creative for uploaded files
-          const { data: creative } = await supabase
+          const { data: creative, error: insertCreativeError } = await supabase
             .from('creatives')
             .insert({
               name: taxonomyName,
               user_id: user.id,
+              team_id: null,
               platform: match.structure.platform,
               creative_type: asset.mediaType === 'video' ? 'video' : 'image',
+              media_type: asset.mediaType,
               status: 'ready',
               market: match.structure.market,
               phase_name: match.structure.phases?.[0],
@@ -988,11 +1026,17 @@ export function useCreativeMatching(campaignId?: string) {
               duration_seconds: asset.technicalAttributes.duration,
               file_size_bytes: asset.technicalAttributes.fileSize,
               original_filename: asset.fileName,
+              folder_path: asset.filePath,
+              media_urls: [mediaUrl],
+              thumbnail_url: mediaUrl,
               language: asset.hardConstraints?.language,
             })
-            .select().single();
+            .select()
+            .single();
 
+          if (insertCreativeError) throw insertCreativeError;
           if (!creative) continue;
+
           creativeId = creative.id;
         }
 
@@ -1003,25 +1047,30 @@ export function useCreativeMatching(campaignId?: string) {
           market: match.structure.market || 'GLOBAL',
           phase_name: match.structure.phases?.[0] || 'default',
           assigned_by: user.id,
+          position: 0,
           status: 'pending',
         });
       }
 
       if (assignments.length > 0) {
-        const { data: insertedAssignments, error: insertError } = await supabase.from('creative_assignments').insert(assignments).select();
-        
-        if (insertError) {
-          console.error('Error inserting assignments:', insertError);
-          throw insertError;
+        // Upsert so re-saving doesn't create duplicates.
+        const { data: upsertedAssignments, error: upsertError } = await supabase
+          .from('creative_assignments')
+          .upsert(assignments, {
+            onConflict: 'creative_id,campaign_id,platform,market,phase_name',
+          })
+          .select();
+
+        if (upsertError) {
+          console.error('Error upserting assignments:', upsertError);
+          throw upsertError;
         }
-        
-        console.log('Inserted assignments:', insertedAssignments);
-        
+
+        console.log('Upserted assignments:', upsertedAssignments);
+
         // Build saved assignments for text asset editor
-        const savedAssignments = (insertedAssignments || []).map((a: any) => {
-          // Find the corresponding asset - use the creative_id to match back
+        const savedAssignments = (upsertedAssignments || []).map((a: any) => {
           const asset = currentState.assets.find(as => {
-            // Look through accepted matches to find this asset
             for (const [key, m] of currentState.acceptedMatches.entries()) {
               if (key.startsWith(as.id + ':') && m.structure.campaignId === a.campaign_id) {
                 return true;
@@ -1029,7 +1078,7 @@ export function useCreativeMatching(campaignId?: string) {
             }
             return false;
           });
-          
+
           return {
             id: a.id,
             creativeId: a.creative_id,
@@ -1040,11 +1089,16 @@ export function useCreativeMatching(campaignId?: string) {
             mediaType: (asset?.mediaType || 'image') as 'image' | 'video',
           };
         });
-        
+
         console.log('Built savedAssignments:', savedAssignments);
-        
-        toast.success(`Saved ${assignments.length} creative assignments`);
-        setState(prev => ({ ...prev, isProcessing: false, currentStep: 'text_assets', savedAssignments }));
+
+        toast.success(`Saved ${assignments.length} creative assignment(s)`);
+        setState(prev => ({
+          ...prev,
+          isProcessing: false,
+          currentStep: 'text_assets',
+          savedAssignments,
+        }));
       } else {
         toast.info('No assignments to save');
         setState(prev => ({ ...prev, isProcessing: false, currentStep: 'complete' }));
