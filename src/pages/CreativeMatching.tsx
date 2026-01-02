@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent } from '@/components/ui/card';
-import { Upload, FolderUp, Wand2, Check, AlertTriangle, Loader2, ArrowLeft, Save, LayoutGrid, Image, Video, CheckCircle2, Layers, List, X } from 'lucide-react';
+import { Upload, FolderUp, Wand2, Check, AlertTriangle, Loader2, ArrowLeft, Save, LayoutGrid, Image, Video, CheckCircle2, Layers, List, X, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
