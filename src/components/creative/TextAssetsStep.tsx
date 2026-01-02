@@ -41,6 +41,9 @@ export function TextAssetsStep({
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Track if we've attempted to load (to distinguish "loading" from "empty result")
+  const [hasAttemptedLoad, setHasAttemptedLoad] = useState(false);
+
   // Load creative assignments with their structure data
   useEffect(() => {
     const loadAssignments = async () => {
@@ -49,6 +52,7 @@ export function TextAssetsStep({
       if (!savedAssignments || savedAssignments.length === 0) {
         console.log('TextAssetsStep: No saved assignments provided');
         setIsLoading(false);
+        setHasAttemptedLoad(true);
         return;
       }
 
@@ -140,6 +144,7 @@ export function TextAssetsStep({
         toast.error('Failed to load creative assignments');
       } finally {
         setIsLoading(false);
+        setHasAttemptedLoad(true);
       }
     };
 
@@ -234,7 +239,8 @@ export function TextAssetsStep({
     );
   }
 
-  if (rows.length === 0) {
+  // Only show "No Assignments Found" if we've actually attempted to load and confirmed empty
+  if (hasAttemptedLoad && rows.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
