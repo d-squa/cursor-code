@@ -709,6 +709,34 @@ export function useCreativeMatching(campaignId?: string) {
           if (closestMatches.length > 0) {
             const topMatch = closestMatches[0];
             reasons.push(...topMatch.blockingReasons);
+            
+            // Add helpful context about market/platform availability
+            if (inferredSignals.market && inferredSignals.platform) {
+              const marketUpper = inferredSignals.market.toUpperCase();
+              const marketOnPlatform = structuresToUse.some(
+                s => s.market?.toUpperCase() === marketUpper && s.platform === inferredSignals.platform
+              );
+              if (!marketOnPlatform) {
+                const platformsWithMarket = [...new Set(
+                  structuresToUse
+                    .filter(s => s.market?.toUpperCase() === marketUpper)
+                    .map(s => s.platform.toUpperCase())
+                )];
+                if (platformsWithMarket.length > 0) {
+                  reasons.push(`💡 Market "${inferredSignals.market}" is only configured for ${platformsWithMarket.join(', ')}, not ${inferredSignals.platform.toUpperCase()}`);
+                } else {
+                  const availableMarkets = [...new Set(
+                    structuresToUse
+                      .filter(s => s.platform === inferredSignals.platform)
+                      .map(s => s.market)
+                      .filter(Boolean)
+                  )].join(', ');
+                  if (availableMarkets) {
+                    reasons.push(`💡 Available markets for ${inferredSignals.platform.toUpperCase()}: ${availableMarkets}`);
+                  }
+                }
+              }
+            }
           } else {
             if (inferredSignals.platform) {
               const platformExists = structuresToUse.some(s => s.platform === inferredSignals.platform);
@@ -717,9 +745,35 @@ export function useCreativeMatching(campaignId?: string) {
               }
             }
             if (inferredSignals.market) {
-              const marketExists = structuresToUse.some(s => s.market?.toUpperCase() === inferredSignals.market?.toUpperCase());
+              const marketUpper = inferredSignals.market.toUpperCase();
+              const marketExists = structuresToUse.some(s => s.market?.toUpperCase() === marketUpper);
               if (!marketExists) {
-                reasons.push(`Market "${inferredSignals.market}" not in ActiPlan`);
+                // Check if market exists on a different platform
+                const platformsWithMarket = structuresToUse
+                  .filter(s => s.market?.toUpperCase() === marketUpper)
+                  .map(s => s.platform.toUpperCase());
+                const uniquePlatformsWithMarket = [...new Set(platformsWithMarket)];
+                
+                if (uniquePlatformsWithMarket.length > 0 && inferredSignals.platform) {
+                  reasons.push(`Market "${inferredSignals.market}" exists for ${uniquePlatformsWithMarket.join(', ')} but not for ${inferredSignals.platform.toUpperCase()}`);
+                } else {
+                  // Market doesn't exist anywhere in the plan
+                  const availableMarkets = [...new Set(structuresToUse.map(s => s.market).filter(Boolean))].join(', ');
+                  reasons.push(`Market "${inferredSignals.market}" not in ActiPlan (available: ${availableMarkets})`);
+                }
+              } else if (inferredSignals.platform) {
+                // Market exists but not for this specific platform
+                const marketOnPlatform = structuresToUse.some(
+                  s => s.market?.toUpperCase() === marketUpper && s.platform === inferredSignals.platform
+                );
+                if (!marketOnPlatform) {
+                  const platformsWithMarket = [...new Set(
+                    structuresToUse
+                      .filter(s => s.market?.toUpperCase() === marketUpper)
+                      .map(s => s.platform.toUpperCase())
+                  )];
+                  reasons.push(`Market "${inferredSignals.market}" only configured for ${platformsWithMarket.join(', ')}, not ${inferredSignals.platform.toUpperCase()}`);
+                }
               }
             }
             if (reasons.length === 0) {
