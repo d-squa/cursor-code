@@ -145,7 +145,7 @@ function StructureCard({
                         if (splitParams.includes(key)) return true;
                         return value !== 'ALL';
                       })
-                      .slice(0, 10)
+                      .slice(0, 12)
                       .map(([param, value], idx) => (
                         <span key={param}>
                           {idx > 0 && <span className="mx-1">•</span>}
@@ -494,7 +494,7 @@ function AssignedAssetsPanel({
                                   if (splitParams.includes(key)) return true;
                                   return value !== 'ALL';
                                 })
-                                .slice(0, 10)
+                                .slice(0, 12)
                                 .map(([param, value], idx) => (
                                   <span key={param}>
                                     {idx > 0 && <span className="mx-1">•</span>}
@@ -719,7 +719,7 @@ function SuggestionsPanel({
                               if (splitParams.includes(key)) return true;
                               return value !== 'ALL';
                             })
-                            .slice(0, 8)
+                            .slice(0, 10)
                             .map(([param, value], idx) => (
                               <span key={param}>
                                 {idx > 0 && <span className="mx-1">•</span>}
