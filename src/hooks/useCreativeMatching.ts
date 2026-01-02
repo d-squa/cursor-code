@@ -946,6 +946,10 @@ export function useCreativeMatching(campaignId?: string) {
     }
 
     setState(prev => ({ ...prev, isProcessing: true }));
+    toast.info('Saving matches… this can take a few minutes for large files');
+
+    const MAX_UPLOAD_BYTES = 100 * 1024 * 1024; // 100MB
+    const PER_CALL_TIMEOUT_MS = 180_000; // 3 minutes
 
     // Cache uploads per asset so a single file matched to multiple structures
     // doesn't get uploaded multiple times.
