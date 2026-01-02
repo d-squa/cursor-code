@@ -236,14 +236,32 @@ export function useCreativeMatching(campaignId?: string) {
         const defaultTemplate = getDefaultAdSetParams(platformKey as 'meta' | 'tiktok');
         const customTemplate = taxonomyTemplates[platformKey];
         
+        // Ensure essential split-related params are always included
+        const essentialParamIds = ['gender', 'devices', 'ageRange', 'languages', 'location'];
+        
         // If custom template exists, use it but ensure labels are populated from defaults
-        const template = customTemplate ? customTemplate.map(param => {
-          const defaultParam = defaultTemplate.find(d => d.id === param.id);
-          return {
-            ...param,
-            label: param.label || defaultParam?.label || param.id.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
-          };
-        }) : defaultTemplate;
+        // AND ensure essential params are included even if missing from custom template
+        let template: TaxonomyParam[];
+        if (customTemplate) {
+          template = customTemplate.map(param => {
+            const defaultParam = defaultTemplate.find(d => d.id === param.id);
+            return {
+              ...param,
+              label: param.label || defaultParam?.label || param.id.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+            };
+          });
+          // Add any missing essential params from defaults
+          for (const essentialId of essentialParamIds) {
+            if (!template.find(p => p.id === essentialId)) {
+              const defaultParam = defaultTemplate.find(d => d.id === essentialId);
+              if (defaultParam) {
+                template.push(defaultParam);
+              }
+            }
+          }
+        } else {
+          template = defaultTemplate;
+        }
         
         const values = extractTaxonomyValues(template, context);
         const taxonomyName = generateTaxonomyString(template, values);
