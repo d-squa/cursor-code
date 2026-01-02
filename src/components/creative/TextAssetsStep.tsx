@@ -27,6 +27,8 @@ interface SavedAssignment {
   platform: string;
   market: string;
   phaseName: string;
+  adSetName?: string;
+  adSetId?: string;
   creativeName: string;
   mediaType: 'image' | 'video';
 }
@@ -310,6 +312,12 @@ export function TextAssetsStep({
             taxonomyAdName = creative?.name || 'Creative';
           }
           
+          // Look up the adSetName from savedAssignments if available (passed from matching flow)
+          const savedAssignment = hasSavedAssignments 
+            ? (savedAssignments || []).find((sa: SavedAssignment) => sa.id === assignment.id)
+            : undefined;
+          const adSetName = savedAssignment?.adSetName || `Ad Set ${assignment.position || 1}`;
+          
           return {
             id: `${assignment.id}_${assignment.creative_id}`,
             creativeId: assignment.creative_id,
@@ -317,7 +325,7 @@ export function TextAssetsStep({
             platform: assignment.platform || 'meta',
             market: assignment.market || 'Global',
             phase: assignment.phase_name || 'Default',
-            adSet: `Ad Set ${assignment.position || 1}`,
+            adSet: adSetName,
             creativeName: creative?.name || 'Unknown Creative',
             creativeFormat: (creative?.creative_type || 'image') as CreativeFormat,
             // Taxonomy names

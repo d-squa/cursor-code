@@ -1074,14 +1074,21 @@ export function useCreativeMatching(campaignId?: string) {
 
         // Build saved assignments for text asset editor
         const savedAssignments = (upsertedAssignments || []).map((a: any) => {
-          const asset = currentState.assets.find(as => {
-            for (const [key, m] of currentState.acceptedMatches.entries()) {
-              if (key.startsWith(as.id + ':') && m.structure.campaignId === a.campaign_id) {
-                return true;
-              }
+          let matchedAsset: DigestedAsset | undefined;
+          let matchedStructure: CampaignStructure | undefined;
+          
+          for (const [key, m] of currentState.acceptedMatches.entries()) {
+            const assetId = key.split(':')[0];
+            const asset = currentState.assets.find(as => as.id === assetId);
+            if (asset && m.structure.campaignId === a.campaign_id && 
+                m.structure.platform === a.platform && 
+                m.structure.market === a.market &&
+                m.structure.phases?.[0] === a.phase_name) {
+              matchedAsset = asset;
+              matchedStructure = m.structure;
+              break;
             }
-            return false;
-          });
+          }
 
           return {
             id: a.id,
@@ -1089,8 +1096,10 @@ export function useCreativeMatching(campaignId?: string) {
             platform: a.platform,
             market: a.market,
             phaseName: a.phase_name,
-            creativeName: asset?.fileName || 'Creative',
-            mediaType: (asset?.mediaType || 'image') as 'image' | 'video',
+            adSetName: matchedStructure?.adSetName || `Ad Set 1`,
+            adSetId: matchedStructure?.adSetId,
+            creativeName: matchedAsset?.fileName || 'Creative',
+            mediaType: (matchedAsset?.mediaType || 'image') as 'image' | 'video',
           };
         });
 
