@@ -47,13 +47,27 @@ export interface Creative {
   mediaUrls: string[];
   thumbnailUrl?: string;
   
-  // Creative copy
+  // Creative copy - Primary
   primaryText?: string;
   headline?: string;
   description?: string;
   caption?: string;
   callToAction?: CallToAction;
   destinationUrl?: string;
+  
+  // Creative copy - Additional variants (Meta supports up to 5)
+  primaryText2?: string;
+  primaryText3?: string;
+  primaryText4?: string;
+  primaryText5?: string;
+  headline2?: string;
+  headline3?: string;
+  headline4?: string;
+  headline5?: string;
+  description2?: string;
+  description3?: string;
+  description4?: string;
+  description5?: string;
   
   // For existing posts (reference by ID)
   externalPostId?: string;
@@ -82,8 +96,60 @@ export interface Creative {
   spreadsheetRowNumber?: number;
   importBatchId?: string;
   
+  // DSP upload tracking
+  platformVideoId?: string;      // Video ID after upload to Meta/TikTok
+  platformImageHash?: string;    // Meta image hash after upload
+  platformThumbnailId?: string;  // TikTok thumbnail image ID
+  dspUploadStatus?: 'pending' | 'uploading' | 'uploaded' | 'error';
+  dspUploadError?: string;
+  dspUploadedAt?: string;
+  
+  // TikTok-specific identity
+  tiktokDisplayName?: string;    // Display name for custom identity
+  tiktokIdentityId?: string;     // TikTok identity ID (Spark Ads)
+  tiktokAdFormat?: string;       // SINGLE_VIDEO, SINGLE_IMAGE, CAROUSEL, etc.
+  
+  // Meta-specific placement images
+  storyImageUrl?: string;        // Image for Stories/Reels placements
+  rightColumnImageUrl?: string;  // Image for Right Column placement
+  
+  // URL & tracking
+  urlParameters?: string;        // UTM and other tracking parameters
+  
+  // Meta creative control flags
+  disableCreativeEnhancements?: boolean;
+  disableMultiAdvertiserAds?: boolean;
+  
+  // Ad scheduling (Meta supports ad-level)
+  adStartTime?: string;
+  adEndTime?: string;
+  
+  // Lead generation
+  leadFormId?: string;
+  
+  // Carousel & Collection
+  carouselCards?: CarouselCard[];
+  instantExperienceId?: string;
+  catalogId?: string;
+  productSetId?: string;
+  
+  // App promotion / Deep linking
+  appLink?: string;
+  deeplinkUrl?: string;
+  
   createdAt: string;
   updatedAt: string;
+}
+
+// Carousel card for multi-asset ads
+export interface CarouselCard {
+  imageUrl?: string;
+  imageHash?: string;
+  videoId?: string;
+  link: string;
+  headline?: string;
+  description?: string;
+  callToAction?: CallToAction;
 }
 
 // Creative Assignment for mapping to campaign structure
@@ -337,15 +403,34 @@ export function dbRowToCreative(row: Record<string, unknown>): Creative {
     funnelStage: row.funnel_stage as string | undefined,
     mediaUrls: (row.media_urls as string[]) || [],
     thumbnailUrl: row.thumbnail_url as string | undefined,
+    
+    // Primary copy
     primaryText: row.primary_text as string | undefined,
     headline: row.headline as string | undefined,
     description: row.description as string | undefined,
     caption: row.caption as string | undefined,
     callToAction: row.call_to_action as CallToAction | undefined,
     destinationUrl: row.destination_url as string | undefined,
+    
+    // Additional copy variants
+    primaryText2: row.primary_text_2 as string | undefined,
+    primaryText3: row.primary_text_3 as string | undefined,
+    primaryText4: row.primary_text_4 as string | undefined,
+    primaryText5: row.primary_text_5 as string | undefined,
+    headline2: row.headline_2 as string | undefined,
+    headline3: row.headline_3 as string | undefined,
+    headline4: row.headline_4 as string | undefined,
+    headline5: row.headline_5 as string | undefined,
+    description2: row.description_2 as string | undefined,
+    description3: row.description_3 as string | undefined,
+    description4: row.description_4 as string | undefined,
+    description5: row.description_5 as string | undefined,
+    
+    // External post references
     externalPostId: row.external_post_id as string | undefined,
     externalPageId: row.external_page_id as string | undefined,
     externalAccountName: row.external_account_name as string | undefined,
+    
     platformMetadata: row.platform_metadata as Record<string, unknown> | undefined,
     validationErrors: (row.validation_errors as string[]) || [],
     isValid: row.is_valid as boolean,
@@ -358,6 +443,46 @@ export function dbRowToCreative(row: Record<string, unknown>): Creative {
     originalFilename: row.original_filename as string | undefined,
     spreadsheetRowNumber: row.spreadsheet_row_number as number | undefined,
     importBatchId: row.import_batch_id as string | undefined,
+    
+    // DSP upload tracking
+    platformVideoId: row.platform_video_id as string | undefined,
+    platformImageHash: row.platform_image_hash as string | undefined,
+    platformThumbnailId: row.platform_thumbnail_id as string | undefined,
+    dspUploadStatus: row.dsp_upload_status as Creative['dspUploadStatus'] | undefined,
+    dspUploadError: row.dsp_upload_error as string | undefined,
+    dspUploadedAt: row.dsp_uploaded_at as string | undefined,
+    
+    // TikTok-specific
+    tiktokDisplayName: row.tiktok_display_name as string | undefined,
+    tiktokIdentityId: row.tiktok_identity_id as string | undefined,
+    tiktokAdFormat: row.tiktok_ad_format as string | undefined,
+    
+    // Meta placement images
+    storyImageUrl: row.story_image_url as string | undefined,
+    rightColumnImageUrl: row.right_column_image_url as string | undefined,
+    
+    // URL tracking
+    urlParameters: row.url_parameters as string | undefined,
+    
+    // Meta control flags
+    disableCreativeEnhancements: row.disable_creative_enhancements as boolean | undefined,
+    disableMultiAdvertiserAds: row.disable_multi_advertiser_ads as boolean | undefined,
+    
+    // Ad scheduling
+    adStartTime: row.ad_start_time as string | undefined,
+    adEndTime: row.ad_end_time as string | undefined,
+    
+    // Lead gen & commerce
+    leadFormId: row.lead_form_id as string | undefined,
+    carouselCards: row.carousel_cards as CarouselCard[] | undefined,
+    instantExperienceId: row.instant_experience_id as string | undefined,
+    catalogId: row.catalog_id as string | undefined,
+    productSetId: row.product_set_id as string | undefined,
+    
+    // App / deep linking
+    appLink: row.app_link as string | undefined,
+    deeplinkUrl: row.deeplink_url as string | undefined,
+    
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string,
   };
@@ -379,15 +504,34 @@ export function creativeToDbInsert(creative: Partial<Creative> & { userId: strin
     funnel_stage: creative.funnelStage,
     media_urls: creative.mediaUrls || [],
     thumbnail_url: creative.thumbnailUrl,
+    
+    // Primary copy
     primary_text: creative.primaryText,
     headline: creative.headline,
     description: creative.description,
     caption: creative.caption,
     call_to_action: creative.callToAction,
     destination_url: creative.destinationUrl,
+    
+    // Additional copy variants
+    primary_text_2: creative.primaryText2,
+    primary_text_3: creative.primaryText3,
+    primary_text_4: creative.primaryText4,
+    primary_text_5: creative.primaryText5,
+    headline_2: creative.headline2,
+    headline_3: creative.headline3,
+    headline_4: creative.headline4,
+    headline_5: creative.headline5,
+    description_2: creative.description2,
+    description_3: creative.description3,
+    description_4: creative.description4,
+    description_5: creative.description5,
+    
+    // External post references
     external_post_id: creative.externalPostId,
     external_page_id: creative.externalPageId,
     external_account_name: creative.externalAccountName,
+    
     platform_metadata: creative.platformMetadata || {},
     validation_errors: creative.validationErrors || [],
     width: creative.width,
@@ -399,5 +543,44 @@ export function creativeToDbInsert(creative: Partial<Creative> & { userId: strin
     original_filename: creative.originalFilename,
     spreadsheet_row_number: creative.spreadsheetRowNumber,
     import_batch_id: creative.importBatchId,
+    
+    // DSP upload tracking
+    platform_video_id: creative.platformVideoId,
+    platform_image_hash: creative.platformImageHash,
+    platform_thumbnail_id: creative.platformThumbnailId,
+    dsp_upload_status: creative.dspUploadStatus,
+    dsp_upload_error: creative.dspUploadError,
+    dsp_uploaded_at: creative.dspUploadedAt,
+    
+    // TikTok-specific
+    tiktok_display_name: creative.tiktokDisplayName,
+    tiktok_identity_id: creative.tiktokIdentityId,
+    tiktok_ad_format: creative.tiktokAdFormat,
+    
+    // Meta placement images
+    story_image_url: creative.storyImageUrl,
+    right_column_image_url: creative.rightColumnImageUrl,
+    
+    // URL tracking
+    url_parameters: creative.urlParameters,
+    
+    // Meta control flags
+    disable_creative_enhancements: creative.disableCreativeEnhancements,
+    disable_multi_advertiser_ads: creative.disableMultiAdvertiserAds,
+    
+    // Ad scheduling
+    ad_start_time: creative.adStartTime,
+    ad_end_time: creative.adEndTime,
+    
+    // Lead gen & commerce
+    lead_form_id: creative.leadFormId,
+    carousel_cards: creative.carouselCards || [],
+    instant_experience_id: creative.instantExperienceId,
+    catalog_id: creative.catalogId,
+    product_set_id: creative.productSetId,
+    
+    // App / deep linking
+    app_link: creative.appLink,
+    deeplink_url: creative.deeplinkUrl,
   };
 }
