@@ -249,11 +249,15 @@ export function useCreativeMatching(campaignId?: string) {
         const taxonomyName = generateTaxonomyString(template, values);
         
         // Build elements for display: paramLabel -> value
-        // Include all params with meaningful values
+        // Include all params with meaningful values, but keep split-related fields even if 'ALL'
+        const splitRelatedParams = ['gender', 'devices', 'ageRange', 'languages', 'location'];
         const elements: Record<string, string> = {};
         for (const param of template) {
           const value = values[param.id];
-          if (!value || value === '' || value === 'ALL') continue; // Skip empty/ALL values
+          if (!value || value === '') continue; // Skip empty values
+          // For split-related params, always include (even if ALL)
+          // For others, skip 'ALL' values
+          if (value === 'ALL' && !splitRelatedParams.includes(param.id)) continue;
           
           // Use the label from template
           const label = param.label || param.id.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
