@@ -114,3 +114,9 @@ verify_jwt = false
 
 [functions.check-campaign-dsp-status]
 verify_jwt = false
+
+[functions.upload-creative-to-meta]
+verify_jwt = true
+
+[functions.upload-creative-to-tiktok]
+verify_jwt = true

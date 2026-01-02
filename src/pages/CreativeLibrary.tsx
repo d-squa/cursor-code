@@ -171,7 +171,7 @@ export default function CreativeLibrary() {
         <TabsContent value="folder" className="mt-6">
           <FolderUpload
             onUploadComplete={handleFolderUploadComplete}
-            onUploadFile={uploadFile}
+            adAccounts={[]} // TODO: Pass ad accounts from selected ActiPlan
             isUploading={isCreating}
           />
         </TabsContent>
