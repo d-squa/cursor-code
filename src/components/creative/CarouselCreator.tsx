@@ -1,7 +1,7 @@
 // Carousel Creator Component
 // Allows multi-selecting creatives within an ad set to link as carousel cards
 
-import { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -21,9 +21,15 @@ interface CarouselCreatorProps {
 
 export function CarouselCreator({ selectedRows, onCreateCarousel, onCancel, open }: CarouselCreatorProps) {
   const [carouselName, setCarouselName] = useState('');
-  const [orderedCards, setOrderedCards] = useState<CreativeTextAssetRow[]>(selectedRows);
+  const [orderedCards, setOrderedCards] = useState<CreativeTextAssetRow[]>([]);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
+  // Sync orderedCards when dialog opens or selectedRows changes
+  useEffect(() => {
+    if (open && selectedRows.length > 0) {
+      setOrderedCards(selectedRows);
+    }
+  }, [open, selectedRows]);
   // Validate all selected are from same ad set
   const adSetNames = [...new Set(selectedRows.map(r => r.adSet))];
   const isSameAdSet = adSetNames.length === 1;
