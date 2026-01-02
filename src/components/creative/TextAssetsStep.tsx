@@ -8,7 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Save, Check, AlertCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { CreativeTextAssetEditor } from './CreativeTextAssetEditor';
+import { TextAssetExcelEditor } from './TextAssetExcelEditor';
 import type { CreativeTextAssetRow, CreativeFormat } from '@/types/creativeTextAssets';
 import { validateTextAssetRow } from '@/types/creativeTextAssets';
 import type { CallToAction } from '@/types/creative';
@@ -154,6 +154,16 @@ export function TextAssetsStep({
     }));
   }, []);
 
+  // Handle import from Excel
+  const handleImportRows = useCallback((importedRows: CreativeTextAssetRow[]) => {
+    // Re-validate all imported rows
+    const validatedRows = importedRows.map(row => {
+      const errors = validateTextAssetRow(row);
+      return { ...row, validationErrors: errors, isValid: errors.length === 0 };
+    });
+    setRows(validatedRows);
+  }, []);
+
   // Save text assets to database
   const handleSave = useCallback(async () => {
     setIsSaving(true);
@@ -231,11 +241,12 @@ export function TextAssetsStep({
   return (
     <div className="h-full flex flex-col">
       <div className="flex-1 overflow-hidden">
-        <CreativeTextAssetEditor
+        <TextAssetExcelEditor
           rows={rows}
           campaignName={campaignName}
           onRowChange={handleRowChange}
           onBulkUpdate={handleBulkUpdate}
+          onImportRows={handleImportRows}
           onSave={handleSave}
           isSaving={isSaving}
         />
