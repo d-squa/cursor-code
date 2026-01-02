@@ -138,8 +138,14 @@ function StructureCard({
                 {structure.taxonomyElements && Object.entries(structure.taxonomyElements).length > 0 && (
                   <div className="text-[10px] text-muted-foreground mt-1 leading-relaxed">
                     {Object.entries(structure.taxonomyElements)
-                      .filter(([, value]) => value && value !== '' && value !== 'ALL') // Filter out empty and ALL values
-                      .slice(0, 10) // Show more taxonomy parameters
+                      .filter(([key, value]) => {
+                        if (!value || value === '') return false;
+                        // Always show split-related params (even if ALL)
+                        const splitParams = ['Gender', 'Devices', 'Age Range', 'Languages', 'Location'];
+                        if (splitParams.includes(key)) return true;
+                        return value !== 'ALL';
+                      })
+                      .slice(0, 10)
                       .map(([param, value], idx) => (
                         <span key={param}>
                           {idx > 0 && <span className="mx-1">•</span>}
@@ -481,7 +487,13 @@ function AssignedAssetsPanel({
                           {structure.taxonomyElements && Object.entries(structure.taxonomyElements).length > 0 && (
                             <div className="text-[10px] text-muted-foreground mt-1 leading-relaxed">
                               {Object.entries(structure.taxonomyElements)
-                                .filter(([, value]) => value && value !== '' && value !== 'ALL')
+                                .filter(([key, value]) => {
+                                  if (!value || value === '') return false;
+                                  // Always show split-related params (even if ALL)
+                                  const splitParams = ['Gender', 'Devices', 'Age Range', 'Languages', 'Location'];
+                                  if (splitParams.includes(key)) return true;
+                                  return value !== 'ALL';
+                                })
                                 .slice(0, 10)
                                 .map(([param, value], idx) => (
                                   <span key={param}>
@@ -700,7 +712,13 @@ function SuggestionsPanel({
                       {structure.taxonomyElements && Object.entries(structure.taxonomyElements).length > 0 && (
                         <div className="text-[10px] text-muted-foreground mt-1 leading-relaxed">
                           {Object.entries(structure.taxonomyElements)
-                            .filter(([, value]) => value && value !== '' && value !== 'ALL')
+                            .filter(([key, value]) => {
+                              if (!value || value === '') return false;
+                              // Always show split-related params (even if ALL)
+                              const splitParams = ['Gender', 'Devices', 'Age Range', 'Languages', 'Location'];
+                              if (splitParams.includes(key)) return true;
+                              return value !== 'ALL';
+                            })
                             .slice(0, 8)
                             .map(([param, value], idx) => (
                               <span key={param}>
