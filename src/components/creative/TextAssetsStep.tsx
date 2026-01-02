@@ -13,6 +13,13 @@ import type { CreativeTextAssetRow, CreativeFormat, AdFormat } from '@/types/cre
 import { validateTextAssetRow } from '@/types/creativeTextAssets';
 import type { CallToAction } from '@/types/creative';
 import { detectAdFormat } from '@/utils/adFormatDetection';
+import { 
+  TaxonomyParam,
+  TaxonomyContext,
+  extractTaxonomyValues,
+  generateTaxonomyString,
+  generateAdTaxonomyName
+} from '@/utils/taxonomyUtils';
 
 interface SavedAssignment {
   id: string;
@@ -44,7 +51,7 @@ export function TextAssetsStep({
   // Track if we've attempted to load (to distinguish "loading" from "empty result")
   const [hasAttemptedLoad, setHasAttemptedLoad] = useState(false);
 
-  // Load creative assignments with their structure data
+  // Load creative assignments with their structure data and taxonomy templates
   useEffect(() => {
     const loadAssignments = async () => {
       console.log('TextAssetsStep: Loading with savedAssignments:', savedAssignments);
@@ -61,42 +68,90 @@ export function TextAssetsStep({
         const assignmentIds = savedAssignments.map(a => a.id);
         console.log('TextAssetsStep: Fetching assignments with IDs:', assignmentIds);
         
-        // Fetch assignments with creative data
-        const { data: assignments, error } = await supabase
-          .from('creative_assignments')
-          .select(`
-            id,
-            campaign_id,
-            creative_id,
-            platform,
-            market,
-            phase_name,
-            position,
-            creatives (
+        // Fetch assignments, campaign data, and taxonomy templates in parallel
+        const [assignmentsResult, campaignResult] = await Promise.all([
+          supabase
+            .from('creative_assignments')
+            .select(`
               id,
-              name,
-              creative_type,
-              primary_text,
-              headline,
-              description,
-              call_to_action,
-              destination_url,
-              thumbnail_url,
-              aspect_ratio,
-              media_urls
-            )
-          `)
-          .in('id', assignmentIds);
+              campaign_id,
+              creative_id,
+              platform,
+              market,
+              phase_name,
+              position,
+              creatives (
+                id,
+                name,
+                creative_type,
+                primary_text,
+                headline,
+                description,
+                call_to_action,
+                destination_url,
+                thumbnail_url,
+                aspect_ratio,
+                media_urls
+              )
+            `)
+            .in('id', assignmentIds),
+          supabase
+            .from('campaigns')
+            .select('id, name, objective, start_date, end_date, bo_number, total_budget, platforms, budget_allocation, team_id, teams(name)')
+            .eq('id', campaignId)
+            .single()
+        ]);
 
-        if (error) {
-          console.error('TextAssetsStep: Error fetching assignments:', error);
-          throw error;
+        if (assignmentsResult.error) {
+          console.error('TextAssetsStep: Error fetching assignments:', assignmentsResult.error);
+          throw assignmentsResult.error;
         }
 
+        const assignments = assignmentsResult.data || [];
+        const campaign = campaignResult.data;
+        
         console.log('TextAssetsStep: Fetched assignments:', assignments);
+        console.log('TextAssetsStep: Fetched campaign:', campaign);
 
-        // Transform to CreativeTextAssetRow format
-        const transformedRows: CreativeTextAssetRow[] = (assignments || []).map((assignment: any) => {
+        // Group assignments by platform and market to fetch taxonomy templates
+        const platformMarketCombos = new Set<string>();
+        assignments.forEach((a: any) => {
+          if (a.platform && a.market) {
+            platformMarketCombos.add(`${a.platform}|${a.market}`);
+          }
+        });
+
+        // Fetch taxonomy templates for all platforms used
+        const uniquePlatforms = [...new Set(assignments.map((a: any) => a.platform).filter(Boolean))];
+        const taxonomyTemplates: Record<string, { campaign: TaxonomyParam[], adset: TaxonomyParam[], ad: TaxonomyParam[] }> = {};
+
+        // Get ad account IDs from campaign platforms config
+        const platformsConfig = (campaign?.platforms as any) || {};
+        
+        for (const platform of uniquePlatforms) {
+          const platformConfig = platformsConfig[platform];
+          const adAccountId = platformConfig?.adAccountId;
+          
+          if (adAccountId) {
+            // Fetch taxonomy templates for this ad account
+            const { data: templates } = await supabase
+              .from('taxonomy_templates')
+              .select('entity_type, template')
+              .eq('ad_account_id', adAccountId)
+              .eq('platform', platform);
+            
+            if (templates) {
+              taxonomyTemplates[platform] = {
+                campaign: (templates.find((t: any) => t.entity_type === 'campaign')?.template as unknown as TaxonomyParam[]) || [],
+                adset: (templates.find((t: any) => t.entity_type === 'adset')?.template as unknown as TaxonomyParam[]) || [],
+                ad: (templates.find((t: any) => t.entity_type === 'ad')?.template as unknown as TaxonomyParam[]) || [],
+              };
+            }
+          }
+        }
+
+        // Transform to CreativeTextAssetRow format with taxonomy names
+        const transformedRows: CreativeTextAssetRow[] = assignments.map((assignment: any) => {
           const creative = assignment.creatives;
           const isVideo = creative?.creative_type === 'video' || 
                          (creative?.media_urls?.[0]?.includes('.mp4') || creative?.media_urls?.[0]?.includes('.mov'));
@@ -109,6 +164,69 @@ export function TextAssetsStep({
             mediaType,
             platform: assignment.platform,
           });
+
+          // Get phase budget from campaign budget allocation
+          const budgetAllocation = campaign?.budget_allocation as any || {};
+          const phaseBudget = budgetAllocation[assignment.phase_name]?.budget || 0;
+
+          // Build taxonomy context for this row
+          const taxonomyContext: TaxonomyContext = {
+            platform: assignment.platform,
+            activationName: campaign?.name || campaignName,
+            campaignName: campaign?.name || campaignName,
+            objective: campaign?.objective,
+            boNumber: campaign?.bo_number,
+            teamName: (campaign?.teams as any)?.name,
+            totalBudget: campaign?.total_budget,
+            country: assignment.market,
+            market: assignment.market,
+            phaseBudget,
+            startDate: campaign?.start_date,
+            endDate: campaign?.end_date,
+            adFormat: suggestedFormat,
+            funnelStage: assignment.phase_name,
+          };
+
+          // Generate taxonomy names using templates
+          const platformTemplates = taxonomyTemplates[assignment.platform];
+          let taxonomyCampaignName = '';
+          let taxonomyAdSetName = '';
+          let taxonomyAdName = '';
+
+          if (platformTemplates) {
+            // Generate campaign name
+            if (platformTemplates.campaign.length > 0) {
+              const campaignValues = extractTaxonomyValues(platformTemplates.campaign, taxonomyContext);
+              taxonomyCampaignName = generateTaxonomyString(platformTemplates.campaign, campaignValues);
+            }
+
+            // Generate ad set name
+            if (platformTemplates.adset.length > 0) {
+              const adsetValues = extractTaxonomyValues(platformTemplates.adset, taxonomyContext);
+              taxonomyAdSetName = generateTaxonomyString(platformTemplates.adset, adsetValues);
+            }
+
+            // Generate ad name
+            if (platformTemplates.ad.length > 0) {
+              taxonomyAdName = generateAdTaxonomyName({
+                name: creative?.name,
+                format: mediaType,
+                creativeVariant: 'A',
+                copyVariant: 'V1',
+              }, platformTemplates.ad);
+            }
+          }
+
+          // Fallback to descriptive names if no taxonomy template
+          if (!taxonomyCampaignName) {
+            taxonomyCampaignName = `${campaignName}_${assignment.platform?.toUpperCase() || 'META'}_${assignment.market || 'Global'}`;
+          }
+          if (!taxonomyAdSetName) {
+            taxonomyAdSetName = `${assignment.phase_name || 'Default'}_${suggestedFormat}`;
+          }
+          if (!taxonomyAdName) {
+            taxonomyAdName = creative?.name || 'Creative';
+          }
           
           return {
             id: `${assignment.id}_${assignment.creative_id}`,
@@ -120,6 +238,10 @@ export function TextAssetsStep({
             adSet: `Ad Set ${assignment.position || 1}`,
             creativeName: creative?.name || 'Unknown Creative',
             creativeFormat: (creative?.creative_type || 'image') as CreativeFormat,
+            // Taxonomy names
+            taxonomyCampaignName,
+            taxonomyAdSetName,
+            taxonomyAdName,
             adFormat: suggestedFormat,
             suggestedAdFormat: suggestedFormat,
             adFormatConfirmed: false,
@@ -149,7 +271,7 @@ export function TextAssetsStep({
     };
 
     loadAssignments();
-  }, [savedAssignments]);
+  }, [savedAssignments, campaignId, campaignName]);
 
   // Handle individual row changes
   const handleRowChange = useCallback((id: string, updates: Partial<CreativeTextAssetRow>) => {
