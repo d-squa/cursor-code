@@ -1,4 +1,4 @@
-// Folder Upload Component with hierarchical taxonomy parsing
+// Folder Upload Component - Uploads directly to DSP (Meta/TikTok)
 import { useState, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,13 +23,19 @@ import {
   Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 import { validateFolderPath, inferCreativeTypeFromFile, calculateAspectRatio } from '@/utils/creativeValidation';
 import type { Creative, Platform, CreativeType, ParsedFolderStructure } from '@/types/creative';
 import { cn } from '@/lib/utils';
 
+interface AdAccountInfo {
+  platform: 'meta' | 'tiktok';
+  accountId: string; // Meta: act_xxx or xxx, TikTok: advertiser_id
+}
+
 interface FolderUploadProps {
   onUploadComplete: (creatives: Partial<Creative>[]) => Promise<void>;
-  onUploadFile: (file: File) => Promise<string>;
+  adAccounts: AdAccountInfo[]; // Ad accounts from the selected ActiPlan
   isUploading?: boolean;
 }
 
@@ -42,17 +48,98 @@ interface ParsedFile {
   warnings: string[];
   preview?: string;
   dimensions?: { width: number; height: number };
+  dspUploadResult?: {
+    platform: 'meta' | 'tiktok';
+    imageHash?: string;
+    videoId?: string;
+    imageId?: string;
+  };
 }
 
-export function FolderUpload({ onUploadComplete, onUploadFile, isUploading = false }: FolderUploadProps) {
+// Max file size: 100MB for DSP uploads
+const MAX_FILE_SIZE = 100 * 1024 * 1024;
+
+export function FolderUpload({ onUploadComplete, adAccounts, isUploading = false }: FolderUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [parsedFiles, setParsedFiles] = useState<ParsedFile[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
 
-  // Max file size: 50MB (Supabase storage limit)
-  const MAX_FILE_SIZE = 50 * 1024 * 1024;
+  // Get ad account for a platform
+  const getAdAccountForPlatform = useCallback((platform: string): AdAccountInfo | undefined => {
+    const normalizedPlatform = platform?.toLowerCase();
+    if (normalizedPlatform === 'meta' || normalizedPlatform === 'facebook' || normalizedPlatform === 'instagram') {
+      return adAccounts.find(a => a.platform === 'meta');
+    }
+    if (normalizedPlatform === 'tiktok') {
+      return adAccounts.find(a => a.platform === 'tiktok');
+    }
+    // Default to first available
+    return adAccounts[0];
+  }, [adAccounts]);
+
+  // Upload file to DSP (Meta or TikTok)
+  const uploadToDsp = useCallback(async (
+    file: File,
+    platform: 'meta' | 'tiktok',
+    adAccount: AdAccountInfo
+  ): Promise<{ imageHash?: string; videoId?: string; imageId?: string }> => {
+    // Read file as base64
+    const base64 = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        // Remove data URL prefix (e.g., "data:image/png;base64,")
+        const base64Data = result.split(',')[1];
+        resolve(base64Data);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
+    const fileType = file.type.startsWith('video/') ? 'video' : 'image';
+
+    if (platform === 'meta') {
+      const { data, error } = await supabase.functions.invoke('upload-creative-to-meta', {
+        body: {
+          adAccountId: adAccount.accountId,
+          fileName: file.name,
+          fileData: base64,
+          fileType,
+          mimeType: file.type,
+        },
+      });
+
+      if (error || !data?.success) {
+        throw new Error(data?.error || error?.message || 'Failed to upload to Meta');
+      }
+
+      return {
+        imageHash: data.imageHash,
+        videoId: data.videoId,
+      };
+    } else {
+      const { data, error } = await supabase.functions.invoke('upload-creative-to-tiktok', {
+        body: {
+          advertiserId: adAccount.accountId,
+          fileName: file.name,
+          fileData: base64,
+          fileType,
+          mimeType: file.type,
+        },
+      });
+
+      if (error || !data?.success) {
+        throw new Error(data?.error || error?.message || 'Failed to upload to TikTok');
+      }
+
+      return {
+        videoId: data.videoId,
+        imageId: data.imageId,
+      };
+    }
+  }, []);
 
   // Parse folder structure from file paths
   const parseFiles = useCallback(async (files: FileList | File[]) => {
@@ -80,10 +167,16 @@ export function FolderUpload({ onUploadComplete, onUploadFile, isUploading = fal
       // Check file size
       const isTooLarge = file.size > MAX_FILE_SIZE;
       const sizeErrors = isTooLarge 
-        ? [`File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Max allowed: 50MB`] 
+        ? [`File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Max allowed: 100MB`] 
         : [];
-      const isValid = !isTooLarge;
-      const errors = [...pathErrors, ...sizeErrors];
+      
+      // Check if we have an ad account for the platform
+      const platform = taxonomy.platform?.toLowerCase() as 'meta' | 'tiktok' | undefined;
+      const adAccount = platform ? getAdAccountForPlatform(platform) : adAccounts[0];
+      const noAdAccountError = !adAccount ? ['No ad account configured for this platform'] : [];
+      
+      const errors = [...pathErrors, ...sizeErrors, ...noAdAccountError];
+      const isValid = !isTooLarge && !!adAccount;
 
       // Generate preview for images
       let preview: string | undefined;
@@ -122,7 +215,7 @@ export function FolderUpload({ onUploadComplete, onUploadFile, isUploading = fal
 
     setParsedFiles(parsed);
     return parsed;
-  }, []);
+  }, [adAccounts, getAdAccountForPlatform]);
 
   // Handle folder selection
   const handleFolderSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -200,7 +293,7 @@ export function FolderUpload({ onUploadComplete, onUploadFile, isUploading = fal
     }
   }, [parseFiles]);
 
-  // Upload all valid files
+  // Upload all valid files to DSP and create creative records
   const handleUpload = useCallback(async () => {
     const validFiles = parsedFiles.filter(f => f.isValid);
     if (validFiles.length === 0) {
@@ -208,47 +301,83 @@ export function FolderUpload({ onUploadComplete, onUploadFile, isUploading = fal
       return;
     }
 
+    if (adAccounts.length === 0) {
+      toast.error('No ad accounts configured. Please select an ActiPlan with connected ad accounts.');
+      return;
+    }
+
     setUploadProgress(0);
     const creatives: Partial<Creative>[] = [];
+    const failedUploads: string[] = [];
     
     try {
       for (let i = 0; i < validFiles.length; i++) {
-        const { file, parsed, dimensions } = validFiles[i];
+        const parsedFile = validFiles[i];
+        const { file, parsed, dimensions } = parsedFile;
         
-        // Upload file to storage
-        const mediaUrl = await onUploadFile(file);
+        // Determine platform and get ad account
+        const platform = (parsed.platform?.toLowerCase() || 'meta') as 'meta' | 'tiktok';
+        const adAccount = getAdAccountForPlatform(platform);
         
-        // Create creative object
-        const creative: Partial<Creative> = {
-          name: file.name.replace(/\.[^/.]+$/, ''),
-          platform: parsed.platform as Platform,
-          market: parsed.market,
-          phaseName: parsed.phase,
-          optimizationGoal: parsed.optimizationGoal,
-          creativeType: (parsed.creativeType as CreativeType) || inferCreativeTypeFromFile(file),
-          mediaUrls: [mediaUrl],
-          thumbnailUrl: mediaUrl,
-          folderPath: validFiles[i].path,
-          originalFilename: file.name,
-          width: dimensions?.width,
-          height: dimensions?.height,
-          aspectRatio: dimensions ? calculateAspectRatio(dimensions.width, dimensions.height) : undefined,
-          fileSizeBytes: file.size,
-          status: 'draft',
-          validationErrors: [],
-        };
+        if (!adAccount) {
+          failedUploads.push(`${file.name}: No ad account for ${platform}`);
+          continue;
+        }
 
-        creatives.push(creative);
+        try {
+          // Upload to DSP
+          const dspResult = await uploadToDsp(file, adAccount.platform, adAccount);
+          
+          // Create creative object with DSP IDs
+          const creative: Partial<Creative> = {
+            name: file.name.replace(/\.[^/.]+$/, ''),
+            platform: (platform === 'meta' ? 'meta' : 'tiktok') as Platform,
+            market: parsed.market,
+            phaseName: parsed.phase,
+            optimizationGoal: parsed.optimizationGoal,
+            creativeType: (parsed.creativeType as CreativeType) || inferCreativeTypeFromFile(file),
+            // Store DSP IDs instead of local storage URLs
+            platformImageHash: dspResult.imageHash,
+            platformVideoId: dspResult.videoId,
+            // For TikTok images, store in platformMetadata
+            platformMetadata: dspResult.imageId ? { tiktokImageId: dspResult.imageId } : undefined,
+            folderPath: parsedFile.path,
+            originalFilename: file.name,
+            width: dimensions?.width,
+            height: dimensions?.height,
+            aspectRatio: dimensions ? calculateAspectRatio(dimensions.width, dimensions.height) : undefined,
+            fileSizeBytes: file.size,
+            status: 'draft',
+            dspUploadStatus: 'uploaded',
+            dspUploadedAt: new Date().toISOString(),
+            validationErrors: [],
+          };
+
+          creatives.push(creative);
+        } catch (uploadError) {
+          console.error(`Failed to upload ${file.name}:`, uploadError);
+          failedUploads.push(`${file.name}: ${(uploadError as Error).message}`);
+        }
+        
         setUploadProgress(((i + 1) / validFiles.length) * 100);
       }
 
-      await onUploadComplete(creatives);
-      setParsedFiles([]);
-      toast.success(`Uploaded ${creatives.length} creatives`);
+      if (creatives.length > 0) {
+        await onUploadComplete(creatives);
+        setParsedFiles([]);
+        
+        if (failedUploads.length > 0) {
+          toast.warning(`Uploaded ${creatives.length} creatives. ${failedUploads.length} failed.`);
+        } else {
+          toast.success(`Uploaded ${creatives.length} creatives to DSP`);
+        }
+      } else {
+        toast.error('All uploads failed. Check console for details.');
+      }
     } catch (error) {
       toast.error('Upload failed: ' + (error as Error).message);
     }
-  }, [parsedFiles, onUploadFile, onUploadComplete]);
+  }, [parsedFiles, adAccounts, getAdAccountForPlatform, uploadToDsp, onUploadComplete]);
 
   // Stats - count files with and without metadata
   const validCount = parsedFiles.filter(f => f.isValid).length;
@@ -264,6 +393,8 @@ export function FolderUpload({ onUploadComplete, onUploadFile, isUploading = fal
     return acc;
   }, {} as Record<string, ParsedFile[]>);
 
+  const hasNoAdAccounts = adAccounts.length === 0;
+
   return (
     <Card>
       <CardHeader>
@@ -272,16 +403,39 @@ export function FolderUpload({ onUploadComplete, onUploadFile, isUploading = fal
           Folder Upload
         </CardTitle>
         <CardDescription>
-          Upload a folder with ActiPlan taxonomy structure: Platform/Market/Phase/Goal/Type/
+          Upload a folder with ActiPlan taxonomy structure. Files are uploaded directly to the ad platform.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Ad Account Warning */}
+        {hasNoAdAccounts && (
+          <div className="flex items-center gap-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+            <AlertTriangle className="h-4 w-4 text-amber-600" />
+            <p className="text-sm text-amber-800 dark:text-amber-200">
+              No ad accounts configured. Select an ActiPlan with connected Meta or TikTok ad accounts.
+            </p>
+          </div>
+        )}
+
+        {/* Connected Platforms */}
+        {adAccounts.length > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Uploading to:</span>
+            {adAccounts.map((acc, i) => (
+              <Badge key={i} variant="outline">
+                {acc.platform === 'meta' ? 'Meta' : 'TikTok'}: {acc.accountId}
+              </Badge>
+            ))}
+          </div>
+        )}
+
         {/* Drop Zone */}
         <div
           className={cn(
             'border-2 border-dashed rounded-lg p-8 text-center transition-colors',
             isDragOver && 'border-primary bg-primary/5',
-            !isDragOver && 'border-muted-foreground/25 hover:border-muted-foreground/50'
+            !isDragOver && 'border-muted-foreground/25 hover:border-muted-foreground/50',
+            hasNoAdAccounts && 'opacity-50 pointer-events-none'
           )}
           onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
           onDragLeave={() => setIsDragOver(false)}
@@ -296,6 +450,7 @@ export function FolderUpload({ onUploadComplete, onUploadFile, isUploading = fal
             multiple
             onChange={handleFolderSelect}
             className="hidden"
+            disabled={hasNoAdAccounts}
           />
           
           {isProcessing ? (
@@ -312,7 +467,7 @@ export function FolderUpload({ onUploadComplete, onUploadFile, isUploading = fal
               <p className="text-sm text-muted-foreground mb-4">
                 Folder structure: Meta/US/Awareness/REACH/image/
               </p>
-              <Button onClick={() => inputRef.current?.click()}>
+              <Button onClick={() => inputRef.current?.click()} disabled={hasNoAdAccounts}>
                 <Upload className="h-4 w-4 mr-2" />
                 Select Folder
               </Button>
@@ -332,7 +487,7 @@ export function FolderUpload({ onUploadComplete, onUploadFile, isUploading = fal
               {invalidCount > 0 && (
                 <Badge variant="destructive" className="gap-1">
                   <XCircle className="h-3 w-3" />
-                  {invalidCount} too large (max 50MB)
+                  {invalidCount} invalid
                 </Badge>
               )}
               {withMetadataCount > 0 && (
@@ -372,7 +527,10 @@ export function FolderUpload({ onUploadComplete, onUploadFile, isUploading = fal
                           return (
                           <div
                             key={i}
-                            className="flex items-center gap-3 p-2 rounded-md bg-muted/50"
+                            className={cn(
+                              'flex items-center gap-3 p-2 rounded-md',
+                              f.isValid ? 'bg-muted/50' : 'bg-destructive/10'
+                            )}
                           >
                             {f.preview ? (
                               <img
@@ -401,13 +559,22 @@ export function FolderUpload({ onUploadComplete, onUploadFile, isUploading = fal
                                   <Badge variant="outline" className="text-xs text-amber-600">No metadata</Badge>
                                 )}
                               </div>
-                              {f.warnings.length > 0 && (
+                              {f.errors.length > 0 && (
+                                <p className="text-xs text-destructive mt-1">
+                                  {f.errors[0]}
+                                </p>
+                              )}
+                              {f.warnings.length > 0 && !f.errors.length && (
                                 <p className="text-xs text-amber-600 mt-1">
                                   {f.warnings[0]}
                                 </p>
                               )}
                             </div>
-                            <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
+                            {f.isValid ? (
+                              <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
+                            ) : (
+                              <XCircle className="h-4 w-4 text-destructive shrink-0" />
+                            )}
                           </div>
                           );
                         })}
@@ -429,17 +596,17 @@ export function FolderUpload({ onUploadComplete, onUploadFile, isUploading = fal
               </Button>
               <Button 
                 onClick={handleUpload} 
-                disabled={validCount === 0 || isUploading}
+                disabled={validCount === 0 || isUploading || hasNoAdAccounts}
               >
                 {isUploading ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Uploading...
+                    Uploading to DSP...
                   </>
                 ) : (
                   <>
                     <Upload className="h-4 w-4 mr-2" />
-                    Upload {validCount} Creatives
+                    Upload {validCount} to DSP
                   </>
                 )}
               </Button>
