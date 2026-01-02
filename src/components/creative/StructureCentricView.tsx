@@ -474,24 +474,12 @@ function AssignedAssetsPanel({
                               </Badge>
                             )}
                           </div>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                            <Badge variant="outline" className="text-[10px] py-0 px-1">
-                              {structure.platform}
-                            </Badge>
-                            {structure.market && <span>{structure.market}</span>}
-                            {structure.language && (
-                              <>
-                                <span>•</span>
-                                <span className="uppercase">{structure.language}</span>
-                              </>
-                            )}
-                          </div>
-                          {/* Show key taxonomy elements inline */}
+                          {/* Show taxonomy elements inline */}
                           {structure.taxonomyElements && Object.entries(structure.taxonomyElements).length > 0 && (
                             <div className="text-[10px] text-muted-foreground mt-1 leading-relaxed">
                               {Object.entries(structure.taxonomyElements)
                                 .filter(([, value]) => value && value !== '' && value !== 'ALL')
-                                .slice(0, 4)
+                                .slice(0, 10)
                                 .map(([param, value], idx) => (
                                   <span key={param}>
                                     {idx > 0 && <span className="mx-1">•</span>}
@@ -705,12 +693,22 @@ function SuggestionsPanel({
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{structure.adSetName}</p>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Badge variant="outline" className="text-[10px] py-0 px-1">
-                          {structure.platform}
-                        </Badge>
-                        {structure.market && <span>{structure.market}</span>}
-                      </div>
+                      {/* Show taxonomy elements inline */}
+                      {structure.taxonomyElements && Object.entries(structure.taxonomyElements).length > 0 && (
+                        <div className="text-[10px] text-muted-foreground mt-1 leading-relaxed">
+                          {Object.entries(structure.taxonomyElements)
+                            .filter(([, value]) => value && value !== '' && value !== 'ALL')
+                            .slice(0, 8)
+                            .map(([param, value], idx) => (
+                              <span key={param}>
+                                {idx > 0 && <span className="mx-1">•</span>}
+                                <span className="text-muted-foreground/70">{param}:</span>
+                                <span className="font-medium text-foreground/80 ml-0.5">{value}</span>
+                              </span>
+                            ))
+                          }
+                        </div>
+                      )}
                     </div>
                     {hasUnaccepted && (
                       <Button
