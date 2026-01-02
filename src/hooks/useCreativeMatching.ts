@@ -249,14 +249,11 @@ export function useCreativeMatching(campaignId?: string) {
         const taxonomyName = generateTaxonomyString(template, values);
         
         // Build elements for display: paramLabel -> value
-        // Only include elements with meaningful values (not empty)
+        // Include all params with meaningful values
         const elements: Record<string, string> = {};
         for (const param of template) {
-          // Only include system/required params for display
-          if (param.required === false && !param.system) continue;
-          
           const value = values[param.id];
-          if (!value || value === '') continue; // Skip empty values
+          if (!value || value === '' || value === 'ALL') continue; // Skip empty/ALL values
           
           // Use the label from template
           const label = param.label || param.id.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
