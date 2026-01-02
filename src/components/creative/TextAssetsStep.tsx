@@ -34,14 +34,18 @@ interface SavedAssignment {
 interface TextAssetsStepProps {
   campaignId: string;
   campaignName: string;
-  savedAssignments: SavedAssignment[];
+  /**
+   * When provided, we load only these newly-saved assignments.
+   * When omitted/empty, we load all assignments for the campaign.
+   */
+  savedAssignments?: SavedAssignment[];
   onComplete: () => void;
 }
 
 export function TextAssetsStep({ 
   campaignId, 
   campaignName, 
-  savedAssignments, 
+  savedAssignments,
   onComplete 
 }: TextAssetsStepProps) {
   const [rows, setRows] = useState<CreativeTextAssetRow[]>([]);
@@ -54,25 +58,14 @@ export function TextAssetsStep({
   // Load creative assignments with their structure data and taxonomy templates
   useEffect(() => {
     const loadAssignments = async () => {
-      console.log('TextAssetsStep: Loading with savedAssignments:', savedAssignments);
-      
-      if (!savedAssignments || savedAssignments.length === 0) {
-        console.log('TextAssetsStep: No saved assignments provided');
-        setIsLoading(false);
-        setHasAttemptedLoad(true);
-        return;
-      }
+      const hasSavedAssignments = Array.isArray(savedAssignments) && savedAssignments.length > 0;
+      console.log('TextAssetsStep: Loading. hasSavedAssignments=', hasSavedAssignments, 'savedAssignments:', savedAssignments);
 
       try {
-        // Get assignment IDs from the saved matches
-        const assignmentIds = savedAssignments.map(a => a.id);
-        console.log('TextAssetsStep: Fetching assignments with IDs:', assignmentIds);
-        
-        // Fetch assignments, campaign data, and taxonomy templates in parallel
-        const [assignmentsResult, campaignResult] = await Promise.all([
-          supabase
-            .from('creative_assignments')
-            .select(`
+        // Fetch assignments (either specific IDs from the just-saved flow, or all for the campaign)
+        const assignmentsQuery = supabase
+          .from('creative_assignments')
+          .select(`
               id,
               campaign_id,
               creative_id,
@@ -93,25 +86,45 @@ export function TextAssetsStep({
                 aspect_ratio,
                 media_urls
               )
-            `)
-            .in('id', assignmentIds),
-          supabase
-            .from('campaigns')
-            .select('id, name, objective, start_date, end_date, bo_number, total_budget, platforms, budget_allocation, team_id, teams(name)')
-            .eq('id', campaignId)
-            .single()
-        ]);
+            `);
+
+        const assignmentsResult = hasSavedAssignments
+          ? await assignmentsQuery.in('id', (savedAssignments || []).map(a => a.id))
+          : await assignmentsQuery.eq('campaign_id', campaignId)
+              .order('platform')
+              .order('market')
+              .order('phase_name')
+              .order('position')
+              .limit(1000);
+
+        // Campaign metadata (needed for taxonomy)
+        const campaignResult = await supabase
+          .from('campaigns')
+          .select('id, name, objective, start_date, end_date, bo_number, total_budget, platforms, budget_allocation, team_id, teams(name)')
+          .eq('id', campaignId)
+          .single();
 
         if (assignmentsResult.error) {
           console.error('TextAssetsStep: Error fetching assignments:', assignmentsResult.error);
           throw assignmentsResult.error;
         }
 
+        if (campaignResult.error) {
+          console.error('TextAssetsStep: Error fetching campaign:', campaignResult.error);
+          throw campaignResult.error;
+        }
+
         const assignments = assignmentsResult.data || [];
         const campaign = campaignResult.data;
-        
+
         console.log('TextAssetsStep: Fetched assignments:', assignments);
         console.log('TextAssetsStep: Fetched campaign:', campaign);
+
+        // If there are no assignments, we can stop here.
+        if (assignments.length === 0) {
+          setRows([]);
+          return;
+        }
 
         // Fetch taxonomy templates for all platforms used
         // First, we need to resolve internal ad account IDs from external account IDs
@@ -408,10 +421,10 @@ export function TextAssetsStep({
         </div>
         <h3 className="text-lg font-semibold mb-2">No Assignments Found</h3>
         <p className="text-muted-foreground text-sm mb-4">
-          No creative assignments were saved. Please go back and save some matches.
+          This ActiPlan doesn	t have any creative assignments yet.
         </p>
         <Button variant="outline" onClick={onComplete}>
-          Skip & Continue
+          Back
         </Button>
       </div>
     );
