@@ -208,9 +208,11 @@ class TikTokAdapter implements PlatformAdapter {
       // AUTOMATIC FALLBACK: TikTok requires 90+ days of conversion data for CONVERSIONS objective
       // Fall back to TRAFFIC to prevent campaign creation issues
       let finalObjective = params.objective;
+      let objectiveFallbackApplied = false;
       if (finalObjective === 'CONVERSIONS') {
         console.warn("⚠️ CONVERSIONS objective detected - Falling back to TRAFFIC (TikTok requires 90+ days conversion data)");
         finalObjective = 'TRAFFIC';
+        objectiveFallbackApplied = true;
       }
       
       const body: any = {
@@ -259,7 +261,12 @@ class TikTokAdapter implements PlatformAdapter {
         success: true,
         campaignId: data.data.campaign_id,
         platform: "tiktok",
-        metadata: { ...data.data, actual_objective: finalObjective },
+        metadata: { 
+          ...data.data, 
+          actual_objective: finalObjective,
+          original_objective: params.objective,
+          objective_fallback_applied: objectiveFallbackApplied,
+        },
       };
     } catch (error: any) {
       return {
