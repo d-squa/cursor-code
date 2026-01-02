@@ -27,6 +27,14 @@ const getEffectiveStrategyFocus = (marketFocus?: string, genericFocus?: string):
   return "conversions";
 };
 
+interface BasicTargetingConfig {
+  defaultAdSetSplitDimension?: string;
+  defaultAdSetSplitDimensionPerPlatform?: Record<string, string>;
+  defaultAdSets?: Array<{ id: string; name: string; budgetPercentage: number; dimensionValue?: any }>;
+  defaultAdSetsPerPlatform?: Record<string, Array<{ id: string; name: string; budgetPercentage: number; dimensionValue?: any }>>;
+  defaultAdSetSplitUseCBO?: boolean;
+}
+
 interface CampaignForecastProps {
   platforms: PlatformWithMarkets[];
   totalBudget: number;
@@ -34,6 +42,7 @@ interface CampaignForecastProps {
   startDate: string;
   endDate: string;
   campaignId?: string;
+  basicTargeting?: BasicTargetingConfig;
   onBack: () => void;
   onFinalize: () => void;
 }
@@ -139,6 +148,7 @@ export function CampaignForecast({
   startDate,
   endDate,
   campaignId,
+  basicTargeting,
   onBack,
   onFinalize,
 }: CampaignForecastProps) {
@@ -1027,11 +1037,46 @@ export function CampaignForecast({
               });
 
               // Build ad set forecasts if phase has ad set splits
+              // Check phase's own adSets first, then inherit from basicTargeting if applicable
               let adSetForecasts: AdSetForecast[] | undefined;
-              if (phase.adSets && phase.adSets.length > 0) {
-                console.log(`    → Phase ${phase.name} has ${phase.adSets.length} ad set splits`);
-                adSetForecasts = phase.adSets.map((adSet: any) => {
-                  const adSetBudgetPct = adSet.budgetPercentage || (100 / phase.adSets.length);
+              
+              // Resolve effective ad sets - check phase's own, then inherit from default
+              let effectiveAdSets = phase.adSets;
+              
+              if (!effectiveAdSets || effectiveAdSets.length === 0) {
+                // Check if phase should inherit from basicTargeting
+                const perPlatformConfig = basicTargeting?.defaultAdSetSplitDimensionPerPlatform;
+                const hasPerPlatformConfig = perPlatformConfig && Object.keys(perPlatformConfig).length > 0;
+                
+                // Get the platform's default dimension
+                const platformDefaultDimension = hasPerPlatformConfig 
+                  ? perPlatformConfig[platform.id] 
+                  : basicTargeting?.defaultAdSetSplitDimension;
+                
+                // Only inherit if there's a valid dimension and the phase isn't overriding
+                const hasInheritedSplit = !phase.overrideTargeting && 
+                  platformDefaultDimension && 
+                  platformDefaultDimension !== 'none';
+                
+                if (hasInheritedSplit) {
+                  // Get the platform's default ad sets
+                  const perPlatformAdSets = basicTargeting?.defaultAdSetsPerPlatform;
+                  const hasPerPlatformAdSets = perPlatformAdSets && Object.keys(perPlatformAdSets).length > 0;
+                  const platformDefaultAdSets = hasPerPlatformAdSets
+                    ? perPlatformAdSets[platform.id]
+                    : basicTargeting?.defaultAdSets;
+                  
+                  if (platformDefaultAdSets && platformDefaultAdSets.length > 0) {
+                    effectiveAdSets = platformDefaultAdSets as typeof effectiveAdSets;
+                    console.log(`    → Phase ${phase.name} inheriting ${platformDefaultAdSets.length} ad sets from default config for platform ${platform.id}`);
+                  }
+                }
+              }
+              
+              if (effectiveAdSets && effectiveAdSets.length > 0) {
+                console.log(`    → Phase ${phase.name} has ${effectiveAdSets.length} ad set splits`);
+                adSetForecasts = effectiveAdSets.map((adSet: any) => {
+                  const adSetBudgetPct = adSet.budgetPercentage || (100 / effectiveAdSets!.length);
                   const adSetBudget = (campaignBudget * adSetBudgetPct) / 100;
                   const adSetImpressions = Math.round(phaseImpressions * (adSetBudgetPct / 100));
                   const adSetReach = Math.round(phaseReach * (adSetBudgetPct / 100));

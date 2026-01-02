@@ -2806,6 +2806,7 @@ export function MediaPlanEditor() {
           startDate={startDate}
           endDate={endDate}
           campaignId={savedCampaignId || undefined}
+          basicTargeting={basicTargeting}
           onBack={() => setCurrentStep(3)}
           onFinalize={handleLaunch}
         />
