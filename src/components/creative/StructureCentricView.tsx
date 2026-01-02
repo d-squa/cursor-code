@@ -121,6 +121,9 @@ function StructureCard({
                 <Target className="h-5 w-5 text-primary" />
               </div>
               <div className="flex-1 min-w-0">
+                <div className="text-[10px] text-muted-foreground mb-0.5">
+                  {structure.campaignName}
+                </div>
                 <div className="flex items-center gap-2">
                   <CardTitle className="text-sm font-medium truncate">
                     {structure.adSetName}
