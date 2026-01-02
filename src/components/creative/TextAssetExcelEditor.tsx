@@ -1,5 +1,6 @@
 // Excel-like Text Asset Editor with full copy/paste support
 // Similar to Google Ads Editor bulk editing experience
+// Supports format-specific fields and carousel creation
 
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
@@ -8,10 +9,12 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Checkbox } from '@/components/ui/checkbox';
 import { 
   Save, Download, Upload, Copy, Clipboard, Undo2, Redo2,
   Image, Video, AlertCircle, CheckCircle, XCircle,
-  ChevronDown, ChevronRight, Layers, Globe, Target, LayoutGrid, Sparkles
+  ChevronDown, ChevronRight, Layers, Globe, Target, LayoutGrid, Sparkles,
+  Plus, Link2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -28,6 +31,8 @@ import {
   type TextAssetColumnKey 
 } from '@/utils/textAssetExcelUtils';
 import { getAvailableFormats, getFormatLabel, AD_FORMAT_LABELS } from '@/utils/adFormatDetection';
+import { CarouselCreator } from './CarouselCreator';
+import type { CarouselLink } from '@/types/carouselTypes';
 
 interface TextAssetExcelEditorProps {
   rows: CreativeTextAssetRow[];
@@ -39,17 +44,40 @@ interface TextAssetExcelEditorProps {
   isSaving: boolean;
 }
 
-// Grid columns for the editor (focused on editable fields)
-const GRID_COLUMNS: Array<{ key: string; label: string; width: number; editable: boolean; type?: 'text' | 'select' | 'adFormat' }> = [
-  { key: 'structure', label: 'Platform / Market / Phase / Ad Set / Creative', width: 320, editable: false, type: 'text' },
+// Grid column definition - now includes checkbox for multi-select
+interface GridColumn {
+  key: string;
+  label: string;
+  width: number;
+  editable: boolean;
+  type?: 'text' | 'select' | 'adFormat' | 'checkbox';
+  // Format-specific visibility
+  showFor?: ('image' | 'video' | 'carousel')[];
+}
+
+// Base columns always shown
+const BASE_COLUMNS: GridColumn[] = [
+  { key: 'select', label: '', width: 36, editable: false, type: 'checkbox' },
+  { key: 'structure', label: 'Platform / Market / Phase / Ad Set / Creative', width: 300, editable: false, type: 'text' },
   { key: 'adFormat', label: 'Ad Format', width: 140, editable: true, type: 'adFormat' },
-  { key: 'primaryText', label: 'Primary Text', width: 220, editable: true, type: 'text' },
-  { key: 'headline', label: 'Headline', width: 160, editable: true, type: 'text' },
-  { key: 'description', label: 'Description', width: 160, editable: true, type: 'text' },
-  { key: 'callToAction', label: 'CTA', width: 130, editable: true, type: 'select' },
-  { key: 'destinationUrl', label: 'Destination URL', width: 220, editable: true, type: 'text' },
-  { key: 'displayLink', label: 'Display Link', width: 120, editable: true, type: 'text' },
 ];
+
+// Format-specific text columns
+const TEXT_COLUMNS: GridColumn[] = [
+  { key: 'primaryText', label: 'Primary Text', width: 220, editable: true, type: 'text', showFor: ['image', 'video'] },
+  { key: 'headline', label: 'Headline', width: 160, editable: true, type: 'text', showFor: ['image', 'video', 'carousel'] },
+  { key: 'description', label: 'Description', width: 160, editable: true, type: 'text', showFor: ['image', 'video', 'carousel'] },
+  { key: 'caption', label: 'Video Caption', width: 160, editable: true, type: 'text', showFor: ['video'] },
+  { key: 'callToAction', label: 'CTA', width: 130, editable: true, type: 'select', showFor: ['image', 'video'] },
+  { key: 'destinationUrl', label: 'Destination URL', width: 220, editable: true, type: 'text' },
+  { key: 'displayLink', label: 'Display Link', width: 120, editable: true, type: 'text', showFor: ['image', 'video'] },
+];
+
+// Combine all columns
+const ALL_GRID_COLUMNS: GridColumn[] = [...BASE_COLUMNS, ...TEXT_COLUMNS];
+
+// Legacy alias for compatibility
+const GRID_COLUMNS = ALL_GRID_COLUMNS;
 
 type GridColumnKey = typeof GRID_COLUMNS[number]['key'];
 
@@ -91,6 +119,11 @@ export function TextAssetExcelEditor({
   const [isSelecting, setIsSelecting] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   
+  // Multi-select state for carousel creation
+  const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
+  const [showCarouselCreator, setShowCarouselCreator] = useState(false);
+  const [carousels, setCarousels] = useState<CarouselLink[]>([]);
+  
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -98,6 +131,68 @@ export function TextAssetExcelEditor({
   // Validation stats
   const validCount = useMemo(() => rows.filter(r => validateTextAssetRow(r).length === 0).length, [rows]);
   const invalidCount = rows.length - validCount;
+
+  // Get selected rows for carousel creation
+  const selectedRows = useMemo(() => 
+    rows.filter(r => selectedRowIds.has(r.id)),
+    [rows, selectedRowIds]
+  );
+
+  // Check if selection is valid for carousel (same ad set, 2+ creatives)
+  const canCreateCarousel = useMemo(() => {
+    if (selectedRows.length < 2) return false;
+    const adSets = new Set(selectedRows.map(r => `${r.platform}|${r.market}|${r.phase}|${r.adSet}`));
+    return adSets.size === 1;
+  }, [selectedRows]);
+
+  // Toggle row selection
+  const toggleRowSelection = useCallback((rowId: string) => {
+    setSelectedRowIds(prev => {
+      const next = new Set(prev);
+      if (next.has(rowId)) {
+        next.delete(rowId);
+      } else {
+        next.add(rowId);
+      }
+      return next;
+    });
+  }, []);
+
+  // Select/deselect all in ad set
+  const toggleAdSetSelection = useCallback((rowIds: string[]) => {
+    setSelectedRowIds(prev => {
+      const allSelected = rowIds.every(id => prev.has(id));
+      const next = new Set(prev);
+      if (allSelected) {
+        rowIds.forEach(id => next.delete(id));
+      } else {
+        rowIds.forEach(id => next.add(id));
+      }
+      return next;
+    });
+  }, []);
+
+  // Clear selection
+  const clearSelection = useCallback(() => {
+    setSelectedRowIds(new Set());
+  }, []);
+
+  // Handle carousel creation
+  const handleCreateCarousel = useCallback((carousel: CarouselLink) => {
+    setCarousels(prev => [...prev, carousel]);
+    setShowCarouselCreator(false);
+    clearSelection();
+    toast.success(`Carousel "${carousel.carouselName}" created with ${carousel.cardIds.length} cards`);
+  }, [clearSelection]);
+
+  // Get visible columns based on row's media type
+  const getVisibleColumns = useCallback((mediaType: 'image' | 'video'): GridColumn[] => {
+    const formatKey = mediaType === 'video' ? 'video' : 'image';
+    return ALL_GRID_COLUMNS.filter(col => {
+      if (!col.showFor) return true; // Always show columns without showFor
+      return col.showFor.includes(formatKey);
+    });
+  }, []);
 
   // Build flat list with group headers
   const flatList = useMemo(() => {
@@ -588,6 +683,29 @@ export function TextAssetExcelEditor({
       {/* Toolbar */}
       <div className="flex items-center justify-between px-4 py-3 border-b bg-card shrink-0">
         <div className="flex items-center gap-2">
+          {/* Carousel creation button */}
+          {selectedRowIds.size > 0 && (
+            <>
+              <Badge variant="outline" className="gap-1">
+                <Link2 className="h-3 w-3" />
+                {selectedRowIds.size} selected
+              </Badge>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => setShowCarouselCreator(true)}
+                disabled={!canCreateCarousel}
+              >
+                <Layers className="h-4 w-4 mr-1" />
+                Create Carousel
+              </Button>
+              <Button variant="ghost" size="sm" onClick={clearSelection}>
+                <XCircle className="h-4 w-4" />
+              </Button>
+              <div className="h-5 w-px bg-border mx-1" />
+            </>
+          )}
+          
           <Button variant="outline" size="sm" onClick={handleDownload}>
             <Download className="h-4 w-4 mr-1" />
             Download Excel
@@ -645,7 +763,9 @@ export function TextAssetExcelEditor({
       
       {/* Help text */}
       <div className="px-4 py-2 bg-muted/30 border-b text-xs text-muted-foreground">
-        <span className="font-medium">Excel-like editing:</span> Select cells and paste from Excel (Ctrl+V) • Copy selection (Ctrl+C) • Double-click to edit • Delete to clear • F2 to edit selected cell
+        <span className="font-medium">Excel-like editing:</span> Select cells and paste from Excel (Ctrl+V) • Copy selection (Ctrl+C) • Double-click to edit • Delete to clear • F2 to edit
+        <span className="mx-2">|</span>
+        <span className="font-medium">Carousel:</span> Select 2+ creatives in same ad set → Create Carousel
       </div>
 
       {/* Grid */}
@@ -677,9 +797,23 @@ export function TextAssetExcelEditor({
                       className={cn("flex border-b cursor-pointer hover:bg-accent/50", getLevelBg(item.level!))}
                       onClick={() => toggleGroup(item.groupKey!)}
                     >
+                      {/* Checkbox for ad set level (level 3) */}
+                      {item.level === 3 && (
+                        <div 
+                          className="px-2 py-2 flex items-center justify-center shrink-0"
+                          style={{ width: GRID_COLUMNS[0].width }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Checkbox
+                            checked={item.rowIds?.every(id => selectedRowIds.has(id)) || false}
+                            onCheckedChange={() => toggleAdSetSelection(item.rowIds || [])}
+                            className="h-4 w-4"
+                          />
+                        </div>
+                      )}
                       <div 
-                        className={cn("flex items-center gap-2 py-2 shrink-0", getLevelIndent(item.level!))}
-                        style={{ width: GRID_COLUMNS[0].width }}
+                        className={cn("flex items-center gap-2 py-2 shrink-0", item.level !== 3 && getLevelIndent(item.level!))}
+                        style={{ width: item.level === 3 ? GRID_COLUMNS[1].width : GRID_COLUMNS[0].width + GRID_COLUMNS[1].width }}
                       >
                         {isCollapsed ? (
                           <ChevronRight className="h-4 w-4 shrink-0" />
@@ -740,6 +874,25 @@ export function TextAssetExcelEditor({
                       const isSelected = isInSelection(rowIndex, colIdx);
                       const isEditing = editingCell === cellKey(rowIndex, colIdx);
                       
+                      // Checkbox column for multi-select
+                      if (col.key === 'select') {
+                        const isRowSelected = selectedRowIds.has(row.id);
+                        return (
+                          <div
+                            key={col.key}
+                            className="px-2 py-1.5 flex items-center justify-center border-r shrink-0"
+                            style={{ width: col.width }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Checkbox
+                              checked={isRowSelected}
+                              onCheckedChange={() => toggleRowSelection(row.id)}
+                              className="h-4 w-4"
+                            />
+                          </div>
+                        );
+                      }
+                      
                       if (col.key === 'structure') {
                         return (
                           <div
@@ -755,6 +908,12 @@ export function TextAssetExcelEditor({
                             <span className="text-sm truncate" title={row.creativeName}>
                               {row.creativeName}
                             </span>
+                            {/* Show video caption indicator */}
+                            {row.mediaType === 'video' && (
+                              <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">
+                                Video
+                              </Badge>
+                            )}
                             {hasErrors && (
                               <TooltipProvider>
                                 <Tooltip>
@@ -769,6 +928,21 @@ export function TextAssetExcelEditor({
                                 </Tooltip>
                               </TooltipProvider>
                             )}
+                          </div>
+                        );
+                      }
+                      
+                      // Skip columns not applicable to this row's format
+                      if (col.showFor && !col.showFor.includes(row.mediaType)) {
+                        return (
+                          <div
+                            key={col.key}
+                            className="px-1 py-1 border-r shrink-0 bg-muted/20"
+                            style={{ width: col.width }}
+                          >
+                            <div className="h-7 flex items-center justify-center text-xs text-muted-foreground italic">
+                              N/A
+                            </div>
                           </div>
                         );
                       }
@@ -897,6 +1071,14 @@ export function TextAssetExcelEditor({
           </div>
         </ScrollArea>
       </div>
+      
+      {/* Carousel Creator Dialog */}
+      <CarouselCreator
+        selectedRows={selectedRows}
+        onCreateCarousel={handleCreateCarousel}
+        onCancel={() => setShowCarouselCreator(false)}
+        open={showCarouselCreator}
+      />
     </div>
   );
 }
