@@ -318,15 +318,26 @@ export function TextAssetsStep({
           // Get adSetName from multiple sources (in order of preference):
           // 1. Database column (persisted from matching flow)
           // 2. savedAssignments prop (passed during matching flow)
-          // 3. Fallback to position-based name
+          // 3. Generated taxonomy name if available
+          // 4. Fallback to unique identifier based on ad_set_id or position
           const savedAssignment = hasSavedAssignments 
             ? (savedAssignments || []).find((sa: SavedAssignment) => 
                 sa.id === assignment.id || sa.creativeId === assignment.creative_id)
             : undefined;
           
-          const adSetName = assignment.ad_set_name 
-            || savedAssignment?.adSetName 
-            || `Ad Set ${assignment.position || 1}`;
+          // Determine the ad set name - prioritize stored values, then taxonomy
+          let adSetName = assignment.ad_set_name || savedAssignment?.adSetName;
+          
+          // If no stored ad set name, use the generated taxonomy name
+          if (!adSetName && taxonomyAdSetName) {
+            adSetName = taxonomyAdSetName;
+          }
+          
+          // If still no name, generate a unique one based on ad_set_id or position
+          if (!adSetName) {
+            const adSetId = assignment.ad_set_id || savedAssignment?.adSetId;
+            adSetName = adSetId ? `Ad Set ${adSetId}` : `Ad Set ${assignment.position || 1}`;
+          }
           
           return {
             id: `${assignment.id}_${assignment.creative_id}`,
