@@ -113,34 +113,72 @@ export function TextAssetsStep({
         console.log('TextAssetsStep: Fetched assignments:', assignments);
         console.log('TextAssetsStep: Fetched campaign:', campaign);
 
-        // Group assignments by platform and market to fetch taxonomy templates
-        const platformMarketCombos = new Set<string>();
-        assignments.forEach((a: any) => {
-          if (a.platform && a.market) {
-            platformMarketCombos.add(`${a.platform}|${a.market}`);
-          }
-        });
-
         // Fetch taxonomy templates for all platforms used
+        // First, we need to resolve internal ad account IDs from external account IDs
         const uniquePlatforms = [...new Set(assignments.map((a: any) => a.platform).filter(Boolean))];
         const taxonomyTemplates: Record<string, { campaign: TaxonomyParam[], adset: TaxonomyParam[], ad: TaxonomyParam[] }> = {};
 
-        // Get ad account IDs from campaign platforms config
-        const platformsConfig = (campaign?.platforms as any) || {};
+        // Get market-level ad account mapping from budget_allocation
+        const budgetAllocation = (campaign?.budget_allocation as any) || {};
         
-        for (const platform of uniquePlatforms) {
-          const platformConfig = platformsConfig[platform];
-          const adAccountId = platformConfig?.adAccountId;
+        // Collect all unique ad account IDs from market configurations across phases
+        const adAccountsPerPlatform: Record<string, Set<string>> = {};
+        
+        for (const [phaseName, phaseData] of Object.entries(budgetAllocation)) {
+          const phaseConfig = phaseData as any;
+          const platformSplits = phaseConfig?.platformSplits || {};
           
-          if (adAccountId) {
+          for (const [platform, platformData] of Object.entries(platformSplits)) {
+            const marketSplits = (platformData as any)?.marketSplits || {};
+            
+            for (const [market, marketConfig] of Object.entries(marketSplits)) {
+              const externalAdAccountId = (marketConfig as any)?.adAccountId;
+              if (externalAdAccountId) {
+                if (!adAccountsPerPlatform[platform]) {
+                  adAccountsPerPlatform[platform] = new Set();
+                }
+                adAccountsPerPlatform[platform].add(externalAdAccountId);
+              }
+            }
+          }
+        }
+
+        // For each platform, resolve external account IDs to internal UUIDs and fetch templates
+        for (const platform of uniquePlatforms) {
+          const externalIds = adAccountsPerPlatform[platform] ? [...adAccountsPerPlatform[platform]] : [];
+          
+          if (externalIds.length === 0) continue;
+          
+          // Resolve external account ID to internal UUID
+          let internalAdAccountId: string | null = null;
+          
+          if (platform === 'meta') {
+            const { data: metaAccount } = await supabase
+              .from('meta_ad_accounts')
+              .select('id')
+              .in('account_id', externalIds)
+              .limit(1)
+              .maybeSingle();
+            internalAdAccountId = metaAccount?.id || null;
+          } else if (platform === 'tiktok') {
+            const { data: tiktokAccount } = await supabase
+              .from('tiktok_ad_accounts')
+              .select('id')
+              .in('advertiser_id', externalIds)
+              .limit(1)
+              .maybeSingle();
+            internalAdAccountId = tiktokAccount?.id || null;
+          }
+          
+          if (internalAdAccountId) {
             // Fetch taxonomy templates for this ad account
             const { data: templates } = await supabase
               .from('taxonomy_templates')
               .select('entity_type, template')
-              .eq('ad_account_id', adAccountId)
+              .eq('ad_account_id', internalAdAccountId)
               .eq('platform', platform);
             
-            if (templates) {
+            if (templates && templates.length > 0) {
               taxonomyTemplates[platform] = {
                 campaign: (templates.find((t: any) => t.entity_type === 'campaign')?.template as unknown as TaxonomyParam[]) || [],
                 adset: (templates.find((t: any) => t.entity_type === 'adset')?.template as unknown as TaxonomyParam[]) || [],
