@@ -76,6 +76,8 @@ export function TextAssetsStep({
               market,
               phase_name,
               position,
+              ad_set_id,
+              ad_set_name,
               creatives (
                 id,
                 name,
@@ -93,6 +95,7 @@ export function TextAssetsStep({
             .order('platform')
             .order('market')
             .order('phase_name')
+            .order('ad_set_name', { nullsFirst: false })
             .order('position');
 
         let assignmentsResult: { data: any[] | null; error: any | null } = { data: null, error: null };
@@ -312,11 +315,18 @@ export function TextAssetsStep({
             taxonomyAdName = creative?.name || 'Creative';
           }
           
-          // Look up the adSetName from savedAssignments if available (passed from matching flow)
+          // Get adSetName from multiple sources (in order of preference):
+          // 1. Database column (persisted from matching flow)
+          // 2. savedAssignments prop (passed during matching flow)
+          // 3. Fallback to position-based name
           const savedAssignment = hasSavedAssignments 
-            ? (savedAssignments || []).find((sa: SavedAssignment) => sa.id === assignment.id)
+            ? (savedAssignments || []).find((sa: SavedAssignment) => 
+                sa.id === assignment.id || sa.creativeId === assignment.creative_id)
             : undefined;
-          const adSetName = savedAssignment?.adSetName || `Ad Set ${assignment.position || 1}`;
+          
+          const adSetName = assignment.ad_set_name 
+            || savedAssignment?.adSetName 
+            || `Ad Set ${assignment.position || 1}`;
           
           return {
             id: `${assignment.id}_${assignment.creative_id}`,

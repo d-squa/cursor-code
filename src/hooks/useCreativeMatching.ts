@@ -1050,6 +1050,8 @@ export function useCreativeMatching(campaignId?: string) {
           platform: match.structure.platform,
           market: match.structure.market || 'GLOBAL',
           phase_name: match.structure.phases?.[0] || 'default',
+          ad_set_id: match.structure.adSetId || null,
+          ad_set_name: match.structure.adSetName || null,
           assigned_by: user.id,
           position: 0,
           status: 'pending',
@@ -1073,20 +1075,35 @@ export function useCreativeMatching(campaignId?: string) {
         console.log('Upserted assignments:', upsertedAssignments);
 
         // Build saved assignments for text asset editor
+        // Map upserted assignment IDs back to original structures by creative_id
         const savedAssignments = (upsertedAssignments || []).map((a: any) => {
           let matchedAsset: DigestedAsset | undefined;
           let matchedStructure: CampaignStructure | undefined;
           
+          // Find the accepted match that produced this assignment
+          // Match by creative_id since we now have the real DB id
           for (const [key, m] of currentState.acceptedMatches.entries()) {
             const assetId = key.split(':')[0];
             const asset = currentState.assets.find(as => as.id === assetId);
-            if (asset && m.structure.campaignId === a.campaign_id && 
-                m.structure.platform === a.platform && 
-                m.structure.market === a.market &&
-                m.structure.phases?.[0] === a.phase_name) {
-              matchedAsset = asset;
-              matchedStructure = m.structure;
-              break;
+            
+            // For existing creatives, check if the creative_id matches
+            // For uploaded assets, check if the structure matches the assignment
+            const structureMatches = 
+              m.structure.campaignId === a.campaign_id && 
+              m.structure.platform === a.platform && 
+              m.structure.market === a.market &&
+              m.structure.phases?.[0] === a.phase_name;
+            
+            if (asset && structureMatches) {
+              // Also try to match on adSetId if present for precision
+              const adSetMatches = !m.structure.adSetId || 
+                m.structure.adSetId === (a.ad_set_id ?? m.structure.adSetId);
+              
+              if (adSetMatches) {
+                matchedAsset = asset;
+                matchedStructure = m.structure;
+                break;
+              }
             }
           }
 
@@ -1096,8 +1113,9 @@ export function useCreativeMatching(campaignId?: string) {
             platform: a.platform,
             market: a.market,
             phaseName: a.phase_name,
-            adSetName: matchedStructure?.adSetName || `Ad Set 1`,
-            adSetId: matchedStructure?.adSetId,
+            // Prefer the value we just saved to DB, then fall back to matched structure
+            adSetName: a.ad_set_name || matchedStructure?.adSetName || 'Ad Set 1',
+            adSetId: a.ad_set_id || matchedStructure?.adSetId,
             creativeName: matchedAsset?.fileName || 'Creative',
             mediaType: (matchedAsset?.mediaType || 'image') as 'image' | 'video',
           };

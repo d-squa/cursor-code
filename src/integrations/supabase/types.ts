@@ -645,6 +645,8 @@ export type Database = {
       }
       creative_assignments: {
         Row: {
+          ad_set_id: string | null
+          ad_set_name: string | null
           assigned_at: string
           assigned_by: string | null
           campaign_id: string
@@ -659,6 +661,8 @@ export type Database = {
           status: string | null
         }
         Insert: {
+          ad_set_id?: string | null
+          ad_set_name?: string | null
           assigned_at?: string
           assigned_by?: string | null
           campaign_id: string
@@ -673,6 +677,8 @@ export type Database = {
           status?: string | null
         }
         Update: {
+          ad_set_id?: string | null
+          ad_set_name?: string | null
           assigned_at?: string
           assigned_by?: string | null
           campaign_id?: string
