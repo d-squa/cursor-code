@@ -63,9 +63,10 @@ export function TextAssetsStep({
 
       try {
         // Fetch assignments (either specific IDs from the just-saved flow, or all for the campaign)
-        const assignmentsQuery = supabase
-          .from('creative_assignments')
-          .select(`
+        const buildAssignmentsQuery = () =>
+          supabase
+            .from('creative_assignments')
+            .select(`
               id,
               campaign_id,
               creative_id,
@@ -86,16 +87,46 @@ export function TextAssetsStep({
                 aspect_ratio,
                 media_urls
               )
-            `);
+            `)
+            .order('platform')
+            .order('market')
+            .order('phase_name')
+            .order('position');
 
-        const assignmentsResult = hasSavedAssignments
-          ? await assignmentsQuery.in('id', (savedAssignments || []).map(a => a.id))
-          : await assignmentsQuery.eq('campaign_id', campaignId)
-              .order('platform')
-              .order('market')
-              .order('phase_name')
-              .order('position')
-              .limit(1000);
+        let assignmentsResult: { data: any[] | null; error: any | null } = { data: null, error: null };
+
+        if (hasSavedAssignments) {
+          // Avoid huge query strings when many IDs were saved (e.g. hundreds).
+          const ids = (savedAssignments || []).map(a => a.id).filter(Boolean);
+          const chunkSize = 100;
+          const allRows: any[] = [];
+
+          for (let i = 0; i < ids.length; i += chunkSize) {
+            const chunk = ids.slice(i, i + chunkSize);
+            const { data, error } = await buildAssignmentsQuery().in('id', chunk);
+            if (error) {
+              assignmentsResult = { data: null, error };
+              break;
+            }
+            if (data) allRows.push(...data);
+          }
+
+          if (!assignmentsResult.error) {
+            const unique = Array.from(new Map(allRows.map((r: any) => [r.id, r])).values());
+            unique.sort((a: any, b: any) => {
+              const p = String(a.platform || '').localeCompare(String(b.platform || ''));
+              if (p) return p;
+              const m = String(a.market || '').localeCompare(String(b.market || ''));
+              if (m) return m;
+              const ph = String(a.phase_name || '').localeCompare(String(b.phase_name || ''));
+              if (ph) return ph;
+              return (Number(a.position) || 0) - (Number(b.position) || 0);
+            });
+            assignmentsResult = { data: unique, error: null };
+          }
+        } else {
+          assignmentsResult = await buildAssignmentsQuery().eq('campaign_id', campaignId).limit(1000);
+        }
 
         // Campaign metadata (needed for taxonomy)
         const campaignResult = await supabase
