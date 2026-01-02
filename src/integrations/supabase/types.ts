@@ -747,7 +747,10 @@ export type Database = {
       }
       creatives: {
         Row: {
+          ad_end_time: string | null
+          ad_start_time: string | null
           ad_type: string | null
+          app_link: string | null
           approval_status: string | null
           aspect_ratio: string | null
           assets_link: string | null
@@ -759,14 +762,26 @@ export type Database = {
           campaign_theme: string | null
           caption: string | null
           caption_ar: string | null
+          carousel_cards: Json | null
+          catalog_id: string | null
           client_id: string | null
           content_pillar: string | null
           created_at: string
           creative_type: Database["public"]["Enums"]["creative_type"]
+          deeplink_url: string | null
           delivery_deadline: string | null
           description: string | null
+          description_2: string | null
+          description_3: string | null
+          description_4: string | null
+          description_5: string | null
           description_ar: string | null
           destination_url: string | null
+          disable_creative_enhancements: boolean | null
+          disable_multi_advertiser_ads: boolean | null
+          dsp_upload_error: string | null
+          dsp_upload_status: string | null
+          dsp_uploaded_at: string | null
           duration_seconds: number | null
           external_account_name: string | null
           external_page_id: string | null
@@ -777,12 +792,18 @@ export type Database = {
           folder_path: string | null
           funnel_stage: string | null
           headline: string | null
+          headline_2: string | null
+          headline_3: string | null
+          headline_4: string | null
+          headline_5: string | null
           headline_ar: string | null
           height: number | null
           id: string
           import_batch_id: string | null
+          instant_experience_id: string | null
           is_valid: boolean | null
           language: string | null
+          lead_form_id: string | null
           market: string | null
           media_type: string | null
           media_urls: string[] | null
@@ -792,23 +813,40 @@ export type Database = {
           phase_name: string | null
           placement: string | null
           platform: string
+          platform_image_hash: string | null
           platform_metadata: Json | null
+          platform_thumbnail_id: string | null
+          platform_video_id: string | null
           primary_text: string | null
+          primary_text_2: string | null
+          primary_text_3: string | null
+          primary_text_4: string | null
+          primary_text_5: string | null
           primary_text_ar: string | null
           priority: string | null
           product_category: string | null
+          product_set_id: string | null
+          right_column_image_url: string | null
           specs_link: string | null
           spreadsheet_row_number: number | null
           status: Database["public"]["Enums"]["creative_status"]
+          story_image_url: string | null
           team_id: string | null
           thumbnail_url: string | null
+          tiktok_ad_format: string | null
+          tiktok_display_name: string | null
+          tiktok_identity_id: string | null
           updated_at: string
+          url_parameters: string | null
           user_id: string
           validation_errors: string[] | null
           width: number | null
         }
         Insert: {
+          ad_end_time?: string | null
+          ad_start_time?: string | null
           ad_type?: string | null
+          app_link?: string | null
           approval_status?: string | null
           aspect_ratio?: string | null
           assets_link?: string | null
@@ -820,14 +858,26 @@ export type Database = {
           campaign_theme?: string | null
           caption?: string | null
           caption_ar?: string | null
+          carousel_cards?: Json | null
+          catalog_id?: string | null
           client_id?: string | null
           content_pillar?: string | null
           created_at?: string
           creative_type?: Database["public"]["Enums"]["creative_type"]
+          deeplink_url?: string | null
           delivery_deadline?: string | null
           description?: string | null
+          description_2?: string | null
+          description_3?: string | null
+          description_4?: string | null
+          description_5?: string | null
           description_ar?: string | null
           destination_url?: string | null
+          disable_creative_enhancements?: boolean | null
+          disable_multi_advertiser_ads?: boolean | null
+          dsp_upload_error?: string | null
+          dsp_upload_status?: string | null
+          dsp_uploaded_at?: string | null
           duration_seconds?: number | null
           external_account_name?: string | null
           external_page_id?: string | null
@@ -838,12 +888,18 @@ export type Database = {
           folder_path?: string | null
           funnel_stage?: string | null
           headline?: string | null
+          headline_2?: string | null
+          headline_3?: string | null
+          headline_4?: string | null
+          headline_5?: string | null
           headline_ar?: string | null
           height?: number | null
           id?: string
           import_batch_id?: string | null
+          instant_experience_id?: string | null
           is_valid?: boolean | null
           language?: string | null
+          lead_form_id?: string | null
           market?: string | null
           media_type?: string | null
           media_urls?: string[] | null
@@ -853,23 +909,40 @@ export type Database = {
           phase_name?: string | null
           placement?: string | null
           platform: string
+          platform_image_hash?: string | null
           platform_metadata?: Json | null
+          platform_thumbnail_id?: string | null
+          platform_video_id?: string | null
           primary_text?: string | null
+          primary_text_2?: string | null
+          primary_text_3?: string | null
+          primary_text_4?: string | null
+          primary_text_5?: string | null
           primary_text_ar?: string | null
           priority?: string | null
           product_category?: string | null
+          product_set_id?: string | null
+          right_column_image_url?: string | null
           specs_link?: string | null
           spreadsheet_row_number?: number | null
           status?: Database["public"]["Enums"]["creative_status"]
+          story_image_url?: string | null
           team_id?: string | null
           thumbnail_url?: string | null
+          tiktok_ad_format?: string | null
+          tiktok_display_name?: string | null
+          tiktok_identity_id?: string | null
           updated_at?: string
+          url_parameters?: string | null
           user_id: string
           validation_errors?: string[] | null
           width?: number | null
         }
         Update: {
+          ad_end_time?: string | null
+          ad_start_time?: string | null
           ad_type?: string | null
+          app_link?: string | null
           approval_status?: string | null
           aspect_ratio?: string | null
           assets_link?: string | null
@@ -881,14 +954,26 @@ export type Database = {
           campaign_theme?: string | null
           caption?: string | null
           caption_ar?: string | null
+          carousel_cards?: Json | null
+          catalog_id?: string | null
           client_id?: string | null
           content_pillar?: string | null
           created_at?: string
           creative_type?: Database["public"]["Enums"]["creative_type"]
+          deeplink_url?: string | null
           delivery_deadline?: string | null
           description?: string | null
+          description_2?: string | null
+          description_3?: string | null
+          description_4?: string | null
+          description_5?: string | null
           description_ar?: string | null
           destination_url?: string | null
+          disable_creative_enhancements?: boolean | null
+          disable_multi_advertiser_ads?: boolean | null
+          dsp_upload_error?: string | null
+          dsp_upload_status?: string | null
+          dsp_uploaded_at?: string | null
           duration_seconds?: number | null
           external_account_name?: string | null
           external_page_id?: string | null
@@ -899,12 +984,18 @@ export type Database = {
           folder_path?: string | null
           funnel_stage?: string | null
           headline?: string | null
+          headline_2?: string | null
+          headline_3?: string | null
+          headline_4?: string | null
+          headline_5?: string | null
           headline_ar?: string | null
           height?: number | null
           id?: string
           import_batch_id?: string | null
+          instant_experience_id?: string | null
           is_valid?: boolean | null
           language?: string | null
+          lead_form_id?: string | null
           market?: string | null
           media_type?: string | null
           media_urls?: string[] | null
@@ -914,17 +1005,31 @@ export type Database = {
           phase_name?: string | null
           placement?: string | null
           platform?: string
+          platform_image_hash?: string | null
           platform_metadata?: Json | null
+          platform_thumbnail_id?: string | null
+          platform_video_id?: string | null
           primary_text?: string | null
+          primary_text_2?: string | null
+          primary_text_3?: string | null
+          primary_text_4?: string | null
+          primary_text_5?: string | null
           primary_text_ar?: string | null
           priority?: string | null
           product_category?: string | null
+          product_set_id?: string | null
+          right_column_image_url?: string | null
           specs_link?: string | null
           spreadsheet_row_number?: number | null
           status?: Database["public"]["Enums"]["creative_status"]
+          story_image_url?: string | null
           team_id?: string | null
           thumbnail_url?: string | null
+          tiktok_ad_format?: string | null
+          tiktok_display_name?: string | null
+          tiktok_identity_id?: string | null
           updated_at?: string
+          url_parameters?: string | null
           user_id?: string
           validation_errors?: string[] | null
           width?: number | null
