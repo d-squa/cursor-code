@@ -2928,13 +2928,24 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
         
         // Map optimization goal based on TikTok objective
         // TikTok has strict optimization goal requirements per objective
+        // IMPORTANT: Use the ACTUAL objective from campaign creation result, not the mapped objective
+        // because the adapter may apply fallbacks (e.g., CONVERSIONS → TRAFFIC)
         let tiktokOptGoal: string;
-        const mappedObjective = objectiveMapping.targetObjective;
+        const originalMappedObjective = objectiveMapping.targetObjective;
         
-        if (mappedObjective === "CONVERSIONS") {
+        // Check if campaign creation applied an objective fallback
+        const actualObjective = campaignResult.metadata?.actual_objective || originalMappedObjective;
+        const objectiveFallbackApplied = campaignResult.metadata?.objective_fallback_applied || false;
+        
+        if (objectiveFallbackApplied) {
+          console.warn(`⚠️ Objective fallback was applied: ${originalMappedObjective} → ${actualObjective}`);
+        }
+        
+        // Use the ACTUAL objective for optimization goal mapping
+        if (actualObjective === "CONVERSIONS") {
           // CONVERSIONS objective always uses CONVERT optimization goal
           tiktokOptGoal = "CONVERT";
-        } else if (mappedObjective === "TRAFFIC") {
+        } else if (actualObjective === "TRAFFIC") {
           // TRAFFIC objective uses CLICK or TRAFFIC_LANDING_PAGE_VIEW (TikTok enum)
           const phaseOptGoal = (phase.optimizationGoal || "").toUpperCase();
           if (
@@ -2947,23 +2958,23 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           } else {
             tiktokOptGoal = "CLICK";
           }
-        } else if (mappedObjective === "LEAD_GENERATION") {
+        } else if (actualObjective === "LEAD_GENERATION") {
           // TikTok Lead Gen requires FORM_SUBMIT optimization goal (and OCPM billing)
           // We map any lead-style goals coming from the plan to TikTok's supported enum.
           tiktokOptGoal = "FORM_SUBMIT";
-        } else if (mappedObjective === "REACH") {
+        } else if (actualObjective === "REACH") {
           tiktokOptGoal = "REACH";
-        } else if (mappedObjective === "VIDEO_VIEWS" || mappedObjective === "VIDEO_VIEW") {
+        } else if (actualObjective === "VIDEO_VIEWS" || actualObjective === "VIDEO_VIEW") {
           tiktokOptGoal = "VIDEO_VIEW";
-        } else if (mappedObjective === "APP_PROMOTION" || mappedObjective === "APP_INSTALL") {
+        } else if (actualObjective === "APP_PROMOTION" || actualObjective === "APP_INSTALL") {
           tiktokOptGoal = "INSTALL";
         } else {
           // Default fallback
           tiktokOptGoal = "CLICK";
         }
         
-        console.log(`Mapped optimization goal for objective ${mappedObjective}: ${tiktokOptGoal} (phase optimization goal: ${phase.optimizationGoal})`);
-        
+        console.log(`Mapped optimization goal for objective ${actualObjective}: ${tiktokOptGoal} (original mapped: ${originalMappedObjective}, phase optimization goal: ${phase.optimizationGoal})`);
+
         // Map billing event based on objective + optimization goal combination
         // TikTok has strict billing event requirements per objective
         // IMPORTANT: LEAD_GENERATION requires OCPM billing event
@@ -2991,10 +3002,10 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
         };
         
         // Determine billing event based on objective and optimization goal
-        console.log(`DEBUG: Looking up billing event for objective: ${mappedObjective}, optimization goal: ${tiktokOptGoal}`);
+        console.log(`DEBUG: Looking up billing event for objective: ${actualObjective}, optimization goal: ${tiktokOptGoal}`);
         console.log(`DEBUG: Available objectives in billingEventMap:`, Object.keys(billingEventMap));
         
-        let billingEvent = billingEventMap[mappedObjective]?.[tiktokOptGoal];
+        let billingEvent = billingEventMap[actualObjective]?.[tiktokOptGoal];
         console.log(`DEBUG: Billing event from map: ${billingEvent}`);
         
         // If no specific mapping, fetch from account defaults
@@ -3011,11 +3022,12 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
           console.log(`DEBUG: Billing event from account defaults: ${billingEvent}`);
         }
         
-        console.log(`Using billing event: ${billingEvent} for objective ${mappedObjective}, optimization goal ${tiktokOptGoal}`);
+        console.log(`Using billing event: ${billingEvent} for objective ${actualObjective}, optimization goal ${tiktokOptGoal}`);
         
         // Get pixel ID for conversion campaigns
+        // Note: Check both actual and original objective - user may want conversion tracking even with fallback
         let pixelId: string | undefined;
-        if (tiktokOptGoal === 'CONVERT' || mappedObjective === 'CONVERSIONS') {
+        if (tiktokOptGoal === 'CONVERT' || actualObjective === 'CONVERSIONS' || originalMappedObjective === 'CONVERSIONS') {
           pixelId = market.tiktokPixel || market.pixelId || market.tiktokPixelId;
           console.log(`Conversion campaign detected - using pixel_id: ${pixelId}`);
         }
@@ -3036,7 +3048,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
         // Default to Website unless LEAD_GENERATION (defaults to Instant Form)
         let optimizationLocation = phase.tiktokOptimizationLocation || market.tiktokOptimizationLocation;
         if (!optimizationLocation) {
-          optimizationLocation = mappedObjective === 'LEAD_GENERATION' ? 'Instant Form' : 'Website';
+          optimizationLocation = actualObjective === 'LEAD_GENERATION' ? 'Instant Form' : 'Website';
         }
         // Get app details for app campaigns
         const appName = phase.tiktokAppName || market.tiktokAppName;
