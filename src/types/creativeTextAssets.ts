@@ -5,6 +5,20 @@ import type { CallToAction, Platform } from './creative';
 
 export type CreativeFormat = 'image' | 'video' | 'carousel' | 'collection' | 'dark_post' | 'existing_post';
 
+// Ad format types based on placement and dimensions
+export type AdFormat = 
+  | 'feed_image' 
+  | 'feed_video' 
+  | 'story_image' 
+  | 'story_video' 
+  | 'reels_video'
+  | 'carousel_image'
+  | 'carousel_video'
+  | 'shorts_video'
+  | 'display_image'
+  | 'display_video'
+  | 'other';
+
 // Character limit configuration with warning threshold
 export interface CharacterLimit {
   max: number;
@@ -97,6 +111,11 @@ export interface CreativeTextAssetRow {
   adSet: string;
   creativeName: string;
   creativeFormat: CreativeFormat;
+  
+  // Ad format (suggested based on dimensions)
+  adFormat: AdFormat;
+  suggestedAdFormat?: AdFormat;
+  adFormatConfirmed?: boolean;
   
   // Text assets
   primaryText: string;

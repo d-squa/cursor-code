@@ -1,7 +1,8 @@
 // Utility functions for text asset Excel import/export
 import * as XLSX from 'xlsx';
-import type { CreativeTextAssetRow } from '@/types/creativeTextAssets';
+import type { CreativeTextAssetRow, AdFormat } from '@/types/creativeTextAssets';
 import type { CallToAction } from '@/types/creative';
+import { AD_FORMAT_LABELS, ALL_AD_FORMATS } from '@/utils/adFormatDetection';
 
 // Column definitions for the Excel export/import
 export const TEXT_ASSET_COLUMNS = [
@@ -10,7 +11,8 @@ export const TEXT_ASSET_COLUMNS = [
   { key: 'phase', label: 'Phase', width: 15 },
   { key: 'adSet', label: 'Ad Set', width: 20 },
   { key: 'creativeName', label: 'Creative Name', width: 30 },
-  { key: 'creativeFormat', label: 'Format', width: 10 },
+  { key: 'adFormat', label: 'Ad Format', width: 15 },
+  { key: 'creativeFormat', label: 'Media Type', width: 10 },
   { key: 'primaryText', label: 'Primary Text', width: 50 },
   { key: 'headline', label: 'Headline', width: 30 },
   { key: 'description', label: 'Description', width: 30 },
@@ -28,6 +30,7 @@ export type TextAssetColumnKey = typeof TEXT_ASSET_COLUMNS[number]['key'];
 
 // Editable columns (columns that users can modify)
 export const EDITABLE_COLUMNS: TextAssetColumnKey[] = [
+  'adFormat',
   'primaryText',
   'headline', 
   'description',
@@ -40,6 +43,7 @@ export const EDITABLE_COLUMNS: TextAssetColumnKey[] = [
   'utmCampaign',
   'utmContent',
 ];
+
 
 // Generate Excel file from text asset rows
 export function generateTextAssetExcel(
@@ -60,6 +64,9 @@ export function generateTextAssetExcel(
     if (col.key === 'callToAction' && value) {
       return String(value).replace(/_/g, ' ');
     }
+    if (col.key === 'adFormat' && value) {
+      return AD_FORMAT_LABELS[value as AdFormat] || value;
+    }
     return value ?? '';
   }));
   
@@ -71,6 +78,9 @@ export function generateTextAssetExcel(
   
   // Set column widths
   worksheet['!cols'] = TEXT_ASSET_COLUMNS.map(col => ({ wch: col.width }));
+  
+  // Add ad format validation (data validation for dropdown)
+  // Note: XLSX doesn't fully support data validation in all cases
   
   // Add worksheet to workbook
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Text Assets');
@@ -176,6 +186,14 @@ export async function parseTextAssetExcel(
               // Update editable fields
               const updates: Partial<CreativeTextAssetRow> = {};
               
+              if (columnIndices.adFormat !== undefined) {
+                const formatValue = String(dataRow[columnIndices.adFormat] || '').toLowerCase().replace(/ /g, '_');
+                // Validate it's a valid ad format
+                if (ALL_AD_FORMATS.includes(formatValue as AdFormat)) {
+                  updates.adFormat = formatValue as AdFormat;
+                  updates.adFormatConfirmed = true;
+                }
+              }
               if (columnIndices.primaryText !== undefined) {
                 updates.primaryText = String(dataRow[columnIndices.primaryText] || '');
               }
