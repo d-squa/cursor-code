@@ -14,7 +14,7 @@ import {
   Save, Download, Upload, Copy, Clipboard, Undo2, Redo2,
   Image, Video, AlertCircle, CheckCircle, XCircle,
   ChevronDown, ChevronRight, Layers, Globe, Target, LayoutGrid, Sparkles,
-  Plus, Link2
+  Plus, Link2, Layout, Film, Grid
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -33,6 +33,7 @@ import {
 import { getAvailableFormats, getFormatLabel, AD_FORMAT_LABELS } from '@/utils/adFormatDetection';
 import { CarouselCreator } from './CarouselCreator';
 import type { CarouselLink } from '@/types/carouselTypes';
+import { getPlacementBadges, validateCarouselCreatives } from '@/utils/placementCompatibility';
 
 interface TextAssetExcelEditorProps {
   rows: CreativeTextAssetRow[];
@@ -59,6 +60,7 @@ interface GridColumn {
 const BASE_COLUMNS: GridColumn[] = [
   { key: 'select', label: '', width: 36, editable: false, type: 'checkbox' },
   { key: 'structure', label: 'Platform / Market / Phase / Ad Set / Creative', width: 300, editable: false, type: 'text' },
+  { key: 'placements', label: 'Placements', width: 150, editable: false, type: 'text' },
   { key: 'adFormat', label: 'Ad Format', width: 140, editable: true, type: 'adFormat' },
 ];
 
@@ -75,6 +77,39 @@ const TEXT_COLUMNS: GridColumn[] = [
 
 // Combine all columns
 const ALL_GRID_COLUMNS: GridColumn[] = [...BASE_COLUMNS, ...TEXT_COLUMNS];
+
+// Placement badge component
+function PlacementBadge({ type, variant, tooltip }: { type: string; variant: 'compatible' | 'primary' | 'incompatible'; tooltip: string }) {
+  const icons: Record<string, React.ReactNode> = {
+    feed: <Layout className="h-3 w-3" />,
+    story: <Film className="h-3 w-3" />,
+    carousel: <Grid className="h-3 w-3" />,
+  };
+  
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Badge
+            variant={variant === 'incompatible' ? 'outline' : 'secondary'}
+            className={cn(
+              "text-[9px] px-1 py-0 h-4 gap-0.5 cursor-default",
+              variant === 'primary' && "bg-primary/20 text-primary border-primary/30",
+              variant === 'compatible' && "bg-green-500/15 text-green-600 border-green-500/30",
+              variant === 'incompatible' && "bg-muted/30 text-muted-foreground/50 line-through"
+            )}
+          >
+            {icons[type]}
+            <span className="hidden sm:inline">{type.charAt(0).toUpperCase()}</span>
+          </Badge>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="text-xs max-w-[200px]">
+          {tooltip}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
 
 // Legacy alias for compatibility
 const GRID_COLUMNS = ALL_GRID_COLUMNS;
@@ -908,12 +943,6 @@ export function TextAssetExcelEditor({
                             <span className="text-sm truncate" title={row.creativeName}>
                               {row.creativeName}
                             </span>
-                            {/* Show video caption indicator */}
-                            {row.mediaType === 'video' && (
-                              <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">
-                                Video
-                              </Badge>
-                            )}
                             {hasErrors && (
                               <TooltipProvider>
                                 <Tooltip>
@@ -928,6 +957,31 @@ export function TextAssetExcelEditor({
                                 </Tooltip>
                               </TooltipProvider>
                             )}
+                          </div>
+                        );
+                      }
+
+                      // Placements column - shows compatibility badges
+                      if (col.key === 'placements') {
+                        // Parse dimensions from row - they might be stored as width/height or in aspectRatio
+                        const width = (row as any).width;
+                        const height = (row as any).height;
+                        const placementBadges = getPlacementBadges(width, height, row.mediaType, row.platform);
+                        
+                        return (
+                          <div
+                            key={col.key}
+                            className="px-1 py-1.5 flex items-center gap-1 border-r shrink-0"
+                            style={{ width: col.width }}
+                          >
+                            {placementBadges.map((badge) => (
+                              <PlacementBadge
+                                key={badge.type}
+                                type={badge.type}
+                                variant={badge.variant}
+                                tooltip={badge.tooltip}
+                              />
+                            ))}
                           </div>
                         );
                       }

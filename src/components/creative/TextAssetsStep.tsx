@@ -89,7 +89,9 @@ export function TextAssetsStep({
                 destination_url,
                 thumbnail_url,
                 aspect_ratio,
-                media_urls
+                media_urls,
+                width,
+                height
               )
             `)
             .order('platform')
@@ -367,6 +369,8 @@ export function TextAssetsStep({
             thumbnailUrl: creative?.thumbnail_url,
             mediaType,
             aspectRatio: creative?.aspect_ratio,
+            width: creative?.width,
+            height: creative?.height,
           };
         });
 
