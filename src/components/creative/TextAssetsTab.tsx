@@ -1,0 +1,333 @@
+// Text Assets Tab - Standalone page for editing text assets across all campaigns
+import { useState, useCallback, useMemo, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { TextAssetExcelEditor } from './TextAssetExcelEditor';
+import type { CreativeTextAssetRow, CreativeFormat } from '@/types/creativeTextAssets';
+import { validateTextAssetRow } from '@/types/creativeTextAssets';
+import type { CallToAction } from '@/types/creative';
+import { detectAdFormat } from '@/utils/adFormatDetection';
+
+interface Campaign {
+  id: string;
+  name: string;
+}
+
+export function TextAssetsTab() {
+  const { user } = useAuth();
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string>('');
+  const [rows, setRows] = useState<CreativeTextAssetRow[]>([]);
+  const [isLoadingCampaigns, setIsLoadingCampaigns] = useState(true);
+  const [isLoadingAssets, setIsLoadingAssets] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Load campaigns that have creative assignments
+  useEffect(() => {
+    const loadCampaigns = async () => {
+      if (!user?.id) return;
+      
+      try {
+        // Get campaigns that have creative assignments
+        const { data: assignmentData, error: assignmentError } = await supabase
+          .from('creative_assignments')
+          .select('campaign_id')
+          .not('campaign_id', 'is', null);
+
+        if (assignmentError) throw assignmentError;
+
+        const campaignIds = [...new Set((assignmentData || []).map(a => a.campaign_id))];
+        
+        if (campaignIds.length === 0) {
+          setCampaigns([]);
+          setIsLoadingCampaigns(false);
+          return;
+        }
+
+        // Get campaign details
+        const { data: campaignsData, error: campaignsError } = await supabase
+          .from('campaigns')
+          .select('id, name')
+          .in('id', campaignIds)
+          .order('created_at', { ascending: false });
+
+        if (campaignsError) throw campaignsError;
+
+        setCampaigns(campaignsData || []);
+        
+        // Auto-select first campaign if available
+        if (campaignsData && campaignsData.length > 0 && !selectedCampaignId) {
+          setSelectedCampaignId(campaignsData[0].id);
+        }
+      } catch (error) {
+        console.error('Error loading campaigns:', error);
+        toast.error('Failed to load campaigns');
+      } finally {
+        setIsLoadingCampaigns(false);
+      }
+    };
+
+    loadCampaigns();
+  }, [user?.id]);
+
+  // Load text assets for selected campaign
+  useEffect(() => {
+    const loadAssignments = async () => {
+      if (!selectedCampaignId) {
+        setRows([]);
+        return;
+      }
+      
+      setIsLoadingAssets(true);
+      
+      try {
+        const { data: assignments, error } = await supabase
+          .from('creative_assignments')
+          .select(`
+            id,
+            campaign_id,
+            creative_id,
+            platform,
+            market,
+            phase_name,
+            position,
+            creatives (
+              id,
+              name,
+              creative_type,
+              primary_text,
+              headline,
+              description,
+              call_to_action,
+              destination_url,
+              thumbnail_url,
+              aspect_ratio,
+              media_urls
+            )
+          `)
+          .eq('campaign_id', selectedCampaignId);
+
+        if (error) throw error;
+
+        // Transform to CreativeTextAssetRow format
+        const transformedRows: CreativeTextAssetRow[] = (assignments || []).map((assignment: any) => {
+          const creative = assignment.creatives;
+          const isVideo = creative?.creative_type === 'video' || 
+                         (creative?.media_urls?.[0]?.includes('.mp4') || creative?.media_urls?.[0]?.includes('.mov'));
+          
+          const mediaType: 'image' | 'video' = isVideo ? 'video' : 'image';
+          
+          // Detect ad format
+          const suggestedFormat = detectAdFormat({
+            aspectRatio: creative?.aspect_ratio,
+            mediaType,
+            platform: assignment.platform,
+          });
+          
+          return {
+            id: `${assignment.id}_${assignment.creative_id}`,
+            creativeId: assignment.creative_id,
+            assignmentId: assignment.id,
+            platform: assignment.platform || 'meta',
+            market: assignment.market || 'Global',
+            phase: assignment.phase_name || 'Default',
+            adSet: `Ad Set ${assignment.position || 1}`,
+            creativeName: creative?.name || 'Unknown Creative',
+            creativeFormat: (creative?.creative_type || 'image') as CreativeFormat,
+            adFormat: suggestedFormat,
+            suggestedAdFormat: suggestedFormat,
+            adFormatConfirmed: false,
+            primaryText: creative?.primary_text || '',
+            headline: creative?.headline || '',
+            description: creative?.description || '',
+            callToAction: (creative?.call_to_action || 'LEARN_MORE') as CallToAction,
+            destinationUrl: creative?.destination_url || '',
+            autoBuildUtm: false,
+            isValid: true,
+            validationErrors: [],
+            thumbnailUrl: creative?.thumbnail_url,
+            mediaType,
+            aspectRatio: creative?.aspect_ratio,
+          };
+        });
+
+        // Validate all rows
+        const validatedRows = transformedRows.map(row => {
+          const errors = validateTextAssetRow(row);
+          return { ...row, validationErrors: errors, isValid: errors.length === 0 };
+        });
+
+        setRows(validatedRows);
+      } catch (error) {
+        console.error('Error loading assignments:', error);
+        toast.error('Failed to load creative assignments');
+      } finally {
+        setIsLoadingAssets(false);
+      }
+    };
+
+    loadAssignments();
+  }, [selectedCampaignId]);
+
+  // Handle individual row changes
+  const handleRowChange = useCallback((id: string, updates: Partial<CreativeTextAssetRow>) => {
+    setRows(prev => prev.map(row => {
+      if (row.id !== id) return row;
+      const updated = { ...row, ...updates };
+      const errors = validateTextAssetRow(updated);
+      return { ...updated, validationErrors: errors, isValid: errors.length === 0 };
+    }));
+  }, []);
+
+  // Handle bulk updates
+  const handleBulkUpdate = useCallback((ids: string[], updates: Partial<CreativeTextAssetRow>) => {
+    setRows(prev => prev.map(row => {
+      if (!ids.includes(row.id)) return row;
+      const updated = { ...row, ...updates };
+      const errors = validateTextAssetRow(updated);
+      return { ...updated, validationErrors: errors, isValid: errors.length === 0 };
+    }));
+  }, []);
+
+  // Handle import from Excel
+  const handleImportRows = useCallback((importedRows: CreativeTextAssetRow[]) => {
+    const validatedRows = importedRows.map(row => {
+      const errors = validateTextAssetRow(row);
+      return { ...row, validationErrors: errors, isValid: errors.length === 0 };
+    });
+    setRows(validatedRows);
+  }, []);
+
+  // Save text assets to database
+  const handleSave = useCallback(async () => {
+    setIsSaving(true);
+    
+    try {
+      // Update creatives with text assets
+      for (const row of rows) {
+        const { error } = await supabase
+          .from('creatives')
+          .update({
+            primary_text: row.primaryText,
+            headline: row.headline,
+            description: row.description,
+            call_to_action: row.callToAction,
+            destination_url: row.destinationUrl,
+          })
+          .eq('id', row.creativeId);
+
+        if (error) {
+          console.error('Error updating creative:', error);
+          throw error;
+        }
+      }
+
+      toast.success(`Saved text assets for ${rows.length} creatives`);
+    } catch (error) {
+      console.error('Error saving text assets:', error);
+      toast.error('Failed to save text assets');
+    } finally {
+      setIsSaving(false);
+    }
+  }, [rows]);
+
+  const selectedCampaign = campaigns.find(c => c.id === selectedCampaignId);
+
+  // Loading campaigns
+  if (isLoadingCampaigns) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+        <p className="text-muted-foreground">Loading campaigns...</p>
+      </div>
+    );
+  }
+
+  // No campaigns with assignments
+  if (campaigns.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12">
+        <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
+          <AlertCircle className="h-6 w-6 text-muted-foreground" />
+        </div>
+        <h3 className="text-lg font-semibold mb-2">No Creative Assignments</h3>
+        <p className="text-muted-foreground text-sm text-center max-w-md">
+          No campaigns have creative assignments yet. Use the "Match to ActiPlan" 
+          feature to assign creatives to your campaigns, then come back here to edit text assets.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Campaign Selector */}
+      <div className="flex items-center gap-4 p-4 border rounded-lg bg-muted/30">
+        <div className="flex-1">
+          <label className="text-sm font-medium mb-1 block">Select Campaign</label>
+          <Select value={selectedCampaignId} onValueChange={setSelectedCampaignId}>
+            <SelectTrigger className="w-full max-w-md">
+              <SelectValue placeholder="Choose a campaign..." />
+            </SelectTrigger>
+            <SelectContent>
+              {campaigns.map(campaign => (
+                <SelectItem key={campaign.id} value={campaign.id}>
+                  {campaign.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center gap-2">
+          {selectedCampaignId && (
+            <Badge variant="secondary">{rows.length} creatives</Badge>
+          )}
+          <Button 
+            variant="outline" 
+            size="icon"
+            onClick={() => setSelectedCampaignId(selectedCampaignId)}
+            disabled={isLoadingAssets}
+          >
+            <RefreshCw className={`h-4 w-4 ${isLoadingAssets ? 'animate-spin' : ''}`} />
+          </Button>
+        </div>
+      </div>
+
+      {/* Text Asset Editor */}
+      {isLoadingAssets ? (
+        <div className="flex flex-col items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+          <p className="text-muted-foreground">Loading text assets...</p>
+        </div>
+      ) : rows.length === 0 && selectedCampaignId ? (
+        <div className="flex flex-col items-center justify-center py-12">
+          <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
+            <AlertCircle className="h-6 w-6 text-muted-foreground" />
+          </div>
+          <h3 className="text-lg font-semibold mb-2">No Assignments</h3>
+          <p className="text-muted-foreground text-sm text-center max-w-md">
+            This campaign doesn't have any creative assignments yet. 
+            Use "Match to ActiPlan" to assign creatives first.
+          </p>
+        </div>
+      ) : rows.length > 0 ? (
+        <div className="border rounded-lg overflow-hidden">
+          <TextAssetExcelEditor
+            rows={rows}
+            campaignName={selectedCampaign?.name || 'Campaign'}
+            onRowChange={handleRowChange}
+            onBulkUpdate={handleBulkUpdate}
+            onImportRows={handleImportRows}
+            onSave={handleSave}
+            isSaving={isSaving}
+          />
+        </div>
+      ) : null}
+    </div>
+  );
+}

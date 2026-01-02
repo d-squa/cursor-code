@@ -1,25 +1,35 @@
 // Creative Library Page - Main hub for creative management
 import { useState, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { FolderUp, FileSpreadsheet, LayoutGrid, Plus, Download, Wand2 } from 'lucide-react';
+import { FolderUp, FileSpreadsheet, LayoutGrid, Plus, Download, Wand2, Type } from 'lucide-react';
 import { useCreatives } from '@/hooks/useCreatives';
 import { CreativeGrid } from '@/components/creative/CreativeGrid';
 import { FolderUpload } from '@/components/creative/FolderUpload';
 import { SpreadsheetUpload } from '@/components/creative/SpreadsheetUpload';
 import { CreativeEditor } from '@/components/creative/CreativeEditor';
 import { CreativeMatchingDialog } from '@/components/creative/CreativeMatchingDialog';
+import { TextAssetsTab } from '@/components/creative/TextAssetsTab';
 import type { Creative, CreativeFilters, Platform } from '@/types/creative';
 import { toast } from 'sonner';
 import { generateSampleTaxonomyStructure } from '@/utils/creativeValidation';
 
 export default function CreativeLibrary() {
-  const [activeTab, setActiveTab] = useState('library');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab') || 'library';
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [filters, setFilters] = useState<CreativeFilters>({});
   const [editingCreative, setEditingCreative] = useState<Creative | null>(null);
   const [isMatchingDialogOpen, setIsMatchingDialogOpen] = useState(false);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
+  
+  // Sync tab changes with URL
+  const handleTabChange = useCallback((value: string) => {
+    setActiveTab(value);
+    setSearchParams({ tab: value });
+  }, [setSearchParams]);
 
   const {
     creatives,
@@ -121,11 +131,15 @@ export default function CreativeLibrary() {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList>
           <TabsTrigger value="library" className="gap-2">
             <LayoutGrid className="h-4 w-4" />
             Library
+          </TabsTrigger>
+          <TabsTrigger value="text-assets" className="gap-2">
+            <Type className="h-4 w-4" />
+            Text Assets
           </TabsTrigger>
           <TabsTrigger value="folder" className="gap-2">
             <FolderUp className="h-4 w-4" />
@@ -149,6 +163,10 @@ export default function CreativeLibrary() {
             onFiltersChange={setFilters}
             emptyMessage="No creatives yet. Upload via folder or spreadsheet."
           />
+        </TabsContent>
+
+        <TabsContent value="text-assets" className="mt-6">
+          <TextAssetsTab />
         </TabsContent>
 
         <TabsContent value="folder" className="mt-6">
