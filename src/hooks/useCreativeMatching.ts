@@ -202,6 +202,10 @@ export function useCreativeMatching(campaignId?: string) {
       const marketSplitsRaw = (campaign as any)?.market_splits;
       const marketSplits: Record<string, any> = marketSplitsRaw && typeof marketSplitsRaw === 'object' ? marketSplitsRaw : {};
       
+      // Extract basicTargeting from generic_config for inherited ad set splits
+      const genericConfig = (campaign as any)?.generic_config;
+      const basicTargeting = genericConfig?.basicTargeting || {};
+      
       // Fetch taxonomy templates for all platforms
       const taxonomyTemplates: Record<string, TaxonomyParam[]> = {};
       for (const platform of platforms) {
@@ -331,13 +335,40 @@ export function useCreativeMatching(campaignId?: string) {
               market?.language ||
               undefined;
 
-            // Check if phase has ad set splits
-            const adSets: any[] = Array.isArray(phase?.adSets) ? phase.adSets : [];
-            const splitDimension = phase?.adSetSplitDimension || 'none';
+            // Check if phase has ad set splits - first check phase's own, then inherit from basicTargeting
+            let effectiveAdSets: any[] = Array.isArray(phase?.adSets) ? phase.adSets : [];
+            let effectiveSplitDimension = phase?.adSetSplitDimension || 'none';
 
-            if (adSets.length > 0 && splitDimension !== 'none') {
+            // If phase has no adSets, check if we should inherit from basicTargeting
+            if (effectiveAdSets.length === 0 && !phase?.overrideTargeting) {
+              const perPlatformConfig = basicTargeting?.defaultAdSetSplitDimensionPerPlatform;
+              const hasPerPlatformConfig = perPlatformConfig && Object.keys(perPlatformConfig).length > 0;
+              
+              // Get the platform's default dimension
+              const platformDefaultDimension = hasPerPlatformConfig 
+                ? perPlatformConfig[platformKey] 
+                : basicTargeting?.defaultAdSetSplitDimension;
+              
+              // Only inherit if there's a valid dimension
+              if (platformDefaultDimension && platformDefaultDimension !== 'none') {
+                // Get the platform's default ad sets
+                const perPlatformAdSets = basicTargeting?.defaultAdSetsPerPlatform;
+                const hasPerPlatformAdSets = perPlatformAdSets && Object.keys(perPlatformAdSets).length > 0;
+                const platformDefaultAdSets = hasPerPlatformAdSets
+                  ? perPlatformAdSets[platformKey]
+                  : basicTargeting?.defaultAdSets;
+                
+                if (platformDefaultAdSets && platformDefaultAdSets.length > 0) {
+                  effectiveAdSets = platformDefaultAdSets;
+                  effectiveSplitDimension = platformDefaultDimension;
+                  console.log(`Phase ${phase?.name} inheriting ${platformDefaultAdSets.length} ad sets from basicTargeting for ${platformKey}`);
+                }
+              }
+            }
+
+            if (effectiveAdSets.length > 0 && effectiveSplitDimension !== 'none') {
               // Create a structure for EACH ad set configuration
-              for (const adSet of adSets) {
+              for (const adSet of effectiveAdSets) {
                 // Build taxonomy context for this adset
                 const taxonomyContext: TaxonomyContext = {
                   platform: platformKey,
@@ -373,13 +404,13 @@ export function useCreativeMatching(campaignId?: string) {
                   phases: phase?.name ? [phase.name] : undefined,
                   // Ad set split dimensions
                   deviceConstraints: adSet.devices,
-                  genderConstraint: adSet.gender || (splitDimension === 'gender' ? adSet.dimensionValue : undefined),
+                  genderConstraint: adSet.gender || (effectiveSplitDimension === 'gender' ? adSet.dimensionValue : undefined),
                   ageConstraints: (adSet.ageMin !== undefined && adSet.ageMax !== undefined)
                     ? { min: adSet.ageMin, max: adSet.ageMax }
-                    : (splitDimension === 'age' && typeof adSet.dimensionValue === 'object')
+                    : (effectiveSplitDimension === 'age' && typeof adSet.dimensionValue === 'object')
                       ? adSet.dimensionValue
                       : undefined,
-                  audienceTypeConstraint: extractAudienceType(adSet.audiences, splitDimension, adSet.dimensionValue),
+                  audienceTypeConstraint: extractAudienceType(adSet.audiences, effectiveSplitDimension, adSet.dimensionValue),
                   audiences: adSet.audiences,
                   budgetAmount: calculateBudgetFromPercentage(adSet.budgetPercentage, phase, market, campaign),
                   budgetType: phase?.budgetType,
