@@ -11,6 +11,10 @@ export const TEXT_ASSET_COLUMNS = [
   { key: 'phase', label: 'Phase', width: 15 },
   { key: 'adSet', label: 'Ad Set', width: 20 },
   { key: 'creativeName', label: 'Creative Name', width: 30 },
+  // Taxonomy names for ads manager upload
+  { key: 'taxonomyCampaignName', label: 'Campaign Name (Taxonomy)', width: 50 },
+  { key: 'taxonomyAdSetName', label: 'Ad Set Name (Taxonomy)', width: 50 },
+  { key: 'taxonomyAdName', label: 'Ad Name (Taxonomy)', width: 50 },
   { key: 'adFormat', label: 'Ad Format', width: 15 },
   { key: 'creativeFormat', label: 'Media Type', width: 10 },
   { key: 'primaryText', label: 'Primary Text', width: 50 },

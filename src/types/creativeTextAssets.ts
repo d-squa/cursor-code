@@ -112,6 +112,11 @@ export interface CreativeTextAssetRow {
   creativeName: string;
   creativeFormat: CreativeFormat;
   
+  // Taxonomy names for ads manager upload
+  taxonomyCampaignName?: string;
+  taxonomyAdSetName?: string;
+  taxonomyAdName?: string;
+  
   // Ad format (suggested based on dimensions)
   adFormat: AdFormat;
   suggestedAdFormat?: AdFormat;
