@@ -11,11 +11,11 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { 
   Save, Download, Upload, Copy, Clipboard, Undo2, Redo2,
   Image, Video, AlertCircle, CheckCircle, XCircle,
-  ChevronDown, ChevronRight, Layers, Globe, Target, LayoutGrid
+  ChevronDown, ChevronRight, Layers, Globe, Target, LayoutGrid, Sparkles
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import type { CreativeTextAssetRow, TextAssetFieldConfig } from '@/types/creativeTextAssets';
+import type { CreativeTextAssetRow, TextAssetFieldConfig, AdFormat } from '@/types/creativeTextAssets';
 import { PLATFORM_TEXT_FIELDS, PLATFORM_CTAS, validateTextAssetRow } from '@/types/creativeTextAssets';
 import type { CallToAction, Platform } from '@/types/creative';
 import { 
@@ -27,6 +27,7 @@ import {
   EDITABLE_COLUMNS,
   type TextAssetColumnKey 
 } from '@/utils/textAssetExcelUtils';
+import { getAvailableFormats, getFormatLabel, AD_FORMAT_LABELS } from '@/utils/adFormatDetection';
 
 interface TextAssetExcelEditorProps {
   rows: CreativeTextAssetRow[];
@@ -39,8 +40,9 @@ interface TextAssetExcelEditorProps {
 }
 
 // Grid columns for the editor (focused on editable fields)
-const GRID_COLUMNS: Array<{ key: string; label: string; width: number; editable: boolean; type?: 'text' | 'select' }> = [
+const GRID_COLUMNS: Array<{ key: string; label: string; width: number; editable: boolean; type?: 'text' | 'select' | 'adFormat' }> = [
   { key: 'structure', label: 'Platform / Market / Phase / Ad Set / Creative', width: 320, editable: false, type: 'text' },
+  { key: 'adFormat', label: 'Ad Format', width: 140, editable: true, type: 'adFormat' },
   { key: 'primaryText', label: 'Primary Text', width: 220, editable: true, type: 'text' },
   { key: 'headline', label: 'Headline', width: 160, editable: true, type: 'text' },
   { key: 'description', label: 'Description', width: 160, editable: true, type: 'text' },
@@ -773,6 +775,51 @@ export function TextAssetExcelEditor({
                       
                       const value = (row as any)[col.key] || '';
                       const fieldConfig = PLATFORM_TEXT_FIELDS[platform]?.find(f => f.id === col.key);
+                      
+                      if (col.type === 'adFormat') {
+                        const availableFormats = getAvailableFormats(row.platform, row.mediaType);
+                        const isSuggested = !row.adFormatConfirmed && row.suggestedAdFormat;
+                        
+                        return (
+                          <div
+                            key={col.key}
+                            className={cn(
+                              "px-1 py-1 border-r shrink-0",
+                              isSelected && "bg-primary/20 outline outline-2 outline-primary"
+                            )}
+                            style={{ width: col.width }}
+                            onMouseDown={(e) => handleCellMouseDown(rowIndex, colIdx, e)}
+                            onMouseEnter={() => handleCellMouseEnter(rowIndex, colIdx)}
+                          >
+                            <div className="flex items-center gap-1">
+                              {isSuggested && (
+                                <Sparkles className="h-3 w-3 text-amber-500 shrink-0" />
+                              )}
+                              <Select
+                                value={row.adFormat}
+                                onValueChange={(v) => onRowChange(row.id, { 
+                                  adFormat: v as AdFormat, 
+                                  adFormatConfirmed: true 
+                                })}
+                              >
+                                <SelectTrigger className={cn(
+                                  "h-7 text-xs border-transparent hover:border-input bg-transparent flex-1",
+                                  isSuggested && "text-amber-600"
+                                )}>
+                                  <SelectValue placeholder="Select format..." />
+                                </SelectTrigger>
+                                <SelectContent className="bg-popover z-50">
+                                  {availableFormats.map(format => (
+                                    <SelectItem key={format} value={format} className="text-xs">
+                                      {getFormatLabel(format)}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        );
+                      }
                       
                       if (col.type === 'select') {
                         return (

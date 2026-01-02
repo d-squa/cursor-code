@@ -9,9 +9,10 @@ import { Save, Check, AlertCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { TextAssetExcelEditor } from './TextAssetExcelEditor';
-import type { CreativeTextAssetRow, CreativeFormat } from '@/types/creativeTextAssets';
+import type { CreativeTextAssetRow, CreativeFormat, AdFormat } from '@/types/creativeTextAssets';
 import { validateTextAssetRow } from '@/types/creativeTextAssets';
 import type { CallToAction } from '@/types/creative';
+import { detectAdFormat } from '@/utils/adFormatDetection';
 
 interface SavedAssignment {
   id: string;
@@ -96,6 +97,15 @@ export function TextAssetsStep({
           const isVideo = creative?.creative_type === 'video' || 
                          (creative?.media_urls?.[0]?.includes('.mp4') || creative?.media_urls?.[0]?.includes('.mov'));
           
+          const mediaType: 'image' | 'video' = isVideo ? 'video' : 'image';
+          
+          // Detect ad format based on dimensions and media type
+          const suggestedFormat = detectAdFormat({
+            aspectRatio: creative?.aspect_ratio,
+            mediaType,
+            platform: assignment.platform,
+          });
+          
           return {
             id: `${assignment.id}_${assignment.creative_id}`,
             creativeId: assignment.creative_id,
@@ -106,6 +116,9 @@ export function TextAssetsStep({
             adSet: `Ad Set ${assignment.position || 1}`,
             creativeName: creative?.name || 'Unknown Creative',
             creativeFormat: (creative?.creative_type || 'image') as CreativeFormat,
+            adFormat: suggestedFormat,
+            suggestedAdFormat: suggestedFormat,
+            adFormatConfirmed: false,
             primaryText: creative?.primary_text || '',
             headline: creative?.headline || '',
             description: creative?.description || '',
@@ -115,7 +128,7 @@ export function TextAssetsStep({
             isValid: true,
             validationErrors: [],
             thumbnailUrl: creative?.thumbnail_url,
-            mediaType: isVideo ? 'video' : 'image',
+            mediaType,
             aspectRatio: creative?.aspect_ratio,
           };
         });
