@@ -37,6 +37,7 @@ import { CarouselCreator } from './CarouselCreator';
 import type { CarouselLink } from '@/types/carouselTypes';
 import { getPlacementBadges, validateCarouselCreatives } from '@/utils/placementCompatibility';
 import { BulkParameterEditor } from './BulkParameterEditor';
+import { ApplyModeDialog, type ApplyMode } from './ApplyModeDialog';
 
 interface TextAssetExcelEditorProps {
   rows: CreativeTextAssetRow[];
@@ -165,6 +166,14 @@ export function TextAssetExcelEditor({
   const [showCarouselCreator, setShowCarouselCreator] = useState(false);
   const [carousels, setCarousels] = useState<CarouselLink[]>([]);
   const [showBulkEditor, setShowBulkEditor] = useState(true);
+  
+  // Apply mode dialog state
+  const [applyModeDialogOpen, setApplyModeDialogOpen] = useState(false);
+  const [pendingApplyData, setPendingApplyData] = useState<{
+    rowIds: string[];
+    updates: Partial<CreativeTextAssetRow>;
+    groupLabel: string;
+  } | null>(null);
   
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -636,8 +645,65 @@ export function TextAssetExcelEditor({
     });
   }, []);
 
-  // Paste to group
-  const handlePasteToGroup = useCallback(async (rowIds: string[]) => {
+  // Count filled rows for a given set of updates
+  const countFilledRows = useCallback((rowIds: string[], updateKeys: (keyof CreativeTextAssetRow)[]) => {
+    const targetRows = rows.filter(r => rowIds.includes(r.id));
+    return targetRows.filter(row => {
+      // A row is "filled" if ANY of the fields we're about to update already has a value
+      return updateKeys.some(key => {
+        const value = (row as any)[key];
+        return value && String(value).trim() !== '';
+      });
+    }).length;
+  }, [rows]);
+
+  // Apply updates with mode (all or blanks only)
+  const applyUpdatesWithMode = useCallback((
+    rowIds: string[], 
+    updates: Partial<CreativeTextAssetRow>, 
+    mode: ApplyMode
+  ) => {
+    if (mode === 'all') {
+      onBulkUpdate(rowIds, updates);
+      toast.success(`Applied to ${rowIds.length} creatives`);
+    } else {
+      // Only apply to rows where the fields are blank
+      const updateKeys = Object.keys(updates) as (keyof CreativeTextAssetRow)[];
+      let updatedCount = 0;
+      
+      rowIds.forEach(id => {
+        const row = rows.find(r => r.id === id);
+        if (!row) return;
+        
+        // Build updates only for blank fields
+        const blankUpdates: Partial<CreativeTextAssetRow> = {};
+        updateKeys.forEach(key => {
+          const currentValue = (row as any)[key];
+          if (!currentValue || String(currentValue).trim() === '') {
+            (blankUpdates as any)[key] = (updates as any)[key];
+          }
+        });
+        
+        if (Object.keys(blankUpdates).length > 0) {
+          onRowChange(id, blankUpdates);
+          updatedCount++;
+        }
+      });
+      
+      toast.success(`Applied to ${updatedCount} creatives (blank fields only)`);
+    }
+  }, [rows, onBulkUpdate, onRowChange]);
+
+  // Handle apply mode confirmation
+  const handleApplyModeConfirm = useCallback((mode: ApplyMode) => {
+    if (pendingApplyData) {
+      applyUpdatesWithMode(pendingApplyData.rowIds, pendingApplyData.updates, mode);
+      setPendingApplyData(null);
+    }
+  }, [pendingApplyData, applyUpdatesWithMode]);
+
+  // Paste to group - now checks for filled fields
+  const handlePasteToGroup = useCallback(async (rowIds: string[], groupLabel: string) => {
     try {
       const text = await navigator.clipboard.readText();
       if (!text.trim()) {
@@ -668,14 +734,28 @@ export function TextAssetExcelEditor({
         }
       });
       
-      if (Object.keys(updates).length > 0) {
+      if (Object.keys(updates).length === 0) {
+        toast.error('No valid data to apply');
+        return;
+      }
+      
+      // Check if any target rows already have values
+      const updateKeys = Object.keys(updates) as (keyof CreativeTextAssetRow)[];
+      const filledCount = countFilledRows(rowIds, updateKeys);
+      
+      if (filledCount > 0) {
+        // Show dialog to choose mode
+        setPendingApplyData({ rowIds, updates, groupLabel });
+        setApplyModeDialogOpen(true);
+      } else {
+        // No filled fields, apply directly
         onBulkUpdate(rowIds, updates);
         toast.success(`Applied to ${rowIds.length} creatives`);
       }
     } catch (err) {
       toast.error('Failed to read clipboard');
     }
-  }, [onBulkUpdate]);
+  }, [onBulkUpdate, countFilledRows]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -975,7 +1055,7 @@ export function TextAssetExcelEditor({
                                 className="h-7 text-xs"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handlePasteToGroup(item.rowIds || []);
+                                  handlePasteToGroup(item.rowIds || [], item.groupLabel || '');
                                 }}
                               >
                                 <Clipboard className="h-3 w-3 mr-1" />
@@ -1234,6 +1314,19 @@ export function TextAssetExcelEditor({
         onCreateCarousel={handleCreateCarousel}
         onCancel={() => setShowCarouselCreator(false)}
         open={showCarouselCreator}
+      />
+      
+      {/* Apply Mode Dialog */}
+      <ApplyModeDialog
+        open={applyModeDialogOpen}
+        onOpenChange={setApplyModeDialogOpen}
+        onConfirm={handleApplyModeConfirm}
+        groupLabel={pendingApplyData?.groupLabel || ''}
+        itemCount={pendingApplyData?.rowIds.length || 0}
+        filledCount={pendingApplyData ? countFilledRows(
+          pendingApplyData.rowIds, 
+          Object.keys(pendingApplyData.updates) as (keyof CreativeTextAssetRow)[]
+        ) : 0}
       />
     </div>
   );
