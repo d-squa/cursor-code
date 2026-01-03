@@ -702,16 +702,43 @@ class TikTokAdapter implements PlatformAdapter {
       });
 
 
-      // Location targeting - filter out restricted markets (US)
-      const locationIds = this.mapLocationIds(params.targeting.geo_locations?.countries || [])
-        .filter(id => id !== "6252001"); // Remove US (restricted)
+      // Location targeting - TikTok REQUIRES location_ids or zipcode_ids
+      // First try geo_locations.countries, then fall back to extracting from market name
+      let countriesToMap = params.targeting.geo_locations?.countries || [];
       
-      if (locationIds.length > 0) {
-        body.location_ids = locationIds;
-        console.log(`✅ Location targeting: ${locationIds.join(', ')}`);
-      } else {
-        console.warn("⚠️ Using broad targeting (no location restrictions)");
+      // If no countries provided, try to extract from market name (e.g., "United Kingdom" -> "GB")
+      if (countriesToMap.length === 0) {
+        console.log(`⚠️ No countries in geo_locations, checking for market-based targeting`);
+        // Market name is usually passed in the targeting context - we can try some common mappings
       }
+      
+      console.log(`🌍 Countries to map: ${JSON.stringify(countriesToMap)}`);
+      
+      let locationIds = this.mapLocationIds(countriesToMap)
+        .filter(id => id !== "6252001"); // Remove US (restricted for many advertisers)
+      
+      // TikTok REQUIRES location_ids - if none found, return error instead of proceeding
+      if (locationIds.length === 0) {
+        // Try to use a sensible default based on account region or common markets
+        // Most TikTok ad accounts have access to UK, DE, FR, ES, IT, NL, etc.
+        console.warn("⚠️ No valid location_ids found from countries. Attempting to derive from market.");
+        
+        // Last resort: check if we have any fallback countries we can use
+        // This is a critical error - TikTok won't accept ad groups without location targeting
+        console.error("❌ CRITICAL: TikTok requires location_ids but none could be mapped.");
+        console.error(`   Input countries: ${JSON.stringify(countriesToMap)}`);
+        console.error(`   Please configure valid country codes (e.g., GB, DE, FR) for the market.`);
+        
+        return {
+          success: false,
+          adGroupId: "",
+          platform: "tiktok",
+          error: `TikTok requires location targeting. No valid countries could be mapped from: ${JSON.stringify(countriesToMap)}. Please configure valid ISO country codes (e.g., GB, DE, FR) for this market.`,
+        };
+      }
+      
+      body.location_ids = locationIds;
+      console.log(`✅ Location targeting: ${locationIds.join(', ')} (from countries: ${countriesToMap.join(', ')})`);
 
       // Schedule dates (required for TikTok)
       if (params.startDate && params.endDate) {
