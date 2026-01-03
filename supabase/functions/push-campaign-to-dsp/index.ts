@@ -2658,11 +2658,28 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
               // Check if creative has been uploaded to Meta
               const hasMetaAsset = creative.platform_image_hash || creative.platform_video_id;
               if (!hasMetaAsset) {
-                console.warn(`⚠️ Creative ${creative.name} not uploaded to Meta yet (no image_hash or video_id)`);
-                // Update assignment status
+                const missingFields = [
+                  !creative.platform_image_hash ? 'platform_image_hash' : null,
+                  !creative.platform_video_id ? 'platform_video_id' : null,
+                ].filter(Boolean);
+
+                console.warn(`⚠️ Meta creative missing uploaded asset identifiers`, {
+                  assignmentId: assignment.id,
+                  creativeId: creative.id,
+                  creativeName: creative.name,
+                  mediaType: creative.media_type,
+                  creativeType: creative.creative_type,
+                  dspUploadStatus: creative.dsp_upload_status,
+                  missingFields,
+                });
+
+                // Update assignment status with actionable root cause
                 await supabase
                   .from('creative_assignments')
-                  .update({ status: 'error', error_message: 'Creative not uploaded to Meta' })
+                  .update({
+                    status: 'error',
+                    error_message: `Creative not uploaded to Meta (missing ${missingFields.join(' & ')})`,
+                  })
                   .eq('id', assignment.id);
                 continue;
               }
@@ -2734,7 +2751,14 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
                 }
               }
               
-              console.log(`📤 Creating Meta ad creative for ${creative.name}...`);
+              console.log(`📤 Creating Meta ad creative for ${creative.name}...`, {
+                assignmentId: assignment.id,
+                creativeId: creative.id,
+                isVideo,
+                hasVideoId: !!creative.platform_video_id,
+                hasImageHash: !!creative.platform_image_hash,
+                pageId,
+              });
               
               const creativeResponse = await fetch(
                 `https://graph.facebook.com/v22.0/${adAccountPath}/adcreatives`,
@@ -2748,7 +2772,13 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
               const creativeData = await creativeResponse.json();
               
               if (creativeData.error) {
-                console.error(`❌ Failed to create ad creative:`, creativeData.error);
+                console.error(`❌ Failed to create Meta ad creative`, {
+                  assignmentId: assignment.id,
+                  creativeId: creative.id,
+                  creativeName: creative.name,
+                  isVideo,
+                  error: creativeData.error,
+                });
                 await supabase
                   .from('creative_assignments')
                   .update({ 
@@ -2758,10 +2788,6 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
                   .eq('id', assignment.id);
                 continue;
               }
-              
-              console.log(`✅ Meta ad creative created: ${creativeData.id}`);
-              
-              // Now create the ad itself
               const adPayload = {
                 name: adName,
                 adset_id: adSetData.id,
@@ -2769,7 +2795,12 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
                 status: 'PAUSED',
               };
               
-              console.log(`📤 Creating Meta ad...`);
+              console.log(`📤 Creating Meta ad...`, {
+                assignmentId: assignment.id,
+                creativeId: creative.id,
+                adsetId: adSetData.id,
+                adCreativeId: creativeData.id,
+              });
               
               const adResponse = await fetch(
                 `https://graph.facebook.com/v22.0/${adAccountPath}/ads`,
@@ -2783,7 +2814,14 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
               const adData = await adResponse.json();
               
               if (adData.error) {
-                console.error(`❌ Failed to create ad:`, adData.error);
+                console.error(`❌ Failed to create Meta ad`, {
+                  assignmentId: assignment.id,
+                  creativeId: creative.id,
+                  creativeName: creative.name,
+                  adsetId: adSetData.id,
+                  adCreativeId: creativeData.id,
+                  error: adData.error,
+                });
                 await supabase
                   .from('creative_assignments')
                   .update({ 
@@ -3476,10 +3514,20 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
               // Check if creative has been uploaded to TikTok
               const hasTikTokAsset = creative.platform_video_id || creative.platform_image_hash;
               if (!hasTikTokAsset) {
-                console.warn(`⚠️ Creative ${creative.name} not uploaded to TikTok yet`);
+                console.warn(`⚠️ TikTok creative missing uploaded asset identifiers`, {
+                  assignmentId: assignment.id,
+                  creativeId: creative.id,
+                  creativeName: creative.name,
+                  mediaType: creative.media_type,
+                  creativeType: creative.creative_type,
+                  dspUploadStatus: creative.dsp_upload_status,
+                });
                 await supabase
                   .from('creative_assignments')
-                  .update({ status: 'error', error_message: 'Creative not uploaded to TikTok' })
+                  .update({
+                    status: 'error',
+                    error_message: 'Creative not uploaded to TikTok (missing platform_video_id/platform_image_hash)',
+                  })
                   .eq('id', assignment.id);
                 continue;
               }
