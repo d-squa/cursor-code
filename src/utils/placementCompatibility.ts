@@ -27,41 +27,57 @@ const PLACEMENT_ASPECT_RATIOS: Record<PlacementType, string[]> = {
 };
 
 // Platform-specific carousel requirements
+// Each platform can support different carousel types based on aspect ratio:
+// - 1:1 / 1.91:1 = Feed carousel
+// - 9:16 = Story/Reels carousel
 export const CAROUSEL_PLATFORM_REQUIREMENTS: Record<string, {
   aspectRatios: string[];
   minCards: number;
   maxCards: number;
   sameAspectRatio: boolean; // Whether all cards must have same aspect ratio
+  storyCarouselSupported: boolean;
 }> = {
   meta: {
-    aspectRatios: ['1:1'],
+    aspectRatios: ['1:1', '1.91:1', '9:16'], // 1:1/1.91:1 for feed, 9:16 for story/reels
     minCards: 2,
     maxCards: 10,
     sameAspectRatio: true,
+    storyCarouselSupported: true,
   },
   tiktok: {
     aspectRatios: ['1.91:1', '1:1', '9:16'],
     minCards: 2,
     maxCards: 35,
     sameAspectRatio: false,
+    storyCarouselSupported: true,
   },
   linkedin: {
-    aspectRatios: ['1:1'],
+    aspectRatios: ['1:1', '1.91:1'],
     minCards: 2,
     maxCards: 10,
     sameAspectRatio: true,
+    storyCarouselSupported: false,
   },
   pinterest: {
-    aspectRatios: ['1:1', '2:3'],
+    aspectRatios: ['1:1', '2:3', '9:16'],
     minCards: 2,
     maxCards: 5,
     sameAspectRatio: false,
+    storyCarouselSupported: true,
   },
   x: {
     aspectRatios: ['1:1', '16:9', '1.91:1'],
     minCards: 2,
     maxCards: 6,
     sameAspectRatio: false,
+    storyCarouselSupported: false,
+  },
+  snapchat: {
+    aspectRatios: ['9:16'], // Snapchat only supports vertical story carousels
+    minCards: 2,
+    maxCards: 10,
+    sameAspectRatio: true,
+    storyCarouselSupported: true,
   },
 };
 
@@ -192,16 +208,31 @@ export function validateCarouselCreatives(
     }
   }
 
-  // Determine compatible placements for the carousel
-  // Carousel can appear in feed and sometimes stories depending on platform
-  result.compatiblePlacements.push('feed');
-  
-  // Check if 9:16 carousels work for stories on this platform
+  // Determine compatible placements for the carousel based on aspect ratios
   const has916 = creatives.every(c => 
     c.width && c.height && matchesAspectRatio(c.width, c.height, '9:16', 0.08)
   );
-  if (has916 && platformLower === 'tiktok') {
+  const hasFeedRatio = creatives.every(c => 
+    c.width && c.height && (
+      matchesAspectRatio(c.width, c.height, '1:1', 0.08) ||
+      matchesAspectRatio(c.width, c.height, '1.91:1', 0.08) ||
+      matchesAspectRatio(c.width, c.height, '16:9', 0.08)
+    )
+  );
+
+  // Add feed placement if all cards have feed-compatible ratios
+  if (hasFeedRatio) {
+    result.compatiblePlacements.push('feed');
+  }
+  
+  // Check if 9:16 carousels work for stories on this platform
+  if (has916 && reqs.storyCarouselSupported) {
     result.compatiblePlacements.push('story');
+  }
+
+  // If neither, default to feed (will show validation errors)
+  if (result.compatiblePlacements.length === 0) {
+    result.compatiblePlacements.push('feed');
   }
 
   return result;
