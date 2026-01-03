@@ -331,15 +331,18 @@ class TikTokAdapter implements PlatformAdapter {
     try {
       console.log(`🎯 TikTokAdapter.createAdGroup TRY block entered`);
       // STRICT BILLING EVENT MAPPING from TikTok matrix
-      // NOTE: TRAFFIC + CLICK requires CPC (confirmed via API error "Only CPC is supported")
+      // NOTE: TikTok billing requirements can vary by optimization goal/account type.
+      // Observed via API errors:
+      // - CLICK: "Only CPC is supported."
+      // - TRAFFIC_LANDING_PAGE_VIEW: "You can only select oCPM for your billing event."
       const getBillingEventForOptimization = (optimizationGoal: string): string => {
         const mapping: Record<string, string> = {
           'REACH': 'CPM',
-          'CLICK': 'CPC',           // TRAFFIC + CLICK requires CPC (API confirmed)
-          'TRAFFIC_LANDING_PAGE_VIEW': 'CPC',
+          'CLICK': 'CPC',
+          'TRAFFIC_LANDING_PAGE_VIEW': 'OCPM',
           'LANDING_PAGE': 'OCPM',
           'LANDING_PAGE_VIEW': 'OCPM',
-          '6S_VIDEO_VIEW': 'OCPM',  // VIDEO_VIEW now uses OCPM
+          '6S_VIDEO_VIEW': 'OCPM',
           '15S_VIDEO_VIEW': 'OCPM',
           'VIDEO_VIEW': 'OCPM',
           'FOCUSED_VIEW': 'OCPM',
