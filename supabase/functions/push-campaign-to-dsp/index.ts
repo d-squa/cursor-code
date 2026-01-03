@@ -3178,13 +3178,12 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
 
         // Map billing event based on objective + optimization goal combination
         // TikTok has strict billing event requirements per objective
-        // IMPORTANT: As of 2024, TikTok requires OCPM for most objectives including TRAFFIC
-        // CPC/CPM are deprecated for many ad account types
+        // NOTE: TRAFFIC objective with CLICK optimization requires CPC (confirmed via API error "Only CPC is supported")
         const billingEventMap: Record<string, Record<string, string>> = {
           "TRAFFIC": {
-            "CLICK": "OCPM",  // TikTok now requires OCPM for TRAFFIC objective
-            "TRAFFIC_LANDING_PAGE_VIEW": "OCPM",
-            "LANDING_PAGE": "OCPM",
+            "CLICK": "CPC",  // TRAFFIC + CLICK requires CPC (API confirmed)
+            "TRAFFIC_LANDING_PAGE_VIEW": "CPC",
+            "LANDING_PAGE": "CPC",
           },
           "CONVERSIONS": {
             "CONVERT": "OCPM",
