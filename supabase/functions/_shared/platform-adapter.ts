@@ -331,20 +331,21 @@ class TikTokAdapter implements PlatformAdapter {
     try {
       console.log(`🎯 TikTokAdapter.createAdGroup TRY block entered`);
       // STRICT BILLING EVENT MAPPING from TikTok matrix
+      // As of 2024, TikTok requires OCPM for most objectives (CPC/CPM are deprecated for many account types)
       const getBillingEventForOptimization = (optimizationGoal: string): string => {
         const mapping: Record<string, string> = {
-          'REACH': 'CPM',
-          'CLICK': 'CPC',
-          'TRAFFIC_LANDING_PAGE_VIEW': 'CPC',
+          'REACH': 'CPM',           // REACH is an exception that still supports CPM
+          'CLICK': 'OCPM',          // TikTok now requires OCPM for traffic/click optimization
+          'TRAFFIC_LANDING_PAGE_VIEW': 'OCPM',
           'LANDING_PAGE': 'OCPM',
-          'LANDING_PAGE_VIEW': 'OCPM', // legacy alias (do not send to API)
-          '6S_VIDEO_VIEW': 'CPV',
-          '15S_VIDEO_VIEW': 'CPV',
-          'VIDEO_VIEW': 'CPV',
-          'FOCUSED_VIEW': 'CPV',
+          'LANDING_PAGE_VIEW': 'OCPM',
+          '6S_VIDEO_VIEW': 'OCPM',  // VIDEO_VIEW now uses OCPM
+          '15S_VIDEO_VIEW': 'OCPM',
+          'VIDEO_VIEW': 'OCPM',
+          'FOCUSED_VIEW': 'OCPM',
           'CONVERT': 'OCPM',
           'VALUE': 'OCPM',
-          'APP_INSTALL': 'CPC',
+          'APP_INSTALL': 'OCPM',
           'ENGAGEMENT': 'OCPM',
           'FOLLOW': 'OCPM',
           'FORM_SUBMIT': 'OCPM',

@@ -3178,27 +3178,29 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
 
         // Map billing event based on objective + optimization goal combination
         // TikTok has strict billing event requirements per objective
-        // IMPORTANT: LEAD_GENERATION requires OCPM billing event
+        // IMPORTANT: As of 2024, TikTok requires OCPM for most objectives including TRAFFIC
+        // CPC/CPM are deprecated for many ad account types
         const billingEventMap: Record<string, Record<string, string>> = {
           "TRAFFIC": {
-            "CLICK": "CPC",  // TRAFFIC supports CPC
-            "TRAFFIC_LANDING_PAGE_VIEW": "CPC",
-            "LANDING_PAGE": "CPC", // legacy alias
+            "CLICK": "OCPM",  // TikTok now requires OCPM for TRAFFIC objective
+            "TRAFFIC_LANDING_PAGE_VIEW": "OCPM",
+            "LANDING_PAGE": "OCPM",
           },
           "CONVERSIONS": {
-            "CONVERT": "OCPM",  // CONVERSIONS supports OCPM
+            "CONVERT": "OCPM",
           },
           "REACH": {
-            "REACH": "CPM",  // REACH typically uses CPM
+            "REACH": "CPM",  // REACH is an exception that still supports CPM
           },
           "VIDEO_VIEW": {
-            "VIDEO_VIEW": "CPV",  // VIDEO_VIEW uses CPV
+            "VIDEO_VIEW": "OCPM",  // VIDEO_VIEW now uses OCPM
+            "FOCUSED_VIEW": "OCPM",
           },
           "APP_INSTALL": {
             "INSTALL": "OCPM",
           },
           "LEAD_GENERATION": {
-            "FORM_SUBMIT": "OCPM", // Lead Gen requires OCPM
+            "FORM_SUBMIT": "OCPM",
           },
         };
         
