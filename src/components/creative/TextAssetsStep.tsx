@@ -5,7 +5,9 @@ import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Save, Check, AlertCircle, Loader2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Save, Check, AlertCircle, Loader2, Plus, Image, Video } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { TextAssetExcelEditor } from './TextAssetExcelEditor';
@@ -53,6 +55,10 @@ export function TextAssetsStep({
   const [rows, setRows] = useState<CreativeTextAssetRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [availableCreatives, setAvailableCreatives] = useState<any[]>([]);
+  const [selectedNewCreatives, setSelectedNewCreatives] = useState<Set<string>>(new Set());
+  const [isLoadingCreatives, setIsLoadingCreatives] = useState(false);
 
   // Track if we've attempted to load (to distinguish "loading" from "empty result")
   const [hasAttemptedLoad, setHasAttemptedLoad] = useState(false);
@@ -419,6 +425,96 @@ export function TextAssetsStep({
     setRows(validatedRows);
   }, []);
 
+  // Existing creative IDs to exclude from add dialog
+  const existingCreativeIds = useMemo(() => new Set(rows.map(r => r.creativeId)), [rows]);
+
+  // Open add creatives dialog
+  const handleOpenAddDialog = useCallback(async () => {
+    setShowAddDialog(true);
+    setIsLoadingCreatives(true);
+    setSelectedNewCreatives(new Set());
+    
+    try {
+      // Fetch all creatives for this campaign that are not already in the editor
+      const { data: creatives, error } = await supabase
+        .from('creatives')
+        .select('id, name, creative_type, thumbnail_url, media_urls, aspect_ratio, width, height, platform, market, phase_name')
+        .eq('campaign_id', campaignId)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      
+      // Filter out already-added creatives
+      const available = (creatives || []).filter(c => !existingCreativeIds.has(c.id));
+      setAvailableCreatives(available);
+    } catch (error) {
+      console.error('Error loading available creatives:', error);
+      toast.error('Failed to load available creatives');
+    } finally {
+      setIsLoadingCreatives(false);
+    }
+  }, [campaignId, existingCreativeIds]);
+
+  // Toggle creative selection in add dialog
+  const toggleCreativeSelection = useCallback((creativeId: string) => {
+    setSelectedNewCreatives(prev => {
+      const next = new Set(prev);
+      if (next.has(creativeId)) {
+        next.delete(creativeId);
+      } else {
+        next.add(creativeId);
+      }
+      return next;
+    });
+  }, []);
+
+  // Add selected creatives to the editor
+  const handleAddSelectedCreatives = useCallback(() => {
+    const newRows: CreativeTextAssetRow[] = availableCreatives
+      .filter(c => selectedNewCreatives.has(c.id))
+      .map(creative => {
+        const isVideo = creative.creative_type === 'video' || 
+                       (creative.media_urls?.[0]?.includes('.mp4') || creative.media_urls?.[0]?.includes('.mov'));
+        const mediaType: 'image' | 'video' = isVideo ? 'video' : 'image';
+        
+        return {
+          id: `new_${creative.id}`,
+          creativeId: creative.id,
+          assignmentId: '',
+          platform: creative.platform || 'meta',
+          market: creative.market || 'Global',
+          phase: creative.phase_name || 'Default',
+          adSet: 'New Ad Set',
+          creativeName: creative.name || 'Unknown Creative',
+          creativeFormat: (creative.creative_type || 'image') as CreativeFormat,
+          taxonomyCampaignName: '',
+          taxonomyAdSetName: '',
+          taxonomyAdName: creative.name || 'Creative',
+          adFormat: 'single_image' as AdFormat,
+          suggestedAdFormat: 'single_image' as AdFormat,
+          adFormatConfirmed: false,
+          primaryText: '',
+          headline: '',
+          description: '',
+          callToAction: 'LEARN_MORE' as any,
+          destinationUrl: '',
+          autoBuildUtm: false,
+          isValid: false,
+          validationErrors: ['Missing required fields'],
+          thumbnailUrl: creative.thumbnail_url,
+          mediaType,
+          aspectRatio: creative.aspect_ratio,
+          width: creative.width,
+          height: creative.height,
+        };
+      });
+    
+    // Add new rows while preserving existing ones with their edits
+    setRows(prev => [...prev, ...newRows]);
+    setShowAddDialog(false);
+    toast.success(`Added ${newRows.length} creative(s) to the editor`);
+  }, [availableCreatives, selectedNewCreatives]);
+
   // Save text assets to database
   const handleSave = useCallback(async () => {
     setIsSaving(true);
@@ -505,6 +601,7 @@ export function TextAssetsStep({
           onImportRows={handleImportRows}
           onSave={handleSave}
           isSaving={isSaving}
+          onAddCreatives={handleOpenAddDialog}
         />
       </div>
       
@@ -517,6 +614,100 @@ export function TextAssetsStep({
           Skip for Now
         </Button>
       </div>
+
+      {/* Add Creatives Dialog */}
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Plus className="h-5 w-5" />
+              Add More Creatives
+            </DialogTitle>
+            <DialogDescription>
+              Select creatives to add to the text asset editor. Your existing edits will be preserved.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="flex-1 overflow-hidden">
+            {isLoadingCreatives ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              </div>
+            ) : availableCreatives.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <AlertCircle className="h-8 w-8 text-muted-foreground mb-3" />
+                <p className="text-muted-foreground">No additional creatives available for this campaign.</p>
+              </div>
+            ) : (
+              <ScrollArea className="h-[400px] pr-4">
+                <div className="space-y-2">
+                  {availableCreatives.map(creative => {
+                    const isVideo = creative.creative_type === 'video';
+                    const isSelected = selectedNewCreatives.has(creative.id);
+                    
+                    return (
+                      <div
+                        key={creative.id}
+                        className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                          isSelected ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'
+                        }`}
+                        onClick={() => toggleCreativeSelection(creative.id)}
+                      >
+                        <Checkbox checked={isSelected} />
+                        
+                        {/* Thumbnail */}
+                        <div className="w-12 h-12 rounded bg-muted flex items-center justify-center overflow-hidden shrink-0">
+                          {creative.thumbnail_url ? (
+                            <img src={creative.thumbnail_url} alt="" className="w-full h-full object-cover" />
+                          ) : isVideo ? (
+                            <Video className="h-5 w-5 text-muted-foreground" />
+                          ) : (
+                            <Image className="h-5 w-5 text-muted-foreground" />
+                          )}
+                        </div>
+                        
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{creative.name}</p>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Badge variant="outline" className="text-[10px] px-1 h-4">
+                              {isVideo ? 'Video' : 'Image'}
+                            </Badge>
+                            {creative.aspect_ratio && (
+                              <span>{creative.aspect_ratio}</span>
+                            )}
+                            {creative.platform && (
+                              <span className="capitalize">{creative.platform}</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+            )}
+          </div>
+          
+          <DialogFooter className="flex items-center justify-between">
+            <div className="text-sm text-muted-foreground">
+              {selectedNewCreatives.size > 0 && `${selectedNewCreatives.size} selected`}
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setShowAddDialog(false)}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleAddSelectedCreatives} 
+                disabled={selectedNewCreatives.size === 0}
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                Add {selectedNewCreatives.size > 0 ? selectedNewCreatives.size : ''} Creative{selectedNewCreatives.size !== 1 ? 's' : ''}
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -43,6 +43,8 @@ interface TextAssetExcelEditorProps {
   onImportRows: (rows: CreativeTextAssetRow[]) => void;
   onSave: () => Promise<void>;
   isSaving: boolean;
+  /** Called when user wants to add more creatives */
+  onAddCreatives?: () => void;
 }
 
 // Grid column definition - now includes checkbox for multi-select
@@ -143,7 +145,8 @@ export function TextAssetExcelEditor({
   onBulkUpdate,
   onImportRows,
   onSave,
-  isSaving
+  isSaving,
+  onAddCreatives
 }: TextAssetExcelEditorProps) {
   // State
   const [selection, setSelection] = useState<CellSelection | null>(null);
@@ -741,6 +744,12 @@ export function TextAssetExcelEditor({
             </>
           )}
           
+          {onAddCreatives && (
+            <Button variant="outline" size="sm" onClick={onAddCreatives}>
+              <Plus className="h-4 w-4 mr-1" />
+              Add Creatives
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={handleDownload}>
             <Download className="h-4 w-4 mr-1" />
             Download Excel
