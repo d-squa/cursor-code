@@ -3181,9 +3181,9 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
         // NOTE: TRAFFIC objective with CLICK optimization requires CPC (confirmed via API error "Only CPC is supported")
         const billingEventMap: Record<string, Record<string, string>> = {
           "TRAFFIC": {
-            "CLICK": "CPC",  // TRAFFIC + CLICK requires CPC (API confirmed)
-            "TRAFFIC_LANDING_PAGE_VIEW": "CPC",
-            "LANDING_PAGE": "CPC",
+            "CLICK": "CPC",  // CLICK supports CPC (API confirmed)
+            "TRAFFIC_LANDING_PAGE_VIEW": "OCPM", // Landing page view often requires OCPM (API confirmed)
+            "LANDING_PAGE": "OCPM",
           },
           "CONVERSIONS": {
             "CONVERT": "OCPM",
