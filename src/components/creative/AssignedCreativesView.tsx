@@ -34,6 +34,13 @@ interface CreativeAssignment {
     headline: string | null;
     call_to_action: string | null;
     status: string;
+    // DSP upload fields (snake_case as returned by the query)
+    platform_image_hash?: string | null;
+    platform_video_id?: string | null;
+    platform_thumbnail_id?: string | null;
+    dsp_upload_status?: string | null;
+    dsp_upload_error?: string | null;
+    dsp_uploaded_at?: string | null;
   } | null;
 }
 
@@ -67,20 +74,22 @@ export function AssignedCreativesView({ campaignId, onRefresh }: AssignedCreativ
 
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('creative_assignments')
-        .select(`
-          *,
-          creative:creatives(
-            id, name, media_type, aspect_ratio, thumbnail_url, media_urls,
-            width, height, duration_seconds, primary_text, headline, call_to_action, status
-          )
-        `)
-        .eq('campaign_id', campaignId)
-        .order('platform')
-        .order('market')
-        .order('phase_name')
-        .order('position');
+        const { data, error } = await supabase
+          .from('creative_assignments')
+          .select(`
+            *,
+            creative:creatives(
+              id, name, media_type, aspect_ratio, thumbnail_url, media_urls,
+              width, height, duration_seconds, primary_text, headline, call_to_action, status,
+              platform_image_hash, platform_video_id, platform_thumbnail_id,
+              dsp_upload_status, dsp_upload_error, dsp_uploaded_at
+            )
+          `)
+          .eq('campaign_id', campaignId)
+          .order('platform')
+          .order('market')
+          .order('phase_name')
+          .order('position');
 
       if (error) throw error;
 
@@ -372,8 +381,33 @@ function CreativeCard({ assignment, onRemove, isDeleting }: CreativeCardProps) {
 
       {/* Error message */}
       {assignment.error_message && (
-        <div className="mt-2 p-2 bg-destructive/10 rounded text-xs text-destructive">
-          {assignment.error_message}
+        <div className="mt-2 p-2 bg-destructive/10 rounded text-xs text-destructive space-y-1">
+          <div>{assignment.error_message}</div>
+
+          {/* Helpful root cause hints for missing DSP asset IDs */}
+          {assignment.platform === 'meta' && !creative.platform_image_hash && !creative.platform_video_id && (
+            <div className="text-destructive/90">
+              Missing Meta asset IDs (platform_image_hash / platform_video_id). Upload the media to Meta first.
+            </div>
+          )}
+          {assignment.platform === 'tiktok' && !creative.platform_image_hash && !creative.platform_video_id && (
+            <div className="text-destructive/90">
+              Missing TikTok asset IDs (platform_image_hash / platform_video_id). Upload the media to TikTok first.
+            </div>
+          )}
+
+          {creative.dsp_upload_status && (
+            <div className="text-destructive/90">
+              Creative upload status: {creative.dsp_upload_status}
+              {creative.dsp_uploaded_at ? ` • ${new Date(creative.dsp_uploaded_at).toLocaleString()}` : ''}
+            </div>
+          )}
+
+          {creative.dsp_upload_error && (
+            <div className="text-destructive/90">
+              Upload error: {creative.dsp_upload_error}
+            </div>
+          )}
         </div>
       )}
     </div>
