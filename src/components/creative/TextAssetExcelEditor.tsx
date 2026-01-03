@@ -10,11 +10,12 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { 
   Save, Download, Upload, Copy, Clipboard, Undo2, Redo2,
   Image, Video, AlertCircle, CheckCircle, XCircle,
   ChevronDown, ChevronRight, Layers, Globe, Target, LayoutGrid, Sparkles,
-  Plus, Link2, Layout, Film, Grid
+  Plus, Link2, Layout, Film, Grid, Settings2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -25,6 +26,7 @@ import {
   downloadTextAssetExcel, 
   parseTextAssetExcel, 
   parseClipboardForGrid,
+  parseClipboardWithHeaders,
   gridDataToClipboard,
   TEXT_ASSET_COLUMNS,
   EDITABLE_COLUMNS,
@@ -34,6 +36,7 @@ import { getAvailableFormats, getFormatLabel, AD_FORMAT_LABELS } from '@/utils/a
 import { CarouselCreator } from './CarouselCreator';
 import type { CarouselLink } from '@/types/carouselTypes';
 import { getPlacementBadges, validateCarouselCreatives } from '@/utils/placementCompatibility';
+import { BulkParameterEditor } from './BulkParameterEditor';
 
 interface TextAssetExcelEditorProps {
   rows: CreativeTextAssetRow[];
@@ -161,6 +164,7 @@ export function TextAssetExcelEditor({
   const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
   const [showCarouselCreator, setShowCarouselCreator] = useState(false);
   const [carousels, setCarousels] = useState<CarouselLink[]>([]);
+  const [showBulkEditor, setShowBulkEditor] = useState(true);
   
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -449,7 +453,7 @@ export function TextAssetExcelEditor({
     toast.success(`Copied ${data.length} rows × ${data[0]?.length || 0} columns`);
   }, [selection, rowItems]);
 
-  // Paste from clipboard
+  // Paste from clipboard with smart header detection
   const pasteSelection = useCallback(async () => {
     if (!selection) return;
     
@@ -460,51 +464,115 @@ export function TextAssetExcelEditor({
         return;
       }
       
-      const parsed = parseClipboardForGrid(text);
-      if (parsed.length === 0) {
+      // Try to parse with header detection first
+      const parsed = parseClipboardWithHeaders(text);
+      
+      if (parsed.dataRows.length === 0) {
         toast.error('No valid data in clipboard');
         return;
       }
       
-      const startRow = Math.min(selection.startRow, selection.endRow);
-      const startCol = Math.min(selection.startCol, selection.endCol);
-      
       let updateCount = 0;
       
-      for (let r = 0; r < parsed.length; r++) {
-        const targetRowIndex = startRow + r;
-        if (targetRowIndex >= rowItems.length) break;
+      if (parsed.hasHeaders && parsed.headerMap) {
+        // Smart paste: use headers to map columns and match rows
+        const rowLookup = new Map<string, CreativeTextAssetRow>();
+        rows.forEach(row => {
+          const key = `${row.platform}|${row.market}|${row.phase}|${row.adSet}|${row.creativeName}`;
+          rowLookup.set(key.toLowerCase(), row);
+        });
         
-        const row = rowItems[targetRowIndex]?.row;
-        if (!row) continue;
-        
-        const updates: Partial<CreativeTextAssetRow> = {};
-        
-        for (let c = 0; c < parsed[r].length; c++) {
-          const targetColIndex = startCol + c;
-          const col = GRID_COLUMNS[targetColIndex];
-          if (!col?.editable) continue;
+        for (const dataRow of parsed.dataRows) {
+          const matchKey = parsed.matchKey(dataRow);
+          const targetRow = matchKey ? rowLookup.get(matchKey.toLowerCase()) : null;
           
-          let value = parsed[r][c];
-          
-          // Handle CTA column - convert to uppercase with underscores
-          if (col.key === 'callToAction' && value) {
-            value = value.toUpperCase().replace(/ /g, '_');
+          // If we have match columns and found a match, update that row
+          // Otherwise fall back to position-based paste
+          if (targetRow) {
+            const updates: Partial<CreativeTextAssetRow> = {};
+            
+            parsed.headerMap.forEach((colKey, colIdx) => {
+              // Only update editable fields
+              if (!EDITABLE_COLUMNS.includes(colKey as TextAssetColumnKey)) return;
+              
+              let value = dataRow[colIdx] || '';
+              
+              // Handle CTA column
+              if (colKey === 'callToAction' && value) {
+                value = value.toUpperCase().replace(/ /g, '_');
+              }
+              
+              // Handle boolean columns
+              if (colKey === 'autoBuildUtm') {
+                (updates as any)[colKey] = value.toLowerCase() === 'yes' || value.toLowerCase() === 'true' || value === '1';
+              } else {
+                (updates as any)[colKey] = value;
+              }
+            });
+            
+            if (Object.keys(updates).length > 0) {
+              onRowChange(targetRow.id, updates);
+              updateCount++;
+            }
           }
-          
-          (updates as any)[col.key] = value;
         }
         
-        if (Object.keys(updates).length > 0) {
-          onRowChange(row.id, updates);
-          updateCount++;
+        if (updateCount > 0) {
+          toast.success(`Smart paste: Updated ${updateCount} matched rows`);
+        } else {
+          // Fall back to position-based paste if no matches
+          toast.info('No matching rows found, trying position-based paste...');
+          await doPositionBasedPaste(parsed.dataRows);
         }
+      } else {
+        // Standard position-based paste
+        await doPositionBasedPaste(parsed.dataRows);
       }
-      
-      toast.success(`Pasted ${updateCount} rows`);
     } catch (err) {
       toast.error('Failed to read clipboard');
     }
+  }, [selection, rows, rowItems, onRowChange]);
+
+  // Position-based paste helper
+  const doPositionBasedPaste = useCallback(async (dataRows: string[][]) => {
+    if (!selection) return;
+    
+    const startRow = Math.min(selection.startRow, selection.endRow);
+    const startCol = Math.min(selection.startCol, selection.endCol);
+    
+    let updateCount = 0;
+    
+    for (let r = 0; r < dataRows.length; r++) {
+      const targetRowIndex = startRow + r;
+      if (targetRowIndex >= rowItems.length) break;
+      
+      const row = rowItems[targetRowIndex]?.row;
+      if (!row) continue;
+      
+      const updates: Partial<CreativeTextAssetRow> = {};
+      
+      for (let c = 0; c < dataRows[r].length; c++) {
+        const targetColIndex = startCol + c;
+        const col = GRID_COLUMNS[targetColIndex];
+        if (!col?.editable) continue;
+        
+        let value = dataRows[r][c];
+        
+        // Handle CTA column - convert to uppercase with underscores
+        if (col.key === 'callToAction' && value) {
+          value = value.toUpperCase().replace(/ /g, '_');
+        }
+        
+        (updates as any)[col.key] = value;
+      }
+      
+      if (Object.keys(updates).length > 0) {
+        onRowChange(row.id, updates);
+        updateCount++;
+      }
+    }
+    
+    toast.success(`Pasted ${updateCount} rows`);
   }, [selection, rowItems, onRowChange]);
 
   // Handle file upload
@@ -718,6 +786,31 @@ export function TextAssetExcelEditor({
 
   return (
     <div className="h-full flex flex-col bg-background">
+      {/* Bulk Parameter Editor - Collapsible */}
+      <Collapsible open={showBulkEditor} onOpenChange={setShowBulkEditor}>
+        <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30">
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" size="sm" className="gap-2 -ml-2">
+              {showBulkEditor ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              <Settings2 className="h-4 w-4" />
+              <span className="font-medium">Bulk Edit Parameters</span>
+            </Button>
+          </CollapsibleTrigger>
+          {selectedRowIds.size > 0 && (
+            <Badge variant="outline" className="text-xs">
+              {selectedRowIds.size} selected for editing
+            </Badge>
+          )}
+        </div>
+        <CollapsibleContent>
+          <BulkParameterEditor
+            rows={rows}
+            selectedRowIds={selectedRowIds}
+            onBulkUpdate={onBulkUpdate}
+          />
+        </CollapsibleContent>
+      </Collapsible>
+
       {/* Toolbar */}
       <div className="flex items-center justify-between px-4 py-3 border-b bg-card shrink-0">
         <div className="flex items-center gap-2">
