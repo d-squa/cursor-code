@@ -25,7 +25,7 @@ interface BulkParameterEditorProps {
   onBulkUpdate: (ids: string[], updates: Partial<CreativeTextAssetRow>) => void;
 }
 
-type ParameterType = 'primaryText' | 'headline' | 'description' | 'callToAction' | 'destinationUrl' | 'displayLink';
+type ParameterType = 'primaryText' | 'headline' | 'description' | 'caption' | 'callToAction' | 'destinationUrl' | 'displayLink';
 
 interface ParameterConfig {
   key: ParameterType;
@@ -60,6 +60,13 @@ const PARAMETERS: ParameterConfig[] = [
     placeholder: 'Enter description...'
   },
   { 
+    key: 'caption', 
+    label: 'Video Caption', 
+    icon: <FileText className="h-4 w-4" />, 
+    type: 'textarea',
+    placeholder: 'Enter video caption...'
+  },
+  {
     key: 'callToAction', 
     label: 'Call to Action', 
     icon: <MousePointer className="h-4 w-4" />, 
@@ -86,11 +93,11 @@ const PARAMETERS: ParameterConfig[] = [
 const UNSUPPORTED_FIELDS: Record<Platform, ParameterType[]> = {
   meta: [],
   tiktok: ['headline', 'description', 'displayLink'],
-  google: ['primaryText', 'displayLink'],
+  google: ['primaryText', 'caption', 'displayLink'],
   linkedin: [],
-  snapchat: ['primaryText', 'description', 'displayLink'],
-  pinterest: ['headline', 'displayLink'],
-  x: [],
+  snapchat: ['primaryText', 'description', 'caption', 'displayLink'],
+  pinterest: ['headline', 'caption', 'displayLink'],
+  x: ['caption'],
 };
 
 type ApplyScope = 'selection' | 'all' | 'platform' | 'market' | 'phase' | 'contains';
