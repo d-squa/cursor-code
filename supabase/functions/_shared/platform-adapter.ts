@@ -1013,18 +1013,28 @@ class TikTokAdapter implements PlatformAdapter {
 
   // Helper methods for TikTok-specific mapping
   private mapLocationIds(countryCodes: string[]): string[] {
-    // Map country codes to TikTok location IDs (ISO 3166-1 numeric codes)
+    // Map country codes to TikTok location IDs (GeoName IDs used by TikTok API)
     const countryCodeToLocationId: Record<string, number> = {
-      "US": 6252001, "GB": 2635167, "CA": 6251999, "AU": 2077456, "DE": 2921044,
-      "FR": 3017382, "IT": 3175395, "ES": 2510769, "MX": 3996063, "BR": 3469034,
-      "AR": 3865483, "CL": 3895114, "CO": 3686110, "PE": 3932488, "VE": 3625428,
-      "NL": 2750405, "BE": 2802361, "SE": 2661886, "NO": 3144096, "DK": 2623032,
-      "FI": 660013, "PL": 798544, "CZ": 3077311, "AT": 2782113, "CH": 2658434,
-      "PT": 2264397, "GR": 390903, "IE": 2963597, "RO": 798549, "HU": 719819,
-      "JP": 1861060, "KR": 1835841, "CN": 1814991, "IN": 1269750, "ID": 1643084,
-      "TH": 1605651, "VN": 1562822, "PH": 1694008, "MY": 1733045, "SG": 1880251,
-      "NZ": 2186224, "ZA": 953987, "NG": 2328926, "EG": 357994, "SA": 102358,
-      "AE": 290557, "IL": 294640, "TR": 298795, "RU": 2017370, "UA": 690791,
+      // Americas
+      "US": 6252001, "CA": 6251999, "MX": 3996063, "BR": 3469034, "AR": 3865483,
+      "CL": 3895114, "CO": 3686110, "PE": 3932488, "VE": 3625428,
+      // Europe - Western
+      "GB": 2635167, "DE": 2921044, "FR": 3017382, "IT": 3175395, "ES": 2510769,
+      "NL": 2750405, "BE": 2802361, "CH": 2658434, "AT": 2782113, "IE": 2963597,
+      "PT": 2264397, "GR": 390903,
+      // Europe - Nordic
+      "SE": 2661886, "NO": 3144096, "DK": 2623032, "FI": 660013,
+      // Europe - Central/Eastern
+      "PL": 798544, "CZ": 3077311, "RO": 798549, "HU": 719819, "UA": 690791, "RU": 2017370,
+      // Asia-Pacific
+      "AU": 2077456, "NZ": 2186224, "JP": 1861060, "KR": 1835841, "CN": 1814991,
+      "IN": 1269750, "ID": 1643084, "TH": 1605651, "VN": 1562822, "PH": 1694008,
+      "MY": 1733045, "SG": 1880251,
+      // Middle East & North Africa
+      "AE": 290557, "SA": 102358, "EG": 357994, "IL": 294640, "TR": 298795,
+      "KW": 285570, "BH": 290291, "QA": 289688, "OM": 286963, "LB": 272103,
+      // Africa
+      "ZA": 953987, "NG": 2328926,
     };
 
     return countryCodes
