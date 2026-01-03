@@ -55,9 +55,13 @@ interface GroupedAssignments {
 interface AssignedCreativesViewProps {
   campaignId: string;
   onRefresh?: () => void;
+  /**
+   * Increment this value from the parent to force a reload (e.g. after a DSP push).
+   */
+  refreshNonce?: number;
 }
 
-export function AssignedCreativesView({ campaignId, onRefresh }: AssignedCreativesViewProps) {
+export function AssignedCreativesView({ campaignId, onRefresh, refreshNonce }: AssignedCreativesViewProps) {
   const { user } = useAuth();
   const [assignments, setAssignments] = useState<CreativeAssignment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -67,7 +71,8 @@ export function AssignedCreativesView({ campaignId, onRefresh }: AssignedCreativ
 
   useEffect(() => {
     loadAssignments();
-  }, [campaignId, user?.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [campaignId, user?.id, refreshNonce]);
 
   const loadAssignments = async () => {
     if (!campaignId || !user?.id) return;

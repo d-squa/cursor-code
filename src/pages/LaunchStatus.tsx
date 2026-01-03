@@ -24,6 +24,7 @@ import {
   ChevronRight,
   ExternalLink,
   Lock,
+  Image,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Progress } from "@/components/ui/progress";
@@ -126,8 +127,11 @@ export default function LaunchStatus() {
   const [loading, setLoading] = useState(true);
   const [validating, setValidating] = useState(false);
   const [pushing, setPushing] = useState(false);
+  const [pushingCreatives, setPushingCreatives] = useState(false);
   const [checkingStatus, setCheckingStatus] = useState(false);
   const [expandedPlatforms, setExpandedPlatforms] = useState<Set<string>>(new Set());
+  const [creativesRefreshNonce, setCreativesRefreshNonce] = useState(0);
+  const [creativePushStats, setCreativePushStats] = useState({ total: 0, pushed: 0, pending: 0, errors: 0 });
 
   const getNextTierName = (): string => {
     const tierOrder: SubscriptionTier[] = ["trial", "basic", "freelancer", "enterprise", "agency"];
@@ -142,13 +146,14 @@ export default function LaunchStatus() {
     if (!campaignId || !user) return;
 
     try {
-      const [{ data: campaignData }, { data: statusData }] = await Promise.all([
+      const [{ data: campaignData }, { data: statusData }, { data: assignmentsData }] = await Promise.all([
         supabase.from("campaigns").select("*").eq("id", campaignId).single(),
         supabase
           .from("campaign_launch_status")
           .select("*")
           .eq("campaign_id", campaignId)
           .order("platform", { ascending: true }),
+        supabase.from("creative_assignments").select("id,status").eq("campaign_id", campaignId),
       ]);
 
       if (campaignData) setCampaign(campaignData);
@@ -157,6 +162,16 @@ export default function LaunchStatus() {
         // Auto-expand all platforms
         const platforms = new Set(statusData.map((s: LaunchStatusEntry) => s.platform));
         setExpandedPlatforms(platforms);
+      }
+
+      if (assignmentsData) {
+        const total = assignmentsData.length;
+        const pushedCount = assignmentsData.filter((a: any) => a.status === "pushed").length;
+        const errorCount = assignmentsData.filter((a: any) => a.status === "error").length;
+        const pendingCount = total - pushedCount;
+        setCreativePushStats({ total, pushed: pushedCount, pending: pendingCount, errors: errorCount });
+      } else {
+        setCreativePushStats({ total: 0, pushed: 0, pending: 0, errors: 0 });
       }
     } catch (error) {
       console.error("Error loading data:", error);
@@ -461,6 +476,32 @@ export default function LaunchStatus() {
     }
   };
 
+  const handlePushCreatives = async () => {
+    if (!campaignId) return;
+
+    setPushingCreatives(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("push-creatives-to-dsp", {
+        body: { campaignId },
+        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : undefined,
+      });
+
+      if (error) throw error;
+      if (data?.success === false) {
+        throw new Error(data?.error || "Failed to push creatives");
+      }
+
+      toast.success("Creatives push completed");
+      setCreativesRefreshNonce((n) => n + 1);
+      await loadData();
+    } catch (error: any) {
+      console.error("Push creatives error:", error);
+      toast.error("Failed to push creatives: " + (error?.message || "Unknown error"));
+    } finally {
+      setPushingCreatives(false);
+    }
+  };
+
   const handleCheckStatus = async () => {
     if (!campaignId) return;
 
@@ -543,6 +584,9 @@ export default function LaunchStatus() {
   );
   const canPush = pendingEntities.length > 0 && !pushing && !validating;
 
+  // Creatives push (independent from campaign/adset push)
+  const canPushCreatives = creativePushStats.pending > 0 && !pushingCreatives && !pushing && !validating;
+
   // Check if this is a retry (some already pushed)
   const isRetry = pushedEntities > 0 && pendingEntities.length > 0;
 
@@ -621,6 +665,17 @@ export default function LaunchStatus() {
                 )}
                 Check Status
               </Button>
+
+              <Button variant="outline" onClick={handlePushCreatives} disabled={!canPushCreatives}>
+                {pushingCreatives ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Image className="h-4 w-4 mr-2" />
+                )}
+                {creativePushStats.errors > 0 ? "Retry Creatives" : "Push Creatives"}
+                {creativePushStats.pending > 0 ? ` (${creativePushStats.pending})` : ""}
+              </Button>
+
               {canCreate ? (
                 <Button onClick={handlePush} disabled={!canPush || allPushed}>
                   {pushing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Rocket className="h-4 w-4 mr-2" />}
@@ -678,7 +733,11 @@ export default function LaunchStatus() {
       {/* Assigned Creatives Section */}
       {campaignId && (
         <div className="mb-6">
-          <AssignedCreativesView campaignId={campaignId} onRefresh={loadData} />
+          <AssignedCreativesView
+            campaignId={campaignId}
+            onRefresh={loadData}
+            refreshNonce={creativesRefreshNonce}
+          />
         </div>
       )}
 
