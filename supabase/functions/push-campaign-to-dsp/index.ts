@@ -1166,25 +1166,31 @@ const handler = async (req: Request): Promise<Response> => {
     if (allBudgetErrors.length > 0) {
       console.log(`❌ Pre-push validation failed with ${allBudgetErrors.length} budget error(s)`);
       for (const err of allBudgetErrors) {
-        console.log(`  - ${err.platform}/${err.market}/${err.phase}: ${err.message}`);
+      console.log(`  - ${err.platform}/${err.market}/${err.phase}: ${err.message}`);
+        
+        // Use consistent platform casing - TikTok and Meta as stored in validate-campaign-launch
+        const platformDisplay = err.platform.toLowerCase() === 'tiktok' ? 'TikTok' : 
+                                err.platform.toLowerCase() === 'meta' ? 'Meta' : err.platform;
         
         // Insert validation error status for each failed entity
         await supabase.from('campaign_launch_status').upsert({
           campaign_id: campaignId,
-          platform: err.platform.toLowerCase(),
+          platform: platformDisplay,
           market: err.market,
           phase_name: err.phase,
           entity_type: 'adset',
+          entity_name: `${err.market} - ${err.phase} - Ad Set`,
           status: 'validation_error',
           error_message: err.message,
-          error_details: {
+          error_details: [{
             type: 'minimum_budget',
+            message: err.message,
             calculatedBudget: err.calculatedBudget,
             minimumRequired: err.minimumRequired,
             budgetType: err.budgetType,
             durationDays: err.durationDays,
             fieldPath: err.fieldPath
-          },
+          }],
           updated_at: new Date().toISOString()
         }, {
           onConflict: 'campaign_id,platform,market,phase_name,entity_type'
