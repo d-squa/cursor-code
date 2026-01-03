@@ -93,7 +93,7 @@ const UNSUPPORTED_FIELDS: Record<Platform, ParameterType[]> = {
   x: [],
 };
 
-type ApplyScope = 'selection' | 'all' | 'platform' | 'market' | 'contains';
+type ApplyScope = 'selection' | 'all' | 'platform' | 'market' | 'phase' | 'contains';
 
 interface ApplyScopeOption {
   value: ApplyScope;
@@ -107,6 +107,7 @@ const APPLY_SCOPES: ApplyScopeOption[] = [
   { value: 'all', label: 'Apply to All', icon: <Layers className="h-4 w-4" /> },
   { value: 'platform', label: 'Apply to Platform', icon: <Globe className="h-4 w-4" />, requiresValue: true },
   { value: 'market', label: 'Apply to Market', icon: <Target className="h-4 w-4" />, requiresValue: true },
+  { value: 'phase', label: 'Apply to Phase', icon: <Layers className="h-4 w-4" />, requiresValue: true },
   { value: 'contains', label: 'Apply where name contains', icon: <LayoutGrid className="h-4 w-4" />, requiresValue: true },
 ];
 
@@ -129,15 +130,17 @@ export function BulkParameterEditor({ rows, selectedRowIds, onBulkUpdate }: Bulk
   const [skippedEntities, setSkippedEntities] = useState<SkippedEntity[]>([]);
   const [appliedCount, setAppliedCount] = useState(0);
 
-  // Get unique platforms and markets for filter options
-  const { platforms, markets } = useMemo(() => {
+  // Get unique platforms, markets, and phases for filter options
+  const { platforms, markets, phases } = useMemo(() => {
     const p = new Set<string>();
     const m = new Set<string>();
+    const ph = new Set<string>();
     rows.forEach(row => {
       p.add(row.platform);
       m.add(row.market);
+      ph.add(row.phase);
     });
-    return { platforms: Array.from(p), markets: Array.from(m) };
+    return { platforms: Array.from(p), markets: Array.from(m), phases: Array.from(ph) };
   }, [rows]);
 
   // Get available CTAs based on platforms in selection
@@ -166,6 +169,8 @@ export function BulkParameterEditor({ rows, selectedRowIds, onBulkUpdate }: Bulk
         return rows.filter(r => r.platform.toLowerCase() === scopeFilter.toLowerCase());
       case 'market':
         return rows.filter(r => r.market.toLowerCase() === scopeFilter.toLowerCase());
+      case 'phase':
+        return rows.filter(r => r.phase.toLowerCase() === scopeFilter.toLowerCase());
       case 'contains':
         const searchLower = scopeFilter.toLowerCase();
         return rows.filter(r => 
@@ -197,7 +202,7 @@ export function BulkParameterEditor({ rows, selectedRowIds, onBulkUpdate }: Bulk
       return;
     }
 
-    if ((applyScope === 'platform' || applyScope === 'market' || applyScope === 'contains') && !scopeFilter) {
+    if ((applyScope === 'platform' || applyScope === 'market' || applyScope === 'phase' || applyScope === 'contains') && !scopeFilter) {
       toast.error('Please specify a filter value');
       return;
     }
@@ -376,6 +381,17 @@ export function BulkParameterEditor({ rows, selectedRowIds, onBulkUpdate }: Bulk
                             <SelectContent>
                               {markets.map(m => (
                                 <SelectItem key={m} value={m.toLowerCase()}>{m}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : scope.value === 'phase' ? (
+                          <Select value={scopeFilter} onValueChange={setScopeFilter}>
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue placeholder="Select phase..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {phases.map(p => (
+                                <SelectItem key={p} value={p.toLowerCase()}>{p}</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
