@@ -265,3 +265,144 @@ export function parseClipboardForGrid(text: string): string[][] {
 export function gridDataToClipboard(data: string[][]): string {
   return data.map(row => row.join('\t')).join('\n');
 }
+
+// Header mapping for Excel-like paste with column recognition
+const HEADER_ALIASES: Record<string, TextAssetColumnKey> = {
+  // Primary Text aliases
+  'primary text': 'primaryText',
+  'primarytext': 'primaryText',
+  'primary_text': 'primaryText',
+  'ad text': 'primaryText',
+  'text': 'primaryText',
+  'copy': 'primaryText',
+  'ad copy': 'primaryText',
+  
+  // Headline aliases
+  'headline': 'headline',
+  'title': 'headline',
+  'header': 'headline',
+  
+  // Description aliases
+  'description': 'description',
+  'desc': 'description',
+  'link description': 'description',
+  
+  // CTA aliases
+  'cta': 'callToAction',
+  'call to action': 'callToAction',
+  'calltoaction': 'callToAction',
+  'call_to_action': 'callToAction',
+  'button': 'callToAction',
+  
+  // URL aliases
+  'destination url': 'destinationUrl',
+  'destinationurl': 'destinationUrl',
+  'destination_url': 'destinationUrl',
+  'url': 'destinationUrl',
+  'link': 'destinationUrl',
+  'final url': 'destinationUrl',
+  'landing page': 'destinationUrl',
+  
+  // Display Link aliases
+  'display link': 'displayLink',
+  'displaylink': 'displayLink',
+  'display_link': 'displayLink',
+  
+  // Platform / Market / Phase / Ad Set (for matching)
+  'platform': 'platform',
+  'market': 'market',
+  'phase': 'phase',
+  'ad set': 'adSet',
+  'adset': 'adSet',
+  'ad_set': 'adSet',
+  'creative name': 'creativeName',
+  'creativename': 'creativeName',
+  'creative_name': 'creativeName',
+  'name': 'creativeName',
+  
+  // Ad Format
+  'ad format': 'adFormat',
+  'adformat': 'adFormat',
+  'format': 'adFormat',
+  
+  // UTM params
+  'auto utm': 'autoBuildUtm',
+  'autoutm': 'autoBuildUtm',
+  'auto_utm': 'autoBuildUtm',
+  'utm source': 'utmSource',
+  'utm_source': 'utmSource',
+  'utm medium': 'utmMedium',
+  'utm_medium': 'utmMedium',
+  'utm campaign': 'utmCampaign',
+  'utm_campaign': 'utmCampaign',
+  'utm content': 'utmContent',
+  'utm_content': 'utmContent',
+};
+
+// Check if the clipboard data has a header row that matches our expected columns
+function detectHeaderRow(firstRow: string[]): Map<number, TextAssetColumnKey> | null {
+  const headerMap = new Map<number, TextAssetColumnKey>();
+  let matchCount = 0;
+  
+  firstRow.forEach((cell, idx) => {
+    const normalized = cell.toLowerCase().trim();
+    const key = HEADER_ALIASES[normalized];
+    if (key) {
+      headerMap.set(idx, key);
+      matchCount++;
+    }
+  });
+  
+  // Consider it a header row if at least 2 columns match
+  return matchCount >= 2 ? headerMap : null;
+}
+
+export interface ParsedClipboardData {
+  hasHeaders: boolean;
+  headerMap: Map<number, TextAssetColumnKey> | null;
+  dataRows: string[][];
+  matchKey: (row: string[]) => string | null; // Returns match key if platform/market/phase/adSet/name cols exist
+}
+
+// Parse clipboard with header detection
+export function parseClipboardWithHeaders(text: string): ParsedClipboardData {
+  const lines = text.trim().split(/\r?\n/);
+  const allRows = lines.map(line => line.split('\t'));
+  
+  if (allRows.length === 0) {
+    return { hasHeaders: false, headerMap: null, dataRows: [], matchKey: () => null };
+  }
+  
+  const firstRow = allRows[0];
+  const headerMap = detectHeaderRow(firstRow);
+  
+  if (headerMap) {
+    // Has headers - data starts from row 1
+    const dataRows = allRows.slice(1);
+    
+    // Build match key function if we have structure columns
+    const platformIdx = Array.from(headerMap.entries()).find(([_, v]) => v === 'platform')?.[0];
+    const marketIdx = Array.from(headerMap.entries()).find(([_, v]) => v === 'market')?.[0];
+    const phaseIdx = Array.from(headerMap.entries()).find(([_, v]) => v === 'phase')?.[0];
+    const adSetIdx = Array.from(headerMap.entries()).find(([_, v]) => v === 'adSet')?.[0];
+    const nameIdx = Array.from(headerMap.entries()).find(([_, v]) => v === 'creativeName')?.[0];
+    
+    const hasMatchColumns = platformIdx !== undefined && nameIdx !== undefined;
+    
+    const matchKey = hasMatchColumns 
+      ? (row: string[]) => {
+          const platform = row[platformIdx!] || '';
+          const market = marketIdx !== undefined ? row[marketIdx] || '' : '';
+          const phase = phaseIdx !== undefined ? row[phaseIdx] || '' : '';
+          const adSet = adSetIdx !== undefined ? row[adSetIdx] || '' : '';
+          const name = row[nameIdx!] || '';
+          return `${platform}|${market}|${phase}|${adSet}|${name}`;
+        }
+      : () => null;
+    
+    return { hasHeaders: true, headerMap, dataRows, matchKey };
+  }
+  
+  // No headers detected - treat all rows as data
+  return { hasHeaders: false, headerMap: null, dataRows: allRows, matchKey: () => null };
+}
