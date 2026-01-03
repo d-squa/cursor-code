@@ -2611,6 +2611,200 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
 
           console.log(`✅ Meta ad set created: ${adSetData.id} (${adSetPayload.name})`);
 
+          // ============= CREATE ADS FROM ASSIGNED CREATIVES =============
+          // Query creative_assignments for this campaign/platform/market/phase
+          console.log(`🎨 Checking for assigned creatives for ${market.name}/${phase.name}...`);
+          
+          const { data: assignments, error: assignmentError } = await supabase
+            .from('creative_assignments')
+            .select(`
+              id,
+              creative_id,
+              position,
+              status,
+              creative:creatives(
+                id, name, media_type, creative_type,
+                platform_video_id, platform_image_hash, platform_thumbnail_id,
+                primary_text, headline, description, call_to_action,
+                destination_url, url_parameters,
+                external_page_id, tiktok_identity_id,
+                dsp_upload_status
+              )
+            `)
+            .eq('campaign_id', campaign.id)
+            .eq('platform', 'meta')
+            .eq('market', market.name)
+            .eq('phase_name', phase.name)
+            .order('position');
+          
+          if (assignmentError) {
+            console.error(`Error fetching creative assignments:`, assignmentError);
+          } else if (assignments && assignments.length > 0) {
+            console.log(`📦 Found ${assignments.length} assigned creatives for this ad set`);
+            
+            for (const assignment of assignments) {
+              const creative = assignment.creative as any;
+              if (!creative) {
+                console.warn(`⚠️ Creative not found for assignment ${assignment.id}`);
+                continue;
+              }
+              
+              // Check if creative has been uploaded to Meta
+              const hasMetaAsset = creative.platform_image_hash || creative.platform_video_id;
+              if (!hasMetaAsset) {
+                console.warn(`⚠️ Creative ${creative.name} not uploaded to Meta yet (no image_hash or video_id)`);
+                // Update assignment status
+                await supabase
+                  .from('creative_assignments')
+                  .update({ status: 'error', error_message: 'Creative not uploaded to Meta' })
+                  .eq('id', assignment.id);
+                continue;
+              }
+              
+              // Build ad creative payload
+              const adName = `${creative.name}_${generateTimestampSuffix()}`;
+              const pageId = creative.external_page_id || (market as any).metaPageId || (market as any).defaultPageId;
+              
+              if (!pageId) {
+                console.warn(`⚠️ No Facebook Page ID configured for creative ${creative.name}`);
+                await supabase
+                  .from('creative_assignments')
+                  .update({ status: 'error', error_message: 'No Facebook Page ID configured' })
+                  .eq('id', assignment.id);
+                continue;
+              }
+              
+              // First create the ad creative
+              const creativePayload: any = {
+                name: `Creative_${adName}`,
+                object_story_spec: {
+                  page_id: pageId,
+                },
+              };
+              
+              // Determine creative type and build appropriate payload
+              const isVideo = creative.media_type === 'video' || creative.creative_type === 'video';
+              
+              if (isVideo && creative.platform_video_id) {
+                // Video creative
+                creativePayload.object_story_spec.video_data = {
+                  video_id: creative.platform_video_id,
+                  title: creative.headline || creative.name,
+                  message: creative.primary_text || '',
+                  call_to_action: creative.call_to_action ? {
+                    type: creative.call_to_action,
+                    value: {
+                      link: creative.destination_url || metaLandingPageUrl || 'https://example.com',
+                    },
+                  } : undefined,
+                };
+                if (creative.platform_thumbnail_id) {
+                  creativePayload.object_story_spec.video_data.image_hash = creative.platform_thumbnail_id;
+                }
+              } else if (creative.platform_image_hash) {
+                // Image creative
+                creativePayload.object_story_spec.link_data = {
+                  image_hash: creative.platform_image_hash,
+                  link: creative.destination_url || metaLandingPageUrl || 'https://example.com',
+                  message: creative.primary_text || '',
+                  name: creative.headline || '',
+                  description: creative.description || '',
+                  call_to_action: creative.call_to_action ? {
+                    type: creative.call_to_action,
+                  } : undefined,
+                };
+              }
+              
+              // Add URL parameters if present
+              if (creative.url_parameters) {
+                if (creativePayload.object_story_spec.video_data?.call_to_action?.value?.link) {
+                  const url = new URL(creativePayload.object_story_spec.video_data.call_to_action.value.link);
+                  url.search = url.search ? `${url.search}&${creative.url_parameters}` : `?${creative.url_parameters}`;
+                  creativePayload.object_story_spec.video_data.call_to_action.value.link = url.toString();
+                } else if (creativePayload.object_story_spec.link_data?.link) {
+                  const url = new URL(creativePayload.object_story_spec.link_data.link);
+                  url.search = url.search ? `${url.search}&${creative.url_parameters}` : `?${creative.url_parameters}`;
+                  creativePayload.object_story_spec.link_data.link = url.toString();
+                }
+              }
+              
+              console.log(`📤 Creating Meta ad creative for ${creative.name}...`);
+              
+              const creativeResponse = await fetch(
+                `https://graph.facebook.com/v22.0/${adAccountPath}/adcreatives`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ ...creativePayload, access_token: platform.access_token }),
+                }
+              );
+              
+              const creativeData = await creativeResponse.json();
+              
+              if (creativeData.error) {
+                console.error(`❌ Failed to create ad creative:`, creativeData.error);
+                await supabase
+                  .from('creative_assignments')
+                  .update({ 
+                    status: 'error', 
+                    error_message: creativeData.error.message || 'Failed to create ad creative' 
+                  })
+                  .eq('id', assignment.id);
+                continue;
+              }
+              
+              console.log(`✅ Meta ad creative created: ${creativeData.id}`);
+              
+              // Now create the ad itself
+              const adPayload = {
+                name: adName,
+                adset_id: adSetData.id,
+                creative: { creative_id: creativeData.id },
+                status: 'PAUSED',
+              };
+              
+              console.log(`📤 Creating Meta ad...`);
+              
+              const adResponse = await fetch(
+                `https://graph.facebook.com/v22.0/${adAccountPath}/ads`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ ...adPayload, access_token: platform.access_token }),
+                }
+              );
+              
+              const adData = await adResponse.json();
+              
+              if (adData.error) {
+                console.error(`❌ Failed to create ad:`, adData.error);
+                await supabase
+                  .from('creative_assignments')
+                  .update({ 
+                    status: 'error', 
+                    error_message: adData.error.message || 'Failed to create ad' 
+                  })
+                  .eq('id', assignment.id);
+                continue;
+              }
+              
+              console.log(`✅ Meta ad created: ${adData.id} for creative ${creative.name}`);
+              
+              // Update assignment with success
+              await supabase
+                .from('creative_assignments')
+                .update({ 
+                  status: 'pushed',
+                  dsp_creative_id: adData.id,
+                  error_message: null,
+                })
+                .eq('id', assignment.id);
+            }
+          } else {
+            console.log(`ℹ️ No creatives assigned for ${market.name}/${phase.name}`);
+          }
+          // ============= END AD CREATION =============
+
           results.push({
             platform: "Meta",
             market: market.name,
@@ -2621,6 +2815,7 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
             budget: adSetConfig.adSetBudget,
             budgetType: budgetType,
             splitDimension: adSetSplitDimension !== 'none' ? adSetSplitDimension : undefined,
+            adsCreated: assignments?.filter((a: any) => a.creative?.platform_image_hash || a.creative?.platform_video_id).length || 0,
           });
         }
         // ============= END AD SET SPLIT SUPPORT =============
@@ -3232,6 +3427,152 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
             status: "PAUSED",
           });
           
+          // ============= CREATE ADS FROM ASSIGNED CREATIVES (TikTok) =============
+          console.log(`🎨 Checking for assigned creatives for TikTok ${market.name}/${phase.name}...`);
+          
+          const { data: tiktokAssignments, error: tiktokAssignmentError } = await supabase
+            .from('creative_assignments')
+            .select(`
+              id,
+              creative_id,
+              position,
+              status,
+              creative:creatives(
+                id, name, media_type, creative_type,
+                platform_video_id, platform_image_hash, platform_thumbnail_id,
+                primary_text, headline, description, call_to_action,
+                destination_url, url_parameters,
+                tiktok_identity_id, tiktok_display_name, tiktok_ad_format,
+                dsp_upload_status, brand_name, app_link
+              )
+            `)
+            .eq('campaign_id', campaign.id)
+            .eq('platform', 'tiktok')
+            .eq('market', market.name)
+            .eq('phase_name', phase.name)
+            .order('position');
+          
+          let adsCreated = 0;
+          
+          if (tiktokAssignmentError) {
+            console.error(`Error fetching TikTok creative assignments:`, tiktokAssignmentError);
+          } else if (tiktokAssignments && tiktokAssignments.length > 0) {
+            console.log(`📦 Found ${tiktokAssignments.length} assigned creatives for this TikTok ad group`);
+            
+            for (const assignment of tiktokAssignments) {
+              const creative = assignment.creative as any;
+              if (!creative) {
+                console.warn(`⚠️ Creative not found for assignment ${assignment.id}`);
+                continue;
+              }
+              
+              // Check if creative has been uploaded to TikTok
+              const hasTikTokAsset = creative.platform_video_id || creative.platform_image_hash;
+              if (!hasTikTokAsset) {
+                console.warn(`⚠️ Creative ${creative.name} not uploaded to TikTok yet`);
+                await supabase
+                  .from('creative_assignments')
+                  .update({ status: 'error', error_message: 'Creative not uploaded to TikTok' })
+                  .eq('id', assignment.id);
+                continue;
+              }
+              
+              // Get identity ID for TikTok (required for ads)
+              const identityId = creative.tiktok_identity_id || market.tiktokIdentityId || market.defaultIdentityId;
+              if (!identityId) {
+                console.warn(`⚠️ No TikTok Identity ID configured for creative ${creative.name}`);
+                await supabase
+                  .from('creative_assignments')
+                  .update({ status: 'error', error_message: 'No TikTok Identity ID configured' })
+                  .eq('id', assignment.id);
+                continue;
+              }
+              
+              // Build TikTok ad payload
+              const adName = `${creative.name}_${generateTimestampSuffix()}`;
+              const isVideo = creative.media_type === 'video' || creative.creative_type === 'video';
+              
+              const tiktokAdPayload: any = {
+                advertiser_id: advertiserId,
+                adgroup_id: adGroupResult.adGroupId,
+                creatives: [{
+                  ad_name: adName,
+                  ad_format: creative.tiktok_ad_format || (isVideo ? 'SINGLE_VIDEO' : 'SINGLE_IMAGE'),
+                  identity_id: identityId,
+                  identity_type: 'CUSTOMIZED_USER',
+                  ad_text: creative.primary_text || creative.headline || '',
+                  call_to_action: creative.call_to_action || 'LEARN_MORE',
+                  landing_page_url: creative.destination_url || landingPageUrl,
+                }],
+              };
+              
+              // Add video or image
+              if (isVideo && creative.platform_video_id) {
+                tiktokAdPayload.creatives[0].video_id = creative.platform_video_id;
+                if (creative.platform_thumbnail_id) {
+                  tiktokAdPayload.creatives[0].image_ids = [creative.platform_thumbnail_id];
+                }
+              } else if (creative.platform_image_hash) {
+                tiktokAdPayload.creatives[0].image_ids = [creative.platform_image_hash];
+              }
+              
+              // Add display name if present
+              if (creative.tiktok_display_name || creative.brand_name) {
+                tiktokAdPayload.creatives[0].display_name = creative.tiktok_display_name || creative.brand_name;
+              }
+              
+              // Add app link if present (for app campaigns)
+              if (creative.app_link) {
+                tiktokAdPayload.creatives[0].app_name = appName;
+                tiktokAdPayload.creatives[0].download_url = creative.app_link;
+              }
+              
+              console.log(`📤 Creating TikTok ad for ${creative.name}...`);
+              
+              const tiktokAdResponse = await fetch(
+                'https://business-api.tiktok.com/open_api/v1.3/ad/create/',
+                {
+                  method: 'POST',
+                  headers: {
+                    'Access-Token': platform.access_token,
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify(tiktokAdPayload),
+                }
+              );
+              
+              const tiktokAdData = await tiktokAdResponse.json();
+              
+              if (tiktokAdData.code !== 0 || !tiktokAdData.data?.ad_ids?.[0]) {
+                console.error(`❌ Failed to create TikTok ad:`, tiktokAdData);
+                await supabase
+                  .from('creative_assignments')
+                  .update({ 
+                    status: 'error', 
+                    error_message: tiktokAdData.message || 'Failed to create TikTok ad' 
+                  })
+                  .eq('id', assignment.id);
+                continue;
+              }
+              
+              console.log(`✅ TikTok ad created: ${tiktokAdData.data.ad_ids[0]} for creative ${creative.name}`);
+              adsCreated++;
+              
+              // Update assignment with success
+              await supabase
+                .from('creative_assignments')
+                .update({ 
+                  status: 'pushed',
+                  dsp_creative_id: tiktokAdData.data.ad_ids[0],
+                  error_message: null,
+                })
+                .eq('id', assignment.id);
+            }
+          } else {
+            console.log(`ℹ️ No creatives assigned for TikTok ${market.name}/${phase.name}`);
+          }
+          // ============= END TIKTOK AD CREATION =============
+          
           results.push({
             market: market.name,
             phase: phase.name,
@@ -3239,6 +3580,7 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
             campaignId: campaignResult.campaignId,
             adGroupId: adGroupResult.adGroupId,
             success: true,
+            adsCreated: adsCreated,
           });
         } // End of ad set splits loop
         
