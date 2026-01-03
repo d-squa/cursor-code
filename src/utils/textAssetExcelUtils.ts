@@ -20,6 +20,7 @@ export const TEXT_ASSET_COLUMNS = [
   { key: 'primaryText', label: 'Primary Text', width: 50 },
   { key: 'headline', label: 'Headline', width: 30 },
   { key: 'description', label: 'Description', width: 30 },
+  { key: 'caption', label: 'Video Caption', width: 40 },
   { key: 'callToAction', label: 'CTA', width: 15 },
   { key: 'destinationUrl', label: 'Destination URL', width: 50 },
   { key: 'displayLink', label: 'Display Link', width: 20 },
@@ -38,6 +39,7 @@ export const EDITABLE_COLUMNS: TextAssetColumnKey[] = [
   'primaryText',
   'headline', 
   'description',
+  'caption',
   'callToAction',
   'destinationUrl',
   'displayLink',
@@ -286,6 +288,12 @@ const HEADER_ALIASES: Record<string, TextAssetColumnKey> = {
   'description': 'description',
   'desc': 'description',
   'link description': 'description',
+  
+  // Caption aliases (video)
+  'caption': 'caption',
+  'video caption': 'caption',
+  'videocaption': 'caption',
+  'video_caption': 'caption',
   
   // CTA aliases
   'cta': 'callToAction',
