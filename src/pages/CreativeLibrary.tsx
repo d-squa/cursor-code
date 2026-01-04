@@ -43,6 +43,8 @@ export default function CreativeLibrary() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [selectedCampaignId, setSelectedCampaignId] = useState('');
   const [isLoadingCampaigns, setIsLoadingCampaigns] = useState(false);
+  // Nonce to trigger TextAssetsTab refresh when assignments change
+  const [textAssetsRefreshNonce, setTextAssetsRefreshNonce] = useState(0);
 
   const selectedCampaign = campaigns.find((c) => c.id === selectedCampaignId);
 
@@ -304,7 +306,13 @@ export default function CreativeLibrary() {
               ) : null,
             })}
 
-            {selectedCampaignId ? <AssignedCreativesView campaignId={selectedCampaignId} /> : null}
+            {selectedCampaignId ? (
+              <AssignedCreativesView 
+                campaignId={selectedCampaignId}
+                onAssignmentsDeleted={() => setTextAssetsRefreshNonce(n => n + 1)}
+                onAssignmentsDuplicated={() => setTextAssetsRefreshNonce(n => n + 1)}
+              />
+            ) : null}
           </div>
         </TabsContent>
 
@@ -328,6 +336,7 @@ export default function CreativeLibrary() {
                 campaignId={selectedCampaignId}
                 campaignName={selectedCampaign?.name}
                 hideCampaignSelector
+                refreshNonce={textAssetsRefreshNonce}
               />
             ) : (
               <div className="text-sm text-muted-foreground">
