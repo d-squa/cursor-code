@@ -31,38 +31,37 @@ export default function CreativeLibrary() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const initialTab = searchParams.get('tab') || 'library';
-  const initialCampaignId = searchParams.get('campaignId') || '';
   const [activeTab, setActiveTab] = useState(initialTab);
   const [filters, setFilters] = useState<CreativeFilters>({});
   const [editingCreative, setEditingCreative] = useState<Creative | null>(null);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
 
   const shouldFetchCreatives = activeTab === 'library' || activeTab === 'folder' || activeTab === 'spreadsheet';
+  const shouldFetchCampaigns = activeTab === 'assignments' || activeTab === 'text-assets';
 
   // Campaign selection shared for Assignments + Text Assets
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [selectedCampaignId, setSelectedCampaignId] = useState(initialCampaignId);
+  const [selectedCampaignId, setSelectedCampaignId] = useState('');
   const [isLoadingCampaigns, setIsLoadingCampaigns] = useState(false);
 
   const selectedCampaign = campaigns.find((c) => c.id === selectedCampaignId);
 
-  // Load campaigns (do not auto-select; only use URL param or user selection)
+  // Load campaigns only when needed (no auto-select)
   useEffect(() => {
     const loadCampaigns = async () => {
       if (!user?.id) return;
+      if (!shouldFetchCampaigns) return;
+
       setIsLoadingCampaigns(true);
       try {
         const { data, error } = await supabase
           .from('campaigns')
           .select('id, name, status')
+          .eq('user_id', user.id)
           .order('updated_at', { ascending: false });
 
         if (error) throw error;
         setCampaigns(data || []);
-
-        if (initialCampaignId && data?.some((c) => c.id === initialCampaignId)) {
-          setSelectedCampaignId(initialCampaignId);
-        }
       } catch (error) {
         console.error('Error loading campaigns:', error);
       } finally {
@@ -71,24 +70,20 @@ export default function CreativeLibrary() {
     };
 
     loadCampaigns();
-  }, [user?.id, initialCampaignId]);
+  }, [user?.id, shouldFetchCampaigns]);
 
-  // Sync tab changes with URL
+  // Sync tab changes with URL (do NOT carry over campaign selection)
   const handleTabChange = useCallback(
     (value: string) => {
       setActiveTab(value);
+      setSelectedCampaignId('');
+
       const newParams = new URLSearchParams(searchParams);
       newParams.set('tab', value);
-
-      if (selectedCampaignId) {
-        newParams.set('campaignId', selectedCampaignId);
-      } else {
-        newParams.delete('campaignId');
-      }
-
+      newParams.delete('campaignId');
       setSearchParams(newParams);
     },
-    [searchParams, setSearchParams, selectedCampaignId]
+    [searchParams, setSearchParams]
   );
 
   // Handle campaign selection for assignments + text assets
@@ -213,7 +208,7 @@ export default function CreativeLibrary() {
         ) : (
           <Select value={selectedCampaignId || undefined} onValueChange={handleCampaignSelect}>
             <SelectTrigger className="w-full max-w-md">
-              <SelectValue placeholder="Choose an ActiPlan..." />
+              <SelectValue placeholder="Select an ActiPlan to load it" />
             </SelectTrigger>
             <SelectContent>
               {campaigns.map((campaign) => (
