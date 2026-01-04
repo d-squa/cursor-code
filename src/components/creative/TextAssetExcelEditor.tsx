@@ -167,6 +167,7 @@ export function TextAssetExcelEditor({
   const [editingCarousel, setEditingCarousel] = useState<CarouselLink | null>(null);
   const [carousels, setCarousels] = useState<CarouselLink[]>([]);
   const [showBulkEditor, setShowBulkEditor] = useState(true);
+  const [lastSelectedRowId, setLastSelectedRowId] = useState<string | null>(null);
   
   // Copied row values for row-to-row paste
   const [copiedRowValues, setCopiedRowValues] = useState<Partial<CreativeTextAssetRow> | null>(null);
@@ -219,8 +220,28 @@ export function TextAssetExcelEditor({
     return adSets.size === 1;
   }, [selectedRows]);
 
-  // Toggle row selection
-  const toggleRowSelection = useCallback((rowId: string) => {
+  // Toggle row selection with shift+click support
+  const toggleRowSelection = useCallback((rowId: string, shiftKey: boolean = false) => {
+    if (shiftKey && lastSelectedRowId) {
+      // Get all row IDs in order
+      const allRowIds = rows.map(r => r.id);
+      const lastIndex = allRowIds.indexOf(lastSelectedRowId);
+      const currentIndex = allRowIds.indexOf(rowId);
+      
+      if (lastIndex !== -1 && currentIndex !== -1) {
+        const startIdx = Math.min(lastIndex, currentIndex);
+        const endIdx = Math.max(lastIndex, currentIndex);
+        const rangeIds = allRowIds.slice(startIdx, endIdx + 1);
+        
+        setSelectedRowIds(prev => {
+          const next = new Set(prev);
+          rangeIds.forEach(id => next.add(id));
+          return next;
+        });
+        return;
+      }
+    }
+    
     setSelectedRowIds(prev => {
       const next = new Set(prev);
       if (next.has(rowId)) {
@@ -230,7 +251,8 @@ export function TextAssetExcelEditor({
       }
       return next;
     });
-  }, []);
+    setLastSelectedRowId(rowId);
+  }, [rows, lastSelectedRowId]);
 
   // Select/deselect all in ad set
   const toggleAdSetSelection = useCallback((rowIds: string[]) => {
@@ -331,16 +353,30 @@ export function TextAssetExcelEditor({
     }
   }, [copiedRowValues, selectedRowIds, countFilledRows, onBulkUpdate]);
 
-  // Select only rows with blank text fields
-  const selectBlanksOnly = useCallback(() => {
-    const blankRowIds = rows.filter(row => {
-      // Check if all main text fields are blank
-      const isEmpty = (val: any) => !val || String(val).trim() === '';
-      return isEmpty(row.primaryText) && isEmpty(row.headline) && isEmpty(row.description);
-    }).map(r => r.id);
+  // Select rows by blank field
+  const selectByBlankField = useCallback((field: keyof CreativeTextAssetRow, fieldLabel: string) => {
+    const isEmpty = (val: any) => !val || String(val).trim() === '';
+    const blankRowIds = rows.filter(row => isEmpty(row[field])).map(r => r.id);
     
     if (blankRowIds.length === 0) {
-      toast.info('No rows with blank text fields found');
+      toast.info(`No rows with blank ${fieldLabel} found`);
+      return;
+    }
+    
+    setSelectedRowIds(new Set(blankRowIds));
+    toast.success(`Selected ${blankRowIds.length} rows with blank ${fieldLabel}`);
+  }, [rows]);
+
+  // Select all blanks (any blank field)
+  const selectAllBlanks = useCallback(() => {
+    const isEmpty = (val: any) => !val || String(val).trim() === '';
+    const blankRowIds = rows.filter(row => 
+      isEmpty(row.primaryText) || isEmpty(row.headline) || isEmpty(row.description) || 
+      isEmpty(row.caption) || isEmpty(row.callToAction) || isEmpty(row.destinationUrl)
+    ).map(r => r.id);
+    
+    if (blankRowIds.length === 0) {
+      toast.info('No rows with blank fields found');
       return;
     }
     
@@ -1102,17 +1138,29 @@ export function TextAssetExcelEditor({
             onChange={handleFileUpload}
           />
           <div className="h-5 w-px bg-border mx-1" />
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button variant="outline" size="sm" onClick={selectBlanksOnly}>
-                  <Target className="h-4 w-4 mr-1" />
-                  Select Blanks
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Select only rows with blank Primary Text, Headline, and Description</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <Select onValueChange={(value) => {
+            if (value === 'all') selectAllBlanks();
+            else if (value === 'primaryText') selectByBlankField('primaryText', 'Primary Text');
+            else if (value === 'headline') selectByBlankField('headline', 'Headline');
+            else if (value === 'description') selectByBlankField('description', 'Description');
+            else if (value === 'caption') selectByBlankField('caption', 'Caption');
+            else if (value === 'callToAction') selectByBlankField('callToAction', 'CTA');
+            else if (value === 'destinationUrl') selectByBlankField('destinationUrl', 'Destination URL');
+          }}>
+            <SelectTrigger className="w-[140px] h-8">
+              <Target className="h-4 w-4 mr-1" />
+              <SelectValue placeholder="Select Blanks" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Any Blank Field</SelectItem>
+              <SelectItem value="primaryText">Blank Primary Text</SelectItem>
+              <SelectItem value="headline">Blank Headline</SelectItem>
+              <SelectItem value="description">Blank Description</SelectItem>
+              <SelectItem value="caption">Blank Caption</SelectItem>
+              <SelectItem value="callToAction">Blank CTA</SelectItem>
+              <SelectItem value="destinationUrl">Blank URL</SelectItem>
+            </SelectContent>
+          </Select>
           <div className="h-5 w-px bg-border mx-1" />
           <Button variant="ghost" size="sm" onClick={copySelection} disabled={!selection}>
             <Copy className="h-4 w-4" />
@@ -1272,14 +1320,17 @@ export function TextAssetExcelEditor({
                         return (
                           <div
                             key={col.key}
-                            className="px-2 py-1.5 flex items-center justify-center border-r shrink-0"
+                            className="px-2 py-1.5 flex items-center justify-center border-r shrink-0 cursor-pointer"
                             style={{ width: col.width }}
-                            onClick={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleRowSelection(row.id, e.shiftKey);
+                            }}
                           >
                             <Checkbox
                               checked={isRowSelected}
-                              onCheckedChange={() => toggleRowSelection(row.id)}
-                              className="h-4 w-4"
+                              onCheckedChange={() => {}}
+                              className="h-4 w-4 pointer-events-none"
                             />
                           </div>
                         );
