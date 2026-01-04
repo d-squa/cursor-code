@@ -61,7 +61,8 @@ const App = () => (
             <Route path="/performance/:id" element={<SubscriptionGuard><Performance /></SubscriptionGuard>} />
             <Route path="/performance" element={<SubscriptionGuard><Performance /></SubscriptionGuard>} />
             <Route path="/clients" element={<SubscriptionGuard><Clients /></SubscriptionGuard>} />
-            <Route path="/creatives" element={<SubscriptionGuard><CreativeMatching /></SubscriptionGuard>} />
+            <Route path="/creatives" element={<SubscriptionGuard><CreativeLibrary /></SubscriptionGuard>} />
+            <Route path="/creatives/match" element={<SubscriptionGuard><CreativeMatching /></SubscriptionGuard>} />
             <Route path="/manage-accounts" element={<SubscriptionGuard><ManageClientAccounts /></SubscriptionGuard>} />
             <Route path="/teams" element={<SubscriptionGuard><Teams /></SubscriptionGuard>} />
             <Route path="/settings" element={<SubscriptionGuard><Settings /></SubscriptionGuard>}>
