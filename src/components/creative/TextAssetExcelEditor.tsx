@@ -168,6 +168,9 @@ export function TextAssetExcelEditor({
   const [carousels, setCarousels] = useState<CarouselLink[]>([]);
   const [showBulkEditor, setShowBulkEditor] = useState(true);
   
+  // Copied row values for row-to-row paste
+  const [copiedRowValues, setCopiedRowValues] = useState<Partial<CreativeTextAssetRow> | null>(null);
+  
   // Apply mode dialog state
   const [applyModeDialogOpen, setApplyModeDialogOpen] = useState(false);
   const [pendingApplyData, setPendingApplyData] = useState<{
@@ -247,6 +250,86 @@ export function TextAssetExcelEditor({
   const clearSelection = useCallback(() => {
     setSelectedRowIds(new Set());
   }, []);
+
+  // Count filled rows for a given set of updates (moved up for dependency order)
+  const countFilledRows = useCallback((rowIds: string[], updateKeys: (keyof CreativeTextAssetRow)[]) => {
+    const targetRows = rows.filter(r => rowIds.includes(r.id));
+    return targetRows.filter(row => {
+      // A row is "filled" if ANY of the fields we're about to update already has a value
+      return updateKeys.some(key => {
+        const value = (row as any)[key];
+        return value && String(value).trim() !== '';
+      });
+    }).length;
+  }, [rows]);
+
+  // Copy selected row's field values (uses first selected row)
+  const copySelectedRowValues = useCallback(() => {
+    if (selectedRowIds.size === 0) {
+      toast.error('Select a row first');
+      return;
+    }
+    
+    const firstSelectedId = Array.from(selectedRowIds)[0];
+    const sourceRow = rows.find(r => r.id === firstSelectedId);
+    if (!sourceRow) return;
+    
+    // Copy all editable text asset fields
+    const valuesToCopy: Partial<CreativeTextAssetRow> = {
+      primaryText: sourceRow.primaryText,
+      headline: sourceRow.headline,
+      description: sourceRow.description,
+      caption: sourceRow.caption,
+      callToAction: sourceRow.callToAction,
+      destinationUrl: sourceRow.destinationUrl,
+      displayLink: sourceRow.displayLink,
+    };
+    
+    setCopiedRowValues(valuesToCopy);
+    toast.success(`Copied values from "${sourceRow.creativeName}"`);
+  }, [selectedRowIds, rows]);
+
+  // Paste copied values to all selected rows
+  const pasteToSelectedRows = useCallback(() => {
+    if (!copiedRowValues) {
+      toast.error('No values copied. Select a row and click "Copy Row Values" first.');
+      return;
+    }
+    
+    if (selectedRowIds.size === 0) {
+      toast.error('Select target rows first');
+      return;
+    }
+    
+    const targetIds = Array.from(selectedRowIds);
+    
+    // Filter out empty values from the copied data
+    const updates: Partial<CreativeTextAssetRow> = {};
+    Object.entries(copiedRowValues).forEach(([key, value]) => {
+      if (value && String(value).trim() !== '') {
+        (updates as any)[key] = value;
+      }
+    });
+    
+    if (Object.keys(updates).length === 0) {
+      toast.error('Copied row has no values to paste');
+      return;
+    }
+    
+    // Check if any target rows already have values
+    const updateKeys = Object.keys(updates) as (keyof CreativeTextAssetRow)[];
+    const filledCount = countFilledRows(targetIds, updateKeys);
+    
+    if (filledCount > 0) {
+      // Show dialog to choose mode
+      setPendingApplyData({ rowIds: targetIds, updates, groupLabel: `${targetIds.length} selected rows` });
+      setApplyModeDialogOpen(true);
+    } else {
+      // No filled fields, apply directly
+      onBulkUpdate(targetIds, updates);
+      toast.success(`Pasted values to ${targetIds.length} rows`);
+    }
+  }, [copiedRowValues, selectedRowIds, countFilledRows, onBulkUpdate]);
 
   // Handle carousel creation / edit
   const handleCreateCarousel = useCallback((carousel: CarouselLink) => {
@@ -679,17 +762,6 @@ export function TextAssetExcelEditor({
     });
   }, []);
 
-  // Count filled rows for a given set of updates
-  const countFilledRows = useCallback((rowIds: string[], updateKeys: (keyof CreativeTextAssetRow)[]) => {
-    const targetRows = rows.filter(r => rowIds.includes(r.id));
-    return targetRows.filter(row => {
-      // A row is "filled" if ANY of the fields we're about to update already has a value
-      return updateKeys.some(key => {
-        const value = (row as any)[key];
-        return value && String(value).trim() !== '';
-      });
-    }).length;
-  }, [rows]);
 
   // Apply updates with mode (all or blanks only)
   const applyUpdatesWithMode = useCallback((
@@ -935,6 +1007,43 @@ export function TextAssetExcelEditor({
                 <Link2 className="h-3 w-3" />
                 {selectedRowIds.size} selected
               </Badge>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={copySelectedRowValues}
+                    >
+                      <Copy className="h-4 w-4 mr-1" />
+                      Copy Row Values
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Copy text values from the first selected row</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={pasteToSelectedRows}
+                      disabled={!copiedRowValues}
+                    >
+                      <Clipboard className="h-4 w-4 mr-1" />
+                      Paste to Selected
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {copiedRowValues 
+                      ? 'Paste copied values to all selected rows' 
+                      : 'Copy a row first'
+                    }
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <div className="h-5 w-px bg-border mx-1" />
               <Button
                 variant="default"
                 size="sm"
