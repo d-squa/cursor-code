@@ -331,6 +331,23 @@ export function TextAssetExcelEditor({
     }
   }, [copiedRowValues, selectedRowIds, countFilledRows, onBulkUpdate]);
 
+  // Select only rows with blank text fields
+  const selectBlanksOnly = useCallback(() => {
+    const blankRowIds = rows.filter(row => {
+      // Check if all main text fields are blank
+      const isEmpty = (val: any) => !val || String(val).trim() === '';
+      return isEmpty(row.primaryText) && isEmpty(row.headline) && isEmpty(row.description);
+    }).map(r => r.id);
+    
+    if (blankRowIds.length === 0) {
+      toast.info('No rows with blank text fields found');
+      return;
+    }
+    
+    setSelectedRowIds(new Set(blankRowIds));
+    toast.success(`Selected ${blankRowIds.length} rows with blank fields`);
+  }, [rows]);
+
   // Handle carousel creation / edit
   const handleCreateCarousel = useCallback((carousel: CarouselLink) => {
     const wasEditing = !!editingCarousel;
@@ -1084,6 +1101,18 @@ export function TextAssetExcelEditor({
             className="hidden"
             onChange={handleFileUpload}
           />
+          <div className="h-5 w-px bg-border mx-1" />
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="sm" onClick={selectBlanksOnly}>
+                  <Target className="h-4 w-4 mr-1" />
+                  Select Blanks
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Select only rows with blank Primary Text, Headline, and Description</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           <div className="h-5 w-px bg-border mx-1" />
           <Button variant="ghost" size="sm" onClick={copySelection} disabled={!selection}>
             <Copy className="h-4 w-4" />
