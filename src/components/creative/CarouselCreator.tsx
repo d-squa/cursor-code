@@ -167,7 +167,7 @@ export function CarouselCreator({ selectedRows, existingCarousel, onCreateCarous
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onCancel()}>
-      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-3xl w-[90vw]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Layers className="h-5 w-5" />
@@ -256,7 +256,7 @@ export function CarouselCreator({ selectedRows, existingCarousel, onCreateCarous
           {/* Card ordering */}
           <div className="space-y-2">
             <label className="text-sm font-medium">Card Order & Parameters</label>
-            <div className="space-y-1 border rounded-md p-2 bg-muted/30 max-h-[400px] overflow-y-auto">
+            <div className="space-y-1 border rounded-md p-2 bg-muted/30">
               {orderedCards.map((row, index) => {
                 const badges = cardPlacements[index] || [];
                 const carouselBadge = badges.find(b => b.type === 'carousel');
