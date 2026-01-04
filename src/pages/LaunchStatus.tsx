@@ -737,6 +737,8 @@ export default function LaunchStatus() {
             campaignId={campaignId}
             onRefresh={loadData}
             refreshNonce={creativesRefreshNonce}
+            onAssignmentsDeleted={() => loadData()}
+            onAssignmentsDuplicated={() => loadData()}
           />
         </div>
       )}

@@ -23,9 +23,11 @@ interface TextAssetsTabProps {
   campaignId?: string;
   campaignName?: string;
   hideCampaignSelector?: boolean;
+  /** External refresh trigger - increment to reload data */
+  refreshNonce?: number;
 }
 
-export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector }: TextAssetsTabProps) {
+export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, refreshNonce: externalRefreshNonce }: TextAssetsTabProps) {
   const { user } = useAuth();
 
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -174,7 +176,7 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector }
     };
 
     loadAssignments();
-  }, [effectiveCampaignId, refreshNonce]);
+  }, [effectiveCampaignId, refreshNonce, externalRefreshNonce]);
 
   // Handle individual row changes
   const handleRowChange = useCallback((id: string, updates: Partial<CreativeTextAssetRow>) => {
