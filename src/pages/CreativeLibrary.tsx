@@ -1,34 +1,94 @@
 // Creative Library Page - Main hub for creative management
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { FolderUp, FileSpreadsheet, LayoutGrid, Download, Wand2, Type } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { FolderUp, FileSpreadsheet, LayoutGrid, Download, Wand2, Type, Layers, Loader2 } from 'lucide-react';
 import { useCreatives } from '@/hooks/useCreatives';
 import { CreativeGrid } from '@/components/creative/CreativeGrid';
 import { FolderUpload } from '@/components/creative/FolderUpload';
 import { SpreadsheetUpload } from '@/components/creative/SpreadsheetUpload';
 import { CreativeEditor } from '@/components/creative/CreativeEditor';
 import { TextAssetsTab } from '@/components/creative/TextAssetsTab';
+import { AssignedCreativesView } from '@/components/creative/AssignedCreativesView';
 import type { Creative, CreativeFilters, Platform } from '@/types/creative';
 import { toast } from 'sonner';
 import { generateSampleTaxonomyStructure } from '@/utils/creativeValidation';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+
+interface Campaign {
+  id: string;
+  name: string;
+  status: string;
+}
 
 export default function CreativeLibrary() {
+  const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const initialTab = searchParams.get('tab') || 'library';
+  const initialCampaignId = searchParams.get('campaignId') || '';
   const [activeTab, setActiveTab] = useState(initialTab);
   const [filters, setFilters] = useState<CreativeFilters>({});
   const [editingCreative, setEditingCreative] = useState<Creative | null>(null);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   
+  // Campaign selection for Assignments tab
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [selectedCampaignId, setSelectedCampaignId] = useState(initialCampaignId);
+  const [isLoadingCampaigns, setIsLoadingCampaigns] = useState(false);
+  
+  // Load campaigns for assignments tab
+  useEffect(() => {
+    const loadCampaigns = async () => {
+      if (!user?.id) return;
+      setIsLoadingCampaigns(true);
+      try {
+        const { data, error } = await supabase
+          .from('campaigns')
+          .select('id, name, status')
+          .order('updated_at', { ascending: false });
+        
+        if (error) throw error;
+        setCampaigns(data || []);
+        
+        // Auto-select campaign from URL or first available
+        if (initialCampaignId && data?.some(c => c.id === initialCampaignId)) {
+          setSelectedCampaignId(initialCampaignId);
+        } else if (data && data.length > 0 && !selectedCampaignId) {
+          setSelectedCampaignId(data[0].id);
+        }
+      } catch (error) {
+        console.error('Error loading campaigns:', error);
+      } finally {
+        setIsLoadingCampaigns(false);
+      }
+    };
+    
+    loadCampaigns();
+  }, [user?.id, initialCampaignId]);
+  
   // Sync tab changes with URL
   const handleTabChange = useCallback((value: string) => {
     setActiveTab(value);
-    setSearchParams({ tab: value });
-  }, [setSearchParams]);
+    const newParams = new URLSearchParams(searchParams);
+    newParams.set('tab', value);
+    if (value === 'assignments' && selectedCampaignId) {
+      newParams.set('campaignId', selectedCampaignId);
+    }
+    setSearchParams(newParams);
+  }, [searchParams, setSearchParams, selectedCampaignId]);
+  
+  // Handle campaign selection for assignments
+  const handleCampaignSelect = useCallback((campaignId: string) => {
+    setSelectedCampaignId(campaignId);
+    const newParams = new URLSearchParams(searchParams);
+    newParams.set('campaignId', campaignId);
+    setSearchParams(newParams);
+  }, [searchParams, setSearchParams]);
 
   const {
     creatives,
@@ -37,7 +97,6 @@ export default function CreativeLibrary() {
     updateCreative,
     deleteCreative,
     bulkAction,
-    uploadFile,
     isCreating,
     isUpdating,
   } = useCreatives(filters);
@@ -136,6 +195,10 @@ export default function CreativeLibrary() {
             <LayoutGrid className="h-4 w-4" />
             Library
           </TabsTrigger>
+          <TabsTrigger value="assignments" className="gap-2">
+            <Layers className="h-4 w-4" />
+            Assignments
+          </TabsTrigger>
           <TabsTrigger value="text-assets" className="gap-2">
             <Type className="h-4 w-4" />
             Text Assets
@@ -164,6 +227,58 @@ export default function CreativeLibrary() {
           />
         </TabsContent>
 
+        <TabsContent value="assignments" className="mt-6">
+          <div className="space-y-4">
+            {/* Campaign selector */}
+            <div className="flex items-center gap-4 p-4 border rounded-lg bg-muted/30">
+              <div className="flex-1">
+                <label className="text-sm font-medium mb-1 block">Select ActiPlan</label>
+                {isLoadingCampaigns ? (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading campaigns...
+                  </div>
+                ) : campaigns.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No ActiPlans found. Create one first.</p>
+                ) : (
+                  <Select value={selectedCampaignId} onValueChange={handleCampaignSelect}>
+                    <SelectTrigger className="w-full max-w-md">
+                      <SelectValue placeholder="Choose an ActiPlan..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {campaigns.map(campaign => (
+                        <SelectItem key={campaign.id} value={campaign.id}>
+                          <div className="flex items-center gap-2">
+                            <span>{campaign.name}</span>
+                            <Badge variant="outline" className="text-xs">{campaign.status}</Badge>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+              {selectedCampaignId && (
+                <Button 
+                  variant="default" 
+                  size="sm"
+                  onClick={() => navigate(`/creatives/match?campaignId=${selectedCampaignId}`)}
+                >
+                  <Wand2 className="h-4 w-4 mr-2" />
+                  Add More Creatives
+                </Button>
+              )}
+            </div>
+            
+            {/* Assigned creatives view */}
+            {selectedCampaignId && (
+              <AssignedCreativesView 
+                campaignId={selectedCampaignId}
+              />
+            )}
+          </div>
+        </TabsContent>
+
         <TabsContent value="text-assets" className="mt-6">
           <TextAssetsTab />
         </TabsContent>
@@ -171,7 +286,7 @@ export default function CreativeLibrary() {
         <TabsContent value="folder" className="mt-6">
           <FolderUpload
             onUploadComplete={handleFolderUploadComplete}
-            adAccounts={[]} // TODO: Pass ad accounts from selected ActiPlan
+            adAccounts={[]}
             isUploading={isCreating}
           />
         </TabsContent>
