@@ -21,8 +21,6 @@ export interface CarouselCard {
   mediaType: 'image' | 'video';
   position: number;
   // Card-level text assets
-  cardMediaUrl?: string;
-  cardStoryMediaUrl?: string;
   cardHeadline?: string;
   cardDescription?: string;
   cardWebsiteUrl?: string;
@@ -31,8 +29,6 @@ export interface CarouselCard {
 
 // Extended carousel link with card-level data
 export interface CarouselCardData {
-  cardMediaUrl?: string;
-  cardStoryMediaUrl?: string;
   cardHeadline?: string;
   cardDescription?: string;
   cardWebsiteUrl?: string;
@@ -68,8 +64,6 @@ export const VIDEO_FORMAT_FIELDS: FormatFieldConfig[] = [
 
 // Carousel card fields (per-card within carousel)
 export const CAROUSEL_CARD_FIELDS: FormatFieldConfig[] = [
-  { id: 'cardMediaUrl', label: 'Card Media URL', required: false, maxLength: 2000, placeholder: 'https://...' },
-  { id: 'cardStoryMediaUrl', label: 'Card Story Media URL', required: false, maxLength: 2000, placeholder: 'https://...' },
   { id: 'cardHeadline', label: 'Card Headline', required: false, maxLength: 40, placeholder: 'Card headline' },
   { id: 'cardDescription', label: 'Card Description', required: false, maxLength: 25, placeholder: 'Card description' },
   { id: 'cardWebsiteUrl', label: 'Card Website URL', required: true, maxLength: 2000, placeholder: 'https://...' },
