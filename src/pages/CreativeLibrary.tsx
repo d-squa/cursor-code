@@ -1,5 +1,6 @@
 // Creative Library Page - Main hub for creative management
 import { useState, useCallback, useEffect } from 'react';
+import type { ReactNode } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -35,13 +36,17 @@ export default function CreativeLibrary() {
   const [filters, setFilters] = useState<CreativeFilters>({});
   const [editingCreative, setEditingCreative] = useState<Creative | null>(null);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
-  
-  // Campaign selection for Assignments tab
+
+  const shouldFetchCreatives = activeTab === 'library' || activeTab === 'folder' || activeTab === 'spreadsheet';
+
+  // Campaign selection shared for Assignments + Text Assets
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [selectedCampaignId, setSelectedCampaignId] = useState(initialCampaignId);
   const [isLoadingCampaigns, setIsLoadingCampaigns] = useState(false);
-  
-  // Load campaigns for assignments tab
+
+  const selectedCampaign = campaigns.find((c) => c.id === selectedCampaignId);
+
+  // Load campaigns (do not auto-select; only use URL param or user selection)
   useEffect(() => {
     const loadCampaigns = async () => {
       if (!user?.id) return;
@@ -51,15 +56,12 @@ export default function CreativeLibrary() {
           .from('campaigns')
           .select('id, name, status')
           .order('updated_at', { ascending: false });
-        
+
         if (error) throw error;
         setCampaigns(data || []);
-        
-        // Auto-select campaign from URL or first available
-        if (initialCampaignId && data?.some(c => c.id === initialCampaignId)) {
+
+        if (initialCampaignId && data?.some((c) => c.id === initialCampaignId)) {
           setSelectedCampaignId(initialCampaignId);
-        } else if (data && data.length > 0 && !selectedCampaignId) {
-          setSelectedCampaignId(data[0].id);
         }
       } catch (error) {
         console.error('Error loading campaigns:', error);
@@ -67,28 +69,38 @@ export default function CreativeLibrary() {
         setIsLoadingCampaigns(false);
       }
     };
-    
+
     loadCampaigns();
   }, [user?.id, initialCampaignId]);
-  
+
   // Sync tab changes with URL
-  const handleTabChange = useCallback((value: string) => {
-    setActiveTab(value);
-    const newParams = new URLSearchParams(searchParams);
-    newParams.set('tab', value);
-    if (value === 'assignments' && selectedCampaignId) {
-      newParams.set('campaignId', selectedCampaignId);
-    }
-    setSearchParams(newParams);
-  }, [searchParams, setSearchParams, selectedCampaignId]);
-  
-  // Handle campaign selection for assignments
-  const handleCampaignSelect = useCallback((campaignId: string) => {
-    setSelectedCampaignId(campaignId);
-    const newParams = new URLSearchParams(searchParams);
-    newParams.set('campaignId', campaignId);
-    setSearchParams(newParams);
-  }, [searchParams, setSearchParams]);
+  const handleTabChange = useCallback(
+    (value: string) => {
+      setActiveTab(value);
+      const newParams = new URLSearchParams(searchParams);
+      newParams.set('tab', value);
+
+      if (selectedCampaignId) {
+        newParams.set('campaignId', selectedCampaignId);
+      } else {
+        newParams.delete('campaignId');
+      }
+
+      setSearchParams(newParams);
+    },
+    [searchParams, setSearchParams, selectedCampaignId]
+  );
+
+  // Handle campaign selection for assignments + text assets
+  const handleCampaignSelect = useCallback(
+    (campaignId: string) => {
+      setSelectedCampaignId(campaignId);
+      const newParams = new URLSearchParams(searchParams);
+      newParams.set('campaignId', campaignId);
+      setSearchParams(newParams);
+    },
+    [searchParams, setSearchParams]
+  );
 
   const {
     creatives,
@@ -99,21 +111,27 @@ export default function CreativeLibrary() {
     bulkAction,
     isCreating,
     isUpdating,
-  } = useCreatives(filters);
+  } = useCreatives(filters, { enabled: shouldFetchCreatives });
 
   // Handle folder upload complete
-  const handleFolderUploadComplete = useCallback(async (newCreatives: Partial<Creative>[]) => {
-    for (const creative of newCreatives) {
-      await createCreative(creative as Creative & { name: string; platform: Platform });
-    }
-  }, [createCreative]);
+  const handleFolderUploadComplete = useCallback(
+    async (newCreatives: Partial<Creative>[]) => {
+      for (const creative of newCreatives) {
+        await createCreative(creative as Creative & { name: string; platform: Platform });
+      }
+    },
+    [createCreative]
+  );
 
   // Handle spreadsheet upload complete
-  const handleSpreadsheetUploadComplete = useCallback(async (newCreatives: Partial<Creative>[]) => {
-    for (const creative of newCreatives) {
-      await createCreative(creative as Creative & { name: string; platform: Platform });
-    }
-  }, [createCreative]);
+  const handleSpreadsheetUploadComplete = useCallback(
+    async (newCreatives: Partial<Creative>[]) => {
+      for (const creative of newCreatives) {
+        await createCreative(creative as Creative & { name: string; platform: Platform });
+      }
+    },
+    [createCreative]
+  );
 
   // Handle edit
   const handleEdit = useCallback((creative: Creative) => {
@@ -122,39 +140,55 @@ export default function CreativeLibrary() {
   }, []);
 
   // Handle save
-  const handleSave = useCallback(async (updates: Partial<Creative>) => {
-    if (editingCreative) {
-      await updateCreative({ id: editingCreative.id, updates });
-      setIsEditorOpen(false);
-      setEditingCreative(null);
-      toast.success('Creative updated');
-    }
-  }, [editingCreative, updateCreative]);
+  const handleSave = useCallback(
+    async (updates: Partial<Creative>) => {
+      if (editingCreative) {
+        await updateCreative({ id: editingCreative.id, updates });
+        setIsEditorOpen(false);
+        setEditingCreative(null);
+        toast.success('Creative updated');
+      }
+    },
+    [editingCreative, updateCreative]
+  );
 
   // Handle duplicate
-  const handleDuplicate = useCallback(async (creative: Creative) => {
-    await bulkAction({ type: 'duplicate', creativeIds: [creative.id] });
-  }, [bulkAction]);
+  const handleDuplicate = useCallback(
+    async (creative: Creative) => {
+      await bulkAction({ type: 'duplicate', creativeIds: [creative.id] });
+    },
+    [bulkAction]
+  );
 
   // Handle delete
-  const handleDelete = useCallback(async (id: string) => {
-    await deleteCreative(id);
-  }, [deleteCreative]);
+  const handleDelete = useCallback(
+    async (id: string) => {
+      await deleteCreative(id);
+    },
+    [deleteCreative]
+  );
 
   // Handle bulk actions
-  const handleBulkAction = useCallback(async (action: string, ids: string[]) => {
-    if (action === 'delete') {
-      await bulkAction({ type: 'delete', creativeIds: ids });
-    } else if (action === 'duplicate') {
-      await bulkAction({ type: 'duplicate', creativeIds: ids });
-    }
-  }, [bulkAction]);
+  const handleBulkAction = useCallback(
+    async (action: string, ids: string[]) => {
+      if (action === 'delete') {
+        await bulkAction({ type: 'delete', creativeIds: ids });
+      } else if (action === 'duplicate') {
+        await bulkAction({ type: 'duplicate', creativeIds: ids });
+      }
+    },
+    [bulkAction]
+  );
 
   // Download sample folder structure
   const handleDownloadSampleStructure = useCallback(() => {
     const structure = generateSampleTaxonomyStructure();
-    const text = `ActiPlan Creative Folder Structure\n${'='.repeat(40)}\n\nCreate folders following this hierarchy:\nPlatform/Market/Phase/OptimizationGoal/CreativeType/\n\nExamples:\n${structure.join('\n')}\n\nNotes:\n- Platform: Meta, TikTok, Google, LinkedIn, Snapchat, Pinterest, X\n- Market: 2-letter country code (US, UK, DE, FR, etc.)\n- Phase: Awareness, Consideration, Conversion, Retention, Loyalty\n- OptimizationGoal: Platform-specific (REACH, CONVERSIONS, VIDEO_VIEWS, etc.)\n- CreativeType: image, video, carousel, dark_post, existing_post`;
-    
+    const text = `ActiPlan Creative Folder Structure\n${'='.repeat(
+      40
+    )}\n\nCreate folders following this hierarchy:\nPlatform/Market/Phase/OptimizationGoal/CreativeType/\n\nExamples:\n${structure.join(
+      '\n'
+    )}\n\nNotes:\n- Platform: Meta, TikTok, Google, LinkedIn, Snapchat, Pinterest, X\n- Market: 2-letter country code (US, UK, DE, FR, etc.)\n- Phase: Awareness, Consideration, Conversion, Retention, Loyalty\n- OptimizationGoal: Platform-specific (REACH, CONVERSIONS, VIDEO_VIEWS, etc.)\n- CreativeType: image, video, carousel, dark_post, existing_post`;
+
     const blob = new Blob([text], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -165,18 +199,51 @@ export default function CreativeLibrary() {
     toast.success('Sample structure downloaded');
   }, []);
 
+  const renderActiPlanSelector = (options?: { rightSlot?: ReactNode }) => (
+    <div className="flex items-center gap-4 p-4 border rounded-lg bg-muted/30">
+      <div className="flex-1">
+        <label className="text-sm font-medium mb-1 block">Select ActiPlan</label>
+        {isLoadingCampaigns ? (
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Loading ActiPlans...
+          </div>
+        ) : campaigns.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No ActiPlans found. Create one first.</p>
+        ) : (
+          <Select value={selectedCampaignId || undefined} onValueChange={handleCampaignSelect}>
+            <SelectTrigger className="w-full max-w-md">
+              <SelectValue placeholder="Choose an ActiPlan..." />
+            </SelectTrigger>
+            <SelectContent>
+              {campaigns.map((campaign) => (
+                <SelectItem key={campaign.id} value={campaign.id}>
+                  <div className="flex items-center gap-2">
+                    <span>{campaign.name}</span>
+                    <Badge variant="outline" className="text-xs">
+                      {campaign.status}
+                    </Badge>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
+      {options?.rightSlot}
+    </div>
+  );
+
   return (
     <div className="container mx-auto py-6 px-4 space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Creative Library</h1>
-          <p className="text-muted-foreground">
-            Manage and organize creatives for your campaigns
-          </p>
+          <p className="text-muted-foreground">Manage and organize creatives for your campaigns</p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant="secondary">{creatives.length} creatives</Badge>
+          {shouldFetchCreatives && <Badge variant="secondary">{creatives.length} creatives</Badge>}
           <Button variant="default" size="sm" onClick={() => navigate('/creatives/match')}>
             <Wand2 className="h-4 w-4 mr-2" />
             Match to ActiPlan
@@ -229,73 +296,58 @@ export default function CreativeLibrary() {
 
         <TabsContent value="assignments" className="mt-6">
           <div className="space-y-4">
-            {/* Campaign selector */}
-            <div className="flex items-center gap-4 p-4 border rounded-lg bg-muted/30">
-              <div className="flex-1">
-                <label className="text-sm font-medium mb-1 block">Select ActiPlan</label>
-                {isLoadingCampaigns ? (
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Loading campaigns...
-                  </div>
-                ) : campaigns.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No ActiPlans found. Create one first.</p>
-                ) : (
-                  <Select value={selectedCampaignId} onValueChange={handleCampaignSelect}>
-                    <SelectTrigger className="w-full max-w-md">
-                      <SelectValue placeholder="Choose an ActiPlan..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {campaigns.map(campaign => (
-                        <SelectItem key={campaign.id} value={campaign.id}>
-                          <div className="flex items-center gap-2">
-                            <span>{campaign.name}</span>
-                            <Badge variant="outline" className="text-xs">{campaign.status}</Badge>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
-              {selectedCampaignId && (
-                <Button 
-                  variant="default" 
+            {renderActiPlanSelector({
+              rightSlot: selectedCampaignId ? (
+                <Button
+                  variant="default"
                   size="sm"
                   onClick={() => navigate(`/creatives/match?campaignId=${selectedCampaignId}`)}
                 >
                   <Wand2 className="h-4 w-4 mr-2" />
                   Add More Creatives
                 </Button>
-              )}
-            </div>
-            
-            {/* Assigned creatives view */}
-            {selectedCampaignId && (
-              <AssignedCreativesView 
-                campaignId={selectedCampaignId}
-              />
-            )}
+              ) : null,
+            })}
+
+            {selectedCampaignId ? <AssignedCreativesView campaignId={selectedCampaignId} /> : null}
           </div>
         </TabsContent>
 
         <TabsContent value="text-assets" className="mt-6">
-          <TextAssetsTab />
+          <div className="space-y-4">
+            {renderActiPlanSelector({
+              rightSlot: selectedCampaignId ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate(`/creatives/match?campaignId=${selectedCampaignId}`)}
+                >
+                  <Wand2 className="h-4 w-4 mr-2" />
+                  Open Matcher
+                </Button>
+              ) : null,
+            })}
+
+            {selectedCampaignId ? (
+              <TextAssetsTab
+                campaignId={selectedCampaignId}
+                campaignName={selectedCampaign?.name}
+                hideCampaignSelector
+              />
+            ) : (
+              <div className="text-sm text-muted-foreground">
+                Select an ActiPlan to load and edit its text assets.
+              </div>
+            )}
+          </div>
         </TabsContent>
 
         <TabsContent value="folder" className="mt-6">
-          <FolderUpload
-            onUploadComplete={handleFolderUploadComplete}
-            adAccounts={[]}
-            isUploading={isCreating}
-          />
+          <FolderUpload onUploadComplete={handleFolderUploadComplete} adAccounts={[]} isUploading={isCreating} />
         </TabsContent>
 
         <TabsContent value="spreadsheet" className="mt-6">
-          <SpreadsheetUpload
-            onUploadComplete={handleSpreadsheetUploadComplete}
-            isUploading={isCreating}
-          />
+          <SpreadsheetUpload onUploadComplete={handleSpreadsheetUploadComplete} isUploading={isCreating} />
         </TabsContent>
       </Tabs>
 

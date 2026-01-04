@@ -1,5 +1,5 @@
-// Text Assets Tab - Standalone page for editing text assets across all campaigns
-import { useState, useCallback, useMemo, useEffect } from 'react';
+// Text Assets Tab - Page/editor for editing text assets for a specific ActiPlan
+import { useState, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
@@ -18,73 +18,73 @@ interface Campaign {
   name: string;
 }
 
-export function TextAssetsTab() {
+interface TextAssetsTabProps {
+  /** If provided, the editor loads ONLY this ActiPlan (and hides the internal selector). */
+  campaignId?: string;
+  campaignName?: string;
+  hideCampaignSelector?: boolean;
+}
+
+export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector }: TextAssetsTabProps) {
   const { user } = useAuth();
+
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [selectedCampaignId, setSelectedCampaignId] = useState<string>('');
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string>(campaignId || '');
   const [rows, setRows] = useState<CreativeTextAssetRow[]>([]);
-  const [isLoadingCampaigns, setIsLoadingCampaigns] = useState(true);
+  const [isLoadingCampaigns, setIsLoadingCampaigns] = useState<boolean>(!campaignId);
   const [isLoadingAssets, setIsLoadingAssets] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [refreshNonce, setRefreshNonce] = useState(0);
 
-  // Load campaigns that have creative assignments
+  const isExternallyControlled = !!campaignId || !!hideCampaignSelector;
+  const effectiveCampaignId = campaignId || selectedCampaignId;
+
+  // Keep internal state in sync if campaignId is provided by parent
+  useEffect(() => {
+    if (campaignId !== undefined) {
+      setSelectedCampaignId(campaignId);
+    }
+  }, [campaignId]);
+
+  // Load campaigns only when not externally controlled
   useEffect(() => {
     const loadCampaigns = async () => {
       if (!user?.id) return;
-      
+      if (isExternallyControlled) {
+        setIsLoadingCampaigns(false);
+        return;
+      }
+
+      setIsLoadingCampaigns(true);
       try {
-        // Get campaigns that have creative assignments
-        const { data: assignmentData, error: assignmentError } = await supabase
-          .from('creative_assignments')
-          .select('campaign_id')
-          .not('campaign_id', 'is', null);
-
-        if (assignmentError) throw assignmentError;
-
-        const campaignIds = [...new Set((assignmentData || []).map(a => a.campaign_id))];
-        
-        if (campaignIds.length === 0) {
-          setCampaigns([]);
-          setIsLoadingCampaigns(false);
-          return;
-        }
-
-        // Get campaign details
-        const { data: campaignsData, error: campaignsError } = await supabase
+        const { data, error } = await supabase
           .from('campaigns')
           .select('id, name')
-          .in('id', campaignIds)
-          .order('created_at', { ascending: false });
+          .order('updated_at', { ascending: false });
 
-        if (campaignsError) throw campaignsError;
-
-        setCampaigns(campaignsData || []);
-        
-        // Auto-select first campaign if available
-        if (campaignsData && campaignsData.length > 0 && !selectedCampaignId) {
-          setSelectedCampaignId(campaignsData[0].id);
-        }
+        if (error) throw error;
+        setCampaigns(data || []);
       } catch (error) {
         console.error('Error loading campaigns:', error);
-        toast.error('Failed to load campaigns');
+        toast.error('Failed to load ActiPlans');
       } finally {
         setIsLoadingCampaigns(false);
       }
     };
 
     loadCampaigns();
-  }, [user?.id]);
+  }, [user?.id, isExternallyControlled]);
 
   // Load text assets for selected campaign
   useEffect(() => {
     const loadAssignments = async () => {
-      if (!selectedCampaignId) {
+      if (!effectiveCampaignId) {
         setRows([]);
         return;
       }
-      
+
       setIsLoadingAssets(true);
-      
+
       try {
         const { data: assignments, error } = await supabase
           .from('creative_assignments')
@@ -110,25 +110,27 @@ export function TextAssetsTab() {
               media_urls
             )
           `)
-          .eq('campaign_id', selectedCampaignId);
+          .eq('campaign_id', effectiveCampaignId);
 
         if (error) throw error;
 
         // Transform to CreativeTextAssetRow format
         const transformedRows: CreativeTextAssetRow[] = (assignments || []).map((assignment: any) => {
           const creative = assignment.creatives;
-          const isVideo = creative?.creative_type === 'video' || 
-                         (creative?.media_urls?.[0]?.includes('.mp4') || creative?.media_urls?.[0]?.includes('.mov'));
-          
+          const isVideo =
+            creative?.creative_type === 'video' ||
+            creative?.media_urls?.[0]?.includes('.mp4') ||
+            creative?.media_urls?.[0]?.includes('.mov');
+
           const mediaType: 'image' | 'video' = isVideo ? 'video' : 'image';
-          
+
           // Detect ad format
           const suggestedFormat = detectAdFormat({
             aspectRatio: creative?.aspect_ratio,
             mediaType,
             platform: assignment.platform,
           });
-          
+
           return {
             id: `${assignment.id}_${assignment.creative_id}`,
             creativeId: assignment.creative_id,
@@ -157,7 +159,7 @@ export function TextAssetsTab() {
         });
 
         // Validate all rows
-        const validatedRows = transformedRows.map(row => {
+        const validatedRows = transformedRows.map((row) => {
           const errors = validateTextAssetRow(row);
           return { ...row, validationErrors: errors, isValid: errors.length === 0 };
         });
@@ -172,31 +174,35 @@ export function TextAssetsTab() {
     };
 
     loadAssignments();
-  }, [selectedCampaignId]);
+  }, [effectiveCampaignId, refreshNonce]);
 
   // Handle individual row changes
   const handleRowChange = useCallback((id: string, updates: Partial<CreativeTextAssetRow>) => {
-    setRows(prev => prev.map(row => {
-      if (row.id !== id) return row;
-      const updated = { ...row, ...updates };
-      const errors = validateTextAssetRow(updated);
-      return { ...updated, validationErrors: errors, isValid: errors.length === 0 };
-    }));
+    setRows((prev) =>
+      prev.map((row) => {
+        if (row.id !== id) return row;
+        const updated = { ...row, ...updates };
+        const errors = validateTextAssetRow(updated);
+        return { ...updated, validationErrors: errors, isValid: errors.length === 0 };
+      })
+    );
   }, []);
 
   // Handle bulk updates
   const handleBulkUpdate = useCallback((ids: string[], updates: Partial<CreativeTextAssetRow>) => {
-    setRows(prev => prev.map(row => {
-      if (!ids.includes(row.id)) return row;
-      const updated = { ...row, ...updates };
-      const errors = validateTextAssetRow(updated);
-      return { ...updated, validationErrors: errors, isValid: errors.length === 0 };
-    }));
+    setRows((prev) =>
+      prev.map((row) => {
+        if (!ids.includes(row.id)) return row;
+        const updated = { ...row, ...updates };
+        const errors = validateTextAssetRow(updated);
+        return { ...updated, validationErrors: errors, isValid: errors.length === 0 };
+      })
+    );
   }, []);
 
   // Handle import from Excel
   const handleImportRows = useCallback((importedRows: CreativeTextAssetRow[]) => {
-    const validatedRows = importedRows.map(row => {
+    const validatedRows = importedRows.map((row) => {
       const errors = validateTextAssetRow(row);
       return { ...row, validationErrors: errors, isValid: errors.length === 0 };
     });
@@ -206,7 +212,7 @@ export function TextAssetsTab() {
   // Save text assets to database
   const handleSave = useCallback(async () => {
     setIsSaving(true);
-    
+
     try {
       // Update creatives with text assets
       for (const row of rows) {
@@ -236,29 +242,28 @@ export function TextAssetsTab() {
     }
   }, [rows]);
 
-  const selectedCampaign = campaigns.find(c => c.id === selectedCampaignId);
+  const selectedCampaign = campaigns.find((c) => c.id === selectedCampaignId);
+  const effectiveCampaignName = campaignName || selectedCampaign?.name;
 
-  // Loading campaigns
   if (isLoadingCampaigns) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
-        <p className="text-muted-foreground">Loading campaigns...</p>
+        <p className="text-muted-foreground">Loading ActiPlans...</p>
       </div>
     );
   }
 
-  // No campaigns with assignments
-  if (campaigns.length === 0) {
+  // Standalone mode: show selector when no campaign chosen
+  if (!isExternallyControlled && campaigns.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
           <AlertCircle className="h-6 w-6 text-muted-foreground" />
         </div>
-        <h3 className="text-lg font-semibold mb-2">No Creative Assignments</h3>
+        <h3 className="text-lg font-semibold mb-2">No ActiPlans Found</h3>
         <p className="text-muted-foreground text-sm text-center max-w-md">
-          No campaigns have creative assignments yet. Use the "Match to ActiPlan" 
-          feature to assign creatives to your campaigns, then come back here to edit text assets.
+          Create an ActiPlan first, then come back here to edit text assets.
         </p>
       </div>
     );
@@ -266,60 +271,63 @@ export function TextAssetsTab() {
 
   return (
     <div className="space-y-4">
-      {/* Campaign Selector */}
-      <div className="flex items-center gap-4 p-4 border rounded-lg bg-muted/30">
-        <div className="flex-1">
-          <label className="text-sm font-medium mb-1 block">Select Campaign</label>
-          <Select value={selectedCampaignId} onValueChange={setSelectedCampaignId}>
-            <SelectTrigger className="w-full max-w-md">
-              <SelectValue placeholder="Choose a campaign..." />
-            </SelectTrigger>
-            <SelectContent>
-              {campaigns.map(campaign => (
-                <SelectItem key={campaign.id} value={campaign.id}>
-                  {campaign.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex items-center gap-2">
-          {selectedCampaignId && (
-            <Badge variant="secondary">{rows.length} creatives</Badge>
-          )}
-          <Button 
-            variant="outline" 
-            size="icon"
-            onClick={() => setSelectedCampaignId(selectedCampaignId)}
-            disabled={isLoadingAssets}
-          >
-            <RefreshCw className={`h-4 w-4 ${isLoadingAssets ? 'animate-spin' : ''}`} />
-          </Button>
-        </div>
-      </div>
+      {/* Campaign Selector (only in standalone mode) */}
+      {!isExternallyControlled && (
+        <div className="flex items-center gap-4 p-4 border rounded-lg bg-muted/30">
+          <div className="flex-1">
+            <label className="text-sm font-medium mb-1 block">Select ActiPlan</label>
+            <Select value={selectedCampaignId || undefined} onValueChange={setSelectedCampaignId}>
+              <SelectTrigger className="w-full max-w-md">
+                <SelectValue placeholder="Choose an ActiPlan..." />
+              </SelectTrigger>
+              <SelectContent>
+                {campaigns.map((campaign) => (
+                  <SelectItem key={campaign.id} value={campaign.id}>
+                    {campaign.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-      {/* Text Asset Editor */}
-      {isLoadingAssets ? (
+          <div className="flex items-center gap-2">
+            {effectiveCampaignId && <Badge variant="secondary">{rows.length} creatives</Badge>}
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setRefreshNonce((n) => n + 1)}
+              disabled={!effectiveCampaignId || isLoadingAssets}
+              aria-label="Refresh text assets"
+            >
+              <RefreshCw className={`h-4 w-4 ${isLoadingAssets ? 'animate-spin' : ''}`} />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* When externally controlled but no campaign is selected */}
+      {isExternallyControlled && !effectiveCampaignId ? (
+        <div className="text-sm text-muted-foreground">Select an ActiPlan to load text assets.</div>
+      ) : isLoadingAssets ? (
         <div className="flex flex-col items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
           <p className="text-muted-foreground">Loading text assets...</p>
         </div>
-      ) : rows.length === 0 && selectedCampaignId ? (
+      ) : rows.length === 0 && effectiveCampaignId ? (
         <div className="flex flex-col items-center justify-center py-12">
           <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
             <AlertCircle className="h-6 w-6 text-muted-foreground" />
           </div>
           <h3 className="text-lg font-semibold mb-2">No Assignments</h3>
           <p className="text-muted-foreground text-sm text-center max-w-md">
-            This campaign doesn't have any creative assignments yet. 
-            Use "Match to ActiPlan" to assign creatives first.
+            This ActiPlan doesn't have any creative assignments yet. Use the Creative Matcher to assign creatives first.
           </p>
         </div>
       ) : rows.length > 0 ? (
         <div className="border rounded-lg overflow-hidden">
           <TextAssetExcelEditor
             rows={rows}
-            campaignName={selectedCampaign?.name || 'Campaign'}
+            campaignName={effectiveCampaignName || 'ActiPlan'}
             onRowChange={handleRowChange}
             onBulkUpdate={handleBulkUpdate}
             onImportRows={handleImportRows}

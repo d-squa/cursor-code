@@ -13,9 +13,15 @@ import type {
 } from '@/types/creative';
 import { dbRowToCreative, creativeToDbInsert } from '@/types/creative';
 
-export function useCreatives(filters?: CreativeFilters) {
+export function useCreatives(
+  filters?: CreativeFilters,
+  options?: {
+    enabled?: boolean;
+  }
+) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const enabled = options?.enabled ?? true;
 
   // Fetch creatives with filters
   const { data: creatives = [], isLoading, error, refetch } = useQuery({
@@ -54,10 +60,10 @@ export function useCreatives(filters?: CreativeFilters) {
 
       const { data, error } = await query;
       if (error) throw error;
-      
-      return (data || []).map(row => dbRowToCreative(row as Record<string, unknown>));
+
+      return (data || []).map((row) => dbRowToCreative(row as Record<string, unknown>));
     },
-    enabled: !!user?.id,
+    enabled: enabled && !!user?.id,
   });
 
   // Create creative mutation
