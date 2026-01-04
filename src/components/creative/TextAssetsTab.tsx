@@ -278,7 +278,7 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector }
             <label className="text-sm font-medium mb-1 block">Select ActiPlan</label>
             <Select value={selectedCampaignId || undefined} onValueChange={setSelectedCampaignId}>
               <SelectTrigger className="w-full max-w-md">
-                <SelectValue placeholder="Choose an ActiPlan..." />
+                <SelectValue placeholder="Select an ActiPlan to load it" />
               </SelectTrigger>
               <SelectContent>
                 {campaigns.map((campaign) => (
