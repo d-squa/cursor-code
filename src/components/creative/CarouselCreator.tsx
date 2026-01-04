@@ -16,22 +16,37 @@ import { validateCarouselCreatives, getPlacementBadges, CAROUSEL_PLATFORM_REQUIR
 
 interface CarouselCreatorProps {
   selectedRows: CreativeTextAssetRow[];
+  existingCarousel?: CarouselLink | null;
   onCreateCarousel: (carousel: CarouselLink) => void;
   onCancel: () => void;
   open: boolean;
 }
 
-export function CarouselCreator({ selectedRows, onCreateCarousel, onCancel, open }: CarouselCreatorProps) {
+export function CarouselCreator({ selectedRows, existingCarousel, onCreateCarousel, onCancel, open }: CarouselCreatorProps) {
   const [carouselName, setCarouselName] = useState('');
   const [orderedCards, setOrderedCards] = useState<CreativeTextAssetRow[]>([]);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
   // Sync orderedCards when dialog opens or selectedRows changes
   useEffect(() => {
-    if (open && selectedRows.length > 0) {
+    if (!open || selectedRows.length === 0) return;
+
+    if (existingCarousel) {
+      setCarouselName(existingCarousel.carouselName);
+
+      const byId = new Map(selectedRows.map((r) => [r.id, r] as const));
+      const orderedFromIds = existingCarousel.cardIds
+        .map((id) => byId.get(id))
+        .filter(Boolean) as CreativeTextAssetRow[];
+
+      // Append any rows not found in saved ordering (shouldn't happen, but keeps UI stable)
+      const missing = selectedRows.filter((r) => !existingCarousel.cardIds.includes(r.id));
+      setOrderedCards([...orderedFromIds, ...missing]);
+    } else {
+      setCarouselName('');
       setOrderedCards(selectedRows);
     }
-  }, [open, selectedRows]);
+  }, [open, selectedRows, existingCarousel]);
 
   // Validate all selected are from same ad set
   const adSetNames = [...new Set(selectedRows.map(r => r.adSet))];
@@ -102,23 +117,23 @@ export function CarouselCreator({ selectedRows, onCreateCarousel, onCancel, open
     setOrderedCards(prev => prev.filter((_, i) => i !== index));
   }, []);
 
-  // Create carousel
+  // Create / update carousel
   const handleCreate = useCallback(() => {
     if (!carouselName.trim() || orderedCards.length < 2) return;
-    
+
     const carousel: CarouselLink = {
-      id: crypto.randomUUID(),
+      id: existingCarousel?.id ?? crypto.randomUUID(),
       carouselName: carouselName.trim(),
       adSetId: orderedCards[0]?.assignmentId.split('_')[0] || '',
       adSetName,
       platform: orderedCards[0]?.platform || 'meta',
       market: orderedCards[0]?.market || '',
       phase: orderedCards[0]?.phase || '',
-      cardIds: orderedCards.map(r => r.id),
+      cardIds: orderedCards.map((r) => r.id),
     };
-    
+
     onCreateCarousel(carousel);
-  }, [carouselName, orderedCards, adSetName, onCreateCarousel]);
+  }, [carouselName, orderedCards, adSetName, onCreateCarousel, existingCarousel]);
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onCancel()}>
@@ -126,7 +141,7 @@ export function CarouselCreator({ selectedRows, onCreateCarousel, onCancel, open
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Layers className="h-5 w-5" />
-            Create Carousel
+            {existingCarousel ? 'Edit Carousel' : 'Create Carousel'}
           </DialogTitle>
         </DialogHeader>
 
@@ -320,7 +335,7 @@ export function CarouselCreator({ selectedRows, onCreateCarousel, onCancel, open
             disabled={!isSameAdSet || !carouselName.trim() || orderedCards.length < platformReqs.minCards || carouselValidation.errors.length > 0}
           >
             <Plus className="h-4 w-4 mr-1" />
-            Create Carousel
+            {existingCarousel ? 'Save Carousel' : 'Create Carousel'}
           </Button>
         </DialogFooter>
       </DialogContent>

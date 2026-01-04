@@ -164,6 +164,7 @@ export function TextAssetExcelEditor({
   // Multi-select state for carousel creation
   const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
   const [showCarouselCreator, setShowCarouselCreator] = useState(false);
+  const [editingCarousel, setEditingCarousel] = useState<CarouselLink | null>(null);
   const [carousels, setCarousels] = useState<CarouselLink[]>([]);
   const [showBulkEditor, setShowBulkEditor] = useState(true);
   
@@ -188,6 +189,25 @@ export function TextAssetExcelEditor({
     rows.filter(r => selectedRowIds.has(r.id)),
     [rows, selectedRowIds]
   );
+
+  const carouselByCardId = useMemo(() => {
+    const map = new Map<string, CarouselLink>();
+    carousels.forEach((c) => c.cardIds.forEach((id) => map.set(id, c)));
+    return map;
+  }, [carousels]);
+
+  const openEditCarousel = useCallback((carousel: CarouselLink) => {
+    setEditingCarousel(carousel);
+    setShowCarouselCreator(true);
+  }, []);
+
+  const carouselDialogRows = useMemo(() => {
+    if (!editingCarousel) return selectedRows;
+    const ordered = editingCarousel.cardIds
+      .map((id) => rows.find((r) => r.id === id))
+      .filter(Boolean) as CreativeTextAssetRow[];
+    return ordered;
+  }, [editingCarousel, rows, selectedRows]);
 
   // Check if selection is valid for carousel (same ad set, 2+ creatives)
   const canCreateCarousel = useMemo(() => {
@@ -228,13 +248,27 @@ export function TextAssetExcelEditor({
     setSelectedRowIds(new Set());
   }, []);
 
-  // Handle carousel creation
+  // Handle carousel creation / edit
   const handleCreateCarousel = useCallback((carousel: CarouselLink) => {
-    setCarousels(prev => [...prev, carousel]);
+    const wasEditing = !!editingCarousel;
+
+    setCarousels(prev => {
+      const idx = prev.findIndex(c => c.id === carousel.id);
+      if (idx === -1) return [...prev, carousel];
+      const next = [...prev];
+      next[idx] = carousel;
+      return next;
+    });
+
     setShowCarouselCreator(false);
+    setEditingCarousel(null);
     clearSelection();
-    toast.success(`Carousel "${carousel.carouselName}" created with ${carousel.cardIds.length} cards`);
-  }, [clearSelection]);
+
+    toast.success(wasEditing
+      ? `Carousel "${carousel.carouselName}" updated`
+      : `Carousel "${carousel.carouselName}" created with ${carousel.cardIds.length} cards`
+    );
+  }, [clearSelection, editingCarousel]);
 
   // Get visible columns based on row's media type
   const getVisibleColumns = useCallback((mediaType: 'image' | 'video'): GridColumn[] => {
@@ -904,7 +938,10 @@ export function TextAssetExcelEditor({
               <Button
                 variant="default"
                 size="sm"
-                onClick={() => setShowCarouselCreator(true)}
+                onClick={() => {
+                  setEditingCarousel(null);
+                  setShowCarouselCreator(true);
+                }}
                 disabled={!canCreateCarousel}
               >
                 <Layers className="h-4 w-4 mr-1" />
@@ -1110,38 +1147,53 @@ export function TextAssetExcelEditor({
                         );
                       }
                       
-                      if (col.key === 'structure') {
-                        return (
-                          <div
-                            key={col.key}
-                            className="px-2 py-1.5 flex items-center gap-2 border-r shrink-0 pl-[72px]"
-                            style={{ width: col.width }}
-                          >
-                            {row.mediaType === 'video' ? (
-                              <Video className="h-4 w-4 text-muted-foreground shrink-0" />
-                            ) : (
-                              <Image className="h-4 w-4 text-muted-foreground shrink-0" />
-                            )}
-                            <span className="text-sm truncate" title={row.creativeName}>
-                              {row.creativeName}
-                            </span>
-                            {hasErrors && (
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger>
-                                    <AlertCircle className="h-3.5 w-3.5 text-destructive shrink-0" />
-                                  </TooltipTrigger>
-                                  <TooltipContent side="right" className="max-w-xs">
-                                    <ul className="text-xs space-y-1">
-                                      {errors.map((err, i) => <li key={i}>{err}</li>)}
-                                    </ul>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            )}
-                          </div>
-                        );
-                      }
+                       if (col.key === 'structure') {
+                         const carousel = carouselByCardId.get(row.id);
+
+                         return (
+                           <div
+                             key={col.key}
+                             className="px-2 py-1.5 flex items-center gap-2 border-r shrink-0 pl-[72px]"
+                             style={{ width: col.width }}
+                           >
+                             {row.mediaType === 'video' ? (
+                               <Video className="h-4 w-4 text-muted-foreground shrink-0" />
+                             ) : (
+                               <Image className="h-4 w-4 text-muted-foreground shrink-0" />
+                             )}
+                             <span className="text-sm truncate" title={row.creativeName}>
+                               {row.creativeName}
+                             </span>
+
+                             {carousel && (
+                               <Button
+                                 variant="secondary"
+                                 size="sm"
+                                 className="h-6 px-2 text-[11px] gap-1"
+                                 onClick={() => openEditCarousel(carousel)}
+                               >
+                                 <Layers className="h-3 w-3" />
+                                 <span className="max-w-[140px] truncate">{carousel.carouselName}</span>
+                               </Button>
+                             )}
+
+                             {hasErrors && (
+                               <TooltipProvider>
+                                 <Tooltip>
+                                   <TooltipTrigger>
+                                     <AlertCircle className="h-3.5 w-3.5 text-destructive shrink-0" />
+                                   </TooltipTrigger>
+                                   <TooltipContent side="right" className="max-w-xs">
+                                     <ul className="text-xs space-y-1">
+                                       {errors.map((err, i) => <li key={i}>{err}</li>)}
+                                     </ul>
+                                   </TooltipContent>
+                                 </Tooltip>
+                               </TooltipProvider>
+                             )}
+                           </div>
+                         );
+                       }
 
                       // Placements column - shows compatibility badges
                       if (col.key === 'placements') {
@@ -1308,13 +1360,17 @@ export function TextAssetExcelEditor({
         </ScrollArea>
       </div>
       
-      {/* Carousel Creator Dialog */}
-      <CarouselCreator
-        selectedRows={selectedRows}
-        onCreateCarousel={handleCreateCarousel}
-        onCancel={() => setShowCarouselCreator(false)}
-        open={showCarouselCreator}
-      />
+       {/* Carousel Creator Dialog */}
+       <CarouselCreator
+         selectedRows={carouselDialogRows}
+         existingCarousel={editingCarousel}
+         onCreateCarousel={handleCreateCarousel}
+         onCancel={() => {
+           setShowCarouselCreator(false);
+           setEditingCarousel(null);
+         }}
+         open={showCarouselCreator}
+       />
       
       {/* Apply Mode Dialog */}
       <ApplyModeDialog
