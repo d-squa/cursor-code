@@ -6,12 +6,15 @@ import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { GripVertical, Image, Video, X, Plus, Layers, AlertTriangle, CheckCircle, Layout, Film } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { GripVertical, Image, Video, X, Plus, Layers, AlertTriangle, CheckCircle, Layout, Film, ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { CreativeTextAssetRow } from '@/types/creativeTextAssets';
-import type { CarouselLink, CarouselCard } from '@/types/carouselTypes';
+import type { CarouselLink, CarouselCardData } from '@/types/carouselTypes';
+import { CAROUSEL_CARD_FIELDS } from '@/types/carouselTypes';
 import { validateCarouselCreatives, getPlacementBadges, CAROUSEL_PLATFORM_REQUIREMENTS } from '@/utils/placementCompatibility';
 
 interface CarouselCreatorProps {
@@ -25,6 +28,8 @@ interface CarouselCreatorProps {
 export function CarouselCreator({ selectedRows, existingCarousel, onCreateCarousel, onCancel, open }: CarouselCreatorProps) {
   const [carouselName, setCarouselName] = useState('');
   const [orderedCards, setOrderedCards] = useState<CreativeTextAssetRow[]>([]);
+  const [cardData, setCardData] = useState<Record<string, CarouselCardData>>({});
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
   // Sync orderedCards when dialog opens or selectedRows changes
@@ -33,6 +38,7 @@ export function CarouselCreator({ selectedRows, existingCarousel, onCreateCarous
 
     if (existingCarousel) {
       setCarouselName(existingCarousel.carouselName);
+      setCardData(existingCarousel.cardData ?? {});
 
       const byId = new Map(selectedRows.map((r) => [r.id, r] as const));
       const orderedFromIds = existingCarousel.cardIds
@@ -44,9 +50,32 @@ export function CarouselCreator({ selectedRows, existingCarousel, onCreateCarous
       setOrderedCards([...orderedFromIds, ...missing]);
     } else {
       setCarouselName('');
+      setCardData({});
       setOrderedCards(selectedRows);
     }
+    setExpandedCards(new Set());
   }, [open, selectedRows, existingCarousel]);
+
+  // Toggle card expansion
+  const toggleCardExpand = useCallback((cardId: string) => {
+    setExpandedCards(prev => {
+      const next = new Set(prev);
+      if (next.has(cardId)) next.delete(cardId);
+      else next.add(cardId);
+      return next;
+    });
+  }, []);
+
+  // Update card data field
+  const updateCardField = useCallback((cardId: string, field: keyof CarouselCardData, value: string) => {
+    setCardData(prev => ({
+      ...prev,
+      [cardId]: {
+        ...prev[cardId],
+        [field]: value,
+      },
+    }));
+  }, []);
 
   // Validate all selected are from same ad set
   const adSetNames = [...new Set(selectedRows.map(r => r.adSet))];
@@ -130,10 +159,11 @@ export function CarouselCreator({ selectedRows, existingCarousel, onCreateCarous
       market: orderedCards[0]?.market || '',
       phase: orderedCards[0]?.phase || '',
       cardIds: orderedCards.map((r) => r.id),
+      cardData,
     };
 
     onCreateCarousel(carousel);
-  }, [carouselName, orderedCards, adSetName, onCreateCarousel, existingCarousel]);
+  }, [carouselName, orderedCards, adSetName, cardData, onCreateCarousel, existingCarousel]);
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onCancel()}>
@@ -225,103 +255,136 @@ export function CarouselCreator({ selectedRows, existingCarousel, onCreateCarous
 
           {/* Card ordering */}
           <div className="space-y-2">
-            <label className="text-sm font-medium">Card Order (drag to reorder)</label>
-            <div className="space-y-1 border rounded-md p-2 bg-muted/30 max-h-[300px] overflow-y-auto">
+            <label className="text-sm font-medium">Card Order & Parameters</label>
+            <div className="space-y-1 border rounded-md p-2 bg-muted/30 max-h-[400px] overflow-y-auto">
               {orderedCards.map((row, index) => {
                 const badges = cardPlacements[index] || [];
                 const carouselBadge = badges.find(b => b.type === 'carousel');
                 const isCarouselCompatible = carouselBadge?.variant !== 'incompatible';
+                const isExpanded = expandedCards.has(row.id);
+                const thisCardData = cardData[row.id] || {};
                 
                 return (
-                  <div
-                    key={row.id}
-                    draggable
-                    onDragStart={() => handleDragStart(index)}
-                    onDragOver={(e) => handleDragOver(e, index)}
-                    onDragEnd={handleDragEnd}
-                    className={cn(
-                      "flex items-center gap-2 p-2 bg-background rounded border cursor-move",
-                      draggedIndex === index && "opacity-50",
-                      !isCarouselCompatible && "border-amber-500/50 bg-amber-500/5"
-                    )}
-                  >
-                    <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
-                    
-                    {/* Position number input */}
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Input
-                            type="number"
-                            min={1}
-                            max={orderedCards.length}
-                            value={index + 1}
-                            onChange={(e) => handlePositionChange(index, parseInt(e.target.value) || 1)}
-                            className="w-12 h-7 text-center text-xs"
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        </TooltipTrigger>
-                        <TooltipContent>Card position</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-
-                    {/* Media type icon */}
-                    {row.mediaType === 'video' ? (
-                      <Video className="h-4 w-4 text-muted-foreground shrink-0" />
-                    ) : (
-                      <Image className="h-4 w-4 text-muted-foreground shrink-0" />
-                    )}
-
-                    {/* Thumbnail */}
-                    {row.thumbnailUrl && (
-                      <img 
-                        src={row.thumbnailUrl} 
-                        alt="" 
-                        className="h-8 w-8 object-cover rounded shrink-0"
-                      />
-                    )}
-
-                    {/* Name */}
-                    <span className="text-sm truncate flex-1">{row.creativeName}</span>
-
-                    {/* Placement compatibility indicator */}
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Badge 
-                            variant={isCarouselCompatible ? "secondary" : "outline"}
-                            className={cn(
-                              "text-[9px] px-1.5",
-                              isCarouselCompatible ? "bg-green-500/15 text-green-600" : "text-amber-600"
-                            )}
-                          >
-                            {isCarouselCompatible ? '✓' : '⚠'}
-                          </Badge>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          {isCarouselCompatible 
-                            ? 'Compatible with carousel format' 
-                            : 'Aspect ratio may not be optimal for carousel'}
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-
-                    {/* Remove button */}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 w-6 p-0"
-                      onClick={() => handleRemoveCard(index)}
-                      disabled={orderedCards.length <= 2}
+                  <Collapsible key={row.id} open={isExpanded} onOpenChange={() => toggleCardExpand(row.id)}>
+                    <div
+                      draggable
+                      onDragStart={() => handleDragStart(index)}
+                      onDragOver={(e) => handleDragOver(e, index)}
+                      onDragEnd={handleDragEnd}
+                      className={cn(
+                        "bg-background rounded border",
+                        draggedIndex === index && "opacity-50",
+                        !isCarouselCompatible && "border-amber-500/50 bg-amber-500/5"
+                      )}
                     >
-                      <X className="h-3 w-3" />
-                    </Button>
-                  </div>
+                      <div className="flex items-center gap-2 p-2 cursor-move">
+                        <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
+                        
+                        {/* Position number input */}
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Input
+                                type="number"
+                                min={1}
+                                max={orderedCards.length}
+                                value={index + 1}
+                                onChange={(e) => handlePositionChange(index, parseInt(e.target.value) || 1)}
+                                className="w-12 h-7 text-center text-xs"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            </TooltipTrigger>
+                            <TooltipContent>Card position</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+
+                        {/* Media type icon */}
+                        {row.mediaType === 'video' ? (
+                          <Video className="h-4 w-4 text-muted-foreground shrink-0" />
+                        ) : (
+                          <Image className="h-4 w-4 text-muted-foreground shrink-0" />
+                        )}
+
+                        {/* Thumbnail */}
+                        {row.thumbnailUrl && (
+                          <img 
+                            src={row.thumbnailUrl} 
+                            alt="" 
+                            className="h-8 w-8 object-cover rounded shrink-0"
+                          />
+                        )}
+
+                        {/* Name */}
+                        <span className="text-sm truncate flex-1">{row.creativeName}</span>
+
+                        {/* Placement compatibility indicator */}
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Badge 
+                                variant={isCarouselCompatible ? "secondary" : "outline"}
+                                className={cn(
+                                  "text-[9px] px-1.5",
+                                  isCarouselCompatible ? "bg-green-500/15 text-green-600" : "text-amber-600"
+                                )}
+                              >
+                                {isCarouselCompatible ? '✓' : '⚠'}
+                              </Badge>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {isCarouselCompatible 
+                                ? 'Compatible with carousel format' 
+                                : 'Aspect ratio may not be optimal for carousel'}
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+
+                        {/* Expand/collapse button */}
+                        <CollapsibleTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                            {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                          </Button>
+                        </CollapsibleTrigger>
+
+                        {/* Remove button */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                          onClick={() => handleRemoveCard(index)}
+                          disabled={orderedCards.length <= 2}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+
+                      {/* Card-level parameters */}
+                      <CollapsibleContent>
+                        <div className="px-3 pb-3 pt-1 border-t bg-muted/20 space-y-2">
+                          <p className="text-xs text-muted-foreground font-medium">Card Parameters</p>
+                          <div className="grid grid-cols-2 gap-2">
+                            {CAROUSEL_CARD_FIELDS.map(field => (
+                              <div key={field.id} className={cn("space-y-1", field.id.includes('Url') && 'col-span-2')}>
+                                <Label className="text-xs">{field.label}</Label>
+                                <Input
+                                  value={thisCardData[field.id as keyof CarouselCardData] || ''}
+                                  onChange={(e) => updateCardField(row.id, field.id as keyof CarouselCardData, e.target.value)}
+                                  placeholder={field.placeholder}
+                                  className="h-8 text-xs"
+                                  maxLength={field.maxLength}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </CollapsibleContent>
+                    </div>
+                  </Collapsible>
                 );
               })}
             </div>
             <p className="text-xs text-muted-foreground">
-              Minimum {platformReqs.minCards} cards required. Drag cards or type position numbers to reorder.
+              Minimum {platformReqs.minCards} cards required. Click the arrow to expand card parameters.
             </p>
           </div>
         </div>

@@ -10,6 +10,7 @@ export interface CarouselLink {
   market: string;
   phase: string;
   cardIds: string[];  // Ordered list of creative assignment IDs
+  cardData?: Record<string, CarouselCardData>;  // Keyed by card ID
 }
 
 export interface CarouselCard {
@@ -20,9 +21,22 @@ export interface CarouselCard {
   mediaType: 'image' | 'video';
   position: number;
   // Card-level text assets
-  headline?: string;
-  description?: string;
-  link?: string;
+  cardMediaUrl?: string;
+  cardStoryMediaUrl?: string;
+  cardHeadline?: string;
+  cardDescription?: string;
+  cardWebsiteUrl?: string;
+  cardCallToAction?: string;
+}
+
+// Extended carousel link with card-level data
+export interface CarouselCardData {
+  cardMediaUrl?: string;
+  cardStoryMediaUrl?: string;
+  cardHeadline?: string;
+  cardDescription?: string;
+  cardWebsiteUrl?: string;
+  cardCallToAction?: string;
 }
 
 // Format-specific field configurations
@@ -54,9 +68,12 @@ export const VIDEO_FORMAT_FIELDS: FormatFieldConfig[] = [
 
 // Carousel card fields (per-card within carousel)
 export const CAROUSEL_CARD_FIELDS: FormatFieldConfig[] = [
-  { id: 'headline', label: 'Card Headline', required: false, maxLength: 40, placeholder: 'Card headline' },
-  { id: 'description', label: 'Card Description', required: false, maxLength: 25, placeholder: 'Card description' },
-  { id: 'destinationUrl', label: 'Card Link', required: true, maxLength: 2000, placeholder: 'https://...' },
+  { id: 'cardMediaUrl', label: 'Card Media URL', required: false, maxLength: 2000, placeholder: 'https://...' },
+  { id: 'cardStoryMediaUrl', label: 'Card Story Media URL', required: false, maxLength: 2000, placeholder: 'https://...' },
+  { id: 'cardHeadline', label: 'Card Headline', required: false, maxLength: 40, placeholder: 'Card headline' },
+  { id: 'cardDescription', label: 'Card Description', required: false, maxLength: 25, placeholder: 'Card description' },
+  { id: 'cardWebsiteUrl', label: 'Card Website URL', required: true, maxLength: 2000, placeholder: 'https://...' },
+  { id: 'cardCallToAction', label: 'Card Call to Action', required: false, maxLength: 50, placeholder: 'LEARN_MORE' },
 ];
 
 // Get fields based on format
