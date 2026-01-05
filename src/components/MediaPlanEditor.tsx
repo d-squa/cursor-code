@@ -2124,7 +2124,7 @@ export function MediaPlanEditor() {
                 {savedCampaignId && (
                   <Button variant="outline" size="sm" onClick={() => setCreativeMatcherOpen(true)}>
                     <Wand2 className="h-4 w-4 mr-2" />
-                    Mesh Creatives
+                    Auto-Mesh Creatives
                   </Button>
                 )}
                 {currentStep > 3 && (
@@ -2853,7 +2853,7 @@ export function MediaPlanEditor() {
         }}
       />
 
-      {/* Creative Matching Dialog */}
+      {/* Auto-Mesh Dialog */}
       <CreativeMatchingDialog
         open={creativeMatcherOpen}
         onOpenChange={setCreativeMatcherOpen}

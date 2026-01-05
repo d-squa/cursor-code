@@ -50,7 +50,7 @@ const AppHome = () => {
                 onClick={() => navigate("/creatives")}
                 className="px-4 py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
               >
-                Meshing
+                Creative Mesh
               </button>
               <Button
                 variant="ghost"
