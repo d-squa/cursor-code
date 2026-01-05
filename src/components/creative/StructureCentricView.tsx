@@ -18,7 +18,8 @@ import {
   Target,
   AlertCircle,
   Lightbulb,
-  Sparkles
+  Sparkles,
+  FolderOpen
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MatchConfidenceIndicator } from './MatchConfidenceIndicator';
@@ -371,6 +372,115 @@ function UnassignedAssetsPanel({ unassignedAssets }: { unassignedAssets: Unassig
                           </div>
                         </div>
                       )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </CollapsibleContent>
+      </Collapsible>
+    </Card>
+  );
+}
+
+// Panel for empty ad sets that need creatives
+function EmptyAdSetsPanel({ 
+  emptyStructures 
+}: { 
+  emptyStructures: StructureMatchResult[];
+}) {
+  const [isExpanded, setIsExpanded] = useState(true);
+  
+  if (emptyStructures.length === 0) return null;
+  
+  return (
+    <Card className="border-orange-500/30 bg-orange-500/5">
+      <Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
+        <CollapsibleTrigger asChild>
+          <CardHeader className="cursor-pointer hover:bg-orange-500/10 transition-colors pb-2">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-orange-500/20 flex items-center justify-center shrink-0">
+                <FolderOpen className="h-5 w-5 text-orange-600" />
+              </div>
+              <div className="flex-1">
+                <CardTitle className="text-sm font-medium text-orange-700">
+                  Ad Sets Needing Creatives
+                </CardTitle>
+                <p className="text-xs text-orange-600/80">
+                  Upload more creatives for these slots
+                </p>
+              </div>
+              <Badge variant="outline" className="border-orange-500/50 text-orange-600">
+                {emptyStructures.length}
+              </Badge>
+              {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </div>
+          </CardHeader>
+        </CollapsibleTrigger>
+        
+        <CollapsibleContent>
+          <CardContent className="pt-0 space-y-2">
+            {emptyStructures.map((result) => {
+              const { structure } = result;
+              
+              return (
+                <div key={structure.id} className="p-3 rounded-lg border border-orange-500/20 bg-background">
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                      <Target className="h-4 w-4 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium">{structure.adSetName}</span>
+                        <Badge variant="outline" className="text-[10px] py-0">
+                          {structure.platform}
+                        </Badge>
+                        {structure.market && (
+                          <Badge variant="secondary" className="text-[10px] py-0">
+                            {structure.market}
+                          </Badge>
+                        )}
+                      </div>
+                      {/* Show taxonomy elements */}
+                      {structure.taxonomyElements && Object.entries(structure.taxonomyElements).length > 0 && (
+                        <div className="text-[10px] text-muted-foreground mt-1 leading-relaxed">
+                          {Object.entries(structure.taxonomyElements)
+                            .filter(([key, value]) => {
+                              if (!value || value === '') return false;
+                              const splitParams = ['Gender', 'Devices', 'Age Range', 'Languages', 'Location'];
+                              if (splitParams.includes(key)) return true;
+                              return value !== 'ALL';
+                            })
+                            .slice(0, 8)
+                            .map(([param, value], idx) => (
+                              <span key={param}>
+                                {idx > 0 && <span className="mx-1">•</span>}
+                                <span className="text-muted-foreground/70">{param}:</span>
+                                <span className="font-medium text-foreground/80 ml-0.5">{value}</span>
+                              </span>
+                            ))
+                          }
+                        </div>
+                      )}
+                      {/* Show what's needed */}
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {structure.formatConstraints && structure.formatConstraints.length > 0 && (
+                          <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-dashed">
+                            Formats: {structure.formatConstraints.join(', ')}
+                          </Badge>
+                        )}
+                        {structure.placementConstraints && structure.placementConstraints.length > 0 && (
+                          <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-dashed">
+                            Placements: {structure.placementConstraints.slice(0, 2).join(', ')}{structure.placementConstraints.length > 2 ? '...' : ''}
+                          </Badge>
+                        )}
+                        {structure.language && (
+                          <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-dashed">
+                            Lang: {structure.language}
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -817,6 +927,12 @@ export function StructureCentricView({
   const totalAssigned = structureResults.reduce((sum, r) => sum + r.assignedAssets.length, 0);
   const structuresWithAssets = structureResults.filter(r => r.assignedAssets.length > 0).length;
   
+  // Get empty ad sets (need creatives)
+  const emptyStructures = useMemo(() => 
+    structureResults.filter(r => r.assignedAssets.length === 0),
+    [structureResults]
+  );
+  
   // Find suggestions for empty ad sets from unassigned assets
   const suggestions = useMemo((): EmptyAdSetSuggestion[] => {
     const emptyStructures = structureResults.filter(r => r.assignedAssets.length === 0);
@@ -879,6 +995,12 @@ export function StructureCentricView({
           <span className="text-muted-foreground">Unassigned:</span>{' '}
           <span className="font-medium text-amber-600">{unassignedAssets.length}</span>
         </div>
+        {emptyStructures.length > 0 && (
+          <div>
+            <span className="text-muted-foreground">Empty Slots:</span>{' '}
+            <span className="font-medium text-orange-600">{emptyStructures.length}</span>
+          </div>
+        )}
         {suggestions.length > 0 && (
           <div>
             <span className="text-muted-foreground">Suggestions:</span>{' '}
@@ -908,6 +1030,9 @@ export function StructureCentricView({
             acceptedMatches={acceptedMatches}
             onAcceptSuggestion={onAcceptAsset} 
           />
+          
+          {/* Empty ad sets panel - need creatives */}
+          <EmptyAdSetsPanel emptyStructures={emptyStructures} />
           
           {/* Unassigned assets panel */}
           <UnassignedAssetsPanel unassignedAssets={unassignedAssets} />
