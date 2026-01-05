@@ -1077,21 +1077,31 @@ export function StructureCentricView({
   );
 
   // Find suggestions for empty ad sets from unassigned assets
+  // Important: We use the original `unassignedAssets` to build suggestions, but we skip any
+  // asset that has already been accepted for THIS specific structure. This way, accepting
+  // an asset for one structure only removes the suggestion from that structure, not from all.
   const suggestions = useMemo((): EmptyAdSetSuggestion[] => {
-    const emptyStructures = mergedStructureResults.filter(r => r.assignedAssets.length === 0);
-    if (emptyStructures.length === 0 || displayUnassignedAssets.length === 0) return [];
+    const emptyResults = mergedStructureResults.filter(r => r.assignedAssets.length === 0);
+    if (emptyResults.length === 0 || unassignedAssets.length === 0) return [];
+
+    // Build a set of "assetId:structureId" keys that are already accepted
+    const acceptedKeys = new Set(acceptedMatches.keys());
 
     const result: EmptyAdSetSuggestion[] = [];
 
-    for (const emptyResult of emptyStructures) {
+    for (const emptyResult of emptyResults) {
       const structure = emptyResult.structure;
       const isRelaxed = Boolean(relaxedStructureIds?.has(structure.id));
       const structurePlatform = structure.platform?.toLowerCase() || '';
 
       const suggestedAssets: EmptyAdSetSuggestion['suggestedAssets'] = [];
 
-      for (const unassigned of displayUnassignedAssets) {
+      for (const unassigned of unassignedAssets) {
         const { asset, reasons, closestMatches } = unassigned;
+
+        // Skip if this asset is already accepted for THIS structure
+        const key = `${asset.id}:${structure.id}`;
+        if (acceptedKeys.has(key)) continue;
 
         // CRITICAL: Always check dimension compatibility with the platform
         // Never suggest a creative whose dimensions don't work for the ad set's platform
@@ -1153,7 +1163,7 @@ export function StructureCentricView({
     }
 
     return result;
-  }, [mergedStructureResults, displayUnassignedAssets, relaxedStructureIds]);
+  }, [mergedStructureResults, unassignedAssets, acceptedMatches, relaxedStructureIds]);
 
   const suggestionsByStructureId = useMemo(() => {
     const map = new Map<string, EmptyAdSetSuggestion>();
