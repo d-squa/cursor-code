@@ -1,4 +1,4 @@
-// Creative Meshing Page - Standalone page for creative-to-plan meshing workflow
+// Auto-Mesh Page - AI-powered creative-to-structure matching workflow
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -225,7 +225,7 @@ export default function CreativeMatching() {
       <div className="flex items-center justify-between px-6 py-4 border-b bg-background">
         <div className="flex items-center gap-3">
           <Wand2 className="h-5 w-5 text-primary" />
-          <h1 className="text-xl font-semibold">Creative Mesher</h1>
+          <h1 className="text-xl font-semibold">Auto-Mesh</h1>
           {selectedCampaignName && <Badge variant="secondary">{selectedCampaignName}</Badge>}
         </div>
         <Button variant="ghost" onClick={handleClose}>
@@ -244,7 +244,7 @@ export default function CreativeMatching() {
           <div className="py-8 space-y-4">
             <div className="text-center mb-6">
               <h3 className="text-lg font-medium mb-2">Select an ActiPlan</h3>
-              <p className="text-muted-foreground text-sm">Choose which campaign structure to match creatives against</p>
+              <p className="text-muted-foreground text-sm">Choose which campaign structure to mesh creatives against</p>
             </div>
             {isLoadingCampaigns ? (
               <div className="flex items-center justify-center py-8">
@@ -252,7 +252,7 @@ export default function CreativeMatching() {
               </div>
             ) : campaigns.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                No ActiPlans found. Create one first to use the Creative Mesher.
+                No ActiPlans found. Create one first to use Auto-Mesh.
               </div>
             ) : (
               <Select value={selectedCampaignId} onValueChange={handleCampaignSelect}>

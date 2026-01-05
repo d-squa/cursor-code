@@ -1,5 +1,5 @@
-// Main dialog for the creative-to-plan meshing workflow
-// Now supports using existing library creatives OR uploading new ones
+// Auto-Mesh Dialog - AI-powered creative-to-structure matching
+// Supports using existing library creatives OR uploading new ones
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -243,11 +243,11 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
             <Wand2 className="h-5 w-5 text-primary" />
-            Creative Mesher
+            Auto-Mesh
             {selectedCampaignName && <Badge variant="secondary">{selectedCampaignName}</Badge>}
           </DialogTitle>
           <DialogDescription>
-            Select creatives from your library or upload new ones, then mesh them to your campaign structure.
+            Select creatives from your library or upload new ones, then auto-mesh them to your campaign structure.
           </DialogDescription>
         </DialogHeader>
 
@@ -258,7 +258,7 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
           <div className="py-8 space-y-4">
             <div className="text-center mb-6">
               <h3 className="text-lg font-medium mb-2">Select an ActiPlan</h3>
-              <p className="text-muted-foreground text-sm">Choose which campaign structure to match creatives against</p>
+              <p className="text-muted-foreground text-sm">Choose which campaign structure to mesh creatives against</p>
             </div>
             {isLoadingCampaigns ? (
               <div className="flex items-center justify-center py-8">
@@ -266,7 +266,7 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
               </div>
             ) : campaigns.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                No ActiPlans found. Create one first to use the Creative Mesher.
+                No ActiPlans found. Create one first to use Auto-Mesh.
               </div>
             ) : (
               <Select value={selectedCampaignId} onValueChange={handleCampaignSelect}>
