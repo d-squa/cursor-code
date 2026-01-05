@@ -200,10 +200,26 @@ export function validateCarouselCreatives(
     result.warnings.push(`${platform} carousel supports: ${reqs.aspectRatios.join(', ')}`);
   }
 
-  // Check if same aspect ratio is required
+  // HARD RULE: All carousel cards must be the same format (either story OR feed)
+  // Check if mixing 9:16 (story) with non-9:16 (feed) formats
+  const storyCards = creatives.filter(c => 
+    c.width && c.height && matchesAspectRatio(c.width, c.height, '9:16', 0.08)
+  );
+  const feedCards = creatives.filter(c => 
+    c.width && c.height && !matchesAspectRatio(c.width, c.height, '9:16', 0.08)
+  );
+  
+  if (storyCards.length > 0 && feedCards.length > 0) {
+    result.isValid = false;
+    result.errors.push(`Cannot mix story (9:16) and feed formats in a carousel. All cards must be the same format.`);
+    result.errors.push(`Found ${storyCards.length} story card(s) and ${feedCards.length} feed card(s)`);
+  }
+
+  // Check if same aspect ratio is required (platform-specific recommendation)
   if (reqs.sameAspectRatio && aspectRatios.length > 1) {
     const uniqueRatios = new Set(aspectRatios.filter(Boolean));
-    if (uniqueRatios.size > 1) {
+    if (uniqueRatios.size > 1 && storyCards.length === 0 || feedCards.length === 0) {
+      // Only warn if not already blocked by the story/feed mix rule
       result.warnings.push(`${platform} recommends all carousel cards have the same aspect ratio`);
     }
   }
