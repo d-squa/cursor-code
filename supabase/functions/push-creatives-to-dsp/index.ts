@@ -180,6 +180,26 @@ const handler = async (req: Request): Promise<Response> => {
           creative_id,
           position,
           status,
+          primary_text,
+          primary_text_2,
+          primary_text_3,
+          primary_text_4,
+          primary_text_5,
+          headline,
+          headline_2,
+          headline_3,
+          headline_4,
+          headline_5,
+          description,
+          description_2,
+          description_3,
+          description_4,
+          description_5,
+          call_to_action,
+          destination_url,
+          url_parameters,
+          brand_name,
+          display_name,
           creative:creatives(
             id, name, media_type, creative_type,
             platform_video_id, platform_image_hash, platform_thumbnail_id,
@@ -214,6 +234,18 @@ const handler = async (req: Request): Promise<Response> => {
         if (assignment.status === "pushed") continue;
         const creative = (assignment as any).creative;
         if (!creative) continue;
+
+        // Use assignment text fields with creative fallback
+        const resolvedText = {
+          primaryText: assignment.primary_text || creative.primary_text || "",
+          headline: assignment.headline || creative.headline || "",
+          description: assignment.description || creative.description || "",
+          callToAction: assignment.call_to_action || creative.call_to_action,
+          destinationUrl: assignment.destination_url || creative.destination_url,
+          urlParameters: assignment.url_parameters || creative.url_parameters,
+          brandName: assignment.brand_name || creative.brand_name,
+          displayName: assignment.display_name || creative.tiktok_display_name,
+        };
 
         if (platformKey === "meta") {
           const resolvedAdAccount =
@@ -277,13 +309,13 @@ const handler = async (req: Request): Promise<Response> => {
           if (isVideo && creative.platform_video_id) {
             creativePayload.object_story_spec.video_data = {
               video_id: creative.platform_video_id,
-              title: creative.headline || creative.name,
-              message: creative.primary_text || "",
-              call_to_action: creative.call_to_action
+              title: resolvedText.headline || creative.name,
+              message: resolvedText.primaryText,
+              call_to_action: resolvedText.callToAction
                 ? {
-                    type: creative.call_to_action,
+                    type: resolvedText.callToAction,
                     value: {
-                      link: creative.destination_url || metaLandingPageUrl || "https://example.com",
+                      link: resolvedText.destinationUrl || metaLandingPageUrl || "https://example.com",
                     },
                   }
                 : undefined,
@@ -294,23 +326,23 @@ const handler = async (req: Request): Promise<Response> => {
           } else if (creative.platform_image_hash) {
             creativePayload.object_story_spec.link_data = {
               image_hash: creative.platform_image_hash,
-              link: creative.destination_url || metaLandingPageUrl || "https://example.com",
-              message: creative.primary_text || "",
-              name: creative.headline || "",
-              description: creative.description || "",
-              call_to_action: creative.call_to_action ? { type: creative.call_to_action } : undefined,
+              link: resolvedText.destinationUrl || metaLandingPageUrl || "https://example.com",
+              message: resolvedText.primaryText,
+              name: resolvedText.headline,
+              description: resolvedText.description,
+              call_to_action: resolvedText.callToAction ? { type: resolvedText.callToAction } : undefined,
             };
           }
 
           // URL parameters
-          if (creative.url_parameters) {
+          if (resolvedText.urlParameters) {
             if (creativePayload.object_story_spec.video_data?.call_to_action?.value?.link) {
               const url = new URL(creativePayload.object_story_spec.video_data.call_to_action.value.link);
-              url.search = url.search ? `${url.search}&${creative.url_parameters}` : `?${creative.url_parameters}`;
+              url.search = url.search ? `${url.search}&${resolvedText.urlParameters}` : `?${resolvedText.urlParameters}`;
               creativePayload.object_story_spec.video_data.call_to_action.value.link = url.toString();
             } else if (creativePayload.object_story_spec.link_data?.link) {
               const url = new URL(creativePayload.object_story_spec.link_data.link);
-              url.search = url.search ? `${url.search}&${creative.url_parameters}` : `?${creative.url_parameters}`;
+              url.search = url.search ? `${url.search}&${resolvedText.urlParameters}` : `?${resolvedText.urlParameters}`;
               creativePayload.object_story_spec.link_data.link = url.toString();
             }
           }
@@ -399,7 +431,7 @@ const handler = async (req: Request): Promise<Response> => {
           }
 
           const isVideo = creative.media_type === "video" || creative.creative_type === "video";
-          const landingPageUrl = creative.destination_url || (phase as any)?.landingPageUrl || (market as any)?.landingPageUrl;
+          const landingPageUrl = resolvedText.destinationUrl || (phase as any)?.landingPageUrl || (market as any)?.landingPageUrl;
 
           const tiktokAdPayload: any = {
             advertiser_id: advertiserId,
@@ -410,8 +442,8 @@ const handler = async (req: Request): Promise<Response> => {
                 ad_format: creative.tiktok_ad_format || (isVideo ? "SINGLE_VIDEO" : "SINGLE_IMAGE"),
                 identity_id: identityId,
                 identity_type: "CUSTOMIZED_USER",
-                ad_text: creative.primary_text || creative.headline || "",
-                call_to_action: creative.call_to_action || "LEARN_MORE",
+                ad_text: resolvedText.primaryText || resolvedText.headline,
+                call_to_action: resolvedText.callToAction || "LEARN_MORE",
                 landing_page_url: landingPageUrl,
               },
             ],
@@ -424,8 +456,8 @@ const handler = async (req: Request): Promise<Response> => {
             tiktokAdPayload.creatives[0].image_ids = [creative.platform_image_hash];
           }
 
-          if (creative.tiktok_display_name || creative.brand_name) {
-            tiktokAdPayload.creatives[0].display_name = creative.tiktok_display_name || creative.brand_name;
+          if (resolvedText.displayName || resolvedText.brandName) {
+            tiktokAdPayload.creatives[0].display_name = resolvedText.displayName || resolvedText.brandName;
           }
 
           if (creative.app_link) {

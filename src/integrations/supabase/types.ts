@@ -649,48 +649,108 @@ export type Database = {
           ad_set_name: string | null
           assigned_at: string
           assigned_by: string | null
+          brand_name: string | null
+          call_to_action: string | null
           campaign_id: string
           creative_id: string
+          description: string | null
+          description_2: string | null
+          description_3: string | null
+          description_4: string | null
+          description_5: string | null
+          destination_url: string | null
+          display_name: string | null
           dsp_creative_id: string | null
           error_message: string | null
+          headline: string | null
+          headline_2: string | null
+          headline_3: string | null
+          headline_4: string | null
+          headline_5: string | null
           id: string
           market: string
           phase_name: string
           platform: string
           position: number | null
+          primary_text: string | null
+          primary_text_2: string | null
+          primary_text_3: string | null
+          primary_text_4: string | null
+          primary_text_5: string | null
           status: string | null
+          url_parameters: string | null
         }
         Insert: {
           ad_set_id?: string | null
           ad_set_name?: string | null
           assigned_at?: string
           assigned_by?: string | null
+          brand_name?: string | null
+          call_to_action?: string | null
           campaign_id: string
           creative_id: string
+          description?: string | null
+          description_2?: string | null
+          description_3?: string | null
+          description_4?: string | null
+          description_5?: string | null
+          destination_url?: string | null
+          display_name?: string | null
           dsp_creative_id?: string | null
           error_message?: string | null
+          headline?: string | null
+          headline_2?: string | null
+          headline_3?: string | null
+          headline_4?: string | null
+          headline_5?: string | null
           id?: string
           market: string
           phase_name: string
           platform: string
           position?: number | null
+          primary_text?: string | null
+          primary_text_2?: string | null
+          primary_text_3?: string | null
+          primary_text_4?: string | null
+          primary_text_5?: string | null
           status?: string | null
+          url_parameters?: string | null
         }
         Update: {
           ad_set_id?: string | null
           ad_set_name?: string | null
           assigned_at?: string
           assigned_by?: string | null
+          brand_name?: string | null
+          call_to_action?: string | null
           campaign_id?: string
           creative_id?: string
+          description?: string | null
+          description_2?: string | null
+          description_3?: string | null
+          description_4?: string | null
+          description_5?: string | null
+          destination_url?: string | null
+          display_name?: string | null
           dsp_creative_id?: string | null
           error_message?: string | null
+          headline?: string | null
+          headline_2?: string | null
+          headline_3?: string | null
+          headline_4?: string | null
+          headline_5?: string | null
           id?: string
           market?: string
           phase_name?: string
           platform?: string
           position?: number | null
+          primary_text?: string | null
+          primary_text_2?: string | null
+          primary_text_3?: string | null
+          primary_text_4?: string | null
+          primary_text_5?: string | null
           status?: string | null
+          url_parameters?: string | null
         }
         Relationships: [
           {
