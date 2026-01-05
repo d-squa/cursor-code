@@ -568,6 +568,8 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
                                     <div className="flex items-center gap-1">
                                       <Checkbox 
                                         checked={selectedCreativeIds.has(creative.id)}
+                                        onCheckedChange={() => handleCreativeToggle(creative.id)}
+                                        onClick={(e) => e.stopPropagation()}
                                         className="h-3 w-3"
                                       />
                                       {creative.creativeType === 'video' ? (
