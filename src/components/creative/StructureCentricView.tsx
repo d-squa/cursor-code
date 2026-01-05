@@ -1,5 +1,5 @@
 // Structure-centric view: shows each ad set with its assigned creatives
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -40,6 +40,7 @@ interface StructureCentricViewProps {
   structureResults: StructureMatchResult[];
   unassignedAssets: UnassignedAsset[];
   acceptedMatches: Map<string, UICreativeMatch>;
+  relaxedStructureIds?: Set<string>;
   onAcceptAsset: (assetId: string, structure: StructureMatchResult['structure']) => void;
   onRejectAsset: (assetId: string, structureId: string) => void;
   onBroadenMatch?: (structureId: string) => void;
@@ -491,11 +492,11 @@ function EmptyAdSetsPanel({
                       <Button
                         variant="outline"
                         size="sm"
-                        className="shrink-0 h-7 text-xs gap-1.5 text-blue-600 border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+                        className="shrink-0 h-7 text-xs gap-1.5 text-primary border-primary/30 hover:bg-primary/10"
                         onClick={() => onBroadenMatch(structure.id)}
                       >
                         <Expand className="h-3 w-3" />
-                        Find Similar
+                        Broaden Suggestions
                       </Button>
                     )}
                   </div>
@@ -752,14 +753,20 @@ function AssignedAssetsPanel({
 function SuggestionsPanel({ 
   suggestions, 
   acceptedMatches,
-  onAcceptSuggestion 
+  onAcceptSuggestion,
+  forceOpen,
 }: { 
   suggestions: EmptyAdSetSuggestion[];
   acceptedMatches: Map<string, UICreativeMatch>;
   onAcceptSuggestion: (assetId: string, structure: CampaignStructure) => void;
+  forceOpen?: boolean;
 }) {
-  // Default to collapsed
-  const [isExpanded, setIsExpanded] = useState(false);
+  // Default to collapsed (but auto-open after user clicks "Find Similar")
+  const [isExpanded, setIsExpanded] = useState(Boolean(forceOpen));
+
+  useEffect(() => {
+    if (forceOpen) setIsExpanded(true);
+  }, [forceOpen]);
   
   if (suggestions.length === 0) return null;
   
@@ -930,6 +937,7 @@ export function StructureCentricView({
   structureResults,
   unassignedAssets,
   acceptedMatches,
+  relaxedStructureIds,
   onAcceptAsset,
   onRejectAsset,
   onBroadenMatch,
@@ -959,6 +967,8 @@ export function StructureCentricView({
     
     for (const emptyResult of emptyStructures) {
       const structure = emptyResult.structure;
+      const isRelaxed = Boolean(relaxedStructureIds?.has(structure.id));
+
       const suggestedAssets: EmptyAdSetSuggestion['suggestedAssets'] = [];
       
       for (const unassigned of unassignedAssets) {
@@ -966,24 +976,35 @@ export function StructureCentricView({
         
         // Check if this structure is in closest matches
         const closestMatch = closestMatches?.find(m => m.structure.id === structure.id);
+
+        const lowerReasons = reasons.map(r => r.toLowerCase());
         
-        // Check if platform is the main blocking reason
-        const platformBlockReasons = reasons.filter(r => 
-          r.toLowerCase().includes('platform') || 
-          r.toLowerCase().includes('meta') || 
-          r.toLowerCase().includes('tiktok') || 
-          r.toLowerCase().includes('google')
+        const platformBlockReasons = reasons.filter((r, idx) =>
+          lowerReasons[idx]?.includes('platform') ||
+          lowerReasons[idx]?.includes('meta') ||
+          lowerReasons[idx]?.includes('tiktok') ||
+          lowerReasons[idx]?.includes('google')
         );
+
+        const marketBlockReasons = reasons.filter((r, idx) => lowerReasons[idx]?.includes('market'));
+
+        const hardBlockReasons = [...platformBlockReasons, ...marketBlockReasons];
         
         const isPlatformOnly = platformBlockReasons.length > 0 && 
           platformBlockReasons.length === reasons.length;
+
+        // Default behavior: platform-only OR closest match score
+        const shouldSuggestDefault = isPlatformOnly || (closestMatch && closestMatch.score >= 30);
+
+        // Relaxed behavior (after clicking "Find Similar"): include anything blocked by platform/market
+        // OR a looser closest-match threshold.
+        const shouldSuggestRelaxed = hardBlockReasons.length > 0 || (closestMatch && closestMatch.score >= 15);
         
-        // Include if platform is the main constraint OR if it's in closest matches with decent score
-        if (isPlatformOnly || (closestMatch && closestMatch.score >= 30)) {
+        if ((isRelaxed && shouldSuggestRelaxed) || (!isRelaxed && shouldSuggestDefault)) {
           suggestedAssets.push({
             asset,
-            blockingReason: platformBlockReasons[0] || reasons[0] || 'No specific constraint detected',
-            isPlatformOnly
+            blockingReason: hardBlockReasons[0] || reasons[0] || 'No specific constraint detected',
+            isPlatformOnly,
           });
         }
       }
@@ -994,7 +1015,7 @@ export function StructureCentricView({
     }
     
     return result;
-  }, [structureResults, unassignedAssets]);
+  }, [structureResults, unassignedAssets, relaxedStructureIds]);
 
   return (
     <div className="space-y-4">
@@ -1045,7 +1066,8 @@ export function StructureCentricView({
           <SuggestionsPanel 
             suggestions={suggestions} 
             acceptedMatches={acceptedMatches}
-            onAcceptSuggestion={onAcceptAsset} 
+            onAcceptSuggestion={onAcceptAsset}
+            forceOpen={Boolean(relaxedStructureIds && relaxedStructureIds.size > 0)}
           />
           
           {/* Empty ad sets panel - need creatives */}

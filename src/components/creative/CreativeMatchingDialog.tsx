@@ -48,6 +48,7 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
   // Library creatives state
   const [libraryCreatives, setLibraryCreatives] = useState<Creative[]>([]);
   const [selectedCreativeIds, setSelectedCreativeIds] = useState<Set<string>>(new Set());
+  const [relaxedSuggestionStructureIds, setRelaxedSuggestionStructureIds] = useState<Set<string>>(new Set());
   const [isLoadingLibrary, setIsLoadingLibrary] = useState(false);
 
   // Sync state with props when they change
@@ -617,6 +618,7 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
                       structureResults={state.structureResults}
                       unassignedAssets={state.unassignedAssets}
                       acceptedMatches={state.acceptedMatches}
+                      relaxedStructureIds={relaxedSuggestionStructureIds}
                       onAcceptAsset={(assetId, structure) => {
                         // Build a UICreativeMatch from the structure result
                         const structureResult = state.structureResults.find(r => r.structure.id === structure.id);
@@ -633,15 +635,12 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
                           acceptMatch(assetId, match);
                         } else {
                           // Handle suggestions - asset is unassigned but user wants to force-apply
-                          // Look in unassignedAssets first
                           const unassignedAsset = state.unassignedAssets.find(u => u.asset.id === assetId);
                           
-                          // Create match regardless - for suggestions, we may not find the asset in the state arrays
-                          // due to the way suggestions are computed. The key is to accept the match.
                           const match: UICreativeMatch = {
                             structure,
                             confidenceScore: unassignedAsset ? 50 : 40, // Lower confidence for manual override
-                            reasoning: ['Manually applied by user (platform constraint relaxed)'],
+                            reasoning: ['Manually applied by user (constraints relaxed)'],
                             compatibilityIssues: [],
                             hardConstraintsMet: false,
                           };
@@ -650,30 +649,16 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
                       }}
                       onRejectAsset={(assetId, structureId) => rejectMatch(assetId, structureId)}
                       onBroadenMatch={(structureId) => {
-                        // Find the structure
                         const structure = state.structureResults.find(r => r.structure.id === structureId)?.structure;
                         if (!structure) return;
-                        
-                        // Get ALL unassigned assets (not just those with specific blocking reasons)
-                        // and assign ALL of them to this specific structure with relaxed constraints
-                        const unassignedAssets = state.unassignedAssets;
-                        
-                        if (unassignedAssets.length > 0) {
-                          // Accept ALL unassigned assets for THIS specific structure
-                          unassignedAssets.forEach(u => {
-                            const match: UICreativeMatch = {
-                              structure, // This is the specific structure that was clicked
-                              confidenceScore: 35,
-                              reasoning: ['Matched with relaxed constraints (platform/market ignored)'],
-                              compatibilityIssues: [{ type: 'constraint_relaxed', severity: 'warning', message: 'Platform or market constraint was relaxed' }],
-                              hardConstraintsMet: false,
-                            };
-                            acceptMatch(u.asset.id, match);
-                          });
-                          toast.success(`Assigned ${unassignedAssets.length} creatives to "${structure.adSetName}" with relaxed constraints`);
-                        } else {
-                          toast.info('No unassigned creatives available to match');
-                        }
+
+                        setRelaxedSuggestionStructureIds(prev => {
+                          const next = new Set(prev);
+                          next.add(structureId);
+                          return next;
+                        });
+
+                        toast.success(`Broadened suggestions for "${structure.adSetName}"`);
                       }}
                     />
                   )}
