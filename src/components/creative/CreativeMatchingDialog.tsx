@@ -649,6 +649,39 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
                         }
                       }}
                       onRejectAsset={(assetId, structureId) => rejectMatch(assetId, structureId)}
+                      onBroadenMatch={(structureId) => {
+                        // Find the structure and unassigned assets that could match with relaxed constraints
+                        const structure = state.structureResults.find(r => r.structure.id === structureId)?.structure;
+                        if (!structure) return;
+                        
+                        // Look for unassigned assets that might match with relaxed platform/market constraints
+                        const relaxedMatches = state.unassignedAssets.filter(u => {
+                          const reasons = u.reasons.map(r => r.toLowerCase());
+                          // Check if platform or market is the blocking reason
+                          const isPlatformBlocked = reasons.some(r => 
+                            r.includes('platform') || r.includes('meta') || r.includes('tiktok') || r.includes('google')
+                          );
+                          const isMarketBlocked = reasons.some(r => r.includes('market'));
+                          return isPlatformBlocked || isMarketBlocked;
+                        });
+                        
+                        if (relaxedMatches.length > 0) {
+                          // Auto-accept these as matches with lower confidence
+                          relaxedMatches.forEach(u => {
+                            const match: UICreativeMatch = {
+                              structure,
+                              confidenceScore: 35,
+                              reasoning: ['Matched with relaxed constraints (platform/market ignored)'],
+                              compatibilityIssues: [{ type: 'constraint_relaxed', severity: 'warning', message: 'Platform or market constraint was relaxed' }],
+                              hardConstraintsMet: false,
+                            };
+                            acceptMatch(u.asset.id, match);
+                          });
+                          toast.success(`Found ${relaxedMatches.length} similar creatives with relaxed constraints`);
+                        } else {
+                          toast.info('No additional matches found when relaxing constraints');
+                        }
+                      }}
                     />
                   )}
 
