@@ -390,9 +390,15 @@ function UnassignedAssetsPanel({ unassignedAssets }: { unassignedAssets: Unassig
 // Panel for empty ad sets that need creatives
 function EmptyAdSetsPanel({ 
   emptyStructures,
+  suggestionsByStructureId,
+  acceptedMatches,
+  onAcceptSuggestion,
   onBroadenMatch
 }: { 
   emptyStructures: StructureMatchResult[];
+  suggestionsByStructureId: Map<string, EmptyAdSetSuggestion>;
+  acceptedMatches: Map<string, UICreativeMatch>;
+  onAcceptSuggestion: (assetId: string, structure: CampaignStructure) => void;
   onBroadenMatch?: (structureId: string) => void;
 }) {
   const [isExpanded, setIsExpanded] = useState(true);
@@ -428,6 +434,8 @@ function EmptyAdSetsPanel({
           <CardContent className="pt-0 space-y-2">
             {emptyStructures.map((result) => {
               const { structure } = result;
+              const suggestion = suggestionsByStructureId.get(structure.id);
+              const suggestedAssets = suggestion?.suggestedAssets ?? [];
               
               return (
                 <div key={structure.id} className="p-3 rounded-lg border border-orange-500/20 bg-background">
@@ -486,6 +494,45 @@ function EmptyAdSetsPanel({
                           </Badge>
                         )}
                       </div>
+
+                      {/* Suggested creatives displayed under the ad set name */}
+                      {suggestedAssets.length > 0 && (
+                        <div className="mt-3 space-y-2">
+                          {suggestedAssets.map((sa) => {
+                            const isAccepted = acceptedMatches.has(`${sa.asset.id}:${structure.id}`);
+
+                            return (
+                              <div
+                                key={sa.asset.id}
+                                className={cn(
+                                  "p-2 rounded-lg border flex items-center gap-3",
+                                  isAccepted ? "bg-emerald-500/10 border-emerald-500/30" : "bg-muted/30"
+                                )}
+                              >
+                                <AssetThumbnail asset={sa.asset} />
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium truncate">{sa.asset.fileName}</p>
+                                  <p className="text-[10px] text-amber-600 mt-0.5">{sa.blockingReason}</p>
+                                </div>
+                                {isAccepted ? (
+                                  <Badge className="bg-emerald-500 shrink-0">
+                                    <Check className="h-3 w-3 mr-1" />
+                                    Accepted
+                                  </Badge>
+                                ) : (
+                                  <Button
+                                    size="sm"
+                                    onClick={() => onAcceptSuggestion(sa.asset.id, structure)}
+                                    className="bg-emerald-500 hover:bg-emerald-600"
+                                  >
+                                    <Check className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                     {/* Find Similar button */}
                     {onBroadenMatch && (
@@ -942,43 +989,113 @@ export function StructureCentricView({
   onRejectAsset,
   onBroadenMatch,
 }: StructureCentricViewProps) {
-  // Sort structures: ones with assets first, then by number of assets
-  const sortedResults = [...structureResults].sort((a, b) => {
-    if (a.assignedAssets.length === 0 && b.assignedAssets.length > 0) return 1;
-    if (b.assignedAssets.length === 0 && a.assignedAssets.length > 0) return -1;
-    return b.assignedAssets.length - a.assignedAssets.length;
-  });
+  // Treat accepted suggestions as assigned for UI (so empty/unassigned counts update live)
+  const acceptedAssetIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const key of acceptedMatches.keys()) {
+      const [assetId] = key.split(':');
+      if (assetId) ids.add(assetId);
+    }
+    return ids;
+  }, [acceptedMatches]);
 
-  const totalAssigned = structureResults.reduce((sum, r) => sum + r.assignedAssets.length, 0);
-  const structuresWithAssets = structureResults.filter(r => r.assignedAssets.length > 0).length;
-  
+  const displayUnassignedAssets = useMemo(() => {
+    if (acceptedAssetIds.size === 0) return unassignedAssets;
+    return unassignedAssets.filter(u => !acceptedAssetIds.has(u.asset.id));
+  }, [unassignedAssets, acceptedAssetIds]);
+
+  const mergedStructureResults = useMemo(() => {
+    if (acceptedMatches.size === 0) return structureResults;
+
+    // Build a quick lookup for assets by id so we can show accepted suggestions
+    const assetById = new Map<string, DigestedAsset>();
+    for (const r of structureResults) {
+      for (const a of r.assignedAssets) assetById.set(a.asset.id, a.asset);
+    }
+    for (const u of unassignedAssets) assetById.set(u.asset.id, u.asset);
+
+    // Group accepted matches by structure id
+    const acceptedByStructureId = new Map<string, Array<{ assetId: string; match: UICreativeMatch }>>();
+    for (const [key, match] of acceptedMatches.entries()) {
+      const [assetId, structureId] = key.split(':');
+      if (!assetId || !structureId) continue;
+      const arr = acceptedByStructureId.get(structureId) ?? [];
+      arr.push({ assetId, match });
+      acceptedByStructureId.set(structureId, arr);
+    }
+
+    return structureResults.map((r) => {
+      const acceptedForStructure = acceptedByStructureId.get(r.structure.id);
+      if (!acceptedForStructure || acceptedForStructure.length === 0) return r;
+
+      const existingAssetIds = new Set(r.assignedAssets.map(a => a.asset.id));
+      const added = acceptedForStructure
+        .filter(({ assetId }) => !existingAssetIds.has(assetId))
+        .map(({ assetId, match }) => {
+          const asset = assetById.get(assetId);
+          if (!asset) return null;
+
+          return {
+            asset,
+            confidenceScore: match.confidenceScore,
+            reasoning: match.reasoning,
+            matchedCriteria: ['Accepted by user'],
+            issues: match.compatibilityIssues.map(i => ({
+              type: i.type,
+              severity: i.severity,
+              message: i.message,
+            })),
+          };
+        })
+        .filter(Boolean) as StructureMatchResult['assignedAssets'];
+
+      if (added.length === 0) return r;
+      return {
+        ...r,
+        assignedAssets: [...r.assignedAssets, ...added],
+      };
+    });
+  }, [structureResults, unassignedAssets, acceptedMatches]);
+
+  // Sort structures: ones with assets first, then by number of assets
+  const sortedResults = useMemo(() => {
+    return [...mergedStructureResults].sort((a, b) => {
+      if (a.assignedAssets.length === 0 && b.assignedAssets.length > 0) return 1;
+      if (b.assignedAssets.length === 0 && a.assignedAssets.length > 0) return -1;
+      return b.assignedAssets.length - a.assignedAssets.length;
+    });
+  }, [mergedStructureResults]);
+
+  const totalAssigned = mergedStructureResults.reduce((sum, r) => sum + r.assignedAssets.length, 0);
+  const structuresWithAssets = mergedStructureResults.filter(r => r.assignedAssets.length > 0).length;
+
   // Get empty ad sets (need creatives)
-  const emptyStructures = useMemo(() => 
-    structureResults.filter(r => r.assignedAssets.length === 0),
-    [structureResults]
+  const emptyStructures = useMemo(
+    () => mergedStructureResults.filter(r => r.assignedAssets.length === 0),
+    [mergedStructureResults]
   );
-  
+
   // Find suggestions for empty ad sets from unassigned assets
   const suggestions = useMemo((): EmptyAdSetSuggestion[] => {
-    const emptyStructures = structureResults.filter(r => r.assignedAssets.length === 0);
-    if (emptyStructures.length === 0 || unassignedAssets.length === 0) return [];
-    
+    const emptyStructures = mergedStructureResults.filter(r => r.assignedAssets.length === 0);
+    if (emptyStructures.length === 0 || displayUnassignedAssets.length === 0) return [];
+
     const result: EmptyAdSetSuggestion[] = [];
-    
+
     for (const emptyResult of emptyStructures) {
       const structure = emptyResult.structure;
       const isRelaxed = Boolean(relaxedStructureIds?.has(structure.id));
 
       const suggestedAssets: EmptyAdSetSuggestion['suggestedAssets'] = [];
-      
-      for (const unassigned of unassignedAssets) {
+
+      for (const unassigned of displayUnassignedAssets) {
         const { asset, reasons, closestMatches } = unassigned;
-        
+
         // Check if this structure is in closest matches
         const closestMatch = closestMatches?.find(m => m.structure.id === structure.id);
 
         const lowerReasons = reasons.map(r => r.toLowerCase());
-        
+
         const platformBlockReasons = reasons.filter((r, idx) =>
           lowerReasons[idx]?.includes('platform') ||
           lowerReasons[idx]?.includes('meta') ||
@@ -989,9 +1106,8 @@ export function StructureCentricView({
         const marketBlockReasons = reasons.filter((r, idx) => lowerReasons[idx]?.includes('market'));
 
         const hardBlockReasons = [...platformBlockReasons, ...marketBlockReasons];
-        
-        const isPlatformOnly = platformBlockReasons.length > 0 && 
-          platformBlockReasons.length === reasons.length;
+
+        const isPlatformOnly = platformBlockReasons.length > 0 && platformBlockReasons.length === reasons.length;
 
         // Default behavior: platform-only OR closest match score
         const shouldSuggestDefault = isPlatformOnly || (closestMatch && closestMatch.score >= 30);
@@ -999,7 +1115,7 @@ export function StructureCentricView({
         // Relaxed behavior (after clicking "Find Similar"): include anything blocked by platform/market
         // OR a looser closest-match threshold.
         const shouldSuggestRelaxed = hardBlockReasons.length > 0 || (closestMatch && closestMatch.score >= 15);
-        
+
         if ((isRelaxed && shouldSuggestRelaxed) || (!isRelaxed && shouldSuggestDefault)) {
           suggestedAssets.push({
             asset,
@@ -1008,14 +1124,20 @@ export function StructureCentricView({
           });
         }
       }
-      
+
       if (suggestedAssets.length > 0) {
         result.push({ structure, suggestedAssets });
       }
     }
-    
+
     return result;
-  }, [structureResults, unassignedAssets, relaxedStructureIds]);
+  }, [mergedStructureResults, displayUnassignedAssets, relaxedStructureIds]);
+
+  const suggestionsByStructureId = useMemo(() => {
+    const map = new Map<string, EmptyAdSetSuggestion>();
+    for (const s of suggestions) map.set(s.structure.id, s);
+    return map;
+  }, [suggestions]);
 
   return (
     <div className="space-y-4">
@@ -1023,7 +1145,7 @@ export function StructureCentricView({
       <div className="flex items-center gap-4 text-sm pb-3 border-b">
         <div>
           <span className="text-muted-foreground">Ad Sets:</span>{' '}
-          <span className="font-medium">{structuresWithAssets}/{structureResults.length}</span>
+          <span className="font-medium">{structuresWithAssets}/{mergedStructureResults.length}</span>
         </div>
         <div>
           <span className="text-muted-foreground">Assigned:</span>{' '}
@@ -1031,7 +1153,7 @@ export function StructureCentricView({
         </div>
         <div>
           <span className="text-muted-foreground">Unassigned:</span>{' '}
-          <span className="font-medium text-amber-600">{unassignedAssets.length}</span>
+          <span className="font-medium text-amber-600">{displayUnassignedAssets.length}</span>
         </div>
         {emptyStructures.length > 0 && (
           <div>
@@ -1050,7 +1172,7 @@ export function StructureCentricView({
       <ScrollArea className="h-[400px] pr-4">
         <div className="space-y-3">
           {/* Assigned creatives panel - grouped under one foldable card */}
-          <AssignedAssetsPanel 
+          <AssignedAssetsPanel
             structureResults={sortedResults}
             acceptedMatches={acceptedMatches}
             onAcceptAsset={onAcceptAsset}
@@ -1061,22 +1183,29 @@ export function StructureCentricView({
               });
             }}
           />
-          
-          {/* Suggestions panel for empty ad sets */}
-          <SuggestionsPanel 
-            suggestions={suggestions} 
+
+          {/* Keep legacy SuggestionsPanel mounted but hidden (we now show suggestions under each empty ad set) */}
+          <SuggestionsPanel
+            suggestions={[]}
             acceptedMatches={acceptedMatches}
             onAcceptSuggestion={onAcceptAsset}
-            forceOpen={Boolean(relaxedStructureIds && relaxedStructureIds.size > 0)}
+            forceOpen={false}
           />
-          
-          {/* Empty ad sets panel - need creatives */}
-          <EmptyAdSetsPanel emptyStructures={emptyStructures} onBroadenMatch={onBroadenMatch} />
-          
+
+          {/* Empty ad sets panel - shows suggestions under each ad set */}
+          <EmptyAdSetsPanel
+            emptyStructures={emptyStructures}
+            suggestionsByStructureId={suggestionsByStructureId}
+            acceptedMatches={acceptedMatches}
+            onAcceptSuggestion={onAcceptAsset}
+            onBroadenMatch={onBroadenMatch}
+          />
+
           {/* Unassigned assets panel */}
-          <UnassignedAssetsPanel unassignedAssets={unassignedAssets} />
+          <UnassignedAssetsPanel unassignedAssets={displayUnassignedAssets} />
         </div>
       </ScrollArea>
     </div>
   );
 }
+
