@@ -223,9 +223,16 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
   const stepProgress = state.currentStep === 'upload' ? 0 : state.currentStep === 'match' ? 25 : state.currentStep === 'review' ? 50 : state.currentStep === 'text_assets' ? 75 : 100;
   const needsCampaignSelection = !effectiveCampaignId;
 
-  // Filter library creatives that are not already assigned to a campaign
-  const availableCreatives = libraryCreatives.filter(c => !c.campaignId);
-  const availableCreativeIds = availableCreatives.map(c => c.id);
+  const alreadyInMesh = new Set(state.assets.map((a) => a.id));
+
+  // Library creatives available for this mesh:
+  // show unassigned creatives + creatives already linked to the selected ActiPlan
+  // (and hide anything already added in this session)
+  const availableCreatives = libraryCreatives.filter(
+    (c) =>
+      (!c.campaignId || c.campaignId === effectiveCampaignId) && !alreadyInMesh.has(c.id)
+  );
+  const availableCreativeIds = availableCreatives.map((c) => c.id);
   const selectedAvailableCount = availableCreatives.reduce(
     (acc, c) => acc + (selectedCreativeIds.has(c.id) ? 1 : 0),
     0
@@ -278,8 +285,25 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
           </DialogDescription>
         </DialogHeader>
 
-        {!needsCampaignSelection && <Progress value={stepProgress} className="h-1" />}
+        {/* Hidden file inputs (shared across steps, incl. Review) */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept="image/*,video/*"
+          onChange={handleFileSelect}
+          className="hidden"
+        />
+        <input
+          ref={folderInputRef}
+          type="file"
+          {...({ webkitdirectory: '', directory: '' } as any)}
+          multiple
+          onChange={handleFolderSelect}
+          className="hidden"
+        />
 
+        {!needsCampaignSelection && <Progress value={stepProgress} className="h-1" />}
         {/* Campaign Selection (when no campaignId provided) */}
         {needsCampaignSelection ? (
           <div className="py-8 space-y-4">
@@ -439,7 +463,7 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
                           <p className="font-medium">Click to upload files</p>
                           <p className="text-sm text-muted-foreground">Images and videos</p>
                         </div>
-                        <input ref={fileInputRef} type="file" multiple accept="image/*,video/*" onChange={handleFileSelect} className="hidden" />
+                        {/* File input is rendered once above (shared across steps) */}
                       </TabsContent>
                       <TabsContent value="folder" className="mt-4">
                         <div onClick={() => folderInputRef.current?.click()} className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 transition-colors">
@@ -447,7 +471,7 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
                           <p className="font-medium">Click to upload a folder</p>
                           <p className="text-sm text-muted-foreground">Structured by Platform/Market/Phase</p>
                         </div>
-                        <input ref={folderInputRef} type="file" {...{ webkitdirectory: '', directory: '' } as any} multiple onChange={handleFolderSelect} className="hidden" />
+                        {/* Folder input is rendered once above (shared across steps) */}
                       </TabsContent>
                     </Tabs>
                   </TabsContent>
