@@ -145,6 +145,16 @@ export interface UnassignedAsset {
   }>;
 }
 
+// Save progress status for each creative
+export type SaveStatus = 'pending' | 'uploading' | 'saving' | 'done' | 'error';
+export interface SaveProgressItem {
+  compositeKey: string; // assetId:structureId
+  assetId: string;
+  structureId: string;
+  status: SaveStatus;
+  error?: string;
+}
+
 export interface MatchingState {
   assets: DigestedAsset[];
   structures: CampaignStructure[];
@@ -158,6 +168,8 @@ export interface MatchingState {
   currentStep: 'upload' | 'digest' | 'match' | 'review' | 'text_assets' | 'complete';
   // Saved assignment IDs for text asset editing
   savedAssignments?: Array<{ id: string; creativeId: string; platform: string; market: string; phaseName: string; creativeName: string; mediaType: 'image' | 'video' }>;
+  // Save progress tracking
+  saveProgress: Map<string, SaveProgressItem>;
 }
 
 export function useCreativeMatching(campaignId?: string) {
@@ -172,6 +184,7 @@ export function useCreativeMatching(campaignId?: string) {
     rejectedMatches: new Map(),
     isProcessing: false,
     currentStep: 'upload',
+    saveProgress: new Map(),
   });
   
   // Use a ref to always access the latest state in callbacks (avoids stale closure issues)
@@ -933,6 +946,17 @@ export function useCreativeMatching(campaignId?: string) {
       structureResults: [], unassignedAssets: [],
       acceptedMatches: new Map(), rejectedMatches: new Map(),
       isProcessing: false, currentStep: 'upload',
+      saveProgress: new Map(),
+    });
+  }, []);
+
+  // Helper to update progress for a specific item
+  const updateSaveProgress = useCallback((compositeKey: string, status: SaveStatus, error?: string) => {
+    setState(prev => {
+      const newProgress = new Map(prev.saveProgress);
+      const [assetId, structureId] = compositeKey.split(':');
+      newProgress.set(compositeKey, { compositeKey, assetId, structureId, status, error });
+      return { ...prev, saveProgress: newProgress };
     });
   }, []);
 
@@ -945,8 +969,14 @@ export function useCreativeMatching(campaignId?: string) {
       return;
     }
 
-    setState(prev => ({ ...prev, isProcessing: true }));
-    toast.info('Saving matches… this can take a few minutes for large files');
+    // Initialize progress for all accepted matches
+    const initialProgress = new Map<string, SaveProgressItem>();
+    for (const compositeKey of currentState.acceptedMatches.keys()) {
+      const [assetId, structureId] = compositeKey.split(':');
+      initialProgress.set(compositeKey, { compositeKey, assetId, structureId, status: 'pending' });
+    }
+    setState(prev => ({ ...prev, isProcessing: true, saveProgress: initialProgress }));
+    toast.info(`Saving ${currentState.acceptedMatches.size} matches…`);
 
     const MAX_UPLOAD_BYTES = 100 * 1024 * 1024; // 100MB
     const PER_CALL_TIMEOUT_MS = 180_000; // 3 minutes
@@ -978,84 +1008,102 @@ export function useCreativeMatching(campaignId?: string) {
 
     try {
       const assignments: any[] = [];
+      const compositeKeyToAssignmentIndex = new Map<string, number>();
+      let errorCount = 0;
 
       for (const [compositeKey, match] of currentState.acceptedMatches) {
         // Parse composite key: assetId:structureId
         const assetId = compositeKey.split(':')[0];
         const asset = currentState.assets.find(a => a.id === assetId);
-        if (!asset) continue;
+        if (!asset) {
+          updateSaveProgress(compositeKey, 'error', 'Asset not found');
+          errorCount++;
+          continue;
+        }
 
         let creativeId: string;
 
-        // Check if this is a library creative (already exists in DB)
-        if (asset.sourceType === 'library' && (asset as any).libraryCreativeId) {
-          creativeId = (asset as any).libraryCreativeId;
+        try {
+          // Check if this is a library creative (already exists in DB)
+          if (asset.sourceType === 'library' && (asset as any).libraryCreativeId) {
+            creativeId = (asset as any).libraryCreativeId;
+            updateSaveProgress(compositeKey, 'saving');
 
-          // Update the existing creative with campaign assignment
-          const { error: updateError } = await supabase
-            .from('creatives')
-            .update({
-              campaign_id: match.structure.campaignId,
-              market: match.structure.market,
-              phase_name: match.structure.phases?.[0],
-              status: 'ready',
-            })
-            .eq('id', creativeId);
+            // Update the existing creative with campaign assignment
+            const { error: updateError } = await supabase
+              .from('creatives')
+              .update({
+                campaign_id: match.structure.campaignId,
+                market: match.structure.market,
+                phase_name: match.structure.phases?.[0],
+                status: 'ready',
+              })
+              .eq('id', creativeId);
 
-          if (updateError) throw updateError;
-        } else {
-          // For uploaded files, we must persist the file itself (otherwise refresh loses it).
-          const mediaUrl = await uploadAssetToStorage(assetId, asset.originalFile);
+            if (updateError) throw updateError;
+          } else {
+            // For uploaded files, we must persist the file itself (otherwise refresh loses it).
+            updateSaveProgress(compositeKey, 'uploading');
+            const mediaUrl = await uploadAssetToStorage(assetId, asset.originalFile);
 
-          // Generate taxonomy-based name for the creative
-          const taxonomyName = generateCreativeTaxonomyName(asset, match.structure);
+            updateSaveProgress(compositeKey, 'saving');
+            // Generate taxonomy-based name for the creative
+            const taxonomyName = generateCreativeTaxonomyName(asset, match.structure);
 
-          // Create new creative for uploaded files
-          const { data: creative, error: insertCreativeError } = await supabase
-            .from('creatives')
-            .insert({
-              name: taxonomyName,
-              user_id: user.id,
-              team_id: null,
-              platform: match.structure.platform,
-              creative_type: asset.mediaType === 'video' ? 'video' : 'image',
-              media_type: asset.mediaType,
-              status: 'ready',
-              market: match.structure.market,
-              phase_name: match.structure.phases?.[0],
-              campaign_id: match.structure.campaignId,
-              width: asset.technicalAttributes.width,
-              height: asset.technicalAttributes.height,
-              aspect_ratio: asset.technicalAttributes.aspectRatio,
-              duration_seconds: asset.technicalAttributes.duration,
-              file_size_bytes: asset.technicalAttributes.fileSize,
-              original_filename: asset.fileName,
-              folder_path: asset.filePath,
-              media_urls: [mediaUrl],
-              thumbnail_url: mediaUrl,
-              language: asset.hardConstraints?.language,
-            })
-            .select()
-            .single();
+            // Create new creative for uploaded files
+            const { data: creative, error: insertCreativeError } = await supabase
+              .from('creatives')
+              .insert({
+                name: taxonomyName,
+                user_id: user.id,
+                team_id: null,
+                platform: match.structure.platform,
+                creative_type: asset.mediaType === 'video' ? 'video' : 'image',
+                media_type: asset.mediaType,
+                status: 'ready',
+                market: match.structure.market,
+                phase_name: match.structure.phases?.[0],
+                campaign_id: match.structure.campaignId,
+                width: asset.technicalAttributes.width,
+                height: asset.technicalAttributes.height,
+                aspect_ratio: asset.technicalAttributes.aspectRatio,
+                duration_seconds: asset.technicalAttributes.duration,
+                file_size_bytes: asset.technicalAttributes.fileSize,
+                original_filename: asset.fileName,
+                folder_path: asset.filePath,
+                media_urls: [mediaUrl],
+                thumbnail_url: mediaUrl,
+                language: asset.hardConstraints?.language,
+              })
+              .select()
+              .single();
 
-          if (insertCreativeError) throw insertCreativeError;
-          if (!creative) continue;
+            if (insertCreativeError) throw insertCreativeError;
+            if (!creative) {
+              throw new Error('No creative returned from insert');
+            }
 
-          creativeId = creative.id;
+            creativeId = creative.id;
+          }
+
+          compositeKeyToAssignmentIndex.set(compositeKey, assignments.length);
+          assignments.push({
+            creative_id: creativeId,
+            campaign_id: match.structure.campaignId,
+            platform: match.structure.platform,
+            market: match.structure.market || 'GLOBAL',
+            phase_name: match.structure.phases?.[0] || 'default',
+            ad_set_id: match.structure.adSetId || null,
+            ad_set_name: match.structure.adSetName || null,
+            assigned_by: user.id,
+            position: 0,
+            status: 'pending',
+          });
+        } catch (itemError: any) {
+          console.error(`Error processing ${compositeKey}:`, itemError);
+          updateSaveProgress(compositeKey, 'error', itemError?.message || 'Failed to process');
+          errorCount++;
         }
-
-        assignments.push({
-          creative_id: creativeId,
-          campaign_id: match.structure.campaignId,
-          platform: match.structure.platform,
-          market: match.structure.market || 'GLOBAL',
-          phase_name: match.structure.phases?.[0] || 'default',
-          ad_set_id: match.structure.adSetId || null,
-          ad_set_name: match.structure.adSetName || null,
-          assigned_by: user.id,
-          position: 0,
-          status: 'pending',
-        });
       }
 
       if (assignments.length > 0) {
@@ -1070,6 +1118,11 @@ export function useCreativeMatching(campaignId?: string) {
         if (upsertError) {
           console.error('Error upserting assignments:', upsertError);
           throw upsertError;
+        }
+
+        // Mark all successful ones as done
+        for (const compositeKey of compositeKeyToAssignmentIndex.keys()) {
+          updateSaveProgress(compositeKey, 'done');
         }
 
         console.log('Upserted assignments:', upsertedAssignments);
@@ -1123,7 +1176,12 @@ export function useCreativeMatching(campaignId?: string) {
 
         console.log('Built savedAssignments:', savedAssignments);
 
-        toast.success(`Saved ${assignments.length} creative assignment(s)`);
+        const successCount = assignments.length;
+        if (errorCount > 0) {
+          toast.warning(`Saved ${successCount} assignments, ${errorCount} failed`);
+        } else {
+          toast.success(`Saved ${successCount} creative assignment(s)`);
+        }
         setState(prev => ({
           ...prev,
           isProcessing: false,
@@ -1131,15 +1189,28 @@ export function useCreativeMatching(campaignId?: string) {
           savedAssignments,
         }));
       } else {
-        toast.info('No assignments to save');
-        setState(prev => ({ ...prev, isProcessing: false, currentStep: 'complete' }));
+        if (errorCount > 0) {
+          toast.error(`All ${errorCount} assignments failed`);
+        } else {
+          toast.info('No assignments to save');
+        }
+        setState(prev => ({ ...prev, isProcessing: false, currentStep: errorCount > 0 ? 'review' : 'complete' }));
       }
     } catch (error) {
       console.error('Error saving matches:', error);
       toast.error('Failed to save matches');
-      setState(prev => ({ ...prev, isProcessing: false }));
+      // Mark all pending as error
+      setState(prev => {
+        const newProgress = new Map(prev.saveProgress);
+        for (const [key, item] of newProgress) {
+          if (item.status === 'pending' || item.status === 'uploading' || item.status === 'saving') {
+            newProgress.set(key, { ...item, status: 'error', error: 'Batch save failed' });
+          }
+        }
+        return { ...prev, isProcessing: false, saveProgress: newProgress };
+      });
     }
-  }, [user]); // Only depend on user - we use stateRef for state access
+  }, [user, updateSaveProgress]); // Only depend on user - we use stateRef for state access
 
   const stats = useMemo(() => ({
     totalAssets: state.assets.length,

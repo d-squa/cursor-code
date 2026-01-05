@@ -451,6 +451,7 @@ export default function CreativeMatching() {
                     structureResults={state.structureResults}
                     unassignedAssets={state.unassignedAssets}
                     acceptedMatches={state.acceptedMatches}
+                    saveProgress={state.saveProgress}
                     onAcceptAsset={(assetId, structure) => {
                       const structureResult = state.structureResults.find(r => r.structure.id === structure.id);
                       const assignedAsset = structureResult?.assignedAssets.find(a => a.asset.id === assetId);
