@@ -3,8 +3,8 @@ import { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { 
   ChevronDown, 
@@ -638,8 +638,30 @@ function AssignedAssetsPanel({
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [expandedAdSets, setExpandedAdSets] = useState<Set<string>>(new Set());
-  
-  const resultsWithAssets = structureResults.filter(r => r.assignedAssets.length > 0);
+
+  const resultsWithAssets = useMemo(
+    () => structureResults.filter((r) => r.assignedAssets.length > 0),
+    [structureResults]
+  );
+
+  const activeSaveInProgress = useMemo(() => {
+    if (!saveProgress || saveProgress.size === 0) return false;
+    for (const item of saveProgress.values()) {
+      if (item.status === 'pending' || item.status === 'uploading' || item.status === 'saving') return true;
+    }
+    return false;
+  }, [saveProgress]);
+
+  useEffect(() => {
+    if (!activeSaveInProgress || resultsWithAssets.length === 0) return;
+
+    setIsExpanded((prev) => (prev ? prev : true));
+    setExpandedAdSets((prev) => {
+      const next = new Set(resultsWithAssets.map((r) => r.structure.id));
+      if (prev.size === next.size && Array.from(next).every((id) => prev.has(id))) return prev;
+      return next;
+    });
+  }, [activeSaveInProgress, resultsWithAssets]);
   
   if (resultsWithAssets.length === 0) return null;
   
@@ -1253,29 +1275,42 @@ export function StructureCentricView({
     const errors = items.filter(i => i.status === 'error').length;
     const inProgress = items.filter(i => i.status === 'uploading' || i.status === 'saving').length;
     const pending = items.filter(i => i.status === 'pending').length;
-    return { total, done, errors, inProgress, pending };
+
+    const started = total - pending;
+    const completed = done + errors;
+    // Weighted: most time is spent uploading/creating, final DB write is last.
+    const percent = total === 0 ? 0 : Math.round((started / total) * 90 + (completed / total) * 10);
+
+    return { total, done, errors, inProgress, pending, started, completed, percent };
   }, [saveProgress]);
 
   return (
     <div className="space-y-4">
       {/* Save progress banner when saving */}
       {saveProgressStats && (saveProgressStats.inProgress > 0 || saveProgressStats.pending > 0) && (
-        <div className="flex items-center gap-3 p-3 rounded-lg border bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800">
-          <div className="h-4 w-4 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
-          <div className="flex-1">
-            <div className="text-sm font-medium text-blue-700 dark:text-blue-300">
-              Saving creatives...
+        <div className="rounded-lg border bg-primary/5 border-primary/20 p-3">
+          <div className="flex items-center gap-3">
+            <div className="h-4 w-4 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+            <div className="flex-1">
+              <div className="text-sm font-medium text-primary">Saving creatives…</div>
+              <div className="text-xs text-muted-foreground">
+                Processing {saveProgressStats.started}/{saveProgressStats.total}
+                {saveProgressStats.errors > 0 && (
+                  <span className="text-destructive ml-2">• {saveProgressStats.errors} errors</span>
+                )}
+              </div>
             </div>
-            <div className="text-xs text-blue-600 dark:text-blue-400">
-              {saveProgressStats.done} of {saveProgressStats.total} complete
-              {saveProgressStats.errors > 0 && (
-                <span className="text-destructive ml-2">• {saveProgressStats.errors} errors</span>
-              )}
+            <div className="text-right">
+              <div className="text-2xl font-bold text-primary">{saveProgressStats.percent}%</div>
             </div>
           </div>
-          <div className="text-right">
-            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-              {Math.round((saveProgressStats.done / saveProgressStats.total) * 100)}%
+
+          <div className="mt-2 space-y-1.5">
+            <Progress value={saveProgressStats.percent} className="h-2" />
+            <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+              <span>Queued: {saveProgressStats.pending}</span>
+              <span>Working: {saveProgressStats.inProgress}</span>
+              <span>Saved: {saveProgressStats.done}</span>
             </div>
           </div>
         </div>
