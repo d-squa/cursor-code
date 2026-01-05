@@ -25,6 +25,7 @@ import {
 import { cn } from '@/lib/utils';
 import { MatchConfidenceIndicator } from './MatchConfidenceIndicator';
 import type { StructureMatchResult, UnassignedAsset, DigestedAsset, UICreativeMatch, CampaignStructure } from '@/hooks/useCreativeMatching';
+import { findCompatibleFormats } from '@/utils/platformAdSpecs';
 
 // Suggestion for empty ad sets
 interface EmptyAdSetSuggestion {
@@ -1085,11 +1086,32 @@ export function StructureCentricView({
     for (const emptyResult of emptyStructures) {
       const structure = emptyResult.structure;
       const isRelaxed = Boolean(relaxedStructureIds?.has(structure.id));
+      const structurePlatform = structure.platform?.toLowerCase() || '';
 
       const suggestedAssets: EmptyAdSetSuggestion['suggestedAssets'] = [];
 
       for (const unassigned of displayUnassignedAssets) {
         const { asset, reasons, closestMatches } = unassigned;
+
+        // CRITICAL: Always check dimension compatibility with the platform
+        // Never suggest a creative whose dimensions don't work for the ad set's platform
+        const assetWidth = asset.technicalAttributes?.width;
+        const assetHeight = asset.technicalAttributes?.height;
+        
+        if (structurePlatform && assetWidth && assetHeight) {
+          const mediaType = asset.mediaType === 'video' ? 'video' : 'image';
+          const compatibleFormats = findCompatibleFormats(
+            assetWidth,
+            assetHeight,
+            mediaType,
+            structurePlatform
+          );
+          
+          // If no compatible formats for this platform, skip this asset entirely
+          if (compatibleFormats.length === 0) {
+            continue;
+          }
+        }
 
         // Check if this structure is in closest matches
         const closestMatch = closestMatches?.find(m => m.structure.id === structure.id);
