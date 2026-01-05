@@ -19,7 +19,8 @@ import {
   AlertCircle,
   Lightbulb,
   Sparkles,
-  FolderOpen
+  FolderOpen,
+  Expand
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MatchConfidenceIndicator } from './MatchConfidenceIndicator';
@@ -41,6 +42,7 @@ interface StructureCentricViewProps {
   acceptedMatches: Map<string, UICreativeMatch>;
   onAcceptAsset: (assetId: string, structure: StructureMatchResult['structure']) => void;
   onRejectAsset: (assetId: string, structureId: string) => void;
+  onBroadenMatch?: (structureId: string) => void;
 }
 
 function AssetThumbnail({ asset }: { asset: DigestedAsset }) {
@@ -386,9 +388,11 @@ function UnassignedAssetsPanel({ unassignedAssets }: { unassignedAssets: Unassig
 
 // Panel for empty ad sets that need creatives
 function EmptyAdSetsPanel({ 
-  emptyStructures 
+  emptyStructures,
+  onBroadenMatch
 }: { 
   emptyStructures: StructureMatchResult[];
+  onBroadenMatch?: (structureId: string) => void;
 }) {
   const [isExpanded, setIsExpanded] = useState(true);
   
@@ -482,6 +486,18 @@ function EmptyAdSetsPanel({
                         )}
                       </div>
                     </div>
+                    {/* Find Similar button */}
+                    {onBroadenMatch && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="shrink-0 h-7 text-xs gap-1.5 text-blue-600 border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+                        onClick={() => onBroadenMatch(structure.id)}
+                      >
+                        <Expand className="h-3 w-3" />
+                        Find Similar
+                      </Button>
+                    )}
                   </div>
                 </div>
               );
@@ -916,6 +932,7 @@ export function StructureCentricView({
   acceptedMatches,
   onAcceptAsset,
   onRejectAsset,
+  onBroadenMatch,
 }: StructureCentricViewProps) {
   // Sort structures: ones with assets first, then by number of assets
   const sortedResults = [...structureResults].sort((a, b) => {
@@ -1032,7 +1049,7 @@ export function StructureCentricView({
           />
           
           {/* Empty ad sets panel - need creatives */}
-          <EmptyAdSetsPanel emptyStructures={emptyStructures} />
+          <EmptyAdSetsPanel emptyStructures={emptyStructures} onBroadenMatch={onBroadenMatch} />
           
           {/* Unassigned assets panel */}
           <UnassignedAssetsPanel unassignedAssets={unassignedAssets} />
