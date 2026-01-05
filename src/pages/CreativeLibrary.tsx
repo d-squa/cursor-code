@@ -168,10 +168,15 @@ export default function CreativeLibrary() {
   // Handle bulk actions
   const handleBulkAction = useCallback(
     async (action: string, ids: string[]) => {
-      if (action === 'delete') {
-        await bulkAction({ type: 'delete', creativeIds: ids });
-      } else if (action === 'duplicate') {
-        await bulkAction({ type: 'duplicate', creativeIds: ids });
+      try {
+        if (action === 'delete') {
+          await bulkAction({ type: 'delete', creativeIds: ids });
+        } else if (action === 'duplicate') {
+          await bulkAction({ type: 'duplicate', creativeIds: ids });
+        }
+      } catch (error) {
+        console.error('Bulk action failed:', error);
+        // Error toast is already shown by bulkAction mutation
       }
     },
     [bulkAction]
