@@ -3,6 +3,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -28,6 +29,10 @@ import {
   CheckSquare,
   Square,
   LayoutGrid,
+  MoreVertical,
+  Play,
+  Image as ImageIcon,
+  Edit,
 } from 'lucide-react';
 import { CreativeCard } from './CreativeCard';
 import type { Creative, CreativeFilters, CreativeStatus, Platform, CreativeDragData } from '@/types/creative';
@@ -48,6 +53,139 @@ interface CreativeGridProps {
 
 type ViewMode = 'grid' | 'compact' | 'list';
 
+// Compact list row with tiny thumbnail
+function CreativeListRow({
+  creative,
+  isSelected,
+  onSelect,
+  onEdit,
+  onDuplicate,
+  onDelete,
+}: {
+  creative: Creative;
+  isSelected: boolean;
+  onSelect?: (id: string, selected: boolean) => void;
+  onEdit?: (creative: Creative) => void;
+  onDuplicate?: (creative: Creative) => void;
+  onDelete?: (id: string) => void;
+}) {
+  const [imageError, setImageError] = useState(false);
+  const thumbnailUrl = creative.thumbnailUrl || creative.mediaUrls?.[0];
+  const isVideo = creative.creativeType === 'video' || creative.durationSeconds;
+
+  return (
+    <div
+      className={cn(
+        'flex items-center gap-3 p-2 rounded-lg border bg-card hover:bg-accent/50 transition-colors',
+        isSelected && 'ring-2 ring-primary bg-accent/30'
+      )}
+    >
+      {/* Selection Checkbox */}
+      {onSelect && (
+        <Checkbox
+          checked={isSelected}
+          onCheckedChange={(checked) => onSelect(creative.id, !!checked)}
+          className="shrink-0"
+        />
+      )}
+
+      {/* Tiny Thumbnail - 32x32 */}
+      <div className="relative w-8 h-8 shrink-0 rounded overflow-hidden bg-muted">
+        {thumbnailUrl && !imageError ? (
+          <>
+            <img
+              src={thumbnailUrl}
+              alt=""
+              className="w-full h-full object-cover"
+              onError={() => setImageError(true)}
+              loading="lazy"
+            />
+            {isVideo && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                <Play className="h-3 w-3 text-white" fill="white" />
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <ImageIcon className="h-4 w-4 text-muted-foreground" />
+          </div>
+        )}
+      </div>
+
+      {/* Name */}
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium truncate" title={creative.name}>
+          {creative.name}
+        </p>
+      </div>
+
+      {/* Platform badge */}
+      <Badge variant="outline" className="text-xs shrink-0">
+        {creative.platform}
+      </Badge>
+
+      {/* Market */}
+      {creative.market && (
+        <Badge variant="secondary" className="text-xs shrink-0">
+          {creative.market}
+        </Badge>
+      )}
+
+      {/* Dimensions */}
+      {creative.width && creative.height && (
+        <span className="text-xs text-muted-foreground shrink-0 hidden sm:inline">
+          {creative.width}×{creative.height}
+        </span>
+      )}
+
+      {/* Status */}
+      <Badge
+        variant="secondary"
+        className={cn(
+          'text-xs shrink-0',
+          creative.status === 'ready' && 'bg-green-500/20 text-green-700 dark:text-green-400',
+          creative.status === 'error' && 'bg-destructive/20 text-destructive',
+          creative.status === 'needs_review' && 'bg-yellow-500/20 text-yellow-700'
+        )}
+      >
+        {creative.status.replace('_', ' ')}
+      </Badge>
+
+      {/* Actions */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
+            <MoreVertical className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {onEdit && (
+            <DropdownMenuItem onClick={() => onEdit(creative)}>
+              <Edit className="h-4 w-4 mr-2" />
+              Edit
+            </DropdownMenuItem>
+          )}
+          {onDuplicate && (
+            <DropdownMenuItem onClick={() => onDuplicate(creative)}>
+              <Copy className="h-4 w-4 mr-2" />
+              Duplicate
+            </DropdownMenuItem>
+          )}
+          {onDelete && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => onDelete(creative.id)} className="text-destructive">
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
 export function CreativeGrid({
   creatives,
   isLoading = false,
@@ -294,23 +432,35 @@ export function CreativeGrid({
             'grid gap-4',
             viewMode === 'grid' && 'grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4',
             viewMode === 'compact' && 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6',
-            viewMode === 'list' && 'grid-cols-1'
+            viewMode === 'list' && 'grid-cols-1 gap-2'
           )}
           onDragEnd={handleDragEnd}
         >
           {creatives.map((creative) => (
-            <CreativeCard
-              key={creative.id}
-              creative={creative}
-              isSelected={selectedIds.has(creative.id)}
-              onSelect={handleSelect}
-              onEdit={onEdit}
-              onDuplicate={onDuplicate}
-              onDelete={onDelete}
-              onDragStart={onDrop ? handleDragStart : undefined}
-              isDragging={draggingId === creative.id}
-              compact={viewMode === 'compact'}
-            />
+            viewMode === 'list' ? (
+              <CreativeListRow
+                key={creative.id}
+                creative={creative}
+                isSelected={selectedIds.has(creative.id)}
+                onSelect={handleSelect}
+                onEdit={onEdit}
+                onDuplicate={onDuplicate}
+                onDelete={onDelete}
+              />
+            ) : (
+              <CreativeCard
+                key={creative.id}
+                creative={creative}
+                isSelected={selectedIds.has(creative.id)}
+                onSelect={handleSelect}
+                onEdit={onEdit}
+                onDuplicate={onDuplicate}
+                onDelete={onDelete}
+                onDragStart={onDrop ? handleDragStart : undefined}
+                isDragging={draggingId === creative.id}
+                compact={viewMode === 'compact'}
+              />
+            )
           ))}
         </div>
       )}
