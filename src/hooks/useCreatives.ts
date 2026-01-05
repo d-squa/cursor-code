@@ -141,46 +141,77 @@ export function useCreatives(
     mutationFn: async (action: BulkCreativeAction) => {
       if (!user?.id) throw new Error('Not authenticated');
 
+      const ids = (action.creativeIds || []).filter(
+        (id): id is string => typeof id === 'string' && id.length > 0
+      );
+      if (ids.length === 0) return;
+
+      const chunkSize = 100;
+      const idChunks: string[][] = [];
+      for (let i = 0; i < ids.length; i += chunkSize) {
+        idChunks.push(ids.slice(i, i + chunkSize));
+      }
+
+      const forEachChunk = async (fn: (chunk: string[]) => Promise<void>) => {
+        for (const chunk of idChunks) {
+          await fn(chunk);
+        }
+      };
+
       switch (action.type) {
         case 'delete':
-          const { error: deleteError } = await supabase
-            .from('creatives')
-            .delete()
-            .in('id', action.creativeIds);
-          if (deleteError) throw deleteError;
+          await forEachChunk(async (chunk) => {
+            const { error } = await supabase
+              .from('creatives')
+              .delete()
+              .eq('user_id', user.id)
+              .in('id', chunk);
+            if (error) throw error;
+          });
           break;
 
         case 'update_status':
           if (!action.newStatus) throw new Error('Status required');
-          const { error: statusError } = await supabase
-            .from('creatives')
-            .update({ status: action.newStatus })
-            .in('id', action.creativeIds);
-          if (statusError) throw statusError;
+          await forEachChunk(async (chunk) => {
+            const { error } = await supabase
+              .from('creatives')
+              .update({ status: action.newStatus })
+              .eq('user_id', user.id)
+              .in('id', chunk);
+            if (error) throw error;
+          });
           break;
 
-        case 'update_mapping':
+        case 'update_mapping': {
           const mappingUpdates: Record<string, unknown> = {};
           if (action.targetPlatform) mappingUpdates.platform = action.targetPlatform;
           if (action.targetMarket) mappingUpdates.market = action.targetMarket;
           if (action.targetPhase) mappingUpdates.phase_name = action.targetPhase;
-          
-          const { error: mappingError } = await supabase
-            .from('creatives')
-            .update(mappingUpdates)
-            .in('id', action.creativeIds);
-          if (mappingError) throw mappingError;
+
+          await forEachChunk(async (chunk) => {
+            const { error } = await supabase
+              .from('creatives')
+              .update(mappingUpdates)
+              .eq('user_id', user.id)
+              .in('id', chunk);
+            if (error) throw error;
+          });
           break;
+        }
 
-        case 'duplicate':
-          // Fetch originals and duplicate
-          const { data: originals, error: fetchError } = await supabase
-            .from('creatives')
-            .select('*')
-            .in('id', action.creativeIds);
-          if (fetchError) throw fetchError;
+        case 'duplicate': {
+          const originals: any[] = [];
+          await forEachChunk(async (chunk) => {
+            const { data, error } = await supabase
+              .from('creatives')
+              .select('*')
+              .eq('user_id', user.id)
+              .in('id', chunk);
+            if (error) throw error;
+            originals.push(...(data || []));
+          });
 
-          const duplicates = (originals || []).map(orig => ({
+          const duplicates = originals.map((orig) => ({
             ...orig,
             id: undefined,
             name: `${orig.name} (Copy)`,
@@ -192,32 +223,42 @@ export function useCreatives(
             updated_at: undefined as any,
           }));
 
-          const { error: insertError } = await supabase
-            .from('creatives')
-            .insert(duplicates);
-          if (insertError) throw insertError;
+          // Insert in chunks to avoid payload limits
+          const insertChunkSize = 200;
+          for (let i = 0; i < duplicates.length; i += insertChunkSize) {
+            const chunk = duplicates.slice(i, i + insertChunkSize);
+            const { error } = await supabase.from('creatives').insert(chunk);
+            if (error) throw error;
+          }
           break;
+        }
 
-        case 'move':
+        case 'move': {
           const moveUpdates: Record<string, unknown> = {};
           if (action.targetPlatform) moveUpdates.platform = action.targetPlatform;
           if (action.targetMarket) moveUpdates.market = action.targetMarket;
           if (action.targetPhase) moveUpdates.phase_name = action.targetPhase;
-          
-          const { error: moveError } = await supabase
-            .from('creatives')
-            .update(moveUpdates)
-            .in('id', action.creativeIds);
-          if (moveError) throw moveError;
+
+          await forEachChunk(async (chunk) => {
+            const { error } = await supabase
+              .from('creatives')
+              .update(moveUpdates)
+              .eq('user_id', user.id)
+              .in('id', chunk);
+            if (error) throw error;
+          });
           break;
+        }
       }
     },
     onSuccess: (_, action) => {
       queryClient.invalidateQueries({ queryKey: ['creatives'] });
       toast.success(`${action.type} completed for ${action.creativeIds.length} creative(s)`);
     },
-    onError: (error) => {
-      toast.error(`Bulk action failed: ${error.message}`);
+    onError: (error: any) => {
+      const extra = error?.details || error?.hint || error?.code;
+      const message = extra ? `${error.message} (${extra})` : error?.message || 'Unknown error';
+      toast.error(`Bulk action failed: ${message}`);
     },
   });
 
