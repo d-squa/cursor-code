@@ -414,14 +414,14 @@ export function AssignedCreativesView({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Image className="h-5 w-5" />
-            Assigned Creatives
+            Meshed Creatives
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="text-center py-8 text-muted-foreground">
             <Image className="h-12 w-12 mx-auto mb-3 opacity-50" />
-            <p>No creatives assigned to this ActiPlan yet.</p>
-            <p className="text-sm mt-1">Use the Creative Matcher to assign creatives to your campaign structure.</p>
+            <p>No creatives meshed to this ActiPlan yet.</p>
+            <p className="text-sm mt-1">Use the Creative Mesher to mesh creatives to your campaign structure.</p>
           </div>
         </CardContent>
       </Card>
@@ -433,7 +433,7 @@ export function AssignedCreativesView({
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2">
           <Image className="h-5 w-5" />
-          Assigned Creatives ({filteredAssignments.length})
+          Meshed Creatives ({filteredAssignments.length})
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">

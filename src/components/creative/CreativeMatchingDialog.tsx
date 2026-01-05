@@ -1,4 +1,4 @@
-// Main dialog for the creative-to-plan matching workflow
+// Main dialog for the creative-to-plan meshing workflow
 // Now supports using existing library creatives OR uploading new ones
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -243,11 +243,11 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
             <Wand2 className="h-5 w-5 text-primary" />
-            Creative Matcher
+            Creative Mesher
             {selectedCampaignName && <Badge variant="secondary">{selectedCampaignName}</Badge>}
           </DialogTitle>
           <DialogDescription>
-            Select creatives from your library or upload new ones, then match them to your campaign structure.
+            Select creatives from your library or upload new ones, then mesh them to your campaign structure.
           </DialogDescription>
         </DialogHeader>
 
@@ -266,7 +266,7 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
               </div>
             ) : campaigns.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                No ActiPlans found. Create one first to use the Creative Matcher.
+                No ActiPlans found. Create one first to use the Creative Mesher.
               </div>
             ) : (
               <Select value={selectedCampaignId} onValueChange={handleCampaignSelect}>

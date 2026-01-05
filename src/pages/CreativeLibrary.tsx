@@ -236,14 +236,14 @@ export default function CreativeLibrary() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Creative Library</h1>
-          <p className="text-muted-foreground">Manage and organize creatives for your campaigns</p>
+          <h1 className="text-2xl font-bold">Creative Meshing</h1>
+          <p className="text-muted-foreground">Mesh creatives with your ActiPlan structure and text assets</p>
         </div>
         <div className="flex items-center gap-2">
           {shouldFetchCreatives && <Badge variant="secondary">{creatives.length} creatives</Badge>}
           <Button variant="default" size="sm" onClick={() => navigate('/creatives/match')}>
             <Wand2 className="h-4 w-4 mr-2" />
-            Match to ActiPlan
+            Mesh to ActiPlan
           </Button>
           <Button variant="outline" size="sm" onClick={handleDownloadSampleStructure}>
             <Download className="h-4 w-4 mr-2" />
@@ -261,7 +261,7 @@ export default function CreativeLibrary() {
           </TabsTrigger>
           <TabsTrigger value="assignments" className="gap-2">
             <Layers className="h-4 w-4" />
-            Assignments
+            Meshed Creatives
           </TabsTrigger>
           <TabsTrigger value="text-assets" className="gap-2">
             <Type className="h-4 w-4" />
@@ -301,7 +301,7 @@ export default function CreativeLibrary() {
                   onClick={() => navigate(`/creatives/match?campaignId=${selectedCampaignId}`)}
                 >
                   <Wand2 className="h-4 w-4 mr-2" />
-                  Add More Creatives
+                  Mesh More Creatives
                 </Button>
               ) : null,
             })}
@@ -326,7 +326,7 @@ export default function CreativeLibrary() {
                   onClick={() => navigate(`/creatives/match?campaignId=${selectedCampaignId}`)}
                 >
                   <Wand2 className="h-4 w-4 mr-2" />
-                  Open Matcher
+                  Open Mesher
                 </Button>
               ) : null,
             })}

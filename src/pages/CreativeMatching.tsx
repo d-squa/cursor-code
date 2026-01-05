@@ -1,4 +1,4 @@
-// Creative Matching Page - Standalone page for creative-to-plan matching workflow
+// Creative Meshing Page - Standalone page for creative-to-plan meshing workflow
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -225,7 +225,7 @@ export default function CreativeMatching() {
       <div className="flex items-center justify-between px-6 py-4 border-b bg-background">
         <div className="flex items-center gap-3">
           <Wand2 className="h-5 w-5 text-primary" />
-          <h1 className="text-xl font-semibold">Creative Matcher</h1>
+          <h1 className="text-xl font-semibold">Creative Mesher</h1>
           {selectedCampaignName && <Badge variant="secondary">{selectedCampaignName}</Badge>}
         </div>
         <Button variant="ghost" onClick={handleClose}>
@@ -252,7 +252,7 @@ export default function CreativeMatching() {
               </div>
             ) : campaigns.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                No ActiPlans found. Create one first to use the Creative Matcher.
+                No ActiPlans found. Create one first to use the Creative Mesher.
               </div>
             ) : (
               <Select value={selectedCampaignId} onValueChange={handleCampaignSelect}>
