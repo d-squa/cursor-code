@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { FolderUp, FileSpreadsheet, LayoutGrid, Download, Wand2, Type, Layers, Loader2 } from 'lucide-react';
+import { FolderUp, FileSpreadsheet, LayoutGrid, Download, Wand2, Type, Layers, Loader2, LogOut, Settings, Bug } from 'lucide-react';
 import { useCreatives } from '@/hooks/useCreatives';
 import { CreativeGrid } from '@/components/creative/CreativeGrid';
 import { FolderUpload } from '@/components/creative/FolderUpload';
@@ -19,6 +19,8 @@ import { toast } from 'sonner';
 import { generateSampleTaxonomyStructure } from '@/utils/creativeValidation';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { BugReportDialog } from '@/components/BugReportDialog';
+import { WorkspaceSwitcher } from '@/components/WorkspaceSwitcher';
 
 interface Campaign {
   id: string;
@@ -27,7 +29,7 @@ interface Campaign {
 }
 
 export default function CreativeLibrary() {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const initialTab = searchParams.get('tab') || 'library';
@@ -35,6 +37,7 @@ export default function CreativeLibrary() {
   const [filters, setFilters] = useState<CreativeFilters>({});
   const [editingCreative, setEditingCreative] = useState<Creative | null>(null);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [bugDialogOpen, setBugDialogOpen] = useState(false);
 
   const shouldFetchCreatives = activeTab === 'library' || activeTab === 'folder' || activeTab === 'spreadsheet';
   const shouldFetchCampaigns = activeTab === 'assignments' || activeTab === 'text-assets';
@@ -237,25 +240,74 @@ export default function CreativeLibrary() {
   );
 
   return (
-    <div className="container mx-auto py-6 px-4 space-y-6">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/20">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Creative Mesh</h1>
-          <p className="text-muted-foreground">Weave your creative assets with ActiPlan structure and text layers</p>
+      <header className="border-b bg-card/80 backdrop-blur-sm sticky top-0 z-50 shadow-sm">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <img src="/logo.png" alt="ActiPlan" className="h-10 w-auto" />
+              <p className="text-xs text-muted-foreground hidden md:block">Cross-Platform Activation Manager</p>
+            </div>
+            <nav className="flex items-center gap-2">
+              <button
+                onClick={() => navigate("/overview")}
+                className="px-4 py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
+              >
+                Overview
+              </button>
+              <button
+                onClick={() => navigate("/actiplans")}
+                className="px-4 py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
+              >
+                ActiPlans
+              </button>
+              <button
+                onClick={() => navigate("/insights")}
+                className="px-4 py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
+              >
+                Insights
+              </button>
+              <button
+                onClick={() => navigate("/creatives")}
+                className="px-4 py-2 text-sm font-medium text-primary border-b-2 border-primary transition-colors"
+              >
+                Creative Mesh
+              </button>
+              <WorkspaceSwitcher />
+              <Button variant="ghost" size="icon" onClick={() => navigate("/settings")}>
+                <Settings className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="icon" onClick={() => setBugDialogOpen(true)}>
+                <Bug className="h-4 w-4" />
+              </Button>
+              <Button variant="ghost" size="icon" onClick={() => signOut()}>
+                <LogOut className="h-4 w-4" />
+              </Button>
+            </nav>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          {shouldFetchCreatives && <Badge variant="secondary">{creatives.length} creatives</Badge>}
-          <Button variant="default" size="sm" onClick={() => navigate('/creatives/match')}>
-            <Wand2 className="h-4 w-4 mr-2" />
-            Auto-Mesh
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleDownloadSampleStructure}>
-            <Download className="h-4 w-4 mr-2" />
-            Folder Guide
-          </Button>
+      </header>
+
+      <div className="container mx-auto py-6 px-4 space-y-6">
+        {/* Page Header */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold">Creative Mesh</h1>
+            <p className="text-muted-foreground">Weave your creative assets with ActiPlan structure and text layers</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {shouldFetchCreatives && <Badge variant="secondary">{creatives.length} creatives</Badge>}
+            <Button variant="default" size="sm" onClick={() => navigate('/creatives/match')}>
+              <Wand2 className="h-4 w-4 mr-2" />
+              Auto-Mesh
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleDownloadSampleStructure}>
+              <Download className="h-4 w-4 mr-2" />
+              Folder Guide
+            </Button>
+          </div>
         </div>
-      </div>
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange}>
@@ -360,14 +412,17 @@ export default function CreativeLibrary() {
         </TabsContent>
       </Tabs>
 
-      {/* Editor Dialog */}
-      <CreativeEditor
-        creative={editingCreative}
-        open={isEditorOpen}
-        onOpenChange={setIsEditorOpen}
-        onSave={handleSave}
-        isSaving={isUpdating}
-      />
+        {/* Editor Dialog */}
+        <CreativeEditor
+          creative={editingCreative}
+          open={isEditorOpen}
+          onOpenChange={setIsEditorOpen}
+          onSave={handleSave}
+          isSaving={isUpdating}
+        />
+      </div>
+
+      <BugReportDialog open={bugDialogOpen} onOpenChange={setBugDialogOpen} />
     </div>
   );
 }
