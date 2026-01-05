@@ -147,14 +147,34 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
     if (files.length === 0) return;
     await processFiles(files);
     toast.success(`Processed ${files.length} files`);
-  }, [processFiles]);
+    
+    // If in review step, automatically re-run matching with new assets
+    if (state.currentStep === 'review' && effectiveCampaignId) {
+      let structures = state.structures;
+      if (structures.length === 0) {
+        structures = await loadCampaignStructures(effectiveCampaignId) || [];
+      }
+      runMatching(structures);
+      toast.success('Re-meshing with new creatives...');
+    }
+  }, [processFiles, state.currentStep, state.structures, effectiveCampaignId, loadCampaignStructures, runMatching]);
 
   const handleFolderSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
     await processFiles(files);
     toast.success(`Processed ${files.length} files from folder`);
-  }, [processFiles]);
+    
+    // If in review step, automatically re-run matching with new assets
+    if (state.currentStep === 'review' && effectiveCampaignId) {
+      let structures = state.structures;
+      if (structures.length === 0) {
+        structures = await loadCampaignStructures(effectiveCampaignId) || [];
+      }
+      runMatching(structures);
+      toast.success('Re-meshing with new creatives...');
+    }
+  }, [processFiles, state.currentStep, state.structures, effectiveCampaignId, loadCampaignStructures, runMatching]);
 
   const handleCreativeToggle = useCallback((creativeId: string) => {
     setSelectedCreativeIds(prev => {
@@ -443,7 +463,7 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
               {/* Review step */}
               {state.currentStep === 'review' && (
                 <div className="space-y-3">
-                  {/* View mode toggle */}
+                  {/* View mode toggle and add more button */}
                   <div className="flex items-center justify-between">
                     <Tabs value={activeViewMode} onValueChange={(v) => setActiveViewMode(v as 'structure' | 'asset')}>
                       <TabsList className="h-8">
@@ -457,10 +477,137 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
                         </TabsTrigger>
                       </TabsList>
                     </Tabs>
-                    <div className="text-xs text-muted-foreground">
-                      {state.structureResults.filter(r => r.assignedAssets.length > 0).length} ad sets with matches
+                    <div className="flex items-center gap-3">
+                      <div className="text-xs text-muted-foreground">
+                        {state.structureResults.filter(r => r.assignedAssets.length > 0).length} ad sets with matches
+                      </div>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {
+                          // Reset to upload step but keep existing matches
+                          setSelectedCreativeIds(new Set());
+                        }}
+                        className="gap-1.5"
+                      >
+                        <Upload className="h-3.5 w-3.5" />
+                        Add More
+                      </Button>
                     </div>
                   </div>
+
+                  {/* Add more creatives panel - shown when user clicks "Add More" */}
+                  {state.currentStep === 'review' && (
+                    <Tabs value={activeSourceTab} onValueChange={(v) => setActiveSourceTab(v as 'library' | 'upload')} className="border rounded-lg p-3 bg-muted/30">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium">Add more creatives to mesh</span>
+                        <TabsList className="h-7">
+                          <TabsTrigger value="library" className="gap-1.5 text-xs px-2 h-6">
+                            <LayoutGrid className="h-3 w-3" />
+                            Library
+                          </TabsTrigger>
+                          <TabsTrigger value="upload" className="gap-1.5 text-xs px-2 h-6">
+                            <Upload className="h-3 w-3" />
+                            Upload
+                          </TabsTrigger>
+                        </TabsList>
+                      </div>
+
+                      <TabsContent value="library" className="mt-2">
+                        {isLoadingLibrary ? (
+                          <div className="flex items-center justify-center py-4">
+                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                          </div>
+                        ) : availableCreatives.length === 0 ? (
+                          <p className="text-xs text-muted-foreground text-center py-2">No more creatives in library</p>
+                        ) : (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <Checkbox 
+                                  checked={selectedCreativeIds.size === availableCreatives.length && availableCreatives.length > 0}
+                                  onCheckedChange={handleSelectAll}
+                                />
+                                <span className="text-xs text-muted-foreground">{selectedCreativeIds.size} selected</span>
+                              </div>
+                              <Button 
+                                size="sm" 
+                                variant="secondary"
+                                className="h-7 text-xs"
+                                onClick={async () => {
+                                  const selected = libraryCreatives.filter(c => selectedCreativeIds.has(c.id));
+                                  if (selected.length === 0) return;
+                                  addLibraryCreatives(selected);
+                                  // Re-run matching with new assets added
+                                  let structures = state.structures;
+                                  if (structures.length === 0 && effectiveCampaignId) {
+                                    structures = await loadCampaignStructures(effectiveCampaignId) || [];
+                                  }
+                                  runMatching(structures);
+                                  setSelectedCreativeIds(new Set());
+                                  toast.success(`Added ${selected.length} creatives and re-meshing`);
+                                }}
+                                disabled={selectedCreativeIds.size === 0}
+                              >
+                                <Wand2 className="h-3 w-3 mr-1" />
+                                Add & Mesh ({selectedCreativeIds.size})
+                              </Button>
+                            </div>
+                            <ScrollArea className="h-[120px]">
+                              <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                                {availableCreatives.slice(0, 24).map(creative => (
+                                  <div 
+                                    key={creative.id}
+                                    className={`cursor-pointer rounded border p-1.5 transition-all ${
+                                      selectedCreativeIds.has(creative.id) 
+                                        ? 'ring-2 ring-primary bg-primary/5' 
+                                        : 'hover:bg-muted/50'
+                                    }`}
+                                    onClick={() => handleCreativeToggle(creative.id)}
+                                  >
+                                    <div className="flex items-center gap-1">
+                                      <Checkbox 
+                                        checked={selectedCreativeIds.has(creative.id)}
+                                        className="h-3 w-3"
+                                      />
+                                      {creative.creativeType === 'video' ? (
+                                        <Video className="h-2.5 w-2.5 text-muted-foreground" />
+                                      ) : (
+                                        <Image className="h-2.5 w-2.5 text-muted-foreground" />
+                                      )}
+                                    </div>
+                                    <p className="text-[10px] truncate mt-1" title={creative.name}>
+                                      {creative.name}
+                                    </p>
+                                  </div>
+                                ))}
+                              </div>
+                            </ScrollArea>
+                          </div>
+                        )}
+                      </TabsContent>
+
+                      <TabsContent value="upload" className="mt-2">
+                        <div className="flex gap-2">
+                          <div 
+                            onClick={() => fileInputRef.current?.click()} 
+                            className="flex-1 border border-dashed rounded p-3 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                          >
+                            <Upload className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
+                            <p className="text-xs">Files</p>
+                          </div>
+                          <div 
+                            onClick={() => folderInputRef.current?.click()} 
+                            className="flex-1 border border-dashed rounded p-3 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                          >
+                            <FolderUp className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
+                            <p className="text-xs">Folder</p>
+                          </div>
+                        </div>
+                        {/* Hidden inputs are shared with the upload step */}
+                      </TabsContent>
+                    </Tabs>
+                  )}
 
                   {/* Structure-centric view */}
                   {activeViewMode === 'structure' && (
