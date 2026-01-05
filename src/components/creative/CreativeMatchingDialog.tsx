@@ -650,26 +650,19 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
                       }}
                       onRejectAsset={(assetId, structureId) => rejectMatch(assetId, structureId)}
                       onBroadenMatch={(structureId) => {
-                        // Find the structure and unassigned assets that could match with relaxed constraints
+                        // Find the structure
                         const structure = state.structureResults.find(r => r.structure.id === structureId)?.structure;
                         if (!structure) return;
                         
-                        // Look for unassigned assets that might match with relaxed platform/market constraints
-                        const relaxedMatches = state.unassignedAssets.filter(u => {
-                          const reasons = u.reasons.map(r => r.toLowerCase());
-                          // Check if platform or market is the blocking reason
-                          const isPlatformBlocked = reasons.some(r => 
-                            r.includes('platform') || r.includes('meta') || r.includes('tiktok') || r.includes('google')
-                          );
-                          const isMarketBlocked = reasons.some(r => r.includes('market'));
-                          return isPlatformBlocked || isMarketBlocked;
-                        });
+                        // Get ALL unassigned assets (not just those with specific blocking reasons)
+                        // and assign ALL of them to this specific structure with relaxed constraints
+                        const unassignedAssets = state.unassignedAssets;
                         
-                        if (relaxedMatches.length > 0) {
-                          // Auto-accept these as matches with lower confidence
-                          relaxedMatches.forEach(u => {
+                        if (unassignedAssets.length > 0) {
+                          // Accept ALL unassigned assets for THIS specific structure
+                          unassignedAssets.forEach(u => {
                             const match: UICreativeMatch = {
-                              structure,
+                              structure, // This is the specific structure that was clicked
                               confidenceScore: 35,
                               reasoning: ['Matched with relaxed constraints (platform/market ignored)'],
                               compatibilityIssues: [{ type: 'constraint_relaxed', severity: 'warning', message: 'Platform or market constraint was relaxed' }],
@@ -677,9 +670,9 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
                             };
                             acceptMatch(u.asset.id, match);
                           });
-                          toast.success(`Found ${relaxedMatches.length} similar creatives with relaxed constraints`);
+                          toast.success(`Assigned ${unassignedAssets.length} creatives to "${structure.adSetName}" with relaxed constraints`);
                         } else {
-                          toast.info('No additional matches found when relaxing constraints');
+                          toast.info('No unassigned creatives available to match');
                         }
                       }}
                     />
