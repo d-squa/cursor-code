@@ -189,13 +189,13 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
     });
   }, []);
 
-  const handleSelectAll = useCallback(() => {
-    if (selectedCreativeIds.size === libraryCreatives.length) {
-      setSelectedCreativeIds(new Set());
-    } else {
-      setSelectedCreativeIds(new Set(libraryCreatives.map(c => c.id)));
-    }
-  }, [libraryCreatives, selectedCreativeIds.size]);
+  const handleSelectAll = useCallback((creativeIds: string[]) => {
+    setSelectedCreativeIds(prev => {
+      const allSelected = creativeIds.length > 0 && creativeIds.every(id => prev.has(id));
+      return allSelected ? new Set() : new Set(creativeIds);
+    });
+  }, []);
+
 
   const handleUseSelectedCreatives = useCallback(async () => {
     const selected = libraryCreatives.filter(c => selectedCreativeIds.has(c.id));
@@ -225,6 +225,12 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
 
   // Filter library creatives that are not already assigned to a campaign
   const availableCreatives = libraryCreatives.filter(c => !c.campaignId);
+  const availableCreativeIds = availableCreatives.map(c => c.id);
+  const selectedAvailableCount = availableCreatives.reduce(
+    (acc, c) => acc + (selectedCreativeIds.has(c.id) ? 1 : 0),
+    0
+  );
+  const allAvailableSelected = availableCreativeIds.length > 0 && selectedAvailableCount === availableCreativeIds.length;
 
   // Text Assets step should render full-screen, not inside dialog
   if (state.currentStep === 'text_assets' && open) {
@@ -349,21 +355,21 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <Checkbox 
-                              checked={selectedCreativeIds.size === availableCreatives.length}
-                              onCheckedChange={handleSelectAll}
+                            <Checkbox
+                              checked={allAvailableSelected}
+                              onCheckedChange={() => handleSelectAll(availableCreativeIds)}
                             />
                             <span className="text-sm text-muted-foreground">
-                              {selectedCreativeIds.size} selected
+                              {selectedAvailableCount} selected
                             </span>
                           </div>
-                          <Button 
-                            size="sm" 
+                          <Button
+                            size="sm"
                             onClick={handleUseSelectedCreatives}
-                            disabled={selectedCreativeIds.size === 0}
+                            disabled={selectedAvailableCount === 0}
                           >
                             <CheckCircle2 className="h-4 w-4 mr-2" />
-                            Use Selected ({selectedCreativeIds.size})
+                            Use Selected ({selectedAvailableCount})
                           </Button>
                         </div>
                         <ScrollArea className="h-[300px] pr-4">
@@ -525,18 +531,18 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
                           <div className="space-y-2">
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
-                                <Checkbox 
-                                  checked={selectedCreativeIds.size === availableCreatives.length && availableCreatives.length > 0}
-                                  onCheckedChange={handleSelectAll}
+                                <Checkbox
+                                  checked={allAvailableSelected}
+                                  onCheckedChange={() => handleSelectAll(availableCreativeIds)}
                                 />
-                                <span className="text-xs text-muted-foreground">{selectedCreativeIds.size} selected</span>
+                                <span className="text-xs text-muted-foreground">{selectedAvailableCount} selected</span>
                               </div>
-                              <Button 
-                                size="sm" 
+                              <Button
+                                size="sm"
                                 variant="secondary"
                                 className="h-7 text-xs"
                                 onClick={async () => {
-                                  const selected = libraryCreatives.filter(c => selectedCreativeIds.has(c.id));
+                                  const selected = availableCreatives.filter(c => selectedCreativeIds.has(c.id));
                                   if (selected.length === 0) return;
                                   addLibraryCreatives(selected);
                                   // Re-run matching with new assets added
@@ -548,26 +554,27 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
                                   setSelectedCreativeIds(new Set());
                                   toast.success(`Added ${selected.length} creatives and re-meshing`);
                                 }}
-                                disabled={selectedCreativeIds.size === 0}
+                                disabled={selectedAvailableCount === 0}
                               >
                                 <Wand2 className="h-3 w-3 mr-1" />
-                                Add & Mesh ({selectedCreativeIds.size})
+                                Add & Mesh ({selectedAvailableCount})
                               </Button>
                             </div>
+
                             <ScrollArea className="h-[120px]">
                               <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
                                 {availableCreatives.slice(0, 24).map(creative => (
-                                  <div 
+                                  <div
                                     key={creative.id}
                                     className={`cursor-pointer rounded border p-1.5 transition-all ${
-                                      selectedCreativeIds.has(creative.id) 
-                                        ? 'ring-2 ring-primary bg-primary/5' 
+                                      selectedCreativeIds.has(creative.id)
+                                        ? 'ring-2 ring-primary bg-primary/5'
                                         : 'hover:bg-muted/50'
                                     }`}
                                     onClick={() => handleCreativeToggle(creative.id)}
                                   >
                                     <div className="flex items-center gap-1">
-                                      <Checkbox 
+                                      <Checkbox
                                         checked={selectedCreativeIds.has(creative.id)}
                                         onCheckedChange={() => handleCreativeToggle(creative.id)}
                                         onClick={(e) => e.stopPropagation()}
@@ -587,6 +594,7 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
                               </div>
                             </ScrollArea>
                           </div>
+
                         )}
                       </TabsContent>
 

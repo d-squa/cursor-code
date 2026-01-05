@@ -497,13 +497,13 @@ export function useCreativeMatching(campaignId?: string) {
       originalFile: null as any, // No file for library creatives
       fileName: creative.name,
       filePath: creative.folderPath || creative.name,
-      mediaType: creative.creativeType === 'video' ? 'video' : 'image' as AssetMediaType,
+      mediaType: (creative.creativeType === 'video' ? 'video' : 'image') as AssetMediaType,
       technicalAttributes: {
-        width: creative.width || 0,
-        height: creative.height || 0,
-        aspectRatio: creative.aspectRatio || '',
-        duration: creative.durationSeconds,
-        fileSize: creative.fileSizeBytes || 0,
+        width: typeof creative.width === 'number' ? creative.width : undefined,
+        height: typeof creative.height === 'number' ? creative.height : undefined,
+        aspectRatio: typeof creative.aspectRatio === 'string' ? creative.aspectRatio : undefined,
+        duration: typeof creative.durationSeconds === 'number' ? creative.durationSeconds : undefined,
+        fileSize: typeof creative.fileSizeBytes === 'number' ? creative.fileSizeBytes : 0,
       },
       hardConstraints: {
         market: creative.market,
@@ -524,7 +524,7 @@ export function useCreativeMatching(campaignId?: string) {
       assets: [...prev.assets, ...digestedAssets],
       currentStep: 'match',
     }));
-    
+
     return digestedAssets;
   }, []);
 
@@ -1713,9 +1713,11 @@ function isValidAdDimensions(
   compatibleFormats?: Array<{ platform: string; format: string; placement: string }>;
 } {
   if (!width || !height) {
-    return { valid: false, reason: 'No dimensions detected in metadata' };
+    // Missing metadata shouldn't block meshing (common for existing library creatives).
+    // We skip strict format validation and let other signals (platform/market/etc.) drive matching.
+    return { valid: true, compatibleFormats: [] };
   }
-  
+
   // Use the comprehensive platform ad specs validation
   const validation = validateCreativeForAds(
     width, 
@@ -1776,37 +1778,52 @@ function matchAssetToStructure(
   // Validate dimensions from metadata BEFORE any other matching logic
   // Also check platform-specific format compatibility
   const { width, height } = asset.technicalAttributes;
-  const dimensionCheck = isValidAdDimensions(width, height, asset.mediaType, structure.platform);
-  
-  if (!dimensionCheck.valid) {
-    blockingReasons.push(`Invalid ad dimensions: ${dimensionCheck.reason}`);
-    return { isMatch: false, score: 0, matchedCriteria, blockingReasons, issues };
-  }
-  
-  // Check if dimensions are compatible with this specific platform's ad formats
-  const platformFormats = findCompatibleFormats(
-    width || 0, 
-    height || 0, 
-    asset.mediaType === 'video' ? 'video' : 'image',
-    structure.platform
-  );
-  
-  if (platformFormats.length === 0) {
-    blockingReasons.push(`Dimensions ${width}x${height} not compatible with ${structure.platform.toUpperCase()} ad formats`);
-    return { isMatch: false, score: 0, matchedCriteria, blockingReasons, issues };
-  }
-  
-  // Dimensions are valid for this platform, add to matched criteria with format details
-  const formatNames = platformFormats.map(f => f.format.name).slice(0, 2).join(', ');
-  const exactMatch = platformFormats.some(f => f.compatibility === 'exact');
-  matchedCriteria.push({ 
-    criterion: 'Dimensions', 
-    reason: `${exactMatch ? 'Exact' : 'Compatible'} format for ${structure.platform}: ${formatNames} (${width}x${height})` 
-  });
-  
-  // Bonus score for exact dimension match
-  if (exactMatch) {
-    score += 10;
+
+  // If we don't have dimensions (common for older library creatives), don't hard-block.
+  // Continue matching using taxonomy/metadata signals and surface a warning instead.
+  if (!width || !height) {
+    issues.push({
+      type: 'dimensions_missing',
+      severity: 'warning',
+      message: 'No dimensions detected for this creative; skipping format validation.',
+    });
+    matchedCriteria.push({
+      criterion: 'Dimensions',
+      reason: 'Skipped (no metadata)',
+    });
+  } else {
+    const dimensionCheck = isValidAdDimensions(width, height, asset.mediaType, structure.platform);
+
+    if (!dimensionCheck.valid) {
+      blockingReasons.push(`Invalid ad dimensions: ${dimensionCheck.reason}`);
+      return { isMatch: false, score: 0, matchedCriteria, blockingReasons, issues };
+    }
+
+    // Check if dimensions are compatible with this specific platform's ad formats
+    const platformFormats = findCompatibleFormats(
+      width,
+      height,
+      asset.mediaType === 'video' ? 'video' : 'image',
+      structure.platform
+    );
+
+    if (platformFormats.length === 0) {
+      blockingReasons.push(`Dimensions ${width}x${height} not compatible with ${structure.platform.toUpperCase()} ad formats`);
+      return { isMatch: false, score: 0, matchedCriteria, blockingReasons, issues };
+    }
+
+    // Dimensions are valid for this platform, add to matched criteria with format details
+    const formatNames = platformFormats.map(f => f.format.name).slice(0, 2).join(', ');
+    const exactMatch = platformFormats.some(f => f.compatibility === 'exact');
+    matchedCriteria.push({
+      criterion: 'Dimensions',
+      reason: `${exactMatch ? 'Exact' : 'Compatible'} format for ${structure.platform}: ${formatNames} (${width}x${height})`,
+    });
+
+    // Bonus score for exact dimension match
+    if (exactMatch) {
+      score += 10;
+    }
   }
 
   // === HARD CONSTRAINTS (blocking) ===
