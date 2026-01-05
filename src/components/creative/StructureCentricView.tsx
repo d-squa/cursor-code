@@ -93,8 +93,8 @@ function MatchCriteriaList({ criteria }: { criteria: string[] }) {
 function SaveStatusIndicator({ status, error }: { status: SaveStatus; error?: string }) {
   const config: Record<SaveStatus, { icon: React.ReactNode; label: string; className: string }> = {
     pending: { 
-      icon: <div className="h-3 w-3 rounded-full border-2 border-muted-foreground/40" />, 
-      label: 'Waiting', 
+      icon: <div className="h-3 w-3 rounded-full border-2 border-muted-foreground/60 border-dashed animate-pulse" />, 
+      label: 'Queued', 
       className: 'text-muted-foreground' 
     },
     uploading: { 
@@ -252,7 +252,6 @@ function StructureCard({
                   const isAccepted = isAssetAccepted(asset.id);
                   const compositeKey = `${asset.id}:${structure.id}`;
                   const progressItem = saveProgress?.get(compositeKey);
-                  const isSaving = progressItem && progressItem.status !== 'pending';
                   
                   return (
                     <div 
@@ -305,8 +304,8 @@ function StructureCard({
                       </div>
                       <MatchConfidenceIndicator score={confidenceScore} size="sm" />
                       
-                      {/* Show save progress if saving is in progress */}
-                      {progressItem && isSaving ? (
+                      {/* Show save progress if any progress exists */}
+                      {progressItem ? (
                         <SaveStatusIndicator status={progressItem.status} error={progressItem.error} />
                       ) : isAccepted ? (
                         <Badge className="bg-emerald-500 shrink-0">
@@ -776,7 +775,6 @@ function AssignedAssetsPanel({
                           const isAccepted = acceptedMatches.has(`${asset.id}:${structure.id}`);
                           const compositeKey = `${asset.id}:${structure.id}`;
                           const progressItem = saveProgress?.get(compositeKey);
-                          const isSaving = progressItem && progressItem.status !== 'pending';
                           
                           return (
                             <div 
@@ -829,8 +827,8 @@ function AssignedAssetsPanel({
                               </div>
                               <MatchConfidenceIndicator score={confidenceScore} size="sm" />
                               
-                              {/* Show save progress if saving is in progress */}
-                              {progressItem && isSaving ? (
+                              {/* Show save progress if any progress exists */}
+                              {progressItem ? (
                                 <SaveStatusIndicator status={progressItem.status} error={progressItem.error} />
                               ) : isAccepted ? (
                                 <Badge className="bg-emerald-500 shrink-0">
