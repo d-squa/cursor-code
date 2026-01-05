@@ -651,6 +651,7 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
                       unassignedAssets={state.unassignedAssets}
                       acceptedMatches={state.acceptedMatches}
                       relaxedStructureIds={relaxedSuggestionStructureIds}
+                      saveProgress={state.saveProgress}
                       onAcceptAsset={(assetId, structure) => {
                         // Build a UICreativeMatch from the structure result
                         const structureResult = state.structureResults.find(r => r.structure.id === structure.id);

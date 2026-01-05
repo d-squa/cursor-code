@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MatchConfidenceIndicator } from './MatchConfidenceIndicator';
-import type { StructureMatchResult, UnassignedAsset, DigestedAsset, UICreativeMatch, CampaignStructure } from '@/hooks/useCreativeMatching';
+import type { StructureMatchResult, UnassignedAsset, DigestedAsset, UICreativeMatch, CampaignStructure, SaveProgressItem, SaveStatus } from '@/hooks/useCreativeMatching';
 import { findCompatibleFormats } from '@/utils/platformAdSpecs';
 
 // Suggestion for empty ad sets
@@ -42,6 +42,7 @@ interface StructureCentricViewProps {
   unassignedAssets: UnassignedAsset[];
   acceptedMatches: Map<string, UICreativeMatch>;
   relaxedStructureIds?: Set<string>;
+  saveProgress?: Map<string, SaveProgressItem>;
   onAcceptAsset: (assetId: string, structure: StructureMatchResult['structure']) => void;
   onRejectAsset: (assetId: string, structureId: string) => void;
   onBroadenMatch?: (structureId: string) => void;
@@ -88,15 +89,68 @@ function MatchCriteriaList({ criteria }: { criteria: string[] }) {
   );
 }
 
+// Save status indicator component
+function SaveStatusIndicator({ status, error }: { status: SaveStatus; error?: string }) {
+  const config: Record<SaveStatus, { icon: React.ReactNode; label: string; className: string }> = {
+    pending: { 
+      icon: <div className="h-3 w-3 rounded-full border-2 border-muted-foreground/40" />, 
+      label: 'Waiting', 
+      className: 'text-muted-foreground' 
+    },
+    uploading: { 
+      icon: <div className="h-3 w-3 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />, 
+      label: 'Uploading', 
+      className: 'text-blue-500' 
+    },
+    saving: { 
+      icon: <div className="h-3 w-3 rounded-full border-2 border-amber-500 border-t-transparent animate-spin" />, 
+      label: 'Saving', 
+      className: 'text-amber-500' 
+    },
+    done: { 
+      icon: <Check className="h-3 w-3" />, 
+      label: 'Saved', 
+      className: 'text-emerald-500' 
+    },
+    error: { 
+      icon: <AlertCircle className="h-3 w-3" />, 
+      label: 'Error', 
+      className: 'text-destructive' 
+    },
+  };
+
+  const { icon, label, className } = config[status];
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className={cn("flex items-center gap-1 shrink-0", className)}>
+            {icon}
+            <span className="text-[10px] font-medium">{label}</span>
+          </div>
+        </TooltipTrigger>
+        {status === 'error' && error && (
+          <TooltipContent side="left" className="text-xs max-w-[200px]">
+            {error}
+          </TooltipContent>
+        )}
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
 function StructureCard({ 
   result, 
   acceptedMatches,
+  saveProgress,
   onAcceptAsset, 
   onRejectAsset,
   onAcceptAll
 }: { 
   result: StructureMatchResult;
   acceptedMatches: Map<string, UICreativeMatch>;
+  saveProgress?: Map<string, SaveProgressItem>;
   onAcceptAsset: (assetId: string) => void;
   onRejectAsset: (assetId: string) => void;
   onAcceptAll: () => void;
@@ -196,13 +250,18 @@ function StructureCard({
                   const { asset, confidenceScore, reasoning, matchedCriteria, issues } = assignedAsset;
                   // Use composite key to check if this specific asset-structure pair is accepted
                   const isAccepted = isAssetAccepted(asset.id);
+                  const compositeKey = `${asset.id}:${structure.id}`;
+                  const progressItem = saveProgress?.get(compositeKey);
+                  const isSaving = progressItem && progressItem.status !== 'pending';
                   
                   return (
                     <div 
                       key={asset.id}
                       className={cn(
                         "p-2 rounded-lg border flex items-center gap-3",
-                        isAccepted ? "bg-emerald-500/10 border-emerald-500/30" : "bg-muted/30"
+                        isAccepted ? "bg-emerald-500/10 border-emerald-500/30" : "bg-muted/30",
+                        progressItem?.status === 'done' && "bg-emerald-500/15 border-emerald-500/50",
+                        progressItem?.status === 'error' && "bg-destructive/10 border-destructive/30"
                       )}
                     >
                       <AssetThumbnail asset={asset} />
@@ -245,7 +304,11 @@ function StructureCard({
                         <MatchCriteriaList criteria={matchedCriteria} />
                       </div>
                       <MatchConfidenceIndicator score={confidenceScore} size="sm" />
-                      {isAccepted ? (
+                      
+                      {/* Show save progress if saving is in progress */}
+                      {progressItem && isSaving ? (
+                        <SaveStatusIndicator status={progressItem.status} error={progressItem.error} />
+                      ) : isAccepted ? (
                         <Badge className="bg-emerald-500 shrink-0">
                           <Check className="h-3 w-3 mr-1" />
                           Accepted
@@ -562,12 +625,14 @@ function EmptyAdSetsPanel({
 function AssignedAssetsPanel({ 
   structureResults, 
   acceptedMatches,
+  saveProgress,
   onAcceptAsset,
   onRejectAsset,
   onAcceptAll
 }: { 
   structureResults: StructureMatchResult[];
   acceptedMatches: Map<string, UICreativeMatch>;
+  saveProgress?: Map<string, SaveProgressItem>;
   onAcceptAsset: (assetId: string, structure: StructureMatchResult['structure']) => void;
   onRejectAsset: (assetId: string, structureId: string) => void;
   onAcceptAll: () => void;
@@ -709,13 +774,18 @@ function AssignedAssetsPanel({
                         {assignedAssets.map((assignedAsset) => {
                           const { asset, confidenceScore, reasoning, matchedCriteria, issues } = assignedAsset;
                           const isAccepted = acceptedMatches.has(`${asset.id}:${structure.id}`);
+                          const compositeKey = `${asset.id}:${structure.id}`;
+                          const progressItem = saveProgress?.get(compositeKey);
+                          const isSaving = progressItem && progressItem.status !== 'pending';
                           
                           return (
                             <div 
                               key={asset.id}
                               className={cn(
                                 "p-2 rounded-lg border flex items-center gap-3",
-                                isAccepted ? "bg-emerald-500/10 border-emerald-500/30" : "bg-muted/30"
+                                isAccepted ? "bg-emerald-500/10 border-emerald-500/30" : "bg-muted/30",
+                                progressItem?.status === 'done' && "bg-emerald-500/15 border-emerald-500/50",
+                                progressItem?.status === 'error' && "bg-destructive/10 border-destructive/30"
                               )}
                             >
                               <AssetThumbnail asset={asset} />
@@ -758,7 +828,11 @@ function AssignedAssetsPanel({
                                 <MatchCriteriaList criteria={matchedCriteria} />
                               </div>
                               <MatchConfidenceIndicator score={confidenceScore} size="sm" />
-                              {isAccepted ? (
+                              
+                              {/* Show save progress if saving is in progress */}
+                              {progressItem && isSaving ? (
+                                <SaveStatusIndicator status={progressItem.status} error={progressItem.error} />
+                              ) : isAccepted ? (
                                 <Badge className="bg-emerald-500 shrink-0">
                                   <Check className="h-3 w-3 mr-1" />
                                   Accepted
@@ -986,6 +1060,7 @@ export function StructureCentricView({
   unassignedAssets,
   acceptedMatches,
   relaxedStructureIds,
+  saveProgress,
   onAcceptAsset,
   onRejectAsset,
   onBroadenMatch,
@@ -1171,8 +1246,43 @@ export function StructureCentricView({
     return map;
   }, [suggestions]);
 
+  // Calculate save progress stats
+  const saveProgressStats = useMemo(() => {
+    if (!saveProgress || saveProgress.size === 0) return null;
+    const items = Array.from(saveProgress.values());
+    const total = items.length;
+    const done = items.filter(i => i.status === 'done').length;
+    const errors = items.filter(i => i.status === 'error').length;
+    const inProgress = items.filter(i => i.status === 'uploading' || i.status === 'saving').length;
+    const pending = items.filter(i => i.status === 'pending').length;
+    return { total, done, errors, inProgress, pending };
+  }, [saveProgress]);
+
   return (
     <div className="space-y-4">
+      {/* Save progress banner when saving */}
+      {saveProgressStats && (saveProgressStats.inProgress > 0 || saveProgressStats.pending > 0) && (
+        <div className="flex items-center gap-3 p-3 rounded-lg border bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800">
+          <div className="h-4 w-4 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
+          <div className="flex-1">
+            <div className="text-sm font-medium text-blue-700 dark:text-blue-300">
+              Saving creatives...
+            </div>
+            <div className="text-xs text-blue-600 dark:text-blue-400">
+              {saveProgressStats.done} of {saveProgressStats.total} complete
+              {saveProgressStats.errors > 0 && (
+                <span className="text-destructive ml-2">• {saveProgressStats.errors} errors</span>
+              )}
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+              {Math.round((saveProgressStats.done / saveProgressStats.total) * 100)}%
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Summary header */}
       <div className="flex items-center gap-4 text-sm pb-3 border-b">
         <div>
@@ -1207,6 +1317,7 @@ export function StructureCentricView({
           <AssignedAssetsPanel
             structureResults={sortedResults}
             acceptedMatches={acceptedMatches}
+            saveProgress={saveProgress}
             onAcceptAsset={onAcceptAsset}
             onRejectAsset={onRejectAsset}
             onAcceptAll={() => {
