@@ -44,7 +44,6 @@ export default function CreativeMatching() {
   // Library creatives state
   const [libraryCreatives, setLibraryCreatives] = useState<Creative[]>([]);
   const [selectedCreativeIds, setSelectedCreativeIds] = useState<Set<string>>(new Set());
-  const [relaxedSuggestionStructureIds, setRelaxedSuggestionStructureIds] = useState<Set<string>>(new Set());
   const [isLoadingLibrary, setIsLoadingLibrary] = useState(false);
 
   const effectiveCampaignId = selectedCampaignId ?? initialCampaignId;
@@ -452,7 +451,6 @@ export default function CreativeMatching() {
                     structureResults={state.structureResults}
                     unassignedAssets={state.unassignedAssets}
                     acceptedMatches={state.acceptedMatches}
-                    relaxedStructureIds={relaxedSuggestionStructureIds}
                     saveProgress={state.saveProgress}
                     onAcceptAsset={(assetId, structure) => {
                       const structureResult = state.structureResults.find(r => r.structure.id === structure.id);
@@ -480,16 +478,6 @@ export default function CreativeMatching() {
                       }
                     }}
                     onRejectAsset={(assetId, structureId) => rejectMatch(assetId, structureId)}
-                    onBroadenMatch={(structureId) => {
-                      const structure = state.structureResults.find(r => r.structure.id === structureId)?.structure;
-                      if (!structure) return;
-                      setRelaxedSuggestionStructureIds(prev => {
-                        const next = new Set(prev);
-                        next.add(structureId);
-                        return next;
-                      });
-                      toast.success(`Broadened suggestions for "${structure.adSetName}"`);
-                    }}
                   />
                 )}
 
