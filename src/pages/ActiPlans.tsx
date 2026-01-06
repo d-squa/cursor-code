@@ -1018,11 +1018,14 @@ export default function ActiPlans() {
           <TabsTrigger value="awaiting_approval">Awaiting Approval</TabsTrigger>
           <TabsTrigger value="approved">Approved</TabsTrigger>
           <TabsTrigger value="live">Live</TabsTrigger>
+          <TabsTrigger value="pushed_to_dsp">Pushed to DSP</TabsTrigger>
+          <TabsTrigger value="partially_pushed">Partially Pushed</TabsTrigger>
+          <TabsTrigger value="push_failed">Push Failed</TabsTrigger>
           <TabsTrigger value="under_modification">Under Modification</TabsTrigger>
           <TabsTrigger value="rejected">Rejected</TabsTrigger>
         </TabsList>
 
-        {["all", "draft", "awaiting_approval", "approved", "live", "under_modification", "rejected"].map((status) => (
+        {["all", "draft", "awaiting_approval", "approved", "live", "pushed_to_dsp", "partially_pushed", "push_failed", "under_modification", "rejected"].map((status) => (
           <TabsContent key={status} value={status} className="space-y-4">
             {filterCampaigns(status).length === 0 ? (
               <Card>
