@@ -2658,7 +2658,26 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           } else if (assignments && assignments.length > 0) {
             console.log(`📦 Found ${assignments.length} assigned creatives for this ad set`);
             
-            for (const assignment of assignments) {
+            // ============= BATCHED CREATIVE PROCESSING =============
+            // Process creatives in small batches to avoid memory exhaustion
+            const CREATIVE_BATCH_SIZE = 3;
+            const CREATIVE_BATCH_DELAY_MS = 1000; // Allow GC between batches
+            
+            // Filter to only pending assignments to skip already-processed ones
+            const pendingAssignments = assignments.filter((a: any) => 
+              a.status !== 'pushed' && a.status !== 'error'
+            );
+            
+            console.log(`📦 Processing ${pendingAssignments.length} pending assignments in batches of ${CREATIVE_BATCH_SIZE}`);
+            
+            for (let batchStart = 0; batchStart < pendingAssignments.length; batchStart += CREATIVE_BATCH_SIZE) {
+              const batchEnd = Math.min(batchStart + CREATIVE_BATCH_SIZE, pendingAssignments.length);
+              const batch = pendingAssignments.slice(batchStart, batchEnd);
+              
+              console.log(`📦 Processing creative batch ${Math.floor(batchStart / CREATIVE_BATCH_SIZE) + 1}/${Math.ceil(pendingAssignments.length / CREATIVE_BATCH_SIZE)} (${batch.length} items)`);
+              
+              // Process each creative in the batch sequentially to manage memory
+              for (const assignment of batch) {
               let creative = assignment.creative as any;
               if (!creative) {
                 console.warn(`⚠️ Creative not found for assignment ${assignment.id}`);
@@ -2996,7 +3015,14 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
                   error_message: null,
                 })
                 .eq('id', assignment.id);
-            }
+              } // End of assignment loop within batch
+              
+              // Delay between batches to allow garbage collection
+              if (batchEnd < pendingAssignments.length) {
+                console.log(`⏳ Waiting ${CREATIVE_BATCH_DELAY_MS}ms before next batch...`);
+                await new Promise(resolve => setTimeout(resolve, CREATIVE_BATCH_DELAY_MS));
+              }
+            } // End of batch loop
           } else {
             console.log(`ℹ️ No creatives assigned for ${market.name}/${phase.name}`);
           }
