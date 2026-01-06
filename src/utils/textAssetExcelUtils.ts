@@ -209,6 +209,9 @@ export async function parseTextAssetExcel(
               if (columnIndices.description !== undefined) {
                 updates.description = String(dataRow[columnIndices.description] || '');
               }
+              if (columnIndices.caption !== undefined) {
+                updates.caption = String(dataRow[columnIndices.caption] || '');
+              }
               if (columnIndices.destinationUrl !== undefined) {
                 updates.destinationUrl = String(dataRow[columnIndices.destinationUrl] || '');
               }
