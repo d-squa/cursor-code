@@ -2709,6 +2709,7 @@ export function PhaseScheduler({
                             publisherPlatforms={phase.publisherPlatforms || []}
                             positions={phase.positions || {}}
                             advantagePlusPlacements={phase.advantagePlusPlacements}
+                            placementPreset={phase.placementPreset}
                             onPublisherPlatformsChange={(publishers) => 
                               updatePhaseField(phase.id, "publisherPlatforms", publishers)
                             }
@@ -2718,12 +2719,53 @@ export function PhaseScheduler({
                             onAdvantagePlusPlacementsChange={(enabled) =>
                               updatePhaseField(phase.id, "advantagePlusPlacements", enabled)
                             }
+                            onPlacementPresetChange={(preset) =>
+                              updatePhaseField(phase.id, "placementPreset", preset)
+                            }
                             onBatchUpdate={(updates) => 
                               updatePhaseFields(phase.id, updates)
                             }
                           />
                         </div>
                       </SplittableSection>
+
+                      {/* Ad Format Split Option - Meta only */}
+                      {platformName.includes("Meta") && (
+                        <SplittableSection
+                          dimension="ad_format"
+                          dimensionLabel="Ad Format"
+                          currentSplitDimension={phase.adSetSplitDimension}
+                          onSplitClick={(dim, useCBO) => {
+                            const newDimension = dim === 'none' ? undefined : dim;
+                            const newAdSets = newDimension ? createInitialAdSets(dim, phase.name, {
+                              platformId: platformId || 'meta',
+                              availableOptimizationGoals: getOptimizationGoalsForPhase(phase.objective || "").map(g => ({ value: g.value, label: g.label })),
+                              currentGender: phase.targeting?.genders?.[0] || basicTargeting?.genders?.[0],
+                              currentAgeMin: phase.targeting?.ageMin ?? basicTargeting?.ageMin,
+                              currentAgeMax: phase.targeting?.ageMax ?? basicTargeting?.ageMax,
+                              currentDevices: phase.targeting?.devices || basicTargeting?.devices,
+                              currentLanguages: phase.targeting?.languages || basicTargeting?.languages,
+                              currentOptimizationGoal: phase.optimizationGoal,
+                            }) : undefined;
+                            updatePhaseFields(phase.id, { 
+                              adSetSplitDimension: newDimension,
+                              adSets: newAdSets,
+                              useCBO: useCBO,
+                            });
+                            // Trigger scroll to split manager
+                            if (newDimension) {
+                              setScrollToSplitPhaseId(phase.id);
+                            }
+                          }}
+                        >
+                          <div className="p-3 border rounded-md bg-muted/30">
+                            <p className="text-xs text-muted-foreground">
+                              Split by ad format to test different creative placements (Feed vs Stories, Carousel vs Single).
+                              This helps optimize creative matching.
+                            </p>
+                          </div>
+                        </SplittableSection>
+                      )}
 
                       {/* TikTok Advanced Settings - Platform-specific */}
                       {platformId?.toLowerCase() === 'tiktok' && (

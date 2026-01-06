@@ -46,6 +46,7 @@ interface AdSetSplitManagerProps {
 const DIMENSION_LABELS: Record<AdSetSplitDimension, string> = {
   none: "None",
   placement: "Placement",
+  ad_format: "Ad Format",
   optimization_goal: "Optimization Goal",
   audience: "Audience",
   audience_selection: "Audience Selection",
@@ -60,6 +61,7 @@ const DIMENSION_LABELS: Record<AdSetSplitDimension, string> = {
 const DIMENSION_TAXONOMY: Record<AdSetSplitDimension, string> = {
   none: "",
   placement: "PLMT",
+  ad_format: "FMT",
   optimization_goal: "OPT",
   audience: "AUD",
   audience_selection: "AUDSEL",
@@ -390,6 +392,14 @@ export function AdSetSplitManager({
     ],
   };
 
+  // Ad format options for splitting
+  const AD_FORMAT_OPTIONS = [
+    { value: "in_feed", label: "In-Feed" },
+    { value: "stories", label: "Stories" },
+    { value: "in_feed_carousel", label: "In-Feed Carousel" },
+    { value: "story_carousel", label: "Story Carousel" },
+  ];
+
   // Get default value based on dimension and current phase values
   function getDefaultDimensionValue(dim: AdSetSplitDimension, excludeValues: Array<string | { min: number; max: number }> = []): string | string[] | number | { min: number; max: number } {
     const isTikTok = platformId === 'tiktok';
@@ -402,6 +412,9 @@ export function AdSetSplitManager({
         }
         const unusedPlacement = META_PUBLISHER_OPTIONS.find(p => !excludeValues.includes(p.value));
         return unusedPlacement?.value || META_PUBLISHER_OPTIONS[0]?.value || "facebook";
+      case "ad_format":
+        const unusedFormat = AD_FORMAT_OPTIONS.find(f => !excludeValues.includes(f.value));
+        return unusedFormat?.value || AD_FORMAT_OPTIONS[0]?.value || "in_feed";
       case "optimization_goal":
         const unusedGoal = availableOptimizationGoals.find(g => !excludeValues.includes(g.value));
         return unusedGoal?.value || availableOptimizationGoals[0]?.value || "";
@@ -458,6 +471,9 @@ export function AdSetSplitManager({
         return { countries: Array.isArray(value) ? value : [value as string] };
       case "optimization_goal":
         return { optimizationGoal: value as string };
+      case "ad_format":
+        // Ad format affects placement preset for taxonomy and creative matching
+        return { placementPreset: value as string };
       case "age":
         const ageVal = value as { min: number; max: number };
         return { ageMin: ageVal.min, ageMax: ageVal.max };
@@ -1013,6 +1029,30 @@ export function AdSetSplitManager({
               </p>
             )}
           </div>
+        );
+
+      case "ad_format":
+        // Ad format split - select from preset placement formats
+        const adFormatValue = adSet.placementPreset || adSet.dimensionValue as string || "";
+        return (
+          <Select
+            value={adFormatValue}
+            onValueChange={(value) => updateAdSet(adSet.id, { 
+              dimensionValue: value,
+              placementPreset: value,
+            })}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select ad format" />
+            </SelectTrigger>
+            <SelectContent>
+              {AD_FORMAT_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         );
 
       default:

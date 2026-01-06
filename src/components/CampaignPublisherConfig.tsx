@@ -1,9 +1,16 @@
-import { useId } from "react";
+import { useId, useMemo } from "react";
 import { Label } from "@/components/ui/label";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Info, Sparkles } from "lucide-react";
+import { Info } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { PlacementPresetSelector } from "./PlacementPresetSelector";
+import { 
+  MetaPlacementPreset, 
+  detectPlacementPreset, 
+  applyPlacementPreset,
+  getPlacementPreset 
+} from "@/utils/metaPlacementPresets";
 
 interface CampaignPublisherConfigProps {
   platformName: string;
@@ -16,6 +23,7 @@ interface CampaignPublisherConfigProps {
     threads?: string[];
   };
   advantagePlusPlacements?: boolean;
+  placementPreset?: MetaPlacementPreset;
   onPublisherPlatformsChange: (platforms: string[]) => void;
   onPositionsChange: (positions: {
     facebook?: string[];
@@ -25,6 +33,7 @@ interface CampaignPublisherConfigProps {
     threads?: string[];
   }) => void;
   onAdvantagePlusPlacementsChange?: (enabled: boolean) => void;
+  onPlacementPresetChange?: (preset: MetaPlacementPreset) => void;
   onBatchUpdate?: (updates: Record<string, any>) => void;
 }
 
@@ -50,9 +59,11 @@ export function CampaignPublisherConfig({
   publisherPlatforms,
   positions,
   advantagePlusPlacements = false,
+  placementPreset,
   onPublisherPlatformsChange,
   onPositionsChange,
   onAdvantagePlusPlacementsChange,
+  onPlacementPresetChange,
   onBatchUpdate,
 }: CampaignPublisherConfigProps) {
   const getAvailablePublisherPlatforms = () => {
@@ -74,18 +85,59 @@ export function CampaignPublisherConfig({
   const availablePlacements = getPlacements();
   const radioName = useId();
 
-  // Note: Auto-initialization removed - PhaseScheduler now handles applying account defaults
-  // This component should only display and update what it receives, not auto-initialize
+  // Detect current preset from state
+  const currentPreset = useMemo(() => {
+    if (placementPreset) return placementPreset;
+    return detectPlacementPreset(publisherPlatforms, positions, advantagePlusPlacements);
+  }, [placementPreset, publisherPlatforms, positions, advantagePlusPlacements]);
+
+  // Handle preset change
+  const handlePresetChange = (preset: MetaPlacementPreset) => {
+    const config = applyPlacementPreset(preset);
+    
+    if (onBatchUpdate) {
+      onBatchUpdate({
+        placementPreset: preset,
+        advantagePlusPlacements: config.advantagePlusPlacements,
+        publisherPlatforms: config.publisherPlatforms,
+        positions: config.positions,
+      });
+    } else {
+      onPlacementPresetChange?.(preset);
+      onAdvantagePlusPlacementsChange?.(config.advantagePlusPlacements);
+      onPublisherPlatformsChange(config.publisherPlatforms);
+      onPositionsChange(config.positions);
+    }
+  };
 
   if (availablePublisherPlatforms.length === 0) {
     return null;
   }
 
   const updatePositions = (publisher: string, selectedPositions: string[]) => {
-    onPositionsChange({
-      ...positions,
-      [publisher]: selectedPositions,
-    });
+    // When manually updating, switch to custom preset
+    if (currentPreset !== 'custom') {
+      if (onBatchUpdate) {
+        onBatchUpdate({
+          placementPreset: 'custom',
+          positions: {
+            ...positions,
+            [publisher]: selectedPositions,
+          },
+        });
+      } else {
+        onPlacementPresetChange?.('custom');
+        onPositionsChange({
+          ...positions,
+          [publisher]: selectedPositions,
+        });
+      }
+    } else {
+      onPositionsChange({
+        ...positions,
+        [publisher]: selectedPositions,
+      });
+    }
   };
 
   const togglePublisher = (publisher: string) => {
@@ -96,128 +148,66 @@ export function CampaignPublisherConfig({
       updated = publisherPlatforms.filter(p => p !== publisher);
       const updatedPositions = { ...positions };
       delete updatedPositions[publisher as keyof typeof positions];
-      onPositionsChange(updatedPositions);
+      
+      // Switch to custom preset when manually modifying
+      if (onBatchUpdate) {
+        onBatchUpdate({
+          placementPreset: 'custom',
+          publisherPlatforms: updated,
+          positions: updatedPositions,
+        });
+      } else {
+        onPlacementPresetChange?.('custom');
+        onPositionsChange(updatedPositions);
+        onPublisherPlatformsChange(updated);
+      }
     } else {
       updated = [...publisherPlatforms, publisher];
-      if (availablePlacements[publisher]) {
-        onPositionsChange({
-          ...positions,
-          [publisher]: availablePlacements[publisher]
+      const newPositions = {
+        ...positions,
+        [publisher]: availablePlacements[publisher] || []
+      };
+      
+      // Switch to custom preset when manually modifying
+      if (onBatchUpdate) {
+        onBatchUpdate({
+          placementPreset: 'custom',
+          publisherPlatforms: updated,
+          positions: newPositions,
         });
+      } else {
+        onPlacementPresetChange?.('custom');
+        onPositionsChange(newPositions);
+        onPublisherPlatformsChange(updated);
       }
     }
-    
-    onPublisherPlatformsChange(updated);
   };
+
+  const presetInfo = getPlacementPreset(currentPreset);
+  const showCarouselHint = presetInfo?.isCarousel;
 
   return (
     <div className="space-y-4">
-      {/* Placement Mode Selection */}
+      {/* Placement Preset Selector */}
       <div className="space-y-3">
         <Label>Placement Strategy</Label>
-        <div className="space-y-2">
-          <div 
-            className={`flex items-start space-x-3 p-3 border rounded-lg cursor-pointer transition-colors ${
-              advantagePlusPlacements !== false 
-                ? 'bg-primary/10 border-primary' 
-                : 'bg-background hover:bg-accent/50'
-            }`}
-            onClick={() => onAdvantagePlusPlacementsChange?.(true)}
-          >
-            <div className="flex items-center h-5 mt-0.5">
-              <input 
-                type="radio" 
-                name={radioName}
-                checked={advantagePlusPlacements !== false}
-                onChange={() => onAdvantagePlusPlacementsChange?.(true)}
-                className="h-4 w-4 text-primary"
-              />
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-2 font-medium">
-                <Sparkles className="h-4 w-4 text-primary" />
-                Advantage+ placements (recommended)
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Meta automatically shows ads across all available placements to maximize performance
-              </p>
-            </div>
-          </div>
-          <div 
-            className={`flex items-start space-x-3 p-3 border rounded-lg cursor-pointer transition-colors ${
-              advantagePlusPlacements === false
-                ? 'bg-primary/10 border-primary' 
-                : 'bg-background hover:bg-accent/50'
-            }`}
-            onClick={() => {
-              if (advantagePlusPlacements !== false) {
-                // Auto-select all publishers and their placements when switching to manual
-                const allPublishers = availablePublisherPlatforms;
-                const allPositions: typeof positions = {};
-                allPublishers.forEach(publisher => {
-                  if (availablePlacements[publisher]) {
-                    allPositions[publisher as keyof typeof positions] = availablePlacements[publisher];
-                  }
-                });
-                // Use batch update if available to ensure all fields are updated atomically
-                if (onBatchUpdate) {
-                  onBatchUpdate({
-                    advantagePlusPlacements: false,
-                    publisherPlatforms: allPublishers,
-                    positions: allPositions,
-                  });
-                } else {
-                  onAdvantagePlusPlacementsChange?.(false);
-                  onPublisherPlatformsChange(allPublishers);
-                  onPositionsChange(allPositions);
-                }
-              }
-            }}
-          >
-            <div className="flex items-center h-5 mt-0.5">
-              <input 
-                type="radio" 
-                name={radioName}
-                checked={advantagePlusPlacements === false}
-                onChange={() => {
-                  if (advantagePlusPlacements !== false) {
-                    // Auto-select all publishers and their placements when switching to manual
-                    const allPublishers = availablePublisherPlatforms;
-                    const allPositions: typeof positions = {};
-                    allPublishers.forEach(publisher => {
-                      if (availablePlacements[publisher]) {
-                        allPositions[publisher as keyof typeof positions] = availablePlacements[publisher];
-                      }
-                    });
-                    // Use batch update if available
-                    if (onBatchUpdate) {
-                      onBatchUpdate({
-                        advantagePlusPlacements: false,
-                        publisherPlatforms: allPublishers,
-                        positions: allPositions,
-                      });
-                    } else {
-                      onAdvantagePlusPlacementsChange?.(false);
-                      onPublisherPlatformsChange(allPublishers);
-                      onPositionsChange(allPositions);
-                    }
-                  }
-                }}
-                className="h-4 w-4 text-primary"
-              />
-            </div>
-            <div className="flex-1">
-              <div className="font-medium">Manual placements</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Choose specific platforms and placements where your ads will appear
-              </p>
-            </div>
-          </div>
-        </div>
+        <PlacementPresetSelector
+          selectedPreset={currentPreset}
+          onPresetChange={handlePresetChange}
+        />
+        
+        {showCarouselHint && (
+          <Alert className="bg-primary/5 border-primary/20">
+            <Info className="h-4 w-4 text-primary" />
+            <AlertDescription className="text-xs">
+              <strong>Carousel Mode:</strong> Creative matching will prioritize {presetInfo?.isStory ? '9:16 story' : 'feed'} carousel assets.
+            </AlertDescription>
+          </Alert>
+        )}
       </div>
 
-      {/* Manual Placement Configuration - only shown when manual mode is selected */}
-      {advantagePlusPlacements === false && (
+      {/* Manual Placement Configuration - only shown when custom mode is selected */}
+      {currentPreset === 'custom' && (
         <>
           <div className="space-y-3">
             <Label>Publisher Platforms</Label>
