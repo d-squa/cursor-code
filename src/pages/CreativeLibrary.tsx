@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { FolderUp, FileSpreadsheet, LayoutGrid, Download, Wand2, Type, Layers, Loader2, LogOut, Settings, Bug } from 'lucide-react';
+import { FolderUp, FileSpreadsheet, LayoutGrid, Download, Wand2, Type, Layers, Loader2, LogOut, Settings, Bug, Lock } from 'lucide-react';
 import { useCreatives } from '@/hooks/useCreatives';
 import { CreativeGrid } from '@/components/creative/CreativeGrid';
 import { FolderUpload } from '@/components/creative/FolderUpload';
@@ -21,6 +21,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { BugReportDialog } from '@/components/BugReportDialog';
 import { WorkspaceSwitcher } from '@/components/WorkspaceSwitcher';
+import { FeatureGate } from '@/components/FeatureGate';
 
 interface Campaign {
   id: string;
@@ -240,6 +241,7 @@ export default function CreativeLibrary() {
   );
 
   return (
+    <FeatureGate feature="creative_library">
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/20">
       {/* Header */}
       <header className="border-b bg-card/80 backdrop-blur-sm sticky top-0 z-50 shadow-sm">
@@ -424,5 +426,6 @@ export default function CreativeLibrary() {
 
       <BugReportDialog open={bugDialogOpen} onOpenChange={setBugDialogOpen} />
     </div>
+    </FeatureGate>
   );
 }
