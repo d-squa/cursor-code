@@ -2,7 +2,6 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
 import { getAccessToken } from "../_shared/vault-helper.ts";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
-import Stripe from "https://esm.sh/stripe@18.5.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -421,6 +420,17 @@ function generateTimestampSuffix(): string {
     String(now.getHours()).padStart(2, '0') +
     String(now.getMinutes()).padStart(2, '0') +
     String(now.getSeconds()).padStart(2, '0');
+}
+
+// Convert ArrayBuffer to base64 without spreading huge arrays (prevents OOM)
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 0x8000; // 32KB
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
 }
 
 // ============= AD SET SPLIT HELPERS =============
@@ -955,8 +965,9 @@ const handler = async (req: Request): Promise<Response> => {
       if (billingCustomer?.stripe_customer_id) {
         const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
         if (stripeKey) {
+          const { default: Stripe } = await import("https://esm.sh/stripe@18.5.0");
           const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
-          
+
           const subscriptions = await stripe.subscriptions.list({
             customer: billingCustomer.stripe_customer_id,
             status: "all",
@@ -2707,27 +2718,40 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
                 }
                 
                 try {
-                  // Download the file from storage or URL
                   console.log(`📥 Downloading file from: ${mediaUrl}`);
                   const fileResponse = await fetch(mediaUrl);
                   if (!fileResponse.ok) {
                     throw new Error(`Failed to download file: ${fileResponse.status} ${fileResponse.statusText}`);
                   }
-                  
-                  const fileBuffer = await fileResponse.arrayBuffer();
-                  const fileData = btoa(String.fromCharCode(...new Uint8Array(fileBuffer)));
-                  const mimeType = fileResponse.headers.get('content-type') || (isVideo ? 'video/mp4' : 'image/jpeg');
-                  
+
+                  const mimeType =
+                    fileResponse.headers.get('content-type') ||
+                    (isVideo ? 'video/mp4' : 'image/jpeg');
+
+                  const MAX_META_UPLOAD_BYTES = 100 * 1024 * 1024;
+                  const contentLengthHeader = fileResponse.headers.get('content-length');
+                  const contentLength = contentLengthHeader ? Number(contentLengthHeader) : NaN;
+                  if (Number.isFinite(contentLength) && contentLength >= MAX_META_UPLOAD_BYTES) {
+                    console.warn(`⚠️ File too large for direct upload (${contentLength} bytes)`);
+                    await supabase
+                      .from('creative_assignments')
+                      .update({
+                        status: 'error',
+                        error_message: 'File too large (>100MB) - chunked upload not yet supported',
+                      })
+                      .eq('id', assignment.id);
+                    continue;
+                  }
+
                   console.log(`📤 Uploading ${isVideo ? 'video' : 'image'} to Meta ad account ${adAccountPath}...`);
-                  
+
                   if (isVideo) {
-                    // Upload video to Meta
-                    const binaryData = new Uint8Array(fileBuffer);
-                    const fileSize = binaryData.length;
-                    
+                    const blob = await fileResponse.blob();
+                    const fileSize = blob.size;
+
                     console.log(`📹 Starting video upload, size: ${fileSize} bytes`);
-                    
-                    if (fileSize >= 100 * 1024 * 1024) {
+
+                    if (fileSize >= MAX_META_UPLOAD_BYTES) {
                       console.warn(`⚠️ Video too large for direct upload (${fileSize} bytes)`);
                       await supabase
                         .from('creative_assignments')
@@ -2738,12 +2762,11 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
                         .eq('id', assignment.id);
                       continue;
                     }
-                    
+
                     const videoFormData = new FormData();
-                    const blob = new Blob([binaryData], { type: mimeType });
                     videoFormData.append('source', blob, creative.name || 'video.mp4');
                     videoFormData.append('access_token', platform.access_token);
-                    
+
                     const videoUploadResponse = await fetch(
                       `https://graph.facebook.com/v22.0/${adAccountPath}/advideos`,
                       { method: 'POST', body: videoFormData }
@@ -2776,10 +2799,13 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
                     
                   } else {
                     // Upload image to Meta
+                    const fileBuffer = await fileResponse.arrayBuffer();
+                    const fileData = arrayBufferToBase64(fileBuffer);
+
                     const imageFormData = new FormData();
                     imageFormData.append('bytes', fileData); // Base64 encoded image
                     imageFormData.append('access_token', platform.access_token);
-                    
+
                     const imageUploadResponse: Response = await fetch(
                       `https://graph.facebook.com/v22.0/${adAccountPath}/adimages`,
                       { method: 'POST', body: imageFormData }
