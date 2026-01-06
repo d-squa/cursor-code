@@ -1,5 +1,5 @@
 // Folder Upload Component - Uploads directly to DSP (Meta/TikTok)
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -21,12 +21,17 @@ import {
   FileImage,
   FileVideo,
   Loader2,
+  PlayCircle,
+  Pause,
+  Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { validateFolderPath, inferCreativeTypeFromFile, calculateAspectRatio } from '@/utils/creativeValidation';
 import type { Creative, Platform, CreativeType, ParsedFolderStructure } from '@/types/creative';
 import { cn } from '@/lib/utils';
+import { useUploadBatches, UploadBatch } from '@/hooks/useUploadBatches';
+import { useAuth } from '@/hooks/useAuth';
 
 interface AdAccountInfo {
   platform: 'meta' | 'tiktok';
@@ -65,6 +70,18 @@ export function FolderUpload({ onUploadComplete, adAccounts, isUploading = false
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [currentBatchId, setCurrentBatchId] = useState<string | null>(null);
+  const [isPaused, setIsPaused] = useState(false);
+  const pauseRef = useRef(false);
+  
+  const { user } = useAuth();
+  const { 
+    incompleteBatches, 
+    createBatch, 
+    updateBatch, 
+    deleteBatch,
+    refetch: refetchBatches 
+  } = useUploadBatches();
 
   // Get ad account for a platform
   const getAdAccountForPlatform = useCallback((platform: string): AdAccountInfo | undefined => {
@@ -294,7 +311,7 @@ export function FolderUpload({ onUploadComplete, adAccounts, isUploading = false
   }, [parseFiles]);
 
   // Upload all valid files to DSP and create creative records
-  const handleUpload = useCallback(async () => {
+  const handleUpload = useCallback(async (resumeBatchId?: string) => {
     const validFiles = parsedFiles.filter(f => f.isValid);
     if (validFiles.length === 0) {
       toast.error('No valid files to upload');
@@ -307,11 +324,57 @@ export function FolderUpload({ onUploadComplete, adAccounts, isUploading = false
     }
 
     setUploadProgress(0);
-    const creatives: Partial<Creative>[] = [];
-    const failedUploads: string[] = [];
+    setIsPaused(false);
+    pauseRef.current = false;
+    
+    let batchId = resumeBatchId || currentBatchId;
+    let successCount = 0;
+    let failCount = 0;
+    const errorLog: Array<{ filename: string; error: string }> = [];
     
     try {
+      // Create batch if not resuming
+      if (!batchId) {
+        const pendingFiles = validFiles.map(f => ({
+          path: f.path,
+          platform: f.parsed.platform || 'meta',
+          market: f.parsed.market,
+          phase: f.parsed.phase,
+        }));
+        
+        const batch = await createBatch({
+          sourceFilename: validFiles[0]?.path.split('/')[0] || 'Upload',
+          totalItems: validFiles.length,
+          pendingFiles,
+        });
+        batchId = batch.id;
+        setCurrentBatchId(batchId);
+      }
+      
       for (let i = 0; i < validFiles.length; i++) {
+        // Check if paused
+        if (pauseRef.current) {
+          const remainingFiles = validFiles.slice(i).map(f => ({
+            path: f.path,
+            platform: f.parsed.platform || 'meta',
+            market: f.parsed.market,
+            phase: f.parsed.phase,
+          }));
+          
+          await updateBatch({
+            batchId: batchId!,
+            successfulItems: successCount,
+            failedItems: failCount,
+            errorLog,
+            pendingFiles: remainingFiles,
+            status: 'paused',
+          });
+          
+          toast.info(`Upload paused. ${successCount} uploaded, ${validFiles.length - i} remaining.`);
+          refetchBatches();
+          return;
+        }
+        
         const parsedFile = validFiles[i];
         const { file, parsed, dimensions } = parsedFile;
         
@@ -320,7 +383,8 @@ export function FolderUpload({ onUploadComplete, adAccounts, isUploading = false
         const adAccount = getAdAccountForPlatform(platform);
         
         if (!adAccount) {
-          failedUploads.push(`${file.name}: No ad account for ${platform}`);
+          failCount++;
+          errorLog.push({ filename: file.name, error: `No ad account for ${platform}` });
           continue;
         }
 
@@ -336,10 +400,8 @@ export function FolderUpload({ onUploadComplete, adAccounts, isUploading = false
             phaseName: parsed.phase,
             optimizationGoal: parsed.optimizationGoal,
             creativeType: (parsed.creativeType as CreativeType) || inferCreativeTypeFromFile(file),
-            // Store DSP IDs instead of local storage URLs
             platformImageHash: dspResult.imageHash,
             platformVideoId: dspResult.videoId,
-            // For TikTok images, store in platformMetadata
             platformMetadata: dspResult.imageId ? { tiktokImageId: dspResult.imageId } : undefined,
             folderPath: parsedFile.path,
             originalFilename: file.name,
@@ -353,31 +415,99 @@ export function FolderUpload({ onUploadComplete, adAccounts, isUploading = false
             validationErrors: [],
           };
 
-          creatives.push(creative);
+          // Save immediately to DB
+          await onUploadComplete([creative]);
+          successCount++;
+          
+          // Update batch progress every 5 files or on last file
+          if (successCount % 5 === 0 || i === validFiles.length - 1) {
+            const remainingFiles = validFiles.slice(i + 1).map(f => ({
+              path: f.path,
+              platform: f.parsed.platform || 'meta',
+              market: f.parsed.market,
+              phase: f.parsed.phase,
+            }));
+            
+            await updateBatch({
+              batchId: batchId!,
+              successfulItems: successCount,
+              failedItems: failCount,
+              errorLog,
+              pendingFiles: remainingFiles,
+            });
+          }
         } catch (uploadError) {
           console.error(`Failed to upload ${file.name}:`, uploadError);
-          failedUploads.push(`${file.name}: ${(uploadError as Error).message}`);
+          failCount++;
+          errorLog.push({ filename: file.name, error: (uploadError as Error).message });
         }
         
         setUploadProgress(((i + 1) / validFiles.length) * 100);
       }
 
-      if (creatives.length > 0) {
-        await onUploadComplete(creatives);
-        setParsedFiles([]);
-        
-        if (failedUploads.length > 0) {
-          toast.warning(`Uploaded ${creatives.length} creatives. ${failedUploads.length} failed.`);
+      // Mark batch as completed
+      await updateBatch({
+        batchId: batchId!,
+        successfulItems: successCount,
+        failedItems: failCount,
+        errorLog,
+        pendingFiles: [],
+        status: failCount === validFiles.length ? 'failed' : 'completed',
+      });
+      
+      setParsedFiles([]);
+      setCurrentBatchId(null);
+      refetchBatches();
+      
+      if (successCount > 0) {
+        if (failCount > 0) {
+          toast.warning(`Uploaded ${successCount} creatives. ${failCount} failed.`);
         } else {
-          toast.success(`Uploaded ${creatives.length} creatives to DSP`);
+          toast.success(`Uploaded ${successCount} creatives to DSP`);
         }
       } else {
         toast.error('All uploads failed. Check console for details.');
       }
     } catch (error) {
-      toast.error('Upload failed: ' + (error as Error).message);
+      // Save current state on error
+      if (batchId) {
+        const remainingIdx = Math.floor((uploadProgress / 100) * validFiles.length);
+        const remainingFiles = validFiles.slice(remainingIdx).map(f => ({
+          path: f.path,
+          platform: f.parsed.platform || 'meta',
+          market: f.parsed.market,
+          phase: f.parsed.phase,
+        }));
+        
+        await updateBatch({
+          batchId,
+          successfulItems: successCount,
+          failedItems: failCount,
+          errorLog,
+          pendingFiles: remainingFiles,
+          status: 'paused',
+        });
+        refetchBatches();
+      }
+      toast.error('Upload interrupted: ' + (error as Error).message);
     }
-  }, [parsedFiles, adAccounts, getAdAccountForPlatform, uploadToDsp, onUploadComplete]);
+  }, [parsedFiles, adAccounts, getAdAccountForPlatform, uploadToDsp, onUploadComplete, createBatch, updateBatch, currentBatchId, refetchBatches, uploadProgress]);
+
+  // Pause upload
+  const handlePause = useCallback(() => {
+    pauseRef.current = true;
+    setIsPaused(true);
+  }, []);
+
+  // Cancel/delete a batch
+  const handleCancelBatch = useCallback(async (batchId: string) => {
+    await deleteBatch(batchId);
+    if (batchId === currentBatchId) {
+      setCurrentBatchId(null);
+      setParsedFiles([]);
+      setUploadProgress(0);
+    }
+  }, [deleteBatch, currentBatchId]);
 
   // Stats - count files with and without metadata
   const validCount = parsedFiles.filter(f => f.isValid).length;
@@ -407,6 +537,46 @@ export function FolderUpload({ onUploadComplete, adAccounts, isUploading = false
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Incomplete Batches - Resume UI */}
+        {incompleteBatches.length > 0 && (
+          <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg space-y-3">
+            <div className="flex items-center gap-2">
+              <Pause className="h-4 w-4 text-amber-600" />
+              <span className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                {incompleteBatches.length} incomplete upload{incompleteBatches.length > 1 ? 's' : ''}
+              </span>
+            </div>
+            {incompleteBatches.map((batch) => (
+              <div key={batch.id} className="flex items-center justify-between p-2 bg-background rounded border">
+                <div className="text-sm">
+                  <span className="font-medium">{batch.sourceFilename}</span>
+                  <span className="text-muted-foreground ml-2">
+                    {batch.successfulItems}/{batch.totalItems} uploaded
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleCancelBatch(batch.id)}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      toast.info('To resume, re-select the same folder and click Upload');
+                    }}
+                  >
+                    <PlayCircle className="h-3 w-3 mr-1" />
+                    Resume
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Ad Account Warning */}
         {hasNoAdAccounts && (
           <div className="flex items-center gap-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
@@ -591,12 +761,18 @@ export function FolderUpload({ onUploadComplete, adAccounts, isUploading = false
             )}
             
             <div className="flex justify-end gap-2">
+              {isUploading && !isPaused && (
+                <Button variant="outline" onClick={handlePause}>
+                  <Pause className="h-4 w-4 mr-2" />
+                  Pause
+                </Button>
+              )}
               <Button variant="outline" onClick={() => setParsedFiles([])}>
                 Clear
               </Button>
               <Button 
-                onClick={handleUpload} 
-                disabled={validCount === 0 || isUploading || hasNoAdAccounts}
+                onClick={() => handleUpload()} 
+                disabled={validCount === 0 || isUploading || hasNoAdAccounts || isPaused}
               >
                 {isUploading ? (
                   <>
