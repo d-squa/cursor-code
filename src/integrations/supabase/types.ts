@@ -1801,6 +1801,38 @@ export type Database = {
         }
         Relationships: []
       }
+      request_comments: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          request_id: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          request_id: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          request_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "request_comments_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "modification_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       saved_insights_analyses: {
         Row: {
           analysis_result: string
