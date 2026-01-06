@@ -18,6 +18,7 @@ import { CreativeMatchCard } from '@/components/creative/CreativeMatchCard';
 import { StructureCentricView } from '@/components/creative/StructureCentricView';
 import { TextAssetsStep } from '@/components/creative/TextAssetsStep';
 import type { Creative } from '@/types/creative';
+import { FeatureGate } from '@/components/FeatureGate';
 
 interface CampaignOption {
   id: string;
@@ -191,6 +192,7 @@ export default function CreativeMatching() {
   // Text Assets step renders full-screen
   if (state.currentStep === 'text_assets') {
     return (
+      <FeatureGate feature="creative_matching">
       <div className="min-h-screen bg-background flex flex-col">
         <div className="flex items-center justify-between px-6 py-4 border-b bg-background">
           <div className="flex items-center gap-3">
@@ -216,10 +218,12 @@ export default function CreativeMatching() {
           />
         </div>
       </div>
+      </FeatureGate>
     );
   }
 
   return (
+    <FeatureGate feature="creative_matching">
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b bg-background">
@@ -552,5 +556,6 @@ export default function CreativeMatching() {
         )}
       </div>
     </div>
+    </FeatureGate>
   );
 }

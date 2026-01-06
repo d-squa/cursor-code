@@ -162,7 +162,17 @@ export type Feature =
   
   // Operations Measurements
   | 'operations_analytics'
-  | 'operations_measurements';
+  | 'operations_measurements'
+  
+  // Creative Library Features
+  | 'creative_library'
+  | 'creative_upload'
+  | 'creative_assignment'
+  | 'creative_matching'
+  | 'creative_bulk_editing'
+  | 'creative_spreadsheet_upload'
+  | 'creative_folder_upload'
+  | 'creative_dsp_push';
 
 // Minimum tier required for each feature
 const FEATURE_TIERS: Record<Feature, SubscriptionTier> = {
@@ -326,6 +336,16 @@ const FEATURE_TIERS: Record<Feature, SubscriptionTier> = {
   // Operations Measurements
   operations_analytics: 'enterprise',
   operations_measurements: 'enterprise',
+  
+  // Creative Library Features
+  creative_library: 'enterprise',
+  creative_upload: 'enterprise',
+  creative_assignment: 'enterprise',
+  creative_matching: 'enterprise',
+  creative_bulk_editing: 'enterprise',
+  creative_spreadsheet_upload: 'enterprise',
+  creative_folder_upload: 'enterprise',
+  creative_dsp_push: 'enterprise',
 };
 
 // Check if a user has access to a feature
