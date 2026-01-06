@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useWorkspace } from "@/hooks/useWorkspace";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { Loader2, ArrowLeft, Search, MessageSquare, Clock, CheckCircle2, Send, User, Calendar, ExternalLink } from "lucide-react";
+import { Loader2, ArrowLeft, Search, MessageSquare, Clock, CheckCircle2, Send, User, Calendar, ExternalLink, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Comment {
@@ -59,6 +60,8 @@ export default function TaskManagement() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { activeWorkspaceId } = useWorkspace();
+  const { hasAccess } = useFeatureAccess();
+  const hasTaskAccess = hasAccess('task_management');
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -405,6 +408,44 @@ export default function TaskManagement() {
     setSelectedTask(freshTask || task);
     setDetailsOpen(true);
   };
+
+  // Feature gate - show upgrade prompt if no access
+  if (!hasTaskAccess) {
+    return (
+      <div className="container mx-auto py-8">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" onClick={() => navigate("/overview")}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div>
+              <h1 className="text-3xl font-bold">My Tasks</h1>
+              <p className="text-muted-foreground text-sm">
+                Manage requests and approvals
+              </p>
+            </div>
+          </div>
+        </div>
+        
+        <Card className="max-w-lg mx-auto">
+          <CardHeader className="text-center">
+            <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+              <Lock className="h-6 w-6 text-primary" />
+            </div>
+            <CardTitle>Task Management is an Enterprise Feature</CardTitle>
+            <CardDescription>
+              Upgrade to Enterprise or Agency plan to access task management, modification requests tracking, and approval workflows.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex justify-center">
+            <Button onClick={() => navigate("/settings/plans")}>
+              Upgrade Plan
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
