@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
 import { getAccessToken } from "../_shared/vault-helper.ts";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+import Stripe from "https://esm.sh/stripe@18.5.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -954,7 +955,6 @@ const handler = async (req: Request): Promise<Response> => {
       if (billingCustomer?.stripe_customer_id) {
         const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
         if (stripeKey) {
-          const { default: Stripe } = await import("https://esm.sh/stripe@18.5.0");
           const stripe = new Stripe(stripeKey, { apiVersion: "2025-08-27.basil" });
           
           const subscriptions = await stripe.subscriptions.list({
