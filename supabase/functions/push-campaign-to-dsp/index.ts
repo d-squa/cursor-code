@@ -2574,7 +2574,7 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
 
             console.warn(`Bid amount required error (subcode 1815857). Attempted bidding:`, attempted);
 
-            // If Meta complains while we’re *already* using a strategy that should not need bid_amount,
+            // If Meta complains while we're *already* using a strategy that should not need bid_amount,
             // try omitting bid_strategy entirely and letting Meta default to lowest cost.
             if (!attemptedRequiresAmount) {
               console.warn(`Retrying 1815857 by omitting bid_strategy + bid_amount (Meta default bidding)...`);
@@ -2591,13 +2591,76 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
               );
               adSetData = await retryResponse.json();
             } else {
-              // If the strategy really requires an amount, do NOT override the user’s intent.
+              // If the strategy really requires an amount, do NOT override the user's intent.
               // Let the error bubble so we can surface the true configuration issue.
               if (!hasPositiveBidAmount) {
                 console.warn(`Not retrying 1815857 because ${attemptedStrategy} requires a positive bid_amount, but none was provided.`);
               } else {
                 console.warn(`Not retrying 1815857 because ${attemptedStrategy} already had bid_amount set; keeping original error for diagnosis.`);
               }
+            }
+          }
+          
+          // Handle deprecated targeting interests error (subcode 1870247)
+          const isDeprecatedTargetingError = adSetData.error?.error_subcode === 1870247;
+          if (isDeprecatedTargetingError && adSetPayload.targeting?.flexible_spec) {
+            console.warn(`⚠️ Deprecated targeting interests detected (subcode 1870247). Filtering and retrying...`);
+            
+            // Parse the error message to extract deprecated interest IDs
+            const errorMsg = adSetData.error?.error_user_msg || '';
+            const deprecatedIds = new Set<string>();
+            
+            // Extract deprecated_interest_id values from the error message
+            const deprecatedMatches = errorMsg.matchAll(/"deprecated_interest_id":"(\d+)"/g);
+            for (const match of deprecatedMatches) {
+              deprecatedIds.add(match[1]);
+              console.log(`  🚫 Marking deprecated: ${match[1]}`);
+            }
+            
+            if (deprecatedIds.size > 0) {
+              // Filter out deprecated interests from flexible_spec
+              adSetPayload.targeting.flexible_spec = adSetPayload.targeting.flexible_spec
+                .map((spec: any) => {
+                  const cleaned: any = {};
+                  for (const key of Object.keys(spec)) {
+                    if (key === 'interests' && Array.isArray(spec[key])) {
+                      const filteredInterests = spec[key].filter((interest: any) => {
+                        const interestId = String(interest.id);
+                        if (deprecatedIds.has(interestId)) {
+                          console.log(`  ⛔ Removing deprecated interest: ${interest.name} (${interestId})`);
+                          return false;
+                        }
+                        return true;
+                      });
+                      if (filteredInterests.length > 0) {
+                        cleaned[key] = filteredInterests;
+                      }
+                    } else {
+                      cleaned[key] = spec[key];
+                    }
+                  }
+                  return Object.keys(cleaned).length > 0 ? cleaned : null;
+                })
+                .filter(Boolean);
+              
+              // Remove flexible_spec entirely if empty after filtering
+              if (adSetPayload.targeting.flexible_spec.length === 0) {
+                delete adSetPayload.targeting.flexible_spec;
+                console.log(`  ℹ️ All interests were deprecated - proceeding with broad targeting`);
+              } else {
+                console.log(`  ✅ Retrying with ${adSetPayload.targeting.flexible_spec.reduce((acc: number, s: any) => acc + (s.interests?.length || 0), 0)} remaining interests`);
+              }
+              
+              // Retry the request
+              const retryResponse = await fetch(
+                `https://graph.facebook.com/v22.0/${adAccountPath}/adsets`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ ...adSetPayload, access_token: platform.access_token }),
+                }
+              );
+              adSetData = await retryResponse.json();
             }
           }
           
