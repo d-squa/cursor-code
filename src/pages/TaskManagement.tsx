@@ -44,6 +44,7 @@ interface Task {
   completed_by: string | null;
   completed_at: string | null;
   comments?: Comment[];
+  task_type: "modification" | "approval";
 }
 
 const STATUS_OPTIONS = [
@@ -51,6 +52,7 @@ const STATUS_OPTIONS = [
   { value: "in_progress", label: "In Progress", color: "bg-yellow-500" },
   { value: "completed", label: "Completed", color: "bg-green-500" },
   { value: "rejected", label: "Rejected", color: "bg-red-500" },
+  { value: "pending_approval", label: "Pending Approval", color: "bg-orange-500" },
 ];
 
 export default function TaskManagement() {
@@ -106,11 +108,14 @@ export default function TaskManagement() {
       // Get campaigns in the workspace
       const { data: campaigns } = await supabase
         .from("campaigns")
-        .select("id, name")
+        .select("id, name, status, user_id, created_at, updated_at")
         .eq("team_id", activeWorkspaceId);
       
       const campaignIds = campaigns?.map(c => c.id) || [];
       const campaignsMap = Object.fromEntries((campaigns || []).map(c => [c.id, c.name]));
+      
+      // Find campaigns that need approval
+      const approvalCampaigns = (campaigns || []).filter(c => c.status === "pending_approval");
       
       if (campaignIds.length === 0) {
         setTasks([]);
@@ -143,6 +148,9 @@ export default function TaskManagement() {
           req.assigned_to.forEach((id: string) => allUserIds.add(id));
         }
       });
+      
+      // Add approval campaign owners to user IDs lookup
+      approvalCampaigns.forEach(c => allUserIds.add(c.user_id));
       
       const { data: profiles } = await supabase
         .from("profiles")
@@ -182,16 +190,46 @@ export default function TaskManagement() {
         });
       }
       
-      // Enrich tasks
-      const enrichedTasks: Task[] = filteredRequests.map(req => ({
+      // Enrich modification request tasks
+      const modificationTasks: Task[] = filteredRequests.map(req => ({
         ...req,
         campaign_name: campaignsMap[req.campaign_id] || "Unknown Campaign",
         requester_email: profilesMap[req.requester_id] || "Unknown",
         assigned_emails: (req.assigned_to || []).map((id: string) => profilesMap[id] || "Unknown"),
         comments: commentsMap[req.id] || [],
+        task_type: "modification" as const,
       }));
       
-      setTasks(enrichedTasks);
+      // Create approval tasks from campaigns with pending_approval status
+      // Only show these to admin users
+      const approvalTasks: Task[] = isAdminOrOwner ? approvalCampaigns.map(campaign => ({
+        id: `approval-${campaign.id}`,
+        campaign_id: campaign.id,
+        campaign_name: campaign.name,
+        requester_id: campaign.user_id,
+        requester_email: profilesMap[campaign.user_id] || "Unknown",
+        change_type: "approval_request",
+        description: `ActiPlan "${campaign.name}" is awaiting approval before launch.`,
+        status: "pending_approval",
+        assigned_to: null,
+        assigned_emails: [],
+        notify_all_team: false,
+        created_at: campaign.created_at,
+        updated_at: campaign.updated_at,
+        estimated_hours: null,
+        actual_hours: null,
+        completed_by: null,
+        completed_at: null,
+        comments: [],
+        task_type: "approval" as const,
+      })) : [];
+      
+      // Combine all tasks and sort by created_at
+      const allTasks = [...modificationTasks, ...approvalTasks].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+      
+      setTasks(allTasks);
       setIsAdmin(isAdminOrOwner || false);
     } catch (error: any) {
       console.error("Error loading tasks:", error);
@@ -327,6 +365,7 @@ export default function TaskManagement() {
       creative: "Creative",
       note: "Note",
       other: "Other",
+      approval_request: "Approval Required",
     };
     return labels[type] || type;
   };
@@ -353,6 +392,7 @@ export default function TaskManagement() {
 
   const tasksByStatus = useMemo(() => ({
     all: filteredTasks,
+    pending_approval: filteredTasks.filter(t => t.status === "pending_approval"),
     sent: filteredTasks.filter(t => t.status === "sent"),
     in_progress: filteredTasks.filter(t => t.status === "in_progress"),
     completed: filteredTasks.filter(t => t.status === "completed"),
@@ -407,6 +447,9 @@ export default function TaskManagement() {
           <TabsTrigger value="all">
             All ({tasksByStatus.all.length})
           </TabsTrigger>
+          <TabsTrigger value="pending_approval">
+            Pending Approval ({tasksByStatus.pending_approval.length})
+          </TabsTrigger>
           <TabsTrigger value="sent">
             Sent ({tasksByStatus.sent.length})
           </TabsTrigger>
@@ -421,7 +464,7 @@ export default function TaskManagement() {
           </TabsTrigger>
         </TabsList>
 
-        {["all", "sent", "in_progress", "completed", "rejected"].map((status) => (
+        {["all", "pending_approval", "sent", "in_progress", "completed", "rejected"].map((status) => (
           <TabsContent key={status} value={status} className="space-y-4">
             {tasksByStatus[status as keyof typeof tasksByStatus].length === 0 ? (
               <Card>
@@ -530,27 +573,29 @@ export default function TaskManagement() {
                 )}
               </div>
 
-              {/* Status Update */}
-              <div className="flex items-center gap-3 pt-2">
-                <span className="text-sm text-muted-foreground">Update Status:</span>
-                <Select
-                  value={selectedTask?.status || ""}
-                  onValueChange={(value) => selectedTask && handleStatusUpdate(selectedTask.id, value)}
-                  disabled={updatingStatus}
-                >
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {STATUS_OPTIONS.map(opt => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {updatingStatus && <Loader2 className="h-4 w-4 animate-spin" />}
-              </div>
+              {/* Status Update - only for modification tasks */}
+              {selectedTask?.task_type === "modification" && (
+                <div className="flex items-center gap-3 pt-2">
+                  <span className="text-sm text-muted-foreground">Update Status:</span>
+                  <Select
+                    value={selectedTask?.status || ""}
+                    onValueChange={(value) => selectedTask && handleStatusUpdate(selectedTask.id, value)}
+                    disabled={updatingStatus}
+                  >
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {STATUS_OPTIONS.filter(opt => opt.value !== "pending_approval").map(opt => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {updatingStatus && <Loader2 className="h-4 w-4 animate-spin" />}
+                </div>
+              )}
 
               <Button
                 variant="outline"
@@ -558,7 +603,7 @@ export default function TaskManagement() {
                 onClick={() => selectedTask && navigate(`/actiplans?campaignId=${selectedTask.campaign_id}`)}
               >
                 <ExternalLink className="h-4 w-4 mr-2" />
-                View ActiPlan
+                {selectedTask?.task_type === "approval" ? "Review & Approve ActiPlan" : "View ActiPlan"}
               </Button>
             </div>
 
