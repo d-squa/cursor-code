@@ -20,8 +20,7 @@ import {
   AlertCircle,
   Lightbulb,
   Sparkles,
-  FolderOpen,
-  Expand
+  FolderOpen
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MatchConfidenceIndicator } from './MatchConfidenceIndicator';
@@ -42,11 +41,9 @@ interface StructureCentricViewProps {
   structureResults: StructureMatchResult[];
   unassignedAssets: UnassignedAsset[];
   acceptedMatches: Map<string, UICreativeMatch>;
-  relaxedStructureIds?: Set<string>;
   saveProgress?: Map<string, SaveProgressItem>;
   onAcceptAsset: (assetId: string, structure: StructureMatchResult['structure']) => void;
   onRejectAsset: (assetId: string, structureId: string) => void;
-  onBroadenMatch?: (structureId: string) => void;
 }
 
 function AssetThumbnail({ asset }: { asset: DigestedAsset }) {
@@ -598,18 +595,6 @@ function EmptyAdSetsPanel({
                         </div>
                       )}
                     </div>
-                    {/* Find Similar button */}
-                    {onBroadenMatch && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="shrink-0 h-7 text-xs gap-1.5 text-primary border-primary/30 hover:bg-primary/10"
-                        onClick={() => onBroadenMatch(structure.id)}
-                      >
-                        <Expand className="h-3 w-3" />
-                        Broaden Suggestions
-                      </Button>
-                    )}
                   </div>
                 </div>
               );
@@ -1080,11 +1065,9 @@ export function StructureCentricView({
   structureResults,
   unassignedAssets,
   acceptedMatches,
-  relaxedStructureIds,
   saveProgress,
   onAcceptAsset,
   onRejectAsset,
-  onBroadenMatch,
 }: StructureCentricViewProps) {
   // Treat accepted suggestions as assigned for UI (so empty/unassigned counts update live)
   const acceptedAssetIds = useMemo(() => {
@@ -1187,7 +1170,6 @@ export function StructureCentricView({
 
     for (const emptyResult of emptyResults) {
       const structure = emptyResult.structure;
-      const isRelaxed = Boolean(relaxedStructureIds?.has(structure.id));
       const structurePlatform = structure.platform?.toLowerCase() || '';
 
       const suggestedAssets: EmptyAdSetSuggestion['suggestedAssets'] = [];
@@ -1235,20 +1217,17 @@ export function StructureCentricView({
 
         const hardBlockReasons = [...platformBlockReasons, ...marketBlockReasons];
 
-        const isPlatformOnly = platformBlockReasons.length > 0 && platformBlockReasons.length === reasons.length;
+        // Check if only platform/market are the blockers (dimensions, format, language etc are compatible)
+        const isPlatformOrMarketOnly = hardBlockReasons.length > 0 && hardBlockReasons.length === reasons.length;
 
-        // Default behavior: platform-only OR closest match score
-        const shouldSuggestDefault = isPlatformOnly || (closestMatch && closestMatch.score >= 30);
+        // Suggest if: platform/market are the only blockers OR closest match score is good
+        const shouldSuggest = isPlatformOrMarketOnly || (closestMatch && closestMatch.score >= 30);
 
-        // Relaxed behavior (after clicking "Find Similar"): include anything blocked by platform/market
-        // OR a looser closest-match threshold.
-        const shouldSuggestRelaxed = hardBlockReasons.length > 0 || (closestMatch && closestMatch.score >= 15);
-
-        if ((isRelaxed && shouldSuggestRelaxed) || (!isRelaxed && shouldSuggestDefault)) {
+        if (shouldSuggest) {
           suggestedAssets.push({
             asset,
             blockingReason: hardBlockReasons[0] || reasons[0] || 'No specific constraint detected',
-            isPlatformOnly,
+            isPlatformOnly: isPlatformOrMarketOnly,
           });
         }
       }
@@ -1259,7 +1238,7 @@ export function StructureCentricView({
     }
 
     return result;
-  }, [mergedStructureResults, unassignedAssets, acceptedMatches, relaxedStructureIds]);
+  }, [mergedStructureResults, unassignedAssets, acceptedMatches]);
 
   const suggestionsByStructureId = useMemo(() => {
     const map = new Map<string, EmptyAdSetSuggestion>();
@@ -1375,7 +1354,6 @@ export function StructureCentricView({
             suggestionsByStructureId={suggestionsByStructureId}
             acceptedMatches={acceptedMatches}
             onAcceptSuggestion={onAcceptAsset}
-            onBroadenMatch={onBroadenMatch}
           />
 
           {/* Unassigned assets panel */}
