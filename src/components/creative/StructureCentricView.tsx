@@ -1175,7 +1175,7 @@ export function StructureCentricView({
       const suggestedAssets: EmptyAdSetSuggestion['suggestedAssets'] = [];
 
       for (const unassigned of unassignedAssets) {
-        const { asset, reasons, closestMatches } = unassigned;
+        const { asset, closestMatches } = unassigned;
 
         // Skip if this asset is already accepted for THIS structure
         const key = `${asset.id}:${structure.id}`;
@@ -1201,33 +1201,49 @@ export function StructureCentricView({
           }
         }
 
-        // Check if this structure is in closest matches
-        const closestMatch = closestMatches?.find(m => m.structure.id === structure.id);
+        // Check if this specific structure appears in the asset's closest matches
+        const matchForThisStructure = closestMatches?.find(m => m.structure.id === structure.id);
 
-        const lowerReasons = reasons.map(r => r.toLowerCase());
+        if (matchForThisStructure) {
+          // We have matching data for this specific structure
+          const blockingReasons = matchForThisStructure.blockingReasons || [];
+          const lowerReasons = blockingReasons.map(r => r.toLowerCase());
 
-        const platformBlockReasons = reasons.filter((r, idx) =>
-          lowerReasons[idx]?.includes('platform') ||
-          lowerReasons[idx]?.includes('meta') ||
-          lowerReasons[idx]?.includes('tiktok') ||
-          lowerReasons[idx]?.includes('google')
-        );
+          const platformBlockReasons = blockingReasons.filter((_, idx) =>
+            lowerReasons[idx]?.includes('platform') ||
+            lowerReasons[idx]?.includes('meta') ||
+            lowerReasons[idx]?.includes('tiktok') ||
+            lowerReasons[idx]?.includes('google')
+          );
 
-        const marketBlockReasons = reasons.filter((r, idx) => lowerReasons[idx]?.includes('market'));
+          const marketBlockReasons = blockingReasons.filter((_, idx) => 
+            lowerReasons[idx]?.includes('market')
+          );
 
-        const hardBlockReasons = [...platformBlockReasons, ...marketBlockReasons];
+          const softBlockReasons = [...platformBlockReasons, ...marketBlockReasons];
 
-        // Check if only platform/market are the blockers (dimensions, format, language etc are compatible)
-        const isPlatformOrMarketOnly = hardBlockReasons.length > 0 && hardBlockReasons.length === reasons.length;
+          // Suggest if:
+          // 1. Only platform/market are blocking (dimensions, format, language are compatible)
+          // 2. OR score is reasonable (>=30)
+          // 3. OR there are no blocking reasons at all (somehow not auto-matched)
+          const isPlatformOrMarketOnly = softBlockReasons.length > 0 && softBlockReasons.length === blockingReasons.length;
+          const hasGoodScore = matchForThisStructure.score >= 30;
+          const noHardBlockers = blockingReasons.length === 0;
 
-        // Suggest if: platform/market are the only blockers OR closest match score is good
-        const shouldSuggest = isPlatformOrMarketOnly || (closestMatch && closestMatch.score >= 30);
-
-        if (shouldSuggest) {
+          if (isPlatformOrMarketOnly || hasGoodScore || noHardBlockers) {
+            suggestedAssets.push({
+              asset,
+              blockingReason: softBlockReasons[0] || blockingReasons[0] || 'Compatible - review recommended',
+              isPlatformOnly: isPlatformOrMarketOnly,
+            });
+          }
+        } else {
+          // This structure wasn't in closestMatches, but dimensions are compatible
+          // Suggest anyway since dimension check passed above
           suggestedAssets.push({
             asset,
-            blockingReason: hardBlockReasons[0] || reasons[0] || 'No specific constraint detected',
-            isPlatformOnly: isPlatformOrMarketOnly,
+            blockingReason: 'Dimensions compatible - no other match data',
+            isPlatformOnly: false,
           });
         }
       }
