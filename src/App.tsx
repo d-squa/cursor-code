@@ -28,6 +28,7 @@ import OperationsAnalytics from "./pages/OperationsAnalytics";
 import OperationsReports from "./pages/settings/OperationsReports";
 import CreativeLibrary from "./pages/CreativeLibrary";
 import CreativeMatching from "./pages/CreativeMatching";
+import TaskManagement from "./pages/TaskManagement";
 import NotFound from "./pages/NotFound";
 import { BugReportButton } from "./components/BugReportButton";
 import { SubscriptionGuard } from "./components/SubscriptionGuard";
@@ -58,6 +59,7 @@ const App = () => (
             <Route path="/actiplans/:campaignId/insights" element={<SubscriptionGuard><InsightsRecommendations /></SubscriptionGuard>} />
             <Route path="/insights" element={<SubscriptionGuard><InsightsRecommendations /></SubscriptionGuard>} />
             <Route path="/operations-analytics" element={<SubscriptionGuard><OperationsAnalytics /></SubscriptionGuard>} />
+            <Route path="/tasks" element={<SubscriptionGuard><TaskManagement /></SubscriptionGuard>} />
             <Route path="/performance/:id" element={<SubscriptionGuard><Performance /></SubscriptionGuard>} />
             <Route path="/performance" element={<SubscriptionGuard><Performance /></SubscriptionGuard>} />
             <Route path="/clients" element={<SubscriptionGuard><Clients /></SubscriptionGuard>} />
