@@ -18,6 +18,7 @@ import {
   Rocket,
   LayoutDashboard,
   Lock,
+  ClipboardList,
 } from "lucide-react";
 import { BugReportDialog } from "@/components/BugReportDialog";
 import { CampaignOverviewCard } from "@/components/overview/CampaignOverviewCard";
@@ -457,6 +458,12 @@ const Overview = () => {
                 className="px-4 py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
               >
                 Meshing
+              </button>
+              <button
+                onClick={() => navigate("/tasks")}
+                className="px-4 py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
+              >
+                My Tasks
               </button>
 
               <WorkspaceSwitcher className="hidden md:flex ml-2" />

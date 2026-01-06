@@ -164,6 +164,9 @@ export type Feature =
   | 'operations_analytics'
   | 'operations_measurements'
   
+  // Task Management
+  | 'task_management'
+  
   // Creative Library Features
   | 'creative_library'
   | 'creative_upload'
@@ -336,6 +339,9 @@ const FEATURE_TIERS: Record<Feature, SubscriptionTier> = {
   // Operations Measurements
   operations_analytics: 'enterprise',
   operations_measurements: 'enterprise',
+  
+  // Task Management
+  task_management: 'enterprise',
   
   // Creative Library Features
   creative_library: 'enterprise',
