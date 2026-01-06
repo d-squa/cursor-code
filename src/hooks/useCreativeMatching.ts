@@ -342,7 +342,13 @@ export function useCreativeMatching(campaignId?: string) {
               (Array.isArray(phase?.adFormats) && phase.adFormats) ||
               [];
 
+            // When overrideTargeting is enabled, use phase.targeting values
+            const phaseLanguages = phase?.overrideTargeting 
+              ? phase?.targeting?.languages 
+              : phase?.languages;
+
             const language =
+              (Array.isArray(phaseLanguages) && phaseLanguages[0]) ||
               (Array.isArray(market?.languages) && market.languages[0]) ||
               (Array.isArray(phase?.languages) && phase.languages[0]) ||
               market?.language ||
@@ -397,7 +403,7 @@ export function useCreativeMatching(campaignId?: string) {
                   devices: adSet.devices || phase?.targeting?.devices,
                   placementType: phase?.advantagePlusPlacements ? 'automatic' : 'manual',
                   publisherPlatforms: adSet.placements || placementConstraints,
-                  languages: adSet.languages || phase?.languages || market?.languages,
+                  languages: adSet.languages || phaseLanguages || market?.languages,
                   targetingType: extractTargetingType(adSet.audiences),
                   phaseBudget: calculateBudgetFromPercentage(adSet.budgetPercentage, phase, market, campaign),
                 };
@@ -412,7 +418,7 @@ export function useCreativeMatching(campaignId?: string) {
                   taxonomyElements: taxonomyResult.elements,
                   placementConstraints: adSet.placements || adSet.tiktokPlacements || placementConstraints,
                   formatConstraints,
-                  language: adSet.languages?.[0] || language,
+                  language: adSet.languages?.[0] || phaseLanguages?.[0] || language,
                   optimizationGoal: adSet.optimizationGoal || phase?.optimizationGoal,
                   phases: phase?.name ? [phase.name] : undefined,
                   // Ad set split dimensions
@@ -446,7 +452,7 @@ export function useCreativeMatching(campaignId?: string) {
                 devices: phase?.targeting?.devices,
                 placementType: phase?.advantagePlusPlacements ? 'automatic' : 'manual',
                 publisherPlatforms: placementConstraints,
-                languages: phase?.languages || market?.languages,
+                languages: phaseLanguages || market?.languages,
                 targetingType: extractTargetingType(phase?.audiences),
                 phaseBudget: calculateBudgetFromPercentage(phase?.budgetPercentage, phase, market, campaign),
               };
