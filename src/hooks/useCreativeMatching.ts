@@ -990,6 +990,11 @@ export function useCreativeMatching(campaignId?: string) {
     // Cache uploads per asset so a single file matched to multiple structures
     // doesn't get uploaded multiple times.
     const uploadedUrlByAssetId = new Map<string, string>();
+    
+    // Cache created creative IDs per asset - when the same asset is matched to
+    // multiple ad sets, we create ONE creative record and reuse it for all assignments.
+    // This dramatically speeds up saves and prevents duplicate uploads.
+    const createdCreativeByAssetId = new Map<string, string>();
 
     const uploadAssetToStorage = async (assetId: string, file: File): Promise<string> => {
       const cached = uploadedUrlByAssetId.get(assetId);
@@ -1035,61 +1040,74 @@ export function useCreativeMatching(campaignId?: string) {
             creativeId = (asset as any).libraryCreativeId;
             updateSaveProgress(compositeKey, 'saving');
 
-            // Update the existing creative with campaign assignment
-            const { error: updateError } = await supabase
-              .from('creatives')
-              .update({
-                campaign_id: match.structure.campaignId,
-                market: match.structure.market,
-                phase_name: match.structure.phases?.[0],
-                status: 'ready',
-              })
-              .eq('id', creativeId);
+            // Update the existing creative with campaign assignment (only once)
+            if (!createdCreativeByAssetId.has(assetId)) {
+              const { error: updateError } = await supabase
+                .from('creatives')
+                .update({
+                  campaign_id: match.structure.campaignId,
+                  market: match.structure.market,
+                  phase_name: match.structure.phases?.[0],
+                  status: 'ready',
+                })
+                .eq('id', creativeId);
 
-            if (updateError) throw updateError;
-          } else {
-            // For uploaded files, we must persist the file itself (otherwise refresh loses it).
-            updateSaveProgress(compositeKey, 'uploading');
-            const mediaUrl = await uploadAssetToStorage(assetId, asset.originalFile);
-
-            updateSaveProgress(compositeKey, 'saving');
-            // Generate taxonomy-based name for the creative
-            const taxonomyName = generateCreativeTaxonomyName(asset, match.structure);
-
-            // Create new creative for uploaded files
-            const { data: creative, error: insertCreativeError } = await supabase
-              .from('creatives')
-              .insert({
-                name: taxonomyName,
-                user_id: user.id,
-                team_id: null,
-                platform: match.structure.platform,
-                creative_type: asset.mediaType === 'video' ? 'video' : 'image',
-                media_type: asset.mediaType,
-                status: 'ready',
-                market: match.structure.market,
-                phase_name: match.structure.phases?.[0],
-                campaign_id: match.structure.campaignId,
-                width: asset.technicalAttributes.width,
-                height: asset.technicalAttributes.height,
-                aspect_ratio: asset.technicalAttributes.aspectRatio,
-                duration_seconds: asset.technicalAttributes.duration,
-                file_size_bytes: asset.technicalAttributes.fileSize,
-                original_filename: asset.fileName,
-                folder_path: asset.filePath,
-                media_urls: [mediaUrl],
-                thumbnail_url: mediaUrl,
-                language: asset.hardConstraints?.language,
-              })
-              .select()
-              .single();
-
-            if (insertCreativeError) throw insertCreativeError;
-            if (!creative) {
-              throw new Error('No creative returned from insert');
+              if (updateError) throw updateError;
+              createdCreativeByAssetId.set(assetId, creativeId);
             }
+          } else {
+            // Check if we already created a creative for this asset
+            const cachedCreativeId = createdCreativeByAssetId.get(assetId);
+            if (cachedCreativeId) {
+              // Reuse existing creative - skip upload and creation
+              creativeId = cachedCreativeId;
+              updateSaveProgress(compositeKey, 'saving');
+            } else {
+              // For uploaded files, we must persist the file itself (otherwise refresh loses it).
+              updateSaveProgress(compositeKey, 'uploading');
+              const mediaUrl = await uploadAssetToStorage(assetId, asset.originalFile);
 
-            creativeId = creative.id;
+              updateSaveProgress(compositeKey, 'saving');
+              // Generate taxonomy-based name for the creative
+              const taxonomyName = generateCreativeTaxonomyName(asset, match.structure);
+
+              // Create new creative for uploaded files - only once per asset
+              const { data: creative, error: insertCreativeError } = await supabase
+                .from('creatives')
+                .insert({
+                  name: taxonomyName,
+                  user_id: user.id,
+                  team_id: null,
+                  platform: match.structure.platform,
+                  creative_type: asset.mediaType === 'video' ? 'video' : 'image',
+                  media_type: asset.mediaType,
+                  status: 'ready',
+                  market: match.structure.market,
+                  phase_name: match.structure.phases?.[0],
+                  campaign_id: match.structure.campaignId,
+                  width: asset.technicalAttributes.width,
+                  height: asset.technicalAttributes.height,
+                  aspect_ratio: asset.technicalAttributes.aspectRatio,
+                  duration_seconds: asset.technicalAttributes.duration,
+                  file_size_bytes: asset.technicalAttributes.fileSize,
+                  original_filename: asset.fileName,
+                  folder_path: asset.filePath,
+                  media_urls: [mediaUrl],
+                  thumbnail_url: mediaUrl,
+                  language: asset.hardConstraints?.language,
+                })
+                .select()
+                .single();
+
+              if (insertCreativeError) throw insertCreativeError;
+              if (!creative) {
+                throw new Error('No creative returned from insert');
+              }
+
+              creativeId = creative.id;
+              // Cache the creative ID for reuse by other assignments of the same asset
+              createdCreativeByAssetId.set(assetId, creativeId);
+            }
           }
 
           compositeKeyToAssignmentIndex.set(compositeKey, assignments.length);
