@@ -558,6 +558,7 @@ export function UnifiedTargeting({
                           <SelectItem value="device">Device</SelectItem>
                           <SelectItem value="language">Language</SelectItem>
                           <SelectItem value="placement">Placement</SelectItem>
+                          <SelectItem value="ad_format">Ad Format</SelectItem>
                           <SelectItem value="optimization_goal">Optimization Goal</SelectItem>
                           <SelectItem value="audience_selection">Audience Selection</SelectItem>
                         </SelectContent>
@@ -648,6 +649,7 @@ export function UnifiedTargeting({
                               <SelectItem value="device">Device</SelectItem>
                               <SelectItem value="language">Language</SelectItem>
                               <SelectItem value="placement">Placement</SelectItem>
+                              <SelectItem value="ad_format">Ad Format</SelectItem>
                               <SelectItem value="optimization_goal">Optimization Goal</SelectItem>
                               <SelectItem value="audience_selection">Audience Selection</SelectItem>
                             </SelectContent>
