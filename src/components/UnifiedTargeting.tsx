@@ -104,6 +104,7 @@ export function UnifiedTargeting({
   const SPLIT_DIMENSION_LABELS: Record<AdSetSplitDimension, string> = {
     none: "None",
     placement: "Placement",
+    ad_format: "Ad Format",
     optimization_goal: "Optimization Goal",
     audience: "Audience",
     audience_selection: "Audience Selection",

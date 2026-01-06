@@ -6,6 +6,7 @@ import { MARKET_OPTIONS } from "@/utils/markets";
 const DIMENSION_TAXONOMY: Record<AdSetSplitDimension, string> = {
   none: "",
   placement: "PLMT",
+  ad_format: "FMT",
   optimization_goal: "OPT",
   audience: "AUD",
   audience_selection: "AUDSEL",
@@ -102,6 +103,13 @@ function getTaxonomySuffix(
       if (value === "retargeting") return "RET";
       if (value === "broad") return "BRD";
       return String(value).toUpperCase().slice(0, 3);
+    case "ad_format":
+      // Map ad format presets to taxonomy abbreviations
+      if (value === "in_feed") return "FEED";
+      if (value === "stories") return "STORY";
+      if (value === "in_feed_carousel") return "FEED_CAR";
+      if (value === "story_carousel") return "STORY_CAR";
+      return String(value).toUpperCase().slice(0, 6);
     case "age":
       const ageVal = value as { min: number; max: number };
       return `${ageVal.min}-${ageVal.max}`;
@@ -313,6 +321,15 @@ export function createInitialAdSets(
       complementaryValues = getComplementaryValues(dimension, undefined, context);
       break;
 
+    case "ad_format":
+      primaryValue = "in_feed"; // Default to In-Feed
+      complementaryValues = [
+        { value: "stories", label: "Stories" },
+        { value: "in_feed_carousel", label: "In-Feed Carousel" },
+        { value: "story_carousel", label: "Story Carousel" },
+      ].filter(v => v.value !== primaryValue);
+      break;
+
     default:
       primaryValue = "";
       complementaryValues = [];
@@ -381,6 +398,8 @@ function getAdSetFieldsForDimension(
       return { countries: [value as string] };
     case "optimization_goal":
       return { optimizationGoal: value as string };
+    case "ad_format":
+      return { placementPreset: value as string };
     case "age":
       const ageVal = value as { min: number; max: number };
       return { ageMin: ageVal.min, ageMax: ageVal.max };

@@ -124,6 +124,8 @@ export interface AdSetConfig {
   ageMin?: number;
   ageMax?: number;
   optimizationGoal?: string;
+  // Placement preset for ad format splitting
+  placementPreset?: string; // in_feed, stories, in_feed_carousel, story_carousel
   // Bid strategy and related parameters (especially needed for optimization_goal splits)
   bidStrategy?: string; // Meta: LOWEST_COST_WITHOUT_CAP, LOWEST_COST_WITH_BID_CAP, COST_CAP; TikTok: BID_TYPE_NO_BID, BID_TYPE_CUSTOM
   bidAmount?: number; // Required when bidStrategy is LOWEST_COST_WITH_BID_CAP or COST_CAP
@@ -149,6 +151,7 @@ export interface AdSetConfig {
 export type AdSetSplitDimension = 
   | 'none'
   | 'placement'
+  | 'ad_format'
   | 'optimization_goal'
   | 'audience'
   | 'audience_selection'
@@ -157,6 +160,15 @@ export type AdSetSplitDimension =
   | 'gender'
   | 'device'
   | 'age';
+
+// Meta Placement Preset type
+export type MetaPlacementPreset = 
+  | 'automatic' 
+  | 'stories' 
+  | 'in_feed' 
+  | 'in_feed_carousel' 
+  | 'story_carousel' 
+  | 'custom';
 
 // Per-platform split dimension configuration
 export type AdSetSplitDimensionPerPlatform = Record<string, AdSetSplitDimension>;
@@ -242,6 +254,7 @@ export interface Phase {
     threads?: string[];
   };
   advantagePlusPlacements?: boolean; // Meta Advantage+ placements toggle
+  placementPreset?: MetaPlacementPreset; // Meta Placement Preset for taxonomy/creative matching
   countries?: string[];
   gender?: string;
   languages?: number[];
