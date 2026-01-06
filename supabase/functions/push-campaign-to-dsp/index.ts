@@ -2156,9 +2156,16 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
         const metaLandingPageUrl = phase.metaLandingPageUrl || (market as any).metaLandingPageUrl;
         
         // Meta billing_event + optimization_goal compatibility mapping
-        // The billing_event MUST be compatible with the optimization_goal or the API will reject
+        // The billing_event MUST be compatible with the optimization_goal or the API will reject.
+        // NOTE: Some optimization goals allow multiple billing events (e.g. THRUPLAY can also be billed on IMPRESSIONS).
         const getBillingEventForOptimizationGoal = (optGoal: string, userEvent?: string): string => {
-          // Map optimization goals to their ONLY valid billing events
+          // SPECIAL CASE: For new/limited Meta ad accounts, billing on THRUPLAY can be blocked.
+          // Meta allows THRUPLAY optimization while billing on IMPRESSIONS, so honor the user's selection.
+          if (optGoal === 'THRUPLAY' && userEvent === 'IMPRESSIONS') {
+            return 'IMPRESSIONS';
+          }
+
+          // Map optimization goals to their default/required billing events
           const billingEventMap: Record<string, string> = {
             // Awareness & Reach - IMPRESSIONS only
             'REACH': 'IMPRESSIONS',
@@ -2171,7 +2178,7 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
             'POST_ENGAGEMENT': 'IMPRESSIONS',
             'PAGE_LIKES': 'IMPRESSIONS',
             'EVENT_RESPONSES': 'IMPRESSIONS',
-            // Video - THRUPLAY or IMPRESSIONS
+            // Video
             'THRUPLAY': 'THRUPLAY',
             'TWO_SECOND_CONTINUOUS_VIDEO_VIEWS': 'IMPRESSIONS',
             // Conversions - IMPRESSIONS only (despite the name)
@@ -2187,7 +2194,7 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
             'CONVERSATIONS': 'IMPRESSIONS',
             'REPLIES': 'IMPRESSIONS',
           };
-          
+
           const requiredEvent = billingEventMap[optGoal];
           if (requiredEvent) {
             if (userEvent && userEvent !== requiredEvent) {
@@ -2199,6 +2206,7 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
           return userEvent || 'IMPRESSIONS';
         };
         
+
         const metaBillingEvent = getBillingEventForOptimizationGoal(optimizationGoal, userBillingEvent);
         const rawMetaOptimizationLocation = phase.metaOptimizationLocation || (market as any).metaOptimizationLocation || "WEBSITE";
         
