@@ -2,7 +2,7 @@
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Trash2, Copy, RefreshCw, CheckSquare, Square, Loader2 } from 'lucide-react';
+import { Trash2, Copy, RefreshCw, CheckSquare, Square, Loader2, Upload } from 'lucide-react';
 
 interface AssignedCreativesToolbarProps {
   selectedCount: number;
@@ -12,8 +12,11 @@ interface AssignedCreativesToolbarProps {
   onDelete: () => void;
   onDuplicate: () => void;
   onRefresh: () => void;
+  onUploadToDsp?: () => void;
   isDeleting: boolean;
   isDuplicating: boolean;
+  isUploading?: boolean;
+  uploadableCount?: number;
 }
 
 export function AssignedCreativesToolbar({
@@ -24,8 +27,11 @@ export function AssignedCreativesToolbar({
   onDelete,
   onDuplicate,
   onRefresh,
+  onUploadToDsp,
   isDeleting,
   isDuplicating,
+  isUploading = false,
+  uploadableCount = 0,
 }: AssignedCreativesToolbarProps) {
   const hasSelection = selectedCount > 0;
   const allSelected = selectedCount === totalCount && totalCount > 0;
@@ -54,6 +60,24 @@ export function AssignedCreativesToolbar({
           </Badge>
 
           <Separator orientation="vertical" className="h-6" />
+
+          {/* Upload to DSP button - only show if there are uploadable creatives */}
+          {onUploadToDsp && uploadableCount > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onUploadToDsp}
+              disabled={isUploading}
+              className="h-8 px-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+            >
+              {isUploading ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Upload className="h-4 w-4 mr-1" />
+              )}
+              Upload to DSP ({uploadableCount})
+            </Button>
+          )}
 
           {/* Bulk actions */}
           <Button
