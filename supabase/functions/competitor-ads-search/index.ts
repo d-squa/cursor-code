@@ -160,47 +160,191 @@ async function getCompetitorsToSearch(
   return await identifyCompetitorsWithAI(clientName, industry, markets);
 }
 
-// Search Meta Ad Library for a specific competitor
+// Use AI to find the Facebook page name or website for a competitor brand
+async function findCompetitorPageName(
+  competitorName: string,
+  industry: string
+): Promise<{ pageName: string; website?: string }> {
+  const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+  
+  if (!lovableApiKey) {
+    console.log(`[PAGE_LOOKUP] No API key, using brand name: ${competitorName}`);
+    return { pageName: competitorName };
+  }
+  
+  try {
+    const prompt = `For the brand "${competitorName}" in the ${industry} industry, provide the EXACT Facebook page name they use for advertising. 
+
+IMPORTANT:
+- Return the official Facebook page name (what appears on their Facebook page, not the brand name)
+- Also provide their official website domain if known
+- Be accurate - incorrect page names will result in no ad data
+
+Return ONLY a JSON object in this format, nothing else:
+{"pageName": "Exact Facebook Page Name", "website": "example.com"}
+
+If you're not sure of the exact page name, return the brand name as-is.`;
+
+    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${lovableApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [
+          { 
+            role: "system", 
+            content: "You are a social media research expert. Return only valid JSON with accurate Facebook page names." 
+          },
+          { role: "user", content: prompt }
+        ],
+        temperature: 0.1,
+      }),
+    });
+
+    if (!aiResponse.ok) {
+      console.log(`[PAGE_LOOKUP] AI error, using brand name: ${competitorName}`);
+      return { pageName: competitorName };
+    }
+
+    const aiData = await aiResponse.json();
+    const content = aiData.choices?.[0]?.message?.content || "";
+    
+    // Parse JSON from response
+    const jsonMatch = content.match(/\{[\s\S]*?\}/);
+    if (jsonMatch) {
+      const result = JSON.parse(jsonMatch[0]);
+      console.log(`[PAGE_LOOKUP] Found page for ${competitorName}: ${result.pageName}`);
+      return {
+        pageName: result.pageName || competitorName,
+        website: result.website
+      };
+    }
+    
+    return { pageName: competitorName };
+  } catch (error) {
+    console.error(`[PAGE_LOOKUP] Error finding page for ${competitorName}:`, error);
+    return { pageName: competitorName };
+  }
+}
+
+// Cache for page name lookups to avoid repeated AI calls
+const pageNameCache: Map<string, { pageName: string; website?: string }> = new Map();
+
+async function getCompetitorPageName(
+  competitorName: string,
+  industry: string
+): Promise<{ pageName: string; website?: string }> {
+  const cacheKey = `${competitorName}_${industry}`;
+  
+  if (pageNameCache.has(cacheKey)) {
+    return pageNameCache.get(cacheKey)!;
+  }
+  
+  const result = await findCompetitorPageName(competitorName, industry);
+  pageNameCache.set(cacheKey, result);
+  return result;
+}
+
+// Search Meta Ad Library for a specific competitor using page name
 async function searchMetaForCompetitor(
   competitorName: string,
+  pageName: string,
+  website: string | undefined,
   accessToken: string,
   market: string
 ): Promise<{ isLive: boolean; adCount: number; ads: any[] }> {
   try {
-    console.log(`[META] Searching for "${competitorName}" in ${market}`);
+    // Try searching by page name first
+    console.log(`[META] Searching by page name "${pageName}" for "${competitorName}" in ${market}`);
     
-    const url = new URL('https://graph.facebook.com/v19.0/ads_archive');
-    url.searchParams.set('access_token', accessToken);
-    url.searchParams.set('search_terms', competitorName);
-    url.searchParams.set('ad_reached_countries', JSON.stringify([market]));
-    url.searchParams.set('ad_active_status', 'ACTIVE');
-    url.searchParams.set('ad_type', 'ALL');
-    url.searchParams.set('fields', 'id,ad_creation_time,ad_creative_bodies,page_name,publisher_platforms');
-    url.searchParams.set('limit', '50');
+    let allAds: any[] = [];
     
-    const response = await fetch(url.toString());
+    // Search by page name
+    const pageUrl = new URL('https://graph.facebook.com/v19.0/ads_archive');
+    pageUrl.searchParams.set('access_token', accessToken);
+    pageUrl.searchParams.set('search_terms', pageName);
+    pageUrl.searchParams.set('ad_reached_countries', JSON.stringify([market]));
+    pageUrl.searchParams.set('ad_active_status', 'ACTIVE');
+    pageUrl.searchParams.set('ad_type', 'ALL');
+    pageUrl.searchParams.set('fields', 'id,ad_creation_time,ad_creative_bodies,page_name,publisher_platforms,ad_snapshot_url');
+    pageUrl.searchParams.set('limit', '50');
     
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`[META] API error for "${competitorName}":`, errorText);
+    const pageResponse = await fetch(pageUrl.toString());
+    
+    if (pageResponse.ok) {
+      const pageData = await pageResponse.json();
+      allAds = pageData.data || [];
+      console.log(`[META] Found ${allAds.length} ads by page name "${pageName}"`);
+    } else {
+      const errorText = await pageResponse.text();
+      console.error(`[META] API error for page "${pageName}":`, errorText);
       
-      // Check if it's a permission error
       if (errorText.includes('OAuthException')) {
         console.log(`[META] OAuth error - Ad Library API may require app review`);
+        return { isLive: false, adCount: 0, ads: [] };
       }
-      
-      return { isLive: false, adCount: 0, ads: [] };
     }
     
-    const data = await response.json();
-    const ads = data.data || [];
+    // If no results and we have a website, try searching by website domain
+    if (allAds.length === 0 && website) {
+      console.log(`[META] No results by page name, trying website: ${website}`);
+      
+      const websiteUrl = new URL('https://graph.facebook.com/v19.0/ads_archive');
+      websiteUrl.searchParams.set('access_token', accessToken);
+      websiteUrl.searchParams.set('search_terms', website);
+      websiteUrl.searchParams.set('ad_reached_countries', JSON.stringify([market]));
+      websiteUrl.searchParams.set('ad_active_status', 'ACTIVE');
+      websiteUrl.searchParams.set('ad_type', 'ALL');
+      websiteUrl.searchParams.set('fields', 'id,ad_creation_time,ad_creative_bodies,page_name,publisher_platforms,ad_snapshot_url');
+      websiteUrl.searchParams.set('limit', '50');
+      
+      const websiteResponse = await fetch(websiteUrl.toString());
+      
+      if (websiteResponse.ok) {
+        const websiteData = await websiteResponse.json();
+        allAds = websiteData.data || [];
+        console.log(`[META] Found ${allAds.length} ads by website "${website}"`);
+      }
+    }
     
-    // Filter ads that match the competitor name closely
-    const matchingAds = ads.filter((ad: any) => 
-      ad.page_name?.toLowerCase().includes(competitorName.toLowerCase().split(' ')[0])
-    );
+    // If still no results, fall back to brand name search
+    if (allAds.length === 0 && pageName !== competitorName) {
+      console.log(`[META] No results, falling back to brand name: ${competitorName}`);
+      
+      const brandUrl = new URL('https://graph.facebook.com/v19.0/ads_archive');
+      brandUrl.searchParams.set('access_token', accessToken);
+      brandUrl.searchParams.set('search_terms', competitorName);
+      brandUrl.searchParams.set('ad_reached_countries', JSON.stringify([market]));
+      brandUrl.searchParams.set('ad_active_status', 'ACTIVE');
+      brandUrl.searchParams.set('ad_type', 'ALL');
+      brandUrl.searchParams.set('fields', 'id,ad_creation_time,ad_creative_bodies,page_name,publisher_platforms,ad_snapshot_url');
+      brandUrl.searchParams.set('limit', '50');
+      
+      const brandResponse = await fetch(brandUrl.toString());
+      
+      if (brandResponse.ok) {
+        const brandData = await brandResponse.json();
+        allAds = brandData.data || [];
+        console.log(`[META] Found ${allAds.length} ads by brand name "${competitorName}"`);
+      }
+    }
     
-    console.log(`[META] Found ${matchingAds.length} ads for "${competitorName}" in ${market}`);
+    // Filter ads that match the competitor/page name closely
+    const matchingAds = allAds.filter((ad: any) => {
+      const adPageName = ad.page_name?.toLowerCase() || '';
+      const searchTerms = [
+        competitorName.toLowerCase(),
+        pageName.toLowerCase(),
+        competitorName.toLowerCase().split(' ')[0],
+        pageName.toLowerCase().split(' ')[0]
+      ];
+      return searchTerms.some(term => adPageName.includes(term) || term.includes(adPageName));
+    });
+    
+    console.log(`[META] Final matching ads for "${competitorName}" in ${market}: ${matchingAds.length}`);
     
     return {
       isLive: matchingAds.length > 0,
@@ -383,12 +527,16 @@ serve(async (req) => {
       for (const competitor of competitors) {
         console.log(`\n--- Checking competitor: ${competitor} ---`);
         
+        // Look up the Facebook page name for this competitor
+        const { pageName, website } = await getCompetitorPageName(competitor, industry);
+        console.log(`[PAGE] Competitor "${competitor}" -> Page: "${pageName}", Website: ${website || 'N/A'}`);
+        
         // Search on Meta
         if (platforms.includes('meta')) {
           let metaResult: { isLive: boolean; adCount: number; ads: any[] };
           
           if (metaAccessToken) {
-            metaResult = await searchMetaForCompetitor(competitor, metaAccessToken, market);
+            metaResult = await searchMetaForCompetitor(competitor, pageName, website, metaAccessToken, market);
             if (metaResult.adCount > 0) usedLiveData = true;
           } else {
             console.log(`[META] No token, using sample data for ${competitor}`);
