@@ -347,6 +347,44 @@ const handler = async (req: Request): Promise<Response> => {
             };
 
             if (isVideo && creative.platform_video_id) {
+              // For videos, we need a thumbnail - fetch from Meta if not provided
+              let videoThumbnailUrl: string | null = null;
+              
+              if (creative.platform_thumbnail_id) {
+                // User uploaded a custom thumbnail - use image_hash
+                console.log(`[push-creatives] Using custom thumbnail hash: ${creative.platform_thumbnail_id}`);
+              } else {
+                // Fetch thumbnail URL from Meta's Video API
+                console.log(`[push-creatives] Fetching video thumbnail from Meta for video_id: ${creative.platform_video_id}`);
+                try {
+                  const videoInfoResponse = await fetch(
+                    `https://graph.facebook.com/v22.0/${creative.platform_video_id}?fields=thumbnails&access_token=${platform.access_token}`
+                  );
+                  const videoInfo = await videoInfoResponse.json();
+                  
+                  if (videoInfo?.thumbnails?.data?.length > 0) {
+                    // Get the first thumbnail (or the one with highest preference)
+                    const thumbnails = videoInfo.thumbnails.data;
+                    // Prefer the thumbnail marked as preferred, otherwise use the first one
+                    const preferredThumb = thumbnails.find((t: any) => t.is_preferred) || thumbnails[0];
+                    videoThumbnailUrl = preferredThumb?.uri || null;
+                    
+                    if (videoThumbnailUrl) {
+                      console.log(`[push-creatives] Fetched video thumbnail URL: ${videoThumbnailUrl}`);
+                      // Save the thumbnail URL to the creative for future use
+                      await supabase
+                        .from("creatives")
+                        .update({ thumbnail_url: videoThumbnailUrl })
+                        .eq("id", creative.id);
+                    }
+                  } else {
+                    console.log(`[push-creatives] No thumbnails found in Meta response:`, JSON.stringify(videoInfo));
+                  }
+                } catch (thumbError) {
+                  console.error(`[push-creatives] Failed to fetch video thumbnail:`, thumbError);
+                }
+              }
+
               creativePayload.object_story_spec.video_data = {
                 video_id: creative.platform_video_id,
                 title: resolvedText.headline || creative.name,
@@ -360,14 +398,27 @@ const handler = async (req: Request): Promise<Response> => {
                     }
                   : undefined,
               };
-              // Add thumbnail for video ads - Meta will auto-generate if not provided
+              
+              // Add thumbnail for video ads
               if (creative.platform_thumbnail_id) {
+                // Custom uploaded thumbnail - use image_hash
                 creativePayload.object_story_spec.video_data.image_hash = creative.platform_thumbnail_id;
+              } else if (videoThumbnailUrl) {
+                // Auto-fetched thumbnail from Meta - use image_url
+                creativePayload.object_story_spec.video_data.image_url = videoThumbnailUrl;
               } else if (creative.thumbnail_url && !creative.thumbnail_url.endsWith('.mp4') && !creative.thumbnail_url.endsWith('.mov')) {
-                // Use thumbnail_url only if it's an actual image, not a video
+                // Fallback to existing thumbnail_url if it's an actual image
                 creativePayload.object_story_spec.video_data.image_url = creative.thumbnail_url;
+              } else {
+                // Last resort: Meta requires a thumbnail, so we'll fail gracefully
+                console.error(`[push-creatives] No thumbnail available for video ${creative.id}`);
+                await supabase
+                  .from("creative_assignments")
+                  .update({ status: "error", error_message: "No video thumbnail available. Please upload a thumbnail or re-upload the video." })
+                  .eq("id", assignment.id);
+                localFailed++;
+                continue;
               }
-              // If no thumbnail available, Meta will auto-generate from video
             } else if (creative.platform_image_hash) {
               creativePayload.object_story_spec.link_data = {
                 image_hash: creative.platform_image_hash,
