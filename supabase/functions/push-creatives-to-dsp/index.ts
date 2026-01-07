@@ -360,16 +360,14 @@ const handler = async (req: Request): Promise<Response> => {
                     }
                   : undefined,
               };
-              // Add thumbnail - required by Meta for video ads
+              // Add thumbnail for video ads - Meta will auto-generate if not provided
               if (creative.platform_thumbnail_id) {
                 creativePayload.object_story_spec.video_data.image_hash = creative.platform_thumbnail_id;
               } else if (creative.thumbnail_url && !creative.thumbnail_url.endsWith('.mp4') && !creative.thumbnail_url.endsWith('.mov')) {
                 // Use thumbnail_url only if it's an actual image, not a video
                 creativePayload.object_story_spec.video_data.image_url = creative.thumbnail_url;
-              } else {
-                // If no thumbnail, use video frame at 0ms offset
-                creativePayload.object_story_spec.video_data.thumb_offset = 0;
               }
+              // If no thumbnail available, Meta will auto-generate from video
             } else if (creative.platform_image_hash) {
               creativePayload.object_story_spec.link_data = {
                 image_hash: creative.platform_image_hash,
