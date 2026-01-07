@@ -2747,154 +2747,26 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
                 continue;
               }
               
-              // ============= AUTO-UPLOAD CREATIVE TO META IF MISSING =============
+              // ============= CHECK CREATIVE UPLOAD STATUS =============
+              // IMPORTANT: We no longer do inline uploads to avoid memory exhaustion.
+              // Creatives must be pre-uploaded via the 'upload-creative-to-meta' edge function.
+              // If creative is missing Meta asset, mark it for deferred upload and skip.
               let hasMetaAsset = creative.platform_image_hash || creative.platform_video_id;
               
               if (!hasMetaAsset) {
-                console.log(`📤 Creative ${creative.name} missing Meta asset - attempting auto-upload...`);
+                console.log(`⏭️ Creative ${creative.name} missing Meta asset - requires pre-upload via upload-creative-to-meta function`);
                 
-                // Determine file type and get the media URL
-                const isVideo = creative.media_type === 'video' || creative.creative_type === 'video';
-                const mediaUrl = creative.media_urls?.[0] || creative.thumbnail_url;
-                
-                if (!mediaUrl) {
-                  console.warn(`⚠️ No media URL found for creative ${creative.name}`);
-                  await supabase
-                    .from('creative_assignments')
-                    .update({
-                      status: 'error',
-                      error_message: 'No media file URL found for creative - cannot upload to Meta',
-                    })
-                    .eq('id', assignment.id);
-                  continue;
-                }
-                
-                try {
-                  // Download the file from storage or URL
-                  console.log(`📥 Downloading file from: ${mediaUrl}`);
-                  const fileResponse = await fetch(mediaUrl);
-                  if (!fileResponse.ok) {
-                    throw new Error(`Failed to download file: ${fileResponse.status} ${fileResponse.statusText}`);
-                  }
-                  
-                  const fileBuffer = await fileResponse.arrayBuffer();
-                  const fileData = btoa(String.fromCharCode(...new Uint8Array(fileBuffer)));
-                  const mimeType = fileResponse.headers.get('content-type') || (isVideo ? 'video/mp4' : 'image/jpeg');
-                  
-                  console.log(`📤 Uploading ${isVideo ? 'video' : 'image'} to Meta ad account ${adAccountPath}...`);
-                  
-                  if (isVideo) {
-                    // Upload video to Meta
-                    const binaryData = new Uint8Array(fileBuffer);
-                    const fileSize = binaryData.length;
-                    
-                    console.log(`📹 Starting video upload, size: ${fileSize} bytes`);
-                    
-                    if (fileSize >= 100 * 1024 * 1024) {
-                      console.warn(`⚠️ Video too large for direct upload (${fileSize} bytes)`);
-                      await supabase
-                        .from('creative_assignments')
-                        .update({
-                          status: 'error',
-                          error_message: 'Video file too large (>100MB) - chunked upload not yet supported',
-                        })
-                        .eq('id', assignment.id);
-                      continue;
-                    }
-                    
-                    const videoFormData = new FormData();
-                    const blob = new Blob([binaryData], { type: mimeType });
-                    videoFormData.append('source', blob, creative.name || 'video.mp4');
-                    videoFormData.append('access_token', platform.access_token);
-                    
-                    const videoUploadResponse = await fetch(
-                      `https://graph.facebook.com/v22.0/${adAccountPath}/advideos`,
-                      { method: 'POST', body: videoFormData }
-                    );
-                    
-                    const videoData = await videoUploadResponse.json();
-                    
-                    if (videoData.error) {
-                      throw new Error(`Meta video upload error: ${videoData.error.message}`);
-                    }
-                    
-                    if (!videoData.id) {
-                      throw new Error('No video ID returned from Meta API');
-                    }
-                    
-                    console.log(`✅ Video uploaded successfully. ID: ${videoData.id}`);
-                    
-                    // Update creative with the video ID
-                    await supabase
-                      .from('creatives')
-                      .update({
-                        platform_video_id: videoData.id,
-                        dsp_upload_status: 'uploaded',
-                        dsp_uploaded_at: new Date().toISOString(),
-                      })
-                      .eq('id', creative.id);
-                    
-                    creative.platform_video_id = videoData.id;
-                    hasMetaAsset = true;
-                    
-                  } else {
-                    // Upload image to Meta
-                    const imageFormData = new FormData();
-                    imageFormData.append('bytes', fileData); // Base64 encoded image
-                    imageFormData.append('access_token', platform.access_token);
-                    
-                    const imageUploadResponse: Response = await fetch(
-                      `https://graph.facebook.com/v22.0/${adAccountPath}/adimages`,
-                      { method: 'POST', body: imageFormData }
-                    );
-                    
-                    const imageData: any = await imageUploadResponse.json();
-                    
-                    if (imageData.error) {
-                      throw new Error(`Meta image upload error: ${imageData.error.message}`);
-                    }
-                    
-                    const images: Record<string, any> = imageData.images;
-                    if (!images) {
-                      throw new Error('No images returned from Meta API');
-                    }
-                    
-                    const imageKey = Object.keys(images)[0];
-                    const imageHash = images[imageKey]?.hash;
-                    
-                    if (!imageHash) {
-                      throw new Error('No image hash returned from Meta API');
-                    }
-                    
-                    console.log(`✅ Image uploaded successfully. Hash: ${imageHash}`);
-                    
-                    // Update creative with the image hash
-                    await supabase
-                      .from('creatives')
-                      .update({
-                        platform_image_hash: imageHash,
-                        dsp_upload_status: 'uploaded',
-                        dsp_uploaded_at: new Date().toISOString(),
-                      })
-                      .eq('id', creative.id);
-                    
-                    creative.platform_image_hash = imageHash;
-                    hasMetaAsset = true;
-                  }
-                  
-                } catch (uploadError: any) {
-                  console.error(`❌ Failed to auto-upload creative to Meta:`, uploadError);
-                  await supabase
-                    .from('creative_assignments')
-                    .update({
-                      status: 'error',
-                      error_message: `Failed to upload creative to Meta: ${uploadError.message}`,
-                    })
-                    .eq('id', assignment.id);
-                  continue;
-                }
+                // Mark assignment as pending upload - user needs to upload creatives first
+                await supabase
+                  .from('creative_assignments')
+                  .update({
+                    status: 'pending_upload',
+                    error_message: 'Creative needs to be uploaded to Meta first. Please use the Upload to Meta feature in Creative Library.',
+                  })
+                  .eq('id', assignment.id);
+                continue;
               }
-              // ============= END AUTO-UPLOAD =============
+              // ============= END UPLOAD CHECK =============
               
               // Final check after upload attempt
               if (!hasMetaAsset) {
