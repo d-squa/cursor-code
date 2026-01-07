@@ -12,7 +12,8 @@ const corsHeaders = {
 const uploadInputSchema = z.object({
   adAccountId: z.string(), // Meta ad account ID (e.g., "act_123456")
   fileName: z.string(),
-  fileData: z.string(), // Base64 encoded file data
+  fileData: z.string().optional(), // Base64 encoded file data (for images)
+  fileUrl: z.string().optional(), // Public URL for video files (to avoid memory issues)
   fileType: z.enum(["image", "video"]),
   mimeType: z.string().optional(),
 });
@@ -78,6 +79,9 @@ serve(async (req: Request) => {
 
     if (input.fileType === "image") {
       // Upload image to Meta
+      if (!input.fileData) {
+        throw new Error("Image uploads require fileData parameter");
+      }
       // POST to graph.facebook.com/v21.0/act_<AD_ACCOUNT_ID>/adimages
       const formData = new FormData();
       formData.append("bytes", input.fileData); // Base64 encoded image
@@ -115,46 +119,39 @@ serve(async (req: Request) => {
       console.log(`✅ Image uploaded successfully. Hash: ${imageHash}`);
 
     } else {
-      // Upload video to Meta
-      // For videos, Meta uses a multi-step process
-      // Step 1: Initialize upload session
-      const initUrl = `https://graph.facebook.com/v21.0/${formattedAdAccountId}/advideos`;
-      
-      // Decode base64 to get file size
-      const binaryData = Uint8Array.from(atob(input.fileData), c => c.charCodeAt(0));
-      const fileSize = binaryData.length;
-      
-      console.log(`📹 Starting video upload, size: ${fileSize} bytes`);
-
-      // For smaller videos (<100MB), use direct upload
-      if (fileSize < 100 * 1024 * 1024) {
-        const formData = new FormData();
-        const blob = new Blob([binaryData], { type: input.mimeType || "video/mp4" });
-        formData.append("source", blob, input.fileName);
-        formData.append("access_token", accessToken);
-
-        const response = await fetch(initUrl, {
-          method: "POST",
-          body: formData,
-        });
-
-        const responseData = await response.json();
-        console.log("📥 Meta video response:", JSON.stringify(responseData));
-
-        if (responseData.error) {
-          throw new Error(`Meta API error: ${responseData.error.message}`);
-        }
-
-        if (!responseData.id) {
-          throw new Error("No video ID returned from Meta API");
-        }
-
-        result = { id: responseData.id };
-        console.log(`✅ Video uploaded successfully. ID: ${responseData.id}`);
-
-      } else {
-        throw new Error("Video files larger than 100MB require chunked upload (not yet implemented)");
+      // Upload video to Meta using file_url to avoid memory issues
+      // Meta will fetch the video directly from the URL
+      if (!input.fileUrl) {
+        throw new Error("Video uploads require fileUrl parameter");
       }
+
+      const videoUrl = `https://graph.facebook.com/v21.0/${formattedAdAccountId}/advideos`;
+      console.log(`📹 Starting video upload via file_url: ${input.fileUrl}`);
+
+      // Use file_url parameter - Meta fetches the video directly
+      const formData = new FormData();
+      formData.append("file_url", input.fileUrl);
+      formData.append("access_token", accessToken);
+      formData.append("title", input.fileName);
+
+      const response = await fetch(videoUrl, {
+        method: "POST",
+        body: formData,
+      });
+
+      const responseData = await response.json();
+      console.log("📥 Meta video response:", JSON.stringify(responseData));
+
+      if (responseData.error) {
+        throw new Error(`Meta API error: ${responseData.error.message}`);
+      }
+
+      if (!responseData.id) {
+        throw new Error("No video ID returned from Meta API");
+      }
+
+      result = { id: responseData.id };
+      console.log(`✅ Video uploaded successfully. ID: ${responseData.id}`);
     }
 
     return new Response(

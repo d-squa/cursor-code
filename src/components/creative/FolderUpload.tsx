@@ -118,14 +118,43 @@ export function FolderUpload({ onUploadComplete, adAccounts, isUploading = false
     const fileType = file.type.startsWith('video/') ? 'video' : 'image';
 
     if (platform === 'meta') {
-      const { data, error } = await supabase.functions.invoke('upload-creative-to-meta', {
-        body: {
+      // For videos, we need to upload to storage first to get a public URL
+      // For images, we can use base64 directly
+      let uploadBody: Record<string, any>;
+
+      if (fileType === 'video') {
+        // Upload to Supabase storage first to get a public URL
+        const fileName = `temp/${Date.now()}_${file.name}`;
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('creatives')
+          .upload(fileName, file, { upsert: true });
+
+        if (uploadError) {
+          throw new Error(`Failed to upload video to storage: ${uploadError.message}`);
+        }
+
+        const { data: urlData } = supabase.storage
+          .from('creatives')
+          .getPublicUrl(fileName);
+
+        uploadBody = {
+          adAccountId: adAccount.accountId,
+          fileName: file.name,
+          fileUrl: urlData.publicUrl,
+          fileType: 'video',
+        };
+      } else {
+        uploadBody = {
           adAccountId: adAccount.accountId,
           fileName: file.name,
           fileData: base64,
-          fileType,
+          fileType: 'image',
           mimeType: file.type,
-        },
+        };
+      }
+
+      const { data, error } = await supabase.functions.invoke('upload-creative-to-meta', {
+        body: uploadBody,
       });
 
       if (error || !data?.success) {
