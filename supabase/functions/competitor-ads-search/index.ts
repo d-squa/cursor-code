@@ -31,20 +31,133 @@ interface CompetitorInfo {
   };
 }
 
-// Get competitors to search - uses provided competitor names
-function getCompetitorsToSearch(
+// Use AI to identify competitors for a client based on their name and industry
+async function identifyCompetitorsWithAI(
   clientName: string,
+  industry: string,
+  markets: string[]
+): Promise<string[]> {
+  const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
+  
+  if (!lovableApiKey) {
+    console.log("[AI] No Lovable API key available, using fallback competitor identification");
+    return getFallbackCompetitors(industry);
+  }
+  
+  try {
+    console.log(`[AI] Identifying competitors for ${clientName} in ${industry} industry`);
+    
+    const prompt = `You are a competitive intelligence analyst. Given the following client information, identify their top 5-8 direct competitors that are likely to advertise on Meta (Facebook/Instagram) and TikTok.
+
+Client Name: ${clientName}
+Industry: ${industry}
+Target Markets: ${markets.join(', ')}
+
+IMPORTANT:
+- The client "${clientName}" is YOUR CLIENT, NOT a competitor. Do NOT include them in the list.
+- Focus on direct competitors that would target similar audiences
+- Include both global brands and regional competitors relevant to the markets
+- Only include brands that are likely to run paid social media ads
+
+Return ONLY a JSON array of competitor brand names, nothing else. Example format:
+["Competitor 1", "Competitor 2", "Competitor 3"]`;
+
+    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${lovableApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [
+          { 
+            role: "system", 
+            content: "You are a competitive intelligence expert. Return only valid JSON arrays with competitor brand names. No explanations or markdown." 
+          },
+          { role: "user", content: prompt }
+        ],
+        temperature: 0.3,
+      }),
+    });
+
+    if (!aiResponse.ok) {
+      console.error("[AI] API error:", aiResponse.status);
+      return getFallbackCompetitors(industry);
+    }
+
+    const aiData = await aiResponse.json();
+    const content = aiData.choices?.[0]?.message?.content || "";
+    
+    // Parse JSON array from response
+    const jsonMatch = content.match(/\[[\s\S]*?\]/);
+    if (jsonMatch) {
+      const competitors = JSON.parse(jsonMatch[0]);
+      if (Array.isArray(competitors) && competitors.length > 0) {
+        // Filter out the client name if AI accidentally included it
+        const filteredCompetitors = competitors.filter(
+          (c: string) => c.toLowerCase() !== clientName.toLowerCase()
+        );
+        console.log(`[AI] Identified ${filteredCompetitors.length} competitors:`, filteredCompetitors);
+        return filteredCompetitors.slice(0, 8); // Limit to 8 competitors
+      }
+    }
+    
+    console.log("[AI] Failed to parse competitors from response:", content);
+    return getFallbackCompetitors(industry);
+  } catch (error) {
+    console.error("[AI] Error identifying competitors:", error);
+    return getFallbackCompetitors(industry);
+  }
+}
+
+// Fallback competitor identification based on industry
+function getFallbackCompetitors(industry: string): string[] {
+  const industryCompetitors: Record<string, string[]> = {
+    'fashion': ['Zara', 'H&M', 'ASOS', 'Mango', 'Massimo Dutti'],
+    'food_delivery': ['Uber Eats', 'DoorDash', 'Deliveroo', 'Grubhub', 'Just Eat'],
+    'ecommerce': ['Amazon', 'eBay', 'Shopify Stores', 'Etsy', 'Walmart'],
+    'travel': ['Booking.com', 'Expedia', 'Airbnb', 'TripAdvisor', 'Hotels.com'],
+    'fitness': ['Nike', 'Adidas', 'Peloton', 'Lululemon', 'Under Armour'],
+    'beauty': ['Sephora', 'Ulta', 'MAC', 'Charlotte Tilbury', 'Fenty Beauty'],
+    'luxury': ['Gucci', 'Louis Vuitton', 'Prada', 'Chanel', 'Dior'],
+    'automotive': ['BMW', 'Mercedes-Benz', 'Audi', 'Tesla', 'Toyota'],
+    'finance': ['Chase', 'Bank of America', 'Wells Fargo', 'Robinhood', 'PayPal'],
+    'technology': ['Apple', 'Samsung', 'Google', 'Microsoft', 'Sony'],
+    'education': ['Coursera', 'Udemy', 'Skillshare', 'Khan Academy', 'edX'],
+    'healthcare': ['CVS', 'Walgreens', 'Teladoc', 'One Medical', 'GoodRx'],
+    'real_estate': ['Zillow', 'Redfin', 'Realtor.com', 'Trulia', 'Compass'],
+  };
+  
+  const normalizedIndustry = industry.toLowerCase().replace(/[^a-z]/g, '_');
+  const competitors = industryCompetitors[normalizedIndustry] || [];
+  
+  if (competitors.length > 0) {
+    console.log(`[FALLBACK] Using industry-based competitors for ${industry}:`, competitors);
+    return competitors;
+  }
+  
+  // Generic fallback if industry not recognized
+  console.log(`[FALLBACK] Unknown industry "${industry}", using generic competitors`);
+  return ['Brand A', 'Brand B', 'Brand C', 'Brand D', 'Brand E'];
+}
+
+// Get competitors to search - uses AI to identify competitors or provided custom list
+async function getCompetitorsToSearch(
+  clientName: string,
+  industry: string,
+  markets: string[],
   customCompetitors?: string[]
-): string[] {
+): Promise<string[]> {
   // If custom competitors provided, use those
   if (customCompetitors && customCompetitors.length > 0) {
     console.log(`[COMPETITORS] Using ${customCompetitors.length} custom competitors`);
     return customCompetitors;
   }
   
-  // Otherwise just search for the client name itself
-  console.log(`[COMPETITORS] Searching for client: ${clientName}`);
-  return [clientName];
+  // Use AI to identify competitors based on client and industry
+  console.log(`[COMPETITORS] Identifying competitors for client: ${clientName} in ${industry}`);
+  return await identifyCompetitorsWithAI(clientName, industry, markets);
 }
 
 // Search Meta Ad Library for a specific competitor
@@ -235,13 +348,13 @@ serve(async (req) => {
     const allCompetitors: CompetitorInfo[] = [];
     let usedLiveData = false;
 
+    // Identify competitors using AI (do this once, not per market)
+    const competitors = await getCompetitorsToSearch(clientName, industry, markets, body.competitors);
+    console.log(`[SEARCH] Identified competitors to search:`, competitors);
+
     // Process each market
     for (const market of markets) {
       console.log(`\n=== Processing Market: ${market} ===`);
-      
-      // Get competitors to search (custom provided or just client name)
-      const competitors = getCompetitorsToSearch(clientName, body.competitors);
-      console.log(`[SEARCH] Searching for competitors in ${market}:`, competitors);
       
       // Step 2: Get previous status from database
       let previousStatuses: Record<string, any> = {};
