@@ -382,26 +382,6 @@ export function AssignedCreativesView({
           const mediaUrl = creative.media_urls[0];
           const isVideo = creative.media_type === 'video';
 
-          // Fetch the file from storage
-          const response = await fetch(mediaUrl);
-          if (!response.ok) {
-            throw new Error('Failed to fetch media file');
-          }
-
-          const blob = await response.blob();
-          
-          // Convert to base64
-          const base64 = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => {
-              const result = reader.result as string;
-              const base64Data = result.split(',')[1];
-              resolve(base64Data);
-            };
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-          });
-
           // Get ad account for this platform/market
           const { data: campaign } = await supabase
             .from('campaigns')
@@ -443,14 +423,45 @@ export function AssignedCreativesView({
           }
 
           // Upload to Meta
-          const { data, error } = await supabase.functions.invoke('upload-creative-to-meta', {
-            body: {
+          let uploadBody: Record<string, any>;
+
+          if (isVideo) {
+            // For videos, pass the URL directly to avoid memory issues
+            uploadBody = {
+              adAccountId: adAccountId,
+              fileName: creative.name || 'creative',
+              fileUrl: mediaUrl,
+              fileType: 'video',
+            };
+          } else {
+            // For images, fetch and convert to base64
+            const response = await fetch(mediaUrl);
+            if (!response.ok) {
+              throw new Error('Failed to fetch media file');
+            }
+            const blob = await response.blob();
+            const base64 = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => {
+                const result = reader.result as string;
+                const base64Data = result.split(',')[1];
+                resolve(base64Data);
+              };
+              reader.onerror = reject;
+              reader.readAsDataURL(blob);
+            });
+
+            uploadBody = {
               adAccountId: adAccountId,
               fileName: creative.name || 'creative',
               fileData: base64,
-              fileType: isVideo ? 'video' : 'image',
+              fileType: 'image',
               mimeType: blob.type,
-            },
+            };
+          }
+
+          const { data, error } = await supabase.functions.invoke('upload-creative-to-meta', {
+            body: uploadBody,
           });
 
           if (error || !data?.success) {
