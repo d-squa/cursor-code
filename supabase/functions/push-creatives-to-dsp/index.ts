@@ -154,6 +154,8 @@ const handler = async (req: Request): Promise<Response> => {
       .eq("entity_type", "adset")
       .not("dsp_entity_id", "is", null);
     if (statusError) throw statusError;
+    
+    console.log(`[push-creatives] Found ${adsetStatuses?.length || 0} ad sets with DSP IDs`);
 
     let pushedCount = 0;
     let failedCount = 0;
@@ -190,6 +192,7 @@ const handler = async (req: Request): Promise<Response> => {
       const platform = { ...platformRow, access_token: accessToken };
       const { market, phase } = findMarketAndPhaseConfig(campaign, platformKey, entry.market, entry.phase_name);
 
+      // Query with case-insensitive platform matching using ilike
       const { data: assignments, error: assignmentError } = await supabase
         .from("creative_assignments")
         .select(
@@ -229,10 +232,12 @@ const handler = async (req: Request): Promise<Response> => {
         `,
         )
         .eq("campaign_id", campaign.id)
-        .eq("platform", platformKey)
+        .ilike("platform", platformKey)
         .eq("market", entry.market)
         .eq("phase_name", entry.phase_name)
         .order("position");
+      
+      console.log(`[push-creatives] Found ${assignments?.length || 0} assignments for ${platformKey}/${entry.market}/${entry.phase_name}, using adset_id: ${entry.dsp_entity_id}`);
 
       if (assignmentError) {
         results.push({
@@ -382,6 +387,11 @@ const handler = async (req: Request): Promise<Response> => {
               }
             }
 
+            console.log(`[push-creatives] Creating ad creative for ${creative.name}, payload:`, JSON.stringify({
+              ...creativePayload,
+              access_token: "***"
+            }));
+            
             const creativeResponse = await fetch(`https://graph.facebook.com/v22.0/${adAccountPath}/adcreatives`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -390,6 +400,7 @@ const handler = async (req: Request): Promise<Response> => {
             const creativeData = await creativeResponse.json();
 
             if (creativeData?.error) {
+              console.error(`[push-creatives] Ad creative creation failed:`, JSON.stringify(creativeData.error));
               await supabase
                 .from("creative_assignments")
                 .update({ status: "error", error_message: creativeData.error.message || "Failed to create ad creative" })
@@ -397,6 +408,8 @@ const handler = async (req: Request): Promise<Response> => {
               localFailed++;
               continue;
             }
+            
+            console.log(`[push-creatives] Ad creative created with id: ${creativeData.id}`);
 
             const adPayload = {
               name: creative.name,
@@ -404,6 +417,11 @@ const handler = async (req: Request): Promise<Response> => {
               creative: { creative_id: creativeData.id },
               status: "PAUSED",
             };
+            
+            console.log(`[push-creatives] Creating ad with adset_id: ${entry.dsp_entity_id}, payload:`, JSON.stringify({
+              ...adPayload,
+              access_token: "***"
+            }));
 
             const adResponse = await fetch(`https://graph.facebook.com/v22.0/${adAccountPath}/ads`, {
               method: "POST",
@@ -413,6 +431,7 @@ const handler = async (req: Request): Promise<Response> => {
             const adData = await adResponse.json();
 
             if (adData?.error || !adData?.id) {
+              console.error(`[push-creatives] Ad creation failed:`, JSON.stringify(adData?.error || adData));
               await supabase
                 .from("creative_assignments")
                 .update({ status: "error", error_message: adData?.error?.message || "Failed to create ad" })
@@ -420,6 +439,8 @@ const handler = async (req: Request): Promise<Response> => {
               localFailed++;
               continue;
             }
+            
+            console.log(`[push-creatives] Ad created with id: ${adData.id}`);
 
             await supabase
               .from("creative_assignments")
