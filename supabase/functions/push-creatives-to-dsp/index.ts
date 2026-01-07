@@ -518,25 +518,25 @@ const handler = async (req: Request): Promise<Response> => {
                   : undefined,
               };
               
-              // Add thumbnail for video ads
+              // Add thumbnail for video ads (optional)
+              // If we don't provide a thumbnail, Meta will auto-generate one after processing.
               if (creative.platform_thumbnail_id) {
                 // Custom uploaded thumbnail - use image_hash
                 creativePayload.object_story_spec.video_data.image_hash = creative.platform_thumbnail_id;
               } else if (videoThumbnailUrl) {
                 // Auto-fetched thumbnail from Meta - use image_url
                 creativePayload.object_story_spec.video_data.image_url = videoThumbnailUrl;
-              } else if (creative.thumbnail_url && !creative.thumbnail_url.endsWith('.mp4') && !creative.thumbnail_url.endsWith('.mov')) {
+              } else if (
+                creative.thumbnail_url &&
+                !creative.thumbnail_url.endsWith(".mp4") &&
+                !creative.thumbnail_url.endsWith(".mov")
+              ) {
                 // Fallback to existing thumbnail_url if it's an actual image
                 creativePayload.object_story_spec.video_data.image_url = creative.thumbnail_url;
               } else {
-                // Last resort: Meta requires a thumbnail, so we'll fail gracefully
-                console.error(`[push-creatives] No thumbnail available for video ${creative.id}`);
-                await supabase
-                  .from("creative_assignments")
-                  .update({ status: "error", error_message: "No video thumbnail available. Please upload a thumbnail or re-upload the video." })
-                  .eq("id", assignment.id);
-                localFailed++;
-                continue;
+                console.log(
+                  `[push-creatives] No thumbnail available for video ${creative.id}; proceeding without thumbnail (Meta will auto-generate)`
+                );
               }
             } else if (creative.platform_image_hash) {
               creativePayload.object_story_spec.link_data = {
