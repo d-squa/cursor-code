@@ -305,18 +305,137 @@ const handler = async (req: Request): Promise<Response> => {
               continue;
             }
 
-            const hasMetaAsset = creative.platform_image_hash || creative.platform_video_id;
+            let hasMetaAsset = creative.platform_image_hash || creative.platform_video_id;
+            
+            // Auto-upload to Meta if creative is missing DSP asset IDs
             if (!hasMetaAsset) {
-              const missingFields = [
-                !creative.platform_image_hash ? "platform_image_hash" : null,
-                !creative.platform_video_id ? "platform_video_id" : null,
-              ].filter(Boolean);
-
+              console.log(`[push-creatives] Creative ${creative.id} missing Meta asset, attempting auto-upload`);
+              
+              // Get media URL from creative (needs to be fetched from creatives table)
+              const { data: fullCreative, error: creativeError } = await supabase
+                .from("creatives")
+                .select("media_urls, media_type")
+                .eq("id", creative.id)
+                .single();
+              
+              if (creativeError || !fullCreative?.media_urls?.[0]) {
+                console.error(`[push-creatives] Cannot auto-upload: no media URL for creative ${creative.id}`);
+                await supabase
+                  .from("creative_assignments")
+                  .update({
+                    status: "error",
+                    error_message: "Creative missing media file - cannot auto-upload to Meta",
+                  })
+                  .eq("id", assignment.id);
+                localFailed++;
+                continue;
+              }
+              
+              const mediaUrl = fullCreative.media_urls[0];
+              const isVideoFile = fullCreative.media_type === "video" || 
+                mediaUrl.includes('.mp4') || mediaUrl.includes('.mov') || mediaUrl.includes('.webm');
+              
+              try {
+                if (isVideoFile) {
+                  // Upload video using file_url method
+                  console.log(`[push-creatives] Auto-uploading video to Meta: ${mediaUrl}`);
+                  const videoFormData = new FormData();
+                  videoFormData.append("file_url", mediaUrl);
+                  videoFormData.append("access_token", platform.access_token);
+                  videoFormData.append("title", creative.name || "creative");
+                  
+                  const videoResponse = await fetch(
+                    `https://graph.facebook.com/v22.0/${adAccountPath}/advideos`,
+                    { method: "POST", body: videoFormData }
+                  );
+                  const videoData = await videoResponse.json();
+                  
+                  if (videoData.error) {
+                    throw new Error(`Meta API error: ${videoData.error.message}`);
+                  }
+                  
+                  if (videoData.id) {
+                    console.log(`[push-creatives] Video uploaded successfully, ID: ${videoData.id}`);
+                    await supabase
+                      .from("creatives")
+                      .update({ 
+                        platform_video_id: videoData.id, 
+                        dsp_upload_status: "uploaded",
+                        dsp_uploaded_at: new Date().toISOString()
+                      })
+                      .eq("id", creative.id);
+                    creative.platform_video_id = videoData.id;
+                    hasMetaAsset = true;
+                  }
+                } else {
+                  // Upload image using base64
+                  console.log(`[push-creatives] Auto-uploading image to Meta: ${mediaUrl}`);
+                  
+                  // Fetch the image and convert to base64
+                  const imageResponse = await fetch(mediaUrl);
+                  if (!imageResponse.ok) {
+                    throw new Error(`Failed to fetch image: ${imageResponse.status}`);
+                  }
+                  
+                  const imageBuffer = await imageResponse.arrayBuffer();
+                  const base64Image = btoa(
+                    new Uint8Array(imageBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+                  );
+                  
+                  const imageFormData = new FormData();
+                  imageFormData.append("bytes", base64Image);
+                  imageFormData.append("access_token", platform.access_token);
+                  
+                  const imageUploadResponse: Response = await fetch(
+                    `https://graph.facebook.com/v22.0/${adAccountPath}/adimages`,
+                    { method: "POST", body: imageFormData }
+                  );
+                  const imageUploadData: any = await imageUploadResponse.json();
+                  
+                  if (imageUploadData.error) {
+                    throw new Error(`Meta API error: ${imageUploadData.error.message}`);
+                  }
+                  
+                  const images: any = imageUploadData.images;
+                  if (images) {
+                    const imageKey = Object.keys(images)[0];
+                    const imageHash = images[imageKey]?.hash;
+                    if (imageHash) {
+                      console.log(`[push-creatives] Image uploaded successfully, hash: ${imageHash}`);
+                      await supabase
+                        .from("creatives")
+                        .update({ 
+                          platform_image_hash: imageHash,
+                          dsp_upload_status: "uploaded",
+                          dsp_uploaded_at: new Date().toISOString()
+                        })
+                        .eq("id", creative.id);
+                      creative.platform_image_hash = imageHash;
+                      hasMetaAsset = true;
+                    }
+                  }
+                }
+              } catch (uploadError) {
+                console.error(`[push-creatives] Auto-upload failed for creative ${creative.id}:`, uploadError);
+                await supabase
+                  .from("creative_assignments")
+                  .update({
+                    status: "error",
+                    error_message: `Auto-upload to Meta failed: ${uploadError instanceof Error ? uploadError.message : 'Unknown error'}`,
+                  })
+                  .eq("id", assignment.id);
+                localFailed++;
+                continue;
+              }
+            }
+            
+            // Final check after auto-upload attempt
+            if (!hasMetaAsset) {
               await supabase
                 .from("creative_assignments")
                 .update({
                   status: "error",
-                  error_message: `Creative not uploaded to Meta (missing ${missingFields.join(" & ")})`,
+                  error_message: "Creative not uploaded to Meta (upload failed)",
                 })
                 .eq("id", assignment.id);
               localFailed++;
