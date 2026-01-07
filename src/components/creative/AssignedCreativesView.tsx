@@ -9,7 +9,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { 
   Loader2, ChevronDown, ChevronRight, Image, Video, Trash2, 
-  RefreshCw, Copy, MoreHorizontal 
+  RefreshCw, Copy, MoreHorizontal, Upload
 } from "lucide-react";
 import { toast } from "sonner";
 import { AssignedCreativesFilters, type CreativeFilters } from "./AssignedCreativesFilters";
@@ -96,6 +96,7 @@ export function AssignedCreativesView({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
   const [duplicating, setDuplicating] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
   const [filters, setFilters] = useState<CreativeFilters>({
     platform: null,
@@ -352,6 +353,152 @@ export function AssignedCreativesView({
     setShowDuplicateDialog(true);
   };
 
+  // Calculate uploadable creatives (selected creatives missing DSP asset IDs)
+  const uploadableCreatives = useMemo(() => {
+    return assignments.filter(a => {
+      if (!selectedIds.has(a.id)) return false;
+      if (!a.creative) return false;
+      // Check if creative is missing DSP asset
+      const hasMetaAsset = a.creative.platform_image_hash || a.creative.platform_video_id;
+      const isMeta = a.platform.toLowerCase().includes('meta');
+      return isMeta && !hasMetaAsset && a.creative.media_urls?.[0];
+    });
+  }, [assignments, selectedIds]);
+
+  // Upload creatives to DSP
+  const handleUploadToDsp = async () => {
+    if (uploadableCreatives.length === 0) return;
+
+    try {
+      setUploading(true);
+      let successCount = 0;
+      let failCount = 0;
+
+      for (const assignment of uploadableCreatives) {
+        const creative = assignment.creative;
+        if (!creative || !creative.media_urls?.[0]) continue;
+
+        try {
+          const mediaUrl = creative.media_urls[0];
+          const isVideo = creative.media_type === 'video';
+
+          // Fetch the file from storage
+          const response = await fetch(mediaUrl);
+          if (!response.ok) {
+            throw new Error('Failed to fetch media file');
+          }
+
+          const blob = await response.blob();
+          
+          // Convert to base64
+          const base64 = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+              const result = reader.result as string;
+              const base64Data = result.split(',')[1];
+              resolve(base64Data);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+
+          // Get ad account for this platform/market
+          const { data: campaign } = await supabase
+            .from('campaigns')
+            .select('platforms, market_splits')
+            .eq('id', assignment.campaign_id)
+            .single();
+
+          let adAccountId: string | null = null;
+          
+          if (campaign?.market_splits) {
+            // Find the platform and market to get ad account
+            for (const [platformId, markets] of Object.entries(campaign.market_splits as Record<string, any>)) {
+              const platformInfo = (campaign.platforms as any[] || []).find((p: any) => p.id === platformId);
+              if (platformInfo?.name?.toLowerCase().includes('meta')) {
+                const marketData = (markets as Record<string, any>)[assignment.market];
+                adAccountId = marketData?.adAccountId || marketData?.ad_account_id;
+                break;
+              }
+            }
+          }
+
+          if (!adAccountId) {
+            // Fallback: get from meta_ad_accounts
+            const { data: metaAccounts } = await supabase
+              .from('meta_ad_accounts')
+              .select('account_id')
+              .eq('user_id', user?.id)
+              .limit(1);
+            
+            if (metaAccounts?.[0]) {
+              adAccountId = metaAccounts[0].account_id;
+            }
+          }
+
+          if (!adAccountId) {
+            console.error('No Meta ad account found for upload');
+            failCount++;
+            continue;
+          }
+
+          // Upload to Meta
+          const { data, error } = await supabase.functions.invoke('upload-creative-to-meta', {
+            body: {
+              adAccountId: adAccountId,
+              fileName: creative.name || 'creative',
+              fileData: base64,
+              fileType: isVideo ? 'video' : 'image',
+              mimeType: blob.type,
+            },
+          });
+
+          if (error || !data?.success) {
+            console.error('Upload failed:', data?.error || error?.message);
+            failCount++;
+            continue;
+          }
+
+          // Update the creative with the DSP asset ID
+          const updateData: Record<string, any> = {
+            dsp_upload_status: 'uploaded',
+            dsp_uploaded_at: new Date().toISOString(),
+          };
+
+          if (data.imageHash) {
+            updateData.platform_image_hash = data.imageHash;
+          }
+          if (data.videoId) {
+            updateData.platform_video_id = data.videoId;
+          }
+
+          await supabase
+            .from('creatives')
+            .update(updateData)
+            .eq('id', creative.id);
+
+          successCount++;
+        } catch (err) {
+          console.error('Error uploading creative:', err);
+          failCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(`Uploaded ${successCount} creative(s) to Meta`);
+        await loadAssignments();
+      }
+      if (failCount > 0) {
+        toast.error(`Failed to upload ${failCount} creative(s)`);
+      }
+    } catch (error) {
+      console.error('Error in bulk upload:', error);
+      toast.error('Failed to upload creatives');
+    } finally {
+      setUploading(false);
+    }
+  };
+
   // Toggle handlers
   const togglePlatform = (platform: string) => {
     setExpandedPlatforms(prev => {
@@ -453,8 +600,11 @@ export function AssignedCreativesView({
           onDelete={handleDeleteSelected}
           onDuplicate={() => setShowDuplicateDialog(true)}
           onRefresh={loadAssignments}
+          onUploadToDsp={handleUploadToDsp}
           isDeleting={deleting}
           isDuplicating={duplicating}
+          isUploading={uploading}
+          uploadableCount={uploadableCreatives.length}
         />
 
         {/* Grouped view */}
