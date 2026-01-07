@@ -47,20 +47,6 @@ serve(async (req: Request) => {
     const input = uploadInputSchema.parse(body);
     console.log(`📁 Uploading ${input.fileType}: ${input.fileName} to ${input.adAccountId}`);
 
-    // Get Meta access token from connected platform
-    // First find the connected platform that has this ad account
-    const { data: metaAccount, error: accountError } = await supabase
-      .from("meta_ad_accounts")
-      .select("id, account_id")
-      .eq("account_id", input.adAccountId.replace("act_", ""))
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (accountError || !metaAccount) {
-      console.error("Meta account lookup failed:", accountError);
-      throw new Error(`Meta ad account not found: ${input.adAccountId}`);
-    }
-
     // Find connected platform for this user with Meta type
     const { data: connectedPlatform, error: platformError } = await supabase
       .from("connected_platforms")
@@ -74,6 +60,7 @@ serve(async (req: Request) => {
       console.error("Connected platform lookup failed:", platformError);
       throw new Error("No active Meta connection found");
     }
+    console.log("🔗 Connected platform found:", connectedPlatform.id);
 
     // Get access token from vault
     const accessToken = await getAccessToken(supabase, connectedPlatform.id);
