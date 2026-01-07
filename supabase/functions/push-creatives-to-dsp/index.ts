@@ -320,7 +320,10 @@ const handler = async (req: Request): Promise<Response> => {
 
             const metaLandingPageUrl = (phase as any)?.metaLandingPageUrl || (market as any)?.metaLandingPageUrl;
             const pageId =
-              creative.external_page_id || (market as any)?.metaPageId || (market as any)?.defaultPageId;
+              creative.external_page_id || 
+              (market as any)?.metaPageId || 
+              (market as any)?.pageId || 
+              (market as any)?.defaultPageId;
 
             if (!pageId) {
               await supabase
