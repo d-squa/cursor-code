@@ -93,8 +93,14 @@ export function downloadActiplanShell(
     } else {
       // Add row for each creative in the ad set
       creatives.forEach(creative => {
-        const creativePreviewUrl = creative.creative?.media_urls?.[0] || 
-          creative.creative?.thumbnail_url || '-';
+        // Generate DSP preview link if dsp_creative_id exists
+        let adPreviewUrl = '-';
+        if (creative.dsp_creative_id && adSet.platform.toLowerCase() === 'meta') {
+          // Meta/Facebook ad preview URL format
+          adPreviewUrl = `https://www.facebook.com/ads/manager/creative_hub/?act=${creative.dsp_creative_id}`;
+        } else if (creative.dsp_creative_id) {
+          adPreviewUrl = creative.dsp_creative_id;
+        }
         
         // Use display_name if available (the ad name as pushed to DSP), otherwise fallback to creative name
         const adName = creative.display_name || creative.creative?.name || '-';
@@ -103,21 +109,18 @@ export function downloadActiplanShell(
           'Platform': adSet.platform,
           'Market': adSet.market,
           'Campaign Name': adSet.phase_name || campaign.name,
-          'Entity Type': adSet.entity_type,
           'Ad Set Name': adSet.entity_name || creative.ad_set_name || '-',
-          'Ad Set Status': adSet.status,
-          'DSP Ad Set ID': adSet.dsp_entity_id || '-',
           'Ad Name': adName,
-          'Media Type': creative.creative?.media_type || '-',
           'Ad Status': creative.status || 'pending',
           'DSP Ad ID': creative.dsp_creative_id || '-',
+          'Ad Preview Link': adPreviewUrl,
+          'Media Type': creative.creative?.media_type || '-',
           'Headline': creative.headline || '-',
           'Primary Text': creative.primary_text || '-',
           'Description': creative.description || '-',
           'Call to Action': creative.call_to_action || '-',
           'Destination URL': creative.destination_url || '-',
           'URL Parameters': creative.url_parameters || '-',
-          'Creative Preview URL': creativePreviewUrl,
         });
       });
     }
@@ -126,26 +129,23 @@ export function downloadActiplanShell(
   // Create worksheet from data
   const worksheet = XLSX.utils.json_to_sheet(shellData);
 
-  // Set column widths
+  // Set column widths - matching the new column order
   const colWidths = [
     { wch: 12 }, // Platform
     { wch: 10 }, // Market
     { wch: 30 }, // Campaign Name
-    { wch: 10 }, // Entity Type
     { wch: 30 }, // Ad Set Name
-    { wch: 12 }, // Ad Set Status
-    { wch: 20 }, // DSP Ad Set ID
     { wch: 40 }, // Ad Name
+    { wch: 12 }, // Ad Status
+    { wch: 25 }, // DSP Ad ID
+    { wch: 60 }, // Ad Preview Link
     { wch: 10 }, // Media Type
-    { wch: 10 }, // Ad Status
-    { wch: 20 }, // DSP Ad ID
     { wch: 40 }, // Headline
     { wch: 50 }, // Primary Text
     { wch: 40 }, // Description
     { wch: 15 }, // Call to Action
     { wch: 50 }, // Destination URL
     { wch: 40 }, // URL Parameters
-    { wch: 50 }, // Creative Preview URL
   ];
   worksheet['!cols'] = colWidths;
 

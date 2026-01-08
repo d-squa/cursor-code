@@ -185,7 +185,7 @@ function CreativeTreeItem({ item }: { item: CreativeAssignmentItem }) {
   );
 }
 
-// Hierarchical tree view for campaigns shell
+// Hierarchical tree view for campaigns shell - Platform > Market > Campaign > Ad Set
 function CampaignsShellTree({ 
   adSetStatuses, 
   expandedState, 
@@ -195,14 +195,22 @@ function CampaignsShellTree({
   expandedState: Record<string, boolean>;
   onToggle: (key: string) => void;
 }) {
-  // Group by platform -> market -> phase
+  // Group by platform -> market -> campaign (phase) -> ad sets
   const grouped = useMemo(() => {
-    const result: Record<string, Record<string, AdSetStatus[]>> = {};
+    const result: Record<string, Record<string, Record<string, AdSetStatus[]>>> = {};
     adSetStatuses.forEach(item => {
       if (!result[item.platform]) result[item.platform] = {};
-      const marketKey = item.market;
-      if (!result[item.platform][marketKey]) result[item.platform][marketKey] = [];
-      result[item.platform][marketKey].push(item);
+      if (!result[item.platform][item.market]) result[item.platform][item.market] = {};
+      
+      // Group by campaign (phase_name for campaigns, or parent campaign for ad sets)
+      const campaignKey = item.entityType === 'campaign' 
+        ? (item.entityName || item.phaseName || 'Campaign')
+        : (item.phaseName || 'Campaign');
+      
+      if (!result[item.platform][item.market][campaignKey]) {
+        result[item.platform][item.market][campaignKey] = [];
+      }
+      result[item.platform][item.market][campaignKey].push(item);
     });
     return result;
   }, [adSetStatuses]);
@@ -223,13 +231,13 @@ function CampaignsShellTree({
             <Layers className="h-4 w-4 text-primary" />
             <span>{platform}</span>
             <Badge variant="outline" className="ml-auto text-xs">
-              {Object.values(markets).flat().length} entities
+              {Object.values(markets).flatMap(m => Object.values(m)).flat().length} entities
             </Badge>
           </div>
           
           {expandedState[`platform:${platform}`] && (
             <div className="ml-6 border-l pl-2">
-              {Object.entries(markets).map(([market, items]) => (
+              {Object.entries(markets).map(([market, campaigns]) => (
                 <div key={market}>
                   <div
                     className="flex items-center gap-2 p-1.5 rounded hover:bg-muted/50 cursor-pointer text-sm"
@@ -242,15 +250,60 @@ function CampaignsShellTree({
                     )}
                     <span className="text-muted-foreground">{market}</span>
                     <Badge variant="secondary" className="ml-auto text-xs h-5">
-                      {items.length}
+                      {Object.values(campaigns).flat().length}
                     </Badge>
                   </div>
                   
                   {expandedState[`market:${platform}:${market}`] && (
-                    <div className="ml-4 space-y-0.5">
-                      {items.map(item => (
-                        <AdSetTreeItem key={item.id} item={item} />
-                      ))}
+                    <div className="ml-4">
+                      {Object.entries(campaigns).map(([campaignName, items]) => {
+                        // Separate campaign and ad set items
+                        const campaignItem = items.find(i => i.entityType === 'campaign');
+                        const adSetItems = items.filter(i => i.entityType === 'adset');
+                        
+                        return (
+                          <div key={campaignName}>
+                            {/* Campaign row */}
+                            {campaignItem && (
+                              <div
+                                className="flex items-center gap-2 p-1 rounded hover:bg-muted/50 cursor-pointer text-xs"
+                                onClick={() => onToggle(`campaign:${platform}:${market}:${campaignName}`)}
+                              >
+                                {adSetItems.length > 0 ? (
+                                  expandedState[`campaign:${platform}:${market}:${campaignName}`] ? (
+                                    <ChevronDown className="h-3 w-3" />
+                                  ) : (
+                                    <ChevronRight className="h-3 w-3" />
+                                  )
+                                ) : (
+                                  <span className="w-3" />
+                                )}
+                                <Rocket className="h-3 w-3 shrink-0 text-primary" />
+                                <span className="flex-1 truncate font-medium">{campaignName}</span>
+                                <ItemStatusIndicator status={campaignItem.status} error={campaignItem.errorMessage} />
+                              </div>
+                            )}
+                            
+                            {/* Ad sets nested under campaign */}
+                            {(expandedState[`campaign:${platform}:${market}:${campaignName}`] || !campaignItem) && adSetItems.length > 0 && (
+                              <div className={cn("space-y-0.5", campaignItem && "ml-4")}>
+                                {adSetItems.map(item => (
+                                  <AdSetTreeItem key={item.id} item={item} />
+                                ))}
+                              </div>
+                            )}
+                            
+                            {/* If no campaign item, just show ad sets at this level */}
+                            {!campaignItem && adSetItems.length === 0 && items.length > 0 && (
+                              <div className="space-y-0.5">
+                                {items.map(item => (
+                                  <AdSetTreeItem key={item.id} item={item} />
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
