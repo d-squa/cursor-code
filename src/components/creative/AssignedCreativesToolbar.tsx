@@ -61,23 +61,8 @@ export function AssignedCreativesToolbar({
 
           <Separator orientation="vertical" className="h-6" />
 
-          {/* Upload to DSP button - only show if there are uploadable creatives */}
-          {onUploadToDsp && uploadableCount > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onUploadToDsp}
-              disabled={isUploading}
-              className="h-8 px-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-            >
-              {isUploading ? (
-                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-              ) : (
-                <Upload className="h-4 w-4 mr-1" />
-              )}
-              Upload to DSP ({uploadableCount})
-            </Button>
-          )}
+
+           {/* Upload-to-DSP removed to avoid confusion with "Push Creatives" on Launch page */}
 
           {/* Bulk actions */}
           <Button
