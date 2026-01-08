@@ -1,8 +1,7 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -18,9 +17,11 @@ import {
   XCircle,
   Rocket,
   Play,
+  Layers,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/integrations/supabase/client";
+import { TreeViewControls } from "./TreeViewControls";
+import type { LaunchFilters } from "./LaunchFilters";
 
 export type CreativeAssignmentStatus = "pending" | "pushing" | "pushed" | "error";
 
@@ -32,6 +33,7 @@ export interface CreativeAssignmentItem {
   platform: string;
   market: string;
   phaseName: string;
+  adSetName?: string;
   status: CreativeAssignmentStatus;
   errorMessage?: string;
 }
@@ -42,6 +44,7 @@ export interface AdSetStatus {
   market: string;
   phaseName: string | null;
   entityType: string;
+  entityName?: string;
   status: string;
   dspEntityId: string | null;
   errorMessage?: string;
@@ -54,6 +57,7 @@ interface LaunchProgressTrackerProps {
   isPushingCampaign: boolean;
   isPushingCreatives: boolean;
   currentStep: 1 | 2;
+  filters: LaunchFilters;
 }
 
 // Status indicator for individual items
@@ -132,65 +136,242 @@ function ItemStatusIndicator({ status, error }: { status: string; error?: string
   );
 }
 
-// Ad Set item row
-function AdSetRow({ item }: { item: AdSetStatus }) {
+// Tree item component for ad sets
+function AdSetTreeItem({ item }: { item: AdSetStatus }) {
   return (
     <div
       className={cn(
-        "flex items-center gap-3 p-2 rounded-lg border",
+        "flex items-center gap-3 py-1.5 px-2 rounded text-sm",
         item.status === "pushed_to_dsp" || item.status === "live"
-          ? "bg-emerald-500/5 border-emerald-500/20"
+          ? "text-emerald-600"
           : item.status === "pushing"
-            ? "bg-amber-500/5 border-amber-500/20"
+            ? "text-amber-600"
             : item.status.includes("error") || item.status === "push_failed"
-              ? "bg-destructive/5 border-destructive/20"
-              : "bg-muted/30 border-border/50"
+              ? "text-destructive"
+              : "text-muted-foreground"
       )}
     >
-      <div className="w-8 h-8 bg-primary/10 rounded flex items-center justify-center shrink-0">
-        <Rocket className="h-4 w-4 text-primary" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate">
-          {item.phaseName || "Campaign"}
-          <span className="text-muted-foreground font-normal"> · {item.entityType}</span>
-        </p>
-        <p className="text-xs text-muted-foreground">
-          {item.platform} · {item.market}
-        </p>
-      </div>
+      <Rocket className="h-3 w-3 shrink-0" />
+      <span className="flex-1 truncate">
+        {item.entityName || item.phaseName || "Campaign"} ({item.entityType})
+      </span>
       <ItemStatusIndicator status={item.status} error={item.errorMessage} />
     </div>
   );
 }
 
-// Creative assignment item row
-function CreativeRow({ item }: { item: CreativeAssignmentItem }) {
+// Tree item component for creatives
+function CreativeTreeItem({ item }: { item: CreativeAssignmentItem }) {
   const Icon = item.mediaType === "video" ? Video : Image;
 
   return (
     <div
       className={cn(
-        "flex items-center gap-3 p-2 rounded-lg border",
+        "flex items-center gap-3 py-1.5 px-2 rounded text-sm",
         item.status === "pushed"
-          ? "bg-emerald-500/5 border-emerald-500/20"
+          ? "text-emerald-600"
           : item.status === "pushing"
-            ? "bg-amber-500/5 border-amber-500/20"
+            ? "text-amber-600"
             : item.status === "error"
-              ? "bg-destructive/5 border-destructive/20"
-              : "bg-muted/30 border-border/50"
+              ? "text-destructive"
+              : "text-muted-foreground"
       )}
     >
-      <div className="w-8 h-8 bg-muted rounded flex items-center justify-center shrink-0">
-        <Icon className="h-4 w-4 text-muted-foreground" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate">{item.creativeName}</p>
-        <p className="text-xs text-muted-foreground">
-          {item.platform} · {item.market} · {item.phaseName}
-        </p>
-      </div>
+      <Icon className="h-3 w-3 shrink-0" />
+      <span className="flex-1 truncate">{item.creativeName}</span>
       <ItemStatusIndicator status={item.status} error={item.errorMessage} />
+    </div>
+  );
+}
+
+// Hierarchical tree view for campaigns shell
+function CampaignsShellTree({ 
+  adSetStatuses, 
+  expandedState, 
+  onToggle 
+}: { 
+  adSetStatuses: AdSetStatus[];
+  expandedState: Record<string, boolean>;
+  onToggle: (key: string) => void;
+}) {
+  // Group by platform -> market -> phase
+  const grouped = useMemo(() => {
+    const result: Record<string, Record<string, AdSetStatus[]>> = {};
+    adSetStatuses.forEach(item => {
+      if (!result[item.platform]) result[item.platform] = {};
+      const marketKey = item.market;
+      if (!result[item.platform][marketKey]) result[item.platform][marketKey] = [];
+      result[item.platform][marketKey].push(item);
+    });
+    return result;
+  }, [adSetStatuses]);
+
+  return (
+    <div className="space-y-1">
+      {Object.entries(grouped).map(([platform, markets]) => (
+        <div key={platform}>
+          <div
+            className="flex items-center gap-2 p-2 rounded hover:bg-muted/50 cursor-pointer font-medium"
+            onClick={() => onToggle(`platform:${platform}`)}
+          >
+            {expandedState[`platform:${platform}`] ? (
+              <ChevronDown className="h-4 w-4" />
+            ) : (
+              <ChevronRight className="h-4 w-4" />
+            )}
+            <Layers className="h-4 w-4 text-primary" />
+            <span>{platform}</span>
+            <Badge variant="outline" className="ml-auto text-xs">
+              {Object.values(markets).flat().length} entities
+            </Badge>
+          </div>
+          
+          {expandedState[`platform:${platform}`] && (
+            <div className="ml-6 border-l pl-2">
+              {Object.entries(markets).map(([market, items]) => (
+                <div key={market}>
+                  <div
+                    className="flex items-center gap-2 p-1.5 rounded hover:bg-muted/50 cursor-pointer text-sm"
+                    onClick={() => onToggle(`market:${platform}:${market}`)}
+                  >
+                    {expandedState[`market:${platform}:${market}`] ? (
+                      <ChevronDown className="h-3 w-3" />
+                    ) : (
+                      <ChevronRight className="h-3 w-3" />
+                    )}
+                    <span className="text-muted-foreground">{market}</span>
+                    <Badge variant="secondary" className="ml-auto text-xs h-5">
+                      {items.length}
+                    </Badge>
+                  </div>
+                  
+                  {expandedState[`market:${platform}:${market}`] && (
+                    <div className="ml-4 space-y-0.5">
+                      {items.map(item => (
+                        <AdSetTreeItem key={item.id} item={item} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+      {adSetStatuses.length === 0 && (
+        <p className="text-sm text-muted-foreground text-center py-4">
+          No campaign entities to display. Run validation first.
+        </p>
+      )}
+    </div>
+  );
+}
+
+// Hierarchical tree view for meshed creatives
+function MeshedCreativesTree({ 
+  creativeAssignments, 
+  expandedState, 
+  onToggle 
+}: { 
+  creativeAssignments: CreativeAssignmentItem[];
+  expandedState: Record<string, boolean>;
+  onToggle: (key: string) => void;
+}) {
+  // Group by platform -> market -> phase -> adset
+  const grouped = useMemo(() => {
+    const result: Record<string, Record<string, Record<string, CreativeAssignmentItem[]>>> = {};
+    creativeAssignments.forEach(item => {
+      if (!result[item.platform]) result[item.platform] = {};
+      if (!result[item.platform][item.market]) result[item.platform][item.market] = {};
+      const phaseKey = item.phaseName || 'default';
+      if (!result[item.platform][item.market][phaseKey]) {
+        result[item.platform][item.market][phaseKey] = [];
+      }
+      result[item.platform][item.market][phaseKey].push(item);
+    });
+    return result;
+  }, [creativeAssignments]);
+
+  return (
+    <div className="space-y-1">
+      {Object.entries(grouped).map(([platform, markets]) => (
+        <div key={platform}>
+          <div
+            className="flex items-center gap-2 p-2 rounded hover:bg-muted/50 cursor-pointer font-medium"
+            onClick={() => onToggle(`creative:platform:${platform}`)}
+          >
+            {expandedState[`creative:platform:${platform}`] ? (
+              <ChevronDown className="h-4 w-4" />
+            ) : (
+              <ChevronRight className="h-4 w-4" />
+            )}
+            <Layers className="h-4 w-4 text-primary" />
+            <span>{platform}</span>
+            <Badge variant="outline" className="ml-auto text-xs">
+              {Object.values(markets).flatMap(m => Object.values(m)).flat().length} ads
+            </Badge>
+          </div>
+          
+          {expandedState[`creative:platform:${platform}`] && (
+            <div className="ml-6 border-l pl-2">
+              {Object.entries(markets).map(([market, phases]) => (
+                <div key={market}>
+                  <div
+                    className="flex items-center gap-2 p-1.5 rounded hover:bg-muted/50 cursor-pointer text-sm"
+                    onClick={() => onToggle(`creative:market:${platform}:${market}`)}
+                  >
+                    {expandedState[`creative:market:${platform}:${market}`] ? (
+                      <ChevronDown className="h-3 w-3" />
+                    ) : (
+                      <ChevronRight className="h-3 w-3" />
+                    )}
+                    <span className="text-muted-foreground">{market}</span>
+                    <Badge variant="secondary" className="ml-auto text-xs h-5">
+                      {Object.values(phases).flat().length}
+                    </Badge>
+                  </div>
+                  
+                  {expandedState[`creative:market:${platform}:${market}`] && (
+                    <div className="ml-4">
+                      {Object.entries(phases).map(([phase, items]) => (
+                        <div key={phase}>
+                          <div
+                            className="flex items-center gap-2 p-1 rounded hover:bg-muted/50 cursor-pointer text-xs"
+                            onClick={() => onToggle(`creative:phase:${platform}:${market}:${phase}`)}
+                          >
+                            {expandedState[`creative:phase:${platform}:${market}:${phase}`] ? (
+                              <ChevronDown className="h-3 w-3" />
+                            ) : (
+                              <ChevronRight className="h-3 w-3" />
+                            )}
+                            <span className="text-muted-foreground">{phase}</span>
+                            <Badge variant="secondary" className="ml-auto text-xs h-4 px-1">
+                              {items.length}
+                            </Badge>
+                          </div>
+                          
+                          {expandedState[`creative:phase:${platform}:${market}:${phase}`] && (
+                            <div className="ml-4 space-y-0.5">
+                              {items.map(item => (
+                                <CreativeTreeItem key={item.id} item={item} />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+      {creativeAssignments.length === 0 && (
+        <p className="text-sm text-muted-foreground text-center py-4">
+          No creatives assigned to this campaign.
+        </p>
+      )}
     </div>
   );
 }
@@ -202,8 +383,11 @@ export function LaunchProgressTracker({
   isPushingCampaign,
   isPushingCreatives,
   currentStep,
+  filters,
 }: LaunchProgressTrackerProps) {
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["adsets", "creatives"]));
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["shell", "creatives"]));
+  const [shellExpanded, setShellExpanded] = useState<Record<string, boolean>>({});
+  const [creativesExpanded, setCreativesExpanded] = useState<Record<string, boolean>>({});
 
   const toggleSection = (section: string) => {
     const newExpanded = new Set(expandedSections);
@@ -215,37 +399,202 @@ export function LaunchProgressTracker({
     setExpandedSections(newExpanded);
   };
 
+  // Apply filters to ad set statuses
+  const filteredAdSetStatuses = useMemo(() => {
+    return adSetStatuses.filter(item => {
+      if (filters.platform && item.platform !== filters.platform) return false;
+      if (filters.market && item.market !== filters.market) return false;
+      if (filters.phase && item.phaseName !== filters.phase) return false;
+      return true;
+    });
+  }, [adSetStatuses, filters]);
+
+  // Apply filters to creative assignments
+  const filteredCreativeAssignments = useMemo(() => {
+    return creativeAssignments.filter(item => {
+      if (filters.platform && item.platform !== filters.platform) return false;
+      if (filters.market && item.market !== filters.market) return false;
+      if (filters.phase && item.phaseName !== filters.phase) return false;
+      return true;
+    });
+  }, [creativeAssignments, filters]);
+
+  // Tree toggle handlers
+  const toggleShellNode = useCallback((key: string) => {
+    setShellExpanded(prev => ({ ...prev, [key]: !prev[key] }));
+  }, []);
+
+  const toggleCreativeNode = useCallback((key: string) => {
+    setCreativesExpanded(prev => ({ ...prev, [key]: !prev[key] }));
+  }, []);
+
+  // Expand/collapse all for shell
+  const expandAllShell = useCallback(() => {
+    const newState: Record<string, boolean> = {};
+    const platforms = [...new Set(filteredAdSetStatuses.map(s => s.platform))];
+    platforms.forEach(platform => {
+      newState[`platform:${platform}`] = true;
+      const markets = [...new Set(filteredAdSetStatuses.filter(s => s.platform === platform).map(s => s.market))];
+      markets.forEach(market => {
+        newState[`market:${platform}:${market}`] = true;
+      });
+    });
+    setShellExpanded(newState);
+  }, [filteredAdSetStatuses]);
+
+  const collapseAllShell = useCallback(() => {
+    setShellExpanded({});
+  }, []);
+
+  const expandShellLevel = useCallback((level: 'platforms' | 'markets' | 'campaigns') => {
+    const newState: Record<string, boolean> = { ...shellExpanded };
+    const platforms = [...new Set(filteredAdSetStatuses.map(s => s.platform))];
+    
+    if (level === 'platforms') {
+      platforms.forEach(platform => {
+        newState[`platform:${platform}`] = true;
+      });
+    } else if (level === 'markets') {
+      platforms.forEach(platform => {
+        const markets = [...new Set(filteredAdSetStatuses.filter(s => s.platform === platform).map(s => s.market))];
+        markets.forEach(market => {
+          newState[`market:${platform}:${market}`] = true;
+        });
+      });
+    }
+    setShellExpanded(newState);
+  }, [filteredAdSetStatuses, shellExpanded]);
+
+  const collapseShellLevel = useCallback((level: 'platforms' | 'markets' | 'campaigns') => {
+    const newState: Record<string, boolean> = { ...shellExpanded };
+    const platforms = [...new Set(filteredAdSetStatuses.map(s => s.platform))];
+    
+    if (level === 'platforms') {
+      platforms.forEach(platform => {
+        delete newState[`platform:${platform}`];
+      });
+    } else if (level === 'markets') {
+      platforms.forEach(platform => {
+        const markets = [...new Set(filteredAdSetStatuses.filter(s => s.platform === platform).map(s => s.market))];
+        markets.forEach(market => {
+          delete newState[`market:${platform}:${market}`];
+        });
+      });
+    }
+    setShellExpanded(newState);
+  }, [filteredAdSetStatuses, shellExpanded]);
+
+  // Expand/collapse all for creatives
+  const expandAllCreatives = useCallback(() => {
+    const newState: Record<string, boolean> = {};
+    const platforms = [...new Set(filteredCreativeAssignments.map(s => s.platform))];
+    platforms.forEach(platform => {
+      newState[`creative:platform:${platform}`] = true;
+      const markets = [...new Set(filteredCreativeAssignments.filter(s => s.platform === platform).map(s => s.market))];
+      markets.forEach(market => {
+        newState[`creative:market:${platform}:${market}`] = true;
+        const phases = [...new Set(filteredCreativeAssignments.filter(s => s.platform === platform && s.market === market).map(s => s.phaseName || 'default'))];
+        phases.forEach(phase => {
+          newState[`creative:phase:${platform}:${market}:${phase}`] = true;
+        });
+      });
+    });
+    setCreativesExpanded(newState);
+  }, [filteredCreativeAssignments]);
+
+  const collapseAllCreatives = useCallback(() => {
+    setCreativesExpanded({});
+  }, []);
+
+  const expandCreativesLevel = useCallback((level: 'platforms' | 'markets' | 'campaigns') => {
+    const newState: Record<string, boolean> = { ...creativesExpanded };
+    const platforms = [...new Set(filteredCreativeAssignments.map(s => s.platform))];
+    
+    if (level === 'platforms') {
+      platforms.forEach(platform => {
+        newState[`creative:platform:${platform}`] = true;
+      });
+    } else if (level === 'markets') {
+      platforms.forEach(platform => {
+        const markets = [...new Set(filteredCreativeAssignments.filter(s => s.platform === platform).map(s => s.market))];
+        markets.forEach(market => {
+          newState[`creative:market:${platform}:${market}`] = true;
+        });
+      });
+    } else if (level === 'campaigns') {
+      platforms.forEach(platform => {
+        const markets = [...new Set(filteredCreativeAssignments.filter(s => s.platform === platform).map(s => s.market))];
+        markets.forEach(market => {
+          const phases = [...new Set(filteredCreativeAssignments.filter(s => s.platform === platform && s.market === market).map(s => s.phaseName || 'default'))];
+          phases.forEach(phase => {
+            newState[`creative:phase:${platform}:${market}:${phase}`] = true;
+          });
+        });
+      });
+    }
+    setCreativesExpanded(newState);
+  }, [filteredCreativeAssignments, creativesExpanded]);
+
+  const collapseCreativesLevel = useCallback((level: 'platforms' | 'markets' | 'campaigns') => {
+    const newState: Record<string, boolean> = { ...creativesExpanded };
+    const platforms = [...new Set(filteredCreativeAssignments.map(s => s.platform))];
+    
+    if (level === 'platforms') {
+      platforms.forEach(platform => {
+        delete newState[`creative:platform:${platform}`];
+      });
+    } else if (level === 'markets') {
+      platforms.forEach(platform => {
+        const markets = [...new Set(filteredCreativeAssignments.filter(s => s.platform === platform).map(s => s.market))];
+        markets.forEach(market => {
+          delete newState[`creative:market:${platform}:${market}`];
+        });
+      });
+    } else if (level === 'campaigns') {
+      platforms.forEach(platform => {
+        const markets = [...new Set(filteredCreativeAssignments.filter(s => s.platform === platform).map(s => s.market))];
+        markets.forEach(market => {
+          const phases = [...new Set(filteredCreativeAssignments.filter(s => s.platform === platform && s.market === market).map(s => s.phaseName || 'default'))];
+          phases.forEach(phase => {
+            delete newState[`creative:phase:${platform}:${market}:${phase}`];
+          });
+        });
+      });
+    }
+    setCreativesExpanded(newState);
+  }, [filteredCreativeAssignments, creativesExpanded]);
+
   // Calculate ad set progress
   const adSetProgress = useMemo(() => {
-    const total = adSetStatuses.length;
-    const pushed = adSetStatuses.filter((s) =>
+    const total = filteredAdSetStatuses.length;
+    const pushed = filteredAdSetStatuses.filter((s) =>
       ["pushed_to_dsp", "live"].includes(s.status)
     ).length;
-    const pushing = adSetStatuses.filter((s) => s.status === "pushing").length;
-    const errors = adSetStatuses.filter((s) =>
+    const pushing = filteredAdSetStatuses.filter((s) => s.status === "pushing").length;
+    const errors = filteredAdSetStatuses.filter((s) =>
       ["push_failed", "validation_error"].includes(s.status)
     ).length;
     return { total, pushed, pushing, errors, percent: total > 0 ? (pushed / total) * 100 : 0 };
-  }, [adSetStatuses]);
+  }, [filteredAdSetStatuses]);
 
   // Calculate creative progress
   const creativeProgress = useMemo(() => {
-    const total = creativeAssignments.length;
-    const pushed = creativeAssignments.filter((c) => c.status === "pushed").length;
-    const pushing = creativeAssignments.filter((c) => c.status === "pushing").length;
-    const errors = creativeAssignments.filter((c) => c.status === "error").length;
+    const total = filteredCreativeAssignments.length;
+    const pushed = filteredCreativeAssignments.filter((c) => c.status === "pushed").length;
+    const pushing = filteredCreativeAssignments.filter((c) => c.status === "pushing").length;
+    const errors = filteredCreativeAssignments.filter((c) => c.status === "error").length;
     return { total, pushed, pushing, errors, percent: total > 0 ? (pushed / total) * 100 : 0 };
-  }, [creativeAssignments]);
+  }, [filteredCreativeAssignments]);
 
   // Check if all ad sets are pushed (requirement for creative push)
   const allAdSetsPushed = adSetProgress.pushed === adSetProgress.total && adSetProgress.total > 0;
 
   return (
     <div className="space-y-4">
-      {/* Step 1: Campaign & Ad Sets */}
+      {/* Campaigns Shell Card */}
       <Collapsible
-        open={expandedSections.has("adsets")}
-        onOpenChange={() => toggleSection("adsets")}
+        open={expandedSections.has("shell")}
+        onOpenChange={() => toggleSection("shell")}
       >
         <Card className={cn(
           "transition-all",
@@ -267,7 +616,7 @@ export function LaunchProgressTracker({
                 </div>
                 <div className="flex-1">
                   <CardTitle className="text-base flex items-center gap-2">
-                    Campaign & Ad Sets
+                    Campaigns Shell
                     {isPushingCampaign && (
                       <Badge variant="secondary" className="text-amber-600">
                         <Loader2 className="h-3 w-3 mr-1 animate-spin" />
@@ -287,7 +636,7 @@ export function LaunchProgressTracker({
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  {expandedSections.has("adsets") ? (
+                  {expandedSections.has("shell") ? (
                     <ChevronDown className="h-5 w-5 text-muted-foreground" />
                   ) : (
                     <ChevronRight className="h-5 w-5 text-muted-foreground" />
@@ -301,24 +650,27 @@ export function LaunchProgressTracker({
           </CollapsibleTrigger>
           <CollapsibleContent>
             <CardContent className="pt-0">
-              <ScrollArea className="max-h-[300px]">
-                <div className="space-y-2">
-                  {adSetStatuses.map((item) => (
-                    <AdSetRow key={item.id} item={item} />
-                  ))}
-                  {adSetStatuses.length === 0 && (
-                    <p className="text-sm text-muted-foreground text-center py-4">
-                      No campaign entities to push. Run validation first.
-                    </p>
-                  )}
-                </div>
+              <div className="flex items-center justify-end mb-3">
+                <TreeViewControls
+                  onExpandAll={expandAllShell}
+                  onCollapseAll={collapseAllShell}
+                  onExpandLevel={expandShellLevel}
+                  onCollapseLevel={collapseShellLevel}
+                />
+              </div>
+              <ScrollArea className="max-h-[400px]">
+                <CampaignsShellTree
+                  adSetStatuses={filteredAdSetStatuses}
+                  expandedState={shellExpanded}
+                  onToggle={toggleShellNode}
+                />
               </ScrollArea>
             </CardContent>
           </CollapsibleContent>
         </Card>
       </Collapsible>
 
-      {/* Step 2: Creatives */}
+      {/* Meshed Creatives Card */}
       <Collapsible
         open={expandedSections.has("creatives")}
         onOpenChange={() => toggleSection("creatives")}
@@ -348,7 +700,7 @@ export function LaunchProgressTracker({
                 </div>
                 <div className="flex-1">
                   <CardTitle className="text-base flex items-center gap-2">
-                    Creatives / Ads
+                    Meshed Creatives
                     {isPushingCreatives && (
                       <Badge variant="secondary" className="text-amber-600">
                         <Loader2 className="h-3 w-3 mr-1 animate-spin" />
@@ -396,18 +748,23 @@ export function LaunchProgressTracker({
                   </p>
                 </div>
               ) : (
-                <ScrollArea className="max-h-[400px]">
-                  <div className="space-y-2">
-                    {creativeAssignments.map((item) => (
-                      <CreativeRow key={item.id} item={item} />
-                    ))}
-                    {creativeAssignments.length === 0 && (
-                      <p className="text-sm text-muted-foreground text-center py-4">
-                        No creatives assigned to this campaign.
-                      </p>
-                    )}
+                <>
+                  <div className="flex items-center justify-end mb-3">
+                    <TreeViewControls
+                      onExpandAll={expandAllCreatives}
+                      onCollapseAll={collapseAllCreatives}
+                      onExpandLevel={expandCreativesLevel}
+                      onCollapseLevel={collapseCreativesLevel}
+                    />
                   </div>
-                </ScrollArea>
+                  <ScrollArea className="max-h-[400px]">
+                    <MeshedCreativesTree
+                      creativeAssignments={filteredCreativeAssignments}
+                      expandedState={creativesExpanded}
+                      onToggle={toggleCreativeNode}
+                    />
+                  </ScrollArea>
+                </>
               )}
             </CardContent>
           </CollapsibleContent>

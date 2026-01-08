@@ -33,6 +33,9 @@ import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
 import { AssignedCreativesView } from "@/components/creative/AssignedCreativesView";
 import { LaunchProgressTracker } from "@/components/launch/LaunchProgressTracker";
+import { LaunchFiltersBar, type LaunchFilters } from "@/components/launch/LaunchFilters";
+import { downloadActiplanShell } from "@/utils/actiplanShellExport";
+import { Download } from "lucide-react";
 
 interface LaunchStatusEntry {
   id: string;
@@ -134,6 +137,8 @@ export default function LaunchStatus() {
   const [expandedPlatforms, setExpandedPlatforms] = useState<Set<string>>(new Set());
   const [creativesRefreshNonce, setCreativesRefreshNonce] = useState(0);
   const [currentStep, setCurrentStep] = useState<1 | 2>(1);
+  const [launchFilters, setLaunchFilters] = useState<LaunchFilters>({ platform: null, market: null, phase: null });
+  const [shellAssignments, setShellAssignments] = useState<any[]>([]);
 
   // Use the new real-time progress hook
   const {
@@ -680,7 +685,7 @@ export default function LaunchStatus() {
               )}
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={handleValidate} disabled={validating || pushing} title="Validates campaigns, ad sets and creatives configuration">
+              <Button variant="outline" onClick={handleValidate} disabled={validating || pushing || allPushed} title="Validates campaigns, ad sets and creatives configuration">
                 {validating ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 ) : (
@@ -766,6 +771,27 @@ export default function LaunchStatus() {
         </Card>
       )}
 
+      {/* Filters + Download */}
+      {statuses.length > 0 && (
+        <div className="mb-6 space-y-4">
+          <div className="flex items-center justify-between gap-4">
+            <LaunchFiltersBar
+              filters={launchFilters}
+              onFiltersChange={setLaunchFilters}
+              availableOptions={{
+                platforms: [...new Set(statuses.map(s => s.platform))],
+                markets: [...new Set(statuses.map(s => s.market))],
+                phases: [...new Set(statuses.filter(s => s.phase_name).map(s => s.phase_name!))],
+              }}
+            />
+            <Button variant="outline" onClick={() => campaign && downloadActiplanShell(campaign, statuses, shellAssignments)}>
+              <Download className="h-4 w-4 mr-2" />
+              Download Shell
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Unified Launch Progress Tracker - 2 Step Flow */}
       {statuses.length > 0 && campaignId && (
         <div className="mb-6">
@@ -776,6 +802,7 @@ export default function LaunchStatus() {
             isPushingCampaign={pushing}
             isPushingCreatives={pushingCreatives}
             currentStep={currentStep}
+            filters={launchFilters}
           />
         </div>
       )}
