@@ -219,8 +219,24 @@ const handler = async (req: Request): Promise<Response> => {
           call_to_action,
           destination_url,
           url_parameters,
+          utm_mode,
           brand_name,
           display_name,
+          advantage_plus_video_touchups,
+          advantage_plus_text_improvements,
+          advantage_plus_product_tags,
+          advantage_plus_video_effects,
+          advantage_plus_relevant_comments,
+          advantage_plus_enhance_cta,
+          advantage_plus_reveal_details,
+          advantage_plus_show_spotlights,
+          advantage_plus_optimize_text_per_person,
+          advantage_plus_sitelinks,
+          advantage_plus_products,
+          sitelink_url,
+          sitelink_source_url,
+          sitelink_display_label,
+          sitelink_thumbnail,
           creative:creatives(
             id, name, media_type, creative_type,
             platform_video_id, platform_image_hash, platform_thumbnail_id, thumbnail_url,
@@ -310,6 +326,63 @@ const handler = async (req: Request): Promise<Response> => {
               localFailed++;
               continue;
             }
+
+            // Fetch meta_ad_accounts defaults for Advantage+ features
+            const adAccountIdRaw = resolvedAdAccount?.replace(/^act_/, "") || "";
+            const { data: metaAdAccountDefaults } = await supabase
+              .from("meta_ad_accounts")
+              .select(`
+                advantage_plus_video_touchups,
+                advantage_plus_text_improvements,
+                advantage_plus_product_tags,
+                advantage_plus_video_effects,
+                advantage_plus_relevant_comments,
+                advantage_plus_enhance_cta,
+                advantage_plus_reveal_details,
+                advantage_plus_show_spotlights,
+                advantage_plus_optimize_text_per_person,
+                advantage_plus_sitelinks,
+                advantage_plus_products,
+                default_utm_mode,
+                default_url_parameters,
+                default_pixel_id
+              `)
+              .eq("account_id", adAccountIdRaw)
+              .maybeSingle();
+
+            // Resolve Advantage+ features: assignment overrides > ad account defaults
+            const advantagePlusFeatures = {
+              videoTouchups: assignment.advantage_plus_video_touchups ?? metaAdAccountDefaults?.advantage_plus_video_touchups ?? false,
+              textImprovements: assignment.advantage_plus_text_improvements ?? metaAdAccountDefaults?.advantage_plus_text_improvements ?? false,
+              productTags: assignment.advantage_plus_product_tags ?? metaAdAccountDefaults?.advantage_plus_product_tags ?? false,
+              videoEffects: assignment.advantage_plus_video_effects ?? metaAdAccountDefaults?.advantage_plus_video_effects ?? false,
+              relevantComments: assignment.advantage_plus_relevant_comments ?? metaAdAccountDefaults?.advantage_plus_relevant_comments ?? false,
+              enhanceCta: assignment.advantage_plus_enhance_cta ?? metaAdAccountDefaults?.advantage_plus_enhance_cta ?? false,
+              revealDetails: assignment.advantage_plus_reveal_details ?? metaAdAccountDefaults?.advantage_plus_reveal_details ?? false,
+              showSpotlights: assignment.advantage_plus_show_spotlights ?? metaAdAccountDefaults?.advantage_plus_show_spotlights ?? false,
+              optimizeTextPerPerson: assignment.advantage_plus_optimize_text_per_person ?? metaAdAccountDefaults?.advantage_plus_optimize_text_per_person ?? false,
+              sitelinks: assignment.advantage_plus_sitelinks ?? metaAdAccountDefaults?.advantage_plus_sitelinks ?? false,
+              products: assignment.advantage_plus_products ?? metaAdAccountDefaults?.advantage_plus_products ?? false,
+            };
+
+            // Resolve UTM mode: assignment > ad account defaults
+            const utmMode = assignment.utm_mode || metaAdAccountDefaults?.default_utm_mode || "auto";
+            
+            // Resolve URL parameters based on UTM mode
+            let finalUrlParameters = resolvedText.urlParameters;
+            if (utmMode === "auto") {
+              // Use Meta dynamic URL parameters
+              finalUrlParameters = "utm_source={{site_source_name}}&utm_medium={{placement}}&utm_campaign={{campaign.name}}&utm_content={{adset.name}}";
+            } else if (!finalUrlParameters && metaAdAccountDefaults?.default_url_parameters) {
+              finalUrlParameters = metaAdAccountDefaults.default_url_parameters;
+            }
+
+            // Get tracking pixel from phase/market config
+            const pixelId = (phase as any)?.metaPixelId || (market as any)?.metaPixelId || metaAdAccountDefaults?.default_pixel_id;
+            
+            console.log(`[push-creatives] Advantage+ features:`, JSON.stringify(advantagePlusFeatures));
+            console.log(`[push-creatives] UTM mode: ${utmMode}, URL params: ${finalUrlParameters || "none"}`);
+            if (pixelId) console.log(`[push-creatives] Tracking pixel: ${pixelId}`);
 
             let hasMetaAsset = creative.platform_image_hash || creative.platform_video_id;
             
@@ -562,17 +635,59 @@ const handler = async (req: Request): Promise<Response> => {
               };
             }
 
-            // URL parameters
-            if (resolvedText.urlParameters) {
+            // URL parameters - use resolved finalUrlParameters
+            if (finalUrlParameters) {
               if (creativePayload.object_story_spec.video_data?.call_to_action?.value?.link) {
-                const url = new URL(creativePayload.object_story_spec.video_data.call_to_action.value.link);
-                url.search = url.search ? `${url.search}&${resolvedText.urlParameters}` : `?${resolvedText.urlParameters}`;
-                creativePayload.object_story_spec.video_data.call_to_action.value.link = url.toString();
+                const baseLink = creativePayload.object_story_spec.video_data.call_to_action.value.link;
+                // For Meta dynamic params, append as-is (they contain {{ }} templates)
+                if (finalUrlParameters.includes("{{")) {
+                  creativePayload.object_story_spec.video_data.call_to_action.value.link = 
+                    baseLink + (baseLink.includes("?") ? "&" : "?") + finalUrlParameters;
+                } else {
+                  try {
+                    const url = new URL(baseLink);
+                    url.search = url.search ? `${url.search}&${finalUrlParameters}` : `?${finalUrlParameters}`;
+                    creativePayload.object_story_spec.video_data.call_to_action.value.link = url.toString();
+                  } catch {
+                    creativePayload.object_story_spec.video_data.call_to_action.value.link = 
+                      baseLink + (baseLink.includes("?") ? "&" : "?") + finalUrlParameters;
+                  }
+                }
               } else if (creativePayload.object_story_spec.link_data?.link) {
-                const url = new URL(creativePayload.object_story_spec.link_data.link);
-                url.search = url.search ? `${url.search}&${resolvedText.urlParameters}` : `?${resolvedText.urlParameters}`;
-                creativePayload.object_story_spec.link_data.link = url.toString();
+                const baseLink = creativePayload.object_story_spec.link_data.link;
+                if (finalUrlParameters.includes("{{")) {
+                  creativePayload.object_story_spec.link_data.link = 
+                    baseLink + (baseLink.includes("?") ? "&" : "?") + finalUrlParameters;
+                } else {
+                  try {
+                    const url = new URL(baseLink);
+                    url.search = url.search ? `${url.search}&${finalUrlParameters}` : `?${finalUrlParameters}`;
+                    creativePayload.object_story_spec.link_data.link = url.toString();
+                  } catch {
+                    creativePayload.object_story_spec.link_data.link = 
+                      baseLink + (baseLink.includes("?") ? "&" : "?") + finalUrlParameters;
+                  }
+                }
               }
+            }
+
+            // Build degrees_of_freedom_spec for Advantage+ creative enhancements
+            const creativeFeaturesSpec: any = {};
+            if (advantagePlusFeatures.videoTouchups) creativeFeaturesSpec.video_touchups = { value: "on" };
+            if (advantagePlusFeatures.textImprovements) creativeFeaturesSpec.text_improvements = { value: "on" };
+            if (advantagePlusFeatures.productTags) creativeFeaturesSpec.product_tags = { value: "on" };
+            if (advantagePlusFeatures.videoEffects) creativeFeaturesSpec.video_effects = { value: "on" };
+            if (advantagePlusFeatures.relevantComments) creativeFeaturesSpec.relevant_comments = { value: "on" };
+            if (advantagePlusFeatures.enhanceCta) creativeFeaturesSpec.enhance_cta = { value: "on" };
+            if (advantagePlusFeatures.revealDetails) creativeFeaturesSpec.reveal_details = { value: "on" };
+            if (advantagePlusFeatures.showSpotlights) creativeFeaturesSpec.show_spotlights = { value: "on" };
+            if (advantagePlusFeatures.optimizeTextPerPerson) creativeFeaturesSpec.standard_enhancements = { value: "on" };
+            
+            // Add degrees_of_freedom_spec if any features are enabled
+            if (Object.keys(creativeFeaturesSpec).length > 0) {
+              creativePayload.degrees_of_freedom_spec = {
+                creative_features_spec: creativeFeaturesSpec
+              };
             }
 
             console.log(`[push-creatives] Creating ad creative for ${creative.name}, payload:`, JSON.stringify({
@@ -599,12 +714,20 @@ const handler = async (req: Request): Promise<Response> => {
             
             console.log(`[push-creatives] Ad creative created with id: ${creativeData.id}`);
 
-            const adPayload = {
+            // Build ad payload with tracking
+            const adPayload: any = {
               name: creative.name,
               adset_id: entry.dsp_entity_id,
               creative: { creative_id: creativeData.id },
               status: "PAUSED",
             };
+
+            // Add tracking specs if pixel is configured
+            if (pixelId) {
+              adPayload.tracking_specs = [
+                { "action.type": ["offsite_conversion"], "fb_pixel": [pixelId] }
+              ];
+            }
             
             console.log(`[push-creatives] Creating ad with adset_id: ${entry.dsp_entity_id}, payload:`, JSON.stringify({
               ...adPayload,
