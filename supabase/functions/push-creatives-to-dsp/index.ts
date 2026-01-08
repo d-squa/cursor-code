@@ -272,6 +272,12 @@ const handler = async (req: Request): Promise<Response> => {
           const creative = (assignment as any).creative;
           if (!creative) continue;
 
+          // Update status to 'pushing' for real-time progress tracking
+          await supabase
+            .from("creative_assignments")
+            .update({ status: "pushing" })
+            .eq("id", assignment.id);
+
           // Use assignment text fields with creative fallback
           const resolvedText = {
             primaryText: assignment.primary_text || creative.primary_text || "",
