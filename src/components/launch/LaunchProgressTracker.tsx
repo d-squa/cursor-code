@@ -36,6 +36,7 @@ export interface CreativeAssignmentItem {
   adSetName?: string;
   status: CreativeAssignmentStatus;
   errorMessage?: string;
+  urlParameters?: string;
 }
 
 export interface AdSetStatus {
@@ -415,6 +416,11 @@ export function LaunchProgressTracker({
       if (filters.platform && item.platform !== filters.platform) return false;
       if (filters.market && item.market !== filters.market) return false;
       if (filters.phase && item.phaseName !== filters.phase) return false;
+      if (filters.parameterSearch && filters.parameterSearch.trim()) {
+        const searchTerm = filters.parameterSearch.toLowerCase().trim();
+        const urlParams = (item.urlParameters || '').toLowerCase();
+        if (!urlParams.includes(searchTerm)) return false;
+      }
       return true;
     });
   }, [creativeAssignments, filters]);

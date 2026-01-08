@@ -1,11 +1,13 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Filter, X } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Filter, X, Search } from 'lucide-react';
 
 export interface LaunchFilters {
   platform: string | null;
   market: string | null;
   phase: string | null;
+  parameterSearch: string | null;
 }
 
 interface LaunchFiltersProps {
@@ -23,7 +25,7 @@ export function LaunchFiltersBar({
   onFiltersChange, 
   availableOptions 
 }: LaunchFiltersProps) {
-  const activeFilterCount = Object.values(filters).filter(v => v !== null).length;
+  const activeFilterCount = Object.values(filters).filter(v => v !== null && v !== '').length;
 
   const updateFilter = (key: keyof LaunchFilters, value: string | null) => {
     onFiltersChange({ ...filters, [key]: value === 'all' ? null : value });
@@ -34,6 +36,7 @@ export function LaunchFiltersBar({
       platform: null,
       market: null,
       phase: null,
+      parameterSearch: null,
     });
   };
 
@@ -79,6 +82,16 @@ export function LaunchFiltersBar({
           ))}
         </SelectContent>
       </Select>
+
+      <div className="relative">
+        <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-muted-foreground" />
+        <Input
+          placeholder="Search parameters..."
+          value={filters.parameterSearch || ''}
+          onChange={(e) => updateFilter('parameterSearch', e.target.value || null)}
+          className="w-[180px] h-8 text-xs pl-7"
+        />
+      </div>
 
       {activeFilterCount > 0 && (
         <Button variant="ghost" size="sm" onClick={clearAllFilters} className="h-8 px-2 text-xs">

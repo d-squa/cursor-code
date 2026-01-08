@@ -57,6 +57,7 @@ export function useLaunchProgress({ campaignId, enabled = true }: UseLaunchProgr
           phase_name,
           status,
           error_message,
+          url_parameters,
           creative:creatives(name, media_type)
         `
         )
@@ -75,6 +76,7 @@ export function useLaunchProgress({ campaignId, enabled = true }: UseLaunchProgr
         phaseName: a.phase_name,
         status: (a.status || "pending") as CreativeAssignmentStatus,
         errorMessage: a.error_message || undefined,
+        urlParameters: a.url_parameters || undefined,
       }));
       setCreativeAssignments(mappedAssignments);
     } catch (error) {
