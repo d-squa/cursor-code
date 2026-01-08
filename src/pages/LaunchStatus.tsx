@@ -31,7 +31,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
-import { AssignedCreativesView } from "@/components/creative/AssignedCreativesView";
+
 import { LaunchProgressTracker } from "@/components/launch/LaunchProgressTracker";
 import { LaunchFiltersBar, type LaunchFilters } from "@/components/launch/LaunchFilters";
 import { downloadActiplanShell } from "@/utils/actiplanShellExport";
@@ -135,7 +135,7 @@ export default function LaunchStatus() {
   const [pushingCreatives, setPushingCreatives] = useState(false);
   const [checkingStatus, setCheckingStatus] = useState(false);
   const [expandedPlatforms, setExpandedPlatforms] = useState<Set<string>>(new Set());
-  const [creativesRefreshNonce, setCreativesRefreshNonce] = useState(0);
+  
   const [currentStep, setCurrentStep] = useState<1 | 2>(1);
   const [launchFilters, setLaunchFilters] = useState<LaunchFilters>({ platform: null, market: null, phase: null, parameterSearch: null });
   const [downloadingShell, setDownloadingShell] = useState(false);
@@ -503,7 +503,7 @@ export default function LaunchStatus() {
       }
 
       toast.success("Creatives push completed");
-      setCreativesRefreshNonce((n) => n + 1);
+      
       await loadData();
     } catch (error: any) {
       console.error("Push creatives error:", error);
@@ -889,18 +889,6 @@ export default function LaunchStatus() {
         </div>
       )}
 
-      {/* Assigned Creatives Section */}
-      {campaignId && (
-        <div className="mb-6">
-          <AssignedCreativesView
-            campaignId={campaignId}
-            onRefresh={loadData}
-            refreshNonce={creativesRefreshNonce}
-            onAssignmentsDeleted={() => loadData()}
-            onAssignmentsDuplicated={() => loadData()}
-          />
-        </div>
-      )}
 
       {/* Status by Platform */}
       {Object.entries(groupedStatuses).map(([platform, markets]) => (
