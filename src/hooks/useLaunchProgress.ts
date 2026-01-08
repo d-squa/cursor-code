@@ -55,6 +55,8 @@ export function useLaunchProgress({ campaignId, enabled = true }: UseLaunchProgr
           platform,
           market,
           phase_name,
+          ad_set_name,
+          display_name,
           status,
           error_message,
           url_parameters,
@@ -69,11 +71,13 @@ export function useLaunchProgress({ campaignId, enabled = true }: UseLaunchProgr
       const mappedAssignments: CreativeAssignmentItem[] = (assignmentData || []).map((a: any) => ({
         id: a.id,
         creative_id: a.creative_id,
-        creativeName: a.creative?.name || "Unknown Creative",
+        // Use display_name (DSP ad name) first, fallback to creative name
+        creativeName: a.display_name || a.creative?.name || "Unknown Creative",
         mediaType: a.creative?.media_type || "image",
         platform: a.platform,
         market: a.market,
         phaseName: a.phase_name,
+        adSetName: a.ad_set_name || undefined,
         status: (a.status || "pending") as CreativeAssignmentStatus,
         errorMessage: a.error_message || undefined,
         urlParameters: a.url_parameters || undefined,
