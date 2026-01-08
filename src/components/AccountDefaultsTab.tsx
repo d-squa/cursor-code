@@ -1612,36 +1612,57 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                 </p>
                                 <div className="space-y-4">
                                   <div className="space-y-2">
-                                    <Label>UTM Mode</Label>
+                                    <Label>URL Parameters Template</Label>
                                     <Select
-                                      value={(defaults as any).default_utm_mode || "auto"}
-                                      onValueChange={(value) => updateDefault(account.id, "default_utm_mode" as any, value)}
+                                      value={(defaults as any).default_utm_mode || "none"}
+                                      onValueChange={(value) => {
+                                        updateDefault(account.id, "default_utm_mode" as any, value);
+                                        // Set default URL parameters based on selection
+                                        if (value === "meta_dynamic") {
+                                          updateDefault(account.id, "default_url_parameters" as any, "utm_source={{site_source_name}}&utm_medium=paid&utm_campaign={{campaign.name}}&utm_content={{adset.name}}&utm_term={{ad.name}}");
+                                        } else if (value === "basic") {
+                                          updateDefault(account.id, "default_url_parameters" as any, "utm_source=meta&utm_medium=cpc&utm_campaign={{campaign.name}}");
+                                        } else if (value === "advanced") {
+                                          updateDefault(account.id, "default_url_parameters" as any, "utm_source=meta&utm_medium=paid&utm_campaign={{campaign.name}}&utm_content={{adset.name}}&utm_term={{ad.name}}&utm_id={{campaign.id}}");
+                                        } else if (value === "none") {
+                                          updateDefault(account.id, "default_url_parameters" as any, null);
+                                        }
+                                        // For custom, keep existing value or clear it
+                                      }}
                                     >
                                       <SelectTrigger>
-                                        <SelectValue placeholder="Select UTM mode" />
+                                        <SelectValue placeholder="Select URL parameters template" />
                                       </SelectTrigger>
                                       <SelectContent>
-                                        <SelectItem value="auto">Auto (System-generated UTMs)</SelectItem>
-                                        <SelectItem value="manual">Manual (Custom parameters)</SelectItem>
+                                        <SelectItem value="none">No URL Parameters</SelectItem>
+                                        <SelectItem value="meta_dynamic">Meta Dynamic Parameters</SelectItem>
+                                        <SelectItem value="basic">Basic UTM (Source, Medium, Campaign)</SelectItem>
+                                        <SelectItem value="advanced">Advanced UTM (Full Tracking)</SelectItem>
+                                        <SelectItem value="custom">Custom Parameters</SelectItem>
                                       </SelectContent>
                                     </Select>
                                     <p className="text-xs text-muted-foreground">
-                                      Auto mode uses dynamic Meta parameters. Manual allows custom UTM parameters.
+                                      Choose a preset template or define custom parameters for tracking.
                                     </p>
                                   </div>
-                                  {(defaults as any).default_utm_mode === "manual" && (
-                                    <div className="space-y-2">
-                                      <Label>Custom URL Parameters</Label>
-                                      <Input
-                                        placeholder="utm_source=meta&utm_medium=paid&utm_campaign={{campaign.name}}"
-                                        value={(defaults as any).default_url_parameters || ""}
-                                        onChange={(e) => updateDefault(account.id, "default_url_parameters" as any, e.target.value)}
-                                      />
-                                      <p className="text-xs text-muted-foreground">
-                                        Enter parameters without the leading "?". Use {"{{campaign.name}}"}, {"{{adset.name}}"}, {"{{ad.name}}"} for dynamic values.
-                                      </p>
-                                    </div>
-                                  )}
+                                  <div className="space-y-2">
+                                    <Label>URL Parameters Value</Label>
+                                    <Input
+                                      placeholder="utm_source=meta&utm_medium=paid&utm_campaign={{campaign.name}}"
+                                      value={(defaults as any).default_url_parameters || ""}
+                                      onChange={(e) => {
+                                        updateDefault(account.id, "default_url_parameters" as any, e.target.value);
+                                        // If user manually edits, switch to custom mode
+                                        if ((defaults as any).default_utm_mode !== "custom") {
+                                          updateDefault(account.id, "default_utm_mode" as any, "custom");
+                                        }
+                                      }}
+                                      disabled={(defaults as any).default_utm_mode === "none"}
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                      Parameters without leading "?". Use {"{{campaign.name}}"}, {"{{adset.name}}"}, {"{{ad.name}}"}, {"{{site_source_name}}"} for dynamic values.
+                                    </p>
+                                  </div>
                                 </div>
                               </CollapsibleContent>
                             </Collapsible>
