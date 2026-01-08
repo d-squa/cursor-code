@@ -562,7 +562,7 @@ export default function LaunchStatus() {
 
     setDownloadingShell(true);
     try {
-      // Fetch full creative assignment data with creative details
+      // Fetch full creative assignment data with all text asset fields
       const { data: assignmentData, error } = await supabase
         .from("creative_assignments")
         .select(`
@@ -577,11 +577,24 @@ export default function LaunchStatus() {
           dsp_creative_id,
           destination_url,
           headline,
+          headline_2,
+          headline_3,
+          headline_4,
+          headline_5,
           primary_text,
+          primary_text_2,
+          primary_text_3,
+          primary_text_4,
+          primary_text_5,
           description,
+          description_2,
+          description_3,
+          description_4,
+          description_5,
           call_to_action,
           url_parameters,
           display_name,
+          brand_name,
           creative:creatives(name, media_type, media_urls, thumbnail_url)
         `)
         .eq("campaign_id", campaignId);
@@ -601,11 +614,24 @@ export default function LaunchStatus() {
         dsp_creative_id: a.dsp_creative_id,
         destination_url: a.destination_url,
         headline: a.headline,
+        headline_2: a.headline_2,
+        headline_3: a.headline_3,
+        headline_4: a.headline_4,
+        headline_5: a.headline_5,
         primary_text: a.primary_text,
+        primary_text_2: a.primary_text_2,
+        primary_text_3: a.primary_text_3,
+        primary_text_4: a.primary_text_4,
+        primary_text_5: a.primary_text_5,
         description: a.description,
+        description_2: a.description_2,
+        description_3: a.description_3,
+        description_4: a.description_4,
+        description_5: a.description_5,
         call_to_action: a.call_to_action,
         url_parameters: a.url_parameters,
         display_name: a.display_name,
+        brand_name: a.brand_name,
         creative: a.creative ? {
           name: a.creative.name,
           media_type: a.creative.media_type,
@@ -614,19 +640,7 @@ export default function LaunchStatus() {
         } : undefined,
       }));
 
-      // Map statuses to the expected format (without planned metrics)
-      const mappedStatuses = statuses.map(s => ({
-        id: s.id,
-        platform: s.platform,
-        market: s.market,
-        phase_name: s.phase_name,
-        entity_type: s.entity_type,
-        entity_name: s.entity_name,
-        dsp_entity_id: s.dsp_entity_id,
-        status: s.status,
-      }));
-
-      downloadActiplanShell(campaign, mappedStatuses, mappedAssignments);
+      downloadActiplanShell(campaign, mappedAssignments);
     } catch (error: any) {
       console.error("Download shell error:", error);
       toast.error("Failed to download shell: " + error.message);
