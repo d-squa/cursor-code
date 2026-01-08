@@ -296,6 +296,143 @@ function MeshedCreativesTree({
   );
 }
 
+// Hierarchical tree view for campaign shell - Platform > Market > Campaign > Ad Set
+function CampaignsShellTree({ 
+  adSetStatuses, 
+  expandedState, 
+  onToggle 
+}: { 
+  adSetStatuses: AdSetStatus[];
+  expandedState: Record<string, boolean>;
+  onToggle: (key: string) => void;
+}) {
+  // Group by platform -> market -> phase (campaign) -> adsets
+  const grouped = useMemo(() => {
+    const result: Record<string, Record<string, Record<string, AdSetStatus[]>>> = {};
+    adSetStatuses.forEach(item => {
+      if (!result[item.platform]) result[item.platform] = {};
+      if (!result[item.platform][item.market]) result[item.platform][item.market] = {};
+      const phaseKey = item.phaseName || 'default';
+      if (!result[item.platform][item.market][phaseKey]) {
+        result[item.platform][item.market][phaseKey] = [];
+      }
+      result[item.platform][item.market][phaseKey].push(item);
+    });
+    return result;
+  }, [adSetStatuses]);
+
+  return (
+    <div className="space-y-1">
+      {Object.entries(grouped).map(([platform, markets]) => (
+        <div key={platform}>
+          <div
+            className="flex items-center gap-2 p-2 rounded hover:bg-muted/50 cursor-pointer font-medium"
+            onClick={() => onToggle(`shell:platform:${platform}`)}
+          >
+            {expandedState[`shell:platform:${platform}`] ? (
+              <ChevronDown className="h-4 w-4" />
+            ) : (
+              <ChevronRight className="h-4 w-4" />
+            )}
+            <Layers className="h-4 w-4 text-primary" />
+            <span>{platform}</span>
+            <Badge variant="outline" className="ml-auto text-xs">
+              {Object.values(markets).flatMap(m => Object.values(m)).flat().length} ad sets
+            </Badge>
+          </div>
+          
+          {expandedState[`shell:platform:${platform}`] && (
+            <div className="ml-6 border-l pl-2">
+              {Object.entries(markets).map(([market, phases]) => (
+                <div key={market}>
+                  <div
+                    className="flex items-center gap-2 p-1.5 rounded hover:bg-muted/50 cursor-pointer text-sm"
+                    onClick={() => onToggle(`shell:market:${platform}:${market}`)}
+                  >
+                    {expandedState[`shell:market:${platform}:${market}`] ? (
+                      <ChevronDown className="h-3 w-3" />
+                    ) : (
+                      <ChevronRight className="h-3 w-3" />
+                    )}
+                    <span className="text-muted-foreground">{market}</span>
+                    <Badge variant="secondary" className="ml-auto text-xs h-5">
+                      {Object.values(phases).flat().length}
+                    </Badge>
+                  </div>
+                  
+                  {expandedState[`shell:market:${platform}:${market}`] && (
+                    <div className="ml-4">
+                      {Object.entries(phases).map(([phase, adSets]) => {
+                        // Get campaign entities for this phase
+                        const campaignEntity = adSets.find(s => s.entityType === 'campaign');
+                        const adSetEntities = adSets.filter(s => s.entityType === 'adset');
+                        
+                        return (
+                          <div key={phase}>
+                            <div
+                              className="flex items-center gap-2 p-1 rounded hover:bg-muted/50 cursor-pointer text-xs"
+                              onClick={() => onToggle(`shell:phase:${platform}:${market}:${phase}`)}
+                            >
+                              {expandedState[`shell:phase:${platform}:${market}:${phase}`] ? (
+                                <ChevronDown className="h-3 w-3" />
+                              ) : (
+                                <ChevronRight className="h-3 w-3" />
+                              )}
+                              <Rocket className="h-3 w-3 shrink-0 text-primary" />
+                              <span className="text-muted-foreground truncate">
+                                {campaignEntity?.entityName || phase}
+                              </span>
+                              {campaignEntity && (
+                                <ItemStatusIndicator status={campaignEntity.status} error={campaignEntity.errorMessage} />
+                              )}
+                              <Badge variant="secondary" className="ml-auto text-xs h-4 px-1">
+                                {adSetEntities.length}
+                              </Badge>
+                            </div>
+                            
+                            {expandedState[`shell:phase:${platform}:${market}:${phase}`] && (
+                              <div className="ml-4 space-y-0.5">
+                                {adSetEntities.map(adSet => (
+                                  <div
+                                    key={adSet.id}
+                                    className={cn(
+                                      "flex items-center gap-3 py-1.5 px-2 rounded text-sm",
+                                      adSet.status === "pushed_to_dsp" || adSet.status === "live"
+                                        ? "text-emerald-600"
+                                        : adSet.status === "pushing"
+                                          ? "text-amber-600"
+                                          : ["push_failed", "validation_error"].includes(adSet.status)
+                                            ? "text-destructive"
+                                            : "text-muted-foreground"
+                                    )}
+                                  >
+                                    <Layers className="h-3 w-3 shrink-0" />
+                                    <span className="flex-1 truncate">{adSet.entityName || `Ad Set ${adSet.id.slice(0, 8)}`}</span>
+                                    <ItemStatusIndicator status={adSet.status} error={adSet.errorMessage} />
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+      {adSetStatuses.length === 0 && (
+        <p className="text-sm text-muted-foreground text-center py-4">
+          No campaign structure found. Run validation first.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function LaunchProgressTracker({
   campaignId,
   adSetStatuses,
@@ -305,8 +442,9 @@ export function LaunchProgressTracker({
   currentStep,
   filters,
 }: LaunchProgressTrackerProps) {
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["creatives"]));
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["shell", "creatives"]));
   const [creativesExpanded, setCreativesExpanded] = useState<Record<string, boolean>>({});
+  const [shellExpanded, setShellExpanded] = useState<Record<string, boolean>>({});
 
   const toggleSection = (section: string) => {
     const newExpanded = new Set(expandedSections);
@@ -318,7 +456,7 @@ export function LaunchProgressTracker({
     setExpandedSections(newExpanded);
   };
 
-  // Apply filters to ad set statuses (still needed for progress calculation)
+  // Apply filters to ad set statuses
   const filteredAdSetStatuses = useMemo(() => {
     return adSetStatuses.filter(item => {
       if (filters.platform && item.platform !== filters.platform) return false;
@@ -345,6 +483,10 @@ export function LaunchProgressTracker({
 
   const toggleCreativeNode = useCallback((key: string) => {
     setCreativesExpanded(prev => ({ ...prev, [key]: !prev[key] }));
+  }, []);
+
+  const toggleShellNode = useCallback((key: string) => {
+    setShellExpanded(prev => ({ ...prev, [key]: !prev[key] }));
   }, []);
 
   // Expand/collapse all for creatives
@@ -431,6 +573,86 @@ export function LaunchProgressTracker({
     setCreativesExpanded(newState);
   }, [filteredCreativeAssignments, creativesExpanded]);
 
+  // Expand/collapse all for shell
+  const expandAllShell = useCallback(() => {
+    const newState: Record<string, boolean> = {};
+    const platforms = [...new Set(filteredAdSetStatuses.map(s => s.platform))];
+    platforms.forEach(platform => {
+      newState[`shell:platform:${platform}`] = true;
+      const markets = [...new Set(filteredAdSetStatuses.filter(s => s.platform === platform).map(s => s.market))];
+      markets.forEach(market => {
+        newState[`shell:market:${platform}:${market}`] = true;
+        const phases = [...new Set(filteredAdSetStatuses.filter(s => s.platform === platform && s.market === market).map(s => s.phaseName || 'default'))];
+        phases.forEach(phase => {
+          newState[`shell:phase:${platform}:${market}:${phase}`] = true;
+        });
+      });
+    });
+    setShellExpanded(newState);
+  }, [filteredAdSetStatuses]);
+
+  const collapseAllShell = useCallback(() => {
+    setShellExpanded({});
+  }, []);
+
+  const expandShellLevel = useCallback((level: 'platforms' | 'markets' | 'campaigns') => {
+    const newState: Record<string, boolean> = { ...shellExpanded };
+    const platforms = [...new Set(filteredAdSetStatuses.map(s => s.platform))];
+    
+    if (level === 'platforms') {
+      platforms.forEach(platform => {
+        newState[`shell:platform:${platform}`] = true;
+      });
+    } else if (level === 'markets') {
+      platforms.forEach(platform => {
+        const markets = [...new Set(filteredAdSetStatuses.filter(s => s.platform === platform).map(s => s.market))];
+        markets.forEach(market => {
+          newState[`shell:market:${platform}:${market}`] = true;
+        });
+      });
+    } else if (level === 'campaigns') {
+      platforms.forEach(platform => {
+        const markets = [...new Set(filteredAdSetStatuses.filter(s => s.platform === platform).map(s => s.market))];
+        markets.forEach(market => {
+          const phases = [...new Set(filteredAdSetStatuses.filter(s => s.platform === platform && s.market === market).map(s => s.phaseName || 'default'))];
+          phases.forEach(phase => {
+            newState[`shell:phase:${platform}:${market}:${phase}`] = true;
+          });
+        });
+      });
+    }
+    setShellExpanded(newState);
+  }, [filteredAdSetStatuses, shellExpanded]);
+
+  const collapseShellLevel = useCallback((level: 'platforms' | 'markets' | 'campaigns') => {
+    const newState: Record<string, boolean> = { ...shellExpanded };
+    const platforms = [...new Set(filteredAdSetStatuses.map(s => s.platform))];
+    
+    if (level === 'platforms') {
+      platforms.forEach(platform => {
+        delete newState[`shell:platform:${platform}`];
+      });
+    } else if (level === 'markets') {
+      platforms.forEach(platform => {
+        const markets = [...new Set(filteredAdSetStatuses.filter(s => s.platform === platform).map(s => s.market))];
+        markets.forEach(market => {
+          delete newState[`shell:market:${platform}:${market}`];
+        });
+      });
+    } else if (level === 'campaigns') {
+      platforms.forEach(platform => {
+        const markets = [...new Set(filteredAdSetStatuses.filter(s => s.platform === platform).map(s => s.market))];
+        markets.forEach(market => {
+          const phases = [...new Set(filteredAdSetStatuses.filter(s => s.platform === platform && s.market === market).map(s => s.phaseName || 'default'))];
+          phases.forEach(phase => {
+            delete newState[`shell:phase:${platform}:${market}:${phase}`];
+          });
+        });
+      });
+    }
+    setShellExpanded(newState);
+  }, [filteredAdSetStatuses, shellExpanded]);
+
   // Calculate ad set progress
   const adSetProgress = useMemo(() => {
     const total = filteredAdSetStatuses.length;
@@ -458,7 +680,91 @@ export function LaunchProgressTracker({
 
   return (
     <div className="space-y-4">
-      {/* Meshed Creatives Card */}
+      {/* Campaign Shell Card - Step 1 */}
+      <Collapsible
+        open={expandedSections.has("shell")}
+        onOpenChange={() => toggleSection("shell")}
+      >
+        <Card className={cn(
+          "transition-all",
+          currentStep === 1 && "ring-2 ring-primary",
+          adSetProgress.pushed === adSetProgress.total && adSetProgress.total > 0 && "ring-1 ring-emerald-500/30"
+        )}>
+          <CollapsibleTrigger asChild>
+            <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors pb-3">
+              <div className="flex items-center gap-3">
+                <div className={cn(
+                  "w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold",
+                  adSetProgress.pushed === adSetProgress.total && adSetProgress.total > 0
+                    ? "bg-emerald-500 text-white"
+                    : currentStep === 1
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground"
+                )}>
+                  {adSetProgress.pushed === adSetProgress.total && adSetProgress.total > 0 ? (
+                    <Check className="h-4 w-4" />
+                  ) : (
+                    "1"
+                  )}
+                </div>
+                <div className="flex-1">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    Campaigns Shell
+                    {isPushingCampaign && (
+                      <Badge variant="secondary" className="text-amber-600">
+                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        Pushing...
+                      </Badge>
+                    )}
+                    {adSetProgress.pushed === adSetProgress.total && adSetProgress.total > 0 && (
+                      <Badge className="bg-emerald-500">
+                        <Check className="h-3 w-3 mr-1" />
+                        Complete
+                      </Badge>
+                    )}
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {adSetProgress.pushed}/{adSetProgress.total} entities pushed
+                    {adSetProgress.pushing > 0 && ` · ${adSetProgress.pushing} in progress`}
+                    {adSetProgress.errors > 0 && ` · ${adSetProgress.errors} errors`}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {expandedSections.has("shell") ? (
+                    <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                  ) : (
+                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                  )}
+                </div>
+              </div>
+              {adSetProgress.total > 0 && (
+                <Progress value={adSetProgress.percent} className="h-1.5 mt-3" />
+              )}
+            </CardHeader>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="pt-0">
+              <div className="flex items-center justify-end mb-3">
+                <TreeViewControls
+                  onExpandAll={expandAllShell}
+                  onCollapseAll={collapseAllShell}
+                  onExpandLevel={expandShellLevel}
+                  onCollapseLevel={collapseShellLevel}
+                />
+              </div>
+              <ScrollArea className="max-h-[400px]">
+                <CampaignsShellTree
+                  adSetStatuses={filteredAdSetStatuses}
+                  expandedState={shellExpanded}
+                  onToggle={toggleShellNode}
+                />
+              </ScrollArea>
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
+
+      {/* Meshed Creatives Card - Step 2 */}
       <Collapsible
         open={expandedSections.has("creatives")}
         onOpenChange={() => toggleSection("creatives")}
