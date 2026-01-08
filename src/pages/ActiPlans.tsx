@@ -753,17 +753,19 @@ export default function ActiPlans() {
                   // Don't show for pushed_to_dsp (already fully pushed)
                   if (status === "pushed_to_dsp") return null;
                   
-                  // Show for draft, approved, partially_pushed, live
-                  if (["draft", "approved", "partially_pushed", "live"].includes(status)) {
+                  // Show for draft, approved, ready_for_push, pushed_to_dsp, partially_pushed, live
+                  if (["draft", "approved", "ready_for_push", "pushed_to_dsp", "partially_pushed", "live"].includes(status)) {
                     const isCreator = campaign.user_id === user?.id;
                     const isTeamOwnerOrAdmin = campaign.is_admin_or_owner === true;
                     if (!isCreator && !isTeamOwnerOrAdmin) return null;
                     
-                    let menuLabel = "Launch Campaign";
-                    if (status === "draft") {
+                    let menuLabel = "Launch Status";
+                    if (status === "draft" || status === "approved" || status === "ready_for_push") {
                       menuLabel = "Push Campaign to DSP";
                     } else if (status === "partially_pushed") {
                       menuLabel = "Retry Pushing to DSP";
+                    } else if (status === "pushed_to_dsp" || status === "live") {
+                      menuLabel = "View Launch Status";
                     }
                     
                     return (
