@@ -750,9 +750,6 @@ export default function ActiPlans() {
                 {/* Launch/Push menu item - conditional based on status */}
                 {(() => {
                   const status = campaign.status || "";
-                  // Don't show for pushed_to_dsp (already fully pushed)
-                  if (status === "pushed_to_dsp") return null;
-                  
                   // Show for draft, approved, ready_for_push, pushed_to_dsp, partially_pushed, live
                   if (["draft", "approved", "ready_for_push", "pushed_to_dsp", "partially_pushed", "live"].includes(status)) {
                     const isCreator = campaign.user_id === user?.id;
