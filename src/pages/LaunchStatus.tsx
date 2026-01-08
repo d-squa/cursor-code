@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useActiplanLimits } from "@/hooks/useActiplanLimits";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
+import { useLaunchProgress } from "@/hooks/useLaunchProgress";
 import { TIER_DISPLAY_NAMES, SubscriptionTier } from "@/config/subscriptionTiers";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,6 +32,7 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
 import { AssignedCreativesView } from "@/components/creative/AssignedCreativesView";
+import { LaunchProgressTracker } from "@/components/launch/LaunchProgressTracker";
 
 interface LaunchStatusEntry {
   id: string;
@@ -131,7 +133,15 @@ export default function LaunchStatus() {
   const [checkingStatus, setCheckingStatus] = useState(false);
   const [expandedPlatforms, setExpandedPlatforms] = useState<Set<string>>(new Set());
   const [creativesRefreshNonce, setCreativesRefreshNonce] = useState(0);
-  const [creativePushStats, setCreativePushStats] = useState({ total: 0, pushed: 0, pending: 0, errors: 0 });
+  const [currentStep, setCurrentStep] = useState<1 | 2>(1);
+
+  // Use the new real-time progress hook
+  const {
+    adSetStatuses: liveAdSetStatuses,
+    creativeAssignments: liveCreativeAssignments,
+    loading: progressLoading,
+    refresh: refreshProgress,
+  } = useLaunchProgress({ campaignId, enabled: !!campaignId && !!user });
 
   const getNextTierName = (): string => {
     const tierOrder: SubscriptionTier[] = ["trial", "basic", "freelancer", "enterprise", "agency"];
@@ -146,40 +156,36 @@ export default function LaunchStatus() {
     if (!campaignId || !user) return;
 
     try {
-      const [{ data: campaignData }, { data: statusData }, { data: assignmentsData }] = await Promise.all([
-        supabase.from("campaigns").select("*").eq("id", campaignId).single(),
-        supabase
-          .from("campaign_launch_status")
-          .select("*")
-          .eq("campaign_id", campaignId)
-          .order("platform", { ascending: true }),
-        supabase.from("creative_assignments").select("id,status").eq("campaign_id", campaignId),
-      ]);
+      const { data: campaignData } = await supabase
+        .from("campaigns")
+        .select("*")
+        .eq("id", campaignId)
+        .single();
 
       if (campaignData) setCampaign(campaignData);
+
+      // Fetch statuses for the legacy view (platform-grouped collapsibles)
+      const { data: statusData } = await supabase
+        .from("campaign_launch_status")
+        .select("*")
+        .eq("campaign_id", campaignId)
+        .order("platform", { ascending: true });
+
       if (statusData) {
         setStatuses(statusData);
-        // Auto-expand all platforms
         const platforms = new Set(statusData.map((s: LaunchStatusEntry) => s.platform));
         setExpandedPlatforms(platforms);
       }
 
-      if (assignmentsData) {
-        const total = assignmentsData.length;
-        const pushedCount = assignmentsData.filter((a: any) => a.status === "pushed").length;
-        const errorCount = assignmentsData.filter((a: any) => a.status === "error").length;
-        const pendingCount = total - pushedCount;
-        setCreativePushStats({ total, pushed: pushedCount, pending: pendingCount, errors: errorCount });
-      } else {
-        setCreativePushStats({ total: 0, pushed: 0, pending: 0, errors: 0 });
-      }
+      // Refresh the real-time progress data as well
+      refreshProgress();
     } catch (error) {
       console.error("Error loading data:", error);
       toast.error("Failed to load launch status");
     } finally {
       setLoading(false);
     }
-  }, [campaignId, user]);
+  }, [campaignId, user, refreshProgress]);
 
   useEffect(() => {
     loadData();
@@ -578,14 +584,34 @@ export default function LaunchStatus() {
   const errorEntities = statuses.filter((s) => ["validation_error", "push_failed"].includes(s.status)).length;
   const progressPercent = totalEntities > 0 ? (pushedEntities / totalEntities) * 100 : 0;
 
+  // Calculate creative push stats from live data
+  const creativePushStats = useMemo(() => {
+    const total = liveCreativeAssignments.length;
+    const pushed = liveCreativeAssignments.filter((c) => c.status === "pushed").length;
+    const pushing = liveCreativeAssignments.filter((c) => c.status === "pushing").length;
+    const errors = liveCreativeAssignments.filter((c) => c.status === "error").length;
+    const pending = total - pushed;
+    return { total, pushed, pending, errors, pushing };
+  }, [liveCreativeAssignments]);
+
   // Determine if we can push - allow push if there are any ready_for_push, push_failed, or validation_error entities
   const pendingEntities = statuses.filter((s) =>
     ["ready_for_push", "push_failed", "validation_error"].includes(s.status),
   );
   const canPush = pendingEntities.length > 0 && !pushing && !validating;
 
-  // Creatives push (independent from campaign/adset push)
-  const canPushCreatives = creativePushStats.pending > 0 && !pushingCreatives && !pushing && !validating;
+  // Creatives push requires campaign/adsets to be pushed first
+  const allAdSetsPushed = pushedEntities === totalEntities && totalEntities > 0;
+  const canPushCreatives = allAdSetsPushed && creativePushStats.pending > 0 && !pushingCreatives && !pushing && !validating;
+
+  // Auto-advance step when all ad sets are pushed
+  useEffect(() => {
+    if (allAdSetsPushed && creativePushStats.total > 0) {
+      setCurrentStep(2);
+    } else if (!allAdSetsPushed) {
+      setCurrentStep(1);
+    }
+  }, [allAdSetsPushed, creativePushStats.total]);
 
   // Check if this is a retry (some already pushed)
   const isRetry = pushedEntities > 0 && pendingEntities.length > 0;
@@ -728,6 +754,20 @@ export default function LaunchStatus() {
             </Button>
           </CardContent>
         </Card>
+      )}
+
+      {/* Unified Launch Progress Tracker - 2 Step Flow */}
+      {statuses.length > 0 && campaignId && (
+        <div className="mb-6">
+          <LaunchProgressTracker
+            campaignId={campaignId}
+            adSetStatuses={liveAdSetStatuses}
+            creativeAssignments={liveCreativeAssignments}
+            isPushingCampaign={pushing}
+            isPushingCreatives={pushingCreatives}
+            currentStep={currentStep}
+          />
+        </div>
       )}
 
       {/* Assigned Creatives Section */}
