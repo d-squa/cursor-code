@@ -16,6 +16,7 @@ interface CreativeAssignment {
   description: string | null;
   call_to_action: string | null;
   url_parameters: string | null;
+  display_name: string | null;
   creative?: {
     name: string;
     media_type: string | null;
@@ -33,11 +34,6 @@ interface AdSetStatus {
   entity_name: string | null;
   dsp_entity_id: string | null;
   status: string;
-  planned_budget: number | null;
-  planned_reach: number | null;
-  planned_impressions: number | null;
-  planned_clicks: number | null;
-  planned_conversions: number | null;
 }
 
 interface Campaign {
@@ -77,17 +73,12 @@ export function downloadActiplanShell(
       shellData.push({
         'Platform': adSet.platform,
         'Market': adSet.market,
-        'Campaign/Phase': adSet.phase_name || campaign.name,
+        'Campaign Name': adSet.phase_name || campaign.name,
         'Entity Type': adSet.entity_type,
         'Ad Set Name': adSet.entity_name || '-',
         'Ad Set Status': adSet.status,
         'DSP Ad Set ID': adSet.dsp_entity_id || '-',
-        'Planned Budget': adSet.planned_budget || '-',
-        'Planned Reach': adSet.planned_reach || '-',
-        'Planned Impressions': adSet.planned_impressions || '-',
-        'Planned Clicks': adSet.planned_clicks || '-',
-        'Planned Conversions': adSet.planned_conversions || '-',
-        'Creative Name': '-',
+        'Ad Name': '-',
         'Media Type': '-',
         'Ad Status': '-',
         'DSP Ad ID': '-',
@@ -98,7 +89,6 @@ export function downloadActiplanShell(
         'Destination URL': '-',
         'URL Parameters': '-',
         'Creative Preview URL': '-',
-        'Ad Mockup URL': '-',
       });
     } else {
       // Add row for each creative in the ad set
@@ -106,25 +96,18 @@ export function downloadActiplanShell(
         const creativePreviewUrl = creative.creative?.media_urls?.[0] || 
           creative.creative?.thumbnail_url || '-';
         
-        // Generate mockup URL placeholder (in real implementation, this would be a link to a mockup generator)
-        const mockupUrl = creative.dsp_creative_id 
-          ? `https://business.facebook.com/ads/manager/account/${creative.dsp_creative_id}` 
-          : '-';
+        // Use display_name if available (the ad name as pushed to DSP), otherwise fallback to creative name
+        const adName = creative.display_name || creative.creative?.name || '-';
 
         shellData.push({
           'Platform': adSet.platform,
           'Market': adSet.market,
-          'Campaign/Phase': adSet.phase_name || campaign.name,
+          'Campaign Name': adSet.phase_name || campaign.name,
           'Entity Type': adSet.entity_type,
           'Ad Set Name': adSet.entity_name || creative.ad_set_name || '-',
           'Ad Set Status': adSet.status,
           'DSP Ad Set ID': adSet.dsp_entity_id || '-',
-          'Planned Budget': adSet.planned_budget || '-',
-          'Planned Reach': adSet.planned_reach || '-',
-          'Planned Impressions': adSet.planned_impressions || '-',
-          'Planned Clicks': adSet.planned_clicks || '-',
-          'Planned Conversions': adSet.planned_conversions || '-',
-          'Creative Name': creative.creative?.name || '-',
+          'Ad Name': adName,
           'Media Type': creative.creative?.media_type || '-',
           'Ad Status': creative.status || 'pending',
           'DSP Ad ID': creative.dsp_creative_id || '-',
@@ -135,7 +118,6 @@ export function downloadActiplanShell(
           'Destination URL': creative.destination_url || '-',
           'URL Parameters': creative.url_parameters || '-',
           'Creative Preview URL': creativePreviewUrl,
-          'Ad Mockup URL': mockupUrl,
         });
       });
     }
@@ -148,17 +130,12 @@ export function downloadActiplanShell(
   const colWidths = [
     { wch: 12 }, // Platform
     { wch: 10 }, // Market
-    { wch: 20 }, // Campaign/Phase
+    { wch: 30 }, // Campaign Name
     { wch: 10 }, // Entity Type
-    { wch: 25 }, // Ad Set Name
+    { wch: 30 }, // Ad Set Name
     { wch: 12 }, // Ad Set Status
     { wch: 20 }, // DSP Ad Set ID
-    { wch: 12 }, // Planned Budget
-    { wch: 12 }, // Planned Reach
-    { wch: 14 }, // Planned Impressions
-    { wch: 12 }, // Planned Clicks
-    { wch: 14 }, // Planned Conversions
-    { wch: 30 }, // Creative Name
+    { wch: 40 }, // Ad Name
     { wch: 10 }, // Media Type
     { wch: 10 }, // Ad Status
     { wch: 20 }, // DSP Ad ID
@@ -169,7 +146,6 @@ export function downloadActiplanShell(
     { wch: 50 }, // Destination URL
     { wch: 40 }, // URL Parameters
     { wch: 50 }, // Creative Preview URL
-    { wch: 50 }, // Ad Mockup URL
   ];
   worksheet['!cols'] = colWidths;
 

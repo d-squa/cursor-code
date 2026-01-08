@@ -137,8 +137,8 @@ export default function LaunchStatus() {
   const [expandedPlatforms, setExpandedPlatforms] = useState<Set<string>>(new Set());
   const [creativesRefreshNonce, setCreativesRefreshNonce] = useState(0);
   const [currentStep, setCurrentStep] = useState<1 | 2>(1);
-  const [launchFilters, setLaunchFilters] = useState<LaunchFilters>({ platform: null, market: null, phase: null });
-  const [shellAssignments, setShellAssignments] = useState<any[]>([]);
+  const [launchFilters, setLaunchFilters] = useState<LaunchFilters>({ platform: null, market: null, phase: null, parameterSearch: null });
+  const [downloadingShell, setDownloadingShell] = useState(false);
 
   // Use the new real-time progress hook
   const {
@@ -557,6 +557,84 @@ export default function LaunchStatus() {
     }
   };
 
+  const handleDownloadShell = async () => {
+    if (!campaign || !campaignId) return;
+
+    setDownloadingShell(true);
+    try {
+      // Fetch full creative assignment data with creative details
+      const { data: assignmentData, error } = await supabase
+        .from("creative_assignments")
+        .select(`
+          id,
+          platform,
+          market,
+          phase_name,
+          ad_set_name,
+          ad_set_id,
+          creative_id,
+          status,
+          dsp_creative_id,
+          destination_url,
+          headline,
+          primary_text,
+          description,
+          call_to_action,
+          url_parameters,
+          display_name,
+          creative:creatives(name, media_type, media_urls, thumbnail_url)
+        `)
+        .eq("campaign_id", campaignId);
+
+      if (error) throw error;
+
+      // Map the data for the export
+      const mappedAssignments = (assignmentData || []).map((a: any) => ({
+        id: a.id,
+        platform: a.platform,
+        market: a.market,
+        phase_name: a.phase_name,
+        ad_set_name: a.ad_set_name,
+        ad_set_id: a.ad_set_id,
+        creative_id: a.creative_id,
+        status: a.status,
+        dsp_creative_id: a.dsp_creative_id,
+        destination_url: a.destination_url,
+        headline: a.headline,
+        primary_text: a.primary_text,
+        description: a.description,
+        call_to_action: a.call_to_action,
+        url_parameters: a.url_parameters,
+        display_name: a.display_name,
+        creative: a.creative ? {
+          name: a.creative.name,
+          media_type: a.creative.media_type,
+          media_urls: a.creative.media_urls,
+          thumbnail_url: a.creative.thumbnail_url,
+        } : undefined,
+      }));
+
+      // Map statuses to the expected format (without planned metrics)
+      const mappedStatuses = statuses.map(s => ({
+        id: s.id,
+        platform: s.platform,
+        market: s.market,
+        phase_name: s.phase_name,
+        entity_type: s.entity_type,
+        entity_name: s.entity_name,
+        dsp_entity_id: s.dsp_entity_id,
+        status: s.status,
+      }));
+
+      downloadActiplanShell(campaign, mappedStatuses, mappedAssignments);
+    } catch (error: any) {
+      console.error("Download shell error:", error);
+      toast.error("Failed to download shell: " + error.message);
+    } finally {
+      setDownloadingShell(false);
+    }
+  };
+
   const togglePlatform = (platform: string) => {
     const newExpanded = new Set(expandedPlatforms);
     if (newExpanded.has(platform)) {
@@ -784,8 +862,12 @@ export default function LaunchStatus() {
                 phases: [...new Set(statuses.filter(s => s.phase_name).map(s => s.phase_name!))],
               }}
             />
-            <Button variant="outline" onClick={() => campaign && downloadActiplanShell(campaign, statuses, shellAssignments)}>
-              <Download className="h-4 w-4 mr-2" />
+            <Button variant="outline" onClick={handleDownloadShell} disabled={downloadingShell}>
+              {downloadingShell ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4 mr-2" />
+              )}
               Download Shell
             </Button>
           </div>
