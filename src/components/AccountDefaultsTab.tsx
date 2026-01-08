@@ -50,6 +50,7 @@ interface AdAccount {
   default_non_conversion_budget_type?: string | null;
   default_identity_id?: string | null;
   default_billing_event?: string | null;
+  default_conversion_count?: string | null;
   default_optimization_event?: string | null;
   default_landing_page_url?: string | null;
   default_bid_strategy?: string | null;
@@ -568,6 +569,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         "default_bid_strategy",
         "default_bid_amount",
         "default_billing_event",
+        "default_conversion_count",
         "default_landing_page_url",
         "default_optimization_location",
         "default_click_window",
@@ -614,6 +616,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         "default_conversion_budget_type",
         "default_non_conversion_budget_type",
         "default_billing_event",
+        "default_conversion_count",
         "default_optimization_event",
         "default_landing_page_url",
         "default_bid_strategy",
@@ -1187,9 +1190,9 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                           <div className="space-y-2">
                             <Label>Conversion Count</Label>
                             <Select
-                              value={(defaults as any).default_conversion_count || "all_conversions"}
+                              value={defaults.default_conversion_count || "all_conversions"}
                               onValueChange={(value) =>
-                                updateDefault(account.id, "default_conversion_count" as any, value)
+                                updateDefault(account.id, "default_conversion_count", value)
                               }
                             >
                               <SelectTrigger>
@@ -2175,9 +2178,9 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                               Conversion Count
                             </Label>
                             <Select
-                              value={(defaults as any).default_conversion_count || "all_conversions"}
+                              value={defaults.default_conversion_count || "all_conversions"}
                               onValueChange={(value) =>
-                                updateDefault(account.id, "default_conversion_count" as any, value)
+                                updateDefault(account.id, "default_conversion_count", value)
                               }
                             >
                               <SelectTrigger className="border-black/20 dark:border-white/20">

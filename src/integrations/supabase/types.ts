@@ -1249,6 +1249,7 @@ export type Database = {
           default_catalog_id: string | null
           default_click_window: number | null
           default_conversion_budget_type: string | null
+          default_conversion_count: string | null
           default_conversion_event: string | null
           default_devices: Json | null
           default_gender: string | null
@@ -1304,6 +1305,7 @@ export type Database = {
           default_catalog_id?: string | null
           default_click_window?: number | null
           default_conversion_budget_type?: string | null
+          default_conversion_count?: string | null
           default_conversion_event?: string | null
           default_devices?: Json | null
           default_gender?: string | null
@@ -1359,6 +1361,7 @@ export type Database = {
           default_catalog_id?: string | null
           default_click_window?: number | null
           default_conversion_budget_type?: string | null
+          default_conversion_count?: string | null
           default_conversion_event?: string | null
           default_devices?: Json | null
           default_gender?: string | null
@@ -2082,6 +2085,7 @@ export type Database = {
           default_catalog_id: string | null
           default_click_window: number | null
           default_conversion_budget_type: string | null
+          default_conversion_count: string | null
           default_devices: Json | null
           default_event_count_enabled: boolean | null
           default_facebook_page_id: string | null
@@ -2127,6 +2131,7 @@ export type Database = {
           default_catalog_id?: string | null
           default_click_window?: number | null
           default_conversion_budget_type?: string | null
+          default_conversion_count?: string | null
           default_devices?: Json | null
           default_event_count_enabled?: boolean | null
           default_facebook_page_id?: string | null
@@ -2172,6 +2177,7 @@ export type Database = {
           default_catalog_id?: string | null
           default_click_window?: number | null
           default_conversion_budget_type?: string | null
+          default_conversion_count?: string | null
           default_devices?: Json | null
           default_event_count_enabled?: boolean | null
           default_facebook_page_id?: string | null
