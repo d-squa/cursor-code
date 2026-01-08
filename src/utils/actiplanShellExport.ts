@@ -12,28 +12,30 @@ interface CreativeAssignment {
   dsp_creative_id: string | null;
   destination_url: string | null;
   headline: string | null;
+  headline_2: string | null;
+  headline_3: string | null;
+  headline_4: string | null;
+  headline_5: string | null;
   primary_text: string | null;
+  primary_text_2: string | null;
+  primary_text_3: string | null;
+  primary_text_4: string | null;
+  primary_text_5: string | null;
   description: string | null;
+  description_2: string | null;
+  description_3: string | null;
+  description_4: string | null;
+  description_5: string | null;
   call_to_action: string | null;
   url_parameters: string | null;
   display_name: string | null;
+  brand_name: string | null;
   creative?: {
     name: string;
     media_type: string | null;
     media_urls: string[] | null;
     thumbnail_url: string | null;
   };
-}
-
-interface AdSetStatus {
-  id: string;
-  platform: string;
-  market: string;
-  phase_name: string | null;
-  entity_type: string;
-  entity_name: string | null;
-  dsp_entity_id: string | null;
-  status: string;
 }
 
 interface Campaign {
@@ -45,116 +47,91 @@ interface Campaign {
 
 export function downloadActiplanShell(
   campaign: Campaign,
-  adSetStatuses: AdSetStatus[],
   creativeAssignments: CreativeAssignment[]
 ): void {
   const workbook = XLSX.utils.book_new();
 
-  // Create full shell data combining ad sets and creatives
-  const shellData: any[] = [];
-
-  // Group creatives by platform/market/phase/adset
-  const creativesByStructure = new Map<string, CreativeAssignment[]>();
-  creativeAssignments.forEach(ca => {
-    const key = `${ca.platform}|${ca.market}|${ca.phase_name}|${ca.ad_set_name || 'default'}`;
-    if (!creativesByStructure.has(key)) {
-      creativesByStructure.set(key, []);
+  // Create rows - one per ad (creative assignment)
+  const shellData: any[] = creativeAssignments.map(ad => {
+    // Generate Meta ad preview link
+    let previewLink = '';
+    if (ad.dsp_creative_id && ad.platform.toLowerCase() === 'meta') {
+      previewLink = `https://fb.me/adspreview/facebook/${ad.dsp_creative_id}`;
+    } else if (ad.dsp_creative_id) {
+      previewLink = ad.dsp_creative_id;
     }
-    creativesByStructure.get(key)!.push(ca);
-  });
 
-  // Build rows for each platform/market/phase/adset/ad combination
-  adSetStatuses.forEach(adSet => {
-    const key = `${adSet.platform}|${adSet.market}|${adSet.phase_name || ''}|${adSet.entity_name || 'default'}`;
-    const creatives = creativesByStructure.get(key) || [];
+    // Use display_name (DSP ad name) if available, otherwise fallback to creative name
+    const adName = ad.display_name || ad.creative?.name || '';
 
-    if (creatives.length === 0) {
-      // Add row for ad set without creatives
-      shellData.push({
-        'Platform': adSet.platform,
-        'Market': adSet.market,
-        'Campaign Name': adSet.phase_name || campaign.name,
-        'Entity Type': adSet.entity_type,
-        'Ad Set Name': adSet.entity_name || '-',
-        'Ad Set Status': adSet.status,
-        'DSP Ad Set ID': adSet.dsp_entity_id || '-',
-        'Ad Name': '-',
-        'Media Type': '-',
-        'Ad Status': '-',
-        'DSP Ad ID': '-',
-        'Headline': '-',
-        'Primary Text': '-',
-        'Description': '-',
-        'Call to Action': '-',
-        'Destination URL': '-',
-        'URL Parameters': '-',
-        'Creative Preview URL': '-',
-      });
-    } else {
-      // Add row for each creative in the ad set
-      creatives.forEach(creative => {
-        // Generate DSP preview link if dsp_creative_id exists
-        let adPreviewUrl = '-';
-        if (creative.dsp_creative_id && adSet.platform.toLowerCase() === 'meta') {
-          // Meta/Facebook ad preview URL format
-          adPreviewUrl = `https://www.facebook.com/ads/manager/creative_hub/?act=${creative.dsp_creative_id}`;
-        } else if (creative.dsp_creative_id) {
-          adPreviewUrl = creative.dsp_creative_id;
-        }
-        
-        // Use display_name if available (the ad name as pushed to DSP), otherwise fallback to creative name
-        const adName = creative.display_name || creative.creative?.name || '-';
-
-        shellData.push({
-          'Platform': adSet.platform,
-          'Market': adSet.market,
-          'Campaign Name': adSet.phase_name || campaign.name,
-          'Ad Set Name': adSet.entity_name || creative.ad_set_name || '-',
-          'Ad Name': adName,
-          'Ad Status': creative.status || 'pending',
-          'DSP Ad ID': creative.dsp_creative_id || '-',
-          'Ad Preview Link': adPreviewUrl,
-          'Media Type': creative.creative?.media_type || '-',
-          'Headline': creative.headline || '-',
-          'Primary Text': creative.primary_text || '-',
-          'Description': creative.description || '-',
-          'Call to Action': creative.call_to_action || '-',
-          'Destination URL': creative.destination_url || '-',
-          'URL Parameters': creative.url_parameters || '-',
-        });
-      });
-    }
+    return {
+      'Platform': ad.platform,
+      'Market': ad.market,
+      'Campaign Name': ad.phase_name || campaign.name,
+      'Ad Set Name': ad.ad_set_name || '',
+      'Ad Name': adName,
+      'Primary Text': ad.primary_text || '',
+      'Primary Text 2': ad.primary_text_2 || '',
+      'Primary Text 3': ad.primary_text_3 || '',
+      'Primary Text 4': ad.primary_text_4 || '',
+      'Primary Text 5': ad.primary_text_5 || '',
+      'Headline': ad.headline || '',
+      'Headline 2': ad.headline_2 || '',
+      'Headline 3': ad.headline_3 || '',
+      'Headline 4': ad.headline_4 || '',
+      'Headline 5': ad.headline_5 || '',
+      'Description': ad.description || '',
+      'Description 2': ad.description_2 || '',
+      'Description 3': ad.description_3 || '',
+      'Description 4': ad.description_4 || '',
+      'Description 5': ad.description_5 || '',
+      'Call to Action': ad.call_to_action || '',
+      'Brand Name': ad.brand_name || '',
+      'Destination URL': ad.destination_url || '',
+      'URL Parameters': ad.url_parameters || '',
+      'Ad Preview Link': previewLink,
+    };
   });
 
   // Create worksheet from data
   const worksheet = XLSX.utils.json_to_sheet(shellData);
 
-  // Set column widths - matching the new column order
+  // Set column widths
   const colWidths = [
-    { wch: 12 }, // Platform
-    { wch: 10 }, // Market
-    { wch: 30 }, // Campaign Name
-    { wch: 30 }, // Ad Set Name
-    { wch: 40 }, // Ad Name
-    { wch: 12 }, // Ad Status
-    { wch: 25 }, // DSP Ad ID
-    { wch: 60 }, // Ad Preview Link
-    { wch: 10 }, // Media Type
-    { wch: 40 }, // Headline
-    { wch: 50 }, // Primary Text
-    { wch: 40 }, // Description
-    { wch: 15 }, // Call to Action
-    { wch: 50 }, // Destination URL
-    { wch: 40 }, // URL Parameters
+    { wch: 12 },  // Platform
+    { wch: 10 },  // Market
+    { wch: 35 },  // Campaign Name
+    { wch: 35 },  // Ad Set Name
+    { wch: 45 },  // Ad Name
+    { wch: 50 },  // Primary Text
+    { wch: 50 },  // Primary Text 2
+    { wch: 50 },  // Primary Text 3
+    { wch: 50 },  // Primary Text 4
+    { wch: 50 },  // Primary Text 5
+    { wch: 40 },  // Headline
+    { wch: 40 },  // Headline 2
+    { wch: 40 },  // Headline 3
+    { wch: 40 },  // Headline 4
+    { wch: 40 },  // Headline 5
+    { wch: 40 },  // Description
+    { wch: 40 },  // Description 2
+    { wch: 40 },  // Description 3
+    { wch: 40 },  // Description 4
+    { wch: 40 },  // Description 5
+    { wch: 20 },  // Call to Action
+    { wch: 20 },  // Brand Name
+    { wch: 60 },  // Destination URL
+    { wch: 50 },  // URL Parameters
+    { wch: 60 },  // Ad Preview Link
   ];
   worksheet['!cols'] = colWidths;
 
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Actiplan Shell');
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Ads Export');
 
   // Generate filename
   const date = new Date().toISOString().split('T')[0];
   const safeName = campaign.name.replace(/[^a-z0-9]/gi, '_').substring(0, 30);
-  const filename = `${safeName}_actiplan_shell_${date}.xlsx`;
+  const filename = `${safeName}_ads_export_${date}.xlsx`;
 
   // Download
   const blob = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
