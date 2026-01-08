@@ -91,11 +91,15 @@ export function useWorkspace() {
     [workspaces, activeWorkspaceId]
   );
 
+  // Consider loading if workspaces haven't been set yet OR 
+  // if we have workspaces but activeWorkspaceId hasn't been determined yet
+  const stillInitializing = !isLoading && workspaces.length > 0 && !activeWorkspaceId;
+
   return {
     workspaces,
     activeWorkspace,
     activeWorkspaceId,
     setActiveWorkspaceId,
-    loading: isLoading,
+    loading: isLoading || stillInitializing,
   };
 }
