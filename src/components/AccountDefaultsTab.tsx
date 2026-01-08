@@ -8,10 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Save, Phone } from "lucide-react";
+import { Loader2, Save, Phone, ChevronDown, Sparkles, Link2 } from "lucide-react";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { MARKET_OPTIONS, TIKTOK_MARKET_OPTIONS } from "@/utils/markets";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Switch } from "@/components/ui/switch";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Separator } from "@/components/ui/separator";
 import AccountTaxonomySection from "./AccountTaxonomySection";
 import MetaAppSearch from "./MetaAppSearch";
@@ -90,6 +92,21 @@ interface AdAccount {
   default_message_event_set?: string | null;
   default_zalo_account_id?: string | null;
   default_line_business_id?: string | null;
+  // Advantage+ Creative Enhancements (Meta)
+  advantage_plus_video_touchups?: boolean | null;
+  advantage_plus_text_improvements?: boolean | null;
+  advantage_plus_product_tags?: boolean | null;
+  advantage_plus_video_effects?: boolean | null;
+  advantage_plus_relevant_comments?: boolean | null;
+  advantage_plus_enhance_cta?: boolean | null;
+  advantage_plus_reveal_details?: boolean | null;
+  advantage_plus_show_spotlights?: boolean | null;
+  advantage_plus_optimize_text_per_person?: boolean | null;
+  advantage_plus_sitelinks?: boolean | null;
+  advantage_plus_products?: boolean | null;
+  // UTM Parameters
+  default_utm_mode?: string | null;
+  default_url_parameters?: string | null;
 }
 
 import {
@@ -388,6 +405,21 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
           default_message_event_set: acc.platform === "tiktok" ? (acc as any).default_message_event_set || null : null,
           default_zalo_account_id: acc.platform === "tiktok" ? (acc as any).default_zalo_account_id || null : null,
           default_line_business_id: acc.platform === "tiktok" ? (acc as any).default_line_business_id || null : null,
+          // Advantage+ Creative Enhancements (Meta)
+          advantage_plus_video_touchups: acc.platform === "meta" ? (acc as any).advantage_plus_video_touchups ?? false : null,
+          advantage_plus_text_improvements: acc.platform === "meta" ? (acc as any).advantage_plus_text_improvements ?? false : null,
+          advantage_plus_product_tags: acc.platform === "meta" ? (acc as any).advantage_plus_product_tags ?? false : null,
+          advantage_plus_video_effects: acc.platform === "meta" ? (acc as any).advantage_plus_video_effects ?? false : null,
+          advantage_plus_relevant_comments: acc.platform === "meta" ? (acc as any).advantage_plus_relevant_comments ?? false : null,
+          advantage_plus_enhance_cta: acc.platform === "meta" ? (acc as any).advantage_plus_enhance_cta ?? false : null,
+          advantage_plus_reveal_details: acc.platform === "meta" ? (acc as any).advantage_plus_reveal_details ?? false : null,
+          advantage_plus_show_spotlights: acc.platform === "meta" ? (acc as any).advantage_plus_show_spotlights ?? false : null,
+          advantage_plus_optimize_text_per_person: acc.platform === "meta" ? (acc as any).advantage_plus_optimize_text_per_person ?? false : null,
+          advantage_plus_sitelinks: acc.platform === "meta" ? (acc as any).advantage_plus_sitelinks ?? false : null,
+          advantage_plus_products: acc.platform === "meta" ? (acc as any).advantage_plus_products ?? false : null,
+          // UTM Parameters
+          default_utm_mode: acc.platform === "meta" ? (acc as any).default_utm_mode || "auto" : null,
+          default_url_parameters: acc.platform === "meta" ? (acc as any).default_url_parameters || null : null,
         };
       });
 
@@ -557,6 +589,21 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
         "default_messenger_enabled",
         "default_instagram_dm_enabled",
         "default_whatsapp_enabled",
+        // Advantage+ Creative Enhancements
+        "advantage_plus_video_touchups",
+        "advantage_plus_text_improvements",
+        "advantage_plus_product_tags",
+        "advantage_plus_video_effects",
+        "advantage_plus_relevant_comments",
+        "advantage_plus_enhance_cta",
+        "advantage_plus_reveal_details",
+        "advantage_plus_show_spotlights",
+        "advantage_plus_optimize_text_per_person",
+        "advantage_plus_sitelinks",
+        "advantage_plus_products",
+        // UTM Parameters
+        "default_utm_mode",
+        "default_url_parameters",
       ];
 
       const tiktokFields = [
@@ -1422,6 +1469,183 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                               )}
                             </>
                           )}
+
+                          {/* Advantage+ Creative Enhancements Section */}
+                          <div className="md:col-span-2">
+                            <Collapsible>
+                              <CollapsibleTrigger className="flex items-center gap-2 w-full py-3 text-left">
+                                <Sparkles className="h-4 w-4 text-primary" />
+                                <span className="font-medium">Advantage+ Creative Enhancements</span>
+                                <ChevronDown className="h-4 w-4 ml-auto transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                              </CollapsibleTrigger>
+                              <CollapsibleContent className="space-y-4 pt-4">
+                                <p className="text-sm text-muted-foreground mb-4">
+                                  Enable AI-powered creative enhancements to improve ad performance
+                                </p>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div className="flex items-center justify-between p-3 border rounded-lg">
+                                    <div className="space-y-0.5">
+                                      <Label className="text-sm font-medium">Video touch-ups</Label>
+                                      <p className="text-xs text-muted-foreground">Automatically enhance video quality</p>
+                                    </div>
+                                    <Switch
+                                      checked={(defaults as any).advantage_plus_video_touchups ?? false}
+                                      onCheckedChange={(checked) => updateDefault(account.id, "advantage_plus_video_touchups" as any, checked)}
+                                    />
+                                  </div>
+                                  <div className="flex items-center justify-between p-3 border rounded-lg">
+                                    <div className="space-y-0.5">
+                                      <Label className="text-sm font-medium">Text improvements</Label>
+                                      <p className="text-xs text-muted-foreground">Optimize ad copy for performance</p>
+                                    </div>
+                                    <Switch
+                                      checked={(defaults as any).advantage_plus_text_improvements ?? false}
+                                      onCheckedChange={(checked) => updateDefault(account.id, "advantage_plus_text_improvements" as any, checked)}
+                                    />
+                                  </div>
+                                  <div className="flex items-center justify-between p-3 border rounded-lg">
+                                    <div className="space-y-0.5">
+                                      <Label className="text-sm font-medium">Add product tags</Label>
+                                      <p className="text-xs text-muted-foreground">Auto-add product tags to ads</p>
+                                    </div>
+                                    <Switch
+                                      checked={(defaults as any).advantage_plus_product_tags ?? false}
+                                      onCheckedChange={(checked) => updateDefault(account.id, "advantage_plus_product_tags" as any, checked)}
+                                    />
+                                  </div>
+                                  <div className="flex items-center justify-between p-3 border rounded-lg">
+                                    <div className="space-y-0.5">
+                                      <Label className="text-sm font-medium">Add video effects</Label>
+                                      <p className="text-xs text-muted-foreground">Enhance videos with effects</p>
+                                    </div>
+                                    <Switch
+                                      checked={(defaults as any).advantage_plus_video_effects ?? false}
+                                      onCheckedChange={(checked) => updateDefault(account.id, "advantage_plus_video_effects" as any, checked)}
+                                    />
+                                  </div>
+                                  <div className="flex items-center justify-between p-3 border rounded-lg">
+                                    <div className="space-y-0.5">
+                                      <Label className="text-sm font-medium">Relevant comments</Label>
+                                      <p className="text-xs text-muted-foreground">Show relevant comments on ads</p>
+                                    </div>
+                                    <Switch
+                                      checked={(defaults as any).advantage_plus_relevant_comments ?? false}
+                                      onCheckedChange={(checked) => updateDefault(account.id, "advantage_plus_relevant_comments" as any, checked)}
+                                    />
+                                  </div>
+                                  <div className="flex items-center justify-between p-3 border rounded-lg">
+                                    <div className="space-y-0.5">
+                                      <Label className="text-sm font-medium">Enhance CTA</Label>
+                                      <p className="text-xs text-muted-foreground">Optimize call-to-action buttons</p>
+                                    </div>
+                                    <Switch
+                                      checked={(defaults as any).advantage_plus_enhance_cta ?? false}
+                                      onCheckedChange={(checked) => updateDefault(account.id, "advantage_plus_enhance_cta" as any, checked)}
+                                    />
+                                  </div>
+                                  <div className="flex items-center justify-between p-3 border rounded-lg">
+                                    <div className="space-y-0.5">
+                                      <Label className="text-sm font-medium">Reveal details overtime</Label>
+                                      <p className="text-xs text-muted-foreground">Progressive disclosure of ad details</p>
+                                    </div>
+                                    <Switch
+                                      checked={(defaults as any).advantage_plus_reveal_details ?? false}
+                                      onCheckedChange={(checked) => updateDefault(account.id, "advantage_plus_reveal_details" as any, checked)}
+                                    />
+                                  </div>
+                                  <div className="flex items-center justify-between p-3 border rounded-lg">
+                                    <div className="space-y-0.5">
+                                      <Label className="text-sm font-medium">Show spotlights</Label>
+                                      <p className="text-xs text-muted-foreground">Highlight key product features</p>
+                                    </div>
+                                    <Switch
+                                      checked={(defaults as any).advantage_plus_show_spotlights ?? false}
+                                      onCheckedChange={(checked) => updateDefault(account.id, "advantage_plus_show_spotlights" as any, checked)}
+                                    />
+                                  </div>
+                                  <div className="flex items-center justify-between p-3 border rounded-lg">
+                                    <div className="space-y-0.5">
+                                      <Label className="text-sm font-medium">Optimize text per person</Label>
+                                      <p className="text-xs text-muted-foreground">Personalize text for each viewer</p>
+                                    </div>
+                                    <Switch
+                                      checked={(defaults as any).advantage_plus_optimize_text_per_person ?? false}
+                                      onCheckedChange={(checked) => updateDefault(account.id, "advantage_plus_optimize_text_per_person" as any, checked)}
+                                    />
+                                  </div>
+                                  <div className="flex items-center justify-between p-3 border rounded-lg">
+                                    <div className="space-y-0.5">
+                                      <Label className="text-sm font-medium">Sitelinks</Label>
+                                      <p className="text-xs text-muted-foreground">Add additional links to ads</p>
+                                    </div>
+                                    <Switch
+                                      checked={(defaults as any).advantage_plus_sitelinks ?? false}
+                                      onCheckedChange={(checked) => updateDefault(account.id, "advantage_plus_sitelinks" as any, checked)}
+                                    />
+                                  </div>
+                                  <div className="flex items-center justify-between p-3 border rounded-lg">
+                                    <div className="space-y-0.5">
+                                      <Label className="text-sm font-medium">Products</Label>
+                                      <p className="text-xs text-muted-foreground">Show relevant products from catalog</p>
+                                    </div>
+                                    <Switch
+                                      checked={(defaults as any).advantage_plus_products ?? false}
+                                      onCheckedChange={(checked) => updateDefault(account.id, "advantage_plus_products" as any, checked)}
+                                    />
+                                  </div>
+                                </div>
+                              </CollapsibleContent>
+                            </Collapsible>
+                          </div>
+
+                          {/* URL Parameters Section */}
+                          <div className="md:col-span-2">
+                            <Collapsible>
+                              <CollapsibleTrigger className="flex items-center gap-2 w-full py-3 text-left">
+                                <Link2 className="h-4 w-4 text-primary" />
+                                <span className="font-medium">URL Parameters</span>
+                                <ChevronDown className="h-4 w-4 ml-auto transition-transform duration-200 group-data-[state=open]:rotate-180" />
+                              </CollapsibleTrigger>
+                              <CollapsibleContent className="space-y-4 pt-4">
+                                <p className="text-sm text-muted-foreground mb-4">
+                                  Configure how tracking parameters are added to your destination URLs
+                                </p>
+                                <div className="space-y-4">
+                                  <div className="space-y-2">
+                                    <Label>UTM Mode</Label>
+                                    <Select
+                                      value={(defaults as any).default_utm_mode || "auto"}
+                                      onValueChange={(value) => updateDefault(account.id, "default_utm_mode" as any, value)}
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Select UTM mode" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="auto">Auto (System-generated UTMs)</SelectItem>
+                                        <SelectItem value="manual">Manual (Custom parameters)</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                    <p className="text-xs text-muted-foreground">
+                                      Auto mode uses dynamic Meta parameters. Manual allows custom UTM parameters.
+                                    </p>
+                                  </div>
+                                  {(defaults as any).default_utm_mode === "manual" && (
+                                    <div className="space-y-2">
+                                      <Label>Custom URL Parameters</Label>
+                                      <Input
+                                        placeholder="utm_source=meta&utm_medium=paid&utm_campaign={{campaign.name}}"
+                                        value={(defaults as any).default_url_parameters || ""}
+                                        onChange={(e) => updateDefault(account.id, "default_url_parameters" as any, e.target.value)}
+                                      />
+                                      <p className="text-xs text-muted-foreground">
+                                        Enter parameters without the leading "?". Use {"{{campaign.name}}"}, {"{{adset.name}}"}, {"{{ad.name}}"} for dynamic values.
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+                              </CollapsibleContent>
+                            </Collapsible>
+                          </div>
                         </>
                       )}
 
