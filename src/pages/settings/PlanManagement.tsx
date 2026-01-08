@@ -232,13 +232,16 @@ export default function PlanManagement() {
       }
 
       // Handle different response types
-      if (data?.type === 'updated' || data?.success) {
+      if (data?.type === 'upgrade_complete') {
+        // Subscription was upgraded directly with proration
+        toast.success(data.message || "Plan upgraded successfully with prorated charges!");
+        await refetch({ force: true });
+      } else if (data?.type === 'updated' || data?.success) {
         // Subscription was updated directly via API
         toast.success("Plan updated successfully! Refreshing...");
-        await refetch();
-        toast.success("Your plan has been upgraded!");
+        await refetch({ force: true });
       } else if (data?.url) {
-        // Redirect to Stripe checkout for new subscriptions
+        // Redirect to Stripe checkout for new subscriptions or downgrades
         window.open(data.url, "_blank");
       } else {
         console.error("Unexpected response:", data);
