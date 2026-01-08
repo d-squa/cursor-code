@@ -39,6 +39,7 @@ export function useLaunchProgress({ campaignId, enabled = true }: UseLaunchProgr
         market: s.market,
         phaseName: s.phase_name,
         entityType: s.entity_type,
+        entityName: s.entity_name || undefined,
         status: s.status,
         dspEntityId: s.dsp_entity_id,
         errorMessage: s.error_message || undefined,
