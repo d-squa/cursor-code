@@ -4,8 +4,13 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { ChevronDown, ChevronRight, Sparkles, Link2 } from "lucide-react";
 import { Loader2, Plus } from "lucide-react";
 import ClientSelectionDialog from "./ClientSelectionDialog";
 
@@ -22,6 +27,20 @@ interface AdAccount {
   default_conversion_event?: string;
   default_conversion_budget_type?: string;
   default_non_conversion_budget_type?: string;
+  // Advantage+ creative enhancements
+  advantage_plus_video_touchups?: boolean;
+  advantage_plus_text_improvements?: boolean;
+  advantage_plus_product_tags?: boolean;
+  advantage_plus_video_effects?: boolean;
+  advantage_plus_relevant_comments?: boolean;
+  advantage_plus_enhance_cta?: boolean;
+  advantage_plus_reveal_details?: boolean;
+  advantage_plus_show_spotlights?: boolean;
+  advantage_plus_optimize_text_per_person?: boolean;
+  advantage_plus_sitelinks?: boolean;
+  advantage_plus_products?: boolean;
+  default_utm_mode?: string;
+  default_url_parameters?: string;
 }
 
 interface MetaResource {
@@ -51,6 +70,7 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId, c
   const [localDefaults, setLocalDefaults] = useState<Record<string, Partial<AdAccount>>>({});
   const [clientDialogOpen, setClientDialogOpen] = useState(false);
   const [currentAccountId, setCurrentAccountId] = useState<string | null>(null);
+  const [expandedAdvantage, setExpandedAdvantage] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (open && userId && connectedPlatformId) {
@@ -115,6 +135,20 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId, c
           default_conversion_event: acc.default_conversion_event,
           default_conversion_budget_type: acc.default_conversion_budget_type,
           default_non_conversion_budget_type: acc.default_non_conversion_budget_type,
+          // Advantage+ fields
+          advantage_plus_video_touchups: acc.advantage_plus_video_touchups ?? true,
+          advantage_plus_text_improvements: acc.advantage_plus_text_improvements ?? true,
+          advantage_plus_product_tags: acc.advantage_plus_product_tags ?? false,
+          advantage_plus_video_effects: acc.advantage_plus_video_effects ?? true,
+          advantage_plus_relevant_comments: acc.advantage_plus_relevant_comments ?? true,
+          advantage_plus_enhance_cta: acc.advantage_plus_enhance_cta ?? true,
+          advantage_plus_reveal_details: acc.advantage_plus_reveal_details ?? true,
+          advantage_plus_show_spotlights: acc.advantage_plus_show_spotlights ?? true,
+          advantage_plus_optimize_text_per_person: acc.advantage_plus_optimize_text_per_person ?? true,
+          advantage_plus_sitelinks: acc.advantage_plus_sitelinks ?? false,
+          advantage_plus_products: acc.advantage_plus_products ?? false,
+          default_utm_mode: acc.default_utm_mode ?? 'auto',
+          default_url_parameters: acc.default_url_parameters,
         };
       });
       setLocalDefaults(defaults);
@@ -146,12 +180,12 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId, c
     }
   };
 
-  const updateDefault = (accountId: string, field: keyof AdAccount, value: string) => {
+  const updateDefault = (accountId: string, field: keyof AdAccount, value: string | boolean) => {
     setLocalDefaults((prev) => ({
       ...prev,
       [accountId]: {
         ...prev[accountId],
-        [field]: value || undefined,
+        [field]: typeof value === 'boolean' ? value : (value || undefined),
       },
     }));
   };
@@ -231,6 +265,20 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId, c
             default_conversion_event: update.default_conversion_event ?? null,
             default_conversion_budget_type: update.default_conversion_budget_type ?? null,
             default_non_conversion_budget_type: update.default_non_conversion_budget_type ?? null,
+            // Advantage+ creative enhancements
+            advantage_plus_video_touchups: update.advantage_plus_video_touchups,
+            advantage_plus_text_improvements: update.advantage_plus_text_improvements,
+            advantage_plus_product_tags: update.advantage_plus_product_tags,
+            advantage_plus_video_effects: update.advantage_plus_video_effects,
+            advantage_plus_relevant_comments: update.advantage_plus_relevant_comments,
+            advantage_plus_enhance_cta: update.advantage_plus_enhance_cta,
+            advantage_plus_reveal_details: update.advantage_plus_reveal_details,
+            advantage_plus_show_spotlights: update.advantage_plus_show_spotlights,
+            advantage_plus_optimize_text_per_person: update.advantage_plus_optimize_text_per_person,
+            advantage_plus_sitelinks: update.advantage_plus_sitelinks,
+            advantage_plus_products: update.advantage_plus_products,
+            default_utm_mode: update.default_utm_mode ?? 'auto',
+            default_url_parameters: update.default_url_parameters ?? null,
           })
           .eq("id", update.id);
 
@@ -481,6 +529,103 @@ export default function AdAccountDefaultsManager({ open, onOpenChange, userId, c
                               </Select>
                             </div>
                           </div>
+
+                          {/* Advantage+ Creative Enhancements Section */}
+                          <Separator className="my-4" />
+                          <Collapsible
+                            open={expandedAdvantage.has(account.id)}
+                            onOpenChange={() => {
+                              setExpandedAdvantage(prev => {
+                                const next = new Set(prev);
+                                if (next.has(account.id)) {
+                                  next.delete(account.id);
+                                } else {
+                                  next.add(account.id);
+                                }
+                                return next;
+                              });
+                            }}
+                          >
+                            <CollapsibleTrigger className="flex items-center gap-2 w-full py-2 hover:bg-muted/50 rounded px-2 transition-colors">
+                              {expandedAdvantage.has(account.id) ? (
+                                <ChevronDown className="h-4 w-4" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4" />
+                              )}
+                              <Sparkles className="h-4 w-4 text-primary" />
+                              <span className="font-medium text-sm">Advantage+ Creative Enhancements</span>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent className="pt-4">
+                              <div className="grid grid-cols-2 gap-4">
+                                {[
+                                  { key: 'advantage_plus_video_touchups', label: 'Video touch-ups', description: 'Auto-enhance video quality' },
+                                  { key: 'advantage_plus_text_improvements', label: 'Text improvements', description: 'Optimize ad text' },
+                                  { key: 'advantage_plus_product_tags', label: 'Add product tags', description: 'Tag products in ads' },
+                                  { key: 'advantage_plus_video_effects', label: 'Add video effects', description: 'Apply visual effects' },
+                                  { key: 'advantage_plus_relevant_comments', label: 'Relevant comments', description: 'Show relevant comments' },
+                                  { key: 'advantage_plus_enhance_cta', label: 'Enhance CTA', description: 'Optimize call-to-action' },
+                                  { key: 'advantage_plus_reveal_details', label: 'Reveal details over time', description: 'Progressive detail reveal' },
+                                  { key: 'advantage_plus_show_spotlights', label: 'Show spotlights', description: 'Highlight key elements' },
+                                  { key: 'advantage_plus_optimize_text_per_person', label: 'Optimize text per person', description: 'Personalize text' },
+                                  { key: 'advantage_plus_sitelinks', label: 'Sitelinks', description: 'Add navigation links' },
+                                  { key: 'advantage_plus_products', label: 'Products', description: 'Show product catalog' },
+                                ].map(({ key, label, description }) => (
+                                  <div key={key} className="flex items-center justify-between p-2 rounded-md border">
+                                    <div className="flex-1">
+                                      <Label htmlFor={`${key}-${account.id}`} className="text-sm font-medium cursor-pointer">{label}</Label>
+                                      <p className="text-xs text-muted-foreground">{description}</p>
+                                    </div>
+                                    <Switch
+                                      id={`${key}-${account.id}`}
+                                      checked={(localDefaults[account.id] as any)?.[key] ?? false}
+                                      onCheckedChange={(checked) => updateDefault(account.id, key as keyof AdAccount, checked)}
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+
+                              {/* UTM Settings */}
+                              <div className="mt-4 space-y-4 p-4 bg-muted/30 rounded-lg">
+                                <div className="flex items-center gap-2">
+                                  <Link2 className="h-4 w-4 text-primary" />
+                                  <Label className="font-medium">URL Parameters</Label>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div className="space-y-2">
+                                    <Label htmlFor={`utm-mode-${account.id}`}>UTM Mode</Label>
+                                    <Select
+                                      value={localDefaults[account.id]?.default_utm_mode || 'auto'}
+                                      onValueChange={(val) => updateDefault(account.id, 'default_utm_mode', val)}
+                                    >
+                                      <SelectTrigger id={`utm-mode-${account.id}`}>
+                                        <SelectValue placeholder="Select UTM mode" />
+                                      </SelectTrigger>
+                                      <SelectContent className="bg-popover z-50">
+                                        <SelectItem value="auto">Auto (System-generated)</SelectItem>
+                                        <SelectItem value="manual">Manual (Custom)</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  {localDefaults[account.id]?.default_utm_mode === 'manual' && (
+                                    <div className="space-y-2">
+                                      <Label htmlFor={`url-params-${account.id}`}>Custom URL Parameters</Label>
+                                      <Input
+                                        id={`url-params-${account.id}`}
+                                        placeholder="utm_source=meta&utm_medium=paid"
+                                        value={localDefaults[account.id]?.default_url_parameters || ''}
+                                        onChange={(e) => updateDefault(account.id, 'default_url_parameters', e.target.value)}
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                                {localDefaults[account.id]?.default_utm_mode === 'auto' && (
+                                  <p className="text-xs text-muted-foreground">
+                                    Auto mode uses: utm_source={'{{site_source_name}}'}&utm_medium={'{{placement}}'}&utm_campaign={'{{campaign.name}}'}&utm_content={'{{adset.name}}'}
+                                  </p>
+                                )}
+                              </div>
+                            </CollapsibleContent>
+                          </Collapsible>
                         </div>
                       </div>
                     );

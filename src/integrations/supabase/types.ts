@@ -647,6 +647,17 @@ export type Database = {
         Row: {
           ad_set_id: string | null
           ad_set_name: string | null
+          advantage_plus_enhance_cta: boolean | null
+          advantage_plus_optimize_text_per_person: boolean | null
+          advantage_plus_product_tags: boolean | null
+          advantage_plus_products: boolean | null
+          advantage_plus_relevant_comments: boolean | null
+          advantage_plus_reveal_details: boolean | null
+          advantage_plus_show_spotlights: boolean | null
+          advantage_plus_sitelinks: boolean | null
+          advantage_plus_text_improvements: boolean | null
+          advantage_plus_video_effects: boolean | null
+          advantage_plus_video_touchups: boolean | null
           assigned_at: string
           assigned_by: string | null
           brand_name: string | null
@@ -677,12 +688,28 @@ export type Database = {
           primary_text_3: string | null
           primary_text_4: string | null
           primary_text_5: string | null
+          sitelink_display_label: string | null
+          sitelink_source_url: string | null
+          sitelink_thumbnail: string | null
+          sitelink_url: string | null
           status: string | null
           url_parameters: string | null
+          utm_mode: string | null
         }
         Insert: {
           ad_set_id?: string | null
           ad_set_name?: string | null
+          advantage_plus_enhance_cta?: boolean | null
+          advantage_plus_optimize_text_per_person?: boolean | null
+          advantage_plus_product_tags?: boolean | null
+          advantage_plus_products?: boolean | null
+          advantage_plus_relevant_comments?: boolean | null
+          advantage_plus_reveal_details?: boolean | null
+          advantage_plus_show_spotlights?: boolean | null
+          advantage_plus_sitelinks?: boolean | null
+          advantage_plus_text_improvements?: boolean | null
+          advantage_plus_video_effects?: boolean | null
+          advantage_plus_video_touchups?: boolean | null
           assigned_at?: string
           assigned_by?: string | null
           brand_name?: string | null
@@ -713,12 +740,28 @@ export type Database = {
           primary_text_3?: string | null
           primary_text_4?: string | null
           primary_text_5?: string | null
+          sitelink_display_label?: string | null
+          sitelink_source_url?: string | null
+          sitelink_thumbnail?: string | null
+          sitelink_url?: string | null
           status?: string | null
           url_parameters?: string | null
+          utm_mode?: string | null
         }
         Update: {
           ad_set_id?: string | null
           ad_set_name?: string | null
+          advantage_plus_enhance_cta?: boolean | null
+          advantage_plus_optimize_text_per_person?: boolean | null
+          advantage_plus_product_tags?: boolean | null
+          advantage_plus_products?: boolean | null
+          advantage_plus_relevant_comments?: boolean | null
+          advantage_plus_reveal_details?: boolean | null
+          advantage_plus_show_spotlights?: boolean | null
+          advantage_plus_sitelinks?: boolean | null
+          advantage_plus_text_improvements?: boolean | null
+          advantage_plus_video_effects?: boolean | null
+          advantage_plus_video_touchups?: boolean | null
           assigned_at?: string
           assigned_by?: string | null
           brand_name?: string | null
@@ -749,8 +792,13 @@ export type Database = {
           primary_text_3?: string | null
           primary_text_4?: string | null
           primary_text_5?: string | null
+          sitelink_display_label?: string | null
+          sitelink_source_url?: string | null
+          sitelink_thumbnail?: string | null
+          sitelink_url?: string | null
           status?: string | null
           url_parameters?: string | null
+          utm_mode?: string | null
         }
         Relationships: [
           {
@@ -1176,6 +1224,17 @@ export type Database = {
           account_id: string
           account_name: string
           account_status: string | null
+          advantage_plus_enhance_cta: boolean | null
+          advantage_plus_optimize_text_per_person: boolean | null
+          advantage_plus_product_tags: boolean | null
+          advantage_plus_products: boolean | null
+          advantage_plus_relevant_comments: boolean | null
+          advantage_plus_reveal_details: boolean | null
+          advantage_plus_show_spotlights: boolean | null
+          advantage_plus_sitelinks: boolean | null
+          advantage_plus_text_improvements: boolean | null
+          advantage_plus_video_effects: boolean | null
+          advantage_plus_video_touchups: boolean | null
           client_id: string | null
           created_at: string
           currency: string | null
@@ -1206,6 +1265,8 @@ export type Database = {
           default_positions: Json | null
           default_product_set_id: string | null
           default_publisher_platforms: Json | null
+          default_url_parameters: string | null
+          default_utm_mode: string | null
           default_view_window: number | null
           default_whatsapp_enabled: boolean | null
           default_whatsapp_number: string | null
@@ -1218,6 +1279,17 @@ export type Database = {
           account_id: string
           account_name: string
           account_status?: string | null
+          advantage_plus_enhance_cta?: boolean | null
+          advantage_plus_optimize_text_per_person?: boolean | null
+          advantage_plus_product_tags?: boolean | null
+          advantage_plus_products?: boolean | null
+          advantage_plus_relevant_comments?: boolean | null
+          advantage_plus_reveal_details?: boolean | null
+          advantage_plus_show_spotlights?: boolean | null
+          advantage_plus_sitelinks?: boolean | null
+          advantage_plus_text_improvements?: boolean | null
+          advantage_plus_video_effects?: boolean | null
+          advantage_plus_video_touchups?: boolean | null
           client_id?: string | null
           created_at?: string
           currency?: string | null
@@ -1248,6 +1320,8 @@ export type Database = {
           default_positions?: Json | null
           default_product_set_id?: string | null
           default_publisher_platforms?: Json | null
+          default_url_parameters?: string | null
+          default_utm_mode?: string | null
           default_view_window?: number | null
           default_whatsapp_enabled?: boolean | null
           default_whatsapp_number?: string | null
@@ -1260,6 +1334,17 @@ export type Database = {
           account_id?: string
           account_name?: string
           account_status?: string | null
+          advantage_plus_enhance_cta?: boolean | null
+          advantage_plus_optimize_text_per_person?: boolean | null
+          advantage_plus_product_tags?: boolean | null
+          advantage_plus_products?: boolean | null
+          advantage_plus_relevant_comments?: boolean | null
+          advantage_plus_reveal_details?: boolean | null
+          advantage_plus_show_spotlights?: boolean | null
+          advantage_plus_sitelinks?: boolean | null
+          advantage_plus_text_improvements?: boolean | null
+          advantage_plus_video_effects?: boolean | null
+          advantage_plus_video_touchups?: boolean | null
           client_id?: string | null
           created_at?: string
           currency?: string | null
@@ -1290,6 +1375,8 @@ export type Database = {
           default_positions?: Json | null
           default_product_set_id?: string | null
           default_publisher_platforms?: Json | null
+          default_url_parameters?: string | null
+          default_utm_mode?: string | null
           default_view_window?: number | null
           default_whatsapp_enabled?: boolean | null
           default_whatsapp_number?: string | null

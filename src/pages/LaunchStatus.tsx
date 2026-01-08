@@ -666,7 +666,12 @@ export default function LaunchStatus() {
             <div>
               <p className="text-sm font-medium">Launch Progress</p>
               <p className="text-2xl font-bold">
-                {pushedEntities} / {totalEntities} entities pushed
+                {pushedEntities} / {totalEntities} campaigns/ad sets
+                {creativePushStats.total > 0 && (
+                  <span className="text-lg font-normal text-muted-foreground ml-2">
+                    · {creativePushStats.pushed} / {creativePushStats.total} ads
+                  </span>
+                )}
               </p>
               {dailyLimit !== Infinity && (
                 <p className="text-xs text-muted-foreground mt-1">
@@ -675,31 +680,21 @@ export default function LaunchStatus() {
               )}
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={handleValidate} disabled={validating || pushing}>
+              <Button variant="outline" onClick={handleValidate} disabled={validating || pushing} title="Validates campaigns, ad sets and creatives configuration">
                 {validating ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 ) : (
                   <AlertTriangle className="h-4 w-4 mr-2" />
                 )}
-                Validate
+                Validate All
               </Button>
-              <Button variant="outline" onClick={handleCheckStatus} disabled={checkingStatus || pushedEntities === 0}>
+              <Button variant="outline" onClick={handleCheckStatus} disabled={checkingStatus || pushedEntities === 0} title="Checks DSP status for all pushed entities including ads">
                 {checkingStatus ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 ) : (
                   <RefreshCw className="h-4 w-4 mr-2" />
                 )}
-                Check Status
-              </Button>
-
-              <Button variant="outline" onClick={handlePushCreatives} disabled={!canPushCreatives}>
-                {pushingCreatives ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <Image className="h-4 w-4 mr-2" />
-                )}
-                {creativePushStats.errors > 0 ? "Retry Creatives" : "Push Creatives"}
-                {creativePushStats.pending > 0 ? ` (${creativePushStats.pending})` : ""}
+                Check All Status
               </Button>
 
               {canCreate ? (
@@ -733,6 +728,21 @@ export default function LaunchStatus() {
               <span className="h-2 w-2 rounded-full bg-muted-foreground" />
               {totalEntities - pushedEntities - errorEntities} Pending
             </span>
+            {creativePushStats.total > 0 && (
+              <>
+                <Separator orientation="vertical" className="h-4" />
+                <span className="flex items-center gap-1">
+                  <Image className="h-3 w-3 text-primary" />
+                  {creativePushStats.pushed} / {creativePushStats.total} Ads
+                </span>
+                {creativePushStats.errors > 0 && (
+                  <span className="flex items-center gap-1 text-destructive">
+                    <XCircle className="h-3 w-3" />
+                    {creativePushStats.errors} Ad Errors
+                  </span>
+                )}
+              </>
+            )}
           </div>
         </CardContent>
       </Card>
