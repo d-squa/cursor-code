@@ -752,7 +752,7 @@ export function LaunchProgressTracker({
                   onCollapseLevel={collapseShellLevel}
                 />
               </div>
-              <ScrollArea className="max-h-[400px]">
+              <ScrollArea className="h-auto max-h-[600px]">
                 <CampaignsShellTree
                   adSetStatuses={filteredAdSetStatuses}
                   expandedState={shellExpanded}
@@ -851,7 +851,7 @@ export function LaunchProgressTracker({
                       onCollapseLevel={collapseCreativesLevel}
                     />
                   </div>
-                  <ScrollArea className="max-h-[400px]">
+                  <ScrollArea className="h-auto max-h-[600px]">
                     <MeshedCreativesTree
                       creativeAssignments={filteredCreativeAssignments}
                       expandedState={creativesExpanded}

@@ -124,13 +124,26 @@ export interface CreativeTextAssetRow {
   
   // Text assets
   primaryText: string;
+  primaryText2?: string;
+  primaryText3?: string;
+  primaryText4?: string;
+  primaryText5?: string;
   primaryTextAr?: string;
   headline: string;
+  headline2?: string;
+  headline3?: string;
+  headline4?: string;
+  headline5?: string;
   headlineAr?: string;
   description: string;
+  description2?: string;
+  description3?: string;
+  description4?: string;
+  description5?: string;
   descriptionAr?: string;
   caption?: string;
   captionAr?: string;
+  brandName?: string;
   callToAction: CallToAction | string;
   
   // URLs and tracking
@@ -149,7 +162,6 @@ export interface CreativeTextAssetRow {
   displayLink?: string;
   displayPath?: string;
   displayName?: string;
-  brandName?: string;
   
   // Validation
   isValid: boolean;

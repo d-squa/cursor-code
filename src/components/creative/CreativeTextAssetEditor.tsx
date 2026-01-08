@@ -450,16 +450,29 @@ export function CreativeTextAssetEditor({
       {/* Excel-like grid */}
       <div className="flex-1 overflow-hidden" ref={tableRef}>
         <ScrollArea className="h-full">
-          <div className="min-w-[1400px]">
+          <div className="min-w-[2400px]">
             {/* Table header */}
-            <div className="sticky top-0 z-10 bg-muted border-b grid grid-cols-[300px_200px_150px_150px_120px_200px_100px] gap-px font-medium text-sm">
+            <div className="sticky top-0 z-10 bg-muted border-b grid grid-cols-[280px_150px_120px_120px_120px_120px_120px_120px_120px_120px_120px_120px_120px_120px_120px_120px_100px_180px_80px_80px] gap-px font-medium text-xs">
               <div className="px-3 py-2 bg-muted">Creative / Group</div>
               <div className="px-3 py-2 bg-muted">Primary Text</div>
+              <div className="px-3 py-2 bg-muted">Primary Text 2</div>
+              <div className="px-3 py-2 bg-muted">Primary Text 3</div>
+              <div className="px-3 py-2 bg-muted">Primary Text 4</div>
+              <div className="px-3 py-2 bg-muted">Primary Text 5</div>
               <div className="px-3 py-2 bg-muted">Headline</div>
+              <div className="px-3 py-2 bg-muted">Headline 2</div>
+              <div className="px-3 py-2 bg-muted">Headline 3</div>
+              <div className="px-3 py-2 bg-muted">Headline 4</div>
+              <div className="px-3 py-2 bg-muted">Headline 5</div>
               <div className="px-3 py-2 bg-muted">Description</div>
+              <div className="px-3 py-2 bg-muted">Description 2</div>
+              <div className="px-3 py-2 bg-muted">Description 3</div>
+              <div className="px-3 py-2 bg-muted">Description 4</div>
+              <div className="px-3 py-2 bg-muted">Description 5</div>
               <div className="px-3 py-2 bg-muted">CTA</div>
               <div className="px-3 py-2 bg-muted">Destination URL</div>
-              <div className="px-3 py-2 bg-muted text-center">Auto UTM</div>
+              <div className="px-3 py-2 bg-muted">Brand Name</div>
+              <div className="px-3 py-2 bg-muted text-center">UTM</div>
             </div>
 
             {/* Table body */}
@@ -475,7 +488,7 @@ export function CreativeTextAssetEditor({
                       {/* Header row */}
                       <div
                         className={cn(
-                          "grid grid-cols-[300px_200px_150px_150px_120px_200px_100px] gap-px",
+                          "grid grid-cols-[280px_150px_120px_120px_120px_120px_120px_120px_120px_120px_120px_120px_120px_120px_120px_120px_100px_180px_80px_80px] gap-px",
                           "hover:bg-accent/50 cursor-pointer"
                         )}
                       >
@@ -496,7 +509,7 @@ export function CreativeTextAssetEditor({
                         </div>
                         
                         {/* Paste button spanning remaining columns */}
-                        <div className="col-span-6 px-3 py-2 flex items-center gap-2">
+                        <div className="col-span-19 px-3 py-2 flex items-center gap-2">
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
@@ -543,180 +556,88 @@ export function CreativeTextAssetEditor({
                         </div>
                       </div>
                       
-                      {/* Input row with Apply buttons */}
-                      <div className="grid grid-cols-[300px_200px_150px_150px_120px_200px_100px] gap-px bg-background/50">
+                      {/* Input row - simplified for group apply */}
+                      <div className="grid grid-cols-[280px_150px_120px_120px_120px_120px_120px_120px_120px_120px_120px_120px_120px_120px_120px_120px_100px_180px_80px_80px] gap-px bg-background/50">
                         <div className={cn("px-3 py-1.5 text-xs text-muted-foreground italic", getLevelIndent(node.level))}>
-                          Enter text to apply to all {node.childCount} creatives
+                          Group apply (bulk actions)
                         </div>
-                        
-                        {/* Primary Text input */}
+                        {/* Primary Text columns - show only first one for group apply */}
                         <div className="px-1 py-1">
-                          <div className="flex items-center gap-1">
-                            <Input
-                              value={inputs.primaryText}
-                              onChange={(e) => updateGroupInput(node.key, 'primaryText', e.target.value)}
-                              className="h-7 text-xs flex-1"
-                              placeholder="Primary text..."
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="h-7 w-7 shrink-0"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleApplyToGroup(node.rowIds, node.key, 'primaryText');
-                                    }}
-                                  >
-                                    <Copy className="h-3 w-3" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Apply to all</TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </div>
+                          <Input
+                            value={inputs.primaryText}
+                            onChange={(e) => updateGroupInput(node.key, 'primaryText', e.target.value)}
+                            className="h-6 text-xs"
+                            placeholder="Primary..."
+                            onClick={(e) => e.stopPropagation()}
+                          />
                         </div>
-                        
-                        {/* Headline input */}
+                        {/* Empty cells for PT 2-5 */}
+                        <div className="px-1 py-1" />
+                        <div className="px-1 py-1" />
+                        <div className="px-1 py-1" />
+                        <div className="px-1 py-1" />
+                        {/* Headline */}
                         <div className="px-1 py-1">
-                          <div className="flex items-center gap-1">
-                            <Input
-                              value={inputs.headline}
-                              onChange={(e) => updateGroupInput(node.key, 'headline', e.target.value)}
-                              className="h-7 text-xs flex-1"
-                              placeholder="Headline..."
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="h-7 w-7 shrink-0"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleApplyToGroup(node.rowIds, node.key, 'headline');
-                                    }}
-                                  >
-                                    <Copy className="h-3 w-3" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Apply to all</TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </div>
+                          <Input
+                            value={inputs.headline}
+                            onChange={(e) => updateGroupInput(node.key, 'headline', e.target.value)}
+                            className="h-6 text-xs"
+                            placeholder="Headline..."
+                            onClick={(e) => e.stopPropagation()}
+                          />
                         </div>
-                        
-                        {/* Description input */}
+                        {/* Empty cells for H 2-5 */}
+                        <div className="px-1 py-1" />
+                        <div className="px-1 py-1" />
+                        <div className="px-1 py-1" />
+                        <div className="px-1 py-1" />
+                        {/* Description */}
                         <div className="px-1 py-1">
-                          <div className="flex items-center gap-1">
-                            <Input
-                              value={inputs.description}
-                              onChange={(e) => updateGroupInput(node.key, 'description', e.target.value)}
-                              className="h-7 text-xs flex-1"
-                              placeholder="Description..."
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="h-7 w-7 shrink-0"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleApplyToGroup(node.rowIds, node.key, 'description');
-                                    }}
-                                  >
-                                    <Copy className="h-3 w-3" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Apply to all</TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </div>
+                          <Input
+                            value={inputs.description}
+                            onChange={(e) => updateGroupInput(node.key, 'description', e.target.value)}
+                            className="h-6 text-xs"
+                            placeholder="Desc..."
+                            onClick={(e) => e.stopPropagation()}
+                          />
                         </div>
-                        
-                        {/* CTA select */}
+                        {/* Empty cells for D 2-5 */}
+                        <div className="px-1 py-1" />
+                        <div className="px-1 py-1" />
+                        <div className="px-1 py-1" />
+                        <div className="px-1 py-1" />
+                        {/* CTA */}
                         <div className="px-1 py-1">
-                          <div className="flex items-center gap-1">
-                            <Select
-                              value={inputs.callToAction}
-                              onValueChange={(v) => updateGroupInput(node.key, 'callToAction', v)}
-                            >
-                              <SelectTrigger 
-                                className="h-7 text-xs flex-1" 
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <SelectValue placeholder="CTA" />
-                              </SelectTrigger>
-                              <SelectContent className="bg-popover z-50">
-                                {PLATFORM_CTAS.meta.map(cta => (
-                                  <SelectItem key={cta} value={cta} className="text-xs">
-                                    {cta.replace(/_/g, ' ')}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="h-7 w-7 shrink-0"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleApplyToGroup(node.rowIds, node.key, 'callToAction');
-                                    }}
-                                  >
-                                    <Copy className="h-3 w-3" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Apply to all</TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </div>
+                          <Select
+                            value={inputs.callToAction}
+                            onValueChange={(v) => updateGroupInput(node.key, 'callToAction', v)}
+                          >
+                            <SelectTrigger className="h-6 text-xs" onClick={(e) => e.stopPropagation()}>
+                              <SelectValue placeholder="CTA" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-popover z-50">
+                              {PLATFORM_CTAS.meta.map(cta => (
+                                <SelectItem key={cta} value={cta} className="text-xs">
+                                  {cta.replace(/_/g, ' ')}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
-                        
-                        {/* URL input */}
+                        {/* URL */}
                         <div className="px-1 py-1">
-                          <div className="flex items-center gap-1">
-                            <Input
-                              value={inputs.destinationUrl}
-                              onChange={(e) => updateGroupInput(node.key, 'destinationUrl', e.target.value)}
-                              className="h-7 text-xs flex-1"
-                              placeholder="https://..."
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="h-7 w-7 shrink-0"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleApplyToGroup(node.rowIds, node.key, 'destinationUrl');
-                                    }}
-                                  >
-                                    <Copy className="h-3 w-3" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Apply to all</TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          </div>
+                          <Input
+                            value={inputs.destinationUrl}
+                            onChange={(e) => updateGroupInput(node.key, 'destinationUrl', e.target.value)}
+                            className="h-6 text-xs"
+                            placeholder="URL..."
+                            onClick={(e) => e.stopPropagation()}
+                          />
                         </div>
-                        
-                        {/* Empty cell for UTM column */}
-                        <div className="px-3 py-1.5" />
+                        {/* Brand Name - empty for group */}
+                        <div className="px-1 py-1" />
+                        {/* UTM */}
+                        <div className="px-1 py-1" />
                       </div>
                     </div>
                   );
@@ -733,26 +654,26 @@ export function CreativeTextAssetEditor({
                     <div
                       key={row.id}
                       className={cn(
-                        "grid grid-cols-[300px_200px_150px_150px_120px_200px_100px] gap-px",
+                        "grid grid-cols-[280px_150px_120px_120px_120px_120px_120px_120px_120px_120px_120px_120px_120px_120px_120px_120px_100px_180px_80px_80px] gap-px",
                         hasErrors && "bg-destructive/5",
                         "hover:bg-accent/20"
                       )}
                     >
                       {/* Creative name */}
-                      <div className={cn("px-3 py-1.5 flex items-center gap-2", getLevelIndent('creative'))}>
+                      <div className={cn("px-2 py-1 flex items-center gap-1.5", getLevelIndent('creative'))}>
                         {row.mediaType === 'video' ? (
-                          <Video className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <Video className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                         ) : (
-                          <Image className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <Image className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                         )}
-                        <span className="text-sm truncate" title={row.creativeName}>
+                        <span className="text-xs truncate" title={row.creativeName}>
                           {row.creativeName}
                         </span>
                         {hasErrors && (
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger>
-                                <AlertCircle className="h-3.5 w-3.5 text-destructive shrink-0" />
+                                <AlertCircle className="h-3 w-3 text-destructive shrink-0" />
                               </TooltipTrigger>
                               <TooltipContent side="right" className="max-w-xs">
                                 <ul className="text-xs space-y-1">
@@ -764,43 +685,130 @@ export function CreativeTextAssetEditor({
                         )}
                       </div>
                       
-                      {/* Primary Text */}
+                      {/* Primary Text 1-5 */}
                       <div className="px-1 py-1">
-                        <div className="flex items-center">
-                          <Input
-                            value={row.primaryText || ''}
-                            onChange={(e) => handleCellChange(row.id, 'primaryText', e.target.value)}
-                            className="h-7 text-xs border-transparent hover:border-input focus:border-input bg-transparent"
-                            placeholder="Primary text..."
-                          />
-                          <CharCounter value={row.primaryText || ''} maxLength={primaryField?.maxLength} />
-                        </div>
+                        <Input
+                          value={row.primaryText || ''}
+                          onChange={(e) => handleCellChange(row.id, 'primaryText', e.target.value)}
+                          className="h-6 text-xs border-transparent hover:border-input focus:border-input bg-transparent"
+                          placeholder="Primary..."
+                        />
+                      </div>
+                      <div className="px-1 py-1">
+                        <Input
+                          value={row.primaryText2 || ''}
+                          onChange={(e) => handleCellChange(row.id, 'primaryText2', e.target.value)}
+                          className="h-6 text-xs border-transparent hover:border-input focus:border-input bg-transparent"
+                          placeholder="PT 2..."
+                        />
+                      </div>
+                      <div className="px-1 py-1">
+                        <Input
+                          value={row.primaryText3 || ''}
+                          onChange={(e) => handleCellChange(row.id, 'primaryText3', e.target.value)}
+                          className="h-6 text-xs border-transparent hover:border-input focus:border-input bg-transparent"
+                          placeholder="PT 3..."
+                        />
+                      </div>
+                      <div className="px-1 py-1">
+                        <Input
+                          value={row.primaryText4 || ''}
+                          onChange={(e) => handleCellChange(row.id, 'primaryText4', e.target.value)}
+                          className="h-6 text-xs border-transparent hover:border-input focus:border-input bg-transparent"
+                          placeholder="PT 4..."
+                        />
+                      </div>
+                      <div className="px-1 py-1">
+                        <Input
+                          value={row.primaryText5 || ''}
+                          onChange={(e) => handleCellChange(row.id, 'primaryText5', e.target.value)}
+                          className="h-6 text-xs border-transparent hover:border-input focus:border-input bg-transparent"
+                          placeholder="PT 5..."
+                        />
                       </div>
                       
-                      {/* Headline */}
+                      {/* Headline 1-5 */}
                       <div className="px-1 py-1">
-                        <div className="flex items-center">
-                          <Input
-                            value={row.headline || ''}
-                            onChange={(e) => handleCellChange(row.id, 'headline', e.target.value)}
-                            className="h-7 text-xs border-transparent hover:border-input focus:border-input bg-transparent"
-                            placeholder="Headline..."
-                          />
-                          <CharCounter value={row.headline || ''} maxLength={headlineField?.maxLength} />
-                        </div>
+                        <Input
+                          value={row.headline || ''}
+                          onChange={(e) => handleCellChange(row.id, 'headline', e.target.value)}
+                          className="h-6 text-xs border-transparent hover:border-input focus:border-input bg-transparent"
+                          placeholder="Headline..."
+                        />
+                      </div>
+                      <div className="px-1 py-1">
+                        <Input
+                          value={row.headline2 || ''}
+                          onChange={(e) => handleCellChange(row.id, 'headline2', e.target.value)}
+                          className="h-6 text-xs border-transparent hover:border-input focus:border-input bg-transparent"
+                          placeholder="H 2..."
+                        />
+                      </div>
+                      <div className="px-1 py-1">
+                        <Input
+                          value={row.headline3 || ''}
+                          onChange={(e) => handleCellChange(row.id, 'headline3', e.target.value)}
+                          className="h-6 text-xs border-transparent hover:border-input focus:border-input bg-transparent"
+                          placeholder="H 3..."
+                        />
+                      </div>
+                      <div className="px-1 py-1">
+                        <Input
+                          value={row.headline4 || ''}
+                          onChange={(e) => handleCellChange(row.id, 'headline4', e.target.value)}
+                          className="h-6 text-xs border-transparent hover:border-input focus:border-input bg-transparent"
+                          placeholder="H 4..."
+                        />
+                      </div>
+                      <div className="px-1 py-1">
+                        <Input
+                          value={row.headline5 || ''}
+                          onChange={(e) => handleCellChange(row.id, 'headline5', e.target.value)}
+                          className="h-6 text-xs border-transparent hover:border-input focus:border-input bg-transparent"
+                          placeholder="H 5..."
+                        />
                       </div>
                       
-                      {/* Description */}
+                      {/* Description 1-5 */}
                       <div className="px-1 py-1">
-                        <div className="flex items-center">
-                          <Input
-                            value={row.description || ''}
-                            onChange={(e) => handleCellChange(row.id, 'description', e.target.value)}
-                            className="h-7 text-xs border-transparent hover:border-input focus:border-input bg-transparent"
-                            placeholder="Description..."
-                          />
-                          <CharCounter value={row.description || ''} maxLength={descField?.maxLength} />
-                        </div>
+                        <Input
+                          value={row.description || ''}
+                          onChange={(e) => handleCellChange(row.id, 'description', e.target.value)}
+                          className="h-6 text-xs border-transparent hover:border-input focus:border-input bg-transparent"
+                          placeholder="Desc..."
+                        />
+                      </div>
+                      <div className="px-1 py-1">
+                        <Input
+                          value={row.description2 || ''}
+                          onChange={(e) => handleCellChange(row.id, 'description2', e.target.value)}
+                          className="h-6 text-xs border-transparent hover:border-input focus:border-input bg-transparent"
+                          placeholder="D 2..."
+                        />
+                      </div>
+                      <div className="px-1 py-1">
+                        <Input
+                          value={row.description3 || ''}
+                          onChange={(e) => handleCellChange(row.id, 'description3', e.target.value)}
+                          className="h-6 text-xs border-transparent hover:border-input focus:border-input bg-transparent"
+                          placeholder="D 3..."
+                        />
+                      </div>
+                      <div className="px-1 py-1">
+                        <Input
+                          value={row.description4 || ''}
+                          onChange={(e) => handleCellChange(row.id, 'description4', e.target.value)}
+                          className="h-6 text-xs border-transparent hover:border-input focus:border-input bg-transparent"
+                          placeholder="D 4..."
+                        />
+                      </div>
+                      <div className="px-1 py-1">
+                        <Input
+                          value={row.description5 || ''}
+                          onChange={(e) => handleCellChange(row.id, 'description5', e.target.value)}
+                          className="h-6 text-xs border-transparent hover:border-input focus:border-input bg-transparent"
+                          placeholder="D 5..."
+                        />
                       </div>
                       
                       {/* CTA */}
@@ -809,7 +817,7 @@ export function CreativeTextAssetEditor({
                           value={row.callToAction || ''}
                           onValueChange={(v) => handleCellChange(row.id, 'callToAction', v)}
                         >
-                          <SelectTrigger className="h-7 text-xs border-transparent hover:border-input bg-transparent">
+                          <SelectTrigger className="h-6 text-xs border-transparent hover:border-input bg-transparent">
                             <SelectValue placeholder="CTA" />
                           </SelectTrigger>
                           <SelectContent className="bg-popover z-50">
@@ -822,18 +830,28 @@ export function CreativeTextAssetEditor({
                         </Select>
                       </div>
                       
-                      {/* URL */}
+                      {/* Destination URL */}
                       <div className="px-1 py-1">
                         <Input
                           value={row.destinationUrl || ''}
                           onChange={(e) => handleCellChange(row.id, 'destinationUrl', e.target.value)}
-                          className="h-7 text-xs border-transparent hover:border-input focus:border-input bg-transparent"
-                          placeholder="https://..."
+                          className="h-6 text-xs border-transparent hover:border-input focus:border-input bg-transparent"
+                          placeholder="URL..."
+                        />
+                      </div>
+                      
+                      {/* Brand Name */}
+                      <div className="px-1 py-1">
+                        <Input
+                          value={row.brandName || ''}
+                          onChange={(e) => handleCellChange(row.id, 'brandName', e.target.value)}
+                          className="h-6 text-xs border-transparent hover:border-input focus:border-input bg-transparent"
+                          placeholder="Brand..."
                         />
                       </div>
                       
                       {/* Auto UTM */}
-                      <div className="px-3 py-1.5 flex items-center justify-center">
+                      <div className="px-2 py-1 flex items-center justify-center">
                         <Checkbox
                           checked={row.autoBuildUtm || false}
                           onCheckedChange={(checked) => onRowChange(row.id, { autoBuildUtm: checked === true })}
