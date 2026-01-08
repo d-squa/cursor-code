@@ -9,15 +9,39 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Switch } from '@/components/ui/switch';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { 
-  ChevronDown, Check, Layers, Globe, Target, LayoutGrid, 
-  Type, Heading1, FileText, MousePointer, Link, Sparkles, AlertTriangle
+  ChevronDown, ChevronRight, Check, Layers, Globe, Target, LayoutGrid, 
+  Type, Heading1, FileText, MousePointer, Link, Sparkles, AlertTriangle,
+  Wand2, Settings2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { CreativeTextAssetRow } from '@/types/creativeTextAssets';
 import { PLATFORM_CTAS } from '@/types/creativeTextAssets';
 import type { CallToAction, Platform } from '@/types/creative';
+
+// Advantage+ feature definitions
+interface AdvantagePlusFeature {
+  key: string;
+  label: string;
+  description: string;
+}
+
+const ADVANTAGE_PLUS_FEATURES: AdvantagePlusFeature[] = [
+  { key: 'advantage_plus_video_touchups', label: 'Video touch-ups', description: 'Auto-enhance video quality' },
+  { key: 'advantage_plus_text_improvements', label: 'Text improvements', description: 'Optimize text for performance' },
+  { key: 'advantage_plus_product_tags', label: 'Add product tags', description: 'Tag products in creatives' },
+  { key: 'advantage_plus_video_effects', label: 'Add video effects', description: 'Apply video enhancements' },
+  { key: 'advantage_plus_relevant_comments', label: 'Relevant Comments', description: 'Show relevant user comments' },
+  { key: 'advantage_plus_enhance_cta', label: 'Enhance CTA', description: 'Optimize call-to-action' },
+  { key: 'advantage_plus_reveal_details', label: 'Reveal details overtime', description: 'Progressive detail reveal' },
+  { key: 'advantage_plus_show_spotlights', label: 'Show Spotlights', description: 'Highlight key elements' },
+  { key: 'advantage_plus_optimize_text_per_person', label: 'Optimize text per person', description: 'Personalize text for each user' },
+  { key: 'advantage_plus_sitelinks', label: 'Sitelinks', description: 'Add sitelink extensions' },
+  { key: 'advantage_plus_products', label: 'Products', description: 'Show product catalog items' },
+];
 
 interface BulkParameterEditorProps {
   rows: CreativeTextAssetRow[];
@@ -131,6 +155,10 @@ export function BulkParameterEditor({ rows, selectedRowIds, onBulkUpdate }: Bulk
   const [applyScope, setApplyScope] = useState<ApplyScope>('selection');
   const [scopeFilter, setScopeFilter] = useState('');
   const [isApplyOpen, setIsApplyOpen] = useState(false);
+  
+  // Advantage+ settings state
+  const [advantagePlusOpen, setAdvantagePlusOpen] = useState(false);
+  const [advantagePlusValues, setAdvantagePlusValues] = useState<Record<string, boolean>>({});
   
   // Dialog for showing skipped entities
   const [showSkippedDialog, setShowSkippedDialog] = useState(false);
@@ -268,8 +296,45 @@ export function BulkParameterEditor({ rows, selectedRowIds, onBulkUpdate }: Bulk
     setScopeFilter('');
   }, [inputValue, activeParameter, applyScope, selectedRowIds, scopeFilter, getTargetRows, onBulkUpdate]);
 
+  // Apply Advantage+ settings to selection
+  const handleApplyAdvantagePlus = useCallback(() => {
+    if (selectedRowIds.size === 0) {
+      toast.error('Select rows first to apply Advantage+ settings');
+      return;
+    }
+    
+    const enabledFeatures = Object.entries(advantagePlusValues)
+      .filter(([, enabled]) => enabled)
+      .map(([key]) => key);
+    
+    if (enabledFeatures.length === 0) {
+      toast.error('Enable at least one Advantage+ feature');
+      return;
+    }
+    
+    // Only apply to Meta rows
+    const metaRows = rows.filter(r => 
+      selectedRowIds.has(r.id) && r.platform.toLowerCase().includes('meta')
+    );
+    
+    if (metaRows.length === 0) {
+      toast.error('Advantage+ features only apply to Meta creatives');
+      return;
+    }
+    
+    const updates: Partial<CreativeTextAssetRow> = {};
+    enabledFeatures.forEach(key => {
+      (updates as any)[key] = true;
+    });
+    
+    onBulkUpdate(metaRows.map(r => r.id), updates);
+    toast.success(`Applied ${enabledFeatures.length} Advantage+ features to ${metaRows.length} creatives`);
+    setAdvantagePlusValues({});
+  }, [selectedRowIds, advantagePlusValues, rows, onBulkUpdate]);
+
   const activeConfig = PARAMETERS.find(p => p.key === activeParameter)!;
   const targetCount = getTargetRows().length;
+  const enabledAdvantagePlusCount = Object.values(advantagePlusValues).filter(Boolean).length;
 
   return (
     <>
@@ -430,6 +495,51 @@ export function BulkParameterEditor({ rows, selectedRowIds, onBulkUpdate }: Bulk
                     Confirm Apply
                   </Button>
                 </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          {/* Advantage+ Settings Popover */}
+          <Popover open={advantagePlusOpen} onOpenChange={setAdvantagePlusOpen}>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1">
+                <Wand2 className="h-4 w-4" />
+                Advantage+
+                {enabledAdvantagePlusCount > 0 && (
+                  <Badge variant="secondary" className="ml-1 text-xs">{enabledAdvantagePlusCount}</Badge>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-[320px] p-3">
+              <div className="space-y-3">
+                <div className="text-sm font-medium">Advantage+ Creative Enhancements</div>
+                <p className="text-xs text-muted-foreground">Select features to apply to selected Meta creatives</p>
+                <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                  {ADVANTAGE_PLUS_FEATURES.map(feature => (
+                    <div key={feature.key} className="flex items-center justify-between py-1">
+                      <div>
+                        <div className="text-sm">{feature.label}</div>
+                        <div className="text-xs text-muted-foreground">{feature.description}</div>
+                      </div>
+                      <Switch
+                        checked={advantagePlusValues[feature.key] || false}
+                        onCheckedChange={(checked) => setAdvantagePlusValues(prev => ({
+                          ...prev,
+                          [feature.key]: checked
+                        }))}
+                      />
+                    </div>
+                  ))}
+                </div>
+                <Button 
+                  variant="default" 
+                  size="sm" 
+                  className="w-full"
+                  onClick={handleApplyAdvantagePlus}
+                  disabled={enabledAdvantagePlusCount === 0 || selectedRowIds.size === 0}
+                >
+                  Apply to {selectedRowIds.size} selected
+                </Button>
               </div>
             </PopoverContent>
           </Popover>
