@@ -223,20 +223,44 @@ export function useCreativeMatching(campaignId?: string) {
       const taxonomyTemplates: Record<string, TaxonomyParam[]> = {};
       for (const platform of platforms) {
         const platformKey = String(platform?.id ?? '').toLowerCase();
-        const adAccountId = platform?.adAccountId || platform?.ad_account_id;
+        const externalAdAccountId = platform?.adAccountId || platform?.ad_account_id;
         
-        if (adAccountId) {
+        if (externalAdAccountId) {
           try {
-            const { data: templateData } = await supabase
-              .from('taxonomy_templates')
-              .select('template')
-              .eq('ad_account_id', adAccountId)
-              .eq('entity_type', 'adset')
-              .eq('platform', platformKey)
-              .maybeSingle();
+            // First, look up the internal UUID from the appropriate ad accounts table
+            // TikTok uses numeric advertiser_id, Meta uses act_xxx format
+            let internalAdAccountId: string | null = null;
             
-            if (templateData?.template) {
-              taxonomyTemplates[platformKey] = templateData.template as unknown as TaxonomyParam[];
+            if (platformKey === 'tiktok') {
+              const { data: tiktokAccount } = await supabase
+                .from('tiktok_ad_accounts')
+                .select('id')
+                .eq('advertiser_id', externalAdAccountId)
+                .maybeSingle();
+              internalAdAccountId = tiktokAccount?.id || null;
+            } else {
+              // Meta - account_id can be with or without 'act_' prefix
+              const normalizedAccountId = String(externalAdAccountId).replace(/^act_/, '');
+              const { data: metaAccount } = await supabase
+                .from('meta_ad_accounts')
+                .select('id')
+                .or(`account_id.eq.${normalizedAccountId},account_id.eq.act_${normalizedAccountId}`)
+                .maybeSingle();
+              internalAdAccountId = metaAccount?.id || null;
+            }
+            
+            if (internalAdAccountId) {
+              const { data: templateData } = await supabase
+                .from('taxonomy_templates')
+                .select('template')
+                .eq('ad_account_id', internalAdAccountId)
+                .eq('entity_type', 'adset')
+                .eq('platform', platformKey)
+                .maybeSingle();
+              
+              if (templateData?.template) {
+                taxonomyTemplates[platformKey] = templateData.template as unknown as TaxonomyParam[];
+              }
             }
           } catch (e) {
             console.warn(`Could not fetch taxonomy template for ${platformKey}:`, e);
