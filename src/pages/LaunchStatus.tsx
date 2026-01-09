@@ -819,10 +819,28 @@ export default function LaunchStatus() {
               </Button>
 
               {canCreate ? (
-                <Button onClick={handlePush} disabled={!canPush || allPushed}>
-                  {pushing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Rocket className="h-4 w-4 mr-2" />}
-                  {isRetry ? `Retry Failed (${pendingEntities.length})` : "Push to DSP"}
-                </Button>
+                <>
+                  <Button onClick={handlePush} disabled={!canPush || allPushed}>
+                    {pushing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Rocket className="h-4 w-4 mr-2" />}
+                    {isRetry ? `Retry Failed (${pendingEntities.length})` : "Push to DSP"}
+                  </Button>
+                  {allAdSetsPushed && creativePushStats.total > 0 && (
+                    <Button 
+                      onClick={handlePushCreatives} 
+                      disabled={!canPushCreatives}
+                      variant={creativePushStats.pushed === creativePushStats.total ? "outline" : "default"}
+                    >
+                      {pushingCreatives ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Image className="h-4 w-4 mr-2" />
+                      )}
+                      {creativePushStats.pushed === creativePushStats.total 
+                        ? "All Ads Pushed" 
+                        : `Push Ads (${creativePushStats.pending})`}
+                    </Button>
+                  )}
+                </>
               ) : (
                 <Button variant="outline" onClick={() => navigate("/settings/plans")} className="border-dashed">
                   <Lock className="h-4 w-4 mr-2" />
