@@ -1155,10 +1155,24 @@ export function useCreativeMatching(campaignId?: string) {
       }
 
       if (assignments.length > 0) {
+        // Deduplicate assignments by the conflict key to avoid "ON CONFLICT DO UPDATE command cannot affect row a second time" error
+        // This can happen when the same asset matches multiple ad sets within the same campaign/market/phase
+        const assignmentMap = new Map<string, typeof assignments[0]>();
+        for (const assignment of assignments) {
+          const key = `${assignment.creative_id}|${assignment.campaign_id}|${assignment.platform}|${assignment.market}|${assignment.phase_name}`;
+          // Keep the last one (or first - doesn't matter since they should be identical except ad_set fields)
+          // We prefer keeping one with ad_set_id if available
+          const existing = assignmentMap.get(key);
+          if (!existing || (assignment.ad_set_id && !existing.ad_set_id)) {
+            assignmentMap.set(key, assignment);
+          }
+        }
+        const deduplicatedAssignments = Array.from(assignmentMap.values());
+        
         // Upsert so re-saving doesn't create duplicates.
         const { data: upsertedAssignments, error: upsertError } = await supabase
           .from('creative_assignments')
-          .upsert(assignments, {
+          .upsert(deduplicatedAssignments, {
             onConflict: 'creative_id,campaign_id,platform,market,phase_name',
           })
           .select();
