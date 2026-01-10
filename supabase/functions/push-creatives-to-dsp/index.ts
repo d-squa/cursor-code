@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+import { crypto as stdCrypto } from "https://deno.land/std@0.190.0/crypto/mod.ts";
+import { encode as encodeHex } from "https://deno.land/std@0.190.0/encoding/hex.ts";
 import { getAccessToken } from "../_shared/vault-helper.ts";
 
 const corsHeaders = {
@@ -821,9 +823,8 @@ const handler = async (req: Request): Promise<Response> => {
                   const blob = new Blob([bytes], { type: "video/mp4" });
 
                   // Compute MD5 hash for video_signature (required by TikTok)
-                  const hashBuffer = await crypto.subtle.digest("MD5", bytes);
-                  const hashArray = Array.from(new Uint8Array(hashBuffer));
-                  const videoSignature = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+                  const hashBuffer = await stdCrypto.subtle.digest("MD5", bytes);
+                  const videoSignature = new TextDecoder().decode(encodeHex(new Uint8Array(hashBuffer)));
 
                   formData.append("advertiser_id", advertiserId);
                   formData.append("upload_type", "UPLOAD_BY_FILE");
