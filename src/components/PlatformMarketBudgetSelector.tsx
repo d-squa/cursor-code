@@ -740,6 +740,8 @@ export function PlatformMarketBudgetSelector({
   };
 
   const addPlatform = () => {
+    // Get the first available market code for the default market
+    const defaultMarketCode = MARKET_OPTIONS[0]?.value || "US";
     const newPlatform: PlatformWithMarkets = {
       id: "",
       name: "",
@@ -747,11 +749,11 @@ export function PlatformMarketBudgetSelector({
       budgetPercentage: 0,
       markets: [{ 
         id: `market-1-${Date.now()}`, 
-        name: "Market 1", 
+        name: defaultMarketCode, 
         budgetPercentage: 100, 
         phases: [],
-        // Default targeting for R&F compatibility
-        countries: ["US"],
+        // Default targeting for R&F compatibility - use the default market code
+        countries: [defaultMarketCode],
         ageMin: 18,
         ageMax: 65,
         gender: "all",
@@ -952,7 +954,15 @@ export function PlatformMarketBudgetSelector({
           ? { 
               ...p, 
               markets: p.markets.map(m => 
-                m.id === marketId ? { ...m, name } : m
+                m.id === marketId 
+                  ? { 
+                      ...m, 
+                      name,
+                      // CRITICAL: Update countries to match the selected market code
+                      // This ensures TikTok (and other platforms) receive the correct location targeting
+                      countries: [name]
+                    } 
+                  : m
               )
             }
           : p
