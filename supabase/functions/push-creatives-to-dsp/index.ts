@@ -815,7 +815,15 @@ const handler = async (req: Request): Promise<Response> => {
 
                 // Best-effort filename: use creative name, fallback to URL tail
                 const urlTail = mediaUrl.split("/").pop() || "asset";
-                const safeName = (fullCreative.name || creative.name || urlTail).slice(0, 180);
+                const baseNameRaw = `${fullCreative.name || creative.name || urlTail}`.trim() || "asset";
+                const baseNameSanitized = baseNameRaw
+                  .replace(/[^\w.\- ]+/g, "")
+                  .replace(/\s+/g, "-")
+                  .slice(0, 140);
+                const uniqueToken = crypto.randomUUID().split("-")[0];
+                const materialName = `${baseNameSanitized}-${uniqueToken}`.slice(0, 180);
+                const videoFileName = materialName.toLowerCase().endsWith(".mp4") ? materialName : `${materialName}.mp4`;
+                const imageFileName = /\.(jpg|jpeg|png)$/i.test(materialName) ? materialName : `${materialName}.jpg`;
 
               if (isVideoFile) {
                   const uploadUrl = "https://business-api.tiktok.com/open_api/v1.3/file/video/ad/upload/";
@@ -829,7 +837,7 @@ const handler = async (req: Request): Promise<Response> => {
                   formData.append("advertiser_id", advertiserId);
                   formData.append("upload_type", "UPLOAD_BY_FILE");
                   formData.append("video_signature", videoSignature);
-                  formData.append("video_file", blob, safeName.endsWith(".mp4") ? safeName : `${safeName}.mp4`);
+                  formData.append("video_file", blob, videoFileName);
 
                   console.log(`[push-creatives] Auto-uploading video to TikTok: ${uploadUrl}`);
                   const uploadResp = await fetch(uploadUrl, {
@@ -902,7 +910,7 @@ const handler = async (req: Request): Promise<Response> => {
 
                   formData.append("advertiser_id", advertiserId);
                   formData.append("upload_type", "UPLOAD_BY_FILE");
-                  formData.append("image_file", blob, safeName);
+                  formData.append("image_file", blob, imageFileName);
 
                   console.log(`[push-creatives] Auto-uploading image to TikTok: ${uploadUrl}`);
                   const uploadResp = await fetch(uploadUrl, {
