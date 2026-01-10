@@ -606,63 +606,61 @@ function EmptyAdSetsPanel({
   );
 }
 
-// Hierarchical types for Platform > Campaign > Phase > AdSet grouping
+// Hierarchical types for Platform > Market > Campaign (Phase) > AdSet grouping
 interface PlatformGroup {
   platform: string;
+  markets: MarketGroup[];
+}
+
+interface MarketGroup {
+  market: string;
   campaigns: CampaignGroup[];
 }
 
 interface CampaignGroup {
-  campaignId: string;
-  campaignName: string;
-  phases: PhaseGroup[];
-}
-
-interface PhaseGroup {
-  phaseName: string;
+  // Campaign in this context is the Phase from the phase scheduler
+  campaignName: string; // This is the phase name
   adSets: StructureMatchResult[];
 }
 
-// Helper to group structure results hierarchically: Platform > Campaign > Phase > AdSet
+// Helper to group structure results hierarchically: Platform > Market > Campaign (Phase) > AdSet
 function groupResultsHierarchically(results: StructureMatchResult[]): PlatformGroup[] {
+  // Platform -> Market -> Campaign (Phase) -> AdSets
   const platformMap = new Map<string, Map<string, Map<string, StructureMatchResult[]>>>();
   
   for (const result of results) {
     const platform = result.structure.platform || 'unknown';
-    const campaignId = result.structure.campaignId || 'unknown';
-    const phaseName = result.structure.phases?.[0] || 'Default Phase';
+    const market = result.structure.market || 'unknown';
+    // The "campaign" is the phase from the phase scheduler
+    const campaignName = result.structure.phases?.[0] || result.structure.campaignName || 'Default Campaign';
     
     if (!platformMap.has(platform)) {
       platformMap.set(platform, new Map());
     }
-    const campaignMap = platformMap.get(platform)!;
+    const marketMap = platformMap.get(platform)!;
     
-    if (!campaignMap.has(campaignId)) {
-      campaignMap.set(campaignId, new Map());
+    if (!marketMap.has(market)) {
+      marketMap.set(market, new Map());
     }
-    const phaseMap = campaignMap.get(campaignId)!;
+    const campaignMap = marketMap.get(market)!;
     
-    if (!phaseMap.has(phaseName)) {
-      phaseMap.set(phaseName, []);
+    if (!campaignMap.has(campaignName)) {
+      campaignMap.set(campaignName, []);
     }
-    phaseMap.get(phaseName)!.push(result);
+    campaignMap.get(campaignName)!.push(result);
   }
   
   const groups: PlatformGroup[] = [];
-  for (const [platform, campaignMap] of platformMap) {
-    const campaigns: CampaignGroup[] = [];
-    for (const [campaignId, phaseMap] of campaignMap) {
-      const phases: PhaseGroup[] = [];
-      let campaignName = '';
-      for (const [phaseName, adSets] of phaseMap) {
-        if (!campaignName && adSets[0]) {
-          campaignName = adSets[0].structure.campaignName || campaignId;
-        }
-        phases.push({ phaseName, adSets });
+  for (const [platform, marketMap] of platformMap) {
+    const markets: MarketGroup[] = [];
+    for (const [market, campaignMap] of marketMap) {
+      const campaigns: CampaignGroup[] = [];
+      for (const [campaignName, adSets] of campaignMap) {
+        campaigns.push({ campaignName, adSets });
       }
-      campaigns.push({ campaignId, campaignName, phases });
+      markets.push({ market, campaigns });
     }
-    groups.push({ platform, campaigns });
+    groups.push({ platform, markets });
   }
   
   return groups;
@@ -686,6 +684,7 @@ function AssignedAssetsPanel({
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [expandedPlatforms, setExpandedPlatforms] = useState<Set<string>>(new Set());
+  const [expandedMarkets, setExpandedMarkets] = useState<Set<string>>(new Set());
   const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());
   const [expandedAdSets, setExpandedAdSets] = useState<Set<string>>(new Set());
 
@@ -711,9 +710,12 @@ function AssignedAssetsPanel({
     if (!activeSaveInProgress || resultsWithAssets.length === 0) return;
 
     setIsExpanded(true);
-    // Expand all platforms and campaigns when saving
+    // Expand all platforms, markets, and campaigns when saving
     setExpandedPlatforms(new Set(hierarchicalGroups.map(g => g.platform)));
-    setExpandedCampaigns(new Set(hierarchicalGroups.flatMap(g => g.campaigns.map(c => c.campaignId))));
+    setExpandedMarkets(new Set(hierarchicalGroups.flatMap(g => g.markets.map(m => `${g.platform}:${m.market}`))));
+    setExpandedCampaigns(new Set(hierarchicalGroups.flatMap(g => 
+      g.markets.flatMap(m => m.campaigns.map(c => `${g.platform}:${m.market}:${c.campaignName}`))
+    )));
     setExpandedAdSets(new Set(resultsWithAssets.map(r => r.structure.id)));
   }, [activeSaveInProgress, resultsWithAssets, hierarchicalGroups]);
   
@@ -734,11 +736,20 @@ function AssignedAssetsPanel({
     });
   };
 
-  const toggleCampaign = (campaignId: string) => {
+  const toggleMarket = (marketKey: string) => {
+    setExpandedMarkets(prev => {
+      const next = new Set(prev);
+      if (next.has(marketKey)) next.delete(marketKey);
+      else next.add(marketKey);
+      return next;
+    });
+  };
+
+  const toggleCampaign = (campaignKey: string) => {
     setExpandedCampaigns(prev => {
       const next = new Set(prev);
-      if (next.has(campaignId)) next.delete(campaignId);
-      else next.add(campaignId);
+      if (next.has(campaignKey)) next.delete(campaignKey);
+      else next.add(campaignKey);
       return next;
     });
   };
@@ -760,6 +771,11 @@ function AssignedAssetsPanel({
     if (p.includes('snapchat')) return '👻';
     if (p.includes('linkedin')) return '💼';
     return '📱';
+  };
+
+  const getMarketIcon = (market: string) => {
+    // Show flag emoji or globe for markets
+    return '🌍';
   };
   
   return (
@@ -803,11 +819,11 @@ function AssignedAssetsPanel({
             {/* Platform level */}
             {hierarchicalGroups.map((platformGroup) => {
               const isPlatformExpanded = expandedPlatforms.has(platformGroup.platform);
-              const platformAssetCount = platformGroup.campaigns.reduce(
-                (sum, c) => sum + c.phases.reduce((ps, p) => ps + p.adSets.reduce((as, a) => as + a.assignedAssets.length, 0), 0), 0
+              const platformAssetCount = platformGroup.markets.reduce(
+                (sum, m) => sum + m.campaigns.reduce((cs, c) => cs + c.adSets.reduce((as, a) => as + a.assignedAssets.length, 0), 0), 0
               );
-              const platformAdSetCount = platformGroup.campaigns.reduce(
-                (sum, c) => sum + c.phases.reduce((ps, p) => ps + p.adSets.length, 0), 0
+              const platformAdSetCount = platformGroup.markets.reduce(
+                (sum, m) => sum + m.campaigns.reduce((cs, c) => cs + c.adSets.length, 0), 0
               );
               
               return (
@@ -819,7 +835,7 @@ function AssignedAssetsPanel({
                         <div className="flex-1 min-w-0">
                           <span className="text-sm font-semibold capitalize">{platformGroup.platform}</span>
                           <span className="text-xs text-muted-foreground ml-2">
-                            {platformGroup.campaigns.length} campaign{platformGroup.campaigns.length !== 1 ? 's' : ''}
+                            {platformGroup.markets.length} market{platformGroup.markets.length !== 1 ? 's' : ''}
                           </span>
                         </div>
                         <Badge variant="secondary" className="text-xs">
@@ -831,67 +847,64 @@ function AssignedAssetsPanel({
                     
                     <CollapsibleContent>
                       <div className="pl-4 pr-3 pb-2 space-y-2">
-                        {/* Campaign level */}
-                        {platformGroup.campaigns.map((campaignGroup) => {
-                          const isCampaignExpanded = expandedCampaigns.has(campaignGroup.campaignId);
-                          const campaignAssetCount = campaignGroup.phases.reduce(
-                            (sum, p) => sum + p.adSets.reduce((as, a) => as + a.assignedAssets.length, 0), 0
+                        {/* Market level */}
+                        {platformGroup.markets.map((marketGroup) => {
+                          const marketKey = `${platformGroup.platform}:${marketGroup.market}`;
+                          const isMarketExpanded = expandedMarkets.has(marketKey);
+                          const marketAssetCount = marketGroup.campaigns.reduce(
+                            (sum, c) => sum + c.adSets.reduce((as, a) => as + a.assignedAssets.length, 0), 0
                           );
-                          const campaignAdSetCount = campaignGroup.phases.reduce((sum, p) => sum + p.adSets.length, 0);
+                          const marketAdSetCount = marketGroup.campaigns.reduce((sum, c) => sum + c.adSets.length, 0);
                           
                           return (
-                            <div key={campaignGroup.campaignId} className="border rounded-lg bg-background overflow-hidden">
-                              <Collapsible open={isCampaignExpanded} onOpenChange={() => toggleCampaign(campaignGroup.campaignId)}>
+                            <div key={marketKey} className="border rounded-lg bg-background overflow-hidden">
+                              <Collapsible open={isMarketExpanded} onOpenChange={() => toggleMarket(marketKey)}>
                                 <CollapsibleTrigger asChild>
                                   <div className="flex items-center gap-3 p-2.5 cursor-pointer hover:bg-muted/50 transition-colors">
-                                    <div className="w-6 h-6 rounded bg-primary/10 flex items-center justify-center shrink-0">
-                                      <Target className="h-3.5 w-3.5 text-primary" />
-                                    </div>
+                                    <span className="text-base">{getMarketIcon(marketGroup.market)}</span>
                                     <div className="flex-1 min-w-0">
-                                      <span className="text-sm font-medium truncate">{campaignGroup.campaignName}</span>
+                                      <span className="text-sm font-medium">{marketGroup.market}</span>
                                       <span className="text-xs text-muted-foreground ml-2">
-                                        {campaignGroup.phases.length} phase{campaignGroup.phases.length !== 1 ? 's' : ''}
+                                        {marketGroup.campaigns.length} campaign{marketGroup.campaigns.length !== 1 ? 's' : ''}
                                       </span>
                                     </div>
                                     <Badge variant="outline" className="text-xs">
-                                      {campaignAdSetCount} ad sets • {campaignAssetCount} creatives
+                                      {marketAdSetCount} ad sets • {marketAssetCount} creatives
                                     </Badge>
-                                    {isCampaignExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                                    {isMarketExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                                   </div>
                                 </CollapsibleTrigger>
                                 
                                 <CollapsibleContent>
                                   <div className="pl-4 pr-2 pb-2 space-y-2">
-                                    {/* Phase level */}
-                                    {campaignGroup.phases.map((phaseGroup) => {
-                                      const isPhaseExpanded = expandedCampaigns.has(`phase:${campaignGroup.campaignId}:${phaseGroup.phaseName}`);
-                                      const phaseAssetCount = phaseGroup.adSets.reduce((sum, a) => sum + a.assignedAssets.length, 0);
+                                    {/* Campaign level (this is the Phase from phase scheduler) */}
+                                    {marketGroup.campaigns.map((campaignGroup) => {
+                                      const campaignKey = `${platformGroup.platform}:${marketGroup.market}:${campaignGroup.campaignName}`;
+                                      const isCampaignExpanded = expandedCampaigns.has(campaignKey);
+                                      const campaignAssetCount = campaignGroup.adSets.reduce((sum, a) => sum + a.assignedAssets.length, 0);
                                       
                                       return (
-                                        <div key={phaseGroup.phaseName} className="border rounded-lg bg-muted/10 overflow-hidden">
-                                          <Collapsible 
-                                            open={isPhaseExpanded} 
-                                            onOpenChange={() => toggleCampaign(`phase:${campaignGroup.campaignId}:${phaseGroup.phaseName}`)}
-                                          >
+                                        <div key={campaignKey} className="border rounded-lg bg-muted/10 overflow-hidden">
+                                          <Collapsible open={isCampaignExpanded} onOpenChange={() => toggleCampaign(campaignKey)}>
                                             <CollapsibleTrigger asChild>
                                               <div className="flex items-center gap-2.5 p-2 cursor-pointer hover:bg-muted/50 transition-colors">
-                                                <div className="w-5 h-5 rounded bg-amber-500/20 flex items-center justify-center shrink-0">
-                                                  <span className="text-[10px]">📍</span>
+                                                <div className="w-5 h-5 rounded bg-primary/10 flex items-center justify-center shrink-0">
+                                                  <Target className="h-3 w-3 text-primary" />
                                                 </div>
                                                 <div className="flex-1 min-w-0">
-                                                  <span className="text-xs font-medium">{phaseGroup.phaseName}</span>
+                                                  <span className="text-xs font-medium">{campaignGroup.campaignName}</span>
                                                 </div>
                                                 <Badge variant="secondary" className="text-[10px] h-5">
-                                                  {phaseGroup.adSets.length} ad sets • {phaseAssetCount} creatives
+                                                  {campaignGroup.adSets.length} ad sets • {campaignAssetCount} creatives
                                                 </Badge>
-                                                {isPhaseExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                                                {isCampaignExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                                               </div>
                                             </CollapsibleTrigger>
                                             
                                             <CollapsibleContent>
                                               <div className="pl-3 pr-2 pb-2 space-y-1.5">
                                                 {/* AdSet level */}
-                                                {phaseGroup.adSets.map((result) => {
+                                                {campaignGroup.adSets.map((result) => {
                                                   const { structure, assignedAssets } = result;
                                                   const isAdSetExpanded = expandedAdSets.has(structure.id);
                                                   const acceptedCount = assignedAssets.filter(a => acceptedMatches.has(`${a.asset.id}:${structure.id}`)).length;
