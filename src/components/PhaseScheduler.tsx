@@ -1132,8 +1132,8 @@ export function PhaseScheduler({
     return defaultGoal || "";
   };
 
-  const togglePhaseExpansion = (phaseId: string) => {
-    setExpandedPhases(prev => ({ ...prev, [phaseId]: !prev[phaseId] }));
+  const togglePhaseExpansion = (phaseId: string, open?: boolean) => {
+    setExpandedPhases((prev) => ({ ...prev, [phaseId]: open ?? !prev[phaseId] }));
   };
 
   const getPhaseColor = (index: number) => {
@@ -1529,8 +1529,8 @@ export function PhaseScheduler({
             return (
               <Collapsible
                 key={phase.id}
-                open={expandedPhases[phase.id]}
-                onOpenChange={() => togglePhaseExpansion(phase.id)}
+                open={!!expandedPhases[phase.id]}
+                onOpenChange={(open) => togglePhaseExpansion(phase.id, open)}
               >
                 <div className="border rounded-lg bg-card">
                   <div className="flex items-center justify-between p-4">

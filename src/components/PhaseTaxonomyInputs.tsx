@@ -75,68 +75,44 @@ export function PhaseTaxonomyInputs({
     else setLoading(true);
 
     try {
-      // First try to get the database UUID for this platform account
-      let dbAccountId = adAccountId;
+      // Resolve the internal UUID for this platform account.
+      // taxonomy_templates.ad_account_id is UUID, so platform-native IDs (e.g. TikTok advertiser_id)
+      // must be converted first.
+      const looksLikeUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-      if (platform === 'tiktok') {
-        const { data: accountData } = await supabase
-          .from('tiktok_ad_accounts')
-          .select('id')
-          .eq('advertiser_id', adAccountId)
-          .maybeSingle();
-        if (accountData?.id) dbAccountId = accountData.id;
-      } else {
-        const { data: accountData } = await supabase
-          .from('meta_ad_accounts')
-          .select('id')
-          .eq('account_id', adAccountId)
-          .maybeSingle();
-        if (accountData?.id) dbAccountId = accountData.id;
+      let dbAccountId: string | null = looksLikeUuid.test(adAccountId) ? adAccountId : null;
+
+      if (!dbAccountId) {
+        if (platform === 'tiktok') {
+          const { data: accountData } = await supabase
+            .from('tiktok_ad_accounts')
+            .select('id')
+            .eq('advertiser_id', adAccountId)
+            .maybeSingle();
+          dbAccountId = accountData?.id ?? null;
+        } else {
+          const { data: accountData } = await supabase
+            .from('meta_ad_accounts')
+            .select('id')
+            .eq('account_id', adAccountId)
+            .maybeSingle();
+          dbAccountId = accountData?.id ?? null;
+        }
       }
 
-      // Prefer internal UUID (new standard)
-      let { data, error } = await supabase
+      // If we couldn't resolve a UUID, we can't query taxonomy_templates safely.
+      if (!dbAccountId) {
+        setTemplate([]);
+        return;
+      }
+
+      const { data, error } = await supabase
         .from('taxonomy_templates')
         .select('template')
         .eq('ad_account_id', dbAccountId)
         .eq('entity_type', entityType)
         .eq('platform', platform)
         .maybeSingle();
-
-      // Fallback: legacy templates saved under the platform-native ID
-      if (!data?.template && dbAccountId !== adAccountId) {
-        const legacy = await supabase
-          .from('taxonomy_templates')
-          .select('template')
-          .eq('ad_account_id', adAccountId)
-          .eq('entity_type', entityType)
-          .eq('platform', platform)
-          .maybeSingle();
-
-        if (legacy.data?.template) {
-          data = legacy.data;
-          error = legacy.error;
-
-          // Best-effort migration so future loads (and publishing) use the internal UUID
-          try {
-            const { data: userData } = await supabase.auth.getUser();
-            const userId = userData.user?.id;
-            if (userId) {
-              await supabase.from('taxonomy_templates').insert([
-                {
-                  ad_account_id: dbAccountId,
-                  platform,
-                  entity_type: entityType,
-                  template: JSON.parse(JSON.stringify(legacy.data.template)) as any,
-                  user_id: userId,
-                },
-              ]);
-            }
-          } catch {
-            // ignore migration errors
-          }
-        }
-      }
 
       if (error) {
         console.error('Error loading taxonomy template:', error);
