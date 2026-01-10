@@ -646,7 +646,7 @@ export type Database = {
       creative_assignments: {
         Row: {
           ad_set_id: string | null
-          ad_set_name: string | null
+          ad_set_name: string
           advantage_plus_enhance_cta: boolean | null
           advantage_plus_optimize_text_per_person: boolean | null
           advantage_plus_product_tags: boolean | null
@@ -698,7 +698,7 @@ export type Database = {
         }
         Insert: {
           ad_set_id?: string | null
-          ad_set_name?: string | null
+          ad_set_name?: string
           advantage_plus_enhance_cta?: boolean | null
           advantage_plus_optimize_text_per_person?: boolean | null
           advantage_plus_product_tags?: boolean | null
@@ -750,7 +750,7 @@ export type Database = {
         }
         Update: {
           ad_set_id?: string | null
-          ad_set_name?: string | null
+          ad_set_name?: string
           advantage_plus_enhance_cta?: boolean | null
           advantage_plus_optimize_text_per_person?: boolean | null
           advantage_plus_product_tags?: boolean | null

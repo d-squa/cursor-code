@@ -1142,7 +1142,8 @@ export function useCreativeMatching(campaignId?: string) {
             market: match.structure.market || 'GLOBAL',
             phase_name: match.structure.phases?.[0] || 'default',
             ad_set_id: match.structure.adSetId || null,
-            ad_set_name: match.structure.adSetName || null,
+            // ad_set_name is now NOT NULL in the database; use a stable default.
+            ad_set_name: match.structure.adSetName || 'default',
             assigned_by: user.id,
             position: 0,
             status: 'pending',
