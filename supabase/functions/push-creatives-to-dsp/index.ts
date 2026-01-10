@@ -296,17 +296,16 @@ const handler = async (req: Request): Promise<Response> => {
         const batch = batches[batchIndex];
         console.log(`[push-creatives] Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} items)`);
 
-        // Mark all items in batch as 'pushing' first
-        const batchIds = batch.map((a: any) => a.id);
-        await supabase
-          .from("creative_assignments")
-          .update({ status: "pushing" })
-          .in("id", batchIds);
-
         // Process each assignment in the batch sequentially to avoid rate limits
         for (const assignment of batch) {
           const creative = (assignment as any).creative;
           if (!creative) continue;
+
+          // Update individual status to 'pushing' for real-time progress tracking
+          await supabase
+            .from("creative_assignments")
+            .update({ status: "pushing" })
+            .eq("id", assignment.id);
 
           // Use assignment text fields with creative fallback
           const resolvedText = {
@@ -1062,15 +1061,15 @@ const handler = async (req: Request): Promise<Response> => {
             let identityType = "CUSTOMIZED_USER"; // Default fallback
             const { data: identityRecord } = await supabase
               .from("tiktok_identities")
-              .select("identity_type")
+              .select("identity_type, identity_name")
               .eq("identity_id", identityId)
               .maybeSingle();
-            
+
             if (identityRecord?.identity_type) {
               // Map our stored type to TikTok API format
               identityType = identityRecord.identity_type === "TT_ACCOUNT" ? "TT_USER" : "CUSTOMIZED_USER";
             }
-            console.log(`[push-creatives] Using identity ${identityId} with type ${identityType}`);
+            console.log(`[push-creatives] Using identity ${identityId} (${identityRecord?.identity_name || 'unknown'}) with type ${identityType} (stored as ${identityRecord?.identity_type || 'unknown'})`);
 
             const tiktokAdPayload: any = {
               advertiser_id: advertiserId,
