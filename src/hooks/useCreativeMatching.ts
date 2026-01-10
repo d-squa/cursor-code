@@ -613,7 +613,8 @@ export function useCreativeMatching(campaignId?: string) {
           aspectRatio = calculateAspectRatio(width, height);
         } else if (mediaType === 'video') {
           const info = await getVideoInfo(file);
-          width = info.width; height = info.height; duration = info.duration;
+          width = info.width; height = info.height; 
+          duration = typeof info.duration === 'number' ? Math.round(info.duration) : undefined;
           aspectRatio = calculateAspectRatio(width, height);
         }
 
@@ -1117,7 +1118,7 @@ export function useCreativeMatching(campaignId?: string) {
                   width: asset.technicalAttributes.width,
                   height: asset.technicalAttributes.height,
                   aspect_ratio: asset.technicalAttributes.aspectRatio,
-                  duration_seconds: asset.technicalAttributes.duration,
+                  duration_seconds: typeof asset.technicalAttributes.duration === 'number' ? Math.round(asset.technicalAttributes.duration) : null,
                   file_size_bytes: asset.technicalAttributes.fileSize,
                   original_filename: asset.fileName,
                   folder_path: asset.filePath,
