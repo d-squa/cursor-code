@@ -6,9 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Loader2, Target, CheckCircle2 } from "lucide-react";
+import { Loader2, CheckCircle2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
-import { PRICE_IDS } from "@/config/subscriptionTiers";
 import { z } from "zod";
 import { useSessionManager } from "@/hooks/useSessionManager";
 
@@ -45,16 +44,19 @@ export default function Auth() {
 
       if (!isMounted || !session) return;
 
-      // If email needs confirmation, force confirmation screen
-      if (!session.user.email_confirmed_at || needsEmailConfirmation) {
+      // If email is not confirmed, force confirmation screen
+      if (!session.user.email_confirmed_at) {
         setShowEmailConfirmation(true);
         setEmail(session.user.email || "");
         return;
       }
 
-      // If we have a pending signup email, ONLY proceed if we arrived from the email-confirm link
+      // If we have a pending signup email, only apply it to the same user.
+      // Otherwise it can trap returning users on /auth due to stale localStorage.
       const pendingEmail = localStorage.getItem("actiplan_pending_signup_email");
-      if (pendingEmail) {
+      const sessionEmail = session.user.email ?? "";
+
+      if (pendingEmail && pendingEmail === sessionEmail) {
         if (isConfirmedRedirect) {
           localStorage.removeItem("actiplan_pending_signup_email");
           localStorage.removeItem("actiplan_onboarding");
@@ -67,9 +69,21 @@ export default function Auth() {
         return;
       }
 
+      // Clear stale pending email if it belongs to a different user
+      if (pendingEmail && pendingEmail !== sessionEmail) {
+        localStorage.removeItem("actiplan_pending_signup_email");
+      }
+
       // Otherwise, normal routing
       const onboardingData = localStorage.getItem("actiplan_onboarding");
-      const onboardingComplete = onboardingData && JSON.parse(onboardingData).completedAt;
+      let onboardingComplete = false;
+      if (onboardingData) {
+        try {
+          onboardingComplete = Boolean(JSON.parse(onboardingData)?.completedAt);
+        } catch {
+          onboardingComplete = false;
+        }
+      }
 
       if (onboardingComplete) {
         navigate("/overview");
@@ -123,7 +137,14 @@ export default function Auth() {
         setShowPostConfirmSuccess(false);
 
         const onboardingData = localStorage.getItem("actiplan_onboarding");
-        const onboardingComplete = onboardingData && JSON.parse(onboardingData).completedAt;
+        let onboardingComplete = false;
+        if (onboardingData) {
+          try {
+            onboardingComplete = Boolean(JSON.parse(onboardingData)?.completedAt);
+          } catch {
+            onboardingComplete = false;
+          }
+        }
 
         if (!onboardingComplete) {
           navigate("/onboarding");
