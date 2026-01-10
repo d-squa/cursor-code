@@ -24,13 +24,26 @@ export function useWorkspace() {
     queryFn: async () => {
       if (!user?.id) return [];
 
-      const [{ data: ownedTeams, error: ownedError }, { data: memberships, error: memberError }] = await Promise.all([
+      // NOTE: We intentionally avoid PostgREST embedded joins here (e.g. `teams(...)`).
+      // In this project, `user_roles.team_id` is not guaranteed to have a FK to `teams.id`,
+      // which can make embedded joins fail and break workspace resolution.
+      const [{ data: ownedTeams, error: ownedError }, { data: roles, error: rolesError }] = await Promise.all([
         supabase.from("teams").select("id, name, owner_id").eq("owner_id", user.id),
-        supabase.from("user_roles").select("team_id, teams(id, name, owner_id)").eq("user_id", user.id),
+        supabase.from("user_roles").select("team_id").eq("user_id", user.id),
       ]);
 
       if (ownedError) throw ownedError;
-      if (memberError) throw memberError;
+
+      // If roles query fails for any reason, degrade gracefully (still show owned workspaces).
+      const teamIds = (rolesError ? [] : (roles ?? []))
+        .map((r: any) => r?.team_id)
+        .filter(Boolean);
+
+      const { data: memberTeams, error: memberTeamsError } = teamIds.length
+        ? await supabase.from("teams").select("id, name, owner_id").in("id", teamIds)
+        : ({ data: [] as any[], error: null } as any);
+
+      if (memberTeamsError) throw memberTeamsError;
 
       const byId = new Map<string, Workspace>();
 
@@ -38,8 +51,7 @@ export function useWorkspace() {
         if (t?.id) byId.set(t.id, { id: t.id, name: t.name, owner_id: t.owner_id ?? null });
       });
 
-      (memberships ?? []).forEach((m: any) => {
-        const t = m?.teams;
+      (memberTeams ?? []).forEach((t: any) => {
         if (t?.id) byId.set(t.id, { id: t.id, name: t.name, owner_id: t.owner_id ?? null });
       });
 
