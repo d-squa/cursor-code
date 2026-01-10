@@ -558,9 +558,8 @@ const handler = async (req: Request): Promise<Response> => {
             };
 
             if (isVideo && creative.platform_video_id) {
-              // Meta requires a video thumbnail when creating the ad creative.
-              // We MUST send either image_hash (preferred when user uploaded a custom thumbnail)
-              // or image_url (when we can fetch a generated thumbnail from Meta).
+              // For video ads, check for existing thumbnails but DON'T block on fetching them.
+              // Meta can auto-generate thumbnails from the video if none is provided.
               let thumbnailImageHash: string | null = creative.platform_thumbnail_id || null;
               let thumbnailImageUrl: string | null = null;
 
@@ -573,55 +572,13 @@ const handler = async (req: Request): Promise<Response> => {
                   !creative.thumbnail_url.endsWith(".webm")
                 ) {
                   thumbnailImageUrl = creative.thumbnail_url;
-                } else {
-                  // Otherwise, try fetching a thumbnail from Meta.
-                  console.log(
-                    `[push-creatives] Fetching video thumbnail from Meta for video_id: ${creative.platform_video_id}`,
-                  );
-                  try {
-                    const thumbsResponse = await fetch(
-                      `https://graph.facebook.com/v22.0/${creative.platform_video_id}/thumbnails?fields=uri,is_preferred,width,height&access_token=${platform.access_token}`,
-                    );
-                    const thumbsJson = await thumbsResponse.json();
-
-                    const thumbs = Array.isArray(thumbsJson?.data) ? thumbsJson.data : [];
-                    if (thumbsJson?.error) {
-                      console.log(`[push-creatives] Meta thumbnails error:`, JSON.stringify(thumbsJson.error));
-                    } else if (thumbs.length > 0) {
-                      // Prefer the thumbnail marked preferred; otherwise use the first.
-                      const preferred = thumbs.find((t: any) => t?.is_preferred) || thumbs[0];
-                      thumbnailImageUrl = preferred?.uri || null;
-
-                      if (thumbnailImageUrl) {
-                        console.log(`[push-creatives] Using Meta thumbnail URL: ${thumbnailImageUrl}`);
-                        await supabase
-                          .from("creatives")
-                          .update({ thumbnail_url: thumbnailImageUrl })
-                          .eq("id", creative.id);
-                      }
-                    } else {
-                      console.log(`[push-creatives] No thumbnails available yet for video ${creative.platform_video_id}`);
-                    }
-                  } catch (thumbError) {
-                    console.error(`[push-creatives] Failed to fetch Meta thumbnails:`, thumbError);
-                  }
+                  console.log(`[push-creatives] Using existing thumbnail URL: ${thumbnailImageUrl}`);
                 }
+                // NOTE: Skip blocking thumbnail fetch from Meta API to avoid timeouts.
+                // Meta will use auto-generated thumbnail if none provided.
               }
 
-              if (!thumbnailImageHash && !thumbnailImageUrl) {
-                // Don’t attempt ad creative creation—Meta will reject with "Invalid parameter".
-                await supabase
-                  .from("creative_assignments")
-                  .update({
-                    status: "error",
-                    error_message:
-                      "Meta video thumbnail not available yet. Wait 1–2 minutes and retry, or upload a custom thumbnail.",
-                  })
-                  .eq("id", assignment.id);
-                localFailed++;
-                continue;
-              }
-
+              // Build video_data - proceed without thumbnail, Meta handles it
               creativePayload.object_story_spec.video_data = {
                 video_id: creative.platform_video_id,
                 title: resolvedText.headline || creative.name,
@@ -634,18 +591,12 @@ const handler = async (req: Request): Promise<Response> => {
                       },
                     }
                   : undefined,
+                // Only include thumbnail if we already have one cached
                 ...(thumbnailImageHash ? { image_hash: thumbnailImageHash } : {}),
                 ...(thumbnailImageUrl ? { image_url: thumbnailImageUrl } : {}),
               };
-            } else if (creative.platform_image_hash) {
-              creativePayload.object_story_spec.link_data = {
-                image_hash: creative.platform_image_hash,
-                link: resolvedText.destinationUrl || metaLandingPageUrl || "https://example.com",
-                message: resolvedText.primaryText,
-                name: resolvedText.headline,
-                description: resolvedText.description,
-                call_to_action: resolvedText.callToAction ? { type: resolvedText.callToAction } : undefined,
-              };
+
+              console.log(`[push-creatives] Video creative prepared (thumbnail: ${thumbnailImageHash ? 'hash' : thumbnailImageUrl ? 'url' : 'auto-generate'})`);
             }
 
             // URL parameters - use resolved finalUrlParameters
