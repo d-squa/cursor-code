@@ -920,8 +920,13 @@ const handler = async (req: Request): Promise<Response> => {
                   const formData = new FormData();
                   const blob = new Blob([bytes], { type: "image/jpeg" });
 
+                  // Compute MD5 hash for image_signature (required by TikTok)
+                  const imageHashBuffer = await stdCrypto.subtle.digest("MD5", bytes);
+                  const imageSignature = new TextDecoder().decode(encodeHex(new Uint8Array(imageHashBuffer)));
+
                   formData.append("advertiser_id", advertiserId);
                   formData.append("upload_type", "UPLOAD_BY_FILE");
+                  formData.append("image_signature", imageSignature);
                   formData.append("image_file", blob, imageFileName);
 
                   console.log(`[push-creatives] Auto-uploading image to TikTok: ${uploadUrl}`);
