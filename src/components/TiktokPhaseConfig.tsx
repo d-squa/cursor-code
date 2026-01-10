@@ -166,18 +166,7 @@ export function TiktokPhaseConfig({ phase, adAccountDefaults, onUpdate }: Tiktok
     }
   }, [adAccountDefaults, phase.id, objective, optimizationGoal, showOptimizationLocation, canInheritDefaults]);
 
-  // DEBUG: Comprehensive logging for TikTok objective/goal issues
-  console.log("🎯 [TiktokPhaseConfig] FULL DEBUG:", {
-    "phase.id": phase.id,
-    "phase.objective": phase.objective,
-    "phase.optimizationGoal": phase.optimizationGoal,
-    "objective (derived)": objective,
-    "optimizationGoal (derived)": optimizationGoal,
-    validLocations: validLocations.map(l => ({ value: l.value, label: l.label })),
-    showOptimizationLocation,
-    "Expected TikTok objectives": ["REACH", "TRAFFIC", "VIDEO_VIEWS", "COMMUNITY_INTERACTION", "APP_PROMOTION", "LEAD_GENERATION", "CONVERSIONS", "PRODUCT_SALES"],
-    "Expected for CONVERSIONS": ["CONVERT", "VALUE", "CLICK"],
-  });
+  // DEBUG logging removed to prevent console spam during renders
 
   const showAppFields = (
     (objective === "TRAFFIC" && optimizationGoal === "CLICK" && phase.tiktokOptimizationLocation === "App") ||

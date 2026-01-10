@@ -448,26 +448,31 @@ export function MediaPlanEditor() {
   const [firstTiktokAdvertiserId, setFirstTiktokAdvertiserId] = useState<string | null>(null);
   
   // Update ad account IDs based on selected platforms
-  useEffect(() => {
-    const metaAdAccount = platformsWithMarkets
+  // Derive the account IDs via useMemo instead of useEffect to avoid re-render loops
+  const derivedMetaAccountId = useMemo(() => {
+    return platformsWithMarkets
       .find(p => p.id === 'meta' || p.name.toLowerCase() === 'meta')
-      ?.markets[0]?.adAccountId;
-    
-    const tiktokAdAccount = platformsWithMarkets
-      .find(p => p.id === 'tiktok' || p.name.toLowerCase() === 'tiktok')
-      ?.markets[0]?.adAccountId;
-    
-    // Always update to current value (or null if platform not selected)
-    if (metaAdAccount !== firstAdAccountId) {
-      setFirstAdAccountId(metaAdAccount || null);
-      console.log(metaAdAccount ? '✅ Updated Meta Ad Account ID for targeting:' : '🔄 Cleared Meta Ad Account ID:', metaAdAccount);
-    }
-    
-    if (tiktokAdAccount !== firstTiktokAdvertiserId) {
-      setFirstTiktokAdvertiserId(tiktokAdAccount || null);
-      console.log(tiktokAdAccount ? '✅ Updated TikTok Advertiser ID for targeting:' : '🔄 Cleared TikTok Advertiser ID:', tiktokAdAccount);
-    }
+      ?.markets[0]?.adAccountId ?? null;
   }, [platformsWithMarkets]);
+
+  const derivedTiktokAccountId = useMemo(() => {
+    return platformsWithMarkets
+      .find(p => p.id === 'tiktok' || p.name.toLowerCase() === 'tiktok')
+      ?.markets[0]?.adAccountId ?? null;
+  }, [platformsWithMarkets]);
+
+  // Sync derived values to state only when they actually change
+  useEffect(() => {
+    if (derivedMetaAccountId !== firstAdAccountId) {
+      setFirstAdAccountId(derivedMetaAccountId);
+    }
+  }, [derivedMetaAccountId, firstAdAccountId]);
+
+  useEffect(() => {
+    if (derivedTiktokAccountId !== firstTiktokAdvertiserId) {
+      setFirstTiktokAdvertiserId(derivedTiktokAccountId);
+    }
+  }, [derivedTiktokAccountId, firstTiktokAdvertiserId]);
   
   // Dialog states
   const [platformDialogOpen, setPlatformDialogOpen] = useState(false);
