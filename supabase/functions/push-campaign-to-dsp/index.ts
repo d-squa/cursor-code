@@ -1707,11 +1707,14 @@ async function pushToMeta(campaign: any, platformConfig: any, platform: any, sup
         
         console.log("Effective basic targeting for phase:", phase.name, effectiveBasicTargeting);
         
+        // CRITICAL: Use market.countries if available, otherwise use market.name (ISO code)
+        const marketCountries = Array.isArray(market.countries) && market.countries.length > 0 
+          ? market.countries 
+          : [market.name]; // market.name is already the ISO code
+        
         const targeting: any = {
           geo_locations: {
-            countries: Array.isArray(market.countries) && market.countries.length > 0 
-              ? market.countries 
-              : [market.name.substring(0, 2).toUpperCase()]
+            countries: marketCountries
           },
           age_min: effectiveBasicTargeting.ageMin || 18,
           age_max: effectiveBasicTargeting.ageMax || 65,
@@ -3258,11 +3261,18 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
         }
         
         // Map field names properly - handle both camelCase and snake_case from different sources
+        // CRITICAL: Use market.countries if available, otherwise derive from market.name
+        // market.name is an ISO 2-letter country code (e.g., "FR", "GB", "DE")
+        const marketCountries = Array.isArray(market.countries) && market.countries.length > 0 
+          ? market.countries 
+          : [market.name]; // market.name is already the ISO code
+        
+        // Log the countries resolution for debugging
+        console.log(`🌍 Market ${market.name}: countries=${JSON.stringify(marketCountries)} (source: ${Array.isArray(market.countries) && market.countries.length > 0 ? 'market.countries' : 'market.name'})`);
+        
         const targeting: any = {
           geo_locations: {
-            countries: Array.isArray(market.countries) && market.countries.length > 0 
-              ? market.countries 
-              : [market.name.substring(0, 2).toUpperCase()]
+            countries: marketCountries
           },
           age_min: effectiveTargeting.ageMin || effectiveTargeting.age_min || effectiveTargeting.minAge || 18,
           age_max: effectiveTargeting.ageMax || effectiveTargeting.age_max || effectiveTargeting.maxAge || 65,
