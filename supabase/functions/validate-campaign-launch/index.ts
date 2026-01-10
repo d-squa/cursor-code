@@ -482,24 +482,38 @@ const handler = async (req: Request): Promise<Response> => {
             plannedConversions,
           });
           
-          // Check if this phase has ad set splits configured
-          const phaseAdSets = phase.adSets as any[] | undefined;
-          const hasAdSetSplits = phaseAdSets && phaseAdSets.length > 0;
-          
+          // Determine ad set splits for this phase.
+          // Priority: phase.adSets -> market.adSets -> campaign generic defaults (per platform) -> none.
+          const phaseAdSets = (phase as any).adSets as any[] | undefined;
+          const marketAdSets = (market as any).adSets as any[] | undefined;
+
+          const genericConfig = (campaign as any).generic_config || {};
+          const targetingPreset = genericConfig.targetingPreset || genericConfig.basicTargeting || {};
+          const defaultAdSetsPerPlatform =
+            targetingPreset.defaultAdSetsPerPlatform || genericConfig.defaultAdSetsPerPlatform || {};
+          const defaultPlatformAdSets = defaultAdSetsPerPlatform?.[platformId] as any[] | undefined;
+
+          const effectiveAdSets =
+            (phaseAdSets && phaseAdSets.length > 0 ? phaseAdSets : undefined) ||
+            (marketAdSets && marketAdSets.length > 0 ? marketAdSets : undefined) ||
+            (defaultPlatformAdSets && defaultPlatformAdSets.length > 0 ? defaultPlatformAdSets : undefined);
+
+          const hasAdSetSplits = !!effectiveAdSets;
+
           if (hasAdSetSplits) {
             // Create an entity for each ad set split
-            console.log(`Phase ${entityPhaseName} has ${phaseAdSets.length} ad set splits`);
-            for (const adSet of phaseAdSets) {
-              const adSetBudgetPct = adSet.budgetPercentage || (100 / phaseAdSets.length);
+            console.log(`Phase ${entityPhaseName} has ${effectiveAdSets!.length} ad set splits`);
+            for (const adSet of effectiveAdSets!) {
+              const adSetBudgetPct = adSet.budgetPercentage || (100 / effectiveAdSets!.length);
               const adSetBudget = (phaseBudget * adSetBudgetPct) / 100;
               const adSetName = adSet.name || `Ad Set ${adSet.id?.substring(0, 6) || 'Unknown'}`;
-              
+
               // Calculate proportional metrics for this ad set
               const adSetImpressions = plannedImpressions ? Math.round(plannedImpressions * (adSetBudgetPct / 100)) : null;
               const adSetReach = plannedReach ? Math.round(plannedReach * (adSetBudgetPct / 100)) : null;
               const adSetClicks = plannedClicks ? Math.round(plannedClicks * (adSetBudgetPct / 100)) : null;
               const adSetConversions = plannedConversions ? Math.round(plannedConversions * (adSetBudgetPct / 100)) : null;
-              
+
               result.entities.push({
                 platform: platformName,
                 market: entityMarketName,
@@ -541,20 +555,20 @@ const handler = async (req: Request): Promise<Response> => {
       .eq('campaign_id', campaignId);
     
     // Create a map of already-pushed entities (entities with dsp_entity_id should be preserved)
-    // Include entity_type in key to distinguish campaigns from adsets
+    // Include entity_type + entity_name in key to support multiple ad sets per phase.
     const pushedEntitiesMap = new Map<string, { id: string; status: string; dsp_entity_id: string }>();
     for (const status of (existingStatuses || [])) {
       // Only preserve entities that are successfully pushed (have DSP ID)
       if (status.dsp_entity_id && ['pushed_to_dsp', 'live'].includes(status.status)) {
-        const key = `${status.platform}|${status.market}|${status.phase_name || 'Default'}|${status.entity_type}`;
-        pushedEntitiesMap.set(key, { 
-          id: status.id, 
-          status: status.status, 
-          dsp_entity_id: status.dsp_entity_id 
+        const key = `${status.platform}|${status.market}|${status.phase_name || 'Default'}|${status.entity_type}|${status.entity_name || ''}`;
+        pushedEntitiesMap.set(key, {
+          id: status.id,
+          status: status.status,
+          dsp_entity_id: status.dsp_entity_id,
         });
       }
     }
-    
+
     console.log(`Preserving ${pushedEntitiesMap.size} already-pushed entities`);
 
     // Only delete non-pushed entities (validation_error, ready_for_push, push_failed, pushing)
@@ -567,7 +581,7 @@ const handler = async (req: Request): Promise<Response> => {
     // Insert new status entries only for entities NOT already pushed
     const statusEntries = result.entities
       .filter(entity => {
-        const key = `${entity.platform}|${entity.market}|${entity.phase || 'Default'}|${entity.entityType}`;
+        const key = `${entity.platform}|${entity.market}|${entity.phase || 'Default'}|${entity.entityType}|${entity.entityName}`;
         return !pushedEntitiesMap.has(key);
       })
       .map(entity => {
