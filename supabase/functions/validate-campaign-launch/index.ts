@@ -551,7 +551,7 @@ const handler = async (req: Request): Promise<Response> => {
     // Get existing launch statuses to preserve pushed_to_dsp entities
     const { data: existingStatuses } = await supabase
       .from('campaign_launch_status')
-      .select('id, platform, market, phase_name, entity_type, status, dsp_entity_id')
+      .select('id, platform, market, phase_name, entity_type, entity_name, status, dsp_entity_id')
       .eq('campaign_id', campaignId);
     
     // Create a map of already-pushed entities (entities with dsp_entity_id should be preserved)
