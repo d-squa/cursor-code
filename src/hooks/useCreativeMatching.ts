@@ -94,6 +94,8 @@ export interface CampaignStructure {
   phases?: string[];
   funnelStage?: string;
   // Ad set split dimensions for precise matching
+  splitDimension?: string; // The dimension being split: 'gender', 'device', 'language', 'age', etc.
+  languageIsSplitDimension?: boolean; // True if language is the split dimension
   deviceConstraints?: string[];
   genderConstraint?: string;
   ageConstraints?: { min: number; max: number };
@@ -443,9 +445,12 @@ export function useCreativeMatching(campaignId?: string) {
                   placementConstraints: adSet.placements || adSet.tiktokPlacements || placementConstraints,
                   formatConstraints,
                   language: adSet.languages?.[0] || phaseLanguages?.[0] || language,
+                  // Track if this is a language split - language becomes a hard constraint
+                  languageIsSplitDimension: effectiveSplitDimension === 'language',
                   optimizationGoal: adSet.optimizationGoal || phase?.optimizationGoal,
                   phases: phase?.name ? [phase.name] : undefined,
-                  // Ad set split dimensions
+                  // Ad set split dimensions - track which dimension is being split for blocking logic
+                  splitDimension: effectiveSplitDimension,
                   deviceConstraints: adSet.devices,
                   genderConstraint: adSet.gender || (effectiveSplitDimension === 'gender' ? adSet.dimensionValue : undefined),
                   ageConstraints: (adSet.ageMin !== undefined && adSet.ageMax !== undefined)
@@ -2070,27 +2075,39 @@ function matchAssetToStructure(
     score += 5;
   }
 
-  // STRICT: Language must match if specified in structure
-  // If ad set has a language requirement, asset MUST have matching language - no exceptions
+  // STRICT: Language must match if language is a split dimension
+  // If language is the split dimension, it becomes a HARD constraint - must match exactly
+  // Otherwise it's a soft constraint that adds score
   if (structure.language) {
     const structureLang = structure.language.toLowerCase();
     const assetLang = signals.language?.toLowerCase();
     
-    if (!assetLang) {
-      // Ad set requires a language but asset has no language signal - BLOCK
-      blockingReasons.push(`Language required: ad set requires "${structureLang.toUpperCase()}" but asset has no language specified in filename`);
-      return { isMatch: false, score: 0, matchedCriteria, blockingReasons, issues };
+    if (structure.languageIsSplitDimension || structure.splitDimension === 'language') {
+      // Language is a split dimension - BLOCKING
+      if (!assetLang) {
+        // Asset has no language signal - for split dimensions, don't block (let it match all)
+        // but reduce score since we can't verify match
+        issues.push({ type: 'language', severity: 'warning', message: `Language split active but asset has no language in filename` });
+      } else if (assetLang !== structureLang) {
+        // Language mismatch on a split dimension - BLOCK
+        blockingReasons.push(`Language mismatch: asset is "${assetLang.toUpperCase()}" but ad set targets "${structureLang.toUpperCase()}" (language split)`);
+        return { isMatch: false, score: 0, matchedCriteria, blockingReasons, issues };
+      } else {
+        // Languages match
+        matchedCriteria.push({ criterion: 'Language', reason: `"${assetLang.toUpperCase()}" matches split (${signals.sources.language})` });
+        score += 15;
+      }
+    } else {
+      // Language is NOT a split dimension - softer matching
+      if (assetLang && assetLang !== structureLang) {
+        // Mismatch but not blocking, just warn
+        issues.push({ type: 'language', severity: 'warning', message: `Asset language "${assetLang}" ≠ "${structureLang}"` });
+        score -= 5;
+      } else if (assetLang && assetLang === structureLang) {
+        matchedCriteria.push({ criterion: 'Language', reason: `"${assetLang.toUpperCase()}" matches (${signals.sources.language})` });
+        score += 10;
+      }
     }
-    
-    if (assetLang !== structureLang) {
-      // Language mismatch - BLOCK
-      blockingReasons.push(`Language mismatch: asset is "${assetLang.toUpperCase()}" but ad set requires "${structureLang.toUpperCase()}"`);
-      return { isMatch: false, score: 0, matchedCriteria, blockingReasons, issues };
-    }
-    
-    // Languages match
-    matchedCriteria.push({ criterion: 'Language', reason: `"${assetLang.toUpperCase()}" matches (${signals.sources.language})` });
-    score += 10;
   } else if (signals.language) {
     // Asset has language but structure doesn't require one - just note it
     matchedCriteria.push({ criterion: 'Language', reason: `Asset language: "${signals.language.toUpperCase()}" (${signals.sources.language})` });
@@ -2135,40 +2152,68 @@ function matchAssetToStructure(
     }
   }
 
-  // Device match
-  if (signals.device && structure.deviceConstraints?.length) {
-    if (structure.deviceConstraints.includes(signals.device)) {
-      matchedCriteria.push({ criterion: 'Device', reason: `"${signals.device}" matches targeting (${signals.sources.device})` });
-      score += 8;
-    } else {
-      issues.push({ type: 'device', severity: 'warning', message: `Device "${signals.device}" not in ad set targeting` });
-      score -= 10;
+  // Device match - BLOCKING if ad set has device constraint and asset specifies a different device
+  if (structure.deviceConstraints?.length && structure.deviceConstraints.length > 0) {
+    const hasDeviceConstraint = !structure.deviceConstraints.includes('all') && structure.deviceConstraints.length < 3;
+    if (hasDeviceConstraint) {
+      if (signals.device) {
+        if (structure.deviceConstraints.includes(signals.device)) {
+          matchedCriteria.push({ criterion: 'Device', reason: `"${signals.device}" matches targeting (${signals.sources.device})` });
+          score += 8;
+        } else {
+          // Device mismatch is BLOCKING for split dimensions
+          blockingReasons.push(`Device mismatch: asset is "${signals.device}" but ad set targets "${structure.deviceConstraints.join(', ')}"`);
+          return { isMatch: false, score: 0, matchedCriteria, blockingReasons, issues };
+        }
+      }
+      // If asset has no device signal but ad set has device constraint, don't block - let it match all
     }
   }
 
-  // Gender match
-  if (signals.gender && structure.genderConstraint && structure.genderConstraint !== 'all') {
-    if (signals.gender === structure.genderConstraint || signals.gender === 'all') {
-      matchedCriteria.push({ criterion: 'Gender', reason: `"${signals.gender}" matches (${signals.sources.gender})` });
-      score += 8;
-    } else {
-      issues.push({ type: 'gender', severity: 'error', message: `Gender "${signals.gender}" ≠ "${structure.genderConstraint}"` });
-      score -= 15;
+  // Gender match - BLOCKING if ad set has gender constraint and asset specifies a different gender
+  if (structure.genderConstraint && structure.genderConstraint !== 'all') {
+    if (signals.gender) {
+      if (signals.gender === structure.genderConstraint || signals.gender === 'all') {
+        matchedCriteria.push({ criterion: 'Gender', reason: `"${signals.gender}" matches (${signals.sources.gender})` });
+        score += 8;
+      } else {
+        // Gender mismatch is BLOCKING for split dimensions
+        blockingReasons.push(`Gender mismatch: asset is "${signals.gender}" but ad set targets "${structure.genderConstraint}"`);
+        return { isMatch: false, score: 0, matchedCriteria, blockingReasons, issues };
+      }
     }
+    // If asset has no gender signal but ad set has gender constraint, don't block - let it match all
   }
 
-  // Audience type match
-  if (signals.audienceType && structure.audienceTypeConstraint) {
-    if (signals.audienceType === structure.audienceTypeConstraint) {
-      matchedCriteria.push({ criterion: 'Audience', reason: `"${signals.audienceType}" matches (${signals.sources.audienceType})` });
+  // Audience type match - BLOCKING if ad set has audience type constraint and asset specifies a different type
+  if (structure.audienceTypeConstraint && structure.audienceTypeConstraint !== 'broad') {
+    if (signals.audienceType) {
+      if (signals.audienceType === structure.audienceTypeConstraint) {
+        matchedCriteria.push({ criterion: 'Audience', reason: `"${signals.audienceType}" matches (${signals.sources.audienceType})` });
+        score += 10;
+      } else {
+        // Audience type mismatch is BLOCKING for split dimensions
+        blockingReasons.push(`Audience type mismatch: asset is "${signals.audienceType}" but ad set targets "${structure.audienceTypeConstraint}"`);
+        return { isMatch: false, score: 0, matchedCriteria, blockingReasons, issues };
+      }
+    }
+    // If asset has no audience type signal but ad set has audience constraint, don't block
+  }
+
+  // Age range match - BLOCKING if ad set has age constraint and asset specifies a different age
+  if (structure.ageConstraints && structure.splitDimension === 'age') {
+    if (signals.ageMin !== undefined && signals.ageMax !== undefined) {
+      const hasOverlap = signals.ageMin <= structure.ageConstraints.max && 
+                         signals.ageMax >= structure.ageConstraints.min;
+      if (!hasOverlap) {
+        blockingReasons.push(`Age mismatch: asset is ${signals.ageMin}-${signals.ageMax} but ad set targets ${structure.ageConstraints.min}-${structure.ageConstraints.max}`);
+        return { isMatch: false, score: 0, matchedCriteria, blockingReasons, issues };
+      }
+      matchedCriteria.push({ criterion: 'Age', reason: `${signals.ageMin}-${signals.ageMax} overlaps with target (${signals.sources.age})` });
       score += 10;
-    } else {
-      issues.push({ type: 'audience', severity: 'warning', message: `Audience "${signals.audienceType}" ≠ "${structure.audienceTypeConstraint}"` });
-      score -= 8;
     }
   }
 
-  // Aspect ratio check for video platforms
   if (asset.technicalAttributes.aspectRatio) {
     const isVertical = (asset.technicalAttributes.height || 0) > (asset.technicalAttributes.width || 0);
     if ((structure.platform === 'tiktok' || structure.platform === 'snapchat') && !isVertical) {
