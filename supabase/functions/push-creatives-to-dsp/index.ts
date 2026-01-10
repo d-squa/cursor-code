@@ -872,15 +872,16 @@ const handler = async (req: Request): Promise<Response> => {
                     throw new Error(uploadData?.message || "TikTok video upload failed");
                   }
 
+                  const data0 = Array.isArray(uploadData?.data) ? uploadData.data[0] : uploadData?.data;
                   const videoId =
-                    uploadData?.data?.video_id ??
-                    uploadData?.data?.video_info?.video_id ??
-                    uploadData?.video_id ??
-                    uploadData?.data?.video?.video_id ??
-                    uploadData?.data?.video_id_str ??
-                    uploadData?.data?.videoId ??
-                    uploadData?.data?.video?.id ??
-                    uploadData?.data?.id;
+                    data0?.video_id ??
+                    data0?.video_info?.video_id ??
+                    data0?.video?.video_id ??
+                    data0?.video_id_str ??
+                    data0?.videoId ??
+                    data0?.video?.id ??
+                    data0?.id ??
+                    uploadData?.video_id;
 
                   if (!videoId) {
                     console.error("[push-creatives] TikTok upload response missing video_id", {
@@ -919,13 +920,44 @@ const handler = async (req: Request): Promise<Response> => {
                     body: formData,
                   });
 
-                  const uploadData = await uploadResp.json();
+                  const uploadText = await uploadResp.text();
+                  let uploadData: any = null;
+                  try {
+                    uploadData = uploadText ? JSON.parse(uploadText) : null;
+                  } catch {
+                    // keep uploadData as null
+                  }
+
+                  if (!uploadResp.ok) {
+                    console.error("[push-creatives] TikTok image upload HTTP error", {
+                      status: uploadResp.status,
+                      statusText: uploadResp.statusText,
+                      bodyPreview: uploadText?.slice(0, 800),
+                    });
+                    throw new Error(`TikTok image upload HTTP ${uploadResp.status}`);
+                  }
+
                   if (uploadData?.code !== 0) {
+                    console.error("[push-creatives] TikTok image upload API error", {
+                      code: uploadData?.code,
+                      message: uploadData?.message,
+                      data: uploadData?.data,
+                    });
                     throw new Error(uploadData?.message || "TikTok image upload failed");
                   }
 
-                  const imageId = uploadData?.data?.id;
+                  const data0 = Array.isArray(uploadData?.data) ? uploadData.data[0] : uploadData?.data;
+                  const imageId =
+                    data0?.id ??
+                    data0?.image_id ??
+                    uploadData?.data?.id ??
+                    uploadData?.id;
+
                   if (!imageId) {
+                    console.error("[push-creatives] TikTok upload response missing image id", {
+                      bodyPreview: uploadText?.slice(0, 800),
+                      uploadData,
+                    });
                     throw new Error("TikTok image upload returned no id");
                   }
 
