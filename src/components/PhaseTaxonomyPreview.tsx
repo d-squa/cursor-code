@@ -43,8 +43,10 @@ export function PhaseTaxonomyPreview({
       }
 
       try {
-        // First try to get the database UUID for this platform account
-        let dbAccountId = adAccountId;
+        // First resolve the internal UUID for this platform account.
+        // The taxonomy_templates.ad_account_id column is UUID, so we MUST
+        // convert platform-native IDs (like TikTok's numeric advertiser_id) first.
+        let dbAccountId: string | null = null;
 
         if (platform === 'tiktok') {
           const { data: accountData } = await supabase
@@ -52,32 +54,28 @@ export function PhaseTaxonomyPreview({
             .select('id')
             .eq('advertiser_id', adAccountId)
             .maybeSingle();
-          if (accountData?.id) dbAccountId = accountData.id;
+          dbAccountId = accountData?.id ?? null;
         } else {
           const { data: accountData } = await supabase
             .from('meta_ad_accounts')
             .select('id')
             .eq('account_id', adAccountId)
             .maybeSingle();
-          if (accountData?.id) dbAccountId = accountData.id;
+          dbAccountId = accountData?.id ?? null;
         }
 
-        const fetchForAccountId = async (accountIdToTry: string) => {
-          return supabase
-            .from('taxonomy_templates')
-            .select('entity_type, template')
-            .eq('ad_account_id', accountIdToTry)
-            .eq('platform', platform)
-            .in('entity_type', ['campaign', 'adset']);
-        };
-
-        // Prefer internal UUID; fall back to legacy platform ID if needed
-        let { data, error } = await fetchForAccountId(dbAccountId);
-        if ((!data || data.length === 0) && dbAccountId !== adAccountId) {
-          const legacy = await fetchForAccountId(adAccountId);
-          data = legacy.data;
-          error = legacy.error;
+        // If we couldn't resolve a UUID, we can't query taxonomy_templates
+        if (!dbAccountId) {
+          setLoading(false);
+          return;
         }
+
+        const { data, error } = await supabase
+          .from('taxonomy_templates')
+          .select('entity_type, template')
+          .eq('ad_account_id', dbAccountId)
+          .eq('platform', platform)
+          .in('entity_type', ['campaign', 'adset']);
 
         if (error) {
           console.error('Error loading taxonomy templates:', error);
