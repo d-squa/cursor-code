@@ -54,6 +54,12 @@ export function useWorkspace() {
     }
     if (isLoading) return;
 
+    // If no workspaces exist, set to null and exit (this is a valid end state)
+    if (workspaces.length === 0) {
+      _setActiveWorkspaceId(null);
+      return;
+    }
+
     const saved = localStorage.getItem(storageKey(user.id));
     const savedIsValid = !!saved && workspaces.some((w) => w.id === saved);
 
@@ -91,15 +97,14 @@ export function useWorkspace() {
     [workspaces, activeWorkspaceId]
   );
 
-  // Consider loading if workspaces haven't been set yet OR 
-  // if we have workspaces but activeWorkspaceId hasn't been determined yet
-  const stillInitializing = !isLoading && workspaces.length > 0 && !activeWorkspaceId;
-
+  // Consider loading only during the actual query.
+  // Once workspaces are fetched, the useEffect will set activeWorkspaceId synchronously.
+  // If workspaces.length === 0, activeWorkspaceId = null is valid (no workspaces available).
   return {
     workspaces,
     activeWorkspace,
     activeWorkspaceId,
     setActiveWorkspaceId,
-    loading: isLoading || stillInitializing,
+    loading: isLoading,
   };
 }
