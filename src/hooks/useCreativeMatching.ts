@@ -1156,12 +1156,13 @@ export function useCreativeMatching(campaignId?: string) {
 
       if (assignments.length > 0) {
         // Deduplicate assignments by the conflict key to avoid "ON CONFLICT DO UPDATE command cannot affect row a second time" error
-        // This can happen when the same asset matches multiple ad sets within the same campaign/market/phase
+        // The unique key now includes ad_set_name to allow same creative in different ad sets within the same phase
         const assignmentMap = new Map<string, typeof assignments[0]>();
         for (const assignment of assignments) {
-          const key = `${assignment.creative_id}|${assignment.campaign_id}|${assignment.platform}|${assignment.market}|${assignment.phase_name}`;
-          // Keep the last one (or first - doesn't matter since they should be identical except ad_set fields)
-          // We prefer keeping one with ad_set_id if available
+          // Include ad_set_name in the key - use 'default' for null to match the DB constraint
+          const adSetKey = assignment.ad_set_name || 'default';
+          const key = `${assignment.creative_id}|${assignment.campaign_id}|${assignment.platform}|${assignment.market}|${assignment.phase_name}|${adSetKey}`;
+          // For exact duplicates (same ad set), keep the one with more complete data
           const existing = assignmentMap.get(key);
           if (!existing || (assignment.ad_set_id && !existing.ad_set_id)) {
             assignmentMap.set(key, assignment);
@@ -1169,11 +1170,15 @@ export function useCreativeMatching(campaignId?: string) {
         }
         const deduplicatedAssignments = Array.from(assignmentMap.values());
         
-        // Upsert so re-saving doesn't create duplicates.
+        // Insert assignments - the unique index on (creative_id, campaign_id, platform, market, phase_name, COALESCE(ad_set_name, 'default'))
+        // handles conflicts. We use insert with onConflict to do an upsert.
+        // Note: Supabase upsert with functional index needs special handling
         const { data: upsertedAssignments, error: upsertError } = await supabase
           .from('creative_assignments')
           .upsert(deduplicatedAssignments, {
-            onConflict: 'creative_id,campaign_id,platform,market,phase_name',
+            // The unique index uses COALESCE, so we specify the raw columns and let Postgres handle it
+            onConflict: 'creative_id,campaign_id,platform,market,phase_name,ad_set_name',
+            ignoreDuplicates: false,
           })
           .select();
 
