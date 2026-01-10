@@ -627,18 +627,30 @@ const handler = async (req: Request): Promise<Response> => {
               }
 
               // Build video_data - Meta requires either image_hash or image_url
+              // Meta ALSO requires a call_to_action with link for video ads
+              const destinationLink = resolvedText.destinationUrl || metaLandingPageUrl;
+              
+              if (!destinationLink) {
+                console.error(`[push-creatives] No destination URL for video ad ${creative.name}`);
+                await supabase
+                  .from("creative_assignments")
+                  .update({ status: "error", error_message: "Video ads require a destination URL" })
+                  .eq("id", assignment.id);
+                localFailed++;
+                continue;
+              }
+              
               creativePayload.object_story_spec.video_data = {
                 video_id: creative.platform_video_id,
                 title: resolvedText.headline || creative.name,
                 message: resolvedText.primaryText,
-                call_to_action: resolvedText.callToAction
-                  ? {
-                      type: resolvedText.callToAction,
-                      value: {
-                        link: resolvedText.destinationUrl || metaLandingPageUrl || "https://example.com",
-                      },
-                    }
-                  : undefined,
+                // Meta requires call_to_action with link for video ads - default to LEARN_MORE if no CTA specified
+                call_to_action: {
+                  type: resolvedText.callToAction || "LEARN_MORE",
+                  value: {
+                    link: destinationLink,
+                  },
+                },
               };
 
               // Add thumbnail - Meta requires this
