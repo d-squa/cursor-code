@@ -16,7 +16,8 @@ const inputSchema = z.object({
 
 // Batch size for processing creatives to avoid resource exhaustion
 const BATCH_SIZE = 5;
-const BATCH_DELAY_MS = 500; // Delay between batches to prevent rate limiting
+const BATCH_DELAY_MS = 200; // Reduced delay between batches for faster processing
+const MAX_EXECUTION_TIME_MS = 25000; // Max execution time before returning partial results (25s safety margin)
 
 type PlatformKey = "meta" | "tiktok";
 
@@ -77,6 +78,8 @@ const handler = async (req: Request): Promise<Response> => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const startTime = Date.now(); // Track execution time for timeout protection
+  
   try {
     const authHeader = req.headers.get("authorization");
     if (!authHeader) {
@@ -162,6 +165,7 @@ const handler = async (req: Request): Promise<Response> => {
     let pushedCount = 0;
     let failedCount = 0;
     const results: any[] = [];
+    let timedOut = false;
 
     for (const entry of adsetStatuses || []) {
       const platformKey = toPlatformKey(entry.platform);
@@ -282,19 +286,27 @@ const handler = async (req: Request): Promise<Response> => {
       const batches = chunkArray(pendingAssignments, BATCH_SIZE);
       
       for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+        // Check for timeout before processing each batch
+        if (Date.now() - startTime > MAX_EXECUTION_TIME_MS) {
+          console.log(`[push-creatives] Approaching timeout limit, returning partial results`);
+          timedOut = true;
+          break;
+        }
+        
         const batch = batches[batchIndex];
         console.log(`[push-creatives] Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} items)`);
+
+        // Mark all items in batch as 'pushing' first
+        const batchIds = batch.map((a: any) => a.id);
+        await supabase
+          .from("creative_assignments")
+          .update({ status: "pushing" })
+          .in("id", batchIds);
 
         // Process each assignment in the batch sequentially to avoid rate limits
         for (const assignment of batch) {
           const creative = (assignment as any).creative;
           if (!creative) continue;
-
-          // Update status to 'pushing' for real-time progress tracking
-          await supabase
-            .from("creative_assignments")
-            .update({ status: "pushing" })
-            .eq("id", assignment.id);
 
           // Use assignment text fields with creative fallback
           const resolvedText = {
@@ -1139,11 +1151,16 @@ const handler = async (req: Request): Promise<Response> => {
         pushed: localPushed,
         failed: localFailed,
       });
+      
+      // Break out of outer loop if timed out
+      if (timedOut) break;
     }
 
     return new Response(
       JSON.stringify({
-        success: true,
+        success: !timedOut,
+        partial: timedOut,
+        message: timedOut ? "Partial results returned due to timeout. Please run again to continue." : undefined,
         pushedCount,
         failedCount,
         results,
