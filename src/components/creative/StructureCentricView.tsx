@@ -606,7 +606,7 @@ function EmptyAdSetsPanel({
   );
 }
 
-// Hierarchical types for Platform > Campaign > AdSet grouping
+// Hierarchical types for Platform > Campaign > Phase > AdSet grouping
 interface PlatformGroup {
   platform: string;
   campaigns: CampaignGroup[];
@@ -615,16 +615,22 @@ interface PlatformGroup {
 interface CampaignGroup {
   campaignId: string;
   campaignName: string;
+  phases: PhaseGroup[];
+}
+
+interface PhaseGroup {
+  phaseName: string;
   adSets: StructureMatchResult[];
 }
 
-// Helper to group structure results hierarchically
+// Helper to group structure results hierarchically: Platform > Campaign > Phase > AdSet
 function groupResultsHierarchically(results: StructureMatchResult[]): PlatformGroup[] {
-  const platformMap = new Map<string, Map<string, StructureMatchResult[]>>();
+  const platformMap = new Map<string, Map<string, Map<string, StructureMatchResult[]>>>();
   
   for (const result of results) {
     const platform = result.structure.platform || 'unknown';
     const campaignId = result.structure.campaignId || 'unknown';
+    const phaseName = result.structure.phases?.[0] || 'Default Phase';
     
     if (!platformMap.has(platform)) {
       platformMap.set(platform, new Map());
@@ -632,17 +638,29 @@ function groupResultsHierarchically(results: StructureMatchResult[]): PlatformGr
     const campaignMap = platformMap.get(platform)!;
     
     if (!campaignMap.has(campaignId)) {
-      campaignMap.set(campaignId, []);
+      campaignMap.set(campaignId, new Map());
     }
-    campaignMap.get(campaignId)!.push(result);
+    const phaseMap = campaignMap.get(campaignId)!;
+    
+    if (!phaseMap.has(phaseName)) {
+      phaseMap.set(phaseName, []);
+    }
+    phaseMap.get(phaseName)!.push(result);
   }
   
   const groups: PlatformGroup[] = [];
   for (const [platform, campaignMap] of platformMap) {
     const campaigns: CampaignGroup[] = [];
-    for (const [campaignId, adSets] of campaignMap) {
-      const campaignName = adSets[0]?.structure.campaignName || campaignId;
-      campaigns.push({ campaignId, campaignName, adSets });
+    for (const [campaignId, phaseMap] of campaignMap) {
+      const phases: PhaseGroup[] = [];
+      let campaignName = '';
+      for (const [phaseName, adSets] of phaseMap) {
+        if (!campaignName && adSets[0]) {
+          campaignName = adSets[0].structure.campaignName || campaignId;
+        }
+        phases.push({ phaseName, adSets });
+      }
+      campaigns.push({ campaignId, campaignName, phases });
     }
     groups.push({ platform, campaigns });
   }
@@ -786,9 +804,11 @@ function AssignedAssetsPanel({
             {hierarchicalGroups.map((platformGroup) => {
               const isPlatformExpanded = expandedPlatforms.has(platformGroup.platform);
               const platformAssetCount = platformGroup.campaigns.reduce(
-                (sum, c) => sum + c.adSets.reduce((s, a) => s + a.assignedAssets.length, 0), 0
+                (sum, c) => sum + c.phases.reduce((ps, p) => ps + p.adSets.reduce((as, a) => as + a.assignedAssets.length, 0), 0), 0
               );
-              const platformAdSetCount = platformGroup.campaigns.reduce((sum, c) => sum + c.adSets.length, 0);
+              const platformAdSetCount = platformGroup.campaigns.reduce(
+                (sum, c) => sum + c.phases.reduce((ps, p) => ps + p.adSets.length, 0), 0
+              );
               
               return (
                 <div key={platformGroup.platform} className="border rounded-lg bg-background overflow-hidden">
@@ -814,7 +834,10 @@ function AssignedAssetsPanel({
                         {/* Campaign level */}
                         {platformGroup.campaigns.map((campaignGroup) => {
                           const isCampaignExpanded = expandedCampaigns.has(campaignGroup.campaignId);
-                          const campaignAssetCount = campaignGroup.adSets.reduce((sum, a) => sum + a.assignedAssets.length, 0);
+                          const campaignAssetCount = campaignGroup.phases.reduce(
+                            (sum, p) => sum + p.adSets.reduce((as, a) => as + a.assignedAssets.length, 0), 0
+                          );
+                          const campaignAdSetCount = campaignGroup.phases.reduce((sum, p) => sum + p.adSets.length, 0);
                           
                           return (
                             <div key={campaignGroup.campaignId} className="border rounded-lg bg-background overflow-hidden">
@@ -826,9 +849,12 @@ function AssignedAssetsPanel({
                                     </div>
                                     <div className="flex-1 min-w-0">
                                       <span className="text-sm font-medium truncate">{campaignGroup.campaignName}</span>
+                                      <span className="text-xs text-muted-foreground ml-2">
+                                        {campaignGroup.phases.length} phase{campaignGroup.phases.length !== 1 ? 's' : ''}
+                                      </span>
                                     </div>
                                     <Badge variant="outline" className="text-xs">
-                                      {campaignGroup.adSets.length} ad sets • {campaignAssetCount} creatives
+                                      {campaignAdSetCount} ad sets • {campaignAssetCount} creatives
                                     </Badge>
                                     {isCampaignExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                                   </div>
@@ -836,159 +862,193 @@ function AssignedAssetsPanel({
                                 
                                 <CollapsibleContent>
                                   <div className="pl-4 pr-2 pb-2 space-y-2">
-                                    {/* AdSet level */}
-                                    {campaignGroup.adSets.map((result) => {
-                                      const { structure, assignedAssets } = result;
-                                      const isAdSetExpanded = expandedAdSets.has(structure.id);
-                                      const acceptedCount = assignedAssets.filter(a => acceptedMatches.has(`${a.asset.id}:${structure.id}`)).length;
-                                      const hasAdSetUnaccepted = acceptedCount < assignedAssets.length;
+                                    {/* Phase level */}
+                                    {campaignGroup.phases.map((phaseGroup) => {
+                                      const isPhaseExpanded = expandedCampaigns.has(`phase:${campaignGroup.campaignId}:${phaseGroup.phaseName}`);
+                                      const phaseAssetCount = phaseGroup.adSets.reduce((sum, a) => sum + a.assignedAssets.length, 0);
                                       
                                       return (
-                                        <div key={structure.id} className="border rounded-lg bg-muted/20">
-                                          <Collapsible open={isAdSetExpanded} onOpenChange={() => toggleAdSet(structure.id)}>
+                                        <div key={phaseGroup.phaseName} className="border rounded-lg bg-muted/10 overflow-hidden">
+                                          <Collapsible 
+                                            open={isPhaseExpanded} 
+                                            onOpenChange={() => toggleCampaign(`phase:${campaignGroup.campaignId}:${phaseGroup.phaseName}`)}
+                                          >
                                             <CollapsibleTrigger asChild>
-                                              <div className="flex items-center gap-2 p-2 cursor-pointer hover:bg-muted/50 transition-colors">
-                                                <div className="w-5 h-5 rounded bg-secondary/50 flex items-center justify-center shrink-0">
-                                                  <Layers className="h-3 w-3 text-muted-foreground" />
+                                              <div className="flex items-center gap-2.5 p-2 cursor-pointer hover:bg-muted/50 transition-colors">
+                                                <div className="w-5 h-5 rounded bg-amber-500/20 flex items-center justify-center shrink-0">
+                                                  <span className="text-[10px]">📍</span>
                                                 </div>
                                                 <div className="flex-1 min-w-0">
-                                                  <div className="flex items-center gap-2">
-                                                    <span className="text-xs font-medium truncate">{structure.adSetName}</span>
-                                                    {acceptedCount > 0 && (
-                                                      <Badge className="bg-emerald-500 text-[10px] py-0 h-4">
-                                                        {acceptedCount} accepted
-                                                      </Badge>
-                                                    )}
-                                                  </div>
-                                                  {/* Compact taxonomy info */}
-                                                  {structure.taxonomyElements && Object.entries(structure.taxonomyElements).length > 0 && (
-                                                    <div className="text-[9px] text-muted-foreground mt-0.5 leading-relaxed truncate">
-                                                      {Object.entries(structure.taxonomyElements)
-                                                        .filter(([key, value]) => {
-                                                          if (!value || value === '') return false;
-                                                          const splitParams = ['Gender', 'Devices', 'Age Range', 'Languages', 'Location'];
-                                                          if (splitParams.includes(key)) return true;
-                                                          return value !== 'ALL';
-                                                        })
-                                                        .slice(0, 6)
-                                                        .map(([param, value], idx) => (
-                                                          <span key={param}>
-                                                            {idx > 0 && <span className="mx-0.5">•</span>}
-                                                            <span className="font-medium">{value}</span>
-                                                          </span>
-                                                        ))
-                                                      }
-                                                    </div>
-                                                  )}
+                                                  <span className="text-xs font-medium">{phaseGroup.phaseName}</span>
                                                 </div>
-                                                <div className="flex items-center gap-1.5">
-                                                  {hasAdSetUnaccepted && (
-                                                    <Button
-                                                      size="sm"
-                                                      variant="ghost"
-                                                      className="h-5 text-[9px] px-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10"
-                                                      onClick={(e) => { 
-                                                        e.stopPropagation(); 
-                                                        assignedAssets.forEach(a => onAcceptAsset(a.asset.id, structure));
-                                                      }}
-                                                    >
-                                                      <Check className="h-2.5 w-2.5 mr-0.5" />
-                                                      Accept
-                                                    </Button>
-                                                  )}
-                                                  <Badge variant="secondary" className="shrink-0 text-[10px] h-4">
-                                                    {assignedAssets.length}
-                                                  </Badge>
-                                                  {isAdSetExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                                                </div>
+                                                <Badge variant="secondary" className="text-[10px] h-5">
+                                                  {phaseGroup.adSets.length} ad sets • {phaseAssetCount} creatives
+                                                </Badge>
+                                                {isPhaseExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                                               </div>
                                             </CollapsibleTrigger>
                                             
                                             <CollapsibleContent>
-                                              <div className="px-2 pb-2 space-y-1.5">
-                                                {assignedAssets.map((assignedAsset) => {
-                                                  const { asset, confidenceScore, reasoning, matchedCriteria, issues } = assignedAsset;
-                                                  const isAccepted = acceptedMatches.has(`${asset.id}:${structure.id}`);
-                                                  const compositeKey = `${asset.id}:${structure.id}`;
-                                                  const progressItem = saveProgress?.get(compositeKey);
+                                              <div className="pl-3 pr-2 pb-2 space-y-1.5">
+                                                {/* AdSet level */}
+                                                {phaseGroup.adSets.map((result) => {
+                                                  const { structure, assignedAssets } = result;
+                                                  const isAdSetExpanded = expandedAdSets.has(structure.id);
+                                                  const acceptedCount = assignedAssets.filter(a => acceptedMatches.has(`${a.asset.id}:${structure.id}`)).length;
+                                                  const hasAdSetUnaccepted = acceptedCount < assignedAssets.length;
                                                   
                                                   return (
-                                                    <div 
-                                                      key={asset.id}
-                                                      className={cn(
-                                                        "p-2 rounded-lg border flex items-center gap-2",
-                                                        isAccepted ? "bg-emerald-500/10 border-emerald-500/30" : "bg-background",
-                                                        progressItem?.status === 'done' && "bg-emerald-500/15 border-emerald-500/50",
-                                                        progressItem?.status === 'error' && "bg-destructive/10 border-destructive/30"
-                                                      )}
-                                                    >
-                                                      <AssetThumbnail asset={asset} />
-                                                      <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center gap-2">
-                                                          <span className="text-xs font-medium truncate">{asset.fileName}</span>
-                                                          <TooltipProvider>
-                                                            <Tooltip>
-                                                              <TooltipTrigger asChild>
-                                                                <Button variant="ghost" size="icon" className="h-4 w-4 p-0">
-                                                                  <Info className="h-3 w-3 text-muted-foreground" />
+                                                    <div key={structure.id} className="border rounded-lg bg-background">
+                                                      <Collapsible open={isAdSetExpanded} onOpenChange={() => toggleAdSet(structure.id)}>
+                                                        <CollapsibleTrigger asChild>
+                                                          <div className="flex items-center gap-2 p-2 cursor-pointer hover:bg-muted/50 transition-colors">
+                                                            <div className="w-5 h-5 rounded bg-secondary/50 flex items-center justify-center shrink-0">
+                                                              <Layers className="h-3 w-3 text-muted-foreground" />
+                                                            </div>
+                                                            <div className="flex-1 min-w-0">
+                                                              <div className="flex items-center gap-2">
+                                                                <span className="text-xs font-medium truncate">{structure.adSetName}</span>
+                                                                {acceptedCount > 0 && (
+                                                                  <Badge className="bg-emerald-500 text-[10px] py-0 h-4">
+                                                                    {acceptedCount} accepted
+                                                                  </Badge>
+                                                                )}
+                                                              </div>
+                                                              {/* Compact taxonomy info */}
+                                                              {structure.taxonomyElements && Object.entries(structure.taxonomyElements).length > 0 && (
+                                                                <div className="text-[9px] text-muted-foreground mt-0.5 leading-relaxed truncate">
+                                                                  {Object.entries(structure.taxonomyElements)
+                                                                    .filter(([key, value]) => {
+                                                                      if (!value || value === '') return false;
+                                                                      const splitParams = ['Gender', 'Devices', 'Age Range', 'Languages', 'Location'];
+                                                                      if (splitParams.includes(key)) return true;
+                                                                      return value !== 'ALL';
+                                                                    })
+                                                                    .slice(0, 6)
+                                                                    .map(([param, value], idx) => (
+                                                                      <span key={param}>
+                                                                        {idx > 0 && <span className="mx-0.5">•</span>}
+                                                                        <span className="font-medium">{String(value)}</span>
+                                                                      </span>
+                                                                    ))
+                                                                  }
+                                                                </div>
+                                                              )}
+                                                            </div>
+                                                            <div className="flex items-center gap-1.5">
+                                                              {hasAdSetUnaccepted && (
+                                                                <Button
+                                                                  size="sm"
+                                                                  variant="ghost"
+                                                                  className="h-5 text-[9px] px-1.5 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10"
+                                                                  onClick={(e) => { 
+                                                                    e.stopPropagation(); 
+                                                                    assignedAssets.forEach(a => onAcceptAsset(a.asset.id, structure));
+                                                                  }}
+                                                                >
+                                                                  <Check className="h-2.5 w-2.5 mr-0.5" />
+                                                                  Accept
                                                                 </Button>
-                                                              </TooltipTrigger>
-                                                              <TooltipContent side="right" className="p-3 max-w-xs">
-                                                                <div className="space-y-2">
-                                                                  <p className="font-semibold text-xs border-b pb-1">Why matched:</p>
-                                                                  <ul className="space-y-1 text-xs">
-                                                                    {reasoning.map((r, i) => (
-                                                                      <li key={i} className="flex items-start gap-1">
-                                                                        <Check className="h-3 w-3 text-emerald-500 shrink-0 mt-0.5" />
-                                                                        <span>{r}</span>
-                                                                      </li>
-                                                                    ))}
-                                                                  </ul>
-                                                                  {issues.length > 0 && (
-                                                                    <>
-                                                                      <p className="font-semibold text-xs border-t pt-2 text-amber-600">Warnings:</p>
-                                                                      <ul className="space-y-1 text-xs">
-                                                                        {issues.map((issue, i) => (
-                                                                          <li key={i} className="text-amber-600">{issue.message}</li>
-                                                                        ))}
-                                                                      </ul>
-                                                                    </>
+                                                              )}
+                                                              <Badge variant="secondary" className="shrink-0 text-[10px] h-4">
+                                                                {assignedAssets.length}
+                                                              </Badge>
+                                                              {isAdSetExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                                                            </div>
+                                                          </div>
+                                                        </CollapsibleTrigger>
+                                                        
+                                                        <CollapsibleContent>
+                                                          <div className="px-2 pb-2 space-y-1.5">
+                                                            {assignedAssets.map((assignedAsset) => {
+                                                              const { asset, confidenceScore, reasoning, matchedCriteria, issues } = assignedAsset;
+                                                              const isAccepted = acceptedMatches.has(`${asset.id}:${structure.id}`);
+                                                              const compositeKey = `${asset.id}:${structure.id}`;
+                                                              const progressItem = saveProgress?.get(compositeKey);
+                                                              
+                                                              return (
+                                                                <div 
+                                                                  key={asset.id}
+                                                                  className={cn(
+                                                                    "p-2 rounded-lg border flex items-center gap-2",
+                                                                    isAccepted ? "bg-emerald-500/10 border-emerald-500/30" : "bg-background",
+                                                                    progressItem?.status === 'done' && "bg-emerald-500/15 border-emerald-500/50",
+                                                                    progressItem?.status === 'error' && "bg-destructive/10 border-destructive/30"
+                                                                  )}
+                                                                >
+                                                                  <AssetThumbnail asset={asset} />
+                                                                  <div className="flex-1 min-w-0">
+                                                                    <div className="flex items-center gap-2">
+                                                                      <span className="text-xs font-medium truncate">{asset.fileName}</span>
+                                                                      <TooltipProvider>
+                                                                        <Tooltip>
+                                                                          <TooltipTrigger asChild>
+                                                                            <Button variant="ghost" size="icon" className="h-4 w-4 p-0">
+                                                                              <Info className="h-3 w-3 text-muted-foreground" />
+                                                                            </Button>
+                                                                          </TooltipTrigger>
+                                                                          <TooltipContent side="right" className="p-3 max-w-xs">
+                                                                            <div className="space-y-2">
+                                                                              <p className="font-semibold text-xs border-b pb-1">Why matched:</p>
+                                                                              <ul className="space-y-1 text-xs">
+                                                                                {reasoning.map((r, i) => (
+                                                                                  <li key={i} className="flex items-start gap-1">
+                                                                                    <Check className="h-3 w-3 text-emerald-500 shrink-0 mt-0.5" />
+                                                                                    <span>{r}</span>
+                                                                                  </li>
+                                                                                ))}
+                                                                              </ul>
+                                                                              {issues.length > 0 && (
+                                                                                <>
+                                                                                  <p className="font-semibold text-xs border-t pt-2 text-amber-600">Warnings:</p>
+                                                                                  <ul className="space-y-1 text-xs">
+                                                                                    {issues.map((issue, i) => (
+                                                                                      <li key={i} className="text-amber-600">{issue.message}</li>
+                                                                                    ))}
+                                                                                  </ul>
+                                                                                </>
+                                                                              )}
+                                                                            </div>
+                                                                          </TooltipContent>
+                                                                        </Tooltip>
+                                                                      </TooltipProvider>
+                                                                    </div>
+                                                                    <MatchCriteriaList criteria={matchedCriteria} />
+                                                                  </div>
+                                                                  <MatchConfidenceIndicator score={confidenceScore} size="sm" />
+                                                                  
+                                                                  {progressItem ? (
+                                                                    <SaveStatusIndicator status={progressItem.status} error={progressItem.error} />
+                                                                  ) : isAccepted ? (
+                                                                    <Badge className="bg-emerald-500 shrink-0 text-[10px]">
+                                                                      <Check className="h-2.5 w-2.5 mr-0.5" />
+                                                                      OK
+                                                                    </Badge>
+                                                                  ) : (
+                                                                    <div className="flex gap-1 shrink-0">
+                                                                      <Button 
+                                                                        size="sm" 
+                                                                        onClick={() => onAcceptAsset(asset.id, structure)}
+                                                                        className="bg-emerald-500 hover:bg-emerald-600 h-6 w-6 p-0"
+                                                                      >
+                                                                        <Check className="h-3 w-3" />
+                                                                      </Button>
+                                                                      <Button 
+                                                                        size="sm" 
+                                                                        variant="ghost"
+                                                                        onClick={() => onRejectAsset(asset.id, structure.id)}
+                                                                        className="h-6 w-6 p-0"
+                                                                      >
+                                                                        <X className="h-3 w-3" />
+                                                                      </Button>
+                                                                    </div>
                                                                   )}
                                                                 </div>
-                                                              </TooltipContent>
-                                                            </Tooltip>
-                                                          </TooltipProvider>
-                                                        </div>
-                                                        <MatchCriteriaList criteria={matchedCriteria} />
-                                                      </div>
-                                                      <MatchConfidenceIndicator score={confidenceScore} size="sm" />
-                                                      
-                                                      {progressItem ? (
-                                                        <SaveStatusIndicator status={progressItem.status} error={progressItem.error} />
-                                                      ) : isAccepted ? (
-                                                        <Badge className="bg-emerald-500 shrink-0 text-[10px]">
-                                                          <Check className="h-2.5 w-2.5 mr-0.5" />
-                                                          OK
-                                                        </Badge>
-                                                      ) : (
-                                                        <div className="flex gap-1 shrink-0">
-                                                          <Button 
-                                                            size="sm" 
-                                                            onClick={() => onAcceptAsset(asset.id, structure)}
-                                                            className="bg-emerald-500 hover:bg-emerald-600 h-6 w-6 p-0"
-                                                          >
-                                                            <Check className="h-3 w-3" />
-                                                          </Button>
-                                                          <Button 
-                                                            size="sm" 
-                                                            variant="ghost"
-                                                            onClick={() => onRejectAsset(asset.id, structure.id)}
-                                                            className="h-6 w-6 p-0"
-                                                          >
-                                                            <X className="h-3 w-3" />
-                                                          </Button>
-                                                        </div>
-                                                      )}
+                                                              );
+                                                            })}
+                                                          </div>
+                                                        </CollapsibleContent>
+                                                      </Collapsible>
                                                     </div>
                                                   );
                                                 })}
