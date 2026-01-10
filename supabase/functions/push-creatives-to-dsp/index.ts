@@ -838,13 +838,47 @@ const handler = async (req: Request): Promise<Response> => {
                     body: formData,
                   });
 
-                  const uploadData = await uploadResp.json();
+                  const uploadText = await uploadResp.text();
+                  let uploadData: any = null;
+                  try {
+                    uploadData = uploadText ? JSON.parse(uploadText) : null;
+                  } catch {
+                    // keep uploadData as null; we'll include raw response in errors below
+                  }
+
+                  if (!uploadResp.ok) {
+                    console.error("[push-creatives] TikTok video upload HTTP error", {
+                      status: uploadResp.status,
+                      statusText: uploadResp.statusText,
+                      bodyPreview: uploadText?.slice(0, 800),
+                    });
+                    throw new Error(`TikTok video upload HTTP ${uploadResp.status}`);
+                  }
+
                   if (uploadData?.code !== 0) {
+                    console.error("[push-creatives] TikTok video upload API error", {
+                      code: uploadData?.code,
+                      message: uploadData?.message,
+                      data: uploadData?.data,
+                    });
                     throw new Error(uploadData?.message || "TikTok video upload failed");
                   }
 
-                  const videoId = uploadData?.data?.video_id;
+                  const videoId =
+                    uploadData?.data?.video_id ??
+                    uploadData?.data?.video_info?.video_id ??
+                    uploadData?.video_id ??
+                    uploadData?.data?.video?.video_id ??
+                    uploadData?.data?.video_id_str ??
+                    uploadData?.data?.videoId ??
+                    uploadData?.data?.video?.id ??
+                    uploadData?.data?.id;
+
                   if (!videoId) {
+                    console.error("[push-creatives] TikTok upload response missing video_id", {
+                      bodyPreview: uploadText?.slice(0, 800),
+                      uploadData,
+                    });
                     throw new Error("TikTok video upload returned no video_id");
                   }
 
