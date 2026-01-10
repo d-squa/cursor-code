@@ -99,8 +99,9 @@ export default function Auth() {
           })();
         }, 0);
 
+        // Only check pending email if it matches current session email
         const pendingEmail = localStorage.getItem("actiplan_pending_signup_email");
-        if (pendingEmail) {
+        if (pendingEmail && pendingEmail === session.user.email) {
           if (isConfirmedRedirect) {
             localStorage.removeItem("actiplan_pending_signup_email");
             localStorage.removeItem("actiplan_onboarding");
@@ -111,6 +112,11 @@ export default function Auth() {
             setEmail(pendingEmail);
           }
           return;
+        }
+        
+        // Clear stale pending email if it doesn't match current user
+        if (pendingEmail && pendingEmail !== session.user.email) {
+          localStorage.removeItem("actiplan_pending_signup_email");
         }
 
         setShowEmailConfirmation(false);
@@ -124,7 +130,7 @@ export default function Auth() {
           return;
         }
 
-        // Onboarding complete - check subscription status and auto-start Basic trial
+        // Onboarding complete - check subscription status and redirect
         setTimeout(() => {
           void (async () => {
             try {
@@ -139,23 +145,12 @@ export default function Auth() {
                 return;
               }
 
-              // No subscription - automatically start Basic Monthly trial checkout
-              const priceId = PRICE_IDS.basic.monthly;
-              const { data } = await supabase.functions.invoke("create-checkout", {
-                body: { priceId },
-                headers: {
-                  Authorization: `Bearer ${session.access_token}`,
-                },
-              });
-
-              if (data?.url) {
-                window.location.href = data.url;
-              } else {
-                navigate("/choose-plan");
-              }
+              // No subscription - redirect to choose plan (don't auto-start checkout)
+              navigate("/choose-plan");
             } catch (error) {
               console.error("Error checking subscription:", error);
-              navigate("/choose-plan");
+              // On error, try to navigate to overview - SubscriptionGuard will handle redirect if needed
+              navigate("/overview");
             }
           })();
         }, 0);
