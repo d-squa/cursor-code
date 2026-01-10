@@ -498,11 +498,31 @@ export default function LaunchStatus() {
       });
 
       if (error) throw error;
-      if (data?.success === false) {
+      
+      // Handle partial results (timeout but some creatives pushed)
+      if (data?.partial) {
+        toast.warning(data.message || "Partial results - run again to continue", {
+          duration: 10000,
+          description: `Pushed: ${data.pushedCount || 0}, Failed: ${data.failedCount || 0}. Some creatives may need another push.`,
+        });
+        await loadData();
+        return;
+      }
+      
+      // Handle complete failure
+      if (data?.success === false && !data?.partial) {
         throw new Error(data?.error || "Failed to push creatives");
       }
 
-      toast.success("Creatives push completed");
+      // Handle success with failures
+      if (data?.failedCount > 0) {
+        toast.warning(`Creatives push completed with ${data.failedCount} failure(s)`, {
+          duration: 8000,
+          description: `Pushed: ${data.pushedCount || 0}, Failed: ${data.failedCount}. Check individual creative status for details.`,
+        });
+      } else {
+        toast.success(`Creatives push completed! ${data?.pushedCount || 0} creative(s) pushed.`);
+      }
       
       await loadData();
     } catch (error: any) {
