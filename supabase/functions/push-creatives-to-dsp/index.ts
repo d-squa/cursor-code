@@ -815,13 +815,19 @@ const handler = async (req: Request): Promise<Response> => {
                 const urlTail = mediaUrl.split("/").pop() || "asset";
                 const safeName = (fullCreative.name || creative.name || urlTail).slice(0, 180);
 
-                if (isVideoFile) {
+              if (isVideoFile) {
                   const uploadUrl = "https://business-api.tiktok.com/open_api/v1.3/file/video/ad/upload/";
                   const formData = new FormData();
                   const blob = new Blob([bytes], { type: "video/mp4" });
 
+                  // Compute MD5 hash for video_signature (required by TikTok)
+                  const hashBuffer = await crypto.subtle.digest("MD5", bytes);
+                  const hashArray = Array.from(new Uint8Array(hashBuffer));
+                  const videoSignature = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
                   formData.append("advertiser_id", advertiserId);
                   formData.append("upload_type", "UPLOAD_BY_FILE");
+                  formData.append("video_signature", videoSignature);
                   formData.append("video_file", blob, safeName.endsWith(".mp4") ? safeName : `${safeName}.mp4`);
 
                   console.log(`[push-creatives] Auto-uploading video to TikTok: ${uploadUrl}`);
