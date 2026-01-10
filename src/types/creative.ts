@@ -538,7 +538,7 @@ export function creativeToDbInsert(creative: Partial<Creative> & { userId: strin
     height: creative.height,
     aspect_ratio: creative.aspectRatio,
     file_size_bytes: creative.fileSizeBytes,
-    duration_seconds: creative.durationSeconds,
+    duration_seconds: typeof creative.durationSeconds === 'number' ? Math.round(creative.durationSeconds) : creative.durationSeconds,
     folder_path: creative.folderPath,
     original_filename: creative.originalFilename,
     spreadsheet_row_number: creative.spreadsheetRowNumber,
