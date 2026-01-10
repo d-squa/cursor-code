@@ -775,6 +775,17 @@ const handler = async (req: Request): Promise<Response> => {
               continue;
             }
 
+            // Fetch TikTok ad account defaults (identity, pixel, etc.)
+            const { data: tiktokAdAccountDefaults } = await supabase
+              .from("tiktok_ad_accounts")
+              .select(`
+                default_identity_id,
+                default_pixel_id,
+                default_landing_page_url
+              `)
+              .eq("advertiser_id", advertiserId)
+              .maybeSingle();
+
             let hasTikTokAsset = !!(creative.platform_video_id || creative.platform_image_hash);
 
             // Auto-upload to TikTok if creative is missing DSP asset IDs
@@ -1011,18 +1022,23 @@ const handler = async (req: Request): Promise<Response> => {
             }
 
             const identityId =
-              creative.tiktok_identity_id || (market as any)?.tiktokIdentityId || (market as any)?.defaultIdentityId;
+              creative.tiktok_identity_id ||
+              (market as any)?.tiktokIdentityId ||
+              (market as any)?.defaultIdentityId ||
+              tiktokAdAccountDefaults?.default_identity_id;
+
             if (!identityId) {
+              console.error(`[push-creatives] No TikTok Identity ID found for creative ${creative.id}. Checked: creative.tiktok_identity_id, market.tiktokIdentityId, market.defaultIdentityId, tiktokAdAccountDefaults.default_identity_id`);
               await supabase
                 .from("creative_assignments")
-                .update({ status: "error", error_message: "No TikTok Identity ID configured" })
+                .update({ status: "error", error_message: "No TikTok Identity ID configured - set it on the creative, market, or ad account defaults" })
                 .eq("id", assignment.id);
               localFailed++;
               continue;
             }
 
             const isVideo = creative.media_type === "video" || creative.creative_type === "video";
-            const landingPageUrl = resolvedText.destinationUrl || (phase as any)?.landingPageUrl || (market as any)?.landingPageUrl;
+            const landingPageUrl = resolvedText.destinationUrl || (phase as any)?.landingPageUrl || (market as any)?.landingPageUrl || tiktokAdAccountDefaults?.default_landing_page_url;
 
             const tiktokAdPayload: any = {
               advertiser_id: advertiserId,
