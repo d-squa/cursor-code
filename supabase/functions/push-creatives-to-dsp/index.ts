@@ -773,13 +773,156 @@ const handler = async (req: Request): Promise<Response> => {
               continue;
             }
 
-            const hasTikTokAsset = creative.platform_video_id || creative.platform_image_hash;
+            let hasTikTokAsset = !!(creative.platform_video_id || creative.platform_image_hash);
+
+            // Auto-upload to TikTok if creative is missing DSP asset IDs
+            if (!hasTikTokAsset) {
+              console.log(`[push-creatives] Creative ${creative.id} missing TikTok asset, attempting auto-upload`);
+
+              const { data: fullCreative, error: creativeError } = await supabase
+                .from("creatives")
+                .select("media_urls, media_type, name, thumbnail_url")
+                .eq("id", creative.id)
+                .single();
+
+              if (creativeError || !fullCreative?.media_urls?.[0]) {
+                console.error(`[push-creatives] Cannot auto-upload: no media URL for creative ${creative.id}`);
+                await supabase
+                  .from("creative_assignments")
+                  .update({
+                    status: "error",
+                    error_message: "Creative missing media file - cannot auto-upload to TikTok",
+                  })
+                  .eq("id", assignment.id);
+                localFailed++;
+                continue;
+              }
+
+              const mediaUrl: string = fullCreative.media_urls[0];
+              const isVideoFile =
+                fullCreative.media_type === "video" || /(\.mp4|\.mov|\.webm)(\?|$)/i.test(mediaUrl);
+
+              try {
+                const mediaResp = await fetch(mediaUrl);
+                if (!mediaResp.ok) {
+                  throw new Error(`Failed to fetch media (${mediaResp.status})`);
+                }
+
+                const mediaBuf = await mediaResp.arrayBuffer();
+                const bytes = new Uint8Array(mediaBuf);
+
+                // Best-effort filename: use creative name, fallback to URL tail
+                const urlTail = mediaUrl.split("/").pop() || "asset";
+                const safeName = (fullCreative.name || creative.name || urlTail).slice(0, 180);
+
+                if (isVideoFile) {
+                  const uploadUrl = "https://business-api.tiktok.com/open_api/v1.3/file/video/ad/upload/";
+                  const formData = new FormData();
+                  const blob = new Blob([bytes], { type: "video/mp4" });
+
+                  formData.append("advertiser_id", advertiserId);
+                  formData.append("upload_type", "UPLOAD_BY_FILE");
+                  formData.append("video_file", blob, safeName.endsWith(".mp4") ? safeName : `${safeName}.mp4`);
+
+                  console.log(`[push-creatives] Auto-uploading video to TikTok: ${uploadUrl}`);
+                  const uploadResp = await fetch(uploadUrl, {
+                    method: "POST",
+                    headers: { "Access-Token": platform.access_token },
+                    body: formData,
+                  });
+
+                  const uploadData = await uploadResp.json();
+                  if (uploadData?.code !== 0) {
+                    throw new Error(uploadData?.message || "TikTok video upload failed");
+                  }
+
+                  const videoId = uploadData?.data?.video_id;
+                  if (!videoId) {
+                    throw new Error("TikTok video upload returned no video_id");
+                  }
+
+                  await supabase
+                    .from("creatives")
+                    .update({
+                      platform_video_id: videoId,
+                      dsp_upload_status: "uploaded",
+                      dsp_uploaded_at: new Date().toISOString(),
+                      dsp_upload_error: null,
+                    })
+                    .eq("id", creative.id);
+
+                  creative.platform_video_id = videoId;
+                  hasTikTokAsset = true;
+                  console.log(`[push-creatives] TikTok video uploaded, video_id: ${videoId}`);
+                } else {
+                  const uploadUrl = "https://business-api.tiktok.com/open_api/v1.3/file/image/ad/upload/";
+                  const formData = new FormData();
+                  const blob = new Blob([bytes], { type: "image/jpeg" });
+
+                  formData.append("advertiser_id", advertiserId);
+                  formData.append("upload_type", "UPLOAD_BY_FILE");
+                  formData.append("image_file", blob, safeName);
+
+                  console.log(`[push-creatives] Auto-uploading image to TikTok: ${uploadUrl}`);
+                  const uploadResp = await fetch(uploadUrl, {
+                    method: "POST",
+                    headers: { "Access-Token": platform.access_token },
+                    body: formData,
+                  });
+
+                  const uploadData = await uploadResp.json();
+                  if (uploadData?.code !== 0) {
+                    throw new Error(uploadData?.message || "TikTok image upload failed");
+                  }
+
+                  const imageId = uploadData?.data?.id;
+                  if (!imageId) {
+                    throw new Error("TikTok image upload returned no id");
+                  }
+
+                  await supabase
+                    .from("creatives")
+                    .update({
+                      platform_image_hash: imageId,
+                      dsp_upload_status: "uploaded",
+                      dsp_uploaded_at: new Date().toISOString(),
+                      dsp_upload_error: null,
+                    })
+                    .eq("id", creative.id);
+
+                  creative.platform_image_hash = imageId;
+                  hasTikTokAsset = true;
+                  console.log(`[push-creatives] TikTok image uploaded, image_id: ${imageId}`);
+                }
+              } catch (uploadError) {
+                const msg = uploadError instanceof Error ? uploadError.message : "Unknown error";
+                console.error(`[push-creatives] Auto-upload failed for TikTok creative ${creative.id}:`, uploadError);
+
+                await supabase
+                  .from("creatives")
+                  .update({ dsp_upload_status: "error", dsp_upload_error: msg })
+                  .eq("id", creative.id);
+
+                await supabase
+                  .from("creative_assignments")
+                  .update({
+                    status: "error",
+                    error_message: `Auto-upload to TikTok failed: ${msg}`,
+                  })
+                  .eq("id", assignment.id);
+
+                localFailed++;
+                continue;
+              }
+            }
+
+            // Final check after auto-upload attempt
             if (!hasTikTokAsset) {
               await supabase
                 .from("creative_assignments")
                 .update({
                   status: "error",
-                  error_message: "Creative not uploaded to TikTok (missing platform_video_id/platform_image_hash)",
+                  error_message: "Creative not uploaded to TikTok (upload failed)",
                 })
                 .eq("id", assignment.id);
               localFailed++;
