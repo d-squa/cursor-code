@@ -1040,6 +1040,21 @@ const handler = async (req: Request): Promise<Response> => {
             const isVideo = creative.media_type === "video" || creative.creative_type === "video";
             const landingPageUrl = resolvedText.destinationUrl || (phase as any)?.landingPageUrl || (market as any)?.landingPageUrl || tiktokAdAccountDefaults?.default_landing_page_url;
 
+            // Determine identity type - TT_ACCOUNT for Business Center identities, CUSTOMIZED_USER for custom
+            // Look up identity type from tiktok_identities table if available
+            let identityType = "CUSTOMIZED_USER"; // Default fallback
+            const { data: identityRecord } = await supabase
+              .from("tiktok_identities")
+              .select("identity_type")
+              .eq("identity_id", identityId)
+              .maybeSingle();
+            
+            if (identityRecord?.identity_type) {
+              // Map our stored type to TikTok API format
+              identityType = identityRecord.identity_type === "TT_ACCOUNT" ? "TT_USER" : "CUSTOMIZED_USER";
+            }
+            console.log(`[push-creatives] Using identity ${identityId} with type ${identityType}`);
+
             const tiktokAdPayload: any = {
               advertiser_id: advertiserId,
               adgroup_id: entry.dsp_entity_id,
@@ -1048,7 +1063,7 @@ const handler = async (req: Request): Promise<Response> => {
                   ad_name: creative.name,
                   ad_format: creative.tiktok_ad_format || (isVideo ? "SINGLE_VIDEO" : "SINGLE_IMAGE"),
                   identity_id: identityId,
-                  identity_type: "CUSTOMIZED_USER",
+                  identity_type: identityType,
                   ad_text: resolvedText.primaryText || resolvedText.headline,
                   call_to_action: resolvedText.callToAction || "LEARN_MORE",
                   landing_page_url: landingPageUrl,
