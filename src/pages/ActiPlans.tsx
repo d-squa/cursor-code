@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, Play, Edit, CheckCircle, XCircle, MessageSquare, History, Trash2, Download, TrendingUp, MoreVertical, ArrowLeft, Search, BarChart3, FileText, FileSpreadsheet, ChevronDown, Rocket, Lock, ClipboardList, Activity, Send, Copy } from "lucide-react";
+import { Loader2, Play, Edit, CheckCircle, XCircle, MessageSquare, History, Trash2, Download, TrendingUp, MoreVertical, ArrowLeft, Search, BarChart3, FileText, FileSpreadsheet, ChevronDown, Rocket, Lock, ClipboardList, Activity, Send, Copy, PlusCircle } from "lucide-react";
 import { LockedFeatureButton } from "@/components/ui/locked-feature-button";
 import { LockedDropdownMenuItem } from "@/components/ui/locked-dropdown-menu-item";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
@@ -693,10 +693,18 @@ export default function ActiPlans() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                {canEdit(campaign) && campaign.status !== "pushed_to_dsp" && (
+                {canEdit(campaign) && !["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
                   <DropdownMenuItem onClick={() => navigate(`/app?campaignId=${campaign.id}`)}>
                     <Edit className="w-4 h-4 mr-2" />
                     Edit ActiPlan
+                  </DropdownMenuItem>
+                )}
+                
+                {/* Extend Campaign - for pushed/live campaigns to add new phases or creatives */}
+                {canEdit(campaign) && ["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
+                  <DropdownMenuItem onClick={() => navigate(`/app?campaignId=${campaign.id}&mode=extend`)}>
+                    <PlusCircle className="w-4 h-4 mr-2" />
+                    Extend Campaign
                   </DropdownMenuItem>
                 )}
                 
