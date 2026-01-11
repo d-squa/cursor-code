@@ -709,17 +709,11 @@ const handler = async (req: Request): Promise<Response> => {
             }
 
             // Step 1: Create ad creative
+            // Note: standard_enhancements is deprecated - Meta now requires individual feature settings
             const creativePayload: any = {
               name: creative.name,
               object_story_spec: {
                 page_id: pageId,
-              },
-              degrees_of_freedom_spec: {
-                creative_features_spec: {
-                  standard_enhancements: {
-                    enroll_status: advantagePlusFeatures.textImprovements ? "OPT_IN" : "OPT_OUT",
-                  },
-                },
               },
             };
 
