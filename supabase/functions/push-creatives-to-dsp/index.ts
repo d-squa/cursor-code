@@ -1,8 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
-import { crypto as stdCrypto } from "https://deno.land/std@0.190.0/crypto/mod.ts";
-import { encode as encodeHex } from "https://deno.land/std@0.190.0/encoding/hex.ts";
 import { getAccessToken } from "../_shared/vault-helper.ts";
 
 const corsHeaders = {
@@ -12,12 +10,15 @@ const corsHeaders = {
 
 const inputSchema = z.object({
   campaignId: z.string().uuid(),
+  jobId: z.string().uuid().optional(), // For continuation from existing job
+  isAutoRetry: z.boolean().optional(), // Flag for auto-retry invocations
 });
 
 // Batch size for processing creatives to avoid resource exhaustion
 const BATCH_SIZE = 5;
 const BATCH_DELAY_MS = 200; // Reduced delay between batches for faster processing
-const MAX_EXECUTION_TIME_MS = 25000; // Max execution time before returning partial results (25s safety margin)
+const MAX_EXECUTION_TIME_MS = 25000; // Max execution time before auto-continuing (25s safety margin)
+const AUTO_RETRY_DELAY_MS = 2000; // Delay before auto-retry to prevent rate limiting
 
 type PlatformKey = "meta" | "tiktok";
 
@@ -73,6 +74,38 @@ function findMarketAndPhaseConfig(
   return { market: null, phase: null };
 }
 
+// Function to trigger auto-retry in background
+async function triggerAutoRetry(
+  supabaseUrl: string,
+  serviceKey: string,
+  campaignId: string,
+  jobId: string,
+) {
+  console.log(`[push-creatives] Scheduling auto-retry for job ${jobId} in ${AUTO_RETRY_DELAY_MS}ms`);
+  
+  await delay(AUTO_RETRY_DELAY_MS);
+  
+  try {
+    const response = await fetch(`${supabaseUrl}/functions/v1/push-creatives-to-dsp`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${serviceKey}`,
+      },
+      body: JSON.stringify({
+        campaignId,
+        jobId,
+        isAutoRetry: true,
+      }),
+    });
+    
+    const result = await response.json();
+    console.log(`[push-creatives] Auto-retry triggered, response:`, JSON.stringify(result));
+  } catch (error) {
+    console.error(`[push-creatives] Auto-retry failed:`, error);
+  }
+}
+
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -81,32 +114,12 @@ const handler = async (req: Request): Promise<Response> => {
   const startTime = Date.now(); // Track execution time for timeout protection
   
   try {
-    const authHeader = req.headers.get("authorization");
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Authentication required" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
     if (!supabaseUrl || !supabaseKey) throw new Error("Service configuration error");
 
     const supabase = createClient(supabaseUrl, supabaseKey);
-
-    const token = authHeader.replace("Bearer ", "");
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser(token);
-
-    if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Invalid authentication token" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
 
     const body = await req.json();
     const parsed = inputSchema.safeParse(body);
@@ -117,7 +130,95 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    const { campaignId } = parsed.data;
+    const { campaignId, jobId: existingJobId, isAutoRetry } = parsed.data;
+    
+    // For auto-retry, we use service role auth
+    // For user-initiated, we validate the auth header
+    let userId: string;
+    
+    if (isAutoRetry && existingJobId) {
+      // Auto-retry: get user_id from the job record
+      const { data: job, error: jobError } = await supabase
+        .from("creative_push_jobs")
+        .select("user_id, status, retry_count, max_retries")
+        .eq("id", existingJobId)
+        .single();
+      
+      if (jobError || !job) {
+        console.error(`[push-creatives] Auto-retry: job not found`, jobError);
+        return new Response(JSON.stringify({ error: "Job not found" }), {
+          status: 404,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      
+      // Check if job should continue
+      if (job.status === "completed" || job.status === "failed" || job.status === "paused") {
+        console.log(`[push-creatives] Job ${existingJobId} is ${job.status}, skipping auto-retry`);
+        return new Response(JSON.stringify({ 
+          success: true, 
+          message: `Job already ${job.status}`,
+          jobId: existingJobId 
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      
+      // Check retry limit
+      if (job.retry_count >= job.max_retries) {
+        await supabase
+          .from("creative_push_jobs")
+          .update({ status: "failed", error_message: "Max retries exceeded" })
+          .eq("id", existingJobId);
+        
+        return new Response(JSON.stringify({ 
+          success: false, 
+          error: "Max retries exceeded",
+          jobId: existingJobId 
+        }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      
+      userId = job.user_id;
+      
+      // Increment retry count
+      await supabase
+        .from("creative_push_jobs")
+        .update({ 
+          retry_count: job.retry_count + 1,
+          status: "processing",
+          last_processed_at: new Date().toISOString()
+        })
+        .eq("id", existingJobId);
+        
+      console.log(`[push-creatives] Auto-retry #${job.retry_count + 1} for job ${existingJobId}`);
+    } else {
+      // User-initiated: validate auth header
+      const authHeader = req.headers.get("authorization");
+      if (!authHeader) {
+        return new Response(JSON.stringify({ error: "Authentication required" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      
+      const token = authHeader.replace("Bearer ", "");
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser(token);
+
+      if (authError || !user) {
+        return new Response(JSON.stringify({ error: "Invalid authentication token" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      
+      userId = user.id;
+    }
 
     const { data: campaign, error: campaignError } = await supabase
       .from("campaigns")
@@ -127,13 +228,13 @@ const handler = async (req: Request): Promise<Response> => {
     if (campaignError) throw campaignError;
 
     // Access control: owner OR member of the campaign workspace
-    let canAccess = campaign.user_id === user.id;
+    let canAccess = campaign.user_id === userId;
     if (!canAccess && campaign.team_id) {
       const { data: roleRows, error: roleError } = await supabase
         .from("user_roles")
         .select("id")
         .eq("team_id", campaign.team_id)
-        .eq("user_id", user.id)
+        .eq("user_id", userId)
         .limit(1);
       if (roleError) throw roleError;
       canAccess = (roleRows?.length || 0) > 0;
@@ -143,6 +244,38 @@ const handler = async (req: Request): Promise<Response> => {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // Get or create job record
+    let jobId = existingJobId;
+    if (!jobId) {
+      // Count total pending assignments for this campaign
+      const { count: totalAssignments } = await supabase
+        .from("creative_assignments")
+        .select("id", { count: "exact", head: true })
+        .eq("campaign_id", campaignId)
+        .neq("status", "pushed");
+      
+      // Create new job
+      const { data: newJob, error: jobCreateError } = await supabase
+        .from("creative_push_jobs")
+        .insert({
+          campaign_id: campaignId,
+          user_id: userId,
+          status: "processing",
+          total_assignments: totalAssignments || 0,
+          last_processed_at: new Date().toISOString(),
+        })
+        .select("id")
+        .single();
+      
+      if (jobCreateError) {
+        console.error(`[push-creatives] Failed to create job:`, jobCreateError);
+        throw jobCreateError;
+      }
+      
+      jobId = newJob.id;
+      console.log(`[push-creatives] Created new job ${jobId} with ${totalAssignments} pending assignments`);
     }
 
     // Connected platforms are stored on the campaign owner
@@ -166,6 +299,7 @@ const handler = async (req: Request): Promise<Response> => {
     let failedCount = 0;
     const results: any[] = [];
     let timedOut = false;
+    let hasMoreWork = false;
 
     for (const entry of adsetStatuses || []) {
       const platformKey = toPlatformKey(entry.platform);
@@ -275,9 +409,9 @@ const handler = async (req: Request): Promise<Response> => {
       let localPushed = 0;
       let localFailed = 0;
 
-      // Filter to only pending assignments
+      // Filter to only pending assignments (not pushed and not currently pushing)
       const pendingAssignments = (assignments || []).filter(
-        (a: any) => a.status !== "pushed" && (a as any).creative
+        (a: any) => a.status !== "pushed" && a.status !== "pushing" && (a as any).creative
       );
 
       console.log(`[push-creatives] Processing ${pendingAssignments.length} pending assignments in batches of ${BATCH_SIZE}`);
@@ -288,8 +422,9 @@ const handler = async (req: Request): Promise<Response> => {
       for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
         // Check for timeout before processing each batch
         if (Date.now() - startTime > MAX_EXECUTION_TIME_MS) {
-          console.log(`[push-creatives] Approaching timeout limit, returning partial results`);
+          console.log(`[push-creatives] Approaching timeout limit, will auto-continue`);
           timedOut = true;
+          hasMoreWork = true;
           break;
         }
         
@@ -358,7 +493,8 @@ const handler = async (req: Request): Promise<Response> => {
                 advantage_plus_products,
                 default_utm_mode,
                 default_url_parameters,
-                default_pixel_id
+                default_pixel_id,
+                default_landing_page_url
               `)
               .eq("account_id", adAccountIdRaw)
               .maybeSingle();
@@ -393,6 +529,9 @@ const handler = async (req: Request): Promise<Response> => {
             // Get tracking pixel from phase/market config
             const pixelId = (phase as any)?.metaPixelId || (market as any)?.metaPixelId || metaAdAccountDefaults?.default_pixel_id;
             
+            // Get landing page URL from ad account defaults
+            const metaLandingPageUrl = metaAdAccountDefaults?.default_landing_page_url;
+            
             console.log(`[push-creatives] Advantage+ features:`, JSON.stringify(advantagePlusFeatures));
             console.log(`[push-creatives] UTM mode: ${utmMode}, URL params: ${finalUrlParameters || "none"}`);
             if (pixelId) console.log(`[push-creatives] Tracking pixel: ${pixelId}`);
@@ -425,195 +564,190 @@ const handler = async (req: Request): Promise<Response> => {
               
               const mediaUrl = fullCreative.media_urls[0];
               const isVideoFile = fullCreative.media_type === "video" || 
-                mediaUrl.includes('.mp4') || mediaUrl.includes('.mov') || mediaUrl.includes('.webm');
+                                  mediaUrl.toLowerCase().match(/\.(mp4|mov|avi|wmv|flv|webm|m4v)$/);
               
               try {
+                // Download the media file
+                console.log(`[push-creatives] Downloading media from: ${mediaUrl}`);
+                const mediaResponse = await fetch(mediaUrl);
+                if (!mediaResponse.ok) {
+                  throw new Error(`Failed to download media: ${mediaResponse.status}`);
+                }
+                
+                const mediaBlob = await mediaResponse.blob();
+                const fileName = mediaUrl.split('/').pop() || (isVideoFile ? 'video.mp4' : 'image.jpg');
+                
                 if (isVideoFile) {
-                  // Upload video using file_url method
-                  console.log(`[push-creatives] Auto-uploading video to Meta: ${mediaUrl}`);
-                  const videoFormData = new FormData();
-                  videoFormData.append("file_url", mediaUrl);
-                  videoFormData.append("access_token", platform.access_token);
-                  videoFormData.append("title", creative.name || "creative");
+                  // Upload video to Meta
+                  console.log(`[push-creatives] Uploading video to Meta...`);
+                  const formData = new FormData();
+                  formData.append('access_token', platform.access_token);
+                  formData.append('source', mediaBlob, fileName);
                   
-                  const videoResponse = await fetch(
+                  const uploadResponse = await fetch(
                     `https://graph.facebook.com/v22.0/${adAccountPath}/advideos`,
-                    { method: "POST", body: videoFormData }
+                    {
+                      method: 'POST',
+                      body: formData,
+                    }
                   );
-                  const videoData = await videoResponse.json();
                   
-                  if (videoData.error) {
-                    throw new Error(`Meta API error: ${videoData.error.message}`);
-                  }
+                  const uploadResult = await uploadResponse.json();
+                  console.log(`[push-creatives] Video upload result:`, JSON.stringify(uploadResult));
                   
-                  if (videoData.id) {
-                    console.log(`[push-creatives] Video uploaded successfully, ID: ${videoData.id}`);
+                  if (uploadResult.id) {
+                    // Update creative with video ID
                     await supabase
                       .from("creatives")
                       .update({ 
-                        platform_video_id: videoData.id, 
+                        platform_video_id: uploadResult.id,
                         dsp_upload_status: "uploaded",
                         dsp_uploaded_at: new Date().toISOString()
                       })
                       .eq("id", creative.id);
-                    creative.platform_video_id = videoData.id;
+                    
+                    creative.platform_video_id = uploadResult.id;
                     hasMetaAsset = true;
+                  } else {
+                    throw new Error(uploadResult.error?.message || "Video upload failed");
                   }
                 } else {
-                  // Upload image using base64
-                  console.log(`[push-creatives] Auto-uploading image to Meta: ${mediaUrl}`);
+                  // Upload image to Meta
+                  console.log(`[push-creatives] Uploading image to Meta...`);
+                  const formData = new FormData();
+                  formData.append('access_token', platform.access_token);
+                  formData.append('filename', fileName);
+                  formData.append('bytes', await blobToBase64(mediaBlob));
                   
-                  // Fetch the image and convert to base64
-                  const imageResponse = await fetch(mediaUrl);
-                  if (!imageResponse.ok) {
-                    throw new Error(`Failed to fetch image: ${imageResponse.status}`);
-                  }
-                  
-                  const imageBuffer = await imageResponse.arrayBuffer();
-                  const base64Image = btoa(
-                    new Uint8Array(imageBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
-                  );
-                  
-                  const imageFormData = new FormData();
-                  imageFormData.append("bytes", base64Image);
-                  imageFormData.append("access_token", platform.access_token);
-                  
-                  const imageUploadResponse: Response = await fetch(
+                  const uploadResponse = await fetch(
                     `https://graph.facebook.com/v22.0/${adAccountPath}/adimages`,
-                    { method: "POST", body: imageFormData }
-                  );
-                  const imageUploadData: any = await imageUploadResponse.json();
-                  
-                  if (imageUploadData.error) {
-                    throw new Error(`Meta API error: ${imageUploadData.error.message}`);
-                  }
-                  
-                  const images: any = imageUploadData.images;
-                  if (images) {
-                    const imageKey = Object.keys(images)[0];
-                    const imageHash = images[imageKey]?.hash;
-                    if (imageHash) {
-                      console.log(`[push-creatives] Image uploaded successfully, hash: ${imageHash}`);
-                      await supabase
-                        .from("creatives")
-                        .update({ 
-                          platform_image_hash: imageHash,
-                          dsp_upload_status: "uploaded",
-                          dsp_uploaded_at: new Date().toISOString()
-                        })
-                        .eq("id", creative.id);
-                      creative.platform_image_hash = imageHash;
-                      hasMetaAsset = true;
+                    {
+                      method: 'POST',
+                      body: formData,
                     }
+                  );
+                  
+                  const uploadResult = await uploadResponse.json();
+                  console.log(`[push-creatives] Image upload result:`, JSON.stringify(uploadResult));
+                  
+                  // Extract hash from response
+                  const imageData = uploadResult.images?.[fileName] || Object.values(uploadResult.images || {})[0];
+                  if (imageData?.hash) {
+                    await supabase
+                      .from("creatives")
+                      .update({ 
+                        platform_image_hash: imageData.hash,
+                        dsp_upload_status: "uploaded",
+                        dsp_uploaded_at: new Date().toISOString()
+                      })
+                      .eq("id", creative.id);
+                    
+                    creative.platform_image_hash = imageData.hash;
+                    hasMetaAsset = true;
+                  } else {
+                    throw new Error(uploadResult.error?.message || "Image upload failed");
                   }
                 }
               } catch (uploadError) {
-                console.error(`[push-creatives] Auto-upload failed for creative ${creative.id}:`, uploadError);
+                console.error(`[push-creatives] Auto-upload failed:`, uploadError);
                 await supabase
                   .from("creative_assignments")
                   .update({
                     status: "error",
-                    error_message: `Auto-upload to Meta failed: ${uploadError instanceof Error ? uploadError.message : 'Unknown error'}`,
+                    error_message: `Auto-upload to Meta failed: ${(uploadError as any).message}`,
                   })
                   .eq("id", assignment.id);
                 localFailed++;
                 continue;
               }
             }
-            
-            // Final check after auto-upload attempt
-            if (!hasMetaAsset) {
-              await supabase
-                .from("creative_assignments")
-                .update({
-                  status: "error",
-                  error_message: "Creative not uploaded to Meta (upload failed)",
-                })
-                .eq("id", assignment.id);
-              localFailed++;
-              continue;
-            }
 
-            const metaLandingPageUrl = (phase as any)?.metaLandingPageUrl || (market as any)?.metaLandingPageUrl;
-            const pageId =
-              creative.external_page_id || 
-              (market as any)?.metaPageId || 
-              (market as any)?.pageId || 
-              (market as any)?.defaultPageId;
-
+            const isVideo = !!creative.platform_video_id;
+            const pageId = creative.external_page_id || (phase as any)?.metaPageId || (market as any)?.metaPageId;
             if (!pageId) {
+              console.error(`[push-creatives] No Meta page ID for creative ${creative.name}`);
               await supabase
                 .from("creative_assignments")
-                .update({ status: "error", error_message: "No Facebook Page ID configured" })
+                .update({ status: "error", error_message: "Missing Meta page ID" })
                 .eq("id", assignment.id);
               localFailed++;
               continue;
             }
 
-            const isVideo = creative.media_type === "video" || creative.creative_type === "video";
-
+            // Step 1: Create ad creative
             const creativePayload: any = {
-              name: `Creative_${creative.name}`,
-              object_story_spec: { page_id: pageId },
+              name: creative.name,
+              object_story_spec: {
+                page_id: pageId,
+              },
+              degrees_of_freedom_spec: {
+                creative_features_spec: {
+                  standard_enhancements: {
+                    enroll_status: advantagePlusFeatures.textImprovements ? "OPT_IN" : "OPT_OUT",
+                  },
+                },
+              },
             };
 
-            if (isVideo && creative.platform_video_id) {
-              // For video ads, Meta REQUIRES a thumbnail (image_hash or image_url)
-              let thumbnailImageHash: string | null = creative.platform_thumbnail_id || null;
-              let thumbnailImageUrl: string | null = null;
+            // Build destination URL with optional URL parameters
+            let finalDestinationUrl = resolvedText.destinationUrl || metaLandingPageUrl;
+            if (finalDestinationUrl && finalUrlParameters) {
+              const separator = finalDestinationUrl.includes("?") ? "&" : "?";
+              finalDestinationUrl = `${finalDestinationUrl}${separator}${finalUrlParameters}`;
+            }
 
-              // First check if we have a stored thumbnail
-              if (!thumbnailImageHash && creative.thumbnail_url) {
-                // Use existing thumbnail URL if it's an image (not video)
-                if (
-                  !creative.thumbnail_url.endsWith(".mp4") &&
-                  !creative.thumbnail_url.endsWith(".mov") &&
-                  !creative.thumbnail_url.endsWith(".webm")
-                ) {
-                  thumbnailImageUrl = creative.thumbnail_url;
-                  console.log(`[push-creatives] Using existing thumbnail URL: ${thumbnailImageUrl}`);
-                }
-              }
-
-              // If no thumbnail available, fetch from Meta's video thumbnails API
-              if (!thumbnailImageHash && !thumbnailImageUrl) {
-                console.log(`[push-creatives] Fetching thumbnail from Meta for video ${creative.platform_video_id}`);
+            if (isVideo) {
+              // For video ads, we need to ensure a thumbnail is provided
+              // Meta requires either image_hash or image_url in video_data
+              let thumbnailImageHash = creative.platform_thumbnail_id;
+              let thumbnailImageUrl = creative.thumbnail_url;
+              
+              // If no existing thumbnail, try to fetch from Meta's video thumbnails endpoint
+              if (!thumbnailImageHash && !thumbnailImageUrl && creative.platform_video_id) {
+                console.log(`[push-creatives] Fetching thumbnail for video ${creative.platform_video_id}`);
                 try {
-                  // Fetch video thumbnails - these are publicly accessible URLs
+                  // First try to get thumbnails from Meta API
                   const thumbResponse = await fetch(
-                    `https://graph.facebook.com/v22.0/${creative.platform_video_id}?fields=thumbnails{uri,is_preferred,width,height}&access_token=${platform.access_token}`
+                    `https://graph.facebook.com/v22.0/${creative.platform_video_id}?fields=thumbnails,picture&access_token=${platform.access_token}`
                   );
                   const thumbData = await thumbResponse.json();
-                  console.log(`[push-creatives] Thumbnail API response:`, JSON.stringify(thumbData));
+                  console.log(`[push-creatives] Video thumbnail data:`, JSON.stringify(thumbData));
                   
-                  if (thumbData?.thumbnails?.data && thumbData.thumbnails.data.length > 0) {
-                    // Prefer the "is_preferred" thumbnail, otherwise use the largest one
-                    const preferredThumb = thumbData.thumbnails.data.find((t: any) => t.is_preferred);
-                    const largestThumb = thumbData.thumbnails.data.reduce((a: any, b: any) => 
-                      (a.width || 0) * (a.height || 0) > (b.width || 0) * (b.height || 0) ? a : b
-                    );
-                    thumbnailImageUrl = preferredThumb?.uri || largestThumb?.uri;
-                    console.log(`[push-creatives] Got thumbnail from Meta: ${thumbnailImageUrl}`);
-                  }
-                  
-                  // If thumbnails field is empty, try getting the picture field directly
-                  if (!thumbnailImageUrl) {
-                    const pictureResponse = await fetch(
-                      `https://graph.facebook.com/v22.0/${creative.platform_video_id}?fields=picture&access_token=${platform.access_token}`
-                    );
-                    const pictureData = await pictureResponse.json();
-                    console.log(`[push-creatives] Picture API response:`, JSON.stringify(pictureData));
-                    
-                    if (pictureData?.picture) {
-                      thumbnailImageUrl = pictureData.picture;
-                      console.log(`[push-creatives] Got picture from Meta: ${thumbnailImageUrl}`);
+                  // Try to get a thumbnail from the thumbnails array
+                  if (thumbData.thumbnails?.data?.length > 0) {
+                    // Find the preferred thumbnail or use the first/largest one
+                    const preferredThumb = thumbData.thumbnails.data.find((t: any) => t.is_preferred) 
+                      || thumbData.thumbnails.data.sort((a: any, b: any) => (b.width || 0) - (a.width || 0))[0];
+                    if (preferredThumb?.uri) {
+                      thumbnailImageUrl = preferredThumb.uri;
+                      console.log(`[push-creatives] Using thumbnail from thumbnails API: ${thumbnailImageUrl}`);
                     }
                   }
+                  
+                  // Fallback to picture field if no thumbnails array
+                  if (!thumbnailImageUrl && thumbData.picture) {
+                    thumbnailImageUrl = thumbData.picture;
+                    console.log(`[push-creatives] Using picture field as thumbnail: ${thumbnailImageUrl}`);
+                  }
                 } catch (thumbError) {
-                  console.error(`[push-creatives] Error fetching thumbnail:`, thumbError);
+                  console.error(`[push-creatives] Error fetching video thumbnail:`, thumbError);
                 }
               }
-
+              
+              // If we still don't have a thumbnail, fail the ad creation
+              if (!thumbnailImageHash && !thumbnailImageUrl) {
+                console.error(`[push-creatives] No thumbnail available for video ${creative.platform_video_id}`);
+                await supabase
+                  .from("creative_assignments")
+                  .update({ 
+                    status: "error", 
+                    error_message: "Video ads require a thumbnail. Please upload a video with a valid thumbnail." 
+                  })
+                  .eq("id", assignment.id);
+                localFailed++;
+                continue;
+              }
+              
               // Build video_data - Meta requires either image_hash or image_url
               // Meta ALSO requires a call_to_action with link for video ads
               const destinationLink = resolvedText.destinationUrl || metaLandingPageUrl;
@@ -623,17 +757,6 @@ const handler = async (req: Request): Promise<Response> => {
                 await supabase
                   .from("creative_assignments")
                   .update({ status: "error", error_message: "Video ads require a destination URL" })
-                  .eq("id", assignment.id);
-                localFailed++;
-                continue;
-              }
-
-              // Verify we have a valid thumbnail before proceeding
-              if (!thumbnailImageHash && !thumbnailImageUrl) {
-                console.error(`[push-creatives] No valid thumbnail available for video ad ${creative.name}`);
-                await supabase
-                  .from("creative_assignments")
-                  .update({ status: "error", error_message: "Video ads require a thumbnail. Please upload a video with a valid thumbnail." })
                   .eq("id", assignment.id);
                 localFailed++;
                 continue;
@@ -651,134 +774,100 @@ const handler = async (req: Request): Promise<Response> => {
                   },
                 },
               };
-
-              // Add thumbnail - use image_hash if available, otherwise image_url
+              
+              // Add thumbnail - prefer image_hash if available, otherwise use image_url
               if (thumbnailImageHash) {
                 creativePayload.object_story_spec.video_data.image_hash = thumbnailImageHash;
-                console.log(`[push-creatives] Video creative prepared with image_hash thumbnail`);
-              } else {
+              } else if (thumbnailImageUrl) {
                 creativePayload.object_story_spec.video_data.image_url = thumbnailImageUrl;
-                console.log(`[push-creatives] Video creative prepared with image_url: ${thumbnailImageUrl}`);
               }
-            }
-
-            // URL parameters - use resolved finalUrlParameters
-            if (finalUrlParameters) {
-              if (creativePayload.object_story_spec.video_data?.call_to_action?.value?.link) {
-                const baseLink = creativePayload.object_story_spec.video_data.call_to_action.value.link;
-                // For Meta dynamic params, append as-is (they contain {{ }} templates)
-                if (finalUrlParameters.includes("{{")) {
-                  creativePayload.object_story_spec.video_data.call_to_action.value.link = 
-                    baseLink + (baseLink.includes("?") ? "&" : "?") + finalUrlParameters;
-                } else {
-                  try {
-                    const url = new URL(baseLink);
-                    url.search = url.search ? `${url.search}&${finalUrlParameters}` : `?${finalUrlParameters}`;
-                    creativePayload.object_story_spec.video_data.call_to_action.value.link = url.toString();
-                  } catch {
-                    creativePayload.object_story_spec.video_data.call_to_action.value.link = 
-                      baseLink + (baseLink.includes("?") ? "&" : "?") + finalUrlParameters;
-                  }
-                }
-              } else if (creativePayload.object_story_spec.link_data?.link) {
-                const baseLink = creativePayload.object_story_spec.link_data.link;
-                if (finalUrlParameters.includes("{{")) {
-                  creativePayload.object_story_spec.link_data.link = 
-                    baseLink + (baseLink.includes("?") ? "&" : "?") + finalUrlParameters;
-                } else {
-                  try {
-                    const url = new URL(baseLink);
-                    url.search = url.search ? `${url.search}&${finalUrlParameters}` : `?${finalUrlParameters}`;
-                    creativePayload.object_story_spec.link_data.link = url.toString();
-                  } catch {
-                    creativePayload.object_story_spec.link_data.link = 
-                      baseLink + (baseLink.includes("?") ? "&" : "?") + finalUrlParameters;
-                  }
-                }
+              
+              // Add URL parameters to the CTA link if specified
+              if (finalUrlParameters && creativePayload.object_story_spec.video_data.call_to_action?.value?.link) {
+                const ctaLink = creativePayload.object_story_spec.video_data.call_to_action.value.link;
+                const separator = ctaLink.includes("?") ? "&" : "?";
+                creativePayload.object_story_spec.video_data.call_to_action.value.link = `${ctaLink}${separator}${finalUrlParameters}`;
               }
-            }
-
-            // Build degrees_of_freedom_spec for Advantage+ creative enhancements
-            const creativeFeaturesSpec: any = {};
-            if (advantagePlusFeatures.videoTouchups) creativeFeaturesSpec.video_touchups = { value: "on" };
-            if (advantagePlusFeatures.textImprovements) creativeFeaturesSpec.text_improvements = { value: "on" };
-            if (advantagePlusFeatures.productTags) creativeFeaturesSpec.product_tags = { value: "on" };
-            if (advantagePlusFeatures.videoEffects) creativeFeaturesSpec.video_effects = { value: "on" };
-            if (advantagePlusFeatures.relevantComments) creativeFeaturesSpec.relevant_comments = { value: "on" };
-            if (advantagePlusFeatures.enhanceCta) creativeFeaturesSpec.enhance_cta = { value: "on" };
-            if (advantagePlusFeatures.revealDetails) creativeFeaturesSpec.reveal_details = { value: "on" };
-            if (advantagePlusFeatures.showSpotlights) creativeFeaturesSpec.show_spotlights = { value: "on" };
-            if (advantagePlusFeatures.optimizeTextPerPerson) creativeFeaturesSpec.standard_enhancements = { value: "on" };
-            
-            // Add degrees_of_freedom_spec if any features are enabled
-            if (Object.keys(creativeFeaturesSpec).length > 0) {
-              creativePayload.degrees_of_freedom_spec = {
-                creative_features_spec: creativeFeaturesSpec
+            } else {
+              creativePayload.object_story_spec.link_data = {
+                image_hash: creative.platform_image_hash,
+                link: finalDestinationUrl,
+                message: resolvedText.primaryText,
+                name: resolvedText.headline,
+                description: resolvedText.description,
+                call_to_action: resolvedText.callToAction
+                  ? {
+                      type: resolvedText.callToAction,
+                      value: { link: finalDestinationUrl },
+                    }
+                  : undefined,
               };
             }
 
-            console.log(`[push-creatives] Creating ad creative for ${creative.name}, payload:`, JSON.stringify({
-              ...creativePayload,
-              access_token: "***"
-            }));
-            
-            const creativeResponse = await fetch(`https://graph.facebook.com/v22.0/${adAccountPath}/adcreatives`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ ...creativePayload, access_token: platform.access_token }),
-            });
-            const creativeData = await creativeResponse.json();
+            console.log(`[push-creatives] Creating ad creative with payload:`, JSON.stringify(creativePayload, null, 2));
 
-            if (creativeData?.error) {
-              console.error(`[push-creatives] Ad creative creation failed:`, JSON.stringify(creativeData.error));
+            const creativeResponse = await fetch(
+              `https://graph.facebook.com/v22.0/${adAccountPath}/adcreatives?access_token=${platform.access_token}`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(creativePayload),
+              },
+            );
+
+            const creativeData = await creativeResponse.json();
+            console.log(`[push-creatives] Creative creation response:`, JSON.stringify(creativeData));
+            
+            if (!creativeData.id) {
+              console.error(`[push-creatives] Ad creative creation failed:`, JSON.stringify(creativeData));
               await supabase
                 .from("creative_assignments")
-                .update({ status: "error", error_message: creativeData.error.message || "Failed to create ad creative" })
+                .update({
+                  status: "error",
+                  error_message: creativeData?.error?.error_user_msg || creativeData?.error?.message || "Failed to create Meta ad creative",
+                })
                 .eq("id", assignment.id);
               localFailed++;
               continue;
             }
-            
-            console.log(`[push-creatives] Ad creative created with id: ${creativeData.id}`);
 
-            // Build ad payload with tracking
-            const adPayload: any = {
-              name: creative.name,
+            // Step 2: Create ad using the creative
+            const adPayload = {
+              name: `${creative.name} - Ad`,
               adset_id: entry.dsp_entity_id,
               creative: { creative_id: creativeData.id },
               status: "PAUSED",
+              tracking_specs: pixelId
+                ? [{ "action.type": ["offsite_conversion"], fb_pixel: [pixelId] }]
+                : undefined,
             };
 
-            // Add tracking specs if pixel is configured
-            if (pixelId) {
-              adPayload.tracking_specs = [
-                { "action.type": ["offsite_conversion"], "fb_pixel": [pixelId] }
-              ];
-            }
-            
-            console.log(`[push-creatives] Creating ad with adset_id: ${entry.dsp_entity_id}, payload:`, JSON.stringify({
-              ...adPayload,
-              access_token: "***"
-            }));
+            console.log(`[push-creatives] Creating ad with payload:`, JSON.stringify(adPayload, null, 2));
 
-            const adResponse = await fetch(`https://graph.facebook.com/v22.0/${adAccountPath}/ads`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ ...adPayload, access_token: platform.access_token }),
-            });
+            const adResponse = await fetch(
+              `https://graph.facebook.com/v22.0/${adAccountPath}/ads?access_token=${platform.access_token}`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(adPayload),
+              },
+            );
+
             const adData = await adResponse.json();
-
-            if (adData?.error || !adData?.id) {
-              console.error(`[push-creatives] Ad creation failed:`, JSON.stringify(adData?.error || adData));
+            console.log(`[push-creatives] Ad creation response:`, JSON.stringify(adData));
+            
+            if (!adData.id) {
+              console.error(`[push-creatives] Ad creation failed:`, JSON.stringify(adData));
               await supabase
                 .from("creative_assignments")
-                .update({ status: "error", error_message: adData?.error?.message || "Failed to create ad" })
+                .update({
+                  status: "error",
+                  error_message: adData?.error?.error_user_msg || adData?.error?.message || "Failed to create Meta ad",
+                })
                 .eq("id", assignment.id);
               localFailed++;
               continue;
             }
-            
-            console.log(`[push-creatives] Ad created with id: ${adData.id}`);
 
             await supabase
               .from("creative_assignments")
@@ -786,12 +875,14 @@ const handler = async (req: Request): Promise<Response> => {
               .eq("id", assignment.id);
 
             localPushed++;
-            continue;
-          }
+          } else if (platformKey === "tiktok") {
+            // TikTok ad creation logic
+            const tiktokAdAccountId =
+              (market as any)?.adAccountId ||
+              (market as any)?.ad_account_id ||
+              (platform as any).metadata?.advertiser_id;
 
-          if (platformKey === "tiktok") {
-            const advertiserId = (market as any)?.adAccountId || platform.metadata?.advertiser_ids?.[0];
-            if (!advertiserId) {
+            if (!tiktokAdAccountId) {
               await supabase
                 .from("creative_assignments")
                 .update({ status: "error", error_message: "Missing TikTok advertiser ID" })
@@ -800,303 +891,37 @@ const handler = async (req: Request): Promise<Response> => {
               continue;
             }
 
-            // Fetch TikTok ad account defaults (identity, pixel, etc.)
-            const { data: tiktokAdAccountDefaults } = await supabase
-              .from("tiktok_ad_accounts")
-              .select(`
-                default_identity_id,
-                default_pixel_id,
-                default_landing_page_url
-              `)
-              .eq("advertiser_id", advertiserId)
-              .maybeSingle();
-
-            let hasTikTokAsset = !!(creative.platform_video_id || creative.platform_image_hash);
-
-            // Auto-upload to TikTok if creative is missing DSP asset IDs
-            if (!hasTikTokAsset) {
-              console.log(`[push-creatives] Creative ${creative.id} missing TikTok asset, attempting auto-upload`);
-
-              const { data: fullCreative, error: creativeError } = await supabase
-                .from("creatives")
-                .select("media_urls, media_type, name, thumbnail_url")
-                .eq("id", creative.id)
-                .single();
-
-              if (creativeError || !fullCreative?.media_urls?.[0]) {
-                console.error(`[push-creatives] Cannot auto-upload: no media URL for creative ${creative.id}`);
-                await supabase
-                  .from("creative_assignments")
-                  .update({
-                    status: "error",
-                    error_message: "Creative missing media file - cannot auto-upload to TikTok",
-                  })
-                  .eq("id", assignment.id);
-                localFailed++;
-                continue;
-              }
-
-              const mediaUrl: string = fullCreative.media_urls[0];
-              const isVideoFile =
-                fullCreative.media_type === "video" || /(\.mp4|\.mov|\.webm)(\?|$)/i.test(mediaUrl);
-
-              try {
-                const mediaResp = await fetch(mediaUrl);
-                if (!mediaResp.ok) {
-                  throw new Error(`Failed to fetch media (${mediaResp.status})`);
-                }
-
-                const mediaBuf = await mediaResp.arrayBuffer();
-                const bytes = new Uint8Array(mediaBuf);
-
-                // Best-effort filename: use creative name, fallback to URL tail
-                const urlTail = mediaUrl.split("/").pop() || "asset";
-                const baseNameRaw = `${fullCreative.name || creative.name || urlTail}`.trim() || "asset";
-                const baseNameSanitized = baseNameRaw
-                  .replace(/[^\w.\- ]+/g, "")
-                  .replace(/\s+/g, "-")
-                  .slice(0, 140);
-                const uniqueToken = crypto.randomUUID().split("-")[0];
-                const materialName = `${baseNameSanitized}-${uniqueToken}`.slice(0, 180);
-                const videoFileName = materialName.toLowerCase().endsWith(".mp4") ? materialName : `${materialName}.mp4`;
-                const imageFileName = /\.(jpg|jpeg|png)$/i.test(materialName) ? materialName : `${materialName}.jpg`;
-
-              if (isVideoFile) {
-                  const uploadUrl = "https://business-api.tiktok.com/open_api/v1.3/file/video/ad/upload/";
-                  const formData = new FormData();
-                  const blob = new Blob([bytes], { type: "video/mp4" });
-
-                  // Compute MD5 hash for video_signature (required by TikTok)
-                  const hashBuffer = await stdCrypto.subtle.digest("MD5", bytes);
-                  const videoSignature = new TextDecoder().decode(encodeHex(new Uint8Array(hashBuffer)));
-
-                  formData.append("advertiser_id", advertiserId);
-                  formData.append("upload_type", "UPLOAD_BY_FILE");
-                  formData.append("video_signature", videoSignature);
-                  formData.append("video_file", blob, videoFileName);
-
-                  console.log(`[push-creatives] Auto-uploading video to TikTok: ${uploadUrl}`);
-                  const uploadResp = await fetch(uploadUrl, {
-                    method: "POST",
-                    headers: { "Access-Token": platform.access_token },
-                    body: formData,
-                  });
-
-                  const uploadText = await uploadResp.text();
-                  let uploadData: any = null;
-                  try {
-                    uploadData = uploadText ? JSON.parse(uploadText) : null;
-                  } catch {
-                    // keep uploadData as null; we'll include raw response in errors below
-                  }
-
-                  if (!uploadResp.ok) {
-                    console.error("[push-creatives] TikTok video upload HTTP error", {
-                      status: uploadResp.status,
-                      statusText: uploadResp.statusText,
-                      bodyPreview: uploadText?.slice(0, 800),
-                    });
-                    throw new Error(`TikTok video upload HTTP ${uploadResp.status}`);
-                  }
-
-                  if (uploadData?.code !== 0) {
-                    console.error("[push-creatives] TikTok video upload API error", {
-                      code: uploadData?.code,
-                      message: uploadData?.message,
-                      data: uploadData?.data,
-                    });
-                    throw new Error(uploadData?.message || "TikTok video upload failed");
-                  }
-
-                  const data0 = Array.isArray(uploadData?.data) ? uploadData.data[0] : uploadData?.data;
-                  const videoId =
-                    data0?.video_id ??
-                    data0?.video_info?.video_id ??
-                    data0?.video?.video_id ??
-                    data0?.video_id_str ??
-                    data0?.videoId ??
-                    data0?.video?.id ??
-                    data0?.id ??
-                    uploadData?.video_id;
-
-                  if (!videoId) {
-                    console.error("[push-creatives] TikTok upload response missing video_id", {
-                      bodyPreview: uploadText?.slice(0, 800),
-                      uploadData,
-                    });
-                    throw new Error("TikTok video upload returned no video_id");
-                  }
-
-                  await supabase
-                    .from("creatives")
-                    .update({
-                      platform_video_id: videoId,
-                      dsp_upload_status: "uploaded",
-                      dsp_uploaded_at: new Date().toISOString(),
-                      dsp_upload_error: null,
-                    })
-                    .eq("id", creative.id);
-
-                  creative.platform_video_id = videoId;
-                  hasTikTokAsset = true;
-                  console.log(`[push-creatives] TikTok video uploaded, video_id: ${videoId}`);
-                } else {
-                  const uploadUrl = "https://business-api.tiktok.com/open_api/v1.3/file/image/ad/upload/";
-                  const formData = new FormData();
-                  const blob = new Blob([bytes], { type: "image/jpeg" });
-
-                  // Compute MD5 hash for image_signature (required by TikTok)
-                  const imageHashBuffer = await stdCrypto.subtle.digest("MD5", bytes);
-                  const imageSignature = new TextDecoder().decode(encodeHex(new Uint8Array(imageHashBuffer)));
-
-                  formData.append("advertiser_id", advertiserId);
-                  formData.append("upload_type", "UPLOAD_BY_FILE");
-                  formData.append("image_signature", imageSignature);
-                  formData.append("image_file", blob, imageFileName);
-
-                  console.log(`[push-creatives] Auto-uploading image to TikTok: ${uploadUrl}`);
-                  const uploadResp = await fetch(uploadUrl, {
-                    method: "POST",
-                    headers: { "Access-Token": platform.access_token },
-                    body: formData,
-                  });
-
-                  const uploadText = await uploadResp.text();
-                  let uploadData: any = null;
-                  try {
-                    uploadData = uploadText ? JSON.parse(uploadText) : null;
-                  } catch {
-                    // keep uploadData as null
-                  }
-
-                  if (!uploadResp.ok) {
-                    console.error("[push-creatives] TikTok image upload HTTP error", {
-                      status: uploadResp.status,
-                      statusText: uploadResp.statusText,
-                      bodyPreview: uploadText?.slice(0, 800),
-                    });
-                    throw new Error(`TikTok image upload HTTP ${uploadResp.status}`);
-                  }
-
-                  if (uploadData?.code !== 0) {
-                    console.error("[push-creatives] TikTok image upload API error", {
-                      code: uploadData?.code,
-                      message: uploadData?.message,
-                      data: uploadData?.data,
-                    });
-                    throw new Error(uploadData?.message || "TikTok image upload failed");
-                  }
-
-                  const data0 = Array.isArray(uploadData?.data) ? uploadData.data[0] : uploadData?.data;
-                  const imageId =
-                    data0?.id ??
-                    data0?.image_id ??
-                    uploadData?.data?.id ??
-                    uploadData?.id;
-
-                  if (!imageId) {
-                    console.error("[push-creatives] TikTok upload response missing image id", {
-                      bodyPreview: uploadText?.slice(0, 800),
-                      uploadData,
-                    });
-                    throw new Error("TikTok image upload returned no id");
-                  }
-
-                  await supabase
-                    .from("creatives")
-                    .update({
-                      platform_image_hash: imageId,
-                      dsp_upload_status: "uploaded",
-                      dsp_uploaded_at: new Date().toISOString(),
-                      dsp_upload_error: null,
-                    })
-                    .eq("id", creative.id);
-
-                  creative.platform_image_hash = imageId;
-                  hasTikTokAsset = true;
-                  console.log(`[push-creatives] TikTok image uploaded, image_id: ${imageId}`);
-                }
-              } catch (uploadError) {
-                const msg = uploadError instanceof Error ? uploadError.message : "Unknown error";
-                console.error(`[push-creatives] Auto-upload failed for TikTok creative ${creative.id}:`, uploadError);
-
-                await supabase
-                  .from("creatives")
-                  .update({ dsp_upload_status: "error", dsp_upload_error: msg })
-                  .eq("id", creative.id);
-
-                await supabase
-                  .from("creative_assignments")
-                  .update({
-                    status: "error",
-                    error_message: `Auto-upload to TikTok failed: ${msg}`,
-                  })
-                  .eq("id", assignment.id);
-
-                localFailed++;
-                continue;
-              }
-            }
-
-            // Final check after auto-upload attempt
-            if (!hasTikTokAsset) {
-              await supabase
-                .from("creative_assignments")
-                .update({
-                  status: "error",
-                  error_message: "Creative not uploaded to TikTok (upload failed)",
-                })
-                .eq("id", assignment.id);
-              localFailed++;
-              continue;
-            }
-
-            const identityId =
-              creative.tiktok_identity_id ||
-              (market as any)?.tiktokIdentityId ||
-              (market as any)?.defaultIdentityId ||
-              tiktokAdAccountDefaults?.default_identity_id;
+            const isVideo = creative.media_type === "video" || creative.creative_type === "video";
+            const identityId = creative.tiktok_identity_id || (phase as any)?.tiktokIdentityId || (market as any)?.tiktokIdentityId;
 
             if (!identityId) {
-              console.error(`[push-creatives] No TikTok Identity ID found for creative ${creative.id}. Checked: creative.tiktok_identity_id, market.tiktokIdentityId, market.defaultIdentityId, tiktokAdAccountDefaults.default_identity_id`);
               await supabase
                 .from("creative_assignments")
-                .update({ status: "error", error_message: "No TikTok Identity ID configured - set it on the creative, market, or ad account defaults" })
+                .update({ status: "error", error_message: "Missing TikTok identity ID" })
                 .eq("id", assignment.id);
               localFailed++;
               continue;
             }
 
-            const isVideo = creative.media_type === "video" || creative.creative_type === "video";
-            const landingPageUrl = resolvedText.destinationUrl || (phase as any)?.landingPageUrl || (market as any)?.landingPageUrl || tiktokAdAccountDefaults?.default_landing_page_url;
-
-            // Determine identity type - TT_ACCOUNT for Business Center identities, CUSTOMIZED_USER for custom
-            // Look up identity type from tiktok_identities table if available
-            let identityType = "CUSTOMIZED_USER"; // Default fallback
-            const { data: identityRecord } = await supabase
-              .from("tiktok_identities")
-              .select("identity_type, identity_name")
-              .eq("identity_id", identityId)
-              .maybeSingle();
-
-            if (identityRecord?.identity_type) {
-              // Map our stored type to TikTok API format
-              identityType = identityRecord.identity_type === "TT_ACCOUNT" ? "TT_USER" : "CUSTOMIZED_USER";
+            // Build TikTok destination URL with optional URL parameters
+            let tiktokDestinationUrl = resolvedText.destinationUrl || creative.destination_url;
+            if (tiktokDestinationUrl && resolvedText.urlParameters) {
+              const separator = tiktokDestinationUrl.includes("?") ? "&" : "?";
+              tiktokDestinationUrl = `${tiktokDestinationUrl}${separator}${resolvedText.urlParameters}`;
             }
-            console.log(`[push-creatives] Using identity ${identityId} (${identityRecord?.identity_name || 'unknown'}) with type ${identityType} (stored as ${identityRecord?.identity_type || 'unknown'})`);
 
             const tiktokAdPayload: any = {
-              advertiser_id: advertiserId,
+              advertiser_id: tiktokAdAccountId,
               adgroup_id: entry.dsp_entity_id,
               creatives: [
                 {
                   ad_name: creative.name,
-                  ad_format: creative.tiktok_ad_format || (isVideo ? "SINGLE_VIDEO" : "SINGLE_IMAGE"),
                   identity_id: identityId,
-                  identity_type: identityType,
-                  ad_text: resolvedText.primaryText || resolvedText.headline,
+                  identity_type: "CUSTOMIZED_USER",
+                  ad_text: resolvedText.primaryText || creative.name,
                   call_to_action: resolvedText.callToAction || "LEARN_MORE",
-                  landing_page_url: landingPageUrl,
+                  landing_page_url: tiktokDestinationUrl,
+                  ad_format: creative.tiktok_ad_format || "SINGLE_VIDEO",
                 },
               ],
             };
@@ -1168,14 +993,56 @@ const handler = async (req: Request): Promise<Response> => {
       // Break out of outer loop if timed out
       if (timedOut) break;
     }
+    
+    // Check if there are more pending assignments
+    const { count: remainingCount } = await supabase
+      .from("creative_assignments")
+      .select("id", { count: "exact", head: true })
+      .eq("campaign_id", campaignId)
+      .not("status", "in", '("pushed","error")');
+    
+    hasMoreWork = (remainingCount || 0) > 0;
+    
+    // Update job record
+    const jobStatus = hasMoreWork ? "processing" : (failedCount > 0 && pushedCount === 0) ? "failed" : "completed";
+    await supabase
+      .from("creative_push_jobs")
+      .update({
+        status: jobStatus,
+        pushed_count: pushedCount,
+        failed_count: failedCount,
+        last_processed_at: new Date().toISOString(),
+        error_message: null,
+      })
+      .eq("id", jobId);
+    
+    // If timed out and there's more work, schedule auto-retry using background task
+    if (timedOut && hasMoreWork && jobId) {
+      console.log(`[push-creatives] Scheduling auto-retry for remaining ${remainingCount} assignments`);
+      
+      // Use EdgeRuntime.waitUntil for background continuation
+      // @ts-ignore - EdgeRuntime is available in Supabase Edge Functions
+      if (typeof EdgeRuntime !== "undefined" && EdgeRuntime.waitUntil) {
+        // @ts-ignore
+        EdgeRuntime.waitUntil(triggerAutoRetry(supabaseUrl, supabaseKey, campaignId, jobId));
+      } else {
+        // Fallback: trigger immediately but don't await
+        triggerAutoRetry(supabaseUrl, supabaseKey, campaignId, jobId);
+      }
+    }
 
     return new Response(
       JSON.stringify({
-        success: !timedOut,
-        partial: timedOut,
-        message: timedOut ? "Partial results returned due to timeout. Please run again to continue." : undefined,
+        success: !timedOut || !hasMoreWork,
+        partial: timedOut && hasMoreWork,
+        autoRetrying: timedOut && hasMoreWork,
+        message: timedOut && hasMoreWork 
+          ? `Processed ${pushedCount} ads. Auto-continuing in background for remaining ${remainingCount} assignments...` 
+          : undefined,
         pushedCount,
         failedCount,
+        remainingCount: remainingCount || 0,
+        jobId,
         results,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -1188,5 +1055,16 @@ const handler = async (req: Request): Promise<Response> => {
     });
   }
 };
+
+// Helper function to convert blob to base64
+async function blobToBase64(blob: Blob): Promise<string> {
+  const arrayBuffer = await blob.arrayBuffer();
+  const bytes = new Uint8Array(arrayBuffer);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
 
 serve(handler);

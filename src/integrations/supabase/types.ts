@@ -859,6 +859,62 @@ export type Database = {
         }
         Relationships: []
       }
+      creative_push_jobs: {
+        Row: {
+          campaign_id: string
+          created_at: string
+          error_message: string | null
+          failed_count: number | null
+          id: string
+          last_processed_at: string | null
+          max_retries: number | null
+          pushed_count: number | null
+          retry_count: number | null
+          status: string
+          total_assignments: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          campaign_id: string
+          created_at?: string
+          error_message?: string | null
+          failed_count?: number | null
+          id?: string
+          last_processed_at?: string | null
+          max_retries?: number | null
+          pushed_count?: number | null
+          retry_count?: number | null
+          status?: string
+          total_assignments?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          campaign_id?: string
+          created_at?: string
+          error_message?: string | null
+          failed_count?: number | null
+          id?: string
+          last_processed_at?: string | null
+          max_retries?: number | null
+          pushed_count?: number | null
+          retry_count?: number | null
+          status?: string
+          total_assignments?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creative_push_jobs_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       creatives: {
         Row: {
           ad_end_time: string | null
