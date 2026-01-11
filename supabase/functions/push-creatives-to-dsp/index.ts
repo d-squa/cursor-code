@@ -736,6 +736,14 @@ const handler = async (req: Request): Promise<Response> => {
               let thumbnailImageHash = creative.platform_thumbnail_id;
               let thumbnailImageUrl = creative.thumbnail_url;
               
+              // IMPORTANT: If thumbnail_url is actually a video file (.mp4, .mov, etc.), ignore it
+              // This can happen when thumbnail_url mistakenly stores the video URL itself
+              const videoExtensions = ['.mp4', '.mov', '.avi', '.webm', '.mkv', '.m4v'];
+              if (thumbnailImageUrl && videoExtensions.some(ext => thumbnailImageUrl.toLowerCase().endsWith(ext))) {
+                console.log(`[push-creatives] Ignoring thumbnail_url because it's a video file: ${thumbnailImageUrl}`);
+                thumbnailImageUrl = null;
+              }
+              
               // If no existing thumbnail, try to fetch from Meta's video thumbnails endpoint
               if (!thumbnailImageHash && !thumbnailImageUrl && creative.platform_video_id) {
                 console.log(`[push-creatives] Fetching thumbnail for video ${creative.platform_video_id}`);
