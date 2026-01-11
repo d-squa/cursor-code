@@ -780,17 +780,23 @@ const handler = async (req: Request): Promise<Response> => {
               
               // Build video_data - Meta requires either image_hash or image_url
               // Meta ALSO requires a call_to_action with link for video ads
-              const destinationLink = resolvedText.destinationUrl || metaLandingPageUrl;
+              // Use multiple fallbacks for destination URL
+              const destinationLink = resolvedText.destinationUrl 
+                || creative.destination_url 
+                || metaLandingPageUrl 
+                || metaAdAccountDefaults?.default_landing_page_url;
               
               if (!destinationLink) {
-                console.error(`[push-creatives] No destination URL for video ad ${creative.name}`);
+                console.error(`[push-creatives] No destination URL for video ad ${creative.name} (checked assignment, creative, and ad account defaults)`);
                 await supabase
                   .from("creative_assignments")
-                  .update({ status: "error", error_message: "Video ads require a destination URL" })
+                  .update({ status: "error", error_message: "Video ads require a destination URL. Set it on the assignment, creative, or in ad account defaults." })
                   .eq("id", assignment.id);
                 localFailed++;
                 continue;
               }
+              
+              console.log(`[push-creatives] Using destination URL: ${destinationLink} for video ${creative.name}`);
               
               creativePayload.object_story_spec.video_data = {
                 video_id: creative.platform_video_id,
