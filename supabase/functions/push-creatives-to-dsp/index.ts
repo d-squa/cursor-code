@@ -1024,8 +1024,8 @@ const handler = async (req: Request): Promise<Response> => {
 
             let dbIdentityType = identityRow?.identity_type ? String(identityRow.identity_type) : null;
 
-            // Historical/legacy value seen in some syncs
-            if (dbIdentityType === "TT_ACCOUNT") dbIdentityType = "TT_USER";
+            // Our identity sync stores Business Center TT accounts as TT_ACCOUNT; for ad/create use BC_SELF_TT.
+            if (dbIdentityType === "TT_ACCOUNT") dbIdentityType = "BC_SELF_TT";
 
             if (dbIdentityType && allowedIdentityTypes.has(dbIdentityType)) {
               identityType = dbIdentityType;
@@ -1106,33 +1106,70 @@ const handler = async (req: Request): Promise<Response> => {
               tiktokAdPayload.creatives[0].download_url = creative.app_link;
             }
 
-            const tiktokAdResponse = await fetch("https://business-api.tiktok.com/open_api/v1.3/ad/create/", {
-              method: "POST",
-              headers: {
-                "Access-Token": platform.access_token,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify(tiktokAdPayload),
-            });
+            // Retry with a small set of identity_type fallbacks (some BC-synced identities need BC_* types)
+            const identityTypeCandidates = Array.from(
+              new Set([
+                identityType,
+                "BC_SELF_TT",
+                "BC_AUTH_TT",
+                "TT_USER",
+                "CUSTOMIZED_USER",
+                "UNSET",
+              ].filter((t) => allowedIdentityTypes.has(t))),
+            );
 
-            const tiktokAdData = await tiktokAdResponse.json();
-            const adId = tiktokAdData?.data?.ad_ids?.[0];
+            const tiktokAdCreateUrl = "https://business-api.tiktok.com/open_api/v1.3/ad/create/";
 
-            if (tiktokAdData?.code !== 0 || !adId) {
+            let adId: string | null = null;
+            let lastTikTokResponse: any = null;
+
+            for (const candidateType of identityTypeCandidates) {
+              tiktokAdPayload.creatives[0].identity_type = candidateType;
+              console.log(
+                `[push-creatives] TikTok ad/create attempt identity_type=${candidateType} identity_id=${identityId}`,
+              );
+
+              const tiktokAdResponse = await fetch(tiktokAdCreateUrl, {
+                method: "POST",
+                headers: {
+                  "Access-Token": platform.access_token,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify(tiktokAdPayload),
+              });
+
+              const tiktokAdData = await tiktokAdResponse.json();
+              lastTikTokResponse = tiktokAdData;
+
+              adId = tiktokAdData?.data?.ad_ids?.[0] ? String(tiktokAdData.data.ad_ids[0]) : null;
+
+              if (tiktokAdData?.code === 0 && adId) {
+                identityType = candidateType;
+                break;
+              }
+
+              const msg = String(tiktokAdData?.message || "");
+              console.log(
+                `[push-creatives] TikTok ad/create failed identity_type=${candidateType} code=${tiktokAdData?.code} message=${msg}`,
+              );
+
+              // Only retry on identity_type-related validation errors; otherwise fail fast.
+              if (!/identity_type/i.test(msg)) break;
+            }
+
+            if (!adId) {
+              const msg = String(lastTikTokResponse?.message || "Failed to create TikTok ad");
               await supabase
                 .from("creative_assignments")
-                .update({ status: "error", error_message: tiktokAdData?.message || "Failed to create TikTok ad" })
+                .update({
+                  status: "error",
+                  error_message: `${msg} (identity_type tried: ${identityTypeCandidates.join(", ")})`,
+                })
                 .eq("id", assignment.id);
               localFailed++;
               continue;
             }
 
-            await supabase
-              .from("creative_assignments")
-              .update({ status: "pushed", dsp_creative_id: adId, error_message: null })
-              .eq("id", assignment.id);
-
-            localPushed++;
           }
         }
 
