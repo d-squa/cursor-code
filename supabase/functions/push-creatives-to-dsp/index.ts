@@ -1001,8 +1001,19 @@ const handler = async (req: Request): Promise<Response> => {
             }
 
             // Resolve identity type (best-effort)
-            // Valid values: AUTH_CODE, TT_USER, BC_SELF_TT, UNSET, CUSTOMIZED_USER, BC_AUTH_TT
-            let identityType: string = resolvedText.displayName || resolvedText.brandName ? "CUSTOMIZED_USER" : "CUSTOMIZED_USER";
+            // TikTok API valid values: AUTH_CODE, TT_USER, BC_SELF_TT, UNSET, CUSTOMIZED_USER, BC_AUTH_TT
+            const allowedIdentityTypes = new Set([
+              "AUTH_CODE",
+              "TT_USER",
+              "BC_SELF_TT",
+              "UNSET",
+              "CUSTOMIZED_USER",
+              "BC_AUTH_TT",
+            ]);
+
+            // Default to a safe, accepted value
+            let identityType: string = "CUSTOMIZED_USER";
+
             const { data: identityRow } = await supabase
               .from("tiktok_identities")
               .select("identity_type")
@@ -1010,7 +1021,23 @@ const handler = async (req: Request): Promise<Response> => {
               .eq("advertiser_id", advertiserIdStr)
               .eq("identity_id", String(identityId))
               .maybeSingle();
-            if (identityRow?.identity_type) identityType = identityRow.identity_type;
+
+            let dbIdentityType = identityRow?.identity_type ? String(identityRow.identity_type) : null;
+
+            // Historical/legacy value seen in some syncs
+            if (dbIdentityType === "TT_ACCOUNT") dbIdentityType = "TT_USER";
+
+            if (dbIdentityType && allowedIdentityTypes.has(dbIdentityType)) {
+              identityType = dbIdentityType;
+            } else if (dbIdentityType) {
+              console.log(
+                `[push-creatives] TikTok identity_type '${dbIdentityType}' not allowed; defaulting to ${identityType}`,
+              );
+            }
+
+            console.log(
+              `[push-creatives] TikTok identity resolution: identityId=${identityId}, identityType=${identityType}`,
+            );
 
             // Resolve destination URL (assignment > creative > phase/market config > ad account defaults)
             let tiktokDestinationUrl: string | null =
