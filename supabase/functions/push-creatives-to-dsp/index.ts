@@ -333,6 +333,7 @@ const handler = async (req: Request): Promise<Response> => {
       const { market, phase } = findMarketAndPhaseConfig(campaign, platformKey, entry.market, entry.phase_name);
 
       // Query with case-insensitive platform matching using ilike
+      // Include dsp_creative_id to detect already-pushed ads and avoid duplicates
       const { data: assignments, error: assignmentError } = await supabase
         .from("creative_assignments")
         .select(
@@ -341,6 +342,7 @@ const handler = async (req: Request): Promise<Response> => {
           creative_id,
           position,
           status,
+          dsp_creative_id,
           primary_text,
           primary_text_2,
           primary_text_3,
@@ -409,12 +411,16 @@ const handler = async (req: Request): Promise<Response> => {
       let localPushed = 0;
       let localFailed = 0;
 
-      // Filter to only pending assignments (not pushed and not currently pushing)
+      // Filter to only pending assignments:
+      // - Not already pushed (status !== "pushed")
+      // - Not already has a DSP creative ID (prevents duplicates on retry)
+      // - Include "pushing" status for retry (these were interrupted mid-push)
+      // - Has an associated creative
       const pendingAssignments = (assignments || []).filter(
-        (a: any) => a.status !== "pushed" && a.status !== "pushing" && (a as any).creative
+        (a: any) => a.status !== "pushed" && !a.dsp_creative_id && (a as any).creative
       );
 
-      console.log(`[push-creatives] Processing ${pendingAssignments.length} pending assignments in batches of ${BATCH_SIZE}`);
+      console.log(`[push-creatives] Processing ${pendingAssignments.length} pending assignments in batches of ${BATCH_SIZE} (filtered from ${assignments?.length || 0} total, excluding ${(assignments || []).filter((a: any) => a.dsp_creative_id).length} already pushed to DSP)`);
 
       // Process assignments in batches
       const batches = chunkArray(pendingAssignments, BATCH_SIZE);
