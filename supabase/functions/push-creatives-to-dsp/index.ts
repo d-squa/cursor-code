@@ -932,12 +932,12 @@ const handler = async (req: Request): Promise<Response> => {
             localPushed++;
           } else if (platformKey === "tiktok") {
             // TikTok ad creation logic
-            const tiktokAdAccountId =
+            const tiktokAdvertiserId =
               (market as any)?.adAccountId ||
               (market as any)?.ad_account_id ||
               (platform as any).metadata?.advertiser_id;
 
-            if (!tiktokAdAccountId) {
+            if (!tiktokAdvertiserId) {
               await supabase
                 .from("creative_assignments")
                 .update({ status: "error", error_message: "Missing TikTok advertiser ID" })
@@ -946,37 +946,119 @@ const handler = async (req: Request): Promise<Response> => {
               continue;
             }
 
+            const advertiserIdStr = String(tiktokAdvertiserId);
+
+            // Fetch TikTok ad account defaults (landing page URL + default identity)
+            // NOTE: advertiser_id and account_id can be the same value; query both defensively.
+            const { data: allTiktokAdAccountRows } = await supabase
+              .from("tiktok_ad_accounts")
+              .select("default_landing_page_url, default_identity_id, synced_at, advertiser_id, account_id")
+              .eq("user_id", campaign.user_id)
+              .or(`advertiser_id.eq.${advertiserIdStr},account_id.eq.${advertiserIdStr}`)
+              .order("synced_at", { ascending: false });
+
+            const tiktokAdAccountDefaults =
+              allTiktokAdAccountRows?.find(
+                (row: any) => row.default_landing_page_url || row.default_identity_id,
+              ) ||
+              allTiktokAdAccountRows?.[0] ||
+              null;
+
             const isVideo = creative.media_type === "video" || creative.creative_type === "video";
-            const identityId = creative.tiktok_identity_id || (phase as any)?.tiktokIdentityId || (market as any)?.tiktokIdentityId;
+
+            // Resolve identity ID (creative override > phase/market config > ad account defaults > latest synced identity)
+            let identityId: string | null =
+              creative.tiktok_identity_id ||
+              (phase as any)?.tiktokIdentityId ||
+              (market as any)?.tiktokIdentityId ||
+              tiktokAdAccountDefaults?.default_identity_id ||
+              null;
+
+            if (!identityId) {
+              const { data: latestIdentity } = await supabase
+                .from("tiktok_identities")
+                .select("identity_id")
+                .eq("user_id", campaign.user_id)
+                .eq("advertiser_id", advertiserIdStr)
+                .order("synced_at", { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+              identityId = latestIdentity?.identity_id || null;
+            }
 
             if (!identityId) {
               await supabase
                 .from("creative_assignments")
-                .update({ status: "error", error_message: "Missing TikTok identity ID" })
+                .update({
+                  status: "error",
+                  error_message:
+                    "Missing TikTok identity ID. Sync TikTok accounts and/or set a default identity in ad account defaults, or set it on the creative.",
+                })
+                .eq("id", assignment.id);
+              localFailed++;
+              continue;
+            }
+
+            // Resolve identity type (best-effort)
+            let identityType: string = resolvedText.displayName || resolvedText.brandName ? "CUSTOMIZED_USER" : "TT_ACCOUNT";
+            const { data: identityRow } = await supabase
+              .from("tiktok_identities")
+              .select("identity_type")
+              .eq("user_id", campaign.user_id)
+              .eq("advertiser_id", advertiserIdStr)
+              .eq("identity_id", String(identityId))
+              .maybeSingle();
+            if (identityRow?.identity_type) identityType = identityRow.identity_type;
+
+            // Resolve destination URL (assignment > creative > phase/market config > ad account defaults)
+            let tiktokDestinationUrl: string | null =
+              resolvedText.destinationUrl ||
+              creative.destination_url ||
+              (phase as any)?.landingPageUrl ||
+              (market as any)?.landingPageUrl ||
+              tiktokAdAccountDefaults?.default_landing_page_url ||
+              null;
+
+            console.log(
+              `[push-creatives] TikTok destination URL resolution: assignment=${resolvedText.destinationUrl}, creative=${creative.destination_url}, phase=${(phase as any)?.landingPageUrl}, market=${(market as any)?.landingPageUrl}, adAccountDefaults=${tiktokAdAccountDefaults?.default_landing_page_url}, final=${tiktokDestinationUrl}`,
+            );
+
+            if (tiktokDestinationUrl && !tiktokDestinationUrl.startsWith("http://") && !tiktokDestinationUrl.startsWith("https://")) {
+              tiktokDestinationUrl = `https://${tiktokDestinationUrl}`;
+            }
+
+            if (!tiktokDestinationUrl) {
+              await supabase
+                .from("creative_assignments")
+                .update({
+                  status: "error",
+                  error_message:
+                    "Video ads require a destination URL. Set it on the assignment, creative, or in ad account defaults",
+                })
                 .eq("id", assignment.id);
               localFailed++;
               continue;
             }
 
             // Build TikTok destination URL with optional URL parameters
-            let tiktokDestinationUrl = resolvedText.destinationUrl || creative.destination_url;
-            if (tiktokDestinationUrl && resolvedText.urlParameters) {
+            if (resolvedText.urlParameters) {
               const separator = tiktokDestinationUrl.includes("?") ? "&" : "?";
               tiktokDestinationUrl = `${tiktokDestinationUrl}${separator}${resolvedText.urlParameters}`;
             }
 
             const tiktokAdPayload: any = {
-              advertiser_id: tiktokAdAccountId,
+              advertiser_id: advertiserIdStr,
               adgroup_id: entry.dsp_entity_id,
               creatives: [
                 {
                   ad_name: creative.name,
                   identity_id: identityId,
-                  identity_type: "CUSTOMIZED_USER",
+                  identity_type: identityType,
                   ad_text: resolvedText.primaryText || creative.name,
                   call_to_action: resolvedText.callToAction || "LEARN_MORE",
                   landing_page_url: tiktokDestinationUrl,
-                  ad_format: creative.tiktok_ad_format || "SINGLE_VIDEO",
+                  ad_format: creative.tiktok_ad_format || (isVideo ? "SINGLE_VIDEO" : "SINGLE_IMAGE"),
                 },
               ],
             };
