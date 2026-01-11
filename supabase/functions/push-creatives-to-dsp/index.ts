@@ -1001,7 +1001,8 @@ const handler = async (req: Request): Promise<Response> => {
             }
 
             // Resolve identity type (best-effort)
-            let identityType: string = resolvedText.displayName || resolvedText.brandName ? "CUSTOMIZED_USER" : "TT_ACCOUNT";
+            // Valid values: AUTH_CODE, TT_USER, BC_SELF_TT, UNSET, CUSTOMIZED_USER, BC_AUTH_TT
+            let identityType: string = resolvedText.displayName || resolvedText.brandName ? "CUSTOMIZED_USER" : "CUSTOMIZED_USER";
             const { data: identityRow } = await supabase
               .from("tiktok_identities")
               .select("identity_type")
