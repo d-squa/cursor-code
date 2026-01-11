@@ -476,7 +476,11 @@ const handler = async (req: Request): Promise<Response> => {
             }
 
             // Fetch meta_ad_accounts defaults for Advantage+ features
+            // Note: account_id in DB may have "act_" prefix or not, try both formats
             const adAccountIdRaw = resolvedAdAccount?.replace(/^act_/, "") || "";
+            const adAccountIdWithPrefix = `act_${adAccountIdRaw}`;
+            
+            // Query with both possible formats (with and without act_ prefix)
             const { data: metaAdAccountDefaults } = await supabase
               .from("meta_ad_accounts")
               .select(`
@@ -497,8 +501,10 @@ const handler = async (req: Request): Promise<Response> => {
                 default_landing_page_url,
                 default_page_id
               `)
-              .eq("account_id", adAccountIdRaw)
+              .or(`account_id.eq.${adAccountIdRaw},account_id.eq.${adAccountIdWithPrefix}`)
               .maybeSingle();
+            
+            console.log(`[push-creatives] Looking up ad account defaults for ${adAccountIdRaw} or ${adAccountIdWithPrefix}, found: ${!!metaAdAccountDefaults}`);
 
             // Resolve Advantage+ features: assignment overrides > ad account defaults
             const advantagePlusFeatures = {
