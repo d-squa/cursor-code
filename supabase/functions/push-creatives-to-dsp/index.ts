@@ -477,7 +477,8 @@ const handler = async (req: Request): Promise<Response> => {
 
             // Fetch meta_ad_accounts defaults for Advantage+ features
             // Note: account_id in DB may have "act_" prefix or not, try both formats
-            const adAccountIdRaw = resolvedAdAccount?.replace(/^act_/, "") || "";
+            // IMPORTANT: resolvedAdAccount may be a number (e.g. 550...), so normalize via String() before replace.
+            const adAccountIdRaw = resolvedAdAccount ? String(resolvedAdAccount).replace(/^act_/, "") : "";
             const adAccountIdWithPrefix = `act_${adAccountIdRaw}`;
             
             // Query with both possible formats (with and without act_ prefix)
