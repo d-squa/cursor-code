@@ -120,3 +120,6 @@ verify_jwt = true
 
 [functions.upload-creative-to-tiktok]
 verify_jwt = true
+
+[functions.push-creatives-to-dsp]
+verify_jwt = false

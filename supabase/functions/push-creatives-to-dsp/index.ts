@@ -481,6 +481,7 @@ const handler = async (req: Request): Promise<Response> => {
             const adAccountIdWithPrefix = `act_${adAccountIdRaw}`;
             
             // Query with both possible formats (with and without act_ prefix)
+            // IMPORTANT: meta_ad_accounts can contain multiple rows per account_id, so we always order+limit.
             const { data: metaAdAccountDefaults } = await supabase
               .from("meta_ad_accounts")
               .select(`
@@ -499,9 +500,12 @@ const handler = async (req: Request): Promise<Response> => {
                 default_url_parameters,
                 default_pixel_id,
                 default_landing_page_url,
-                default_page_id
+                default_page_id,
+                synced_at
               `)
               .or(`account_id.eq.${adAccountIdRaw},account_id.eq.${adAccountIdWithPrefix}`)
+              .order("synced_at", { ascending: false })
+              .limit(1)
               .maybeSingle();
             
             console.log(`[push-creatives] Looking up ad account defaults for ${adAccountIdRaw} or ${adAccountIdWithPrefix}, found: ${!!metaAdAccountDefaults}`);
