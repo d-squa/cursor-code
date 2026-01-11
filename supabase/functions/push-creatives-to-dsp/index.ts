@@ -482,8 +482,8 @@ const handler = async (req: Request): Promise<Response> => {
             const adAccountIdWithPrefix = `act_${adAccountIdRaw}`;
             
             // Query with both possible formats (with and without act_ prefix)
-            // IMPORTANT: meta_ad_accounts can contain multiple rows per account_id, so we always order+limit.
-            const { data: metaAdAccountDefaults } = await supabase
+            // Fetch ALL matching rows, then pick the one with defaults set (newer rows may have nulls after sync)
+            const { data: allMetaAdAccountRows } = await supabase
               .from("meta_ad_accounts")
               .select(`
                 advantage_plus_video_touchups,
@@ -505,11 +505,14 @@ const handler = async (req: Request): Promise<Response> => {
                 synced_at
               `)
               .or(`account_id.eq.${adAccountIdRaw},account_id.eq.${adAccountIdWithPrefix}`)
-              .order("synced_at", { ascending: false })
-              .limit(1)
-              .maybeSingle();
+              .order("synced_at", { ascending: false });
             
-            console.log(`[push-creatives] Looking up ad account defaults for ${adAccountIdRaw} or ${adAccountIdWithPrefix}, found: ${!!metaAdAccountDefaults}, default_landing_page_url: ${metaAdAccountDefaults?.default_landing_page_url}, default_page_id: ${metaAdAccountDefaults?.default_page_id}`);
+            // Prefer the row that has default_landing_page_url or default_page_id set, otherwise use first
+            const metaAdAccountDefaults = allMetaAdAccountRows?.find(
+              row => row.default_landing_page_url || row.default_page_id
+            ) || allMetaAdAccountRows?.[0] || null;
+            
+            console.log(`[push-creatives] Looking up ad account defaults for ${adAccountIdRaw} or ${adAccountIdWithPrefix}, found ${allMetaAdAccountRows?.length || 0} rows, using row with default_landing_page_url: ${metaAdAccountDefaults?.default_landing_page_url}, default_page_id: ${metaAdAccountDefaults?.default_page_id}`);
 
             // Resolve Advantage+ features: assignment overrides > ad account defaults
             const advantagePlusFeatures = {
