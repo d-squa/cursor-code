@@ -1115,6 +1115,7 @@ const handler = async (req: Request): Promise<Response> => {
                 "TT_USER",
                 "CUSTOMIZED_USER",
                 "UNSET",
+                "AUTH_CODE",
               ].filter((t) => allowedIdentityTypes.has(t))),
             );
 
@@ -1124,9 +1125,25 @@ const handler = async (req: Request): Promise<Response> => {
             let lastTikTokResponse: any = null;
 
             for (const candidateType of identityTypeCandidates) {
+              // For custom identity modes, TikTok may not accept identity_id.
+              if (candidateType === "CUSTOMIZED_USER" || candidateType === "UNSET") {
+                delete tiktokAdPayload.creatives[0].identity_id;
+                if (!tiktokAdPayload.creatives[0].display_name) {
+                  tiktokAdPayload.creatives[0].display_name =
+                    resolvedText.displayName ||
+                    resolvedText.brandName ||
+                    creative.brand_name ||
+                    campaign.name ||
+                    creative.name;
+                }
+              } else {
+                tiktokAdPayload.creatives[0].identity_id = identityId;
+              }
+
               tiktokAdPayload.creatives[0].identity_type = candidateType;
+
               console.log(
-                `[push-creatives] TikTok ad/create attempt identity_type=${candidateType} identity_id=${identityId}`,
+                `[push-creatives] TikTok ad/create attempt identity_type=${candidateType} identity_id=${tiktokAdPayload.creatives[0].identity_id ?? "(omitted)"}`,
               );
 
               const tiktokAdResponse = await fetch(tiktokAdCreateUrl, {
@@ -1153,8 +1170,11 @@ const handler = async (req: Request): Promise<Response> => {
                 `[push-creatives] TikTok ad/create failed identity_type=${candidateType} code=${tiktokAdData?.code} message=${msg}`,
               );
 
-              // Only retry on identity_type-related validation errors; otherwise fail fast.
-              if (!/identity_type/i.test(msg)) break;
+              // Retry on identity type validation failures
+              const shouldRetry =
+                tiktokAdData?.code === 40002 ||
+                /identity_type|identity type/i.test(msg);
+              if (!shouldRetry) break;
             }
 
             if (!adId) {
@@ -1169,6 +1189,13 @@ const handler = async (req: Request): Promise<Response> => {
               localFailed++;
               continue;
             }
+
+            await supabase
+              .from("creative_assignments")
+              .update({ status: "pushed", dsp_creative_id: adId, error_message: null })
+              .eq("id", assignment.id);
+
+            localPushed++;
 
           }
         }
