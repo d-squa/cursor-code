@@ -670,7 +670,26 @@ const handler = async (req: Request): Promise<Response> => {
             }
 
             const isVideo = !!creative.platform_video_id;
-            const pageId = creative.external_page_id || (phase as any)?.metaPageId || (market as any)?.metaPageId || metaAdAccountDefaults?.default_page_id;
+
+            // Resolve Meta page ID with fallbacks
+            let pageId =
+              creative.external_page_id ||
+              (phase as any)?.metaPageId ||
+              (market as any)?.metaPageId ||
+              metaAdAccountDefaults?.default_page_id;
+
+            // Final fallback: use the latest synced page for the campaign owner
+            if (!pageId) {
+              const { data: latestPage } = await supabase
+                .from("meta_pages")
+                .select("page_id")
+                .eq("user_id", campaign.user_id)
+                .order("synced_at", { ascending: false })
+                .limit(1)
+                .maybeSingle();
+              pageId = latestPage?.page_id || null;
+            }
+
             if (!pageId) {
               console.error(`[push-creatives] No Meta page ID for creative ${creative.name}`);
               await supabase
