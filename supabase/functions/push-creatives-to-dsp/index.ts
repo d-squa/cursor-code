@@ -579,51 +579,39 @@ const handler = async (req: Request): Promise<Response> => {
               if (!thumbnailImageHash && !thumbnailImageUrl) {
                 console.log(`[push-creatives] Fetching thumbnail from Meta for video ${creative.platform_video_id}`);
                 try {
+                  // Fetch video thumbnails - these are publicly accessible URLs
                   const thumbResponse = await fetch(
-                    `https://graph.facebook.com/v22.0/${creative.platform_video_id}?fields=thumbnails&access_token=${platform.access_token}`
+                    `https://graph.facebook.com/v22.0/${creative.platform_video_id}?fields=thumbnails{uri,is_preferred,width,height}&access_token=${platform.access_token}`
                   );
                   const thumbData = await thumbResponse.json();
+                  console.log(`[push-creatives] Thumbnail API response:`, JSON.stringify(thumbData));
                   
                   if (thumbData?.thumbnails?.data && thumbData.thumbnails.data.length > 0) {
-                    // Use the first available thumbnail
-                    thumbnailImageUrl = thumbData.thumbnails.data[0].uri;
-                    console.log(`[push-creatives] Got thumbnail from Meta: ${thumbnailImageUrl}`);
-                  } else {
-                    // Fallback: use video source URL as thumbnail (Meta can extract frame)
-                    const videoSourceResponse = await fetch(
-                      `https://graph.facebook.com/v22.0/${creative.platform_video_id}?fields=source&access_token=${platform.access_token}`
+                    // Prefer the "is_preferred" thumbnail, otherwise use the largest one
+                    const preferredThumb = thumbData.thumbnails.data.find((t: any) => t.is_preferred);
+                    const largestThumb = thumbData.thumbnails.data.reduce((a: any, b: any) => 
+                      (a.width || 0) * (a.height || 0) > (b.width || 0) * (b.height || 0) ? a : b
                     );
-                    const videoSourceData = await videoSourceResponse.json();
+                    thumbnailImageUrl = preferredThumb?.uri || largestThumb?.uri;
+                    console.log(`[push-creatives] Got thumbnail from Meta: ${thumbnailImageUrl}`);
+                  }
+                  
+                  // If thumbnails field is empty, try getting the picture field directly
+                  if (!thumbnailImageUrl) {
+                    const pictureResponse = await fetch(
+                      `https://graph.facebook.com/v22.0/${creative.platform_video_id}?fields=picture&access_token=${platform.access_token}`
+                    );
+                    const pictureData = await pictureResponse.json();
+                    console.log(`[push-creatives] Picture API response:`, JSON.stringify(pictureData));
                     
-                    if (videoSourceData?.source) {
-                      // For videos, we need to provide a valid image URL
-                      // Use a placeholder or the original thumbnail_url from storage
-                      if (creative.media_urls && creative.media_urls[0]) {
-                        // Try to get a frame from our storage - create a thumbnail URL pattern
-                        const videoUrl = creative.media_urls[0];
-                        // Meta requires an actual image, so we'll use the video URL and hope Meta extracts a frame
-                        console.log(`[push-creatives] No Meta thumbnail available, using video source for frame extraction`);
-                      }
-                    }
-                    
-                    // If still no thumbnail, use a generic fallback approach
-                    if (!thumbnailImageUrl) {
-                      // Create a simple 1x1 transparent pixel as fallback (Meta should auto-generate)
-                      console.log(`[push-creatives] No thumbnail found, will try without explicit thumbnail`);
+                    if (pictureData?.picture) {
+                      thumbnailImageUrl = pictureData.picture;
+                      console.log(`[push-creatives] Got picture from Meta: ${thumbnailImageUrl}`);
                     }
                   }
                 } catch (thumbError) {
                   console.error(`[push-creatives] Error fetching thumbnail:`, thumbError);
                 }
-              }
-
-              // If we still don't have a thumbnail, we need to upload one
-              // Use the original media URL to extract a frame or use a placeholder
-              if (!thumbnailImageHash && !thumbnailImageUrl && creative.media_urls && creative.media_urls[0]) {
-                // As a last resort, try to use the Supabase storage thumbnail if available
-                const mediaUrl = creative.media_urls[0];
-                // Generate a thumbnail URL pattern - many storage systems support this
-                console.log(`[push-creatives] Attempting to use video source as thumbnail reference`);
               }
 
               // Build video_data - Meta requires either image_hash or image_url
@@ -635,6 +623,17 @@ const handler = async (req: Request): Promise<Response> => {
                 await supabase
                   .from("creative_assignments")
                   .update({ status: "error", error_message: "Video ads require a destination URL" })
+                  .eq("id", assignment.id);
+                localFailed++;
+                continue;
+              }
+
+              // Verify we have a valid thumbnail before proceeding
+              if (!thumbnailImageHash && !thumbnailImageUrl) {
+                console.error(`[push-creatives] No valid thumbnail available for video ad ${creative.name}`);
+                await supabase
+                  .from("creative_assignments")
+                  .update({ status: "error", error_message: "Video ads require a thumbnail. Please upload a video with a valid thumbnail." })
                   .eq("id", assignment.id);
                 localFailed++;
                 continue;
@@ -653,20 +652,13 @@ const handler = async (req: Request): Promise<Response> => {
                 },
               };
 
-              // Add thumbnail - Meta requires this
+              // Add thumbnail - use image_hash if available, otherwise image_url
               if (thumbnailImageHash) {
                 creativePayload.object_story_spec.video_data.image_hash = thumbnailImageHash;
                 console.log(`[push-creatives] Video creative prepared with image_hash thumbnail`);
-              } else if (thumbnailImageUrl) {
-                creativePayload.object_story_spec.video_data.image_url = thumbnailImageUrl;
-                console.log(`[push-creatives] Video creative prepared with image_url thumbnail`);
               } else {
-                // Last resort: Meta actually supports not providing a thumbnail and will use first frame
-                // BUT it needs to be done via the source field instead
-                console.log(`[push-creatives] No thumbnail available - using video first frame`);
-                // Set a flag to use different API approach
-                creativePayload.object_story_spec.video_data.image_url = `https://graph.facebook.com/v22.0/${creative.platform_video_id}/picture`;
-                console.log(`[push-creatives] Using Meta video picture endpoint as thumbnail`);
+                creativePayload.object_story_spec.video_data.image_url = thumbnailImageUrl;
+                console.log(`[push-creatives] Video creative prepared with image_url: ${thumbnailImageUrl}`);
               }
             }
 
