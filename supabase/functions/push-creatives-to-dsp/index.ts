@@ -508,7 +508,7 @@ const handler = async (req: Request): Promise<Response> => {
               .limit(1)
               .maybeSingle();
             
-            console.log(`[push-creatives] Looking up ad account defaults for ${adAccountIdRaw} or ${adAccountIdWithPrefix}, found: ${!!metaAdAccountDefaults}`);
+            console.log(`[push-creatives] Looking up ad account defaults for ${adAccountIdRaw} or ${adAccountIdWithPrefix}, found: ${!!metaAdAccountDefaults}, default_landing_page_url: ${metaAdAccountDefaults?.default_landing_page_url}, default_page_id: ${metaAdAccountDefaults?.default_page_id}`);
 
             // Resolve Advantage+ features: assignment overrides > ad account defaults
             const advantagePlusFeatures = {
@@ -781,10 +781,17 @@ const handler = async (req: Request): Promise<Response> => {
               // Build video_data - Meta requires either image_hash or image_url
               // Meta ALSO requires a call_to_action with link for video ads
               // Use multiple fallbacks for destination URL
-              const destinationLink = resolvedText.destinationUrl 
+              let destinationLink = resolvedText.destinationUrl 
                 || creative.destination_url 
                 || metaLandingPageUrl 
                 || metaAdAccountDefaults?.default_landing_page_url;
+              
+              // Ensure URL has protocol
+              if (destinationLink && !destinationLink.startsWith('http://') && !destinationLink.startsWith('https://')) {
+                destinationLink = `https://${destinationLink}`;
+              }
+              
+              console.log(`[push-creatives] Video destination URL resolution: assignment=${resolvedText.destinationUrl}, creative=${creative.destination_url}, phase=${metaLandingPageUrl}, adAccountDefaults=${metaAdAccountDefaults?.default_landing_page_url}, final=${destinationLink}`);
               
               if (!destinationLink) {
                 console.error(`[push-creatives] No destination URL for video ad ${creative.name} (checked assignment, creative, and ad account defaults)`);
