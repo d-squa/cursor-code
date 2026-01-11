@@ -494,7 +494,8 @@ const handler = async (req: Request): Promise<Response> => {
                 default_utm_mode,
                 default_url_parameters,
                 default_pixel_id,
-                default_landing_page_url
+                default_landing_page_url,
+                default_page_id
               `)
               .eq("account_id", adAccountIdRaw)
               .maybeSingle();
@@ -663,7 +664,7 @@ const handler = async (req: Request): Promise<Response> => {
             }
 
             const isVideo = !!creative.platform_video_id;
-            const pageId = creative.external_page_id || (phase as any)?.metaPageId || (market as any)?.metaPageId;
+            const pageId = creative.external_page_id || (phase as any)?.metaPageId || (market as any)?.metaPageId || metaAdAccountDefaults?.default_page_id;
             if (!pageId) {
               console.error(`[push-creatives] No Meta page ID for creative ${creative.name}`);
               await supabase
