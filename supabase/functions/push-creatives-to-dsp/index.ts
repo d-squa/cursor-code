@@ -1016,18 +1016,28 @@ const handler = async (req: Request): Promise<Response> => {
 
             const { data: identityRow } = await supabase
               .from("tiktok_identities")
-              .select("identity_type")
+              .select("identity_type, bc_id")
               .eq("user_id", campaign.user_id)
               .eq("advertiser_id", advertiserIdStr)
               .eq("identity_id", String(identityId))
               .maybeSingle();
+            
+            // Get bc_id for BC-linked identities
+            const identityBcId = identityRow?.bc_id ? String(identityRow.bc_id) : null;
 
             let dbIdentityType = identityRow?.identity_type ? String(identityRow.identity_type) : null;
 
-            // Our identity sync stores Business Center TT accounts as TT_ACCOUNT; for ad/create use BC_SELF_TT.
-            if (dbIdentityType === "TT_ACCOUNT") dbIdentityType = "BC_SELF_TT";
-
-            if (dbIdentityType && allowedIdentityTypes.has(dbIdentityType)) {
+            // For Business Center linked identities:
+            // - If we have bc_id, use BC_AUTH_TT (identity is authorized via BC)
+            // - TT_ACCOUNT from sync -> BC_AUTH_TT when bc_id present, otherwise BC_SELF_TT
+            if (identityBcId) {
+              // Identity belongs to a Business Center - use BC_AUTH_TT
+              identityType = "BC_AUTH_TT";
+              console.log(`[push-creatives] Identity has bc_id=${identityBcId}, using BC_AUTH_TT`);
+            } else if (dbIdentityType === "TT_ACCOUNT") {
+              // Legacy TT_ACCOUNT without bc_id -> try BC_SELF_TT
+              identityType = "BC_SELF_TT";
+            } else if (dbIdentityType && allowedIdentityTypes.has(dbIdentityType)) {
               identityType = dbIdentityType;
             } else if (dbIdentityType) {
               console.log(
@@ -1036,7 +1046,7 @@ const handler = async (req: Request): Promise<Response> => {
             }
 
             console.log(
-              `[push-creatives] TikTok identity resolution: identityId=${identityId}, identityType=${identityType}`,
+              `[push-creatives] TikTok identity resolution: identityId=${identityId}, identityType=${identityType}, bcId=${identityBcId || 'none'}`,
             );
 
             // Resolve destination URL (assignment > creative > phase/market config > ad account defaults)
@@ -1090,6 +1100,12 @@ const handler = async (req: Request): Promise<Response> => {
                 },
               ],
             };
+
+            // For BC_AUTH_TT identity type, we MUST include bc_id in the creatives
+            if (identityBcId && (identityType === "BC_AUTH_TT" || identityType === "BC_SELF_TT")) {
+              tiktokAdPayload.creatives[0].bc_id = identityBcId;
+              console.log(`[push-creatives] Added bc_id=${identityBcId} to TikTok ad payload for ${identityType}`);
+            }
 
             if (isVideo && creative.platform_video_id) {
               tiktokAdPayload.creatives[0].video_id = creative.platform_video_id;

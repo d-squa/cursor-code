@@ -2517,6 +2517,7 @@ export type Database = {
       tiktok_identities: {
         Row: {
           advertiser_id: string
+          bc_id: string | null
           created_at: string
           id: string
           identity_id: string
@@ -2527,6 +2528,7 @@ export type Database = {
         }
         Insert: {
           advertiser_id: string
+          bc_id?: string | null
           created_at?: string
           id?: string
           identity_id: string
@@ -2537,6 +2539,7 @@ export type Database = {
         }
         Update: {
           advertiser_id?: string
+          bc_id?: string | null
           created_at?: string
           id?: string
           identity_id?: string
