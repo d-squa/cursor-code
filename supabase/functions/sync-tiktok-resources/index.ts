@@ -142,6 +142,7 @@ serve(async (req) => {
             identity_id: identity.asset_id,
             identity_name: identity.asset_name || `TikTok Account ${identity.asset_id}`,
             identity_type: identity.asset_type || 'TT_ACCOUNT',
+            bc_id: bcId, // Store Business Center ID for BC-linked identities
             synced_at: new Date().toISOString(),
           }, {
             onConflict: 'identity_id,advertiser_id',
