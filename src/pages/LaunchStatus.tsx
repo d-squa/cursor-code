@@ -560,6 +560,27 @@ export default function LaunchStatus() {
     }
   };
 
+  const handleDeleteCreativeAssignment = async (assignmentId: string) => {
+    try {
+      // Delete the creative assignment from the database
+      const { error } = await supabase
+        .from("creative_assignments")
+        .delete()
+        .eq("id", assignmentId);
+
+      if (error) throw error;
+
+      toast.success("Creative assignment removed");
+      
+      // Refresh the progress data
+      refreshProgress();
+    } catch (error: any) {
+      console.error("Delete error:", error);
+      toast.error("Failed to delete: " + error.message);
+      throw error;
+    }
+  };
+
   const handleFixIssue = (fieldPath?: string) => {
     if (!campaignId) return;
 
@@ -961,6 +982,7 @@ export default function LaunchStatus() {
             isPushingCreatives={pushingCreatives}
             currentStep={currentStep}
             filters={launchFilters}
+            onDeleteCreativeAssignment={handleDeleteCreativeAssignment}
           />
         </div>
       )}
