@@ -3638,19 +3638,14 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
               // Check if creative has been uploaded to TikTok
               const hasTikTokAsset = creative.platform_video_id || creative.platform_image_hash;
               if (!hasTikTokAsset) {
-                console.warn(`⚠️ TikTok creative missing uploaded asset identifiers`, {
-                  assignmentId: assignment.id,
-                  creativeId: creative.id,
-                  creativeName: creative.name,
-                  mediaType: creative.media_type,
-                  creativeType: creative.creative_type,
-                  dspUploadStatus: creative.dsp_upload_status,
-                });
+                console.log(`⏭️ TikTok creative ${creative.name} missing platform asset - requires upload before ad creation`);
+                
+                // Mark assignment as pending upload - creatives need to be uploaded first via Push Creatives to DSP
                 await supabase
                   .from('creative_assignments')
                   .update({
-                    status: 'error',
-                    error_message: 'Creative not uploaded to TikTok (missing platform_video_id/platform_image_hash)',
+                    status: 'pending_upload',
+                    error_message: 'Creative needs to be uploaded to TikTok first. Please use "Push Creatives to DSP" from the Launch Status page.',
                   })
                   .eq('id', assignment.id);
                 continue;
