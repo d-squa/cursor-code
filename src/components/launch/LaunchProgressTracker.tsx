@@ -42,6 +42,7 @@ export interface CreativeAssignmentItem {
   id: string;
   creative_id: string;
   creativeName: string;
+  originalFilename?: string;
   mediaType: string;
   platform: string;
   market: string;
@@ -178,7 +179,19 @@ function CreativeTreeItem({
       )}
     >
       <Icon className="h-3 w-3 shrink-0" />
-      <span className="flex-1 truncate">{item.creativeName}</span>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="flex-1 truncate cursor-help">{item.creativeName}</span>
+          </TooltipTrigger>
+          {item.originalFilename && (
+            <TooltipContent side="top" className="text-xs max-w-[300px]">
+              <p className="font-medium">Original file:</p>
+              <p className="text-muted-foreground">{item.originalFilename}</p>
+            </TooltipContent>
+          )}
+        </Tooltip>
+      </TooltipProvider>
       <ItemStatusIndicator status={item.status} error={item.errorMessage} />
       {canDelete && onDelete && (
         <AlertDialog>
