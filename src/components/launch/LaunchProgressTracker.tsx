@@ -5,6 +5,18 @@ import { Progress } from "@/components/ui/progress";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import {
   Check,
   Loader2,
@@ -18,6 +30,7 @@ import {
   Rocket,
   Play,
   Layers,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TreeViewControls } from "./TreeViewControls";
@@ -59,6 +72,7 @@ interface LaunchProgressTrackerProps {
   isPushingCreatives: boolean;
   currentStep: 1 | 2;
   filters: LaunchFilters;
+  onDeleteCreativeAssignment?: (assignmentId: string) => Promise<void>;
 }
 
 // Status indicator for individual items
@@ -138,13 +152,22 @@ function ItemStatusIndicator({ status, error }: { status: string; error?: string
 }
 
 // Tree item component for creatives
-function CreativeTreeItem({ item }: { item: CreativeAssignmentItem }) {
+function CreativeTreeItem({ 
+  item, 
+  onDelete,
+  isDeleting 
+}: { 
+  item: CreativeAssignmentItem;
+  onDelete?: (id: string) => Promise<void>;
+  isDeleting?: boolean;
+}) {
   const Icon = item.mediaType === "video" ? Video : Image;
+  const canDelete = item.status !== "pushed" && item.status !== "pushing";
 
   return (
     <div
       className={cn(
-        "flex items-center gap-3 py-1.5 px-2 rounded text-sm",
+        "flex items-center gap-3 py-1.5 px-2 rounded text-sm group",
         item.status === "pushed"
           ? "text-emerald-600"
           : item.status === "pushing"
@@ -157,6 +180,41 @@ function CreativeTreeItem({ item }: { item: CreativeAssignmentItem }) {
       <Icon className="h-3 w-3 shrink-0" />
       <span className="flex-1 truncate">{item.creativeName}</span>
       <ItemStatusIndicator status={item.status} error={item.errorMessage} />
+      {canDelete && onDelete && (
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Trash2 className="h-3 w-3" />
+              )}
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Creative Assignment</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will remove "{item.creativeName}" from this campaign. The creative itself will remain in your library.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => onDelete(item.id)}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
     </div>
   );
 }
@@ -165,11 +223,15 @@ function CreativeTreeItem({ item }: { item: CreativeAssignmentItem }) {
 function MeshedCreativesTree({ 
   creativeAssignments, 
   expandedState, 
-  onToggle 
+  onToggle,
+  onDelete,
+  deletingId
 }: { 
   creativeAssignments: CreativeAssignmentItem[];
   expandedState: Record<string, boolean>;
   onToggle: (key: string) => void;
+  onDelete?: (id: string) => Promise<void>;
+  deletingId?: string | null;
 }) {
   // Group by platform -> market -> phase -> adset -> ads
   const grouped = useMemo(() => {
@@ -269,7 +331,12 @@ function MeshedCreativesTree({
                                   {expandedState[`creative:adset:${platform}:${market}:${phase}:${adSet}`] && (
                                     <div className="ml-4 space-y-0.5">
                                       {items.map(item => (
-                                        <CreativeTreeItem key={item.id} item={item} />
+                                        <CreativeTreeItem 
+                                          key={item.id} 
+                                          item={item} 
+                                          onDelete={onDelete}
+                                          isDeleting={deletingId === item.id}
+                                        />
                                       ))}
                                     </div>
                                   )}
@@ -441,10 +508,22 @@ export function LaunchProgressTracker({
   isPushingCreatives,
   currentStep,
   filters,
+  onDeleteCreativeAssignment,
 }: LaunchProgressTrackerProps) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["shell", "creatives"]));
   const [creativesExpanded, setCreativesExpanded] = useState<Record<string, boolean>>({});
   const [shellExpanded, setShellExpanded] = useState<Record<string, boolean>>({});
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleDeleteCreative = useCallback(async (id: string) => {
+    if (!onDeleteCreativeAssignment) return;
+    setDeletingId(id);
+    try {
+      await onDeleteCreativeAssignment(id);
+    } finally {
+      setDeletingId(null);
+    }
+  }, [onDeleteCreativeAssignment]);
 
   const toggleSection = (section: string) => {
     const newExpanded = new Set(expandedSections);
@@ -856,6 +935,8 @@ export function LaunchProgressTracker({
                       creativeAssignments={filteredCreativeAssignments}
                       expandedState={creativesExpanded}
                       onToggle={toggleCreativeNode}
+                      onDelete={onDeleteCreativeAssignment ? handleDeleteCreative : undefined}
+                      deletingId={deletingId}
                     />
                   </ScrollArea>
                 </>
