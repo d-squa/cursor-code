@@ -61,7 +61,7 @@ export function useLaunchProgress({ campaignId, enabled = true }: UseLaunchProgr
           status,
           error_message,
           url_parameters,
-          creative:creatives(name, media_type)
+          creative:creatives(name, media_type, original_filename)
         `
         )
         .eq("campaign_id", campaignId)
@@ -74,6 +74,7 @@ export function useLaunchProgress({ campaignId, enabled = true }: UseLaunchProgr
         creative_id: a.creative_id,
         // Use display_name (DSP ad name) first, fallback to creative name
         creativeName: a.display_name || a.creative?.name || "Unknown Creative",
+        originalFilename: a.creative?.original_filename || undefined,
         mediaType: a.creative?.media_type || "image",
         platform: a.platform,
         market: a.market,
