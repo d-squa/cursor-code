@@ -1101,11 +1101,8 @@ const handler = async (req: Request): Promise<Response> => {
               ],
             };
 
-            // For BC_AUTH_TT identity type, we MUST include bc_id in the creatives
-            if (identityBcId && (identityType === "BC_AUTH_TT" || identityType === "BC_SELF_TT")) {
-              tiktokAdPayload.creatives[0].bc_id = identityBcId;
-              console.log(`[push-creatives] Added bc_id=${identityBcId} to TikTok ad payload for ${identityType}`);
-            }
+            // For BC-linked identity types, TikTok requires additional BC fields on the creative.
+            // We set those fields per-attempt inside the identity_type fallback loop below (so each attempt has a clean payload).
 
             if (isVideo && creative.platform_video_id) {
               tiktokAdPayload.creatives[0].video_id = creative.platform_video_id;
@@ -1157,6 +1154,18 @@ const handler = async (req: Request): Promise<Response> => {
               }
 
               tiktokAdPayload.creatives[0].identity_type = candidateType;
+
+              // Ensure BC identity fields are correct for this attempt.
+              // (We previously sent `bc_id`, but TikTok expects `identity_authorized_bc_id` for BC-linked identities.)
+              delete tiktokAdPayload.creatives[0].bc_id;
+              delete tiktokAdPayload.creatives[0].identity_authorized_bc_id;
+
+              if (identityBcId && (candidateType === "BC_AUTH_TT" || candidateType === "BC_SELF_TT")) {
+                tiktokAdPayload.creatives[0].identity_authorized_bc_id = identityBcId;
+                console.log(
+                  `[push-creatives] Added identity_authorized_bc_id=${identityBcId} to TikTok ad payload for ${candidateType}`,
+                );
+              }
 
               console.log(
                 `[push-creatives] TikTok ad/create attempt identity_type=${candidateType} identity_id=${tiktokAdPayload.creatives[0].identity_id ?? "(omitted)"}`,
