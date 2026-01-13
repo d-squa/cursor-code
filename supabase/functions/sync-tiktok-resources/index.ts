@@ -138,11 +138,22 @@ serve(async (req) => {
         console.log(`Syncing ${identities.length} TikTok identities`);
 
         for (const identity of identities) {
+          // Log full identity object to debug field names
+          console.log(`[sync-tiktok-resources] Full identity object:`, JSON.stringify(identity, null, 2));
+          
+          // The BC asset API returns:
+          // - asset_id: internal BC reference ID (NOT the actual TikTok Account ID)
+          // - tt_account_id or identity_id: the actual TikTok Account ID for ad creation
+          // We need the actual TikTok Account ID for the ads API
+          const actualIdentityId = identity.tt_account_id || identity.identity_id || identity.asset_id;
+          
+          console.log(`[sync-tiktok-resources] Identity mapping: asset_id=${identity.asset_id}, tt_account_id=${identity.tt_account_id}, identity_id=${identity.identity_id}, using: ${actualIdentityId}`);
+          
           await supabase.from('tiktok_identities').upsert({
             user_id: user.id,
             advertiser_id: advertiserId,
-            identity_id: identity.asset_id,
-            identity_name: identity.asset_name || `TikTok Account ${identity.asset_id}`,
+            identity_id: actualIdentityId,
+            identity_name: identity.asset_name || `TikTok Account ${actualIdentityId}`,
             identity_type: identity.asset_type || 'TT_ACCOUNT',
             bc_id: bcId, // Store Business Center ID for BC-linked identities
             synced_at: new Date().toISOString(),
