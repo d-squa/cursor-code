@@ -1042,6 +1042,59 @@ const handler = async (req: Request): Promise<Response> => {
                     throw new Error("TikTok video upload succeeded but no video_id/material_id returned");
                   }
                   
+                  console.log(`[push-creatives] TikTok video upload initiated. video_id=${videoId}. Polling for processing status...`);
+                  
+                  // Poll TikTok video info API to wait for video to be ready
+                  // URL-based uploads are asynchronous - the video needs time to process
+                  const videoInfoUrl = "https://business-api.tiktok.com/open_api/v1.3/file/video/ad/info/";
+                  const maxPollingAttempts = 30; // Max 30 attempts (1 minute total with 2s intervals)
+                  const pollingIntervalMs = 2000; // 2 seconds between polls
+                  
+                  let videoReady = false;
+                  let pollAttempt = 0;
+                  
+                  while (!videoReady && pollAttempt < maxPollingAttempts) {
+                    pollAttempt++;
+                    
+                    // Wait before polling (except first attempt)
+                    if (pollAttempt > 1) {
+                      await new Promise(resolve => setTimeout(resolve, pollingIntervalMs));
+                    }
+                    
+                    try {
+                      const infoResponse = await fetch(`${videoInfoUrl}?advertiser_id=${advertiserIdStr}&video_ids=["${videoId}"]`, {
+                        method: "GET",
+                        headers: {
+                          "Access-Token": platform.access_token,
+                        },
+                      });
+                      
+                      const infoResult = await infoResponse.json();
+                      console.log(`[push-creatives] TikTok video info poll #${pollAttempt}:`, JSON.stringify(infoResult));
+                      
+                      if (infoResult.code === 0 && infoResult.data?.list?.length > 0) {
+                        const videoInfo = infoResult.data.list[0];
+                        // Video is ready when we get valid video info back
+                        // TikTok returns video details when processing is complete
+                        if (videoInfo.video_id || videoInfo.material_id) {
+                          videoReady = true;
+                          console.log(`[push-creatives] ✅ TikTok video is ready for use. video_id=${videoId}`);
+                        }
+                      } else if (infoResult.code === 40053) {
+                        // Video still processing, continue polling
+                        console.log(`[push-creatives] TikTok video still processing (attempt ${pollAttempt}/${maxPollingAttempts})...`);
+                      } else {
+                        console.log(`[push-creatives] TikTok video info unexpected response (attempt ${pollAttempt}/${maxPollingAttempts}): code=${infoResult.code}`);
+                      }
+                    } catch (pollError) {
+                      console.error(`[push-creatives] TikTok video info poll error:`, pollError);
+                    }
+                  }
+                  
+                  if (!videoReady) {
+                    console.log(`[push-creatives] TikTok video processing timeout after ${pollAttempt} attempts. Proceeding anyway - video may still become available.`);
+                  }
+                  
                   // Update creative with TikTok video ID
                   await supabase
                     .from("creatives")
