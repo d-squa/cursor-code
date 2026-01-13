@@ -1509,80 +1509,83 @@ const handler = async (req: Request): Promise<Response> => {
               }
             }
 
-            // ========== ATTEMPT 2: ADVERTISER identity fallback (non-Spark Ads) ==========
-            // In TikTok v1.3, identity_id is ALWAYS REQUIRED. For non-Spark ads:
-            // - identity_type = "ADVERTISER"
-            // - identity_id = advertiser_id (this is undocumented but required)
-            // This is the most stable approach for automated SaaS workflows.
+            // ========== ATTEMPT 2: UNSET identity fallback (non-Spark Ads) ==========
+            // TikTok API does NOT support "ADVERTISER" identity_type.
+            // For non-Spark ads, use identity_type = "UNSET" which means:
+            // "Use the advertiser's default brand identity implicitly."
+            // When using UNSET:
+            // - Do NOT send identity_id
+            // - Do NOT send identity_authorized_bc_id
+            // - Include display_name and image_ids for video ads
             if (!adId && shouldTryNonSparkFallback) {
-              console.log(`[push-creatives] Attempting ADVERTISER identity ads (non-Spark)`);
+              console.log(`[push-creatives] Attempting UNSET identity ads (non-Spark / brand ads)`);
               
-              // Build ADVERTISER identity payload
-              const advertiserPayload = JSON.parse(JSON.stringify(basePayload));
+              // Build UNSET identity payload
+              const unsetPayload = JSON.parse(JSON.stringify(basePayload));
               
-              // Set ADVERTISER identity - identity_id MUST equal advertiser_id
-              advertiserPayload.creatives[0].identity_type = "ADVERTISER";
-              advertiserPayload.creatives[0].identity_id = advertiserIdStr;
+              // Set UNSET identity - NO identity_id should be sent
+              unsetPayload.creatives[0].identity_type = "UNSET";
               
-              // Remove BC-specific fields
-              delete advertiserPayload.creatives[0].identity_authorized_bc_id;
-              delete advertiserPayload.creatives[0].bc_id;
+              // Remove ALL identity-related fields when using UNSET
+              delete unsetPayload.creatives[0].identity_id;
+              delete unsetPayload.creatives[0].identity_authorized_bc_id;
+              delete unsetPayload.creatives[0].bc_id;
               
-              // ADVERTISER ads require display_name
-              advertiserPayload.creatives[0].display_name = displayNameForNonSpark;
+              // UNSET ads require display_name
+              unsetPayload.creatives[0].display_name = displayNameForNonSpark;
               
               // Ensure thumbnail is present for video ads
-              if (isVideo && !advertiserPayload.creatives[0].image_ids?.length) {
+              if (isVideo && !unsetPayload.creatives[0].image_ids?.length) {
                 const thumbnailId = creative.platform_thumbnail_id || creative.platform_image_hash;
                 if (thumbnailId) {
-                  advertiserPayload.creatives[0].image_ids = [thumbnailId];
-                  console.log(`[push-creatives] Added thumbnail for ADVERTISER video ad: ${thumbnailId}`);
+                  unsetPayload.creatives[0].image_ids = [thumbnailId];
+                  console.log(`[push-creatives] Added thumbnail for UNSET video ad: ${thumbnailId}`);
                 }
               }
               
-              console.log(`[push-creatives] TikTok ad/create (ADVERTISER identity) FULL REQUEST PAYLOAD: ${JSON.stringify(advertiserPayload, null, 2)}`);
+              console.log(`[push-creatives] TikTok ad/create (UNSET identity) FULL REQUEST PAYLOAD: ${JSON.stringify(unsetPayload, null, 2)}`);
 
-              // Try v1.3 with ADVERTISER identity
-              const advertiserResponseV13 = await fetch(tiktokAdCreateUrlV13, {
+              // Try v1.3 with UNSET identity
+              const unsetResponseV13 = await fetch(tiktokAdCreateUrlV13, {
                 method: "POST",
                 headers: {
                   "Access-Token": platform.access_token,
                   "Content-Type": "application/json",
                 },
-                body: JSON.stringify(advertiserPayload),
+                body: JSON.stringify(unsetPayload),
               });
 
-              const advertiserDataV13 = await advertiserResponseV13.json();
-              lastTikTokResponse = advertiserDataV13;
+              const unsetDataV13 = await unsetResponseV13.json();
+              lastTikTokResponse = unsetDataV13;
               
-              console.log(`[push-creatives] TikTok ad/create (ADVERTISER v1.3) response:`, JSON.stringify(advertiserDataV13));
+              console.log(`[push-creatives] TikTok ad/create (UNSET v1.3) response:`, JSON.stringify(unsetDataV13));
 
-              adId = advertiserDataV13?.data?.ad_ids?.[0] ? String(advertiserDataV13.data.ad_ids[0]) : null;
+              adId = unsetDataV13?.data?.ad_ids?.[0] ? String(unsetDataV13.data.ad_ids[0]) : null;
               
-              if (advertiserDataV13?.code === 0 && adId) {
-                console.log(`[push-creatives] ✅ ADVERTISER identity Ad created successfully (v1.3) ad_id=${adId}`);
+              if (unsetDataV13?.code === 0 && adId) {
+                console.log(`[push-creatives] ✅ UNSET identity Ad created successfully (v1.3) ad_id=${adId}`);
               } else {
-                // Try v1.2 as final fallback with ADVERTISER identity
-                console.log(`[push-creatives] ADVERTISER v1.3 failed (code=${advertiserDataV13?.code}, message=${advertiserDataV13?.message}), trying v1.2...`);
+                // Try v1.2 as final fallback with UNSET identity
+                console.log(`[push-creatives] UNSET v1.3 failed (code=${unsetDataV13?.code}, message=${unsetDataV13?.message}), trying v1.2...`);
                 
-                const advertiserResponseV12 = await fetch(tiktokAdCreateUrlV12, {
+                const unsetResponseV12 = await fetch(tiktokAdCreateUrlV12, {
                   method: "POST",
                   headers: {
                     "Access-Token": platform.access_token,
                     "Content-Type": "application/json",
                   },
-                  body: JSON.stringify(advertiserPayload),
+                  body: JSON.stringify(unsetPayload),
                 });
 
-                const advertiserDataV12 = await advertiserResponseV12.json();
-                lastTikTokResponse = advertiserDataV12;
+                const unsetDataV12 = await unsetResponseV12.json();
+                lastTikTokResponse = unsetDataV12;
                 
-                console.log(`[push-creatives] TikTok ad/create (ADVERTISER v1.2) response:`, JSON.stringify(advertiserDataV12));
+                console.log(`[push-creatives] TikTok ad/create (UNSET v1.2) response:`, JSON.stringify(unsetDataV12));
 
-                adId = advertiserDataV12?.data?.ad_ids?.[0] ? String(advertiserDataV12.data.ad_ids[0]) : null;
+                adId = unsetDataV12?.data?.ad_ids?.[0] ? String(unsetDataV12.data.ad_ids[0]) : null;
                 
-                if (advertiserDataV12?.code === 0 && adId) {
-                  console.log(`[push-creatives] ✅ ADVERTISER identity Ad created successfully (v1.2) ad_id=${adId}`);
+                if (unsetDataV12?.code === 0 && adId) {
+                  console.log(`[push-creatives] ✅ UNSET identity Ad created successfully (v1.2) ad_id=${adId}`);
                 }
               }
             }
