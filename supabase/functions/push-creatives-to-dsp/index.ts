@@ -1211,17 +1211,55 @@ const handler = async (req: Request): Promise<Response> => {
               identityId = latestIdentity?.identity_id || null;
             }
 
+            // ========== PREFLIGHT: Validate identity via TikTok API ==========
+            // UI visibility ≠ API validity. The /identity/list endpoint is the source of truth.
+            let identityValidForApi = false;
+            let validIdentitiesFromApi: any[] = [];
+            
+            if (identityId) {
+              try {
+                const identityListUrl = `https://business-api.tiktok.com/open_api/v1.3/identity/list/?advertiser_id=${advertiserIdStr}`;
+                console.log(`[push-creatives] TikTok identity preflight check: GET ${identityListUrl}`);
+                
+                const identityListResponse = await fetch(identityListUrl, {
+                  method: "GET",
+                  headers: {
+                    "Access-Token": platform.access_token,
+                  },
+                });
+                
+                const identityListResult = await identityListResponse.json();
+                console.log(`[push-creatives] TikTok identity/list response:`, JSON.stringify(identityListResult));
+                
+                if (identityListResult.code === 0 && identityListResult.data?.list) {
+                  validIdentitiesFromApi = identityListResult.data.list;
+                  // Check if our identity_id is in the valid list
+                  identityValidForApi = validIdentitiesFromApi.some(
+                    (id: any) => String(id.identity_id) === String(identityId)
+                  );
+                  console.log(`[push-creatives] Identity ${identityId} valid for API: ${identityValidForApi} (found ${validIdentitiesFromApi.length} valid identities)`);
+                  
+                  if (!identityValidForApi && validIdentitiesFromApi.length > 0) {
+                    console.log(`[push-creatives] ⚠️ Identity ${identityId} NOT found in API identity list. Available identities:`, 
+                      validIdentitiesFromApi.map((id: any) => `${id.identity_id} (${id.display_name || 'no name'})`).join(', ')
+                    );
+                  }
+                } else {
+                  console.log(`[push-creatives] TikTok identity/list failed or empty: code=${identityListResult.code}, message=${identityListResult.message}`);
+                }
+              } catch (identityCheckError) {
+                console.error(`[push-creatives] TikTok identity preflight check error:`, identityCheckError);
+                // Continue anyway - we'll let the ad/create call fail if identity is invalid
+              }
+            }
+
+            // Flag to track if we should skip BC identity and use non-Spark approach
+            let useNonSparkAds = !identityId || !identityValidForApi;
+            
             if (!identityId) {
-              await supabase
-                .from("creative_assignments")
-                .update({
-                  status: "error",
-                  error_message:
-                    "Missing TikTok identity ID. Sync TikTok accounts and/or set a default identity in ad account defaults, or set it on the creative.",
-                })
-                .eq("id", assignment.id);
-              localFailed++;
-              continue;
+              console.log(`[push-creatives] No identity ID configured - will use non-Spark ads approach`);
+            } else if (!identityValidForApi) {
+              console.log(`[push-creatives] Identity ${identityId} not valid for API - will fall back to non-Spark ads`);
             }
 
             // Resolve identity type (best-effort)
@@ -1363,10 +1401,11 @@ const handler = async (req: Request): Promise<Response> => {
               tiktokAdPayload.creatives[0].download_url = creative.app_link;
             }
 
-            // Retry with a small set of identity_type fallbacks (some BC-synced identities need BC_* types)
-            // NOTE: TikTok v1.3 often enforces identity fields (especially on test/sandbox advertisers).
-            // If we hit the common "no longer have access" identity error, we fall back to v1.2.
-            // IMPORTANT: TT_ACCOUNT is NOT a valid identity_type for /ad/create; map it to CUSTOMIZED_USER.
+            // ========== AD CREATION STRATEGY ==========
+            // Strategy 1: If identity is valid for API, try BC_AUTH_TT (Spark Ads) first
+            // Strategy 2: If identity is NOT valid for API or BC_AUTH_TT fails with 40002, use non-Spark ads
+            // Non-Spark ads only require: display_name, video_id/image_ids - no identity fields
+            
             const resolvedIdentityType = dbIdentityType === "TT_ACCOUNT" ? "CUSTOMIZED_USER" : identityType;
             
             const identityTypeCandidates = Array.from(
@@ -1385,78 +1424,167 @@ const handler = async (req: Request): Promise<Response> => {
             const tiktokAdCreateUrlV13 = "https://business-api.tiktok.com/open_api/v1.3/ad/create/";
             const tiktokAdCreateUrlV12 = "https://business-api.tiktok.com/open_api/v1.2/ad/create/";
             
-            console.log(`[push-creatives] TikTok ad/create API endpoints - v1.3: ${tiktokAdCreateUrlV13}, v1.2: ${tiktokAdCreateUrlV12}`);
+            console.log(`[push-creatives] TikTok ad/create strategy: useNonSparkAds=${useNonSparkAds}, identityValidForApi=${identityValidForApi}`);
 
             let adId: string | null = null;
             let lastTikTokResponse: any = null;
-            let shouldTryV12WithoutIdentity = false;
+            let shouldTryNonSparkFallback = useNonSparkAds; // Start with non-Spark if identity is invalid
 
             // Base payload clone so our attempts don't leak state across retries
             const basePayload = JSON.parse(JSON.stringify(tiktokAdPayload));
+            
+            // Ensure display_name is set for non-Spark ads
+            const displayNameForNonSpark = 
+              resolvedText.displayName ||
+              resolvedText.brandName ||
+              creative.brand_name ||
+              creative.tiktok_display_name ||
+              identityRow?.display_name ||
+              campaign.name ||
+              creative.name;
 
-            for (const candidateType of identityTypeCandidates) {
-              const payload = JSON.parse(JSON.stringify(basePayload));
-              payload.creatives[0].identity_type = candidateType;
-              payload.creatives[0].identity_id = identityId;
-
-              // Ensure BC identity fields are correct for this attempt.
-              delete payload.creatives[0].bc_id;
-              delete payload.creatives[0].identity_authorized_bc_id;
-
-              if (identityBcId && (candidateType === "BC_AUTH_TT" || candidateType === "BC_SELF_TT")) {
-                payload.creatives[0].identity_authorized_bc_id = identityBcId;
-                console.log(
-                  `[push-creatives] Added identity_authorized_bc_id=${identityBcId} to TikTok ad payload for ${candidateType}`,
-                );
-              }
-
-              console.log(
-                `[push-creatives] TikTok ad/create (v1.3) attempt identity_type=${candidateType} identity_id=${payload.creatives[0].identity_id ?? "(omitted)"}`,
-              );
+            // ========== ATTEMPT 1: Try with BC identity (Spark Ads) if identity is valid ==========
+            if (!useNonSparkAds && identityId && identityValidForApi) {
+              console.log(`[push-creatives] Attempting Spark Ads creation with identity_id=${identityId}`);
               
-              console.log(`[push-creatives] TikTok ad/create FULL REQUEST URL: ${tiktokAdCreateUrlV13}`);
-              console.log(`[push-creatives] TikTok ad/create FULL REQUEST PAYLOAD: ${JSON.stringify(payload, null, 2)}`);
+              for (const candidateType of identityTypeCandidates) {
+                const payload = JSON.parse(JSON.stringify(basePayload));
+                payload.creatives[0].identity_type = candidateType;
+                payload.creatives[0].identity_id = identityId;
 
-              const tiktokAdResponse = await fetch(tiktokAdCreateUrlV13, {
+                // Ensure BC identity fields are correct for this attempt.
+                delete payload.creatives[0].bc_id;
+                delete payload.creatives[0].identity_authorized_bc_id;
+
+                if (identityBcId && (candidateType === "BC_AUTH_TT" || candidateType === "BC_SELF_TT")) {
+                  payload.creatives[0].identity_authorized_bc_id = identityBcId;
+                  console.log(
+                    `[push-creatives] Added identity_authorized_bc_id=${identityBcId} to TikTok ad payload for ${candidateType}`,
+                  );
+                }
+
+                console.log(
+                  `[push-creatives] TikTok ad/create (v1.3) attempt identity_type=${candidateType} identity_id=${payload.creatives[0].identity_id ?? "(omitted)"}`,
+                );
+                
+                console.log(`[push-creatives] TikTok ad/create FULL REQUEST URL: ${tiktokAdCreateUrlV13}`);
+                console.log(`[push-creatives] TikTok ad/create FULL REQUEST PAYLOAD: ${JSON.stringify(payload, null, 2)}`);
+
+                const tiktokAdResponse = await fetch(tiktokAdCreateUrlV13, {
+                  method: "POST",
+                  headers: {
+                    "Access-Token": platform.access_token,
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify(payload),
+                });
+
+                const tiktokAdData = await tiktokAdResponse.json();
+                lastTikTokResponse = tiktokAdData;
+
+                adId = tiktokAdData?.data?.ad_ids?.[0] ? String(tiktokAdData.data.ad_ids[0]) : null;
+                if (tiktokAdData?.code === 0 && adId) {
+                  console.log(`[push-creatives] ✅ Spark Ad created successfully with identity_type=${candidateType} ad_id=${adId}`);
+                  identityType = candidateType;
+                  break;
+                }
+
+                const msg = String(tiktokAdData?.message || "");
+                console.log(
+                  `[push-creatives] TikTok ad/create (v1.3) failed identity_type=${candidateType} code=${tiktokAdData?.code} message=${msg}`,
+                );
+
+                // Error 40002 or "no longer have access" - identity authorization mismatch
+                // Fall back to non-Spark ads approach
+                if (tiktokAdData?.code === 40002 || /You no longer have access to the TikTok account used in this ad/i.test(msg)) {
+                  console.log(`[push-creatives] ⚠️ Identity authorization error (code=${tiktokAdData?.code}). Will fall back to non-Spark ads.`);
+                  shouldTryNonSparkFallback = true;
+                  break;
+                }
+
+                // Retry only on identity-type related validation failures
+                const shouldRetry =
+                  /identity_type|identity type|identity_id|identity id/i.test(msg);
+                if (!shouldRetry) break;
+              }
+            }
+
+            // ========== ATTEMPT 2: Non-Spark Ads fallback (no BC identity fields) ==========
+            // This is the most stable approach for automated SaaS workflows
+            if (!adId && shouldTryNonSparkFallback) {
+              console.log(`[push-creatives] Attempting non-Spark ads creation (no BC identity fields)`);
+              
+              // Build non-Spark payload - remove all BC identity fields
+              const nonSparkPayload = JSON.parse(JSON.stringify(basePayload));
+              delete nonSparkPayload.creatives[0].identity_id;
+              delete nonSparkPayload.creatives[0].identity_type;
+              delete nonSparkPayload.creatives[0].identity_authorized_bc_id;
+              delete nonSparkPayload.creatives[0].bc_id;
+              
+              // Non-Spark ads require display_name for video ads
+              nonSparkPayload.creatives[0].display_name = displayNameForNonSpark;
+              
+              // Ensure thumbnail is present for non-Spark video ads
+              if (isVideo && !nonSparkPayload.creatives[0].image_ids?.length) {
+                // Try to use platform_thumbnail_id or platform_image_hash as thumbnail
+                const thumbnailId = creative.platform_thumbnail_id || creative.platform_image_hash;
+                if (thumbnailId) {
+                  nonSparkPayload.creatives[0].image_ids = [thumbnailId];
+                  console.log(`[push-creatives] Added thumbnail for non-Spark video ad: ${thumbnailId}`);
+                }
+              }
+              
+              console.log(`[push-creatives] TikTok ad/create (non-Spark) FULL REQUEST PAYLOAD: ${JSON.stringify(nonSparkPayload, null, 2)}`);
+
+              // Try v1.3 first for non-Spark
+              const nonSparkResponseV13 = await fetch(tiktokAdCreateUrlV13, {
                 method: "POST",
                 headers: {
                   "Access-Token": platform.access_token,
                   "Content-Type": "application/json",
                 },
-                body: JSON.stringify(payload),
+                body: JSON.stringify(nonSparkPayload),
               });
 
-              const tiktokAdData = await tiktokAdResponse.json();
-              lastTikTokResponse = tiktokAdData;
+              const nonSparkDataV13 = await nonSparkResponseV13.json();
+              lastTikTokResponse = nonSparkDataV13;
+              
+              console.log(`[push-creatives] TikTok ad/create (non-Spark v1.3) response:`, JSON.stringify(nonSparkDataV13));
 
-              adId = tiktokAdData?.data?.ad_ids?.[0] ? String(tiktokAdData.data.ad_ids[0]) : null;
-              if (tiktokAdData?.code === 0 && adId) {
-                identityType = candidateType;
-                break;
+              adId = nonSparkDataV13?.data?.ad_ids?.[0] ? String(nonSparkDataV13.data.ad_ids[0]) : null;
+              
+              if (nonSparkDataV13?.code === 0 && adId) {
+                console.log(`[push-creatives] ✅ Non-Spark Ad created successfully (v1.3) ad_id=${adId}`);
+              } else {
+                // Try v1.2 as final fallback
+                console.log(`[push-creatives] Non-Spark v1.3 failed (code=${nonSparkDataV13?.code}), trying v1.2...`);
+                
+                const nonSparkResponseV12 = await fetch(tiktokAdCreateUrlV12, {
+                  method: "POST",
+                  headers: {
+                    "Access-Token": platform.access_token,
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify(nonSparkPayload),
+                });
+
+                const nonSparkDataV12 = await nonSparkResponseV12.json();
+                lastTikTokResponse = nonSparkDataV12;
+                
+                console.log(`[push-creatives] TikTok ad/create (non-Spark v1.2) response:`, JSON.stringify(nonSparkDataV12));
+
+                adId = nonSparkDataV12?.data?.ad_ids?.[0] ? String(nonSparkDataV12.data.ad_ids[0]) : null;
+                
+                if (nonSparkDataV12?.code === 0 && adId) {
+                  console.log(`[push-creatives] ✅ Non-Spark Ad created successfully (v1.2) ad_id=${adId}`);
+                }
               }
-
-              const msg = String(tiktokAdData?.message || "");
-              console.log(
-                `[push-creatives] TikTok ad/create (v1.3) failed identity_type=${candidateType} code=${tiktokAdData?.code} message=${msg}`,
-              );
-
-              // If TikTok says we don't have access to the TT account identity, v1.3 retries won't help.
-              // Switch to v1.2 ad/create without identity fields (non-Spark ads) as a pragmatic fallback.
-              if (/You no longer have access to the TikTok account used in this ad/i.test(msg)) {
-                shouldTryV12WithoutIdentity = true;
-                break;
-              }
-
-              // Retry only on identity-type related validation failures
-              const shouldRetry =
-                tiktokAdData?.code === 40002 ||
-                /identity_type|identity type|identity_id|identity id/i.test(msg);
-              if (!shouldRetry) break;
             }
 
-            // v1.2 fallback: Try remaining identity types that weren't in v1.3 candidates
-            // Some accounts require identity fields even on v1.2, so we try with them first
-            if (!adId && shouldTryV12WithoutIdentity) {
+            // ========== ATTEMPT 3: Legacy v1.2 with identity fields (last resort) ==========
+            if (!adId && !shouldTryNonSparkFallback) {
+              console.log(`[push-creatives] Trying legacy v1.2 with identity fields as last resort`);
+              
               const v12IdentityTypesToTry = ["CUSTOMIZED_USER", "BC_SELF_TT", "TT_USER", "AUTH_CODE"];
               
               for (const v12IdentityType of v12IdentityTypesToTry) {
@@ -1465,12 +1593,7 @@ const handler = async (req: Request): Promise<Response> => {
                 
                 // v1.2 requires a display name for non-Spark identity-less ads in many setups
                 if (!payloadV12.creatives[0].display_name) {
-                  payloadV12.creatives[0].display_name =
-                    resolvedText.displayName ||
-                    resolvedText.brandName ||
-                    creative.brand_name ||
-                    campaign.name ||
-                    creative.name;
+                  payloadV12.creatives[0].display_name = displayNameForNonSpark;
                 }
 
                 console.log(`[push-creatives] TikTok ad/create (v1.2) attempt identity_type=${v12IdentityType} identity_id=${identityId}`);
@@ -1489,7 +1612,7 @@ const handler = async (req: Request): Promise<Response> => {
                 adId = tiktokAdData?.data?.ad_ids?.[0] ? String(tiktokAdData.data.ad_ids[0]) : null;
 
                 if (tiktokAdData?.code === 0 && adId) {
-                  console.log(`[push-creatives] TikTok ad/create (v1.2) succeeded identity_type=${v12IdentityType} ad_id=${adId}`);
+                  console.log(`[push-creatives] ✅ TikTok ad/create (v1.2) succeeded identity_type=${v12IdentityType} ad_id=${adId}`);
                   break;
                 } else {
                   const msg = String(tiktokAdData?.message || "");
@@ -1503,11 +1626,14 @@ const handler = async (req: Request): Promise<Response> => {
 
             if (!adId) {
               const msg = String(lastTikTokResponse?.message || "Failed to create TikTok ad");
+              const errorDetails = shouldTryNonSparkFallback 
+                ? `${msg} (tried non-Spark fallback after identity validation failed)`
+                : `${msg} (identity_type tried: ${identityTypeCandidates.join(", ")})`;
               await supabase
                 .from("creative_assignments")
                 .update({
                   status: "error",
-                  error_message: `${msg} (identity_type tried: ${identityTypeCandidates.join(", ")}${shouldTryV12WithoutIdentity ? " + v1.2 fallback" : ""})`,
+                  error_message: errorDetails,
                 })
                 .eq("id", assignment.id);
               localFailed++;
