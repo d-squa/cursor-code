@@ -1404,7 +1404,8 @@ const handler = async (req: Request): Promise<Response> => {
             // ========== AD CREATION STRATEGY ==========
             // Strategy 1: If identity is valid for API, try BC_AUTH_TT (Spark Ads) first
             // Strategy 2: If identity is NOT valid for API or BC_AUTH_TT fails with 40002, use non-Spark ads
-            // Non-Spark ads only require: display_name, video_id/image_ids - no identity fields
+            // Non-Spark ads use identity_type = UNSET. Despite some docs suggesting identity_id can be omitted,
+            // we observe TikTok returning "creatives.identity_id is required" when it is missing, so we include it.
             
             const resolvedIdentityType = dbIdentityType === "TT_ACCOUNT" ? "CUSTOMIZED_USER" : identityType;
             
@@ -1510,27 +1511,22 @@ const handler = async (req: Request): Promise<Response> => {
             }
 
             // ========== ATTEMPT 2: UNSET identity fallback (non-Spark Ads) ==========
-            // TikTok API does NOT support "ADVERTISER" identity_type.
-            // For non-Spark ads, use identity_type = "UNSET" which means:
-            // "Use the advertiser's default brand identity implicitly."
-            // When using UNSET:
-            // - Do NOT send identity_id
-            // - Do NOT send identity_authorized_bc_id
-            // - Include display_name and image_ids for video ads
+            // For non-Spark ads, use identity_type = "UNSET".
+            // NOTE: TikTok is returning "Invalid param: creatives.identity_id is required" when identity_id is omitted,
+            // so we include identity_id = advertiser_id for the UNSET fallback.
             if (!adId && shouldTryNonSparkFallback) {
               console.log(`[push-creatives] Attempting UNSET identity ads (non-Spark / brand ads)`);
-              
+
               // Build UNSET identity payload
               const unsetPayload = JSON.parse(JSON.stringify(basePayload));
-              
-              // Set UNSET identity - NO identity_id should be sent
+
               unsetPayload.creatives[0].identity_type = "UNSET";
-              
-              // Remove ALL identity-related fields when using UNSET
-              delete unsetPayload.creatives[0].identity_id;
+              unsetPayload.creatives[0].identity_id = advertiserIdStr;
+
+              // Remove BC-only fields for UNSET
               delete unsetPayload.creatives[0].identity_authorized_bc_id;
               delete unsetPayload.creatives[0].bc_id;
-              
+
               // UNSET ads require display_name
               unsetPayload.creatives[0].display_name = displayNameForNonSpark;
               
