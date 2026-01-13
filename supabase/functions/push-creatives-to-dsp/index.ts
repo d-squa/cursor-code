@@ -1249,12 +1249,14 @@ const handler = async (req: Request): Promise<Response> => {
                 );
               }
             }
+
+            if (!adId) {
               const msg = String(lastTikTokResponse?.message || "Failed to create TikTok ad");
               await supabase
                 .from("creative_assignments")
                 .update({
                   status: "error",
-                  error_message: `${msg} (identity_type tried: ${identityTypeCandidates.join(", ")})`,
+                  error_message: `${msg} (identity_type tried: ${identityTypeCandidates.join(", ")}${shouldTryV12WithoutIdentity ? " + v1.2 fallback" : ""})`,
                 })
                 .eq("id", assignment.id);
               localFailed++;
