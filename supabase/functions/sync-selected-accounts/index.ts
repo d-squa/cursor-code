@@ -36,6 +36,8 @@ serve(async (req) => {
       throw new Error("No accounts selected");
     }
 
+    const selectedIds = selectedAccountIds.map((id: any) => String(id));
+
     if (!platformId) {
       throw new Error("Platform ID is required");
     }
@@ -74,8 +76,8 @@ serve(async (req) => {
       const accountsInfo = platform.metadata?.accounts || [];
 
       // Filter selected accounts
-      const selectedAccounts = accountsInfo.filter((acc: any) => 
-        selectedAccountIds.includes(acc.advertiser_id)
+      const selectedAccounts = accountsInfo.filter((acc: any) =>
+        selectedIds.includes(String(acc.advertiser_id))
       );
 
       if (selectedAccounts.length === 0) {
@@ -84,11 +86,12 @@ serve(async (req) => {
 
       // Prepare TikTok ad accounts for insertion
       selectedAccounts.forEach((account: any) => {
+        const advertiserIdStr = String(account.advertiser_id);
         accountsToInsert.push({
           user_id: user.id,
-          account_id: account.advertiser_id,
+          account_id: advertiserIdStr,
           account_name: account.name,
-          advertiser_id: account.advertiser_id,
+          advertiser_id: advertiserIdStr,
           account_status: account.status,
           currency: account.currency,
           timezone: account.timezone,
@@ -101,7 +104,7 @@ serve(async (req) => {
         .from("tiktok_ad_accounts")
         .delete()
         .eq("user_id", user.id)
-        .in("advertiser_id", selectedAccountIds);
+        .in("advertiser_id", selectedIds);
       
       const { error: insertError } = await supabase
         .from("tiktok_ad_accounts")
@@ -115,9 +118,9 @@ serve(async (req) => {
       console.log(`Successfully synced ${accountsToInsert.length} TikTok advertiser accounts`);
 
       // Update connected_platforms with the first selected advertiser ID as default ad_account_id
-      if (selectedAccountIds.length > 0) {
-        const defaultAdAccountId = selectedAccountIds[0];
-        const defaultAccount = selectedAccounts.find((acc: any) => acc.advertiser_id === defaultAdAccountId);
+      if (selectedIds.length > 0) {
+        const defaultAdAccountId = selectedIds[0];
+        const defaultAccount = selectedAccounts.find((acc: any) => String(acc.advertiser_id) === defaultAdAccountId);
         
         const { error: updateError } = await supabase
           .from("connected_platforms")
@@ -152,9 +155,10 @@ serve(async (req) => {
         console.log(`Checking ${platformMetadata.accounts.length} accounts for bc_ids`);
         for (const account of platformMetadata.accounts) {
           console.log(`Account ${account.advertiser_id} has bc_id: ${account.bc_id}`);
-          if (selectedAccountIds.includes(account.advertiser_id) && account.bc_id) {
-            bcIds.add(account.bc_id);
-            advertiserToBcMap.set(account.advertiser_id, account.bc_id);
+          if (selectedIds.includes(String(account.advertiser_id)) && account.bc_id) {
+            const bcIdStr = String(account.bc_id);
+            bcIds.add(bcIdStr);
+            advertiserToBcMap.set(String(account.advertiser_id), bcIdStr);
           }
         }
       } else {
@@ -192,8 +196,8 @@ serve(async (req) => {
                 
                 if (identitiesData.code === 0 && identitiesData.data?.list) {
                   // Associate identities with all advertisers in this BC
-                  const advertisersInBc = selectedAccountIds.filter(
-                    id => advertiserToBcMap.get(id) === bcId
+                  const advertisersInBc = selectedIds.filter(
+                    (id) => advertiserToBcMap.get(id) === bcId
                   );
                   
                   identitiesData.data.list.forEach((identity: any) => {
@@ -204,6 +208,7 @@ serve(async (req) => {
                         identity_id: identity.asset_id,
                         identity_name: identity.asset_name || `TikTok Account ${identity.asset_id}`,
                         identity_type: identity.asset_type || 'TT_ACCOUNT',
+                        bc_id: bcId,
                       });
                     });
                   });
@@ -237,8 +242,8 @@ serve(async (req) => {
                 
                 if (catalogsData.code === 0 && catalogsData.data?.list) {
                   // Associate catalogs with all advertisers in this BC
-                  const advertisersInBc = selectedAccountIds.filter(
-                    id => advertiserToBcMap.get(id) === bcId
+                  const advertisersInBc = selectedIds.filter(
+                    (id) => advertiserToBcMap.get(id) === bcId
                   );
                   
                   catalogsData.data.list.forEach((catalog: any) => {
@@ -266,7 +271,7 @@ serve(async (req) => {
       }
       
       // Fetch advertiser-level pixels for each advertiser
-      for (const advertiserId of selectedAccountIds) {
+      for (const advertiserId of selectedIds) {
         try {
           console.log(`Fetching advertiser-level pixels for: ${advertiserId}`);
           
