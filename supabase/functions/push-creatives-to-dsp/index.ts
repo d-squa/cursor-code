@@ -1028,9 +1028,12 @@ const handler = async (req: Request): Promise<Response> => {
                     throw new Error(`TikTok video upload failed: ${uploadResult.message || "Unknown error"} (code: ${uploadResult.code})`);
                   }
                   
-                  const videoId = uploadResult.data?.video_id;
+                  // TikTok URL upload returns data as array with material_id
+                  const uploadData = Array.isArray(uploadResult.data) ? uploadResult.data[0] : uploadResult.data;
+                  const videoId = uploadData?.material_id || uploadData?.video_id;
                   if (!videoId) {
-                    throw new Error("TikTok video upload succeeded but no video_id returned");
+                    console.error(`[push-creatives] TikTok response structure:`, JSON.stringify(uploadResult.data));
+                    throw new Error("TikTok video upload succeeded but no video_id/material_id returned");
                   }
                   
                   // Update creative with TikTok video ID
@@ -1074,8 +1077,11 @@ const handler = async (req: Request): Promise<Response> => {
                     throw new Error(`TikTok image upload failed: ${uploadResult.message || "Unknown error"} (code: ${uploadResult.code})`);
                   }
                   
-                  const imageId = uploadResult.data?.id;
+                  // TikTok URL upload returns data as array with material_id
+                  const uploadData = Array.isArray(uploadResult.data) ? uploadResult.data[0] : uploadResult.data;
+                  const imageId = uploadData?.material_id || uploadData?.id || uploadData?.image_id;
                   if (!imageId) {
+                    console.error(`[push-creatives] TikTok image response structure:`, JSON.stringify(uploadResult.data));
                     throw new Error("TikTok image upload succeeded but no image id returned");
                   }
                   
