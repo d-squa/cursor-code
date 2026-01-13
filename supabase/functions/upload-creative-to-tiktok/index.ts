@@ -47,19 +47,31 @@ serve(async (req: Request) => {
     const input = uploadInputSchema.parse(body);
     console.log(`📁 Uploading ${input.fileType}: ${input.fileName} to advertiser ${input.advertiserId}`);
 
-    // Find connected platform for this user with TikTok type
-    const { data: connectedPlatform, error: platformError } = await supabase
+    // Find connected platform for this user with TikTok type.
+    // IMPORTANT: a user may have multiple TikTok connections; we must pick the one that includes this advertiserId.
+    const { data: connectedPlatforms, error: platformError } = await supabase
       .from("connected_platforms")
-      .select("id")
+      .select("id, metadata, updated_at")
       .eq("user_id", user.id)
       .eq("platform_type", "tiktok")
       .eq("is_active", true)
-      .maybeSingle();
+      .order("updated_at", { ascending: false });
 
-    if (platformError || !connectedPlatform) {
+    if (platformError || !connectedPlatforms?.length) {
       console.error("Connected platform lookup failed:", platformError);
       throw new Error("No active TikTok connection found");
     }
+
+    const desiredAdvertiserId = String(input.advertiserId);
+    const matchedPlatform = (connectedPlatforms as any[]).find((p) =>
+      Array.isArray(p?.metadata?.advertiser_ids) && p.metadata.advertiser_ids.map(String).includes(desiredAdvertiserId)
+    );
+
+    const connectedPlatform = matchedPlatform || connectedPlatforms[0];
+
+    console.log(
+      `🔎 TikTok connection selection: advertiserId=${desiredAdvertiserId}, platformId=${connectedPlatform.id}, advertiserIdsInToken=${JSON.stringify((connectedPlatform as any)?.metadata?.advertiser_ids || [])}`,
+    );
 
     // Get access token from vault
     const accessToken = await getAccessToken(supabase, connectedPlatform.id);

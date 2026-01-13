@@ -932,21 +932,33 @@ const handler = async (req: Request): Promise<Response> => {
             localPushed++;
           } else if (platformKey === "tiktok") {
             // TikTok ad creation logic
-            const tiktokAdvertiserId =
-              (market as any)?.adAccountId ||
-              (market as any)?.ad_account_id ||
-              (platform as any).metadata?.advertiser_id;
+            // TikTok advertiser/account id resolution (this MUST match the advertiser that owns the ad group + creative)
+            const marketAny = market as any;
+            const platformAny = platform as any;
+
+            const advertiserIdCandidates = [
+              marketAny?.advertiserId,
+              marketAny?.advertiser_id,
+              marketAny?.tiktokAdvertiserId,
+              marketAny?.tiktok_advertiser_id,
+              marketAny?.adAccountId,
+              marketAny?.ad_account_id,
+              marketAny?.accountId,
+              marketAny?.account_id,
+              platformAny?.metadata?.advertiser_id,
+            ].filter((v) => v !== undefined && v !== null && String(v).trim().length > 0);
+
+            const tiktokAdvertiserId = advertiserIdCandidates[0];
+
+            const knownAdvertiserIds = Array.isArray(platformAny?.metadata?.advertiser_ids)
+              ? platformAny.metadata.advertiser_ids.map((x: any) => String(x))
+              : [];
+
+            console.log(
+              `[push-creatives] TikTok advertiser_id resolution: candidates=${JSON.stringify(advertiserIdCandidates.map(String))} selected=${tiktokAdvertiserId ? String(tiktokAdvertiserId) : 'none'} knownAdvertiserIds=${JSON.stringify(knownAdvertiserIds)}`,
+            );
 
             if (!tiktokAdvertiserId) {
-              await supabase
-                .from("creative_assignments")
-                .update({ status: "error", error_message: "Missing TikTok advertiser ID" })
-                .eq("id", assignment.id);
-              localFailed++;
-              continue;
-            }
-
-            const advertiserIdStr = String(tiktokAdvertiserId);
 
             // Fetch TikTok ad account defaults (landing page URL + default identity)
             // NOTE: advertiser_id and account_id can be the same value; query both defensively.
