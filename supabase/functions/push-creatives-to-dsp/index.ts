@@ -1509,74 +1509,80 @@ const handler = async (req: Request): Promise<Response> => {
               }
             }
 
-            // ========== ATTEMPT 2: Non-Spark Ads fallback (no BC identity fields) ==========
-            // This is the most stable approach for automated SaaS workflows
+            // ========== ATTEMPT 2: ADVERTISER identity fallback (non-Spark Ads) ==========
+            // In TikTok v1.3, identity_id is ALWAYS REQUIRED. For non-Spark ads:
+            // - identity_type = "ADVERTISER"
+            // - identity_id = advertiser_id (this is undocumented but required)
+            // This is the most stable approach for automated SaaS workflows.
             if (!adId && shouldTryNonSparkFallback) {
-              console.log(`[push-creatives] Attempting non-Spark ads creation (no BC identity fields)`);
+              console.log(`[push-creatives] Attempting ADVERTISER identity ads (non-Spark)`);
               
-              // Build non-Spark payload - remove all BC identity fields
-              const nonSparkPayload = JSON.parse(JSON.stringify(basePayload));
-              delete nonSparkPayload.creatives[0].identity_id;
-              delete nonSparkPayload.creatives[0].identity_type;
-              delete nonSparkPayload.creatives[0].identity_authorized_bc_id;
-              delete nonSparkPayload.creatives[0].bc_id;
+              // Build ADVERTISER identity payload
+              const advertiserPayload = JSON.parse(JSON.stringify(basePayload));
               
-              // Non-Spark ads require display_name for video ads
-              nonSparkPayload.creatives[0].display_name = displayNameForNonSpark;
+              // Set ADVERTISER identity - identity_id MUST equal advertiser_id
+              advertiserPayload.creatives[0].identity_type = "ADVERTISER";
+              advertiserPayload.creatives[0].identity_id = advertiserIdStr;
               
-              // Ensure thumbnail is present for non-Spark video ads
-              if (isVideo && !nonSparkPayload.creatives[0].image_ids?.length) {
-                // Try to use platform_thumbnail_id or platform_image_hash as thumbnail
+              // Remove BC-specific fields
+              delete advertiserPayload.creatives[0].identity_authorized_bc_id;
+              delete advertiserPayload.creatives[0].bc_id;
+              
+              // ADVERTISER ads require display_name
+              advertiserPayload.creatives[0].display_name = displayNameForNonSpark;
+              
+              // Ensure thumbnail is present for video ads
+              if (isVideo && !advertiserPayload.creatives[0].image_ids?.length) {
                 const thumbnailId = creative.platform_thumbnail_id || creative.platform_image_hash;
                 if (thumbnailId) {
-                  nonSparkPayload.creatives[0].image_ids = [thumbnailId];
-                  console.log(`[push-creatives] Added thumbnail for non-Spark video ad: ${thumbnailId}`);
+                  advertiserPayload.creatives[0].image_ids = [thumbnailId];
+                  console.log(`[push-creatives] Added thumbnail for ADVERTISER video ad: ${thumbnailId}`);
                 }
               }
               
-              console.log(`[push-creatives] TikTok ad/create (non-Spark) FULL REQUEST PAYLOAD: ${JSON.stringify(nonSparkPayload, null, 2)}`);
+              console.log(`[push-creatives] TikTok ad/create (ADVERTISER identity) FULL REQUEST PAYLOAD: ${JSON.stringify(advertiserPayload, null, 2)}`);
 
-              // Try v1.3 first for non-Spark
-              const nonSparkResponseV13 = await fetch(tiktokAdCreateUrlV13, {
+              // Try v1.3 with ADVERTISER identity
+              const advertiserResponseV13 = await fetch(tiktokAdCreateUrlV13, {
                 method: "POST",
                 headers: {
                   "Access-Token": platform.access_token,
                   "Content-Type": "application/json",
                 },
-                body: JSON.stringify(nonSparkPayload),
+                body: JSON.stringify(advertiserPayload),
               });
 
-              const nonSparkDataV13 = await nonSparkResponseV13.json();
-              lastTikTokResponse = nonSparkDataV13;
+              const advertiserDataV13 = await advertiserResponseV13.json();
+              lastTikTokResponse = advertiserDataV13;
               
-              console.log(`[push-creatives] TikTok ad/create (non-Spark v1.3) response:`, JSON.stringify(nonSparkDataV13));
+              console.log(`[push-creatives] TikTok ad/create (ADVERTISER v1.3) response:`, JSON.stringify(advertiserDataV13));
 
-              adId = nonSparkDataV13?.data?.ad_ids?.[0] ? String(nonSparkDataV13.data.ad_ids[0]) : null;
+              adId = advertiserDataV13?.data?.ad_ids?.[0] ? String(advertiserDataV13.data.ad_ids[0]) : null;
               
-              if (nonSparkDataV13?.code === 0 && adId) {
-                console.log(`[push-creatives] ✅ Non-Spark Ad created successfully (v1.3) ad_id=${adId}`);
+              if (advertiserDataV13?.code === 0 && adId) {
+                console.log(`[push-creatives] ✅ ADVERTISER identity Ad created successfully (v1.3) ad_id=${adId}`);
               } else {
-                // Try v1.2 as final fallback
-                console.log(`[push-creatives] Non-Spark v1.3 failed (code=${nonSparkDataV13?.code}), trying v1.2...`);
+                // Try v1.2 as final fallback with ADVERTISER identity
+                console.log(`[push-creatives] ADVERTISER v1.3 failed (code=${advertiserDataV13?.code}, message=${advertiserDataV13?.message}), trying v1.2...`);
                 
-                const nonSparkResponseV12 = await fetch(tiktokAdCreateUrlV12, {
+                const advertiserResponseV12 = await fetch(tiktokAdCreateUrlV12, {
                   method: "POST",
                   headers: {
                     "Access-Token": platform.access_token,
                     "Content-Type": "application/json",
                   },
-                  body: JSON.stringify(nonSparkPayload),
+                  body: JSON.stringify(advertiserPayload),
                 });
 
-                const nonSparkDataV12 = await nonSparkResponseV12.json();
-                lastTikTokResponse = nonSparkDataV12;
+                const advertiserDataV12 = await advertiserResponseV12.json();
+                lastTikTokResponse = advertiserDataV12;
                 
-                console.log(`[push-creatives] TikTok ad/create (non-Spark v1.2) response:`, JSON.stringify(nonSparkDataV12));
+                console.log(`[push-creatives] TikTok ad/create (ADVERTISER v1.2) response:`, JSON.stringify(advertiserDataV12));
 
-                adId = nonSparkDataV12?.data?.ad_ids?.[0] ? String(nonSparkDataV12.data.ad_ids[0]) : null;
+                adId = advertiserDataV12?.data?.ad_ids?.[0] ? String(advertiserDataV12.data.ad_ids[0]) : null;
                 
-                if (nonSparkDataV12?.code === 0 && adId) {
-                  console.log(`[push-creatives] ✅ Non-Spark Ad created successfully (v1.2) ad_id=${adId}`);
+                if (advertiserDataV12?.code === 0 && adId) {
+                  console.log(`[push-creatives] ✅ ADVERTISER identity Ad created successfully (v1.2) ad_id=${adId}`);
                 }
               }
             }
