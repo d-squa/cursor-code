@@ -1177,6 +1177,9 @@ const handler = async (req: Request): Promise<Response> => {
               console.log(
                 `[push-creatives] TikTok ad/create (v1.3) attempt identity_type=${candidateType} identity_id=${payload.creatives[0].identity_id ?? "(omitted)"}`,
               );
+              
+              console.log(`[push-creatives] TikTok ad/create FULL REQUEST URL: ${tiktokAdCreateUrlV13}`);
+              console.log(`[push-creatives] TikTok ad/create FULL REQUEST PAYLOAD: ${JSON.stringify(payload, null, 2)}`);
 
               const tiktokAdResponse = await fetch(tiktokAdCreateUrlV13, {
                 method: "POST",
