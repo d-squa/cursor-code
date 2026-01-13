@@ -59,11 +59,13 @@ serve(async (req) => {
     const baseUrl = 'https://business-api.tiktok.com/open_api/v1.3';
     
     // Get bc_id from metadata for this advertiser
-    let bcId = null;
+    let bcId: string | null = null;
     const platformMetadata = connection.metadata as any;
     if (platformMetadata?.accounts) {
-      const account = platformMetadata.accounts.find((acc: any) => acc.advertiser_id === advertiserId);
-      bcId = account?.bc_id;
+      const account = platformMetadata.accounts.find(
+        (acc: any) => String(acc.advertiser_id) === String(advertiserId),
+      );
+      bcId = account?.bc_id ? String(account.bc_id) : null;
     }
     
     if (!bcId) {
