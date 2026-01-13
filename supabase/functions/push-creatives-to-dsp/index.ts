@@ -959,6 +959,15 @@ const handler = async (req: Request): Promise<Response> => {
             );
 
             if (!tiktokAdvertiserId) {
+              await supabase
+                .from("creative_assignments")
+                .update({ status: "error", error_message: "Missing TikTok advertiser ID" })
+                .eq("id", assignment.id);
+              localFailed++;
+              continue;
+            }
+
+            const advertiserIdStr = String(tiktokAdvertiserId);
 
             // Fetch TikTok ad account defaults (landing page URL + default identity)
             // NOTE: advertiser_id and account_id can be the same value; query both defensively.
