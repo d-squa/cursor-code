@@ -996,9 +996,15 @@ const handler = async (req: Request): Promise<Response> => {
               const mediaUrl = fullCreative.media_urls[0];
               const isVideoFile = fullCreative.media_type === "video" || 
                                   mediaUrl.toLowerCase().match(/\.(mp4|mov|avi|wmv|flv|webm|m4v)$/);
-              const fileName = fullCreative.original_filename || mediaUrl.split('/').pop() || (isVideoFile ? 'video.mp4' : 'image.jpg');
               
-              console.log(`[push-creatives] TikTok auto-upload via URL: mediaUrl=${mediaUrl}, isVideoFile=${isVideoFile}`);
+              // Add unique suffix to filename to avoid TikTok "Duplicated material name" error
+              const baseFileName = fullCreative.original_filename || mediaUrl.split('/').pop() || (isVideoFile ? 'video.mp4' : 'image.jpg');
+              const uniqueSuffix = `_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+              const fileExt = baseFileName.includes('.') ? '.' + baseFileName.split('.').pop() : (isVideoFile ? '.mp4' : '.jpg');
+              const fileNameWithoutExt = baseFileName.includes('.') ? baseFileName.substring(0, baseFileName.lastIndexOf('.')) : baseFileName;
+              const fileName = `${fileNameWithoutExt}${uniqueSuffix}${fileExt}`;
+              
+              console.log(`[push-creatives] TikTok auto-upload via URL: mediaUrl=${mediaUrl}, isVideoFile=${isVideoFile}, fileName=${fileName}`);
               
               try {
                 if (isVideoFile) {
