@@ -1386,6 +1386,44 @@ const handler = async (req: Request): Promise<Response> => {
                 console.log(`[push-creatives] TikTok ad payload includes thumbnail image_id=${creative.platform_thumbnail_id}`);
               }
             } else if (creative.platform_image_hash) {
+              // Verify image is accessible before ad creation
+              const imageInfoUrl = `https://business-api.tiktok.com/open_api/v1.3/file/image/ad/info/?advertiser_id=${advertiserIdStr}&image_ids=["${creative.platform_image_hash}"]`;
+              console.log(`[push-creatives] Verifying TikTok image access: ${imageInfoUrl}`);
+              
+              try {
+                const imageInfoResponse = await fetch(imageInfoUrl, {
+                  method: "GET",
+                  headers: { "Access-Token": platform.access_token },
+                });
+                const imageInfoResult = await imageInfoResponse.json();
+                console.log(`[push-creatives] TikTok image info response:`, JSON.stringify(imageInfoResult));
+                
+                if (imageInfoResult.code !== 0 || !imageInfoResult.data?.list?.length) {
+                  console.error(`[push-creatives] ⚠️ Image ${creative.platform_image_hash} not accessible via API. Error: ${imageInfoResult.message || 'Not found'}`);
+                  // Image may have been uploaded via UI or different account - clear it and trigger re-upload
+                  await supabase
+                    .from("creative_assignments")
+                    .update({
+                      status: "error",
+                      error_message: `TikTok image not accessible (may need re-upload): ${imageInfoResult.message || 'Image not found in account'}`,
+                    })
+                    .eq("id", assignment.id);
+                  
+                  // Clear the invalid image hash to force re-upload on next attempt
+                  await supabase
+                    .from("creatives")
+                    .update({ platform_image_hash: null, dsp_upload_status: null })
+                    .eq("id", creative.id);
+                  
+                  localFailed++;
+                  continue;
+                }
+                
+                console.log(`[push-creatives] ✅ TikTok image verified accessible`);
+              } catch (imageVerifyError) {
+                console.error(`[push-creatives] Image verification error (proceeding anyway):`, imageVerifyError);
+              }
+              
               tiktokAdPayload.creatives[0].image_ids = [creative.platform_image_hash];
               console.log(`[push-creatives] TikTok ad payload includes image_id=${creative.platform_image_hash}`);
             } else {
