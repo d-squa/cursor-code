@@ -1023,7 +1023,14 @@ const handler = async (req: Request): Promise<Response> => {
               .maybeSingle();
             
             // Get bc_id for BC-linked identities
-            const identityBcId = identityRow?.bc_id ? String(identityRow.bc_id) : null;
+            const bcIdFromPlatform = (platform as any)?.metadata?.accounts?.find(
+              (acc: any) => String(acc.advertiser_id) === advertiserIdStr,
+            )?.bc_id;
+
+            const identityBcId =
+              identityRow?.bc_id ? String(identityRow.bc_id)
+              : bcIdFromPlatform ? String(bcIdFromPlatform)
+              : null;
 
             let dbIdentityType = identityRow?.identity_type ? String(identityRow.identity_type) : null;
 
