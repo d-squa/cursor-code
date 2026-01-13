@@ -1001,7 +1001,8 @@ const handler = async (req: Request): Promise<Response> => {
             }
 
             // Resolve identity type (best-effort)
-            // TikTok API valid values: AUTH_CODE, TT_USER, BC_SELF_TT, UNSET, CUSTOMIZED_USER, BC_AUTH_TT
+            // NOTE: `TT_ACCOUNT` is returned by Business Center asset APIs; it may not be accepted by /ad/create,
+            // but we optionally try it as a fallback when that is what we synced.
             const allowedIdentityTypes = new Set([
               "AUTH_CODE",
               "TT_USER",
@@ -1009,6 +1010,7 @@ const handler = async (req: Request): Promise<Response> => {
               "UNSET",
               "CUSTOMIZED_USER",
               "BC_AUTH_TT",
+              "TT_ACCOUNT",
             ]);
 
             // Default to a safe, accepted value
@@ -1131,14 +1133,17 @@ const handler = async (req: Request): Promise<Response> => {
             // If we hit the common "no longer have access" identity error, we fall back to v1.2 which
             // (per TikTok docs) only requires identity fields for Spark Ads.
             const identityTypeCandidates = Array.from(
-              new Set([
-                identityType,
-                "BC_SELF_TT",
-                "BC_AUTH_TT",
-                "TT_USER",
-                "CUSTOMIZED_USER",
-                "AUTH_CODE",
-              ].filter((t) => allowedIdentityTypes.has(t))),
+              new Set(
+                [
+                  ...(dbIdentityType === "TT_ACCOUNT" ? ["TT_ACCOUNT"] : []),
+                  identityType,
+                  "BC_SELF_TT",
+                  "BC_AUTH_TT",
+                  "TT_USER",
+                  "CUSTOMIZED_USER",
+                  "AUTH_CODE",
+                ].filter((t) => t && allowedIdentityTypes.has(t)),
+              ),
             );
 
             const tiktokAdCreateUrlV13 = "https://business-api.tiktok.com/open_api/v1.3/ad/create/";
