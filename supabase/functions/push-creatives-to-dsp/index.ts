@@ -1148,6 +1148,8 @@ const handler = async (req: Request): Promise<Response> => {
 
             const tiktokAdCreateUrlV13 = "https://business-api.tiktok.com/open_api/v1.3/ad/create/";
             const tiktokAdCreateUrlV12 = "https://business-api.tiktok.com/open_api/v1.2/ad/create/";
+            
+            console.log(`[push-creatives] TikTok ad/create API endpoints - v1.3: ${tiktokAdCreateUrlV13}, v1.2: ${tiktokAdCreateUrlV12}`);
 
             let adId: string | null = null;
             let lastTikTokResponse: any = null;
