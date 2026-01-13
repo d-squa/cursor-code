@@ -1127,6 +1127,9 @@ const handler = async (req: Request): Promise<Response> => {
             }
 
             // Retry with a small set of identity_type fallbacks (some BC-synced identities need BC_* types)
+            // NOTE: TikTok v1.3 often enforces identity fields (especially on test/sandbox advertisers).
+            // If we hit the common "no longer have access" identity error, we fall back to v1.2 which
+            // (per TikTok docs) only requires identity fields for Spark Ads.
             const identityTypeCandidates = Array.from(
               new Set([
                 identityType,
@@ -1134,64 +1137,53 @@ const handler = async (req: Request): Promise<Response> => {
                 "BC_AUTH_TT",
                 "TT_USER",
                 "CUSTOMIZED_USER",
-                "UNSET",
                 "AUTH_CODE",
               ].filter((t) => allowedIdentityTypes.has(t))),
             );
 
-            const tiktokAdCreateUrl = "https://business-api.tiktok.com/open_api/v1.3/ad/create/";
+            const tiktokAdCreateUrlV13 = "https://business-api.tiktok.com/open_api/v1.3/ad/create/";
+            const tiktokAdCreateUrlV12 = "https://business-api.tiktok.com/open_api/v1.2/ad/create/";
 
             let adId: string | null = null;
             let lastTikTokResponse: any = null;
+            let shouldTryV12WithoutIdentity = false;
+
+            // Base payload clone so our attempts don't leak state across retries
+            const basePayload = JSON.parse(JSON.stringify(tiktokAdPayload));
 
             for (const candidateType of identityTypeCandidates) {
-              // For custom identity modes, TikTok may not accept identity_id.
-              if (candidateType === "CUSTOMIZED_USER" || candidateType === "UNSET") {
-                delete tiktokAdPayload.creatives[0].identity_id;
-                if (!tiktokAdPayload.creatives[0].display_name) {
-                  tiktokAdPayload.creatives[0].display_name =
-                    resolvedText.displayName ||
-                    resolvedText.brandName ||
-                    creative.brand_name ||
-                    campaign.name ||
-                    creative.name;
-                }
-              } else {
-                tiktokAdPayload.creatives[0].identity_id = identityId;
-              }
-
-              tiktokAdPayload.creatives[0].identity_type = candidateType;
+              const payload = JSON.parse(JSON.stringify(basePayload));
+              payload.creatives[0].identity_type = candidateType;
+              payload.creatives[0].identity_id = identityId;
 
               // Ensure BC identity fields are correct for this attempt.
-              // (We previously sent `bc_id`, but TikTok expects `identity_authorized_bc_id` for BC-linked identities.)
-              delete tiktokAdPayload.creatives[0].bc_id;
-              delete tiktokAdPayload.creatives[0].identity_authorized_bc_id;
+              delete payload.creatives[0].bc_id;
+              delete payload.creatives[0].identity_authorized_bc_id;
 
               if (identityBcId && (candidateType === "BC_AUTH_TT" || candidateType === "BC_SELF_TT")) {
-                tiktokAdPayload.creatives[0].identity_authorized_bc_id = identityBcId;
+                payload.creatives[0].identity_authorized_bc_id = identityBcId;
                 console.log(
                   `[push-creatives] Added identity_authorized_bc_id=${identityBcId} to TikTok ad payload for ${candidateType}`,
                 );
               }
 
               console.log(
-                `[push-creatives] TikTok ad/create attempt identity_type=${candidateType} identity_id=${tiktokAdPayload.creatives[0].identity_id ?? "(omitted)"}`,
+                `[push-creatives] TikTok ad/create (v1.3) attempt identity_type=${candidateType} identity_id=${payload.creatives[0].identity_id ?? "(omitted)"}`,
               );
 
-              const tiktokAdResponse = await fetch(tiktokAdCreateUrl, {
+              const tiktokAdResponse = await fetch(tiktokAdCreateUrlV13, {
                 method: "POST",
                 headers: {
                   "Access-Token": platform.access_token,
                   "Content-Type": "application/json",
                 },
-                body: JSON.stringify(tiktokAdPayload),
+                body: JSON.stringify(payload),
               });
 
               const tiktokAdData = await tiktokAdResponse.json();
               lastTikTokResponse = tiktokAdData;
 
               adId = tiktokAdData?.data?.ad_ids?.[0] ? String(tiktokAdData.data.ad_ids[0]) : null;
-
               if (tiktokAdData?.code === 0 && adId) {
                 identityType = candidateType;
                 break;
@@ -1199,17 +1191,64 @@ const handler = async (req: Request): Promise<Response> => {
 
               const msg = String(tiktokAdData?.message || "");
               console.log(
-                `[push-creatives] TikTok ad/create failed identity_type=${candidateType} code=${tiktokAdData?.code} message=${msg}`,
+                `[push-creatives] TikTok ad/create (v1.3) failed identity_type=${candidateType} code=${tiktokAdData?.code} message=${msg}`,
               );
 
-              // Retry on identity type validation failures
+              // If TikTok says we don't have access to the TT account identity, v1.3 retries won't help.
+              // Switch to v1.2 ad/create without identity fields (non-Spark ads) as a pragmatic fallback.
+              if (/You no longer have access to the TikTok account used in this ad/i.test(msg)) {
+                shouldTryV12WithoutIdentity = true;
+                break;
+              }
+
+              // Retry only on identity-type related validation failures
               const shouldRetry =
                 tiktokAdData?.code === 40002 ||
-                /identity_type|identity type/i.test(msg);
+                /identity_type|identity type|identity_id|identity id/i.test(msg);
               if (!shouldRetry) break;
             }
 
-            if (!adId) {
+            if (!adId && shouldTryV12WithoutIdentity) {
+              const payloadV12 = JSON.parse(JSON.stringify(basePayload));
+              delete payloadV12.creatives[0].identity_id;
+              delete payloadV12.creatives[0].identity_type;
+              delete payloadV12.creatives[0].identity_authorized_bc_id;
+              delete payloadV12.creatives[0].bc_id;
+
+              // v1.2 requires a display name for non-Spark identity-less ads in many setups
+              if (!payloadV12.creatives[0].display_name) {
+                payloadV12.creatives[0].display_name =
+                  resolvedText.displayName ||
+                  resolvedText.brandName ||
+                  creative.brand_name ||
+                  campaign.name ||
+                  creative.name;
+              }
+
+              console.log(`[push-creatives] TikTok ad/create (v1.2) attempt without identity fields`);
+
+              const tiktokAdResponse = await fetch(tiktokAdCreateUrlV12, {
+                method: "POST",
+                headers: {
+                  "Access-Token": platform.access_token,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify(payloadV12),
+              });
+
+              const tiktokAdData = await tiktokAdResponse.json();
+              lastTikTokResponse = tiktokAdData;
+              adId = tiktokAdData?.data?.ad_ids?.[0] ? String(tiktokAdData.data.ad_ids[0]) : null;
+
+              if (tiktokAdData?.code === 0 && adId) {
+                console.log(`[push-creatives] TikTok ad/create (v1.2) succeeded ad_id=${adId}`);
+              } else {
+                const msg = String(tiktokAdData?.message || "");
+                console.log(
+                  `[push-creatives] TikTok ad/create (v1.2) failed code=${tiktokAdData?.code} message=${msg}`,
+                );
+              }
+            }
               const msg = String(lastTikTokResponse?.message || "Failed to create TikTok ad");
               await supabase
                 .from("creative_assignments")
