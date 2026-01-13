@@ -971,7 +971,7 @@ const handler = async (req: Request): Promise<Response> => {
             let hasTikTokAsset = isVideo ? !!creative.platform_video_id : !!creative.platform_image_hash;
             
             if (!hasTikTokAsset) {
-              console.log(`[push-creatives] TikTok creative ${creative.id} missing platform asset (isVideo=${isVideo}), attempting auto-upload`);
+              console.log(`[push-creatives] TikTok creative ${creative.id} missing platform asset (isVideo=${isVideo}), attempting auto-upload via URL`);
               
               // Get media URL from creative
               const { data: fullCreative, error: creativeError } = await supabase
@@ -996,53 +996,33 @@ const handler = async (req: Request): Promise<Response> => {
               const mediaUrl = fullCreative.media_urls[0];
               const isVideoFile = fullCreative.media_type === "video" || 
                                   mediaUrl.toLowerCase().match(/\.(mp4|mov|avi|wmv|flv|webm|m4v)$/);
+              const fileName = fullCreative.original_filename || mediaUrl.split('/').pop() || (isVideoFile ? 'video.mp4' : 'image.jpg');
               
-              console.log(`[push-creatives] TikTok auto-upload: mediaUrl=${mediaUrl}, isVideoFile=${isVideoFile}`);
+              console.log(`[push-creatives] TikTok auto-upload via URL: mediaUrl=${mediaUrl}, isVideoFile=${isVideoFile}`);
               
               try {
-                // Download the media file from Supabase storage
-                console.log(`[push-creatives] Downloading media from: ${mediaUrl}`);
-                const mediaResponse = await fetch(mediaUrl);
-                if (!mediaResponse.ok) {
-                  throw new Error(`Failed to download media: ${mediaResponse.status} ${mediaResponse.statusText}`);
-                }
-                
-                const mediaBlob = await mediaResponse.blob();
-                const fileName = fullCreative.original_filename || mediaUrl.split('/').pop() || (isVideoFile ? 'video.mp4' : 'image.jpg');
-                const fileSize = mediaBlob.size;
-                
-                console.log(`[push-creatives] TikTok upload: file=${fileName}, size=${fileSize} bytes, type=${mediaBlob.type}`);
-                
-                // Convert blob to base64 for TikTok API
-                const base64Data = await blobToBase64(mediaBlob);
-                
                 if (isVideoFile) {
-                  // Upload video to TikTok
-                  console.log(`[push-creatives] Uploading video to TikTok advertiser ${advertiserIdStr}...`);
+                  // Upload video to TikTok using URL method (no memory overhead)
+                  console.log(`[push-creatives] Uploading video to TikTok via URL for advertiser ${advertiserIdStr}...`);
                   
                   const tiktokUploadUrl = "https://business-api.tiktok.com/open_api/v1.3/file/video/ad/upload/";
-                  
-                  // Decode base64 to binary for FormData
-                  const binaryData = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
-                  const videoBlob = new Blob([binaryData], { type: mediaBlob.type || "video/mp4" });
-                  
-                  const formData = new FormData();
-                  formData.append("advertiser_id", advertiserIdStr);
-                  formData.append("upload_type", "UPLOAD_BY_FILE");
-                  formData.append("video_file", videoBlob, fileName);
-                  
-                  console.log(`[push-creatives] TikTok video upload request to: ${tiktokUploadUrl}`);
                   
                   const uploadResponse = await fetch(tiktokUploadUrl, {
                     method: "POST",
                     headers: {
                       "Access-Token": platform.access_token,
+                      "Content-Type": "application/json",
                     },
-                    body: formData,
+                    body: JSON.stringify({
+                      advertiser_id: advertiserIdStr,
+                      upload_type: "UPLOAD_BY_URL",
+                      video_url: mediaUrl,
+                      file_name: fileName,
+                    }),
                   });
                   
                   const uploadResult = await uploadResponse.json();
-                  console.log(`[push-creatives] TikTok video upload response:`, JSON.stringify(uploadResult));
+                  console.log(`[push-creatives] TikTok video URL upload response:`, JSON.stringify(uploadResult));
                   
                   if (uploadResult.code !== 0) {
                     throw new Error(`TikTok video upload failed: ${uploadResult.message || "Unknown error"} (code: ${uploadResult.code})`);
@@ -1065,35 +1045,30 @@ const handler = async (req: Request): Promise<Response> => {
                   
                   creative.platform_video_id = videoId;
                   hasTikTokAsset = true;
-                  console.log(`[push-creatives] ✅ TikTok video uploaded successfully. video_id=${videoId}`);
+                  console.log(`[push-creatives] ✅ TikTok video uploaded via URL. video_id=${videoId}`);
                   
                 } else {
-                  // Upload image to TikTok
-                  console.log(`[push-creatives] Uploading image to TikTok advertiser ${advertiserIdStr}...`);
+                  // Upload image to TikTok using URL method (no memory overhead)
+                  console.log(`[push-creatives] Uploading image to TikTok via URL for advertiser ${advertiserIdStr}...`);
                   
                   const tiktokUploadUrl = "https://business-api.tiktok.com/open_api/v1.3/file/image/ad/upload/";
-                  
-                  // Decode base64 to binary for FormData
-                  const binaryData = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
-                  const imageBlob = new Blob([binaryData], { type: mediaBlob.type || "image/jpeg" });
-                  
-                  const formData = new FormData();
-                  formData.append("advertiser_id", advertiserIdStr);
-                  formData.append("upload_type", "UPLOAD_BY_FILE");
-                  formData.append("image_file", imageBlob, fileName);
-                  
-                  console.log(`[push-creatives] TikTok image upload request to: ${tiktokUploadUrl}`);
                   
                   const uploadResponse = await fetch(tiktokUploadUrl, {
                     method: "POST",
                     headers: {
                       "Access-Token": platform.access_token,
+                      "Content-Type": "application/json",
                     },
-                    body: formData,
+                    body: JSON.stringify({
+                      advertiser_id: advertiserIdStr,
+                      upload_type: "UPLOAD_BY_URL",
+                      image_url: mediaUrl,
+                      file_name: fileName,
+                    }),
                   });
                   
                   const uploadResult = await uploadResponse.json();
-                  console.log(`[push-creatives] TikTok image upload response:`, JSON.stringify(uploadResult));
+                  console.log(`[push-creatives] TikTok image URL upload response:`, JSON.stringify(uploadResult));
                   
                   if (uploadResult.code !== 0) {
                     throw new Error(`TikTok image upload failed: ${uploadResult.message || "Unknown error"} (code: ${uploadResult.code})`);
@@ -1116,7 +1091,7 @@ const handler = async (req: Request): Promise<Response> => {
                   
                   creative.platform_image_hash = imageId;
                   hasTikTokAsset = true;
-                  console.log(`[push-creatives] ✅ TikTok image uploaded successfully. image_id=${imageId}`);
+                  console.log(`[push-creatives] ✅ TikTok image uploaded via URL. image_id=${imageId}`);
                 }
                 
               } catch (uploadError) {
