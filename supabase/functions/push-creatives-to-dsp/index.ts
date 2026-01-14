@@ -1246,12 +1246,23 @@ const handler = async (req: Request): Promise<Response> => {
             // ========== End TikTok Auto-Upload Logic ==========
 
             // Resolve identity ID (creative override > phase/market config > ad account defaults > latest synced identity)
-            let identityId: string | null =
-              creative.tiktok_identity_id ||
-              (phase as any)?.tiktokIdentityId ||
-              (market as any)?.tiktokIdentityId ||
-              tiktokAdAccountDefaults?.default_identity_id ||
-              null;
+            // Track the source so we know whether to trust it without validation
+            let identityId: string | null = null;
+            let identitySource: 'creative' | 'phase' | 'market' | 'ad_account_defaults' | 'auto_lookup' | null = null;
+            
+            if (creative.tiktok_identity_id) {
+              identityId = creative.tiktok_identity_id;
+              identitySource = 'creative';
+            } else if ((phase as any)?.tiktokIdentityId) {
+              identityId = (phase as any).tiktokIdentityId;
+              identitySource = 'phase';
+            } else if ((market as any)?.tiktokIdentityId) {
+              identityId = (market as any).tiktokIdentityId;
+              identitySource = 'market';
+            } else if (tiktokAdAccountDefaults?.default_identity_id) {
+              identityId = tiktokAdAccountDefaults.default_identity_id;
+              identitySource = 'ad_account_defaults';
+            }
 
             if (!identityId) {
               const { data: latestIdentity } = await supabase
@@ -1264,17 +1275,35 @@ const handler = async (req: Request): Promise<Response> => {
                 .maybeSingle();
 
               identityId = latestIdentity?.identity_id || null;
+              if (identityId) identitySource = 'auto_lookup';
             }
-
-            // ========== PREFLIGHT: Validate identity via TikTok API ==========
-            // UI visibility ≠ API validity. The /identity/list endpoint is the source of truth.
-            let identityValidForApi = false;
-            let validIdentitiesFromApi: any[] = [];
             
-            if (identityId) {
+            console.log(`[push-creatives] TikTok identity resolution: identityId=${identityId}, source=${identitySource}`);
+
+            // ========== IDENTITY VALIDATION STRATEGY ==========
+            // If identity comes from user selection (creative, phase, market, ad_account_defaults),
+            // we TRUST it without API validation. The /identity/list endpoint often returns empty
+            // for BC-linked identities even when they're valid for ad creation.
+            // 
+            // TikTok Business Center hierarchy:
+            // - Identities belong to the BC
+            // - Identities are linked to specific Ad Accounts under "Ad delivery assets"
+            // - The /identity/list endpoint may not show BC-managed identities
+            // 
+            // Only do API validation for auto_lookup identities (where we're guessing).
+            
+            let identityValidForApi = false;
+            const userSelectedIdentity = ['creative', 'phase', 'market', 'ad_account_defaults'].includes(identitySource || '');
+            
+            if (identityId && userSelectedIdentity) {
+              // User explicitly selected this identity - trust it
+              identityValidForApi = true;
+              console.log(`[push-creatives] ✅ Identity ${identityId} from user selection (${identitySource}) - trusting without API validation`);
+            } else if (identityId) {
+              // Auto-lookup identity - validate via API
               try {
                 const identityListUrl = `https://business-api.tiktok.com/open_api/v1.3/identity/list/?advertiser_id=${advertiserIdStr}`;
-                console.log(`[push-creatives] TikTok identity preflight check: GET ${identityListUrl}`);
+                console.log(`[push-creatives] TikTok identity preflight check (auto-lookup): GET ${identityListUrl}`);
                 
                 const identityListResponse = await fetch(identityListUrl, {
                   method: "GET",
@@ -1287,34 +1316,31 @@ const handler = async (req: Request): Promise<Response> => {
                 console.log(`[push-creatives] TikTok identity/list response:`, JSON.stringify(identityListResult));
                 
                 if (identityListResult.code === 0 && identityListResult.data?.list) {
-                  validIdentitiesFromApi = identityListResult.data.list;
-                  // Check if our identity_id is in the valid list
+                  const validIdentitiesFromApi = identityListResult.data.list;
                   identityValidForApi = validIdentitiesFromApi.some(
                     (id: any) => String(id.identity_id) === String(identityId)
                   );
                   console.log(`[push-creatives] Identity ${identityId} valid for API: ${identityValidForApi} (found ${validIdentitiesFromApi.length} valid identities)`);
-                  
-                  if (!identityValidForApi && validIdentitiesFromApi.length > 0) {
-                    console.log(`[push-creatives] ⚠️ Identity ${identityId} NOT found in API identity list. Available identities:`, 
-                      validIdentitiesFromApi.map((id: any) => `${id.identity_id} (${id.display_name || 'no name'})`).join(', ')
-                    );
-                  }
                 } else {
                   console.log(`[push-creatives] TikTok identity/list failed or empty: code=${identityListResult.code}, message=${identityListResult.message}`);
+                  // For auto-lookup, if API returns empty, still try the identity (it might work)
+                  identityValidForApi = true;
+                  console.log(`[push-creatives] Proceeding with auto-lookup identity despite empty API response`);
                 }
               } catch (identityCheckError) {
                 console.error(`[push-creatives] TikTok identity preflight check error:`, identityCheckError);
                 // Continue anyway - we'll let the ad/create call fail if identity is invalid
+                identityValidForApi = true;
               }
             }
 
             // Flag to track if we should skip BC identity and use non-Spark approach
-            let useNonSparkAds = !identityId || !identityValidForApi;
+            let useNonSparkAds = !identityId;
             
             if (!identityId) {
               console.log(`[push-creatives] No identity ID configured - will use non-Spark ads approach`);
-            } else if (!identityValidForApi) {
-              console.log(`[push-creatives] Identity ${identityId} not valid for API - will fall back to non-Spark ads`);
+            } else {
+              console.log(`[push-creatives] Will attempt Spark Ads with identity ${identityId} (source: ${identitySource}, valid: ${identityValidForApi})`);
             }
 
             // Resolve identity type (best-effort)
