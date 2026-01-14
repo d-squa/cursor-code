@@ -41,14 +41,19 @@ export default function CreativeLibrary() {
   const [bugDialogOpen, setBugDialogOpen] = useState(false);
 
   const shouldFetchCreatives = activeTab === 'library' || activeTab === 'folder' || activeTab === 'spreadsheet';
-  const shouldFetchCampaigns = activeTab === 'assignments' || activeTab === 'text-assets';
+  const shouldFetchCampaigns = activeTab === 'assignments' || activeTab === 'text-assets' || activeTab === 'folder';
 
-  // Campaign selection shared for Assignments + Text Assets
+  // Campaign selection shared for Assignments + Text Assets + Folder Upload
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [selectedCampaignId, setSelectedCampaignId] = useState('');
   const [isLoadingCampaigns, setIsLoadingCampaigns] = useState(false);
   // Nonce to trigger TextAssetsTab refresh when assignments change
   const [textAssetsRefreshNonce, setTextAssetsRefreshNonce] = useState(0);
+  
+  // Folder upload specific state - separate from other tabs
+  const [folderUploadCampaignId, setFolderUploadCampaignId] = useState('');
+  const [folderUploadTiktokIdentityId, setFolderUploadTiktokIdentityId] = useState<string | undefined>();
+  const [folderUploadAdAccounts, setFolderUploadAdAccounts] = useState<Array<{ platform: 'meta' | 'tiktok'; accountId: string }>>([]);
 
   const selectedCampaign = campaigns.find((c) => c.id === selectedCampaignId);
 
@@ -101,6 +106,77 @@ export default function CreativeLibrary() {
       setSearchParams(newParams);
     },
     [searchParams, setSearchParams]
+  );
+
+  // Handle campaign selection for folder uploads - extract TikTok identity from budget_allocation
+  const handleFolderUploadCampaignSelect = useCallback(
+    async (campaignId: string) => {
+      setFolderUploadCampaignId(campaignId);
+      setFolderUploadTiktokIdentityId(undefined);
+      setFolderUploadAdAccounts([]);
+      
+      if (!campaignId) return;
+      
+      try {
+        // Fetch campaign budget_allocation to get TikTok identity
+        const { data: campaign, error } = await supabase
+          .from('campaigns')
+          .select('budget_allocation, platforms')
+          .eq('id', campaignId)
+          .single();
+        
+        if (error || !campaign) {
+          console.error('Error loading campaign for folder upload:', error);
+          return;
+        }
+        
+        const budgetAllocation = campaign.budget_allocation as Record<string, any> || {};
+        const adAccountsList: Array<{ platform: 'meta' | 'tiktok'; accountId: string }> = [];
+        
+        // Extract TikTok identity from the first market/phase that has one
+        let tiktokIdentity: string | undefined;
+        
+        for (const [platformKey, platformConfig] of Object.entries(budgetAllocation)) {
+          if (!platformConfig || typeof platformConfig !== 'object') continue;
+          
+          const markets = (platformConfig as any).markets || [];
+          for (const market of markets) {
+            // Check for ad account
+            if (market.adAccountId) {
+              if (platformKey.toLowerCase().includes('tiktok')) {
+                adAccountsList.push({ platform: 'tiktok', accountId: market.adAccountId });
+              } else if (platformKey.toLowerCase().includes('meta')) {
+                adAccountsList.push({ platform: 'meta', accountId: market.adAccountId });
+              }
+            }
+            
+            // Look for TikTok identity in market or phases
+            if (platformKey.toLowerCase().includes('tiktok')) {
+              if (market.tiktokIdentityId && !tiktokIdentity) {
+                tiktokIdentity = market.tiktokIdentityId;
+              }
+              
+              const phases = market.phases || [];
+              for (const phase of phases) {
+                if (phase.tiktokIdentityId && !tiktokIdentity) {
+                  tiktokIdentity = phase.tiktokIdentityId;
+                }
+              }
+            }
+          }
+        }
+        
+        setFolderUploadTiktokIdentityId(tiktokIdentity);
+        setFolderUploadAdAccounts(adAccountsList);
+        
+        if (tiktokIdentity) {
+          toast.success(`TikTok identity loaded from ActiPlan`);
+        }
+      } catch (err) {
+        console.error('Error extracting campaign config for folder upload:', err);
+      }
+    },
+    []
   );
 
   const {
@@ -406,7 +482,54 @@ export default function CreativeLibrary() {
         </TabsContent>
 
         <TabsContent value="folder" className="mt-6">
-          <FolderUpload onUploadComplete={handleFolderUploadComplete} adAccounts={[]} isUploading={isCreating} />
+          <div className="space-y-4">
+            {/* ActiPlan selector for folder uploads */}
+            <div className="flex items-center gap-4 p-4 border rounded-lg bg-muted/30">
+              <div className="flex-1">
+                <label className="text-sm font-medium mb-1 block">Select ActiPlan (Optional)</label>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Select an ActiPlan to auto-populate TikTok identity and link creatives to the campaign.
+                </p>
+                {isLoadingCampaigns ? (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading ActiPlans...
+                  </div>
+                ) : (
+                  <Select value={folderUploadCampaignId || undefined} onValueChange={handleFolderUploadCampaignSelect}>
+                    <SelectTrigger className="w-full max-w-md">
+                      <SelectValue placeholder="Select an ActiPlan (optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {campaigns.map((campaign) => (
+                        <SelectItem key={campaign.id} value={campaign.id}>
+                          <div className="flex items-center gap-2">
+                            <span>{campaign.name}</span>
+                            <Badge variant="outline" className="text-xs">
+                              {campaign.status}
+                            </Badge>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+              {folderUploadTiktokIdentityId && (
+                <Badge variant="secondary" className="shrink-0">
+                  TikTok Identity: {folderUploadTiktokIdentityId.slice(0, 8)}...
+                </Badge>
+              )}
+            </div>
+            
+            <FolderUpload 
+              onUploadComplete={handleFolderUploadComplete} 
+              adAccounts={folderUploadAdAccounts} 
+              isUploading={isCreating}
+              campaignId={folderUploadCampaignId || undefined}
+              tiktokIdentityId={folderUploadTiktokIdentityId}
+            />
+          </div>
         </TabsContent>
 
         <TabsContent value="spreadsheet" className="mt-6">

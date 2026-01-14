@@ -42,6 +42,9 @@ interface FolderUploadProps {
   onUploadComplete: (creatives: Partial<Creative>[]) => Promise<void>;
   adAccounts: AdAccountInfo[]; // Ad accounts from the selected ActiPlan
   isUploading?: boolean;
+  // Optional campaign context for populating TikTok identity
+  campaignId?: string;
+  tiktokIdentityId?: string;
 }
 
 interface ParsedFile {
@@ -64,7 +67,7 @@ interface ParsedFile {
 // Max file size: 100MB for DSP uploads
 const MAX_FILE_SIZE = 100 * 1024 * 1024;
 
-export function FolderUpload({ onUploadComplete, adAccounts, isUploading = false }: FolderUploadProps) {
+export function FolderUpload({ onUploadComplete, adAccounts, isUploading = false, campaignId, tiktokIdentityId }: FolderUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [parsedFiles, setParsedFiles] = useState<ParsedFile[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -442,6 +445,9 @@ export function FolderUpload({ onUploadComplete, adAccounts, isUploading = false
             dspUploadStatus: 'uploaded',
             dspUploadedAt: new Date().toISOString(),
             validationErrors: [],
+            // Include campaign context and TikTok identity if provided
+            campaignId: campaignId,
+            tiktokIdentityId: platform === 'tiktok' ? tiktokIdentityId : undefined,
           };
 
           // Save immediately to DB
