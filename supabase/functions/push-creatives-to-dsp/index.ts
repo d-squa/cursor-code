@@ -989,7 +989,39 @@ const handler = async (req: Request): Promise<Response> => {
             
             // ========== TikTok Auto-Upload Logic ==========
             // Check if creative needs to be uploaded to TikTok first
+            // IMPORTANT: TikTok assets are advertiser-scoped - we must verify the asset belongs to this advertiser
             let hasTikTokAsset = isVideo ? !!creative.platform_video_id : !!creative.platform_image_hash;
+            
+            // Check if the asset was uploaded to a DIFFERENT advertiser - if so, we need to re-upload
+            if (hasTikTokAsset) {
+              // Get the full creative to check tiktok_asset_advertiser_id
+              const { data: fullCreativeCheck } = await supabase
+                .from("creatives")
+                .select("tiktok_asset_advertiser_id")
+                .eq("id", creative.id)
+                .single();
+              
+              const assetAdvertiserId = fullCreativeCheck?.tiktok_asset_advertiser_id;
+              
+              if (assetAdvertiserId && String(assetAdvertiserId) !== advertiserIdStr) {
+                console.log(`[push-creatives] ⚠️ TikTok asset was uploaded to advertiser ${assetAdvertiserId} but we need it on ${advertiserIdStr}. Clearing asset to trigger re-upload.`);
+                
+                // Clear the asset so it gets re-uploaded to the correct advertiser
+                await supabase
+                  .from("creatives")
+                  .update({ 
+                    platform_video_id: null, 
+                    platform_image_hash: null, 
+                    tiktok_asset_advertiser_id: null,
+                    dsp_upload_status: null 
+                  })
+                  .eq("id", creative.id);
+                
+                creative.platform_video_id = null;
+                creative.platform_image_hash = null;
+                hasTikTokAsset = false;
+              }
+            }
             
             if (!hasTikTokAsset) {
               console.log(`[push-creatives] TikTok creative ${creative.id} missing platform asset (isVideo=${isVideo}), attempting auto-upload via URL`);
@@ -1116,11 +1148,12 @@ const handler = async (req: Request): Promise<Response> => {
                     console.log(`[push-creatives] TikTok video processing timeout after ${pollAttempt} attempts. Proceeding anyway - video may still become available.`);
                   }
                   
-                  // Update creative with TikTok video ID
+                  // Update creative with TikTok video ID and track which advertiser it belongs to
                   await supabase
                     .from("creatives")
                     .update({ 
                       platform_video_id: videoId,
+                      tiktok_asset_advertiser_id: advertiserIdStr,
                       dsp_upload_status: "uploaded",
                       dsp_uploaded_at: new Date().toISOString()
                     })
@@ -1165,11 +1198,12 @@ const handler = async (req: Request): Promise<Response> => {
                     throw new Error("TikTok image upload succeeded but no image id returned");
                   }
                   
-                  // Update creative with TikTok image ID
+                  // Update creative with TikTok image ID and track which advertiser it belongs to
                   await supabase
                     .from("creatives")
                     .update({ 
                       platform_image_hash: imageId,
+                      tiktok_asset_advertiser_id: advertiserIdStr,
                       dsp_upload_status: "uploaded",
                       dsp_uploaded_at: new Date().toISOString()
                     })
