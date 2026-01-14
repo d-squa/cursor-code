@@ -106,17 +106,15 @@ serve(async (req) => {
       }
     }
 
-    // Fetch TikTok Identities and Catalogs
-    let catalogIds: string[] = [];
-    let identitiesCount = 0;
-    
-    // Fetch TikTok Identities using identity/get endpoint (advertiser-level)
-    // This returns only identities that are actually assigned to this specific advertiser for ad delivery
+    // Fetch TikTok Identities using identity/list endpoint (advertiser-level)
+    // NOTE: TikTok has returned both shapes in the wild:
+    // - data.list (expected)
+    // - data.identity_list (observed)
     console.log(`Fetching TikTok identities for advertiser ${advertiserId}...`);
-    const identityGetUrl = `${baseUrl}/identity/get/?advertiser_id=${advertiserId}`;
-    console.log('Request URL:', identityGetUrl);
-    
-    const identitiesResponse = await fetch(identityGetUrl, {
+    const identityListUrl = `${baseUrl}/identity/list/?advertiser_id=${advertiserId}`;
+    console.log('Request URL:', identityListUrl);
+
+    const identitiesResponse = await fetch(identityListUrl, {
       headers: {
         'Access-Token': accessToken,
         'Content-Type': 'application/json',
@@ -124,34 +122,31 @@ serve(async (req) => {
     });
 
     const identitiesData = await identitiesResponse.json();
-    console.log('Identity get response:', JSON.stringify(identitiesData, null, 2));
+    console.log('Identity list response:', JSON.stringify(identitiesData, null, 2));
 
-    if (identitiesData.code === 0 && identitiesData.data?.list) {
-      const identities = identitiesData.data.list;
-      identitiesCount = identities.length;
-      console.log(`Syncing ${identities.length} TikTok identities for advertiser ${advertiserId}`);
+    const identityList: any[] =
+      identitiesData?.data?.list || identitiesData?.data?.identity_list || [];
 
-      for (const identity of identities) {
-        // Log full identity object to debug field names
+    if (identitiesData.code === 0 && Array.isArray(identityList)) {
+      identitiesCount = identityList.length;
+      console.log(`Syncing ${identityList.length} TikTok identities for advertiser ${advertiserId}`);
+
+      for (const identity of identityList) {
         console.log(`[sync-tiktok-resources] Full identity object:`, JSON.stringify(identity, null, 2));
-        
-        // The identity/get endpoint returns:
-        // - identity_id: the actual TikTok Account ID for ad creation
-        // - display_name: the name of the TikTok account
-        // - identity_type: TT_ACCOUNT, BC_AUTH_TT, CUSTOMIZED_USER, etc.
-        const identityId = identity.identity_id;
+
+        const identityId = String(identity.identity_id);
         const identityName = identity.display_name || `TikTok Account ${identityId}`;
         const identityType = identity.identity_type || 'TT_ACCOUNT';
-        
+
         console.log(`[sync-tiktok-resources] Syncing identity: id=${identityId}, name=${identityName}, type=${identityType}`);
-        
+
         await supabase.from('tiktok_identities').upsert({
           user_id: user.id,
           advertiser_id: advertiserId,
           identity_id: identityId,
           identity_name: identityName,
           identity_type: identityType,
-          bc_id: bcId, // Store Business Center ID if available
+          bc_id: bcId,
           synced_at: new Date().toISOString(),
         }, {
           onConflict: 'identity_id,advertiser_id',
