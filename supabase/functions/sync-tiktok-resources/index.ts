@@ -110,13 +110,13 @@ serve(async (req) => {
     let catalogIds: string[] = [];
     let identitiesCount = 0;
     
-    // Fetch TikTok Identities using identity/list endpoint (advertiser-level)
+    // Fetch TikTok Identities using identity/get endpoint (advertiser-level)
     // This returns only identities that are actually assigned to this specific advertiser for ad delivery
     console.log(`Fetching TikTok identities for advertiser ${advertiserId}...`);
-    const identityListUrl = `${baseUrl}/identity/list/?advertiser_id=${advertiserId}`;
-    console.log('Request URL:', identityListUrl);
+    const identityGetUrl = `${baseUrl}/identity/get/?advertiser_id=${advertiserId}`;
+    console.log('Request URL:', identityGetUrl);
     
-    const identitiesResponse = await fetch(identityListUrl, {
+    const identitiesResponse = await fetch(identityGetUrl, {
       headers: {
         'Access-Token': accessToken,
         'Content-Type': 'application/json',
@@ -124,10 +124,10 @@ serve(async (req) => {
     });
 
     const identitiesData = await identitiesResponse.json();
-    console.log('Identity list response:', JSON.stringify(identitiesData, null, 2));
+    console.log('Identity get response:', JSON.stringify(identitiesData, null, 2));
 
-    if (identitiesData.code === 0 && identitiesData.data?.identity_list) {
-      const identities = identitiesData.data.identity_list;
+    if (identitiesData.code === 0 && identitiesData.data?.list) {
+      const identities = identitiesData.data.list;
       identitiesCount = identities.length;
       console.log(`Syncing ${identities.length} TikTok identities for advertiser ${advertiserId}`);
 
@@ -135,7 +135,7 @@ serve(async (req) => {
         // Log full identity object to debug field names
         console.log(`[sync-tiktok-resources] Full identity object:`, JSON.stringify(identity, null, 2));
         
-        // The identity/list endpoint returns:
+        // The identity/get endpoint returns:
         // - identity_id: the actual TikTok Account ID for ad creation
         // - display_name: the name of the TikTok account
         // - identity_type: TT_ACCOUNT, BC_AUTH_TT, CUSTOMIZED_USER, etc.
