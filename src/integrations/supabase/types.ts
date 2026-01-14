@@ -77,6 +77,169 @@ export type Database = {
           },
         ]
       }
+      ad_push_configurations: {
+        Row: {
+          ad_name: string
+          ad_text: string | null
+          adgroup_id: string | null
+          advertiser_id: string
+          call_to_action: string | null
+          campaign_id: string | null
+          created_at: string | null
+          creative_asset_id: string
+          display_name: string | null
+          dsp_ad_id: string | null
+          dsp_ad_status: string | null
+          id: string
+          identity_id: string | null
+          is_spark_ad: boolean | null
+          landing_page_url: string | null
+          platform: string
+          push_attempts: number | null
+          push_error: string | null
+          push_status: string | null
+          pushed_at: string | null
+          team_id: string | null
+          updated_at: string | null
+          user_id: string
+          validated_at: string | null
+          validation_errors: Json | null
+          validation_status: string | null
+        }
+        Insert: {
+          ad_name: string
+          ad_text?: string | null
+          adgroup_id?: string | null
+          advertiser_id: string
+          call_to_action?: string | null
+          campaign_id?: string | null
+          created_at?: string | null
+          creative_asset_id: string
+          display_name?: string | null
+          dsp_ad_id?: string | null
+          dsp_ad_status?: string | null
+          id?: string
+          identity_id?: string | null
+          is_spark_ad?: boolean | null
+          landing_page_url?: string | null
+          platform: string
+          push_attempts?: number | null
+          push_error?: string | null
+          push_status?: string | null
+          pushed_at?: string | null
+          team_id?: string | null
+          updated_at?: string | null
+          user_id: string
+          validated_at?: string | null
+          validation_errors?: Json | null
+          validation_status?: string | null
+        }
+        Update: {
+          ad_name?: string
+          ad_text?: string | null
+          adgroup_id?: string | null
+          advertiser_id?: string
+          call_to_action?: string | null
+          campaign_id?: string | null
+          created_at?: string | null
+          creative_asset_id?: string
+          display_name?: string | null
+          dsp_ad_id?: string | null
+          dsp_ad_status?: string | null
+          id?: string
+          identity_id?: string | null
+          is_spark_ad?: boolean | null
+          landing_page_url?: string | null
+          platform?: string
+          push_attempts?: number | null
+          push_error?: string | null
+          push_status?: string | null
+          pushed_at?: string | null
+          team_id?: string | null
+          updated_at?: string | null
+          user_id?: string
+          validated_at?: string | null
+          validation_errors?: Json | null
+          validation_status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_push_configurations_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ad_push_configurations_creative_asset_id_fkey"
+            columns: ["creative_asset_id"]
+            isOneToOne: false
+            referencedRelation: "creative_library_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ad_push_configurations_identity_id_fkey"
+            columns: ["identity_id"]
+            isOneToOne: false
+            referencedRelation: "platform_identities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ad_push_configurations_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ad_push_logs: {
+        Row: {
+          action: string
+          ad_config_id: string | null
+          created_at: string | null
+          error_code: string | null
+          error_message: string | null
+          id: string
+          request_payload: Json | null
+          response_payload: Json | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          action: string
+          ad_config_id?: string | null
+          created_at?: string | null
+          error_code?: string | null
+          error_message?: string | null
+          id?: string
+          request_payload?: Json | null
+          response_payload?: Json | null
+          status: string
+          user_id: string
+        }
+        Update: {
+          action?: string
+          ad_config_id?: string | null
+          created_at?: string | null
+          error_code?: string | null
+          error_message?: string | null
+          id?: string
+          request_payload?: Json | null
+          response_payload?: Json | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_push_logs_ad_config_id_fkey"
+            columns: ["ad_config_id"]
+            isOneToOne: false
+            referencedRelation: "ad_push_configurations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       billing_customers: {
         Row: {
           created_at: string
@@ -858,6 +1021,89 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      creative_library_assets: {
+        Row: {
+          advertiser_id: string
+          approval_status: string | null
+          aspect_ratio: string | null
+          asset_name: string | null
+          asset_type: string
+          created_at: string | null
+          duration_seconds: number | null
+          file_size_bytes: number | null
+          height: number | null
+          id: string
+          is_usable: boolean | null
+          platform: string
+          platform_asset_id: string
+          platform_metadata: Json | null
+          preview_url: string | null
+          spark_eligible: boolean | null
+          synced_at: string | null
+          team_id: string | null
+          thumbnail_url: string | null
+          updated_at: string | null
+          user_id: string
+          width: number | null
+        }
+        Insert: {
+          advertiser_id: string
+          approval_status?: string | null
+          aspect_ratio?: string | null
+          asset_name?: string | null
+          asset_type: string
+          created_at?: string | null
+          duration_seconds?: number | null
+          file_size_bytes?: number | null
+          height?: number | null
+          id?: string
+          is_usable?: boolean | null
+          platform: string
+          platform_asset_id: string
+          platform_metadata?: Json | null
+          preview_url?: string | null
+          spark_eligible?: boolean | null
+          synced_at?: string | null
+          team_id?: string | null
+          thumbnail_url?: string | null
+          updated_at?: string | null
+          user_id: string
+          width?: number | null
+        }
+        Update: {
+          advertiser_id?: string
+          approval_status?: string | null
+          aspect_ratio?: string | null
+          asset_name?: string | null
+          asset_type?: string
+          created_at?: string | null
+          duration_seconds?: number | null
+          file_size_bytes?: number | null
+          height?: number | null
+          id?: string
+          is_usable?: boolean | null
+          platform?: string
+          platform_asset_id?: string
+          platform_metadata?: Json | null
+          preview_url?: string | null
+          spark_eligible?: boolean | null
+          synced_at?: string | null
+          team_id?: string | null
+          thumbnail_url?: string | null
+          updated_at?: string | null
+          user_id?: string
+          width?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creative_library_assets_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       creative_push_jobs: {
         Row: {
@@ -1796,6 +2042,71 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      platform_identities: {
+        Row: {
+          advertiser_id: string
+          created_at: string | null
+          display_name: string | null
+          id: string
+          identity_id: string
+          identity_type: string
+          is_active: boolean | null
+          is_brand_owned: boolean | null
+          platform: string
+          platform_metadata: Json | null
+          profile_image_url: string | null
+          requires_authorization: boolean | null
+          synced_at: string | null
+          team_id: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          advertiser_id: string
+          created_at?: string | null
+          display_name?: string | null
+          id?: string
+          identity_id: string
+          identity_type: string
+          is_active?: boolean | null
+          is_brand_owned?: boolean | null
+          platform: string
+          platform_metadata?: Json | null
+          profile_image_url?: string | null
+          requires_authorization?: boolean | null
+          synced_at?: string | null
+          team_id?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          advertiser_id?: string
+          created_at?: string | null
+          display_name?: string | null
+          id?: string
+          identity_id?: string
+          identity_type?: string
+          is_active?: boolean | null
+          is_brand_owned?: boolean | null
+          platform?: string
+          platform_metadata?: Json | null
+          profile_image_url?: string | null
+          requires_authorization?: boolean | null
+          synced_at?: string | null
+          team_id?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "platform_identities_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       platform_objective_mapping: {
         Row: {
