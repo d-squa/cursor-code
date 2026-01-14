@@ -34,7 +34,7 @@ export default function CreativeMatching() {
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
-  const [activeSourceTab, setActiveSourceTab] = useState<'library' | 'upload'>('library');
+  const [activeSourceTab, setActiveSourceTab] = useState<'library' | 'platform' | 'upload'>('library');
   const [activeUploadTab, setActiveUploadTab] = useState('files');
   const [activeViewMode, setActiveViewMode] = useState<'structure' | 'asset'>('structure');
   const [campaigns, setCampaigns] = useState<CampaignOption[]>([]);
@@ -47,9 +47,14 @@ export default function CreativeMatching() {
   const [selectedCreativeIds, setSelectedCreativeIds] = useState<Set<string>>(new Set());
   const [isLoadingLibrary, setIsLoadingLibrary] = useState(false);
 
+  // Platform assets state (synced from DSP)
+  const [platformAssets, setPlatformAssets] = useState<any[]>([]);
+  const [selectedPlatformAssetIds, setSelectedPlatformAssetIds] = useState<Set<string>>(new Set());
+  const [isLoadingPlatformAssets, setIsLoadingPlatformAssets] = useState(false);
+
   const effectiveCampaignId = selectedCampaignId ?? initialCampaignId;
 
-  const { state, stats, loadCampaignStructures, processFiles, addLibraryCreatives, runMatching, acceptMatch, rejectMatch, clearRejection, clearAcceptedMatch, removeAsset, clearAll, saveMatches, skipTextAssets } = useCreativeMatching(effectiveCampaignId);
+  const { state, stats, loadCampaignStructures, processFiles, addLibraryCreatives, addPlatformAssets, runMatching, acceptMatch, rejectMatch, clearRejection, clearAcceptedMatch, removeAsset, clearAll, saveMatches, skipTextAssets } = useCreativeMatching(effectiveCampaignId);
 
   // Load available campaigns
   useEffect(() => {
@@ -119,6 +124,25 @@ export default function CreativeMatching() {
     }
   }, [user]);
 
+  // Load platform assets
+  useEffect(() => {
+    if (user) {
+      setIsLoadingPlatformAssets(true);
+      supabase
+        .from('creative_library_assets')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('is_usable', true)
+        .order('created_at', { ascending: false })
+        .then(({ data, error }) => {
+          if (!error && data) {
+            setPlatformAssets(data);
+          }
+          setIsLoadingPlatformAssets(false);
+        });
+    }
+  }, [user]);
+
   const handleCampaignSelect = useCallback((campaignId: string) => {
     const campaign = campaigns.find(c => c.id === campaignId);
     setSelectedCampaignId(campaignId);
@@ -159,6 +183,26 @@ export default function CreativeMatching() {
     }
   }, [libraryCreatives, selectedCreativeIds.size]);
 
+  const handlePlatformAssetToggle = useCallback((assetId: string) => {
+    setSelectedPlatformAssetIds(prev => {
+      const next = new Set(prev);
+      if (next.has(assetId)) {
+        next.delete(assetId);
+      } else {
+        next.add(assetId);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleSelectAllPlatformAssets = useCallback(() => {
+    if (selectedPlatformAssetIds.size === platformAssets.length) {
+      setSelectedPlatformAssetIds(new Set());
+    } else {
+      setSelectedPlatformAssetIds(new Set(platformAssets.map(a => a.id)));
+    }
+  }, [platformAssets, selectedPlatformAssetIds.size]);
+
   const handleUseSelectedCreatives = useCallback(async () => {
     const selected = libraryCreatives.filter(c => selectedCreativeIds.has(c.id));
     if (selected.length === 0) {
@@ -168,6 +212,16 @@ export default function CreativeMatching() {
     addLibraryCreatives(selected);
     toast.success(`Added ${selected.length} creatives for matching`);
   }, [libraryCreatives, selectedCreativeIds, addLibraryCreatives]);
+
+  const handleUseSelectedPlatformAssets = useCallback(async () => {
+    const selected = platformAssets.filter(a => selectedPlatformAssetIds.has(a.id));
+    if (selected.length === 0) {
+      toast.error('Please select at least one asset');
+      return;
+    }
+    addPlatformAssets(selected);
+    toast.success(`Added ${selected.length} platform assets for matching`);
+  }, [platformAssets, selectedPlatformAssetIds, addPlatformAssets]);
 
   const handleRunMatching = async () => {
     const campaignIdToUse = effectiveCampaignId;
@@ -188,6 +242,7 @@ export default function CreativeMatching() {
   const stepProgress = state.currentStep === 'upload' ? 0 : state.currentStep === 'match' ? 25 : state.currentStep === 'review' ? 50 : state.currentStep === 'text_assets' ? 75 : 100;
   const needsCampaignSelection = !effectiveCampaignId;
   const availableCreatives = libraryCreatives.filter(c => !c.campaignId);
+  const availablePlatformAssets = platformAssets.filter(a => !state.assets.some(asset => asset.id === a.id));
 
   // Text Assets step renders full-screen
   if (state.currentStep === 'text_assets') {
@@ -285,17 +340,21 @@ export default function CreativeMatching() {
               <div><span className="text-muted-foreground">Accepted:</span> <span className="font-medium text-primary">{stats.acceptedCount}</span></div>
             </div>
 
-            {/* Source Selection: Library or Upload */}
+            {/* Source Selection: Library, Synced, or Upload */}
             {(state.currentStep === 'upload' || state.currentStep === 'match') && (
-              <Tabs value={activeSourceTab} onValueChange={(v) => setActiveSourceTab(v as 'library' | 'upload')}>
-                <TabsList className="grid w-full grid-cols-2">
+              <Tabs value={activeSourceTab} onValueChange={(v) => setActiveSourceTab(v as 'library' | 'platform' | 'upload')}>
+                <TabsList className="grid w-full grid-cols-3">
                   <TabsTrigger value="library" className="gap-2">
                     <LayoutGrid className="h-4 w-4" />
-                    From Library ({availableCreatives.length})
+                    Library ({availableCreatives.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="platform" className="gap-2">
+                    <Layers className="h-4 w-4" />
+                    Synced ({availablePlatformAssets.length})
                   </TabsTrigger>
                   <TabsTrigger value="upload" className="gap-2">
                     <Upload className="h-4 w-4" />
-                    Upload New
+                    Upload
                   </TabsTrigger>
                 </TabsList>
 
@@ -374,6 +433,107 @@ export default function CreativeMatching() {
                                       {creative.market && (
                                         <Badge variant="secondary" className="text-xs px-1">
                                           {creative.market}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    </div>
+                  )}
+                </TabsContent>
+
+                {/* Synced Platform Assets Tab */}
+                <TabsContent value="platform" className="mt-4">
+                  {isLoadingPlatformAssets ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : availablePlatformAssets.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Layers className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+                      <p className="text-muted-foreground mb-2">No synced assets available.</p>
+                      <p className="text-sm text-muted-foreground">
+                        Go to Creative Library → Platform Assets to sync assets from TikTok or Meta.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Checkbox 
+                            checked={selectedPlatformAssetIds.size === availablePlatformAssets.length && availablePlatformAssets.length > 0}
+                            onCheckedChange={handleSelectAllPlatformAssets}
+                          />
+                          <span className="text-sm text-muted-foreground">
+                            {selectedPlatformAssetIds.size} selected
+                          </span>
+                        </div>
+                        <Button 
+                          size="sm" 
+                          onClick={handleUseSelectedPlatformAssets}
+                          disabled={selectedPlatformAssetIds.size === 0}
+                        >
+                          <CheckCircle2 className="h-4 w-4 mr-2" />
+                          Use Selected ({selectedPlatformAssetIds.size})
+                        </Button>
+                      </div>
+                      <ScrollArea className="h-[400px] pr-4">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                          {availablePlatformAssets.map(asset => (
+                            <Card 
+                              key={asset.id}
+                              className={`cursor-pointer transition-all ${
+                                selectedPlatformAssetIds.has(asset.id) 
+                                  ? 'ring-2 ring-primary bg-primary/5' 
+                                  : 'hover:bg-muted/50'
+                              }`}
+                              onClick={() => handlePlatformAssetToggle(asset.id)}
+                            >
+                              <CardContent className="p-3">
+                                <div className="flex items-start gap-2">
+                                  <Checkbox 
+                                    checked={selectedPlatformAssetIds.has(asset.id)}
+                                    onCheckedChange={() => handlePlatformAssetToggle(asset.id)}
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                  <div className="flex-1 min-w-0">
+                                    {asset.thumbnail_url && (
+                                      <div className="aspect-video mb-2 rounded overflow-hidden bg-muted">
+                                        <img 
+                                          src={asset.thumbnail_url} 
+                                          alt={asset.asset_name || 'Asset'} 
+                                          className="w-full h-full object-cover"
+                                        />
+                                      </div>
+                                    )}
+                                    <div className="flex items-center gap-1 mb-1">
+                                      {asset.asset_type === 'video' ? (
+                                        <Video className="h-3 w-3 text-muted-foreground" />
+                                      ) : (
+                                        <Image className="h-3 w-3 text-muted-foreground" />
+                                      )}
+                                      <span className="text-xs text-muted-foreground capitalize">
+                                        {asset.asset_type}
+                                      </span>
+                                    </div>
+                                    <p className="text-sm font-medium truncate" title={asset.asset_name || asset.platform_asset_id}>
+                                      {asset.asset_name || asset.platform_asset_id}
+                                    </p>
+                                    <div className="flex flex-wrap gap-1 mt-1">
+                                      <Badge variant="outline" className="text-xs px-1">
+                                        {asset.platform}
+                                      </Badge>
+                                      {asset.approval_status && (
+                                        <Badge 
+                                          variant={asset.approval_status === 'approved' ? 'default' : 'secondary'} 
+                                          className="text-xs px-1"
+                                        >
+                                          {asset.approval_status}
                                         </Badge>
                                       )}
                                     </div>
