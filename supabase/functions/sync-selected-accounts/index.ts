@@ -241,7 +241,7 @@ serve(async (req) => {
           console.log(`Fetching advertiser-level identities for: ${advertiserIdStr}`);
 
           const identitiesResponse = await fetch(
-            `${baseUrl}/identity/get/?advertiser_id=${advertiserIdStr}`,
+            `${baseUrl}/identity/list/?advertiser_id=${advertiserIdStr}`,
             {
               headers: {
                 'Access-Token': accessToken,
@@ -256,8 +256,14 @@ serve(async (req) => {
               const identitiesData = await identitiesResponse.json();
               console.log(`Advertiser ${advertiserIdStr} identities response:`, identitiesData);
 
-              if (identitiesData.code === 0 && identitiesData.data?.list) {
-                identitiesData.data.list.forEach((identity: any) => {
+              // TikTok has returned both shapes in the wild:
+              // - data.list (expected)
+              // - data.identity_list (observed)
+              const identityList: any[] =
+                identitiesData?.data?.list || identitiesData?.data?.identity_list || [];
+
+              if (identitiesData.code === 0 && Array.isArray(identityList)) {
+                identityList.forEach((identity: any) => {
                   const identityId = String(identity.identity_id);
                   allTiktokIdentities.push({
                     user_id: user.id,
@@ -268,15 +274,21 @@ serve(async (req) => {
                     bc_id: bcId,
                   });
                 });
-                console.log(`Found ${identitiesData.data.list.length} identities for advertiser ${advertiserIdStr}`);
+
+                console.log(
+                  `Found ${identityList.length} identities for advertiser ${advertiserIdStr}`,
+                );
               }
             }
           } else {
-            console.log(`Identities fetch returned ${identitiesResponse.status} for advertiser ${advertiserIdStr}`);
+            console.log(
+              `Identities fetch returned ${identitiesResponse.status} for advertiser ${advertiserIdStr}`,
+            );
           }
         } catch (error) {
           console.error(`Error fetching identities for ${advertiserIdStr}:`, error);
         }
+
 
         // 2) Pixels (advertiser-level)
         try {
