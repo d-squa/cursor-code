@@ -74,6 +74,10 @@ serve(async (req) => {
       console.log(`Using Business Center ID: ${bcId}`);
     }
 
+    // Track counts for stats
+    let identitiesCount = 0;
+    const catalogIds: string[] = [];
+
     // Fetch TikTok Pixels (advertiser-level)
     console.log('Fetching TikTok pixels...');
     const pixelsResponse = await fetch(
