@@ -142,6 +142,7 @@ serve(async (req) => {
       const allTiktokPixels: any[] = [];
       const allTiktokIdentities: any[] = [];
       const allTiktokCatalogs: any[] = [];
+      const bcIdentitiesByBcId = new Map<string, any[]>();
       
       // Get bc_ids from the accounts metadata stored in connected_platforms
       const bcIds = new Set<string>();
@@ -194,19 +195,19 @@ serve(async (req) => {
                 },
               }
             );
-            
+
             if (catalogsResponse.ok) {
               const contentType = catalogsResponse.headers.get('content-type');
               if (contentType?.includes('application/json')) {
                 const catalogsData = await catalogsResponse.json();
                 console.log(`BC ${bcId} catalogs response:`, catalogsData);
-                
+
                 if (catalogsData.code === 0 && catalogsData.data?.list) {
                   // Associate catalogs with all advertisers in this BC
                   const advertisersInBc = selectedIds.filter(
                     (id) => advertiserToBcMap.get(id) === bcId
                   );
-                  
+
                   catalogsData.data.list.forEach((catalog: any) => {
                     advertisersInBc.forEach((advertiserId: string) => {
                       allTiktokCatalogs.push({
@@ -226,6 +227,37 @@ serve(async (req) => {
           } catch (error) {
             console.error(`Error fetching BC catalogs for ${bcId}:`, error);
           }
+
+          // Fetch TikTok accounts from Business Center (asset_type=TT_ACCOUNT)
+          // We use these as a fallback identity list because /identity/list may 404 depending on API access/version.
+          try {
+            const ttAccountsResponse = await fetch(
+              `${baseUrl}/bc/asset/get/?bc_id=${bcId}&asset_type=TT_ACCOUNT`,
+              {
+                headers: {
+                  'Access-Token': accessToken,
+                  'Content-Type': 'application/json',
+                },
+              }
+            );
+
+            if (ttAccountsResponse.ok) {
+              const contentType = ttAccountsResponse.headers.get('content-type');
+              if (contentType?.includes('application/json')) {
+                const ttAccountsData = await ttAccountsResponse.json();
+                console.log(`BC ${bcId} TT_ACCOUNT response:`, ttAccountsData);
+
+                if (ttAccountsData.code === 0 && Array.isArray(ttAccountsData.data?.list)) {
+                  bcIdentitiesByBcId.set(bcId, ttAccountsData.data.list);
+                  console.log(`Found ${ttAccountsData.data.list.length} TT_ACCOUNT identities for BC ${bcId}`);
+                }
+              }
+            } else {
+              console.log(`BC TT_ACCOUNT fetch returned ${ttAccountsResponse.status} for BC ${bcId}`);
+            }
+          } catch (error) {
+            console.error(`Error fetching BC TT_ACCOUNT assets for ${bcId}:`, error);
+          }
         } catch (error) {
           console.error(`Error fetching BC assets for ${bcId}:`, error);
         }
@@ -237,8 +269,13 @@ serve(async (req) => {
         const bcId = advertiserToBcMap.get(advertiserIdStr) || null;
 
         // 1) Identities (advertiser-assigned for ad delivery)
+        // Primary: advertiser identity endpoint (if available)
+        // Fallback: Business Center TT_ACCOUNT assets (so UI has something to pick from)
         try {
           console.log(`Fetching advertiser-level identities for: ${advertiserIdStr}`);
+
+          let identityList: any[] = [];
+          let identitiesStatus: number | null = null;
 
           const identitiesResponse = await fetch(
             `${baseUrl}/identity/list/?advertiser_id=${advertiserIdStr}`,
@@ -250,6 +287,8 @@ serve(async (req) => {
             }
           );
 
+          identitiesStatus = identitiesResponse.status;
+
           if (identitiesResponse.ok) {
             const contentType = identitiesResponse.headers.get('content-type');
             if (contentType?.includes('application/json')) {
@@ -259,36 +298,57 @@ serve(async (req) => {
               // TikTok has returned both shapes in the wild:
               // - data.list (expected)
               // - data.identity_list (observed)
-              const identityList: any[] =
+              identityList =
                 identitiesData?.data?.list || identitiesData?.data?.identity_list || [];
 
-              if (identitiesData.code === 0 && Array.isArray(identityList)) {
-                identityList.forEach((identity: any) => {
-                  const identityId = String(identity.identity_id);
-                  allTiktokIdentities.push({
-                    user_id: user.id,
-                    advertiser_id: advertiserIdStr,
-                    identity_id: identityId,
-                    identity_name: identity.display_name || `TikTok Account ${identityId}`,
-                    identity_type: identity.identity_type || 'TT_ACCOUNT',
-                    bc_id: bcId,
-                  });
-                });
-
-                console.log(
-                  `Found ${identityList.length} identities for advertiser ${advertiserIdStr}`,
-                );
+              if (identitiesData.code !== 0) {
+                identityList = [];
               }
+            } else {
+              console.log(`Identities response not JSON for advertiser ${advertiserIdStr}`);
             }
           } else {
+            console.log(`Identities fetch returned ${identitiesStatus} for advertiser ${advertiserIdStr}`);
+          }
+
+          // Fallback: use BC TT_ACCOUNT assets when advertiser identity endpoint isn't available / returns empty
+          if (identityList.length === 0 && bcId && bcIdentitiesByBcId.has(bcId)) {
+            const bcIdentityAssets = bcIdentitiesByBcId.get(bcId) || [];
             console.log(
-              `Identities fetch returned ${identitiesResponse.status} for advertiser ${advertiserIdStr}`,
+              `Falling back to BC TT_ACCOUNT identities for advertiser ${advertiserIdStr} (bc_id=${bcId}) - ${bcIdentityAssets.length} found`,
             );
+
+            bcIdentityAssets.forEach((asset: any) => {
+              const identityId = String(asset.asset_id || asset.identity_id || asset.id);
+              allTiktokIdentities.push({
+                user_id: user.id,
+                advertiser_id: advertiserIdStr,
+                identity_id: identityId,
+                identity_name: asset.asset_name || asset.display_name || `TikTok Account ${identityId}`,
+                identity_type: asset.asset_type || asset.identity_type || 'TT_ACCOUNT',
+                bc_id: bcId,
+              });
+            });
+
+            console.log(`Found ${bcIdentityAssets.length} fallback identities for advertiser ${advertiserIdStr}`);
+          } else if (Array.isArray(identityList) && identityList.length > 0) {
+            identityList.forEach((identity: any) => {
+              const identityId = String(identity.identity_id);
+              allTiktokIdentities.push({
+                user_id: user.id,
+                advertiser_id: advertiserIdStr,
+                identity_id: identityId,
+                identity_name: identity.display_name || `TikTok Account ${identityId}`,
+                identity_type: identity.identity_type || 'TT_ACCOUNT',
+                bc_id: bcId,
+              });
+            });
+
+            console.log(`Found ${identityList.length} identities for advertiser ${advertiserIdStr}`);
           }
         } catch (error) {
           console.error(`Error fetching identities for ${advertiserIdStr}:`, error);
         }
-
 
         // 2) Pixels (advertiser-level)
         try {

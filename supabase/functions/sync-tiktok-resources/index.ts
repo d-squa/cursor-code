@@ -110,56 +110,124 @@ serve(async (req) => {
       }
     }
 
-    // Fetch TikTok Identities using identity/list endpoint (advertiser-level)
-    // NOTE: TikTok has returned both shapes in the wild:
-    // - data.list (expected)
-    // - data.identity_list (observed)
+    // Fetch TikTok Identities
+    // Primary: advertiser identity endpoint (if available)
+    // Fallback: Business Center TT_ACCOUNT assets (so UI has something to pick from)
     console.log(`Fetching TikTok identities for advertiser ${advertiserId}...`);
-    const identityListUrl = `${baseUrl}/identity/list/?advertiser_id=${advertiserId}`;
-    console.log('Request URL:', identityListUrl);
 
-    const identitiesResponse = await fetch(identityListUrl, {
-      headers: {
-        'Access-Token': accessToken,
-        'Content-Type': 'application/json',
-      },
-    });
+    let identitiesCountLocal = 0;
 
-    const identitiesData = await identitiesResponse.json();
-    console.log('Identity list response:', JSON.stringify(identitiesData, null, 2));
+    try {
+      const identityListUrl = `${baseUrl}/identity/list/?advertiser_id=${advertiserId}`;
+      console.log('Request URL:', identityListUrl);
 
-    const identityList: any[] =
-      identitiesData?.data?.list || identitiesData?.data?.identity_list || [];
+      const identitiesResponse = await fetch(identityListUrl, {
+        headers: {
+          'Access-Token': accessToken,
+          'Content-Type': 'application/json',
+        },
+      });
 
-    if (identitiesData.code === 0 && Array.isArray(identityList)) {
-      identitiesCount = identityList.length;
-      console.log(`Syncing ${identityList.length} TikTok identities for advertiser ${advertiserId}`);
+      if (identitiesResponse.ok) {
+        const contentType = identitiesResponse.headers.get('content-type');
+        if (contentType?.includes('application/json')) {
+          const identitiesData = await identitiesResponse.json();
+          console.log('Identity list response:', JSON.stringify(identitiesData, null, 2));
 
-      for (const identity of identityList) {
-        console.log(`[sync-tiktok-resources] Full identity object:`, JSON.stringify(identity, null, 2));
+          const identityList: any[] =
+            identitiesData?.data?.list || identitiesData?.data?.identity_list || [];
 
-        const identityId = String(identity.identity_id);
-        const identityName = identity.display_name || `TikTok Account ${identityId}`;
-        const identityType = identity.identity_type || 'TT_ACCOUNT';
+          if (identitiesData.code === 0 && Array.isArray(identityList) && identityList.length > 0) {
+            identitiesCount = identityList.length;
+            identitiesCountLocal = identityList.length;
+            console.log(`Syncing ${identityList.length} TikTok identities for advertiser ${advertiserId}`);
 
-        console.log(`[sync-tiktok-resources] Syncing identity: id=${identityId}, name=${identityName}, type=${identityType}`);
+            for (const identity of identityList) {
+              console.log(`[sync-tiktok-resources] Full identity object:`, JSON.stringify(identity, null, 2));
 
-        await supabase.from('tiktok_identities').upsert({
-          user_id: user.id,
-          advertiser_id: advertiserId,
-          identity_id: identityId,
-          identity_name: identityName,
-          identity_type: identityType,
-          bc_id: bcId,
-          synced_at: new Date().toISOString(),
-        }, {
-          onConflict: 'identity_id,advertiser_id',
-        });
+              const identityId = String(identity.identity_id);
+              const identityName = identity.display_name || `TikTok Account ${identityId}`;
+              const identityType = identity.identity_type || 'TT_ACCOUNT';
+
+              console.log(`[sync-tiktok-resources] Syncing identity: id=${identityId}, name=${identityName}, type=${identityType}`);
+
+              await supabase.from('tiktok_identities').upsert({
+                user_id: user.id,
+                advertiser_id: advertiserId,
+                identity_id: identityId,
+                identity_name: identityName,
+                identity_type: identityType,
+                bc_id: bcId,
+                synced_at: new Date().toISOString(),
+              }, {
+                onConflict: 'identity_id,advertiser_id',
+              });
+            }
+          }
+        } else {
+          console.log('Identity list response is not JSON');
+        }
+      } else {
+        console.log(`Identity list fetch returned ${identitiesResponse.status} for advertiser ${advertiserId}`);
       }
-    } else {
-      console.log(`No identities found or error for advertiser ${advertiserId}:`, identitiesData.message);
+    } catch (e) {
+      console.log('Error fetching identities from identity/list:', e);
     }
 
+    // Fallback to BC assets (TT_ACCOUNT)
+    if (identitiesCountLocal === 0 && bcId) {
+      try {
+        const bcIdentityUrl = `${baseUrl}/bc/asset/get/?bc_id=${bcId}&asset_type=TT_ACCOUNT`;
+        console.log('Fallback BC identity URL:', bcIdentityUrl);
+
+        const bcResp = await fetch(bcIdentityUrl, {
+          headers: {
+            'Access-Token': accessToken,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (bcResp.ok) {
+          const contentType = bcResp.headers.get('content-type');
+          if (contentType?.includes('application/json')) {
+            const bcData = await bcResp.json();
+            console.log('BC TT_ACCOUNT response:', JSON.stringify(bcData, null, 2));
+
+            const assets: any[] = Array.isArray(bcData?.data?.list) ? bcData.data.list : [];
+            if (bcData.code === 0 && assets.length > 0) {
+              identitiesCount = assets.length;
+              console.log(`Syncing ${assets.length} fallback identities for advertiser ${advertiserId} from BC ${bcId}`);
+
+              for (const asset of assets) {
+                const identityId = String(asset.asset_id || asset.identity_id || asset.id);
+                const identityName = asset.asset_name || asset.display_name || `TikTok Account ${identityId}`;
+                const identityType = asset.asset_type || asset.identity_type || 'TT_ACCOUNT';
+
+                await supabase.from('tiktok_identities').upsert({
+                  user_id: user.id,
+                  advertiser_id: advertiserId,
+                  identity_id: identityId,
+                  identity_name: identityName,
+                  identity_type: identityType,
+                  bc_id: bcId,
+                  synced_at: new Date().toISOString(),
+                }, {
+                  onConflict: 'identity_id,advertiser_id',
+                });
+              }
+            }
+          }
+        } else {
+          console.log(`BC TT_ACCOUNT fetch returned ${bcResp.status} for bc_id ${bcId}`);
+        }
+      } catch (e) {
+        console.log('Error fetching fallback identities from BC:', e);
+      }
+    }
+
+    if (identitiesCount === 0) {
+      console.log(`No identities found for advertiser ${advertiserId}`);
+    }
     // Fetch Catalogs (BC-level assets - only available for Business Center accounts)
     if (bcId) {
 
