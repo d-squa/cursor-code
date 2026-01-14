@@ -582,6 +582,44 @@ export function useCreativeMatching(campaignId?: string) {
     return digestedAssets;
   }, []);
 
+  // Add platform assets from creative_library_assets table (synced from DSP)
+  const addPlatformAssets = useCallback((assets: any[]) => {
+    const digestedAssets: DigestedAsset[] = assets.map(asset => ({
+      id: asset.id,
+      originalFile: null as any,
+      fileName: asset.asset_name || asset.platform_asset_id,
+      filePath: asset.asset_name || asset.platform_asset_id,
+      mediaType: (asset.asset_type === 'VIDEO' ? 'video' : 'image') as AssetMediaType,
+      technicalAttributes: {
+        width: typeof asset.width === 'number' ? asset.width : undefined,
+        height: typeof asset.height === 'number' ? asset.height : undefined,
+        aspectRatio: typeof asset.aspect_ratio === 'string' ? asset.aspect_ratio : undefined,
+        duration: typeof asset.duration_seconds === 'number' ? asset.duration_seconds : undefined,
+        fileSize: typeof asset.file_size_bytes === 'number' ? asset.file_size_bytes : 0,
+      },
+      hardConstraints: {
+        market: undefined, // Platform assets don't have market constraints by default
+        language: undefined,
+      },
+      compatibilitySignals: {
+        platform: asset.platform,
+      },
+      digestedAt: new Date().toISOString(),
+      sourceType: 'platform_asset', // Mark as coming from platform asset library
+      platformAssetId: asset.platform_asset_id,
+      advertiserId: asset.advertiser_id,
+      previewUrl: asset.preview_url || asset.thumbnail_url,
+    }));
+
+    setState(prev => ({
+      ...prev,
+      assets: [...prev.assets, ...digestedAssets],
+      currentStep: 'match',
+    }));
+
+    return digestedAssets;
+  }, []);
+
   // Process uploaded files - only accept image and video files
   const processFiles = useCallback(async (files: File[]) => {
     setState(prev => ({ ...prev, isProcessing: true, currentStep: 'digest' }));
@@ -1307,7 +1345,7 @@ export function useCreativeMatching(campaignId?: string) {
     setState(prev => ({ ...prev, currentStep: 'complete' }));
   }, []);
 
-  return { state, stats, loadCampaignStructures, processFiles, addLibraryCreatives, runMatching, acceptMatch, rejectMatch, clearRejection, clearAcceptedMatch, removeAsset, clearAll, saveMatches, skipTextAssets };
+  return { state, stats, loadCampaignStructures, processFiles, addLibraryCreatives, addPlatformAssets, runMatching, acceptMatch, rejectMatch, clearRejection, clearAcceptedMatch, removeAsset, clearAll, saveMatches, skipTextAssets };
 }
 
 // Helper functions
