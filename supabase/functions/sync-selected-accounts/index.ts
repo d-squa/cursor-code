@@ -176,51 +176,12 @@ serve(async (req) => {
         try {
           console.log(`Fetching Business Center assets for BC: ${bcId}`);
           
-          // Fetch TikTok Identities (BC-level asset - use TT_ACCOUNT not IDENTITY)
-          try {
-            const identitiesResponse = await fetch(
-              `${baseUrl}/bc/asset/get/?bc_id=${bcId}&asset_type=TT_ACCOUNT`,
-              {
-                headers: {
-                  'Access-Token': accessToken,
-                  'Content-Type': 'application/json',
-                },
-              }
-            );
-            
-            if (identitiesResponse.ok) {
-              const contentType = identitiesResponse.headers.get('content-type');
-              if (contentType?.includes('application/json')) {
-                const identitiesData = await identitiesResponse.json();
-                console.log(`BC ${bcId} TT_ACCOUNT response:`, identitiesData);
-                
-                if (identitiesData.code === 0 && identitiesData.data?.list) {
-                  // Associate identities with all advertisers in this BC
-                  const advertisersInBc = selectedIds.filter(
-                    (id) => advertiserToBcMap.get(id) === bcId
-                  );
-                  
-                  identitiesData.data.list.forEach((identity: any) => {
-                    advertisersInBc.forEach((advertiserId: string) => {
-                      allTiktokIdentities.push({
-                        user_id: user.id,
-                        advertiser_id: advertiserId,
-                        identity_id: identity.asset_id,
-                        identity_name: identity.asset_name || `TikTok Account ${identity.asset_id}`,
-                        identity_type: identity.asset_type || 'TT_ACCOUNT',
-                        bc_id: bcId,
-                      });
-                    });
-                  });
-                  console.log(`Found ${identitiesData.data.list.length} TT_ACCOUNT identities for BC ${bcId}`);
-                }
-              }
-            } else {
-              console.log(`BC TT_ACCOUNT fetch returned ${identitiesResponse.status} for BC ${bcId}`);
-            }
-          } catch (error) {
-            console.error(`Error fetching BC TT_ACCOUNT identities for ${bcId}:`, error);
-          }
+          // NOTE: We intentionally do NOT sync identities via the BC assets endpoint here.
+          // `GET /bc/asset/get?asset_type=TT_ACCOUNT` returns all TikTok accounts in the Business Center,
+          // but it does NOT reflect which identities are actually assigned to each advertiser for ad delivery.
+          // Syncing those results would incorrectly attach every identity to every advertiser in the BC.
+          //
+          // Identities are synced per-advertiser below using `GET /identity/list/?advertiser_id=...`.
 
           // Fetch TikTok Catalogs (BC-level asset)
           try {
@@ -270,13 +231,17 @@ serve(async (req) => {
         }
       }
       
-      // Fetch advertiser-level pixels for each advertiser
+      // Fetch advertiser-level resources for each advertiser (identities + pixels)
       for (const advertiserId of selectedIds) {
+        const advertiserIdStr = String(advertiserId);
+        const bcId = advertiserToBcMap.get(advertiserIdStr) || null;
+
+        // 1) Identities (advertiser-assigned for ad delivery)
         try {
-          console.log(`Fetching advertiser-level pixels for: ${advertiserId}`);
-          
-          const pixelsResponse = await fetch(
-            `${baseUrl}/pixel/list/?advertiser_id=${advertiserId}`,
+          console.log(`Fetching advertiser-level identities for: ${advertiserIdStr}`);
+
+          const identitiesResponse = await fetch(
+            `${baseUrl}/identity/list/?advertiser_id=${advertiserIdStr}`,
             {
               headers: {
                 'Access-Token': accessToken,
@@ -284,30 +249,72 @@ serve(async (req) => {
               },
             }
           );
-          
+
+          if (identitiesResponse.ok) {
+            const contentType = identitiesResponse.headers.get('content-type');
+            if (contentType?.includes('application/json')) {
+              const identitiesData = await identitiesResponse.json();
+              console.log(`Advertiser ${advertiserIdStr} identities response:`, identitiesData);
+
+              if (identitiesData.code === 0 && identitiesData.data?.identity_list) {
+                identitiesData.data.identity_list.forEach((identity: any) => {
+                  const identityId = String(identity.identity_id);
+                  allTiktokIdentities.push({
+                    user_id: user.id,
+                    advertiser_id: advertiserIdStr,
+                    identity_id: identityId,
+                    identity_name: identity.display_name || `TikTok Account ${identityId}`,
+                    identity_type: identity.identity_type || 'TT_ACCOUNT',
+                    bc_id: bcId,
+                  });
+                });
+                console.log(`Found ${identitiesData.data.identity_list.length} identities for advertiser ${advertiserIdStr}`);
+              }
+            }
+          } else {
+            console.log(`Identities fetch returned ${identitiesResponse.status} for advertiser ${advertiserIdStr}`);
+          }
+        } catch (error) {
+          console.error(`Error fetching identities for ${advertiserIdStr}:`, error);
+        }
+
+        // 2) Pixels (advertiser-level)
+        try {
+          console.log(`Fetching advertiser-level pixels for: ${advertiserIdStr}`);
+
+          const pixelsResponse = await fetch(
+            `${baseUrl}/pixel/list/?advertiser_id=${advertiserIdStr}`,
+            {
+              headers: {
+                'Access-Token': accessToken,
+                'Content-Type': 'application/json',
+              },
+            }
+          );
+
           if (pixelsResponse.ok) {
             const contentType = pixelsResponse.headers.get('content-type');
             if (contentType?.includes('application/json')) {
               const pixelsData = await pixelsResponse.json();
-              console.log(`Advertiser ${advertiserId} pixels response:`, pixelsData);
-              
+              console.log(`Advertiser ${advertiserIdStr} pixels response:`, pixelsData);
+
               if (pixelsData.code === 0 && pixelsData.data?.pixels) {
                 pixelsData.data.pixels.forEach((pixel: any) => {
                   allTiktokPixels.push({
                     user_id: user.id,
-                    advertiser_id: advertiserId,
+                    advertiser_id: advertiserIdStr,
                     pixel_id: pixel.pixel_id,
                     pixel_name: pixel.pixel_name || pixel.pixel_id,
                   });
                 });
-                console.log(`Found ${pixelsData.data.pixels.length} pixels for advertiser ${advertiserId}`);
+                console.log(`Found ${pixelsData.data.pixels.length} pixels for advertiser ${advertiserIdStr}`);
               }
             }
           } else {
-            console.log(`Pixels fetch returned ${pixelsResponse.status} for advertiser ${advertiserId}`);
+            console.log(`Pixels fetch returned ${pixelsResponse.status} for advertiser ${advertiserIdStr}`);
           }
         } catch (error) {
-          console.error(`Error fetching pixels for ${advertiserId}:`, error);
+          console.error(`Error fetching pixels for ${advertiserIdStr}:`, error);
         }
       }
 
