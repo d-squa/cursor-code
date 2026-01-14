@@ -1004,6 +1004,7 @@ export type Database = {
           team_id: string | null
           thumbnail_url: string | null
           tiktok_ad_format: string | null
+          tiktok_asset_advertiser_id: string | null
           tiktok_display_name: string | null
           tiktok_identity_id: string | null
           updated_at: string
@@ -1100,6 +1101,7 @@ export type Database = {
           team_id?: string | null
           thumbnail_url?: string | null
           tiktok_ad_format?: string | null
+          tiktok_asset_advertiser_id?: string | null
           tiktok_display_name?: string | null
           tiktok_identity_id?: string | null
           updated_at?: string
@@ -1196,6 +1198,7 @@ export type Database = {
           team_id?: string | null
           thumbnail_url?: string | null
           tiktok_ad_format?: string | null
+          tiktok_asset_advertiser_id?: string | null
           tiktok_display_name?: string | null
           tiktok_identity_id?: string | null
           updated_at?: string
