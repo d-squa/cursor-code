@@ -123,3 +123,15 @@ verify_jwt = true
 
 [functions.push-creatives-to-dsp]
 verify_jwt = false
+
+[functions.sync-creative-library]
+verify_jwt = false
+
+[functions.resolve-platform-identities]
+verify_jwt = false
+
+[functions.validate-ad-config]
+verify_jwt = false
+
+[functions.execute-ad-creation]
+verify_jwt = false
