@@ -106,6 +106,8 @@ export interface CampaignStructure {
   budgetType?: 'daily' | 'lifetime';
   // Parsed taxonomy elements from adSetName for display and matching
   taxonomyElements?: Record<string, string>;
+  // TikTok-specific fields from phase/market config
+  tiktokIdentityId?: string;
 }
 
 export interface UIMatchingResult {
@@ -462,6 +464,8 @@ export function useCreativeMatching(campaignId?: string) {
                   audiences: adSet.audiences,
                   budgetAmount: calculateBudgetFromPercentage(adSet.budgetPercentage, phase, market, campaign),
                   budgetType: phase?.budgetType,
+                  // TikTok identity from phase > market config
+                  tiktokIdentityId: phase?.tiktokIdentityId || market?.tiktokIdentityId,
                 };
                 structures.push(adSetStructure);
               }
@@ -511,6 +515,8 @@ export function useCreativeMatching(campaignId?: string) {
                 audiences: phase?.audiences,
                 budgetAmount: calculateBudgetFromPercentage(phase?.budgetPercentage, phase, market, campaign),
                 budgetType: phase?.budgetType,
+                // TikTok identity from phase > market config
+                tiktokIdentityId: phase?.tiktokIdentityId || market?.tiktokIdentityId,
               });
             }
           }
@@ -1125,6 +1131,8 @@ export function useCreativeMatching(campaignId?: string) {
                   media_urls: [mediaUrl],
                   thumbnail_url: mediaUrl,
                   language: asset.hardConstraints?.language,
+                  // TikTok identity from activation details config
+                  tiktok_identity_id: match.structure.platform === 'tiktok' ? match.structure.tiktokIdentityId : null,
                 })
                 .select()
                 .single();
