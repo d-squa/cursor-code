@@ -106,62 +106,63 @@ serve(async (req) => {
       }
     }
 
-    // Fetch TikTok Identities and Catalogs (BC-level assets - only available for Business Center accounts)
+    // Fetch TikTok Identities and Catalogs
     let catalogIds: string[] = [];
     let identitiesCount = 0;
     
-    if (bcId) {
-      // Fetch TikTok Identities (BC-level asset - use TT_ACCOUNT not IDENTITY)
-      console.log('Fetching TikTok identities from Business Center...');
-      console.log('BC ID:', bcId);
-      console.log('Request URL:', `${baseUrl}/bc/asset/get/?bc_id=${bcId}&asset_type=TT_ACCOUNT`);
-      
-      const identitiesResponse = await fetch(
-        `${baseUrl}/bc/asset/get/?bc_id=${bcId}&asset_type=TT_ACCOUNT`,
-        {
-          headers: {
-            'Access-Token': accessToken,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
+    // Fetch TikTok Identities using identity/list endpoint (advertiser-level)
+    // This returns only identities that are actually assigned to this specific advertiser for ad delivery
+    console.log(`Fetching TikTok identities for advertiser ${advertiserId}...`);
+    const identityListUrl = `${baseUrl}/identity/list/?advertiser_id=${advertiserId}`;
+    console.log('Request URL:', identityListUrl);
+    
+    const identitiesResponse = await fetch(identityListUrl, {
+      headers: {
+        'Access-Token': accessToken,
+        'Content-Type': 'application/json',
+      },
+    });
 
-      const identitiesData = await identitiesResponse.json();
-      console.log('TT_ACCOUNT identities full response:', JSON.stringify(identitiesData, null, 2));
-      console.log('TT_ACCOUNT identities status code:', identitiesData.code);
-      console.log('TT_ACCOUNT identities message:', identitiesData.message);
-      console.log('TT_ACCOUNT identities data:', identitiesData.data);
+    const identitiesData = await identitiesResponse.json();
+    console.log('Identity list response:', JSON.stringify(identitiesData, null, 2));
 
-      if (identitiesData.code === 0 && identitiesData.data?.list) {
-        const identities = identitiesData.data.list;
-        identitiesCount = identities.length;
-        console.log(`Syncing ${identities.length} TikTok identities`);
+    if (identitiesData.code === 0 && identitiesData.data?.identity_list) {
+      const identities = identitiesData.data.identity_list;
+      identitiesCount = identities.length;
+      console.log(`Syncing ${identities.length} TikTok identities for advertiser ${advertiserId}`);
 
-        for (const identity of identities) {
-          // Log full identity object to debug field names
-          console.log(`[sync-tiktok-resources] Full identity object:`, JSON.stringify(identity, null, 2));
-          
-          // The BC asset API returns:
-          // - asset_id: internal BC reference ID (NOT the actual TikTok Account ID)
-          // - tt_account_id or identity_id: the actual TikTok Account ID for ad creation
-          // We need the actual TikTok Account ID for the ads API
-          const actualIdentityId = identity.tt_account_id || identity.identity_id || identity.asset_id;
-          
-          console.log(`[sync-tiktok-resources] Identity mapping: asset_id=${identity.asset_id}, tt_account_id=${identity.tt_account_id}, identity_id=${identity.identity_id}, using: ${actualIdentityId}`);
-          
-          await supabase.from('tiktok_identities').upsert({
-            user_id: user.id,
-            advertiser_id: advertiserId,
-            identity_id: actualIdentityId,
-            identity_name: identity.asset_name || `TikTok Account ${actualIdentityId}`,
-            identity_type: identity.asset_type || 'TT_ACCOUNT',
-            bc_id: bcId, // Store Business Center ID for BC-linked identities
-            synced_at: new Date().toISOString(),
-          }, {
-            onConflict: 'identity_id,advertiser_id',
-          });
-        }
+      for (const identity of identities) {
+        // Log full identity object to debug field names
+        console.log(`[sync-tiktok-resources] Full identity object:`, JSON.stringify(identity, null, 2));
+        
+        // The identity/list endpoint returns:
+        // - identity_id: the actual TikTok Account ID for ad creation
+        // - display_name: the name of the TikTok account
+        // - identity_type: TT_ACCOUNT, BC_AUTH_TT, CUSTOMIZED_USER, etc.
+        const identityId = identity.identity_id;
+        const identityName = identity.display_name || `TikTok Account ${identityId}`;
+        const identityType = identity.identity_type || 'TT_ACCOUNT';
+        
+        console.log(`[sync-tiktok-resources] Syncing identity: id=${identityId}, name=${identityName}, type=${identityType}`);
+        
+        await supabase.from('tiktok_identities').upsert({
+          user_id: user.id,
+          advertiser_id: advertiserId,
+          identity_id: identityId,
+          identity_name: identityName,
+          identity_type: identityType,
+          bc_id: bcId, // Store Business Center ID if available
+          synced_at: new Date().toISOString(),
+        }, {
+          onConflict: 'identity_id,advertiser_id',
+        });
       }
+    } else {
+      console.log(`No identities found or error for advertiser ${advertiserId}:`, identitiesData.message);
+    }
+
+    // Fetch Catalogs (BC-level assets - only available for Business Center accounts)
+    if (bcId) {
 
       // Fetch TikTok Catalogs (BC-level asset)
       console.log('Fetching TikTok catalogs from Business Center...');
