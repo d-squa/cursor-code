@@ -37,7 +37,7 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
   const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
-  const [activeSourceTab, setActiveSourceTab] = useState<'library' | 'upload'>('library');
+  const [activeSourceTab, setActiveSourceTab] = useState<'library' | 'platform' | 'upload'>('library');
   const [activeUploadTab, setActiveUploadTab] = useState('files');
   const [activeViewMode, setActiveViewMode] = useState<'structure' | 'asset'>('structure');
   const [campaigns, setCampaigns] = useState<CampaignOption[]>([]);
@@ -50,6 +50,11 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
   const [selectedCreativeIds, setSelectedCreativeIds] = useState<Set<string>>(new Set());
   const [isLoadingLibrary, setIsLoadingLibrary] = useState(false);
 
+  // Platform assets state (synced from DSP)
+  const [platformAssets, setPlatformAssets] = useState<any[]>([]);
+  const [selectedPlatformAssetIds, setSelectedPlatformAssetIds] = useState<Set<string>>(new Set());
+  const [isLoadingPlatformAssets, setIsLoadingPlatformAssets] = useState(false);
+
   // Sync state with props when they change
   useEffect(() => {
     if (initialCampaignId) {
@@ -60,7 +65,7 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
 
   const effectiveCampaignId = selectedCampaignId ?? initialCampaignId;
 
-  const { state, stats, loadCampaignStructures, processFiles, addLibraryCreatives, runMatching, acceptMatch, rejectMatch, clearRejection, clearAcceptedMatch, removeAsset, clearAll, saveMatches, skipTextAssets } = useCreativeMatching(effectiveCampaignId);
+  const { state, stats, loadCampaignStructures, processFiles, addLibraryCreatives, addPlatformAssets, runMatching, acceptMatch, rejectMatch, clearRejection, clearAcceptedMatch, removeAsset, clearAll, saveMatches, skipTextAssets } = useCreativeMatching(effectiveCampaignId);
 
   // Load available campaigns when dialog opens (if no campaignId provided)
   useEffect(() => {
@@ -124,6 +129,25 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
     }
   }, [open, user]);
 
+  // Load platform assets when dialog opens
+  useEffect(() => {
+    if (open && user) {
+      setIsLoadingPlatformAssets(true);
+      supabase
+        .from('creative_library_assets')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('is_usable', true)
+        .order('created_at', { ascending: false })
+        .then(({ data, error }) => {
+          if (!error && data) {
+            setPlatformAssets(data);
+          }
+          setIsLoadingPlatformAssets(false);
+        });
+    }
+  }, [open, user]);
+
   // Reset state when dialog closes
   useEffect(() => {
     if (!open) {
@@ -132,6 +156,7 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
         setSelectedCampaignName('');
       }
       setSelectedCreativeIds(new Set());
+      setSelectedPlatformAssetIds(new Set());
       clearAll();
     }
   }, [open, initialCampaignId, clearAll]);
@@ -188,10 +213,29 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
     });
   }, []);
 
+  const handlePlatformAssetToggle = useCallback((assetId: string) => {
+    setSelectedPlatformAssetIds(prev => {
+      const next = new Set(prev);
+      if (next.has(assetId)) {
+        next.delete(assetId);
+      } else {
+        next.add(assetId);
+      }
+      return next;
+    });
+  }, []);
+
   const handleSelectAll = useCallback((creativeIds: string[]) => {
     setSelectedCreativeIds(prev => {
       const allSelected = creativeIds.length > 0 && creativeIds.every(id => prev.has(id));
       return allSelected ? new Set() : new Set(creativeIds);
+    });
+  }, []);
+
+  const handleSelectAllPlatformAssets = useCallback((assetIds: string[]) => {
+    setSelectedPlatformAssetIds(prev => {
+      const allSelected = assetIds.length > 0 && assetIds.every(id => prev.has(id));
+      return allSelected ? new Set() : new Set(assetIds);
     });
   }, []);
 
@@ -205,6 +249,16 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
     addLibraryCreatives(selected);
     toast.success(`Added ${selected.length} creatives for matching`);
   }, [libraryCreatives, selectedCreativeIds, addLibraryCreatives]);
+
+  const handleUseSelectedPlatformAssets = useCallback(async () => {
+    const selected = platformAssets.filter(a => selectedPlatformAssetIds.has(a.id));
+    if (selected.length === 0) {
+      toast.error('Please select at least one asset');
+      return;
+    }
+    addPlatformAssets(selected);
+    toast.success(`Added ${selected.length} platform assets for matching`);
+  }, [platformAssets, selectedPlatformAssetIds, addPlatformAssets]);
 
   const handleRunMatching = async () => {
     const campaignIdToUse = effectiveCampaignId;
@@ -237,6 +291,15 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
     0
   );
   const allAvailableSelected = availableCreativeIds.length > 0 && selectedAvailableCount === availableCreativeIds.length;
+
+  // Platform assets available for this mesh (not already added)
+  const availablePlatformAssets = platformAssets.filter((a) => !alreadyInMesh.has(a.id));
+  const availablePlatformAssetIds = availablePlatformAssets.map((a) => a.id);
+  const selectedPlatformAssetCount = availablePlatformAssets.reduce(
+    (acc, a) => acc + (selectedPlatformAssetIds.has(a.id) ? 1 : 0),
+    0
+  );
+  const allPlatformAssetsSelected = availablePlatformAssetIds.length > 0 && selectedPlatformAssetCount === availablePlatformAssetIds.length;
 
   // Text Assets step should render full-screen, not inside dialog
   if (state.currentStep === 'text_assets' && open) {
@@ -348,15 +411,19 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
             <div className="flex-1 overflow-hidden">
               {/* Source Selection: Library or Upload */}
               {(state.currentStep === 'upload' || state.currentStep === 'match') && (
-                <Tabs value={activeSourceTab} onValueChange={(v) => setActiveSourceTab(v as 'library' | 'upload')}>
-                  <TabsList className="grid w-full grid-cols-2">
+                <Tabs value={activeSourceTab} onValueChange={(v) => setActiveSourceTab(v as 'library' | 'platform' | 'upload')}>
+                  <TabsList className="grid w-full grid-cols-3">
                     <TabsTrigger value="library" className="gap-2">
                       <LayoutGrid className="h-4 w-4" />
-                      From Library ({availableCreatives.length})
+                      Library ({availableCreatives.length})
+                    </TabsTrigger>
+                    <TabsTrigger value="platform" className="gap-2">
+                      <Layers className="h-4 w-4" />
+                      Synced ({availablePlatformAssets.length})
                     </TabsTrigger>
                     <TabsTrigger value="upload" className="gap-2">
                       <Upload className="h-4 w-4" />
-                      Upload New
+                      Upload
                     </TabsTrigger>
                   </TabsList>
 
@@ -438,6 +505,106 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
                                           </Badge>
                                         )}
                                       </div>
+                                    </div>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            ))}
+                          </div>
+                        </ScrollArea>
+                      </div>
+                    )}
+                  </TabsContent>
+
+                  {/* Platform Assets Tab - Synced from DSP */}
+                  <TabsContent value="platform" className="mt-4">
+                    {isLoadingPlatformAssets ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : availablePlatformAssets.length === 0 ? (
+                      <div className="text-center py-8">
+                        <p className="text-muted-foreground mb-4">No synced platform assets found.</p>
+                        <p className="text-xs text-muted-foreground">
+                          Go to Creative Library → Platform Assets tab to sync assets from TikTok or Meta.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Checkbox
+                              checked={allPlatformAssetsSelected}
+                              onCheckedChange={() => handleSelectAllPlatformAssets(availablePlatformAssetIds)}
+                            />
+                            <span className="text-sm text-muted-foreground">
+                              {selectedPlatformAssetCount} selected
+                            </span>
+                          </div>
+                          <Button
+                            size="sm"
+                            onClick={handleUseSelectedPlatformAssets}
+                            disabled={selectedPlatformAssetCount === 0}
+                          >
+                            <CheckCircle2 className="h-4 w-4 mr-2" />
+                            Use Selected ({selectedPlatformAssetCount})
+                          </Button>
+                        </div>
+                        <ScrollArea className="h-[300px] pr-4">
+                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                            {availablePlatformAssets.map(asset => (
+                              <Card 
+                                key={asset.id}
+                                className={`cursor-pointer transition-all ${
+                                  selectedPlatformAssetIds.has(asset.id) 
+                                    ? 'ring-2 ring-primary bg-primary/5' 
+                                    : 'hover:bg-muted/50'
+                                }`}
+                                onClick={() => handlePlatformAssetToggle(asset.id)}
+                              >
+                                <CardContent className="p-2">
+                                  <div className="flex flex-col gap-2">
+                                    <div className="flex items-start gap-2">
+                                      <Checkbox 
+                                        checked={selectedPlatformAssetIds.has(asset.id)}
+                                        onCheckedChange={() => handlePlatformAssetToggle(asset.id)}
+                                        onClick={(e) => e.stopPropagation()}
+                                      />
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-1 mb-1">
+                                          {asset.asset_type === 'VIDEO' ? (
+                                            <Video className="h-3 w-3 text-muted-foreground" />
+                                          ) : (
+                                            <Image className="h-3 w-3 text-muted-foreground" />
+                                          )}
+                                          <span className="text-xs text-muted-foreground uppercase">
+                                            {asset.asset_type}
+                                          </span>
+                                        </div>
+                                        <p className="text-xs font-medium truncate" title={asset.asset_name || asset.platform_asset_id}>
+                                          {asset.asset_name || asset.platform_asset_id?.substring(0, 12)}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    {/* Thumbnail preview */}
+                                    {(asset.thumbnail_url || asset.preview_url) && (
+                                      <div className="aspect-video bg-muted rounded overflow-hidden">
+                                        <img 
+                                          src={asset.thumbnail_url || asset.preview_url} 
+                                          alt="" 
+                                          className="w-full h-full object-cover"
+                                        />
+                                      </div>
+                                    )}
+                                    <div className="flex flex-wrap gap-1">
+                                      <Badge variant="outline" className="text-xs px-1">
+                                        {asset.platform}
+                                      </Badge>
+                                      {asset.aspect_ratio && (
+                                        <Badge variant="secondary" className="text-xs px-1">
+                                          {asset.aspect_ratio}
+                                        </Badge>
+                                      )}
                                     </div>
                                   </div>
                                 </CardContent>
