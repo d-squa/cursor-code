@@ -1614,9 +1614,16 @@ const handler = async (req: Request): Promise<Response> => {
                   `[push-creatives] TikTok ad/create (v1.3) failed identity_type=${candidateType} code=${tiktokAdData?.code} message=${msg}`,
                 );
 
-                // Error 40002 or "no longer have access" - identity authorization mismatch
+                // Error 40002/40700 or "no longer have access" or "insufficient auth information" - identity authorization mismatch
                 // Fall back to non-Spark ads approach
-                if (tiktokAdData?.code === 40002 || /You no longer have access to the TikTok account used in this ad/i.test(msg)) {
+                // 40002: Identity authorization error
+                // 40700: Cannot fetch identity due to insufficient auth information (BC token scope issue)
+                if (
+                  tiktokAdData?.code === 40002 || 
+                  tiktokAdData?.code === 40700 ||
+                  /You no longer have access to the TikTok account used in this ad/i.test(msg) ||
+                  /Cannot fetch identity due to insufficient auth/i.test(msg)
+                ) {
                   console.log(`[push-creatives] ⚠️ Identity authorization error (code=${tiktokAdData?.code}). Will fall back to non-Spark ads.`);
                   shouldTryNonSparkFallback = true;
                   break;
