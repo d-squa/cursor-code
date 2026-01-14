@@ -464,8 +464,8 @@ export function useCreativeMatching(campaignId?: string) {
                   audiences: adSet.audiences,
                   budgetAmount: calculateBudgetFromPercentage(adSet.budgetPercentage, phase, market, campaign),
                   budgetType: phase?.budgetType,
-                  // TikTok identity from phase > market config
-                  tiktokIdentityId: phase?.tiktokIdentityId || market?.tiktokIdentityId,
+                  // TikTok identity from phase > market config (field name can be tiktokIdentityId or tiktokIdentity)
+                  tiktokIdentityId: phase?.tiktokIdentityId || phase?.tiktokIdentity || market?.tiktokIdentityId || market?.tiktokIdentity,
                 };
                 structures.push(adSetStructure);
               }
@@ -515,8 +515,8 @@ export function useCreativeMatching(campaignId?: string) {
                 audiences: phase?.audiences,
                 budgetAmount: calculateBudgetFromPercentage(phase?.budgetPercentage, phase, market, campaign),
                 budgetType: phase?.budgetType,
-                // TikTok identity from phase > market config
-                tiktokIdentityId: phase?.tiktokIdentityId || market?.tiktokIdentityId,
+                // TikTok identity from phase > market config (field name can be tiktokIdentityId or tiktokIdentity)
+                tiktokIdentityId: phase?.tiktokIdentityId || phase?.tiktokIdentity || market?.tiktokIdentityId || market?.tiktokIdentity,
               });
             }
           }
