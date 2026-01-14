@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { FolderUp, FileSpreadsheet, LayoutGrid, Download, Wand2, Type, Layers, Loader2, LogOut, Settings, Bug, Lock } from 'lucide-react';
+import { FolderUp, FileSpreadsheet, LayoutGrid, Download, Wand2, Type, Layers, Loader2, LogOut, Settings, Bug, Lock, Cloud, Upload } from 'lucide-react';
 import { useCreatives } from '@/hooks/useCreatives';
 import { CreativeGrid } from '@/components/creative/CreativeGrid';
 import { FolderUpload } from '@/components/creative/FolderUpload';
@@ -22,6 +22,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { BugReportDialog } from '@/components/BugReportDialog';
 import { WorkspaceSwitcher } from '@/components/WorkspaceSwitcher';
 import { FeatureGate } from '@/components/FeatureGate';
+import { PlatformAssetLibrary } from '@/components/creative/PlatformAssetLibrary';
+import { PlatformAssetUploader } from '@/components/creative/PlatformAssetUploader';
 
 interface Campaign {
   id: string;
@@ -54,6 +56,11 @@ export default function CreativeLibrary() {
   const [folderUploadCampaignId, setFolderUploadCampaignId] = useState('');
   const [folderUploadTiktokIdentityId, setFolderUploadTiktokIdentityId] = useState<string | undefined>();
   const [folderUploadAdAccounts, setFolderUploadAdAccounts] = useState<Array<{ platform: 'meta' | 'tiktok'; accountId: string }>>([]);
+  
+  // Platform assets tab state
+  const [platformAssetsAdvertiserId, setPlatformAssetsAdvertiserId] = useState('');
+  const [platformAssetsPlatform, setPlatformAssetsPlatform] = useState<'tiktok' | 'meta'>('tiktok');
+  const [showPlatformUploader, setShowPlatformUploader] = useState(false);
 
   const selectedCampaign = campaigns.find((c) => c.id === selectedCampaignId);
 
@@ -410,6 +417,10 @@ export default function CreativeLibrary() {
             <FileSpreadsheet className="h-4 w-4" />
             Spreadsheet
           </TabsTrigger>
+          <TabsTrigger value="platform-assets" className="gap-2">
+            <Cloud className="h-4 w-4" />
+            Platform Assets
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="library" className="mt-6">
@@ -534,6 +545,81 @@ export default function CreativeLibrary() {
 
         <TabsContent value="spreadsheet" className="mt-6">
           <SpreadsheetUpload onUploadComplete={handleSpreadsheetUploadComplete} isUploading={isCreating} />
+        </TabsContent>
+
+        <TabsContent value="platform-assets" className="mt-6">
+          <div className="space-y-6">
+            {/* Platform & Advertiser Selection */}
+            <div className="flex flex-wrap items-center gap-4 p-4 border rounded-lg bg-muted/30">
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Platform</label>
+                <Select 
+                  value={platformAssetsPlatform} 
+                  onValueChange={(v) => setPlatformAssetsPlatform(v as 'tiktok' | 'meta')}
+                >
+                  <SelectTrigger className="w-40">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="tiktok">TikTok</SelectItem>
+                    <SelectItem value="meta">Meta</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="flex-1 min-w-[200px] space-y-1">
+                <label className="text-sm font-medium">Advertiser ID</label>
+                <input
+                  type="text"
+                  placeholder="Enter advertiser/ad account ID"
+                  value={platformAssetsAdvertiserId}
+                  onChange={(e) => setPlatformAssetsAdvertiserId(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-md bg-background text-sm"
+                />
+              </div>
+              
+              <div className="flex items-end gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowPlatformUploader(!showPlatformUploader)}
+                  disabled={!platformAssetsAdvertiserId}
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  {showPlatformUploader ? 'Hide Uploader' : 'Upload Assets'}
+                </Button>
+              </div>
+            </div>
+            
+            {/* Uploader (collapsible) */}
+            {showPlatformUploader && platformAssetsAdvertiserId && (
+              <div className="border rounded-lg p-4 bg-card">
+                <h3 className="text-sm font-medium mb-4">Upload to {platformAssetsPlatform === 'tiktok' ? 'TikTok' : 'Meta'} Creative Library</h3>
+                <PlatformAssetUploader
+                  platform={platformAssetsPlatform}
+                  advertiserId={platformAssetsAdvertiserId}
+                  onUploadComplete={() => {
+                    toast.success('Assets uploaded and synced');
+                    setShowPlatformUploader(false);
+                  }}
+                />
+              </div>
+            )}
+            
+            {/* Asset Library */}
+            {platformAssetsAdvertiserId ? (
+              <PlatformAssetLibrary
+                platform={platformAssetsPlatform}
+                advertiserId={platformAssetsAdvertiserId}
+              />
+            ) : (
+              <div className="text-center py-12 text-muted-foreground">
+                <Cloud className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>Enter an advertiser ID above to view platform assets</p>
+                <p className="text-xs mt-1">Assets synced from TikTok/Meta Creative Libraries will appear here</p>
+              </div>
+            )}
+          </div>
         </TabsContent>
       </Tabs>
 
