@@ -1029,7 +1029,7 @@ const handler = async (req: Request): Promise<Response> => {
               // Get media URL from creative
               const { data: fullCreative, error: creativeError } = await supabase
                 .from("creatives")
-                .select("media_urls, media_type, original_filename")
+                .select("media_urls, media_type, creative_type, original_filename")
                 .eq("id", creative.id)
                 .single();
               
@@ -1047,17 +1047,25 @@ const handler = async (req: Request): Promise<Response> => {
               }
               
               const mediaUrl = fullCreative.media_urls[0];
+              
+              // Enhanced video detection: check media_type, creative_type, URL patterns
+              // TikTok CDN URLs may contain /video/ in path without file extension
+              const urlLower = mediaUrl.toLowerCase();
+              const hasVideoExtension = urlLower.match(/\.(mp4|mov|avi|wmv|flv|webm|m4v)(\?|$)/);
+              const hasVideoInPath = urlLower.includes('/video/') || urlLower.includes('mime_type=video');
               const isVideoFile = fullCreative.media_type === "video" || 
-                                  mediaUrl.toLowerCase().match(/\.(mp4|mov|avi|wmv|flv|webm|m4v)$/);
+                                  fullCreative.creative_type === "video" ||
+                                  hasVideoExtension ||
+                                  hasVideoInPath;
               
               // Add unique suffix to filename to avoid TikTok "Duplicated material name" error
-              const baseFileName = fullCreative.original_filename || mediaUrl.split('/').pop() || (isVideoFile ? 'video.mp4' : 'image.jpg');
+              const baseFileName = fullCreative.original_filename || mediaUrl.split('/').pop()?.split('?')[0] || (isVideoFile ? 'video.mp4' : 'image.jpg');
               const uniqueSuffix = `_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
               const fileExt = baseFileName.includes('.') ? '.' + baseFileName.split('.').pop() : (isVideoFile ? '.mp4' : '.jpg');
               const fileNameWithoutExt = baseFileName.includes('.') ? baseFileName.substring(0, baseFileName.lastIndexOf('.')) : baseFileName;
               const fileName = `${fileNameWithoutExt}${uniqueSuffix}${fileExt}`;
               
-              console.log(`[push-creatives] TikTok auto-upload via URL: mediaUrl=${mediaUrl}, isVideoFile=${isVideoFile}, fileName=${fileName}`);
+              console.log(`[push-creatives] TikTok auto-upload via URL: mediaUrl=${mediaUrl}, isVideoFile=${isVideoFile}, mediaType=${fullCreative.media_type}, creativeType=${fullCreative.creative_type}, hasVideoInPath=${hasVideoInPath}, fileName=${fileName}`);
               
               try {
                 if (isVideoFile) {
