@@ -1040,13 +1040,20 @@ const handler = async (req: Request): Promise<Response> => {
                   platformAssetId &&
                   (!platformAssetAdvertiserId || String(platformAssetAdvertiserId) === advertiserIdStr)
                 ) {
+                  // Detect if the platform asset is a video based on TikTok ID format
+                  // TikTok video IDs typically start with 'v' followed by digits
+                  // Image IDs are numeric or have different patterns
+                  const assetIdStr = String(platformAssetId);
+                  const looksLikeVideoId = /^v\d+/.test(assetIdStr);
+                  const effectiveIsVideo = isVideo || looksLikeVideoId;
+                  
                   console.log(
-                    `[push-creatives] ✅ Using existing TikTok platform_asset_id from creative.platform_metadata (asset_id=${String(platformAssetId)})`,
+                    `[push-creatives] ✅ Using existing TikTok platform_asset_id from creative.platform_metadata (asset_id=${assetIdStr}, isVideo=${isVideo}, looksLikeVideoId=${looksLikeVideoId}, effectiveIsVideo=${effectiveIsVideo})`,
                   );
 
-                  const updatePatch = isVideo
-                    ? { platform_video_id: String(platformAssetId) }
-                    : { platform_image_hash: String(platformAssetId) };
+                  const updatePatch = effectiveIsVideo
+                    ? { platform_video_id: assetIdStr }
+                    : { platform_image_hash: assetIdStr };
 
                   await supabase
                     .from("creatives")
@@ -1058,10 +1065,10 @@ const handler = async (req: Request): Promise<Response> => {
                     })
                     .eq("id", creative.id);
 
-                  if (isVideo) {
-                    creative.platform_video_id = String(platformAssetId);
+                  if (effectiveIsVideo) {
+                    creative.platform_video_id = assetIdStr;
                   } else {
-                    creative.platform_image_hash = String(platformAssetId);
+                    creative.platform_image_hash = assetIdStr;
                   }
                   hasTikTokAsset = true;
                 }
