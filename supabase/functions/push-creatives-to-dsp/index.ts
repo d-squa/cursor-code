@@ -1434,20 +1434,16 @@ const handler = async (req: Request): Promise<Response> => {
             console.log(`[push-creatives] ✅ Valid identity found: ${identityId} (source: ${identitySource})`);
             console.log(`[push-creatives] Will attempt ad creation with identity ${identityId}, validForApi=${identityValidForApi}`);
 
-            // Resolve identity type (best-effort)
-            // NOTE: `TT_ACCOUNT` is returned by Business Center asset APIs; it is NOT valid for /ad/create.
-            // We map it to CUSTOMIZED_USER which works for BC-managed identities.
-            // CRITICAL: UNSET is NOT a valid identity_type for ad creation - removed from allowed list
-            const allowedIdentityTypes = new Set([
-              "AUTH_CODE",
-              "TT_USER",
-              "BC_SELF_TT",
-              "CUSTOMIZED_USER",
-              "BC_AUTH_TT",
-            ]);
+            // Resolve identity type for /ad/create
+            // IMPORTANT:
+            // - TikTok does NOT accept BC_AUTH_TT / BC_SELF_TT / TT_ACCOUNT / CUSTOMIZED_USER as identity_type for ad/create.
+            //   Those represent Business Center authorization/relationship types, not runnable ad identities.
+            // - For brand/owned TikTok profiles, ad/create must use identity_type = TIKTOK_ACCOUNT.
+            // - Only use AUTH_CODE when you are explicitly creating Spark Ads via creator authorization.
+            const allowedIdentityTypes = new Set(["TIKTOK_ACCOUNT", "AUTH_CODE"]);
 
-            // Default to a safe, accepted value
-            let identityType: string = "CUSTOMIZED_USER";
+            // Default to brand/owned profile identity
+            let identityType: string = "TIKTOK_ACCOUNT";
 
             const { data: identityRow } = await supabase
               .from("tiktok_identities")
@@ -1456,11 +1452,14 @@ const handler = async (req: Request): Promise<Response> => {
               .eq("advertiser_id", advertiserIdStr)
               .eq("identity_id", String(identityId))
               .maybeSingle();
-            
+
             // Enhanced identity logging
-            console.log(`[push-creatives] TikTok identity lookup result for identity_id=${identityId}:`, JSON.stringify(identityRow));
-            
-            // Get bc_id for BC-linked identities
+            console.log(
+              `[push-creatives] TikTok identity lookup result for identity_id=${identityId}:`,
+              JSON.stringify(identityRow),
+            );
+
+            // bc_id can still be useful for debugging, but MUST NOT be sent to /ad/create.
             const bcIdFromPlatform = (platform as any)?.metadata?.accounts?.find(
               (acc: any) => String(acc.advertiser_id) === advertiserIdStr,
             )?.bc_id;
@@ -1470,28 +1469,30 @@ const handler = async (req: Request): Promise<Response> => {
               : bcIdFromPlatform ? String(bcIdFromPlatform)
               : null;
 
-            let dbIdentityType = identityRow?.identity_type ? String(identityRow.identity_type) : null;
+            const dbIdentityType = identityRow?.identity_type ? String(identityRow.identity_type) : null;
 
-            // For Business Center linked identities:
-            // - If we have bc_id, use BC_AUTH_TT (identity is authorized via BC)
-            // - TT_ACCOUNT from sync -> BC_AUTH_TT when bc_id present, otherwise BC_SELF_TT
-            if (identityBcId) {
-              // Identity belongs to a Business Center - use BC_AUTH_TT
-              identityType = "BC_AUTH_TT";
-              console.log(`[push-creatives] Identity has bc_id=${identityBcId}, using BC_AUTH_TT`);
-            } else if (dbIdentityType === "TT_ACCOUNT") {
-              // Legacy TT_ACCOUNT without bc_id -> try BC_SELF_TT
-              identityType = "BC_SELF_TT";
-            } else if (dbIdentityType && allowedIdentityTypes.has(dbIdentityType)) {
-              identityType = dbIdentityType;
-            } else if (dbIdentityType) {
-              console.log(
-                `[push-creatives] TikTok identity_type '${dbIdentityType}' not allowed; defaulting to ${identityType}`,
-              );
+            // Map DB identity types -> runnable ad/create identity types
+            if (dbIdentityType === "AUTH_CODE") {
+              identityType = "AUTH_CODE";
+            } else {
+              identityType = "TIKTOK_ACCOUNT";
+            }
+
+            if (!allowedIdentityTypes.has(identityType)) {
+              console.error(`[push-creatives] ❌ HARD FAIL: Unsupported identity_type for ad/create: ${identityType}`);
+              await supabase
+                .from("creative_assignments")
+                .update({
+                  status: "error",
+                  error_message: `Unsupported TikTok identity type for ad creation: ${identityType}. Please select a TikTok Account identity.`,
+                })
+                .eq("id", assignment.id);
+              localFailed++;
+              continue;
             }
 
             console.log(
-              `[push-creatives] TikTok identity resolution: identityId=${identityId}, identityType=${identityType}, bcId=${identityBcId || 'none'}, dbIdentityType=${dbIdentityType || 'none'}, displayName=${identityRow?.display_name || 'none'}`,
+              `[push-creatives] TikTok identity resolution: identityId=${identityId}, identityType=${identityType}, bcId=${identityBcId || "none"}, dbIdentityType=${dbIdentityType || "none"}, displayName=${identityRow?.display_name || "none"}`,
             );
 
             // Resolve destination URL (assignment > creative > phase/market config > ad account defaults)
@@ -1618,25 +1619,11 @@ const handler = async (req: Request): Promise<Response> => {
             }
 
             // ========== AD CREATION STRATEGY ==========
-            // Strategy 1: If identity is valid for API, try BC_AUTH_TT (Spark Ads) first
-            // Strategy 2: If identity is NOT valid for API or BC_AUTH_TT fails with 40002, use non-Spark ads
-            // Non-Spark ads use identity_type = UNSET. Despite some docs suggesting identity_id can be omitted,
-            // we observe TikTok returning "creatives.identity_id is required" when it is missing, so we include it.
-            
-            const resolvedIdentityType = dbIdentityType === "TT_ACCOUNT" ? "CUSTOMIZED_USER" : identityType;
-            
-            const identityTypeCandidates = Array.from(
-              new Set(
-                [
-                  resolvedIdentityType,
-                  "CUSTOMIZED_USER",
-                  "BC_SELF_TT",
-                  "BC_AUTH_TT",
-                  "TT_USER",
-                  "AUTH_CODE",
-                ].filter((t) => t && allowedIdentityTypes.has(t)),
-              ),
-            );
+            // TikTok ad/create must only receive runnable identity types.
+            // For brand/owned TikTok profiles: TIKTOK_ACCOUNT
+            // For Spark Ads via creator auth: AUTH_CODE
+            // No BC_* types are allowed in ad/create.
+            const identityTypeCandidates = [identityType];
 
             const tiktokAdCreateUrlV13 = "https://business-api.tiktok.com/open_api/v1.3/ad/create/";
             const tiktokAdCreateUrlV12 = "https://business-api.tiktok.com/open_api/v1.2/ad/create/";
@@ -1671,16 +1658,9 @@ const handler = async (req: Request): Promise<Response> => {
               payload.creatives[0].identity_type = candidateType;
               payload.creatives[0].identity_id = identityId;
 
-              // Ensure BC identity fields are correct for this attempt.
-              delete payload.creatives[0].bc_id;
-              delete payload.creatives[0].identity_authorized_bc_id;
-
-              if (identityBcId && (candidateType === "BC_AUTH_TT" || candidateType === "BC_SELF_TT")) {
-                payload.creatives[0].identity_authorized_bc_id = identityBcId;
-                console.log(
-                  `[push-creatives] Added identity_authorized_bc_id=${identityBcId} to TikTok ad payload for ${candidateType}`,
-                );
-              }
+               // Ensure we NEVER send Business Center authorization fields to /ad/create.
+               delete payload.creatives[0].bc_id;
+               delete payload.creatives[0].identity_authorized_bc_id;
               
               // Set display_name (required for most identity types)
               if (displayNameForAd) {
@@ -1736,24 +1716,23 @@ const handler = async (req: Request): Promise<Response> => {
             if (!adId) {
               console.log(`[push-creatives] v1.3 attempts failed, trying v1.2 API with identity_id=${identityId}`);
               
-              const v12IdentityTypesToTry = ["CUSTOMIZED_USER", "BC_SELF_TT", "TT_USER", "BC_AUTH_TT", "AUTH_CODE"];
-              
-              for (const v12IdentityType of v12IdentityTypesToTry) {
-                const payloadV12 = JSON.parse(JSON.stringify(basePayload));
-                
-                // CRITICAL: Always use the proper identity - NEVER use UNSET or advertiser_id
-                payloadV12.creatives[0].identity_type = v12IdentityType;
-                payloadV12.creatives[0].identity_id = identityId;
-                
-                // Add display name
-                if (displayNameForAd) {
-                  payloadV12.creatives[0].display_name = displayNameForAd;
-                }
-                
-                // Add BC fields if applicable
-                if (identityBcId && (v12IdentityType === "BC_AUTH_TT" || v12IdentityType === "BC_SELF_TT")) {
-                  payloadV12.creatives[0].identity_authorized_bc_id = identityBcId;
-                }
+               const v12IdentityTypesToTry = [identityType];
+               
+               for (const v12IdentityType of v12IdentityTypesToTry) {
+                 const payloadV12 = JSON.parse(JSON.stringify(basePayload));
+                 
+                 // CRITICAL: Always use the proper runnable identity type for ad/create
+                 payloadV12.creatives[0].identity_type = v12IdentityType;
+                 payloadV12.creatives[0].identity_id = identityId;
+                 
+                 // Add display name
+                 if (displayNameForAd) {
+                   payloadV12.creatives[0].display_name = displayNameForAd;
+                 }
+
+                 // Ensure we NEVER send Business Center authorization fields to /ad/create.
+                 delete payloadV12.creatives[0].bc_id;
+                 delete payloadV12.creatives[0].identity_authorized_bc_id;
 
                 console.log(`[push-creatives] TikTok ad/create (v1.2) attempt identity_type=${v12IdentityType} identity_id=${identityId}`);
 

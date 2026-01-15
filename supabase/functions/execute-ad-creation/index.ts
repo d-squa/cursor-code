@@ -307,11 +307,18 @@ async function createTikTokAd(
     payload.display_name = config.display_name;
   }
 
-  // Set identity for Spark Ads or when identity is provided
-  if (identity) {
-    payload.identity_id = identity.identity_id;
-    payload.identity_type = identity.identity_type;
+  // Identity is REQUIRED for TikTok ad creation; never send UNSET/BC_* types.
+  if (!identity?.identity_id) {
+    throw new Error(
+      "TikTok identity resolution failed: identity_id is missing. Ad creation blocked.",
+    );
   }
+
+  const rawIdentityType = String(identity.identity_type || "");
+  const mappedIdentityType = rawIdentityType === "AUTH_CODE" ? "AUTH_CODE" : "TIKTOK_ACCOUNT";
+
+  payload.identity_id = String(identity.identity_id);
+  payload.identity_type = mappedIdentityType;
 
   // Set Spark Ad flag
   if (config.is_spark_ad) {
