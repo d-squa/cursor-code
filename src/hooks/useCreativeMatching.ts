@@ -1129,6 +1129,57 @@ export function useCreativeMatching(campaignId?: string) {
               if (updateError) throw updateError;
               createdCreativeByAssetId.set(assetId, creativeId);
             }
+          } else if (asset.sourceType === 'platform_asset' && (asset as any).platformAssetId) {
+            // Handle platform assets (synced from DSP) - create a new creative record linked to the platform asset
+            updateSaveProgress(compositeKey, 'saving');
+            
+            const cachedCreativeId = createdCreativeByAssetId.get(assetId);
+            if (cachedCreativeId) {
+              creativeId = cachedCreativeId;
+            } else {
+              const taxonomyName = generateCreativeTaxonomyName(asset, match.structure);
+              
+              const { data: creative, error: insertCreativeError } = await supabase
+                .from('creatives')
+                .insert({
+                  name: taxonomyName,
+                  user_id: user.id,
+                  team_id: null,
+                  platform: match.structure.platform,
+                  creative_type: asset.mediaType === 'video' ? 'video' : 'image',
+                  media_type: asset.mediaType,
+                  status: 'ready',
+                  market: match.structure.market,
+                  phase_name: match.structure.phases?.[0],
+                  campaign_id: match.structure.campaignId,
+                  width: asset.technicalAttributes.width,
+                  height: asset.technicalAttributes.height,
+                  aspect_ratio: asset.technicalAttributes.aspectRatio,
+                  duration_seconds: typeof asset.technicalAttributes.duration === 'number' ? Math.round(asset.technicalAttributes.duration) : null,
+                  file_size_bytes: asset.technicalAttributes.fileSize,
+                  original_filename: asset.fileName,
+                  folder_path: asset.filePath,
+                  media_urls: (asset as any).previewUrl ? [(asset as any).previewUrl] : [],
+                  thumbnail_url: (asset as any).previewUrl,
+                  language: asset.hardConstraints?.language,
+                  tiktok_identity_id: match.structure.platform === 'tiktok' ? match.structure.tiktokIdentityId : null,
+                  // Store platform asset reference
+                  platform_metadata: {
+                    platform_asset_id: (asset as any).platformAssetId,
+                    advertiser_id: (asset as any).advertiserId,
+                  },
+                })
+                .select()
+                .single();
+
+              if (insertCreativeError) throw insertCreativeError;
+              if (!creative) {
+                throw new Error('No creative returned from insert');
+              }
+
+              creativeId = creative.id;
+              createdCreativeByAssetId.set(assetId, creativeId);
+            }
           } else {
             // Check if we already created a creative for this asset
             const cachedCreativeId = createdCreativeByAssetId.get(assetId);
