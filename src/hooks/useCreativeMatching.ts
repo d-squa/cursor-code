@@ -1163,6 +1163,21 @@ export function useCreativeMatching(campaignId?: string) {
                   thumbnail_url: (asset as any).previewUrl,
                   language: asset.hardConstraints?.language,
                   tiktok_identity_id: match.structure.platform === 'tiktok' ? match.structure.tiktokIdentityId : null,
+                  // If this came from a TikTok platform asset, store the material ID directly (avoids re-upload)
+                  platform_video_id:
+                    match.structure.platform === 'tiktok' && asset.mediaType === 'video'
+                      ? String((asset as any).platformAssetId)
+                      : null,
+                  platform_image_hash:
+                    match.structure.platform === 'tiktok' && asset.mediaType !== 'video'
+                      ? String((asset as any).platformAssetId)
+                      : null,
+                  tiktok_asset_advertiser_id:
+                    match.structure.platform === 'tiktok' && (asset as any).advertiserId
+                      ? String((asset as any).advertiserId)
+                      : null,
+                  dsp_upload_status: match.structure.platform === 'tiktok' ? 'uploaded' : null,
+                  dsp_uploaded_at: match.structure.platform === 'tiktok' ? new Date().toISOString() : null,
                   // Store platform asset reference
                   platform_metadata: {
                     platform_asset_id: (asset as any).platformAssetId,
