@@ -1499,6 +1499,11 @@ const handler = async (req: Request): Promise<Response> => {
               tiktokDestinationUrl = `${tiktokDestinationUrl}${separator}${resolvedText.urlParameters}`;
             }
 
+            // Determine effective video status: trust platform_video_id if present, then fall back to isVideo flag
+            // This handles cases where media_type wasn't set but the asset ID clearly indicates video
+            const hasVideoAsset = !!creative.platform_video_id;
+            const effectiveIsVideo = hasVideoAsset || isVideo;
+            
             const tiktokAdPayload: any = {
               advertiser_id: advertiserIdStr,
               adgroup_id: entry.dsp_entity_id,
@@ -1510,7 +1515,7 @@ const handler = async (req: Request): Promise<Response> => {
                   ad_text: resolvedText.primaryText || creative.name,
                   call_to_action: resolvedText.callToAction || "LEARN_MORE",
                   landing_page_url: tiktokDestinationUrl,
-                  ad_format: creative.tiktok_ad_format || (isVideo ? "SINGLE_VIDEO" : "SINGLE_IMAGE"),
+                  ad_format: creative.tiktok_ad_format || (effectiveIsVideo ? "SINGLE_VIDEO" : "SINGLE_IMAGE"),
                 },
               ],
             };
@@ -1519,9 +1524,10 @@ const handler = async (req: Request): Promise<Response> => {
             // We set those fields per-attempt inside the identity_type fallback loop below (so each attempt has a clean payload).
 
             // Add video_id or image_ids based on creative type
-            if (isVideo && creative.platform_video_id) {
+            // Check platform_video_id first - if it exists, this IS a video regardless of isVideo flag
+            if (creative.platform_video_id) {
               tiktokAdPayload.creatives[0].video_id = creative.platform_video_id;
-              console.log(`[push-creatives] TikTok ad payload includes video_id=${creative.platform_video_id}`);
+              console.log(`[push-creatives] TikTok ad payload includes video_id=${creative.platform_video_id} (effectiveIsVideo=${effectiveIsVideo})`);
               if (creative.platform_thumbnail_id) {
                 tiktokAdPayload.creatives[0].image_ids = [creative.platform_thumbnail_id];
                 console.log(`[push-creatives] TikTok ad payload includes thumbnail image_id=${creative.platform_thumbnail_id}`);
