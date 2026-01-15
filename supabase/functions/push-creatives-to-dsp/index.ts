@@ -1023,6 +1023,51 @@ const handler = async (req: Request): Promise<Response> => {
               }
             }
             
+            // If the creative was created from a synced platform asset, we may already have a TikTok material id stored
+            if (!hasTikTokAsset) {
+              const { data: metaCreative, error: metaCreativeError } = await supabase
+                .from("creatives")
+                .select("platform_metadata")
+                .eq("id", creative.id)
+                .maybeSingle();
+
+              if (!metaCreativeError) {
+                const meta: any = (metaCreative as any)?.platform_metadata || null;
+                const platformAssetId = meta?.platform_asset_id;
+                const platformAssetAdvertiserId = meta?.advertiser_id;
+
+                if (
+                  platformAssetId &&
+                  (!platformAssetAdvertiserId || String(platformAssetAdvertiserId) === advertiserIdStr)
+                ) {
+                  console.log(
+                    `[push-creatives] ✅ Using existing TikTok platform_asset_id from creative.platform_metadata (asset_id=${String(platformAssetId)})`,
+                  );
+
+                  const updatePatch = isVideo
+                    ? { platform_video_id: String(platformAssetId) }
+                    : { platform_image_hash: String(platformAssetId) };
+
+                  await supabase
+                    .from("creatives")
+                    .update({
+                      ...updatePatch,
+                      tiktok_asset_advertiser_id: advertiserIdStr,
+                      dsp_upload_status: "uploaded",
+                      dsp_uploaded_at: new Date().toISOString(),
+                    })
+                    .eq("id", creative.id);
+
+                  if (isVideo) {
+                    creative.platform_video_id = String(platformAssetId);
+                  } else {
+                    creative.platform_image_hash = String(platformAssetId);
+                  }
+                  hasTikTokAsset = true;
+                }
+              }
+            }
+            
             if (!hasTikTokAsset) {
               console.log(`[push-creatives] TikTok creative ${creative.id} missing platform asset (isVideo=${isVideo}), attempting auto-upload via URL`);
               
