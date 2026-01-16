@@ -308,16 +308,15 @@ async function createTikTokAd(
   }
 
   // ========== TikTok Identity Type Strategy ==========
-  // NON-SPARK ADS (Dark Ads): Use CUSTOMIZED_USER - works for images + videos
-  // SPARK ADS: Use TIKTOK_ACCOUNT + spark_ad: true + post_id - videos only
+  // DARK ADS: identity_type = CUSTOMIZED_USER, identity_id = advertiser_id
+  // SPARK ADS: identity_type = TIKTOK_ACCOUNT, identity_id = tiktok_account_id
   //
-  // CUSTOMIZED_USER is the recommended approach for SaaS automation (like Smartly, Revealbot)
-  // It doesn't require BC identity complexity and works universally.
+  // CUSTOMIZED_USER with advertiser_id is the recommended approach for SaaS automation
 
   const isSparkAd = !!config.is_spark_ad;
   
   if (isSparkAd) {
-    // Spark Ads: TIKTOK_ACCOUNT identity required
+    // Spark Ads: TIKTOK_ACCOUNT identity required with real TikTok account
     if (!identity?.identity_id) {
       throw new Error(
         "Spark Ads require a TikTok Account identity. Please configure an identity.",
@@ -335,17 +334,9 @@ async function createTikTokAd(
     payload.identity_id = String(identity.identity_id);
     payload.spark_ad = true;
   } else {
-    // Non-Spark (Dark) Ads: CUSTOMIZED_USER is standard for SaaS automation
-    // Works with both images AND videos, no BC identity dependency
+    // Dark Ads: CUSTOMIZED_USER with advertiser_id as identity_id
     payload.identity_type = "CUSTOMIZED_USER";
-    // identity_id IS REQUIRED by TikTok even for CUSTOMIZED_USER
-    if (identity?.identity_id) {
-      payload.identity_id = String(identity.identity_id);
-    } else {
-      throw new Error(
-        "TikTok requires an identity_id for ad creation. Please sync TikTok identities from Business Center.",
-      );
-    }
+    payload.identity_id = config.advertiser_id; // Use advertiser_id for dark ads
   }
 
   console.log(`📤 Creating TikTok ad: ${config.ad_name}`);
