@@ -101,6 +101,51 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log(`Received access token for ${advertiser_ids.length} advertiser account(s)`);
 
+    // ========== TOKEN CONTEXT DETECTION ==========
+    // Detect if token is USER-context or ADVERTISER-context
+    // USER-context tokens fail for Dark Ads (CUSTOMIZED_USER)
+    // ADVERTISER-context tokens work for Dark Ads
+    let tokenContext: "USER" | "ADVERTISER" = "ADVERTISER"; // Default to advertiser
+    let tiktokUserInfo: any = null;
+    
+    try {
+      console.log("Detecting token context via /oauth2/user/info/...");
+      const userInfoResponse = await fetch(
+        "https://business-api.tiktok.com/open_api/v1.3/oauth2/user/info/",
+        {
+          method: "GET",
+          headers: {
+            "Access-Token": access_token,
+          },
+        }
+      );
+      
+      const userInfoData = await userInfoResponse.json();
+      console.log("User info response:", JSON.stringify(userInfoData));
+      
+      if (userInfoData.code === 0 && userInfoData.data) {
+        const userData = userInfoData.data;
+        // If we get TikTok user metadata (display_name, avatar_url, open_id), it's USER context
+        if (userData.display_name || userData.avatar_url || userData.open_id) {
+          tokenContext = "USER";
+          tiktokUserInfo = {
+            display_name: userData.display_name,
+            avatar_url: userData.avatar_url,
+            open_id: userData.open_id,
+          };
+          console.log(`⚠️ Token is USER-context (TikTok user: ${userData.display_name || userData.open_id})`);
+          console.log("⚠️ This token will ONLY work for Spark Ads, NOT for Dark Ads (CUSTOMIZED_USER)");
+        } else {
+          console.log("✅ Token is ADVERTISER-context (no TikTok user profile returned)");
+        }
+      } else {
+        // No user info returned = advertiser context
+        console.log("✅ Token is ADVERTISER-context (user/info endpoint returned no profile)");
+      }
+    } catch (userInfoError) {
+      console.log("Could not detect token context (defaulting to ADVERTISER):", userInfoError);
+    }
+
     // Fetch advertiser account details and business center information
     const accounts = [];
     const businessCenters = new Map(); // Cache business center info by bc_id
@@ -188,7 +233,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     // If reconnecting existing platform
     if (platformId) {
-      console.log(`Reconnecting platform ${platformId} with ${accounts.length} accounts`);
+      console.log(`Reconnecting platform ${platformId} with ${accounts.length} accounts, token_context: ${tokenContext}`);
       const { error: updateError } = await supabase
         .from("connected_platforms")
         .update({
@@ -197,7 +242,9 @@ const handler = async (req: Request): Promise<Response> => {
           metadata: { 
             advertiser_ids, 
             accounts,
-            business_centers: Array.from(businessCenters.values())
+            business_centers: Array.from(businessCenters.values()),
+            token_context: tokenContext,
+            tiktok_user_info: tiktokUserInfo,
           }
         })
         .eq("id", platformId)
@@ -212,11 +259,18 @@ const handler = async (req: Request): Promise<Response> => {
       console.log("Returning accounts for selection:", accounts);
       
       // Return accounts for selection even on reconnection
+      // Include token context warning if USER context
+      const warningMessage = tokenContext === "USER" 
+        ? "⚠️ WARNING: This token is USER-context. It will ONLY work for Spark Ads. Dark Ads (CUSTOMIZED_USER) will fail. Re-authenticate from Business Center (not TikTok app) for Dark Ads support."
+        : null;
+      
       return new Response(
         JSON.stringify({
           success: true,
           platformId,
           accounts,
+          token_context: tokenContext,
+          warning: warningMessage,
           message: "TikTok connection renewed - please select accounts to sync"
         }),
         {
@@ -227,6 +281,7 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     // Create new platform connection
+    console.log(`Creating new platform connection, token_context: ${tokenContext}`);
     const { data: newPlatform, error: insertError } = await supabase
       .from("connected_platforms")
       .insert({
@@ -237,7 +292,9 @@ const handler = async (req: Request): Promise<Response> => {
         metadata: { 
           advertiser_ids, 
           accounts,
-          business_centers: Array.from(businessCenters.values())
+          business_centers: Array.from(businessCenters.values()),
+          token_context: tokenContext,
+          tiktok_user_info: tiktokUserInfo,
         }
       })
       .select()
@@ -250,12 +307,18 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("TikTok OAuth callback completed successfully");
 
-    // Return accounts for user selection (don't auto-insert)
+    // Return accounts for user selection with token context info
+    const warningMessage = tokenContext === "USER" 
+      ? "⚠️ WARNING: This token is USER-context. It will ONLY work for Spark Ads. Dark Ads (CUSTOMIZED_USER) will fail. Re-authenticate from Business Center (not TikTok app) for Dark Ads support."
+      : null;
+
     return new Response(
       JSON.stringify({
         success: true,
         platformId: newPlatform.id,
         accounts,
+        token_context: tokenContext,
+        warning: warningMessage,
         message: "TikTok connected successfully"
       }),
       {

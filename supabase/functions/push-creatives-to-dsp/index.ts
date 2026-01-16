@@ -1463,6 +1463,36 @@ const handler = async (req: Request): Promise<Response> => {
                                 creative.external_post_id || 
                                 (creative as any).spark_ad);
             
+            // ========== TOKEN CONTEXT VALIDATION ==========
+            // CRITICAL: TikTok has two execution modes:
+            // 1. ADVERTISER-context tokens: Work for Dark Ads (CUSTOMIZED_USER)
+            // 2. USER-context tokens: Only work for Spark Ads (TIKTOK_ACCOUNT)
+            //
+            // If token is USER-context and we're trying Dark Ads, it will fail
+            // with misleading errors like "You no longer have access to the TikTok account"
+            const tokenContext = (platform as any)?.metadata?.token_context;
+            
+            if (!isSparkAd && tokenContext === "USER") {
+              console.error(`[push-creatives] ❌ TOKEN CONTEXT MISMATCH: Dark Ads require ADVERTISER-context token, but current token is USER-context`);
+              console.error(`[push-creatives] This token was authenticated via a TikTok user account, not Business Center admin.`);
+              console.error(`[push-creatives] To fix: Re-authenticate from Business Center as BC admin, not via TikTok app.`);
+              
+              await supabase
+                .from("creative_assignments")
+                .update({
+                  status: "error",
+                  error_message: "Dark Ads require ADVERTISER-context token. Your current TikTok connection was authenticated via a TikTok user account. Please re-connect from TikTok Business Center (not TikTok app) as a Business Center admin to enable Dark Ads.",
+                })
+                .eq("id", assignment.id);
+              localFailed++;
+              continue;
+            }
+            
+            if (isSparkAd && tokenContext === "ADVERTISER") {
+              console.log(`[push-creatives] ⚠️ Token is ADVERTISER-context for Spark Ad - this may fail if TikTok account is not accessible`);
+              // Don't block - Spark Ads might still work with advertiser tokens in some cases
+            }
+            
             // ========== IDENTITY TYPE + IDENTITY ID RESOLUTION ==========
             // DARK ADS: identity_type = CUSTOMIZED_USER, identity_id = advertiser_id
             // SPARK ADS: identity_type = TIKTOK_ACCOUNT, identity_id = tiktok_account_id
