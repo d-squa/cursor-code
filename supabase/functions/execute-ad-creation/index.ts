@@ -338,7 +338,14 @@ async function createTikTokAd(
     // Non-Spark (Dark) Ads: CUSTOMIZED_USER is standard for SaaS automation
     // Works with both images AND videos, no BC identity dependency
     payload.identity_type = "CUSTOMIZED_USER";
-    // identity_id is optional for CUSTOMIZED_USER, so we don't require it
+    // identity_id IS REQUIRED by TikTok even for CUSTOMIZED_USER
+    if (identity?.identity_id) {
+      payload.identity_id = String(identity.identity_id);
+    } else {
+      throw new Error(
+        "TikTok requires an identity_id for ad creation. Please sync TikTok identities from Business Center.",
+      );
+    }
   }
 
   console.log(`📤 Creating TikTok ad: ${config.ad_name}`);

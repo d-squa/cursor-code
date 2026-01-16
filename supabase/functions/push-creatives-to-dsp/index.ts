@@ -1395,22 +1395,64 @@ const handler = async (req: Request): Promise<Response> => {
             }
 
             // ========== IDENTITY HANDLING FOR TIKTOK ==========
-            // For NON-SPARK (Dark) Ads: identity_id is OPTIONAL - CUSTOMIZED_USER works without it
-            // For SPARK Ads: identity_id is REQUIRED - TIKTOK_ACCOUNT needs a real identity
-            //
-            // The identity check is now conditional based on ad type (determined below).
-            // We log what we have and proceed; the Spark Ad check will enforce if needed.
+            // TikTok ALWAYS requires identity_id for ad creation (even for CUSTOMIZED_USER)
+            // We need a valid TikTok identity - if not configured, fetch any available one
             
             if (identityId) {
               // Validate identity is NOT the advertiser_id (common mistake)
               if (identityId === advertiserIdStr) {
-                console.warn(`[push-creatives] ⚠️ identity_id (${identityId}) equals advertiser_id - will use CUSTOMIZED_USER instead`);
-                identityId = null; // Clear invalid identity, will use CUSTOMIZED_USER
+                console.warn(`[push-creatives] ⚠️ identity_id (${identityId}) equals advertiser_id - will try to find a valid identity`);
+                identityId = null; // Clear invalid identity
               } else {
                 console.log(`[push-creatives] ✅ Valid identity found: ${identityId} (source: ${identitySource})`);
               }
-            } else {
-              console.log(`[push-creatives] ℹ️ No identity configured - will use CUSTOMIZED_USER (dark ads)`);
+            }
+            
+            // If no valid identity, try to find one from tiktok_identities table
+            if (!identityId) {
+              const { data: fallbackIdentity } = await supabase
+                .from("tiktok_identities")
+                .select("identity_id, identity_type, display_name")
+                .eq("user_id", campaign.user_id)
+                .eq("advertiser_id", advertiserIdStr)
+                .neq("identity_id", advertiserIdStr) // Exclude advertiser_id itself
+                .limit(1)
+                .maybeSingle();
+              
+              if (fallbackIdentity?.identity_id) {
+                identityId = String(fallbackIdentity.identity_id);
+                identitySource = "auto_lookup";
+                console.log(`[push-creatives] ✅ Found fallback identity: ${identityId} (${fallbackIdentity.display_name || 'unnamed'})`);
+              } else {
+                // Last resort: Try platform_identities table
+                const { data: platformIdentity } = await supabase
+                  .from("platform_identities")
+                  .select("identity_id, display_name")
+                  .eq("user_id", campaign.user_id)
+                  .eq("advertiser_id", advertiserIdStr)
+                  .eq("platform", "tiktok")
+                  .eq("is_active", true)
+                  .neq("identity_id", advertiserIdStr)
+                  .limit(1)
+                  .maybeSingle();
+                
+                if (platformIdentity?.identity_id) {
+                  identityId = String(platformIdentity.identity_id);
+                  identitySource = "auto_lookup";
+                  console.log(`[push-creatives] ✅ Found fallback identity from platform_identities: ${identityId}`);
+                } else {
+                  console.error(`[push-creatives] ❌ No valid TikTok identity found for advertiser ${advertiserIdStr}`);
+                  await supabase
+                    .from("creative_assignments")
+                    .update({
+                      status: "error",
+                      error_message: "No valid TikTok identity found. Please sync identities from TikTok Business Center.",
+                    })
+                    .eq("id", assignment.id);
+                  localFailed++;
+                  continue;
+                }
+              }
             }
 
             // ========== TikTok Identity Type Strategy ==========
@@ -1537,15 +1579,16 @@ const handler = async (req: Request): Promise<Response> => {
             const effectiveIsVideo = hasVideoAsset || isVideo;
             
             const tiktokAdPayload: any = {
-              advertiser_id: advertiserIdStr,
+                advertiser_id: advertiserIdStr,
               adgroup_id: entry.dsp_entity_id,
               creatives: [
                 {
                   ad_name: creative.name,
-                  // For CUSTOMIZED_USER (dark ads), we set identity_type but identity_id is optional
-                  // For TIKTOK_ACCOUNT (Spark ads), both are required
+                  // TikTok ALWAYS requires identity_type + identity_id
+                  // CUSTOMIZED_USER = dark ads (images + videos work)
+                  // TIKTOK_ACCOUNT = Spark ads (requires authorized post)
                   identity_type: identityType,
-                  ...(identityType === "TIKTOK_ACCOUNT" ? { identity_id: identityId } : {}),
+                  identity_id: identityId, // Always required by TikTok API
                   ad_text: resolvedText.primaryText || creative.name,
                   call_to_action: resolvedText.callToAction || "LEARN_MORE",
                   landing_page_url: tiktokDestinationUrl,
