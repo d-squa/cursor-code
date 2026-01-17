@@ -53,9 +53,11 @@ export function ThumbnailUploader({
   // Upload thumbnail mutation
   const uploadMutation = useMutation({
     mutationFn: async (file: File) => {
+      const advertiserIdClean = String(advertiserId || '').trim();
+
       // Validate advertiser ID
-      if (!advertiserId) {
-        throw new Error('TikTok advertiser ID is missing. Please configure TikTok in the ActiPlan first.');
+      if (!advertiserIdClean) {
+        throw new Error('TikTok advertiser ID is missing. Please set the TikTok Ad Account in the ActiPlan market settings first.');
       }
 
       // Read file as base64
@@ -72,7 +74,7 @@ export function ThumbnailUploader({
       // Upload to TikTok
       const { data, error } = await supabase.functions.invoke('upload-creative-to-tiktok', {
         body: {
-          advertiserId,
+          advertiserId: advertiserIdClean,
           fileName: `thumbnail_${creativeId}_${Date.now()}.${file.name.split('.').pop()}`,
           fileData: base64,
           fileType: 'image',
