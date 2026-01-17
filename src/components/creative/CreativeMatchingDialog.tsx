@@ -309,7 +309,7 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
         <div className="flex items-center justify-between px-6 py-4 border-b bg-background">
           <div className="flex items-center gap-3">
             <Wand2 className="h-5 w-5 text-primary" />
-            <h1 className="text-xl font-semibold">Text Asset Editor</h1>
+            <h1 className="text-xl font-semibold">Creative Content Editor</h1>
             {selectedCampaignName && <Badge variant="secondary">{selectedCampaignName}</Badge>}
           </div>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>

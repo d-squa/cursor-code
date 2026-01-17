@@ -1,4 +1,4 @@
-// Creative Text Asset Editor - Excel-like grid with hierarchical paste
+// Creative Content Editor - Excel-like grid with hierarchical paste
 // Simplified flat table with collapsible group rows
 
 import { useState, useCallback, useMemo, useRef } from 'react';

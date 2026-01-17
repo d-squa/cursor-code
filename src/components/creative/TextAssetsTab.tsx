@@ -109,7 +109,9 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
               destination_url,
               thumbnail_url,
               aspect_ratio,
-              media_urls
+              media_urls,
+              platform_thumbnail_id,
+              tiktok_asset_advertiser_id
             )
           `)
           .eq('campaign_id', effectiveCampaignId);
@@ -157,6 +159,9 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
             thumbnailUrl: creative?.thumbnail_url,
             mediaType,
             aspectRatio: creative?.aspect_ratio,
+            // TikTok-specific fields
+            platformThumbnailId: creative?.platform_thumbnail_id,
+            tiktokAdvertiserId: creative?.tiktok_asset_advertiser_id,
           };
         });
 
