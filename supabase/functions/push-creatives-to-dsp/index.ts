@@ -1637,19 +1637,34 @@ const handler = async (req: Request): Promise<Response> => {
             } else {
               // ========== DARK ADS: CUSTOMIZED_USER with VALID identity_id ==========
               // TikTok v1.3 REQUIRES identity_id from /identity/get/ endpoint
-              // We CANNOT use advertiser_id as identity_id anymore
+              // CRITICAL: We can ONLY use identity_ids that are returned by /identity/get/
+              // Advertiser_id, BC_id, and stored/stale identity_ids are NOT valid.
               identityType = "CUSTOMIZED_USER";
               
-              // Priority 1: Use user-selected identity if it's a valid CUSTOMIZED_USER type
-              if (identityId && identityId !== advertiserIdStr) {
-                // Check if the selected identity is in the fetched list
+              // Build a set of valid identity IDs from API response for quick lookup
+              const validIdentityIds = new Set(
+                fetchedIdentities.map((id: any) => String(id.identity_id))
+              );
+              
+              console.log(`[push-creatives] Valid identities from TikTok API: [${Array.from(validIdentityIds).join(', ')}]`);
+              console.log(`[push-creatives] User-selected identity_id: ${identityId || 'none'} (source: ${identitySource || 'none'})`);
+              
+              // CRITICAL: Reject advertiser_id as identity_id - TikTok v1.3 does NOT accept this
+              if (identityId && identityId === advertiserIdStr) {
+                console.log(`[push-creatives] ⚠️ Rejecting identity_id=${identityId} because it equals advertiser_id. This is NOT valid in TikTok v1.3.`);
+                identityId = null;
+              }
+              
+              // Priority 1: Use user-selected identity ONLY if it exists in the API response
+              if (identityId && validIdentityIds.has(String(identityId))) {
+                finalIdentityId = String(identityId);
                 const selectedIdentity = fetchedIdentities.find(
                   (id: any) => String(id.identity_id) === String(identityId)
                 );
-                if (selectedIdentity) {
-                  finalIdentityId = String(identityId);
-                  console.log(`[push-creatives] Dark Ad - Using user-selected identity: ${finalIdentityId} (type: ${selectedIdentity.identity_type})`);
-                }
+                console.log(`[push-creatives] Dark Ad - Using user-selected identity: ${finalIdentityId} (type: ${selectedIdentity?.identity_type || 'unknown'}, validated against API)`);
+              } else if (identityId) {
+                // User selected an identity that is NOT in the API response - this is invalid
+                console.log(`[push-creatives] ⚠️ User-selected identity_id=${identityId} is NOT in the fetched identities list. Ignoring.`);
               }
               
               // Priority 2: Find a CUSTOMIZED_USER identity from fetched list
@@ -1663,38 +1678,36 @@ const handler = async (req: Request): Promise<Response> => {
                 }
               }
               
-              // Priority 3: Use any available identity
+              // Priority 3: Use any available identity from the API (with proper identity_type)
               if (!finalIdentityId && fetchedIdentities.length > 0) {
                 const firstIdentity = fetchedIdentities[0];
                 finalIdentityId = String(firstIdentity.identity_id);
                 identityType = firstIdentity.identity_type || "CUSTOMIZED_USER";
-                console.log(`[push-creatives] Dark Ad - Using first available identity: ${finalIdentityId} (type: ${identityType})`);
+                console.log(`[push-creatives] Dark Ad - Using first available identity from API: ${finalIdentityId} (type: ${identityType})`);
               }
               
-              // Priority 4: Try stored identity from database
-              if (!finalIdentityId && identityId && identityId !== advertiserIdStr) {
-                finalIdentityId = identityId;
-                console.log(`[push-creatives] Dark Ad - Using stored identity from database: ${finalIdentityId}`);
-              }
+              // NO FALLBACK to stored/database identities - only API-validated identities are accepted
+              // This prevents using stale, revoked, or invalid identity IDs
               
-              // If no identity found, we cannot create the ad in v1.3
+              // If no identity found from API, we cannot create the ad in v1.3
               if (!finalIdentityId) {
-                console.error(`[push-creatives] ❌ No valid identity found for Dark Ad. TikTok v1.3 requires a valid identity_id.`);
+                console.error(`[push-creatives] ❌ No valid identity found for Dark Ad. TikTok v1.3 requires a valid identity_id from /identity/get/ API.`);
                 console.error(`[push-creatives] Fetched identities count: ${fetchedIdentities.length}`);
-                console.error(`[push-creatives] Stored identity_id: ${identityId}`);
+                console.error(`[push-creatives] User-selected identity_id: ${identityId} (NOT found in API response)`);
+                console.error(`[push-creatives] Advertiser_id: ${advertiserIdStr} (NOT valid as identity_id in v1.3)`);
                 
                 await supabase
                   .from("creative_assignments")
                   .update({
                     status: "error",
-                    error_message: "No valid TikTok identity found. TikTok v1.3 requires an identity. Please configure an identity in TikTok Business Center and sync your account.",
+                    error_message: "No valid TikTok identity found. The identity/get API returned 0 usable identities for this advertiser. Please configure a custom identity in TikTok Business Center -> Ad Accounts -> Ad Delivery Assets -> Identities, then sync your account.",
                   })
                   .eq("id", assignment.id);
                 localFailed++;
                 continue;
               }
               
-              console.log(`[push-creatives] Dark Ad - identity_type=${identityType}, identity_id=${finalIdentityId}`);
+              console.log(`[push-creatives] ✅ Dark Ad - identity_type=${identityType}, identity_id=${finalIdentityId} (validated from API)`);
             }
 
             console.log(
