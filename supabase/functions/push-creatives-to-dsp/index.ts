@@ -1794,7 +1794,13 @@ const handler = async (req: Request): Promise<Response> => {
               // TikTok v1.3 API REQUIRES a thumbnail for SINGLE_VIDEO ad format.
               // Even though it's a video, TikTok demands either:
               //   - image_ids: array of uploaded image IDs for thumbnail
-              //   - image_mode: "VIDEO_COVER" to auto-extract from video
+              //   - image_mode: one of IMAGE_MODE_VIDEO, IMAGE_MODE_VIDEO_VERTICAL, IMAGE_MODE_VIDEO_SQUARE
+              //
+              // IMPORTANT: "VIDEO_COVER" is NOT a valid enum - TikTok API rejects it!
+              // Valid image_mode values for video:
+              //   - IMAGE_MODE_VIDEO (horizontal/landscape)
+              //   - IMAGE_MODE_VIDEO_VERTICAL (9:16 vertical)
+              //   - IMAGE_MODE_VIDEO_SQUARE (1:1 square)
               //
               // Without one of these, TikTok returns error 40002: "You must upload an image."
               
@@ -1803,10 +1809,38 @@ const handler = async (req: Request): Promise<Response> => {
                 tiktokAdPayload.creatives[0].image_ids = [creative.platform_thumbnail_id];
                 console.log(`[push-creatives] TikTok SINGLE_VIDEO using explicit thumbnail image_id=${creative.platform_thumbnail_id}`);
               } else {
-                // No explicit thumbnail - use VIDEO_COVER mode to auto-extract from video
-                // This tells TikTok to automatically generate thumbnail from the video
-                tiktokAdPayload.creatives[0].image_mode = "VIDEO_COVER";
-                console.log(`[push-creatives] TikTok SINGLE_VIDEO using image_mode=VIDEO_COVER (no explicit thumbnail provided)`);
+                // No explicit thumbnail - determine correct image_mode based on video aspect ratio
+                // Default to IMAGE_MODE_VIDEO, but check for vertical (9:16) or square (1:1)
+                let videoImageMode = "IMAGE_MODE_VIDEO"; // Default for horizontal/landscape
+                
+                // Check aspect ratio from creative metadata
+                const aspectRatio = creative.aspect_ratio;
+                if (aspectRatio) {
+                  // Parse aspect ratio like "9:16", "1:1", "16:9"
+                  const [w, h] = aspectRatio.split(':').map(Number);
+                  if (w && h) {
+                    const ratio = w / h;
+                    if (ratio < 0.7) {
+                      // Vertical video (e.g., 9:16 = 0.5625)
+                      videoImageMode = "IMAGE_MODE_VIDEO_VERTICAL";
+                    } else if (ratio >= 0.9 && ratio <= 1.1) {
+                      // Square video (e.g., 1:1 = 1.0)
+                      videoImageMode = "IMAGE_MODE_VIDEO_SQUARE";
+                    }
+                    // else horizontal (e.g., 16:9 = 1.78) stays as IMAGE_MODE_VIDEO
+                  }
+                } else if (creative.width && creative.height) {
+                  // Fallback to width/height if aspect_ratio not set
+                  const ratio = creative.width / creative.height;
+                  if (ratio < 0.7) {
+                    videoImageMode = "IMAGE_MODE_VIDEO_VERTICAL";
+                  } else if (ratio >= 0.9 && ratio <= 1.1) {
+                    videoImageMode = "IMAGE_MODE_VIDEO_SQUARE";
+                  }
+                }
+                
+                tiktokAdPayload.creatives[0].image_mode = videoImageMode;
+                console.log(`[push-creatives] TikTok SINGLE_VIDEO using image_mode=${videoImageMode} (aspect_ratio=${aspectRatio || 'unknown'}, w=${creative.width}, h=${creative.height})`);
               }
             } else if (creative.platform_image_hash) {
               // Verify image is accessible before ad creation
