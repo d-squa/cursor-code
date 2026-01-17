@@ -1,7 +1,10 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
 import { storePlatformToken } from "../_shared/vault-helper.ts";
+import { logApiRequest, logApiResponse } from "../_shared/api-logger.ts";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+
+const FUNCTION_NAME = "tiktok-oauth-callback";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -71,22 +74,23 @@ const handler = async (req: Request): Promise<Response> => {
     console.log("Exchanging TikTok authorization code for access token...");
 
     // Exchange code for access token
-    const tokenResponse = await fetch(
-      "https://business-api.tiktok.com/open_api/v1.3/oauth2/access_token/",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          app_id: tiktokAppId,
-          secret: tiktokAppSecret,
-          auth_code: code,
-        }),
-      }
-    );
+    const tokenUrl = "https://business-api.tiktok.com/open_api/v1.3/oauth2/access_token/";
+    const tokenBody = {
+      app_id: tiktokAppId,
+      secret: tiktokAppSecret,
+      auth_code: code,
+    };
+    
+    logApiRequest(tokenUrl, { functionName: FUNCTION_NAME, method: "POST", body: tokenBody, context: "token exchange" });
+    
+    const tokenResponse = await fetch(tokenUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(tokenBody),
+    });
 
     const tokenData = await tokenResponse.json();
+    logApiResponse(tokenUrl, tokenData, { functionName: FUNCTION_NAME, method: "POST", context: "token exchange" });
     
     if (tokenData.code !== 0) {
       console.error("TikTok token exchange error:", tokenData);
@@ -109,23 +113,19 @@ const handler = async (req: Request): Promise<Response> => {
     let tiktokUserInfo: any = null;
     
     try {
-      console.log("Detecting token context via /oauth2/user/info/...");
-      const userInfoResponse = await fetch(
-        "https://business-api.tiktok.com/open_api/v1.3/oauth2/user/info/",
-        {
-          method: "GET",
-          headers: {
-            "Access-Token": access_token,
-          },
-        }
-      );
+      const userInfoUrl = "https://business-api.tiktok.com/open_api/v1.3/oauth2/user/info/";
+      logApiRequest(userInfoUrl, { functionName: FUNCTION_NAME, method: "GET", context: "token context detection" });
+      
+      const userInfoResponse = await fetch(userInfoUrl, {
+        method: "GET",
+        headers: { "Access-Token": access_token },
+      });
       
       const userInfoData = await userInfoResponse.json();
-      console.log("User info response:", JSON.stringify(userInfoData));
+      logApiResponse(userInfoUrl, userInfoData, { functionName: FUNCTION_NAME, method: "GET", context: "token context detection" });
       
       if (userInfoData.code === 0 && userInfoData.data) {
         const userData = userInfoData.data;
-        // If we get TikTok user metadata (display_name, avatar_url, open_id), it's USER context
         if (userData.display_name || userData.avatar_url || userData.open_id) {
           tokenContext = "USER";
           tiktokUserInfo = {
@@ -134,12 +134,10 @@ const handler = async (req: Request): Promise<Response> => {
             open_id: userData.open_id,
           };
           console.log(`⚠️ Token is USER-context (TikTok user: ${userData.display_name || userData.open_id})`);
-          console.log("⚠️ This token will ONLY work for Spark Ads, NOT for Dark Ads (CUSTOMIZED_USER)");
         } else {
           console.log("✅ Token is ADVERTISER-context (no TikTok user profile returned)");
         }
       } else {
-        // No user info returned = advertiser context
         console.log("✅ Token is ADVERTISER-context (user/info endpoint returned no profile)");
       }
     } catch (userInfoError) {
@@ -154,15 +152,15 @@ const handler = async (req: Request): Promise<Response> => {
     
     for (const advertiserId of advertiser_ids) {
       try {
-        console.log(`Fetching advertiser info for: ${advertiserId}`);
-        const urlWithParams = `https://business-api.tiktok.com/open_api/v1.3/advertiser/info/?advertiser_ids=["${advertiserId}"]`;
-        const advertiserResponse = await fetch(urlWithParams, {
-          headers: {
-            "Access-Token": access_token,
-          },
+        const advertiserUrl = `https://business-api.tiktok.com/open_api/v1.3/advertiser/info/?advertiser_ids=["${advertiserId}"]`;
+        logApiRequest(advertiserUrl, { functionName: FUNCTION_NAME, method: "GET", context: `advertiser ${advertiserId}` });
+        
+        const advertiserResponse = await fetch(advertiserUrl, {
+          headers: { "Access-Token": access_token },
         });
 
         const advertiserData = await advertiserResponse.json();
+        logApiResponse(advertiserUrl, advertiserData, { functionName: FUNCTION_NAME, method: "GET", context: `advertiser ${advertiserId}` });
         console.log(`Advertiser data response for ${advertiserId}:`, advertiserData);
         
         if (advertiserData.code === 0 && advertiserData.data && advertiserData.data.list && advertiserData.data.list.length > 0) {
@@ -174,16 +172,15 @@ const handler = async (req: Request): Promise<Response> => {
           // Fetch business center details if bc_id is available and not cached
           if (bcId && !businessCenters.has(bcId)) {
             try {
-              const bcResponse = await fetch(
-                `https://business-api.tiktok.com/open_api/v1.3/bc/get/?bc_id=${bcId}`,
-                {
-                  headers: {
-                    "Access-Token": access_token,
-                  },
-                }
-              );
+              const bcUrl = `https://business-api.tiktok.com/open_api/v1.3/bc/get/?bc_id=${bcId}`;
+              logApiRequest(bcUrl, { functionName: FUNCTION_NAME, method: "GET", context: `business center ${bcId}` });
+              
+              const bcResponse = await fetch(bcUrl, {
+                headers: { "Access-Token": access_token },
+              });
               
               const bcData = await bcResponse.json();
+              logApiResponse(bcUrl, bcData, { functionName: FUNCTION_NAME, method: "GET", context: `business center ${bcId}` });
               
               if (bcData.code === 0 && bcData.data) {
                 businessCenterInfo = {
