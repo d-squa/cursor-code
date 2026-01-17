@@ -137,9 +137,12 @@ serve(async (req: Request) => {
         throw new Error(`TikTok API error: ${responseData.message || "Unknown error"}`);
       }
 
-      const videoId = responseData.data?.video_id;
+      const videoIdRaw = responseData?.data?.video_id ?? responseData?.data?.id ?? responseData?.data?.videoId;
+      const videoId = videoIdRaw ? String(videoIdRaw) : "";
       if (!videoId) {
-        throw new Error("No video ID returned from TikTok API");
+        throw new Error(
+          `No video ID returned from TikTok API. data=${JSON.stringify(responseData?.data ?? {}).slice(0, 500)}`,
+        );
       }
 
       result = { id: videoId };
@@ -174,9 +177,12 @@ serve(async (req: Request) => {
         throw new Error(`TikTok API error: ${responseData.message || "Unknown error"}`);
       }
 
-      const imageId = responseData.data?.id;
+      const imageIdRaw = responseData?.data?.image_id ?? responseData?.data?.id ?? responseData?.data?.imageId;
+      const imageId = imageIdRaw ? String(imageIdRaw) : "";
       if (!imageId) {
-        throw new Error("No image ID returned from TikTok API");
+        throw new Error(
+          `No image ID returned from TikTok API. data=${JSON.stringify(responseData?.data ?? {}).slice(0, 500)}`,
+        );
       }
 
       result = { imageId };
