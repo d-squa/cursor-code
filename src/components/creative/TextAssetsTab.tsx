@@ -88,17 +88,22 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
       setIsLoadingAssets(true);
 
       try {
-        // First fetch the campaign to get platform configs (for TikTok advertiser IDs)
+        // Fetch campaign market splits to resolve TikTok advertiser IDs (stored per market)
         const { data: campaignData } = await supabase
           .from('campaigns')
-          .select('platforms')
+          .select('market_splits')
           .eq('id', effectiveCampaignId)
           .single();
 
-        // Extract TikTok advertiser ID from campaign platforms config
-        const platformsConfig = campaignData?.platforms as Record<string, any> || {};
-        const tiktokConfig = platformsConfig?.tiktok;
-        const campaignTiktokAdvertiserId = tiktokConfig?.adAccountId || tiktokConfig?.advertiser_id || '';
+        const marketSplits = (campaignData?.market_splits as Record<string, any> | null) || {};
+        const tiktokMarkets: any[] = Array.isArray((marketSplits as any).tiktok) ? (marketSplits as any).tiktok : [];
+
+        const defaultTikTokMarket =
+          tiktokMarkets.find((m) => m?.adAccountId || m?.tiktokAdvertiserId || m?.advertiser_id) || null;
+
+        const defaultTikTokAdvertiserId = String(
+          defaultTikTokMarket?.adAccountId || defaultTikTokMarket?.tiktokAdvertiserId || defaultTikTokMarket?.advertiser_id || ''
+        ).trim();
 
         const { data: assignments, error } = await supabase
           .from('creative_assignments')
@@ -147,6 +152,21 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
             platform: assignment.platform,
           });
 
+          const resolvedTikTokAdvertiserId =
+            assignment.platform === 'tiktok'
+              ? (() => {
+                  const marketName = String(assignment.market || '').trim();
+                  const match =
+                    tiktokMarkets.find((m) => String(m?.name || '').toLowerCase() === marketName.toLowerCase()) ||
+                    tiktokMarkets.find((m) => String(m?.id || '').startsWith(`${marketName}-`)) ||
+                    null;
+
+                  return String(
+                    match?.adAccountId || match?.tiktokAdvertiserId || match?.advertiser_id || defaultTikTokAdvertiserId || ''
+                  ).trim();
+                })()
+              : '';
+
           return {
             id: `${assignment.id}_${assignment.creative_id}`,
             creativeId: assignment.creative_id,
@@ -171,9 +191,9 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
             thumbnailUrl: creative?.thumbnail_url,
             mediaType,
             aspectRatio: creative?.aspect_ratio,
-            // TikTok-specific fields - use creative's asset advertiser or fall back to campaign config
+            // TikTok-specific fields
             platformThumbnailId: creative?.platform_thumbnail_id,
-            tiktokAdvertiserId: creative?.tiktok_asset_advertiser_id || (assignment.platform === 'tiktok' ? campaignTiktokAdvertiserId : ''),
+            tiktokAdvertiserId: String(creative?.tiktok_asset_advertiser_id || resolvedTikTokAdvertiserId || '').trim(),
           };
         });
 
