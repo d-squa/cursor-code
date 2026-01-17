@@ -1791,25 +1791,139 @@ const handler = async (req: Request): Promise<Response> => {
               console.log(`[push-creatives] TikTok ad payload includes video_id=${creative.platform_video_id} (effectiveIsVideo=${effectiveIsVideo})`);
               
               // ========== THUMBNAIL HANDLING FOR SINGLE_VIDEO ==========
-              // CRITICAL: TikTok /ad/create endpoint does NOT support image_mode!
-              // The image_mode field is only valid in creative/material endpoints.
+              // CRITICAL: TikTok /ad/create API REQUIRES image_ids for non-Spark SINGLE_VIDEO ads!
+              // TikTok does NOT auto-generate thumbnails via API (only in UI).
               // 
-              // For /ad/create with SINGLE_VIDEO:
-              //   - TikTok automatically derives the video cover
-              //   - Only use image_ids if user explicitly provides a thumbnail
-              //   - NEVER send image_mode - API will reject with:
-              //     "image_mode is not supported in this version, please use ad_format instead"
+              // Rules:
+              //   - Spark Ads: No thumbnail needed (uses existing post cover)
+              //   - Non-Spark video ads: MUST provide image_ids with a thumbnail
+              //   - NEVER send image_mode - API rejects it with:
+              //     "image_mode is not supported in this version"
               //
-              // The ad_format=SINGLE_VIDEO tells TikTok everything it needs.
+              // If no thumbnail exists, we auto-generate one from the video poster URL
               
-              if (creative.platform_thumbnail_id) {
+              if (isSparkAd) {
+                // Spark Ads don't need thumbnails - they use the original post's cover
+                console.log(`[push-creatives] TikTok Spark Ad - no thumbnail needed (uses post cover)`);
+              } else if (creative.platform_thumbnail_id) {
                 // User provided explicit thumbnail - use it
                 tiktokAdPayload.creatives[0].image_ids = [creative.platform_thumbnail_id];
                 console.log(`[push-creatives] TikTok SINGLE_VIDEO using explicit thumbnail image_id=${creative.platform_thumbnail_id}`);
               } else {
-                // No thumbnail needed - TikTok auto-derives cover from video
-                // DO NOT send image_mode - it's not supported in /ad/create
-                console.log(`[push-creatives] TikTok SINGLE_VIDEO: no thumbnail, TikTok will auto-derive cover from video`);
+                // Non-Spark video WITHOUT thumbnail - we MUST generate one
+                // Try to use the video's poster_url from TikTok or thumbnail_url from creative
+                console.log(`[push-creatives] TikTok SINGLE_VIDEO: no thumbnail - attempting auto-generation...`);
+                
+                let thumbnailImageUrl: string | null = null;
+                
+                // First try: Get poster_url from TikTok's video info API
+                try {
+                  console.log(`[push-creatives] Fetching TikTok video poster URL...`);
+                  const videoInfoUrl = `https://business-api.tiktok.com/open_api/v1.3/file/video/ad/info/?advertiser_id=${advertiserIdStr}&video_ids=["${creative.platform_video_id}"]`;
+                  const videoInfoResponse = await fetch(videoInfoUrl, {
+                    method: "GET",
+                    headers: { "Access-Token": platform.access_token },
+                  });
+                  const videoInfoResult = await videoInfoResponse.json();
+                  
+                  if (videoInfoResult.code === 0 && videoInfoResult.data?.list?.[0]?.poster_url) {
+                    thumbnailImageUrl = videoInfoResult.data.list[0].poster_url;
+                    console.log(`[push-creatives] Got TikTok video poster URL: ${thumbnailImageUrl}`);
+                  } else {
+                    console.log(`[push-creatives] No poster_url from TikTok video info`);
+                  }
+                } catch (posterError) {
+                  console.log(`[push-creatives] Error fetching poster:`, posterError);
+                }
+                
+                // Fallback: Use creative's thumbnail_url or first media_url
+                if (!thumbnailImageUrl) {
+                  thumbnailImageUrl = creative.thumbnail_url || 
+                    (Array.isArray(creative.media_urls) ? creative.media_urls[0] : null);
+                  
+                  if (thumbnailImageUrl) {
+                    // Skip if it's a video file URL - can't use video as image
+                    if (thumbnailImageUrl.match(/\.(mp4|mov|avi|webm)(\?|$)/i)) {
+                      thumbnailImageUrl = null;
+                      console.log(`[push-creatives] Source is video file - cannot use as thumbnail`);
+                    }
+                  }
+                }
+                
+                if (thumbnailImageUrl) {
+                  try {
+                    // Upload the thumbnail image to TikTok
+                    console.log(`[push-creatives] Uploading thumbnail to TikTok from: ${thumbnailImageUrl}`);
+                    
+                    const thumbnailUploadUrl = "https://business-api.tiktok.com/open_api/v1.3/file/image/ad/upload/";
+                    const thumbnailFileName = `thumbnail_${creative.id}_${Date.now()}.jpg`;
+                    
+                    const thumbnailUploadResponse = await fetch(thumbnailUploadUrl, {
+                      method: "POST",
+                      headers: {
+                        "Access-Token": platform.access_token,
+                        "Content-Type": "application/json",
+                      },
+                      body: JSON.stringify({
+                        advertiser_id: advertiserIdStr,
+                        upload_type: "UPLOAD_BY_URL",
+                        image_url: thumbnailImageUrl,
+                        file_name: thumbnailFileName,
+                      }),
+                    });
+                    
+                    const thumbnailUploadResult = await thumbnailUploadResponse.json();
+                    console.log(`[push-creatives] Thumbnail upload response:`, JSON.stringify(thumbnailUploadResult));
+                    
+                    if (thumbnailUploadResult.code === 0) {
+                      const uploadData = Array.isArray(thumbnailUploadResult.data) 
+                        ? thumbnailUploadResult.data[0] 
+                        : thumbnailUploadResult.data;
+                      const thumbnailId = uploadData?.material_id || uploadData?.id || uploadData?.image_id;
+                      
+                      if (thumbnailId) {
+                        // Save the thumbnail ID for future use
+                        await supabase
+                          .from("creatives")
+                          .update({ platform_thumbnail_id: thumbnailId })
+                          .eq("id", creative.id);
+                        
+                        creative.platform_thumbnail_id = thumbnailId;
+                        tiktokAdPayload.creatives[0].image_ids = [thumbnailId];
+                        console.log(`[push-creatives] ✅ Auto-generated thumbnail uploaded: ${thumbnailId}`);
+                      } else {
+                        throw new Error("Thumbnail upload succeeded but no image_id returned");
+                      }
+                    } else {
+                      throw new Error(`Thumbnail upload failed: ${thumbnailUploadResult.message || "Unknown error"} (code: ${thumbnailUploadResult.code})`);
+                    }
+                  } catch (thumbnailError) {
+                    console.error(`[push-creatives] ❌ Thumbnail auto-generation failed:`, thumbnailError);
+                    
+                    // Mark assignment as error - user needs to provide a thumbnail manually
+                    await supabase
+                      .from("creative_assignments")
+                      .update({
+                        status: "error",
+                        error_message: `TikTok video ads require a thumbnail. Auto-generation failed: ${(thumbnailError as Error).message}. Please upload a thumbnail image for this creative.`,
+                      })
+                      .eq("id", assignment.id);
+                    localFailed++;
+                    continue;
+                  }
+                } else {
+                  // No source for thumbnail - fail with clear error
+                  console.error(`[push-creatives] ❌ No thumbnail source available for video ad`);
+                  await supabase
+                    .from("creative_assignments")
+                    .update({
+                      status: "error",
+                      error_message: "TikTok video ads require a thumbnail image (image_ids). Please upload a thumbnail for this creative before pushing to TikTok.",
+                    })
+                    .eq("id", assignment.id);
+                  localFailed++;
+                  continue;
+                }
               }
             } else if (creative.platform_image_hash) {
               // Verify image is accessible before ad creation
