@@ -2,6 +2,10 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 import { getAccessToken } from "../_shared/vault-helper.ts";
+import { createApiLogger } from "../_shared/api-logger.ts";
+
+const FUNCTION_NAME = "push-creatives-to-dsp";
+const logger = createApiLogger(FUNCTION_NAME);
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1494,10 +1498,92 @@ const handler = async (req: Request): Promise<Response> => {
             }
             
             // ========== IDENTITY TYPE + IDENTITY ID RESOLUTION ==========
-            // DARK ADS: identity_type = CUSTOMIZED_USER, identity_id = advertiser_id
-            // SPARK ADS: identity_type = TIKTOK_ACCOUNT, identity_id = tiktok_account_id
+            // TikTok v1.3 REQUIRES a valid identity_id for ALL ad types:
+            // - DARK ADS: identity_type = CUSTOMIZED_USER, identity_id = MUST be a valid identity from /identity/get/
+            // - SPARK ADS: identity_type = TIKTOK_ACCOUNT, identity_id = tiktok_account_id
+            //
+            // CRITICAL: In v1.3, using advertiser_id as identity_id does NOT work.
+            // We must fetch identities from /identity/get/ endpoint.
+            
             let identityType: string;
-            let finalIdentityId: string;
+            let finalIdentityId: string | null = null;
+            
+            // ========== FETCH IDENTITIES FROM TIKTOK API ==========
+            // This is required for v1.3 compliance - we MUST have a valid identity_id
+            let fetchedIdentities: any[] = [];
+            
+            const identityGetUrl = `https://business-api.tiktok.com/open_api/v1.3/identity/get/?advertiser_id=${advertiserIdStr}`;
+            
+            logger.logTikTokRequest(identityGetUrl, "GET", null, {
+              advertiserId: advertiserIdStr,
+              tokenContext,
+            }, "fetch identities for ad creation");
+            
+            try {
+              const identityGetResponse = await fetch(identityGetUrl, {
+                method: "GET",
+                headers: {
+                  "Access-Token": platform.access_token,
+                  "Content-Type": "application/json",
+                },
+              });
+              
+              const identityGetData = await identityGetResponse.json();
+              
+              logger.logTikTokResponse(identityGetUrl, identityGetData, {
+                advertiserId: advertiserIdStr,
+                tokenContext,
+              }, "fetch identities for ad creation");
+              
+              if (identityGetData.code === 0 && identityGetData.data?.identity_list) {
+                fetchedIdentities = identityGetData.data.identity_list;
+                console.log(`[push-creatives] ✅ Fetched ${fetchedIdentities.length} identities from TikTok API`);
+              } else if (identityGetData.code === 0 && identityGetData.data?.list) {
+                // Alternative response shape
+                fetchedIdentities = identityGetData.data.list;
+                console.log(`[push-creatives] ✅ Fetched ${fetchedIdentities.length} identities from TikTok API (alternate shape)`);
+              } else {
+                console.log(`[push-creatives] ⚠️ identity/get returned no identities: code=${identityGetData.code}, message=${identityGetData.message}`);
+                
+                // Fallback: Try /identity/list/ endpoint
+                const identityListUrl = `https://business-api.tiktok.com/open_api/v1.3/identity/list/?advertiser_id=${advertiserIdStr}`;
+                
+                logger.logTikTokRequest(identityListUrl, "GET", null, {
+                  advertiserId: advertiserIdStr,
+                  tokenContext,
+                }, "fallback fetch identities via /identity/list/");
+                
+                const identityListResponse = await fetch(identityListUrl, {
+                  method: "GET",
+                  headers: {
+                    "Access-Token": platform.access_token,
+                    "Content-Type": "application/json",
+                  },
+                });
+                
+                const identityListData = await identityListResponse.json();
+                
+                logger.logTikTokResponse(identityListUrl, identityListData, {
+                  advertiserId: advertiserIdStr,
+                  tokenContext,
+                }, "fallback fetch identities via /identity/list/");
+                
+                if (identityListData.code === 0) {
+                  fetchedIdentities = identityListData.data?.list || identityListData.data?.identity_list || [];
+                  console.log(`[push-creatives] ✅ Fallback: Fetched ${fetchedIdentities.length} identities from /identity/list/`);
+                }
+              }
+            } catch (identityFetchError) {
+              console.error(`[push-creatives] ❌ Error fetching identities:`, identityFetchError);
+            }
+            
+            // Log all fetched identities for debugging
+            if (fetchedIdentities.length > 0) {
+              console.log(`[push-creatives] Available identities for advertiser ${advertiserIdStr}:`);
+              fetchedIdentities.forEach((id: any, idx: number) => {
+                console.log(`  [${idx}] identity_id=${id.identity_id}, identity_type=${id.identity_type}, display_name=${id.display_name || 'N/A'}`);
+              });
+            }
             
             if (isSparkAd) {
               // Spark Ads: TIKTOK_ACCOUNT identity required with real TikTok account
@@ -1549,10 +1635,66 @@ const handler = async (req: Request): Promise<Response> => {
               
               console.log(`[push-creatives] Spark Ad - identity_type=TIKTOK_ACCOUNT, identity_id=${finalIdentityId}`);
             } else {
-              // Dark Ads: CUSTOMIZED_USER with advertiser_id as identity_id
+              // ========== DARK ADS: CUSTOMIZED_USER with VALID identity_id ==========
+              // TikTok v1.3 REQUIRES identity_id from /identity/get/ endpoint
+              // We CANNOT use advertiser_id as identity_id anymore
               identityType = "CUSTOMIZED_USER";
-              finalIdentityId = advertiserIdStr;
-              console.log(`[push-creatives] Dark Ad - identity_type=CUSTOMIZED_USER, identity_id=${finalIdentityId} (advertiser_id)`);
+              
+              // Priority 1: Use user-selected identity if it's a valid CUSTOMIZED_USER type
+              if (identityId && identityId !== advertiserIdStr) {
+                // Check if the selected identity is in the fetched list
+                const selectedIdentity = fetchedIdentities.find(
+                  (id: any) => String(id.identity_id) === String(identityId)
+                );
+                if (selectedIdentity) {
+                  finalIdentityId = String(identityId);
+                  console.log(`[push-creatives] Dark Ad - Using user-selected identity: ${finalIdentityId} (type: ${selectedIdentity.identity_type})`);
+                }
+              }
+              
+              // Priority 2: Find a CUSTOMIZED_USER identity from fetched list
+              if (!finalIdentityId) {
+                const customizedUserIdentity = fetchedIdentities.find(
+                  (id: any) => id.identity_type === "CUSTOMIZED_USER"
+                );
+                if (customizedUserIdentity) {
+                  finalIdentityId = String(customizedUserIdentity.identity_id);
+                  console.log(`[push-creatives] Dark Ad - Using CUSTOMIZED_USER identity from API: ${finalIdentityId}`);
+                }
+              }
+              
+              // Priority 3: Use any available identity
+              if (!finalIdentityId && fetchedIdentities.length > 0) {
+                const firstIdentity = fetchedIdentities[0];
+                finalIdentityId = String(firstIdentity.identity_id);
+                identityType = firstIdentity.identity_type || "CUSTOMIZED_USER";
+                console.log(`[push-creatives] Dark Ad - Using first available identity: ${finalIdentityId} (type: ${identityType})`);
+              }
+              
+              // Priority 4: Try stored identity from database
+              if (!finalIdentityId && identityId && identityId !== advertiserIdStr) {
+                finalIdentityId = identityId;
+                console.log(`[push-creatives] Dark Ad - Using stored identity from database: ${finalIdentityId}`);
+              }
+              
+              // If no identity found, we cannot create the ad in v1.3
+              if (!finalIdentityId) {
+                console.error(`[push-creatives] ❌ No valid identity found for Dark Ad. TikTok v1.3 requires a valid identity_id.`);
+                console.error(`[push-creatives] Fetched identities count: ${fetchedIdentities.length}`);
+                console.error(`[push-creatives] Stored identity_id: ${identityId}`);
+                
+                await supabase
+                  .from("creative_assignments")
+                  .update({
+                    status: "error",
+                    error_message: "No valid TikTok identity found. TikTok v1.3 requires an identity. Please configure an identity in TikTok Business Center and sync your account.",
+                  })
+                  .eq("id", assignment.id);
+                localFailed++;
+                continue;
+              }
+              
+              console.log(`[push-creatives] Dark Ad - identity_type=${identityType}, identity_id=${finalIdentityId}`);
             }
 
             console.log(
@@ -1693,14 +1835,12 @@ const handler = async (req: Request): Promise<Response> => {
             }
 
             // ========== AD CREATION STRATEGY ==========
-            // For Dark Ads: Use CUSTOMIZED_USER (no identity_id required)
+            // For Dark Ads: Use CUSTOMIZED_USER with valid identity_id from /identity/get/
             // For Spark Ads: Use TIKTOK_ACCOUNT with identity_id
-            // This is the standard approach used by major SaaS platforms.
+            // TikTok v1.3 REQUIRES identity_id for both types
 
             const tiktokAdCreateUrlV13 = "https://business-api.tiktok.com/open_api/v1.3/ad/create/";
             const tiktokAdCreateUrlV12 = "https://business-api.tiktok.com/open_api/v1.2/ad/create/";
-            
-            console.log(`[push-creatives] TikTok ad/create: identityType=${identityType}, isSparkAd=${isSparkAd}`);
 
             let adId: string | null = null;
             let lastTikTokResponse: any = null;
@@ -1720,10 +1860,6 @@ const handler = async (req: Request): Promise<Response> => {
 
             // ========== SINGLE ATTEMPT with correct identity type ==========
             const payload = JSON.parse(JSON.stringify(basePayload));
-            
-            // Identity already correctly set in basePayload:
-            // DARK ADS: identity_type=CUSTOMIZED_USER, identity_id=advertiser_id
-            // SPARK ADS: identity_type=TIKTOK_ACCOUNT, identity_id=tiktok_account_id
 
             // Ensure we NEVER send Business Center authorization fields to /ad/create.
             delete payload.creatives[0].bc_id;
@@ -1734,9 +1870,14 @@ const handler = async (req: Request): Promise<Response> => {
               payload.creatives[0].display_name = displayNameForAd;
             }
 
-            console.log(`[push-creatives] TikTok ad/create (v1.3) identity_type=${payload.creatives[0].identity_type}`);
-            console.log(`[push-creatives] TikTok ad/create FULL REQUEST URL: ${tiktokAdCreateUrlV13}`);
-            console.log(`[push-creatives] TikTok ad/create FULL REQUEST PAYLOAD: ${JSON.stringify(payload, null, 2)}`);
+            // Log the full TikTok API request with all context
+            logger.logTikTokRequest(tiktokAdCreateUrlV13, "POST", payload, {
+              advertiserId: advertiserIdStr,
+              identityId: finalIdentityId,
+              identityType: identityType,
+              tokenContext,
+              adGroupId: entry.dsp_entity_id,
+            }, "ad/create v1.3");
 
             const tiktokAdResponse = await fetch(tiktokAdCreateUrlV13, {
               method: "POST",
@@ -1750,21 +1891,27 @@ const handler = async (req: Request): Promise<Response> => {
             const tiktokAdData = await tiktokAdResponse.json();
             lastTikTokResponse = tiktokAdData;
 
+            // Log the response
+            logger.logTikTokResponse(tiktokAdCreateUrlV13, tiktokAdData, {
+              advertiserId: advertiserIdStr,
+              identityId: finalIdentityId,
+              identityType: identityType,
+              tokenContext,
+            }, "ad/create v1.3");
+
             adId = tiktokAdData?.data?.ad_ids?.[0] ? String(tiktokAdData.data.ad_ids[0]) : null;
             if (tiktokAdData?.code === 0 && adId) {
-              console.log(`[push-creatives] ✅ TikTok Ad created successfully with identity_type=${identityType} ad_id=${adId}`);
+              console.log(`[push-creatives] ✅ TikTok Ad created successfully with identity_type=${identityType}, identity_id=${finalIdentityId}, ad_id=${adId}`);
             } else {
               const msg = String(tiktokAdData?.message || "");
               console.log(
-                `[push-creatives] TikTok ad/create (v1.3) failed identity_type=${identityType} code=${tiktokAdData?.code} message=${msg}`,
+                `[push-creatives] TikTok ad/create (v1.3) failed identity_type=${identityType} identity_id=${finalIdentityId} code=${tiktokAdData?.code} message=${msg}`,
               );
 
               // ========== FALLBACK: Try v1.2 API if v1.3 failed ==========
-              console.log(`[push-creatives] v1.3 failed, trying v1.2 API with identity_type=${identityType}`);
+              console.log(`[push-creatives] v1.3 failed, trying v1.2 API with identity_type=${identityType}, identity_id=${finalIdentityId}`);
               
               const payloadV12 = JSON.parse(JSON.stringify(basePayload));
-              
-              // Identity already correctly set in basePayload - no changes needed
               
               // Add display name
               if (displayNameForAd) {
@@ -1775,7 +1922,14 @@ const handler = async (req: Request): Promise<Response> => {
               delete payloadV12.creatives[0].bc_id;
               delete payloadV12.creatives[0].identity_authorized_bc_id;
 
-              console.log(`[push-creatives] TikTok ad/create (v1.2) identity_type=${payloadV12.creatives[0].identity_type}`);
+              // Log the v1.2 fallback request
+              logger.logTikTokRequest(tiktokAdCreateUrlV12, "POST", payloadV12, {
+                advertiserId: advertiserIdStr,
+                identityId: finalIdentityId,
+                identityType: identityType,
+                tokenContext,
+                adGroupId: entry.dsp_entity_id,
+              }, "ad/create v1.2 FALLBACK");
 
               const tiktokAdResponseV12 = await fetch(tiktokAdCreateUrlV12, {
                 method: "POST",
@@ -1788,14 +1942,23 @@ const handler = async (req: Request): Promise<Response> => {
 
               const tiktokAdDataV12 = await tiktokAdResponseV12.json();
               lastTikTokResponse = tiktokAdDataV12;
+              
+              // Log the v1.2 response
+              logger.logTikTokResponse(tiktokAdCreateUrlV12, tiktokAdDataV12, {
+                advertiserId: advertiserIdStr,
+                identityId: finalIdentityId,
+                identityType: identityType,
+                tokenContext,
+              }, "ad/create v1.2 FALLBACK");
+              
               adId = tiktokAdDataV12?.data?.ad_ids?.[0] ? String(tiktokAdDataV12.data.ad_ids[0]) : null;
 
               if (tiktokAdDataV12?.code === 0 && adId) {
-                console.log(`[push-creatives] ✅ TikTok ad/create (v1.2) succeeded identity_type=${identityType} ad_id=${adId}`);
+                console.log(`[push-creatives] ✅ TikTok ad/create (v1.2) succeeded identity_type=${identityType}, identity_id=${finalIdentityId}, ad_id=${adId}`);
               } else {
                 const msgV12 = String(tiktokAdDataV12?.message || "");
                 console.log(
-                  `[push-creatives] TikTok ad/create (v1.2) failed identity_type=${identityType} code=${tiktokAdDataV12?.code} message=${msgV12}`,
+                  `[push-creatives] TikTok ad/create (v1.2) failed identity_type=${identityType}, identity_id=${finalIdentityId}, code=${tiktokAdDataV12?.code}, message=${msgV12}`,
                 );
               }
             }
