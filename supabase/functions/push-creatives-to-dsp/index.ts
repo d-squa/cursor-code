@@ -1787,6 +1787,59 @@ const handler = async (req: Request): Promise<Response> => {
             // Add video_id or image_ids based on creative type
             // Check platform_video_id first - if it exists, this IS a video regardless of isVideo flag
             if (creative.platform_video_id) {
+              // ========== VERIFY VIDEO IS ACCESSIBLE BEFORE USING IT ==========
+              // TikTok assets are advertiser-scoped. If the video was uploaded to a different advertiser,
+              // or the video ID is invalid, we need to clear it and trigger re-upload.
+              console.log(`[push-creatives] Verifying TikTok video ${creative.platform_video_id} is accessible for advertiser ${advertiserIdStr}...`);
+              
+              let videoVerified = false;
+              let videoInfoResult: any = null;
+              
+              try {
+                const videoInfoUrl = `https://business-api.tiktok.com/open_api/v1.3/file/video/ad/info/?advertiser_id=${advertiserIdStr}&video_ids=["${creative.platform_video_id}"]`;
+                const videoInfoResponse = await fetch(videoInfoUrl, {
+                  method: "GET",
+                  headers: { "Access-Token": platform.access_token },
+                });
+                videoInfoResult = await videoInfoResponse.json();
+                
+                if (videoInfoResult.code === 0 && videoInfoResult.data?.list?.length > 0) {
+                  videoVerified = true;
+                  console.log(`[push-creatives] ✅ TikTok video verified accessible`);
+                } else {
+                  console.error(`[push-creatives] ⚠️ Video ${creative.platform_video_id} not accessible: ${videoInfoResult.message || 'Not found in account'}`);
+                }
+              } catch (videoVerifyError) {
+                console.error(`[push-creatives] Video verification error:`, videoVerifyError);
+              }
+              
+              if (!videoVerified) {
+                // Video is not accessible - likely uploaded to different advertiser
+                // Clear the invalid video ID and mark for re-upload on next attempt
+                console.log(`[push-creatives] Clearing invalid video_id and scheduling re-upload...`);
+                
+                await supabase
+                  .from("creatives")
+                  .update({ 
+                    platform_video_id: null, 
+                    platform_thumbnail_id: null,
+                    tiktok_asset_advertiser_id: null,
+                    dsp_upload_status: null 
+                  })
+                  .eq("id", creative.id);
+                
+                await supabase
+                  .from("creative_assignments")
+                  .update({
+                    status: "error",
+                    error_message: `TikTok video not accessible for this advertiser (may be uploaded to different account). Will retry with fresh upload. Original error: ${videoInfoResult?.message || 'Video not found'}`,
+                  })
+                  .eq("id", assignment.id);
+                
+                localFailed++;
+                continue;
+              }
+              
               tiktokAdPayload.creatives[0].video_id = creative.platform_video_id;
               console.log(`[push-creatives] TikTok ad payload includes video_id=${creative.platform_video_id} (effectiveIsVideo=${effectiveIsVideo})`);
               
@@ -1811,29 +1864,17 @@ const handler = async (req: Request): Promise<Response> => {
                 console.log(`[push-creatives] TikTok SINGLE_VIDEO using explicit thumbnail image_id=${creative.platform_thumbnail_id}`);
               } else {
                 // Non-Spark video WITHOUT thumbnail - we MUST generate one
-                // Try to use the video's poster_url from TikTok or thumbnail_url from creative
+                // Use the poster_url from the video info we already fetched
                 console.log(`[push-creatives] TikTok SINGLE_VIDEO: no thumbnail - attempting auto-generation...`);
                 
                 let thumbnailImageUrl: string | null = null;
                 
-                // First try: Get poster_url from TikTok's video info API
-                try {
-                  console.log(`[push-creatives] Fetching TikTok video poster URL...`);
-                  const videoInfoUrl = `https://business-api.tiktok.com/open_api/v1.3/file/video/ad/info/?advertiser_id=${advertiserIdStr}&video_ids=["${creative.platform_video_id}"]`;
-                  const videoInfoResponse = await fetch(videoInfoUrl, {
-                    method: "GET",
-                    headers: { "Access-Token": platform.access_token },
-                  });
-                  const videoInfoResult = await videoInfoResponse.json();
-                  
-                  if (videoInfoResult.code === 0 && videoInfoResult.data?.list?.[0]?.poster_url) {
-                    thumbnailImageUrl = videoInfoResult.data.list[0].poster_url;
-                    console.log(`[push-creatives] Got TikTok video poster URL: ${thumbnailImageUrl}`);
-                  } else {
-                    console.log(`[push-creatives] No poster_url from TikTok video info`);
-                  }
-                } catch (posterError) {
-                  console.log(`[push-creatives] Error fetching poster:`, posterError);
+                // Use poster_url from video info we already fetched
+                if (videoInfoResult?.data?.list?.[0]?.poster_url) {
+                  thumbnailImageUrl = videoInfoResult.data.list[0].poster_url;
+                  console.log(`[push-creatives] Got TikTok video poster URL: ${thumbnailImageUrl}`);
+                } else {
+                  console.log(`[push-creatives] No poster_url from TikTok video info`);
                 }
                 
                 // Fallback: Use creative's thumbnail_url or first media_url
@@ -1941,19 +1982,24 @@ const handler = async (req: Request): Promise<Response> => {
                 if (imageInfoResult.code !== 0 || !imageInfoResult.data?.list?.length) {
                   console.error(`[push-creatives] ⚠️ Image ${creative.platform_image_hash} not accessible via API. Error: ${imageInfoResult.message || 'Not found'}`);
                   // Image may have been uploaded via UI or different account - clear it and trigger re-upload
+                  
+                  // Clear the invalid image hash and advertiser association to force re-upload on next attempt
+                  await supabase
+                    .from("creatives")
+                    .update({ 
+                      platform_image_hash: null, 
+                      tiktok_asset_advertiser_id: null,
+                      dsp_upload_status: null 
+                    })
+                    .eq("id", creative.id);
+                  
                   await supabase
                     .from("creative_assignments")
                     .update({
                       status: "error",
-                      error_message: `TikTok image not accessible (may need re-upload): ${imageInfoResult.message || 'Image not found in account'}`,
+                      error_message: `TikTok image not accessible for this advertiser (may be uploaded to different account). Will retry with fresh upload. Original error: ${imageInfoResult.message || 'Image not found in account'}`,
                     })
                     .eq("id", assignment.id);
-                  
-                  // Clear the invalid image hash to force re-upload on next attempt
-                  await supabase
-                    .from("creatives")
-                    .update({ platform_image_hash: null, dsp_upload_status: null })
-                    .eq("id", creative.id);
                   
                   localFailed++;
                   continue;
