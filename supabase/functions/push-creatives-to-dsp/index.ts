@@ -1789,9 +1789,24 @@ const handler = async (req: Request): Promise<Response> => {
             if (creative.platform_video_id) {
               tiktokAdPayload.creatives[0].video_id = creative.platform_video_id;
               console.log(`[push-creatives] TikTok ad payload includes video_id=${creative.platform_video_id} (effectiveIsVideo=${effectiveIsVideo})`);
+              
+              // ========== THUMBNAIL HANDLING FOR SINGLE_VIDEO ==========
+              // TikTok v1.3 API REQUIRES a thumbnail for SINGLE_VIDEO ad format.
+              // Even though it's a video, TikTok demands either:
+              //   - image_ids: array of uploaded image IDs for thumbnail
+              //   - image_mode: "VIDEO_COVER" to auto-extract from video
+              //
+              // Without one of these, TikTok returns error 40002: "You must upload an image."
+              
               if (creative.platform_thumbnail_id) {
+                // User provided explicit thumbnail - use it
                 tiktokAdPayload.creatives[0].image_ids = [creative.platform_thumbnail_id];
-                console.log(`[push-creatives] TikTok ad payload includes thumbnail image_id=${creative.platform_thumbnail_id}`);
+                console.log(`[push-creatives] TikTok SINGLE_VIDEO using explicit thumbnail image_id=${creative.platform_thumbnail_id}`);
+              } else {
+                // No explicit thumbnail - use VIDEO_COVER mode to auto-extract from video
+                // This tells TikTok to automatically generate thumbnail from the video
+                tiktokAdPayload.creatives[0].image_mode = "VIDEO_COVER";
+                console.log(`[push-creatives] TikTok SINGLE_VIDEO using image_mode=VIDEO_COVER (no explicit thumbnail provided)`);
               }
             } else if (creative.platform_image_hash) {
               // Verify image is accessible before ad creation
@@ -1982,7 +1997,10 @@ const handler = async (req: Request): Promise<Response> => {
               
               // Provide actionable error messages based on error code
               let actionableError = msg;
-              if (errorCode === 40700 || errorCode === 40002) {
+              if (errorCode === 40002 && msg.toLowerCase().includes("image")) {
+                // Specific handling for missing thumbnail error
+                actionableError = `TikTok requires a thumbnail image for video ads (code ${errorCode}). The video may not have generated a cover image. Please upload a thumbnail image or wait for TikTok to finish processing the video.`;
+              } else if (errorCode === 40700 || errorCode === 40002) {
                 actionableError = `Identity authorization failed (code ${errorCode}). The identity "${identityId}" may not be properly linked to this ad account. Please verify in TikTok Business Center that this identity is assigned under "Ad delivery assets" for this advertiser.`;
               }
               
