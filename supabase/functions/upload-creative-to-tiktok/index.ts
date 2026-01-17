@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createHash } from "node:crypto";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
 import { getAccessToken } from "../_shared/vault-helper.ts";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
@@ -19,7 +20,7 @@ const uploadInputSchema = z.object({
 
 serve(async (req: Request) => {
   console.log("📤 upload-creative-to-tiktok: Request received");
-  
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -34,9 +35,11 @@ serve(async (req: Request) => {
     if (!authHeader) {
       throw new Error("Missing authorization header");
     }
+
     const { data: { user }, error: authError } = await supabase.auth.getUser(
-      authHeader.replace("Bearer ", "")
+      authHeader.replace("Bearer ", ""),
     );
+
     if (authError || !user) {
       throw new Error("Unauthorized");
     }
@@ -45,7 +48,13 @@ serve(async (req: Request) => {
     // Parse and validate input
     const body = await req.json();
     const input = uploadInputSchema.parse(body);
-    console.log(`📁 Uploading ${input.fileType}: ${input.fileName} to advertiser ${input.advertiserId}`);
+    const advertiserId = String(input.advertiserId || "").trim();
+
+    console.log(`📁 Uploading ${input.fileType}: ${input.fileName} to advertiser ${advertiserId}`);
+
+    if (!advertiserId) {
+      throw new Error("TikTok advertiser ID is required");
+    }
 
     // Find connected platform for this user with TikTok type.
     // IMPORTANT: a user may have multiple TikTok connections; we must pick the one that includes this advertiserId.
@@ -62,7 +71,7 @@ serve(async (req: Request) => {
       throw new Error("No active TikTok connection found");
     }
 
-    const desiredAdvertiserId = String(input.advertiserId);
+    const desiredAdvertiserId = advertiserId;
     const matchedPlatform = (connectedPlatforms as any[]).find((p) =>
       Array.isArray(p?.metadata?.advertiser_ids) && p.metadata.advertiser_ids.map(String).includes(desiredAdvertiserId)
     );
@@ -81,26 +90,37 @@ serve(async (req: Request) => {
     console.log("🔑 Access token retrieved");
 
     // Decode base64 to binary
-    const binaryData = Uint8Array.from(atob(input.fileData), c => c.charCodeAt(0));
+    const binaryData = Uint8Array.from(atob(input.fileData), (c) => c.charCodeAt(0));
     const fileSize = binaryData.length;
-    console.log(`📁 File size: ${fileSize} bytes`);
+    // TikTok expects an MD5 signature of the file bytes
+    const fileSignature = createHash("md5").update(binaryData).digest("hex");
+    console.log(`📁 File size: ${fileSize} bytes (md5: ${fileSignature})`);
 
     let result: { id?: string; imageId?: string };
+
+    const parseJsonSafe = async (res: Response) => {
+      const txt = await res.text();
+      try {
+        return JSON.parse(txt);
+      } catch {
+        throw new Error(`TikTok API returned non-JSON (${res.status}): ${txt.slice(0, 500)}`);
+      }
+    };
 
     if (input.fileType === "video") {
       // Upload video to TikTok
       const uploadUrl = "https://business-api.tiktok.com/open_api/v1.3/file/video/ad/upload/";
-      
-      // Create a proper File object for video
       const mimeType = input.mimeType || "video/mp4";
-      const file = new File([binaryData], input.fileName, { type: mimeType });
-      
+
       const formData = new FormData();
-      formData.append("advertiser_id", input.advertiserId);
+      formData.append("advertiser_id", advertiserId);
       formData.append("upload_type", "UPLOAD_BY_FILE");
-      formData.append("video_file", file);
+      // Use Blob + filename (more reliable than File in some edge runtimes)
+      formData.append("video_file", new Blob([binaryData], { type: mimeType }), input.fileName);
+      formData.append("video_signature", fileSignature);
 
       console.log(`📡 Uploading video to: ${uploadUrl} (size: ${fileSize}, mime: ${mimeType})`);
+      console.log("🧾 TikTok upload form keys:", Array.from(formData.keys()));
 
       const response = await fetch(uploadUrl, {
         method: "POST",
@@ -110,7 +130,7 @@ serve(async (req: Request) => {
         body: formData,
       });
 
-      const responseData = await response.json();
+      const responseData = await parseJsonSafe(response);
       console.log("📥 TikTok response:", JSON.stringify(responseData));
 
       if (responseData.code !== 0) {
@@ -124,21 +144,20 @@ serve(async (req: Request) => {
 
       result = { id: videoId };
       console.log(`✅ Video uploaded successfully. ID: ${videoId}`);
-
     } else {
       // Upload image to TikTok
       const uploadUrl = "https://business-api.tiktok.com/open_api/v1.3/file/image/ad/upload/";
-      
-      // Create a proper File object for image - TikTok requires this format
       const mimeType = input.mimeType || "image/jpeg";
-      const file = new File([binaryData], input.fileName, { type: mimeType });
-      
+
       const formData = new FormData();
-      formData.append("advertiser_id", input.advertiserId);
+      formData.append("advertiser_id", advertiserId);
       formData.append("upload_type", "UPLOAD_BY_FILE");
-      formData.append("image_file", file);
+      // Use Blob + filename (more reliable than File in some edge runtimes)
+      formData.append("image_file", new Blob([binaryData], { type: mimeType }), input.fileName);
+      formData.append("image_signature", fileSignature);
 
       console.log(`📡 Uploading image to: ${uploadUrl} (size: ${fileSize}, mime: ${mimeType})`);
+      console.log("🧾 TikTok upload form keys:", Array.from(formData.keys()));
 
       const response = await fetch(uploadUrl, {
         method: "POST",
@@ -148,7 +167,7 @@ serve(async (req: Request) => {
         body: formData,
       });
 
-      const responseData = await response.json();
+      const responseData = await parseJsonSafe(response);
       console.log("📥 TikTok response:", JSON.stringify(responseData));
 
       if (responseData.code !== 0) {
@@ -174,9 +193,8 @@ serve(async (req: Request) => {
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,
-      }
+      },
     );
-
   } catch (error) {
     console.error("❌ Error in upload-creative-to-tiktok:", error);
     return new Response(
@@ -187,7 +205,7 @@ serve(async (req: Request) => {
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 400,
-      }
+      },
     );
   }
 });
