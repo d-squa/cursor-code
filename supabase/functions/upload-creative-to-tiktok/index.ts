@@ -89,16 +89,18 @@ serve(async (req: Request) => {
 
     if (input.fileType === "video") {
       // Upload video to TikTok
-      // POST to business-api.tiktok.com/open_api/v1.3/file/video/ad/upload/
       const uploadUrl = "https://business-api.tiktok.com/open_api/v1.3/file/video/ad/upload/";
       
+      // Create a proper File object for video
+      const mimeType = input.mimeType || "video/mp4";
+      const file = new File([binaryData], input.fileName, { type: mimeType });
+      
       const formData = new FormData();
-      const blob = new Blob([binaryData], { type: input.mimeType || "video/mp4" });
       formData.append("advertiser_id", input.advertiserId);
       formData.append("upload_type", "UPLOAD_BY_FILE");
-      formData.append("video_file", blob, input.fileName);
+      formData.append("video_file", file);
 
-      console.log(`📡 Uploading video to: ${uploadUrl}`);
+      console.log(`📡 Uploading video to: ${uploadUrl} (size: ${fileSize}, mime: ${mimeType})`);
 
       const response = await fetch(uploadUrl, {
         method: "POST",
@@ -125,16 +127,18 @@ serve(async (req: Request) => {
 
     } else {
       // Upload image to TikTok
-      // POST to business-api.tiktok.com/open_api/v1.3/file/image/ad/upload/
       const uploadUrl = "https://business-api.tiktok.com/open_api/v1.3/file/image/ad/upload/";
       
+      // Create a proper File object for image - TikTok requires this format
+      const mimeType = input.mimeType || "image/jpeg";
+      const file = new File([binaryData], input.fileName, { type: mimeType });
+      
       const formData = new FormData();
-      const blob = new Blob([binaryData], { type: input.mimeType || "image/jpeg" });
       formData.append("advertiser_id", input.advertiserId);
       formData.append("upload_type", "UPLOAD_BY_FILE");
-      formData.append("image_file", blob, input.fileName);
+      formData.append("image_file", file);
 
-      console.log(`📡 Uploading image to: ${uploadUrl}`);
+      console.log(`📡 Uploading image to: ${uploadUrl} (size: ${fileSize}, mime: ${mimeType})`);
 
       const response = await fetch(uploadUrl, {
         method: "POST",
