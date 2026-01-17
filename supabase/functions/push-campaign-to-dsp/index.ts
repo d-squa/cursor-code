@@ -3680,11 +3680,24 @@ async function pushToTikTok(campaign: any, platformConfig: any, platform: any) {
                 }],
               };
               
-              // Add video or image
+              // Add video or image - TikTok REQUIRES thumbnail (image_ids) for non-Spark video ads
               if (isVideo && creative.platform_video_id) {
                 tiktokAdPayload.creatives[0].video_id = creative.platform_video_id;
+                
+                // Non-Spark video ads REQUIRE a thumbnail - check if one exists
                 if (creative.platform_thumbnail_id) {
                   tiktokAdPayload.creatives[0].image_ids = [creative.platform_thumbnail_id];
+                } else {
+                  // No thumbnail - this will fail, mark as error
+                  console.warn(`⚠️ TikTok video ad ${creative.name} missing required thumbnail`);
+                  await supabase
+                    .from('creative_assignments')
+                    .update({ 
+                      status: 'error', 
+                      error_message: 'TikTok video ads require a thumbnail image. Please upload a thumbnail for this creative.' 
+                    })
+                    .eq('id', assignment.id);
+                  continue;
                 }
               } else if (creative.platform_image_hash) {
                 tiktokAdPayload.creatives[0].image_ids = [creative.platform_image_hash];
