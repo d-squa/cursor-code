@@ -53,6 +53,11 @@ export function ThumbnailUploader({
   // Upload thumbnail mutation
   const uploadMutation = useMutation({
     mutationFn: async (file: File) => {
+      // Validate advertiser ID
+      if (!advertiserId) {
+        throw new Error('TikTok advertiser ID is missing. Please configure TikTok in the ActiPlan first.');
+      }
+
       // Read file as base64
       const base64 = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();

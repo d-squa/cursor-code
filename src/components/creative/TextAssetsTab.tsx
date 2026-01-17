@@ -88,6 +88,18 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
       setIsLoadingAssets(true);
 
       try {
+        // First fetch the campaign to get platform configs (for TikTok advertiser IDs)
+        const { data: campaignData } = await supabase
+          .from('campaigns')
+          .select('platforms')
+          .eq('id', effectiveCampaignId)
+          .single();
+
+        // Extract TikTok advertiser ID from campaign platforms config
+        const platformsConfig = campaignData?.platforms as Record<string, any> || {};
+        const tiktokConfig = platformsConfig?.tiktok;
+        const campaignTiktokAdvertiserId = tiktokConfig?.adAccountId || tiktokConfig?.advertiser_id || '';
+
         const { data: assignments, error } = await supabase
           .from('creative_assignments')
           .select(`
@@ -159,9 +171,9 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
             thumbnailUrl: creative?.thumbnail_url,
             mediaType,
             aspectRatio: creative?.aspect_ratio,
-            // TikTok-specific fields
+            // TikTok-specific fields - use creative's asset advertiser or fall back to campaign config
             platformThumbnailId: creative?.platform_thumbnail_id,
-            tiktokAdvertiserId: creative?.tiktok_asset_advertiser_id,
+            tiktokAdvertiserId: creative?.tiktok_asset_advertiser_id || (assignment.platform === 'tiktok' ? campaignTiktokAdvertiserId : ''),
           };
         });
 
