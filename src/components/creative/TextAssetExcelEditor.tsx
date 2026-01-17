@@ -1,6 +1,6 @@
-// Excel-like Text Asset Editor with full copy/paste support
+// Creative Content Editor - Excel-like grid with full copy/paste support
 // Similar to Google Ads Editor bulk editing experience
-// Supports format-specific fields and carousel creation
+// Supports format-specific fields, carousel creation, and TikTok thumbnails
 
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
@@ -15,7 +15,7 @@ import {
   Save, Download, Upload, Copy, Clipboard, Undo2, Redo2,
   Image, Video, AlertCircle, CheckCircle, XCircle,
   ChevronDown, ChevronRight, Layers, Globe, Target, LayoutGrid, Sparkles,
-  Plus, Link2, Layout, Film, Grid, Settings2
+  Plus, Link2, Layout, Film, Grid, Settings2, ImageIcon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -38,6 +38,7 @@ import type { CarouselLink } from '@/types/carouselTypes';
 import { getPlacementBadges, validateCarouselCreatives } from '@/utils/placementCompatibility';
 import { BulkParameterEditor } from './BulkParameterEditor';
 import { ApplyModeDialog, type ApplyMode } from './ApplyModeDialog';
+import { ThumbnailUploader } from './ThumbnailUploader';
 
 interface TextAssetExcelEditorProps {
   rows: CreativeTextAssetRow[];
@@ -57,9 +58,11 @@ interface GridColumn {
   label: string;
   width: number;
   editable: boolean;
-  type?: 'text' | 'select' | 'adFormat' | 'checkbox';
+  type?: 'text' | 'select' | 'adFormat' | 'checkbox' | 'thumbnail';
   // Format-specific visibility
   showFor?: ('image' | 'video' | 'carousel')[];
+  // Platform-specific visibility
+  showForPlatform?: ('tiktok')[];
 }
 
 // Base columns always shown
@@ -68,6 +71,7 @@ const BASE_COLUMNS: GridColumn[] = [
   { key: 'structure', label: 'Platform / Market / Phase / Ad Set / Creative', width: 300, editable: false, type: 'text' },
   { key: 'placements', label: 'Placements', width: 150, editable: false, type: 'text' },
   { key: 'adFormat', label: 'Ad Format', width: 140, editable: true, type: 'adFormat' },
+  { key: 'thumbnail', label: 'Thumbnail', width: 100, editable: false, type: 'thumbnail', showFor: ['video'], showForPlatform: ['tiktok'] },
 ];
 
 // Format-specific text columns
@@ -1420,6 +1424,49 @@ export function TextAssetExcelEditor({
                             <div className="h-7 flex items-center justify-center text-xs text-muted-foreground italic">
                               N/A
                             </div>
+                          </div>
+                        );
+                      }
+                      
+                      // Skip columns not applicable to this row's platform
+                      if (col.showForPlatform && !col.showForPlatform.includes(platform as 'tiktok')) {
+                        return (
+                          <div
+                            key={col.key}
+                            className="px-1 py-1 border-r shrink-0 bg-muted/20"
+                            style={{ width: col.width }}
+                          >
+                            <div className="h-7 flex items-center justify-center text-xs text-muted-foreground italic">
+                              —
+                            </div>
+                          </div>
+                        );
+                      }
+                      
+                      // Thumbnail column for TikTok videos
+                      if (col.type === 'thumbnail') {
+                        const creativeId = row.creativeId;
+                        const advertiserId = (row as any).tiktokAdvertiserId || (row as any).advertiserId || '';
+                        const thumbnailId = (row as any).platformThumbnailId;
+                        const thumbnailUrl = (row as any).thumbnailUrl || (row as any).thumbnail_url;
+                        
+                        return (
+                          <div
+                            key={col.key}
+                            className="px-1 py-1 border-r shrink-0"
+                            style={{ width: col.width }}
+                          >
+                            <ThumbnailUploader
+                              creativeId={creativeId}
+                              advertiserId={advertiserId}
+                              currentThumbnailId={thumbnailId}
+                              thumbnailPreviewUrl={thumbnailUrl}
+                              compact
+                              onThumbnailChange={(newId) => {
+                                // Trigger a refresh - the ThumbnailUploader already saves to DB
+                                toast.success('Thumbnail updated');
+                              }}
+                            />
                           </div>
                         );
                       }

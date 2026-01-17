@@ -407,7 +407,7 @@ export default function CreativeLibrary() {
           </TabsTrigger>
           <TabsTrigger value="text-assets" className="gap-2">
             <Type className="h-4 w-4" />
-            Text Layer
+            Creative Content
           </TabsTrigger>
           <TabsTrigger value="folder" className="gap-2">
             <FolderUp className="h-4 w-4" />
@@ -486,7 +486,7 @@ export default function CreativeLibrary() {
               />
             ) : (
               <div className="text-sm text-muted-foreground">
-                Select an ActiPlan to load and edit its text assets.
+                Select an ActiPlan to manage creative content, text assets, and video thumbnails.
               </div>
             )}
           </div>

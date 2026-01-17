@@ -173,6 +173,10 @@ export interface CreativeTextAssetRow {
   aspectRatio?: string;
   width?: number;
   height?: number;
+  
+  // TikTok-specific
+  platformThumbnailId?: string;
+  tiktokAdvertiserId?: string;
 }
 
 // UTM Builder config

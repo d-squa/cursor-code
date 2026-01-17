@@ -89,7 +89,7 @@ export function generateTextAssetExcel(
   // Note: XLSX doesn't fully support data validation in all cases
   
   // Add worksheet to workbook
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Text Assets');
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Creative Content');
   
   // Generate blob
   const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });

@@ -1,4 +1,4 @@
-// Bulk Parameter Editor for Text Assets
+// Bulk Parameter Editor for Creative Content
 // Allows users to write parameter values and apply them to different levels of the campaign structure
 
 import { useState, useMemo, useCallback } from 'react';
