@@ -19,6 +19,198 @@ const oauthInputSchema = z.object({
   platformId: z.string().uuid().optional().nullable()
 });
 
+interface SyncProgress {
+  status: 'pending' | 'syncing' | 'completed' | 'error';
+  totalAdvertisers: number;
+  processedAdvertisers: number;
+  currentAdvertiserName?: string;
+  errorMessage?: string;
+  startedAt?: string;
+  completedAt?: string;
+}
+
+// Background task to fetch advertiser details
+async function fetchAdvertiserDetailsBackground(
+  supabase: any,
+  platformId: string,
+  accessToken: string,
+  advertiserIds: string[],
+  tokenContext: "USER" | "ADVERTISER",
+  tiktokUserInfo: any
+) {
+  const accounts: any[] = [];
+  const businessCenters = new Map<string, any>();
+
+  const updateProgress = async (progress: Partial<SyncProgress>) => {
+    try {
+      const { data: current } = await supabase
+        .from("connected_platforms")
+        .select("metadata")
+        .eq("id", platformId)
+        .single();
+
+      const currentMetadata = current?.metadata || {};
+      
+      await supabase
+        .from("connected_platforms")
+        .update({
+          metadata: {
+            ...currentMetadata,
+            sync_progress: {
+              ...currentMetadata.sync_progress,
+              ...progress
+            }
+          },
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", platformId);
+    } catch (err) {
+      console.error("Failed to update progress:", err);
+    }
+  };
+
+  try {
+    await updateProgress({
+      status: 'syncing',
+      totalAdvertisers: advertiserIds.length,
+      processedAdvertisers: 0,
+      startedAt: new Date().toISOString()
+    });
+
+    for (let i = 0; i < advertiserIds.length; i++) {
+      const advertiserId = advertiserIds[i];
+      
+      try {
+        const advertiserUrl = `https://business-api.tiktok.com/open_api/v1.3/advertiser/info/?advertiser_ids=["${advertiserId}"]`;
+        logApiRequest(advertiserUrl, { functionName: FUNCTION_NAME, method: "GET", context: `advertiser ${advertiserId}` });
+        
+        const advertiserResponse = await fetch(advertiserUrl, {
+          headers: { "Access-Token": accessToken },
+        });
+
+        const advertiserData = await advertiserResponse.json();
+        logApiResponse(advertiserUrl, advertiserData, { functionName: FUNCTION_NAME, method: "GET", context: `advertiser ${advertiserId}` });
+        
+        if (advertiserData.code === 0 && advertiserData.data?.list?.[0]) {
+          const advertiserInfo = advertiserData.data.list[0];
+          const bcId = advertiserInfo.owner_bc_id || advertiserInfo.bc_id;
+          
+          // Update progress with current advertiser name
+          await updateProgress({
+            processedAdvertisers: i + 1,
+            currentAdvertiserName: advertiserInfo.name || `Advertiser ${advertiserId}`
+          });
+          
+          let businessCenterInfo = null;
+          
+          // Fetch business center details if bc_id is available and not cached
+          if (bcId && !businessCenters.has(bcId)) {
+            try {
+              const bcUrl = `https://business-api.tiktok.com/open_api/v1.3/bc/get/?bc_id=${bcId}`;
+              logApiRequest(bcUrl, { functionName: FUNCTION_NAME, method: "GET", context: `business center ${bcId}` });
+              
+              const bcResponse = await fetch(bcUrl, {
+                headers: { "Access-Token": accessToken },
+              });
+              
+              const bcData = await bcResponse.json();
+              logApiResponse(bcUrl, bcData, { functionName: FUNCTION_NAME, method: "GET", context: `business center ${bcId}` });
+              
+              if (bcData.code === 0 && bcData.data) {
+                businessCenterInfo = {
+                  bc_id: bcId,
+                  name: bcData.data.name || `Business Center ${bcId}`,
+                  role: bcData.data.role,
+                  status: bcData.data.status,
+                };
+                businessCenters.set(bcId, businessCenterInfo);
+                console.log(`Fetched business center: ${businessCenterInfo.name}`);
+              }
+            } catch (bcError) {
+              console.error(`Error fetching business center ${bcId}:`, bcError);
+            }
+          } else if (bcId) {
+            businessCenterInfo = businessCenters.get(bcId);
+          }
+          
+          accounts.push({
+            advertiser_id: advertiserId,
+            name: advertiserInfo.name || `Advertiser ${advertiserId}`,
+            currency: advertiserInfo.currency || "USD",
+            timezone: advertiserInfo.timezone || "UTC",
+            status: advertiserInfo.status || "ENABLE",
+            bc_id: bcId || null,
+            business_center: businessCenterInfo,
+          });
+        } else {
+          // Add with minimal info on failure
+          accounts.push({
+            advertiser_id: advertiserId,
+            name: `Advertiser ${advertiserId}`,
+            currency: "USD",
+            timezone: "UTC",
+            status: "UNKNOWN",
+            bc_id: null,
+            business_center: null,
+          });
+          await updateProgress({ processedAdvertisers: i + 1 });
+        }
+      } catch (error) {
+        console.error(`Error fetching advertiser ${advertiserId}:`, error);
+        accounts.push({
+          advertiser_id: advertiserId,
+          name: `Advertiser ${advertiserId}`,
+          currency: "USD",
+          timezone: "UTC",
+          status: "UNKNOWN",
+          bc_id: null,
+          business_center: null,
+        });
+        await updateProgress({ processedAdvertisers: i + 1 });
+      }
+    }
+
+    // Final update with all accounts
+    const { data: finalCurrent } = await supabase
+      .from("connected_platforms")
+      .select("metadata")
+      .eq("id", platformId)
+      .single();
+
+    const finalMetadata = finalCurrent?.metadata || {};
+
+    await supabase
+      .from("connected_platforms")
+      .update({
+        metadata: {
+          ...finalMetadata,
+          advertiser_ids: advertiserIds,
+          accounts,
+          business_centers: Array.from(businessCenters.values()),
+          token_context: tokenContext,
+          tiktok_user_info: tiktokUserInfo,
+          sync_progress: {
+            status: 'completed',
+            totalAdvertisers: advertiserIds.length,
+            processedAdvertisers: advertiserIds.length,
+            completedAt: new Date().toISOString()
+          }
+        },
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", platformId);
+
+    console.log(`Background sync completed for platform ${platformId}: ${accounts.length} accounts`);
+
+  } catch (error: any) {
+    console.error(`Background sync error for platform ${platformId}:`, error);
+    await updateProgress({
+      status: 'error',
+      errorMessage: error.message || "Failed to sync advertiser accounts"
+    });
+  }
+}
+
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -106,10 +298,7 @@ const handler = async (req: Request): Promise<Response> => {
     console.log(`Received access token for ${advertiser_ids.length} advertiser account(s)`);
 
     // ========== TOKEN CONTEXT DETECTION ==========
-    // Detect if token is USER-context or ADVERTISER-context
-    // USER-context tokens fail for Dark Ads (CUSTOMIZED_USER)
-    // ADVERTISER-context tokens work for Dark Ads
-    let tokenContext: "USER" | "ADVERTISER" = "ADVERTISER"; // Default to advertiser
+    let tokenContext: "USER" | "ADVERTISER" = "ADVERTISER";
     let tiktokUserInfo: any = null;
     
     try {
@@ -144,102 +333,28 @@ const handler = async (req: Request): Promise<Response> => {
       console.log("Could not detect token context (defaulting to ADVERTISER):", userInfoError);
     }
 
-    // Fetch advertiser account details and business center information
-    const accounts = [];
-    const businessCenters = new Map(); // Cache business center info by bc_id
-    
-    console.log('Starting to fetch advertiser details for:', advertiser_ids);
-    
-    for (const advertiserId of advertiser_ids) {
-      try {
-        const advertiserUrl = `https://business-api.tiktok.com/open_api/v1.3/advertiser/info/?advertiser_ids=["${advertiserId}"]`;
-        logApiRequest(advertiserUrl, { functionName: FUNCTION_NAME, method: "GET", context: `advertiser ${advertiserId}` });
-        
-        const advertiserResponse = await fetch(advertiserUrl, {
-          headers: { "Access-Token": access_token },
-        });
+    // Create initial sync progress
+    const initialSyncProgress: SyncProgress = {
+      status: 'pending',
+      totalAdvertisers: advertiser_ids.length,
+      processedAdvertisers: 0,
+      startedAt: new Date().toISOString()
+    };
 
-        const advertiserData = await advertiserResponse.json();
-        logApiResponse(advertiserUrl, advertiserData, { functionName: FUNCTION_NAME, method: "GET", context: `advertiser ${advertiserId}` });
-        console.log(`Advertiser data response for ${advertiserId}:`, advertiserData);
-        
-        if (advertiserData.code === 0 && advertiserData.data && advertiserData.data.list && advertiserData.data.list.length > 0) {
-          const advertiserInfo = advertiserData.data.list[0];
-          const bcId = advertiserInfo.owner_bc_id || advertiserInfo.bc_id;
-          
-          let businessCenterInfo = null;
-          
-          // Fetch business center details if bc_id is available and not cached
-          if (bcId && !businessCenters.has(bcId)) {
-            try {
-              const bcUrl = `https://business-api.tiktok.com/open_api/v1.3/bc/get/?bc_id=${bcId}`;
-              logApiRequest(bcUrl, { functionName: FUNCTION_NAME, method: "GET", context: `business center ${bcId}` });
-              
-              const bcResponse = await fetch(bcUrl, {
-                headers: { "Access-Token": access_token },
-              });
-              
-              const bcData = await bcResponse.json();
-              logApiResponse(bcUrl, bcData, { functionName: FUNCTION_NAME, method: "GET", context: `business center ${bcId}` });
-              
-              if (bcData.code === 0 && bcData.data) {
-                businessCenterInfo = {
-                  bc_id: bcId,
-                  name: bcData.data.name || `Business Center ${bcId}`,
-                  role: bcData.data.role,
-                  status: bcData.data.status,
-                };
-                businessCenters.set(bcId, businessCenterInfo);
-                console.log(`Fetched business center: ${businessCenterInfo.name}`);
-              } else {
-                console.log(`Could not fetch business center ${bcId}: ${bcData.message || 'Unknown error'}`);
-              }
-            } catch (bcError) {
-              console.error(`Error fetching business center ${bcId}:`, bcError);
-            }
-          } else if (bcId) {
-            businessCenterInfo = businessCenters.get(bcId);
-          }
-          
-          accounts.push({
-            advertiser_id: advertiserId,
-            name: advertiserInfo.name || `Advertiser ${advertiserId}`,
-            currency: advertiserInfo.currency || "USD",
-            timezone: advertiserInfo.timezone || "UTC",
-            status: advertiserInfo.status || "ENABLE",
-            bc_id: bcId || null,
-            business_center: businessCenterInfo,
-          });
-        }
-      } catch (error) {
-        console.error(`Error fetching advertiser ${advertiserId}:`, error);
-        // Add advertiser with minimal info on error
-        accounts.push({
-          advertiser_id: advertiserId,
-          name: `Advertiser ${advertiserId}`,
-          currency: "USD",
-          timezone: "UTC",
-          status: "UNKNOWN",
-          bc_id: null,
-          business_center: null,
-        });
-      }
-    }
-
-    console.log(`Finished fetching advertiser details. Total accounts: ${accounts.length}`, accounts);
+    let resultPlatformId: string;
 
     // If reconnecting existing platform
     if (platformId) {
-      console.log(`Reconnecting platform ${platformId} with ${accounts.length} accounts, token_context: ${tokenContext}`);
+      console.log(`Reconnecting platform ${platformId}, starting background sync for ${advertiser_ids.length} advertisers`);
+      
       const { error: updateError } = await supabase
         .from("connected_platforms")
         .update({
           updated_at: new Date().toISOString(),
           is_active: true,
           metadata: { 
-            advertiser_ids, 
-            accounts,
-            business_centers: Array.from(businessCenters.values()),
+            advertiser_ids,
+            sync_progress: initialSyncProgress,
             token_context: tokenContext,
             tiktok_user_info: tiktokUserInfo,
           }
@@ -251,60 +366,66 @@ const handler = async (req: Request): Promise<Response> => {
 
       // Store token securely in Vault
       await storePlatformToken(supabase, platformId, access_token, 'access');
+      
+      resultPlatformId = platformId;
+    } else {
+      // Create new platform connection
+      console.log(`Creating new platform connection, starting background sync for ${advertiser_ids.length} advertisers`);
+      
+      const { data: newPlatform, error: insertError } = await supabase
+        .from("connected_platforms")
+        .insert({
+          user_id: user.id,
+          platform_type: "tiktok",
+          platform_name: "TikTok Ads",
+          is_active: true,
+          metadata: { 
+            advertiser_ids,
+            sync_progress: initialSyncProgress,
+            token_context: tokenContext,
+            tiktok_user_info: tiktokUserInfo,
+          }
+        })
+        .select()
+        .single();
 
-      console.log("Updated existing TikTok platform connection");
-      console.log("Returning accounts for selection:", accounts);
+      if (insertError) throw insertError;
+
+      // Store token securely in Vault
+      await storePlatformToken(supabase, newPlatform.id, access_token, 'access');
       
-      // Return accounts for selection even on reconnection
-      // Include token context warning if USER context
-      const warningMessage = tokenContext === "USER" 
-        ? "⚠️ WARNING: This token is USER-context. It will ONLY work for Spark Ads. Dark Ads (CUSTOMIZED_USER) will fail. Re-authenticate from Business Center (not TikTok app) for Dark Ads support."
-        : null;
-      
-      return new Response(
-        JSON.stringify({
-          success: true,
-          platformId,
-          accounts,
-          token_context: tokenContext,
-          warning: warningMessage,
-          message: "TikTok connection renewed - please select accounts to sync"
-        }),
-        {
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+      resultPlatformId = newPlatform.id;
+    }
+
+    // Start background task to fetch advertiser details
+    // @ts-ignore - EdgeRuntime is available in Deno Deploy
+    if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime.waitUntil) {
+      // @ts-ignore
+      EdgeRuntime.waitUntil(
+        fetchAdvertiserDetailsBackground(
+          supabase,
+          resultPlatformId,
+          access_token,
+          advertiser_ids,
+          tokenContext,
+          tiktokUserInfo
+        )
+      );
+      console.log("Background sync task started via EdgeRuntime.waitUntil");
+    } else {
+      // Fallback: run synchronously if EdgeRuntime not available (local dev)
+      console.log("EdgeRuntime not available, running sync in foreground");
+      await fetchAdvertiserDetailsBackground(
+        supabase,
+        resultPlatformId,
+        access_token,
+        advertiser_ids,
+        tokenContext,
+        tiktokUserInfo
       );
     }
 
-    // Create new platform connection
-    console.log(`Creating new platform connection, token_context: ${tokenContext}`);
-    const { data: newPlatform, error: insertError } = await supabase
-      .from("connected_platforms")
-      .insert({
-        user_id: user.id,
-        platform_type: "tiktok",
-        platform_name: "TikTok Ads",
-        is_active: true,
-        metadata: { 
-          advertiser_ids, 
-          accounts,
-          business_centers: Array.from(businessCenters.values()),
-          token_context: tokenContext,
-          tiktok_user_info: tiktokUserInfo,
-        }
-      })
-      .select()
-      .single();
-
-    if (insertError) throw insertError;
-
-    // Store token securely in Vault
-    await storePlatformToken(supabase, newPlatform.id, access_token, 'access');
-
-    console.log("TikTok OAuth callback completed successfully");
-
-    // Return accounts for user selection with token context info
+    // Return immediately with platformId - frontend will poll for progress
     const warningMessage = tokenContext === "USER" 
       ? "⚠️ WARNING: This token is USER-context. It will ONLY work for Spark Ads. Dark Ads (CUSTOMIZED_USER) will fail. Re-authenticate from Business Center (not TikTok app) for Dark Ads support."
       : null;
@@ -312,11 +433,14 @@ const handler = async (req: Request): Promise<Response> => {
     return new Response(
       JSON.stringify({
         success: true,
-        platformId: newPlatform.id,
-        accounts,
+        platformId: resultPlatformId,
+        syncInProgress: true,
+        totalAdvertisers: advertiser_ids.length,
         token_context: tokenContext,
         warning: warningMessage,
-        message: "TikTok connected successfully"
+        message: platformId 
+          ? "TikTok connection renewed - syncing advertiser accounts in background" 
+          : "TikTok connected - syncing advertiser accounts in background"
       }),
       {
         status: 200,
