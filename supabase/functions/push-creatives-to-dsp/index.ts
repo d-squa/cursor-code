@@ -347,6 +347,7 @@ const handler = async (req: Request): Promise<Response> => {
           position,
           status,
           dsp_creative_id,
+          ad_set_name,
           primary_text,
           primary_text_2,
           primary_text_3,
@@ -1114,12 +1115,17 @@ const handler = async (req: Request): Promise<Response> => {
                                   hasVideoExtension ||
                                   hasVideoInPath;
               
-              // Add unique suffix to filename to avoid TikTok "Duplicated material name" error
-              const baseFileName = fullCreative.original_filename || mediaUrl.split('/').pop()?.split('?')[0] || (isVideoFile ? 'video.mp4' : 'image.jpg');
+              // Build descriptive filename: AdGroupName_CreativeName_uniqueSuffix
+              // This helps identify assets in TikTok's creative library since we can't retrieve video/image info via API
+              const adGroupName = assignment.ad_set_name || entry.phase_name || 'AdGroup';
+              const creativeName = creative.name || 'Creative';
+              // Sanitize names: remove special chars that might cause issues, replace spaces with underscores
+              const sanitize = (str: string) => str.replace(/[^a-zA-Z0-9_\-]/g, '_').substring(0, 50);
               const uniqueSuffix = `_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-              const fileExt = baseFileName.includes('.') ? '.' + baseFileName.split('.').pop() : (isVideoFile ? '.mp4' : '.jpg');
-              const fileNameWithoutExt = baseFileName.includes('.') ? baseFileName.substring(0, baseFileName.lastIndexOf('.')) : baseFileName;
-              const fileName = `${fileNameWithoutExt}${uniqueSuffix}${fileExt}`;
+              const fileExt = (fullCreative.original_filename?.includes('.') 
+                ? '.' + fullCreative.original_filename.split('.').pop() 
+                : (isVideoFile ? '.mp4' : '.jpg'));
+              const fileName = `${sanitize(adGroupName)}_${sanitize(creativeName)}${uniqueSuffix}${fileExt}`;
               
               console.log(`[push-creatives] TikTok auto-upload via URL: mediaUrl=${mediaUrl}, isVideoFile=${isVideoFile}, mediaType=${fullCreative.media_type}, creativeType=${fullCreative.creative_type}, hasVideoInPath=${hasVideoInPath}, fileName=${fileName}`);
               
@@ -1897,7 +1903,11 @@ const handler = async (req: Request): Promise<Response> => {
                     console.log(`[push-creatives] Uploading thumbnail to TikTok from: ${thumbnailImageUrl}`);
                     
                     const thumbnailUploadUrl = "https://business-api.tiktok.com/open_api/v1.3/file/image/ad/upload/";
-                    const thumbnailFileName = `thumbnail_${creative.id}_${Date.now()}.jpg`;
+                    // Use descriptive thumbnail filename: AdGroupName_CreativeName_thumbnail
+                    const adGroupNameThumb = assignment.ad_set_name || entry.phase_name || 'AdGroup';
+                    const creativeNameThumb = creative.name || 'Creative';
+                    const sanitizeThumb = (str: string) => str.replace(/[^a-zA-Z0-9_\-]/g, '_').substring(0, 50);
+                    const thumbnailFileName = `${sanitizeThumb(adGroupNameThumb)}_${sanitizeThumb(creativeNameThumb)}_thumbnail_${Date.now()}.jpg`;
                     
                     const thumbnailUploadResponse = await fetch(thumbnailUploadUrl, {
                       method: "POST",
