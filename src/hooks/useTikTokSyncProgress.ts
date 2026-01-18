@@ -1,18 +1,34 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
-export interface TikTokSyncProgress {
+export interface PlatformSyncProgress {
   status: 'pending' | 'syncing' | 'completed' | 'error';
-  totalAdvertisers: number;
-  processedAdvertisers: number;
-  currentAdvertiserName?: string;
+  platform: 'tiktok' | 'meta';
+  totalSteps: number;
+  currentStep: number;
+  currentAssetType?: string;
+  currentAssetName?: string;
   errorMessage?: string;
   startedAt?: string;
   completedAt?: string;
+  // Detailed counts
+  processedCounts?: {
+    adAccounts?: number;
+    pixels?: number;
+    pages?: number;
+    instagramAccounts?: number;
+    catalogs?: number;
+    productSets?: number;
+    conversionEvents?: number;
+    identities?: number;
+  };
 }
 
-export function useTikTokSyncProgress(platformId: string | null) {
-  const [progress, setProgress] = useState<TikTokSyncProgress | null>(null);
+// For backwards compatibility
+export type TikTokSyncProgress = PlatformSyncProgress;
+
+export function usePlatformSyncProgress(platformId: string | null) {
+  const [progress, setProgress] = useState<PlatformSyncProgress | null>(null);
   const [isPolling, setIsPolling] = useState(false);
 
   const fetchProgress = useCallback(async () => {
@@ -29,7 +45,7 @@ export function useTikTokSyncProgress(platformId: string | null) {
     const metadata = data.metadata as any;
     if (!metadata?.sync_progress) return null;
 
-    return metadata.sync_progress as TikTokSyncProgress;
+    return metadata.sync_progress as PlatformSyncProgress;
   }, [platformId]);
 
   // Start polling when platformId is set
@@ -71,3 +87,6 @@ export function useTikTokSyncProgress(platformId: string | null) {
 
   return { progress, isPolling, refetch: fetchProgress };
 }
+
+// Backwards compatibility alias
+export const useTikTokSyncProgress = usePlatformSyncProgress;

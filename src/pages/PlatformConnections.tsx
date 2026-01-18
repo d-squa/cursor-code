@@ -13,8 +13,8 @@ import { PLATFORM_CONFIG } from "@/config/platforms";
 import PlatformAdAccountSelector from "@/components/PlatformAdAccountSelector";
 import ClientSelectionDialog from "@/components/ClientSelectionDialog";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
-import { useTikTokSyncProgress } from "@/hooks/useTikTokSyncProgress";
-import TikTokSyncProgressDialog from "@/components/TikTokSyncProgressDialog";
+import { usePlatformSyncProgress } from "@/hooks/useTikTokSyncProgress";
+import PlatformSyncProgressDialog from "@/components/PlatformSyncProgressDialog";
 
 interface MetaAdAccount {
   id: string;
@@ -83,16 +83,16 @@ export default function PlatformConnections() {
   const [syncProgressDialogOpen, setSyncProgressDialogOpen] = useState(false);
   const processingOAuthRef = useRef(false);
   
-  // TikTok sync progress tracking
-  const { progress: tiktokSyncProgress } = useTikTokSyncProgress(syncProgressPlatformId);
+  // Platform sync progress tracking (works for both TikTok and Meta)
+  const { progress: platformSyncProgress } = usePlatformSyncProgress(syncProgressPlatformId);
   
   // Check for in-progress syncs on page load
   useEffect(() => {
     const checkExistingSyncs = async () => {
       if (!user) return;
       
-      // Check sessionStorage for pending sync
-      const pendingSyncPlatformId = sessionStorage.getItem('tiktok_sync_platform_id');
+      // Check sessionStorage for pending sync (supports both platforms)
+      const pendingSyncPlatformId = sessionStorage.getItem('platform_sync_id');
       if (pendingSyncPlatformId) {
         // Verify it's still syncing
         const { data } = await supabase
@@ -106,7 +106,7 @@ export default function PlatformConnections() {
           setSyncProgressPlatformId(pendingSyncPlatformId);
           setSyncProgressDialogOpen(true);
         } else {
-          sessionStorage.removeItem('tiktok_sync_platform_id');
+          sessionStorage.removeItem('platform_sync_id');
         }
       }
     };
@@ -118,7 +118,7 @@ export default function PlatformConnections() {
   const handleSyncComplete = useCallback(async () => {
     if (!syncProgressPlatformId) return;
     
-    sessionStorage.removeItem('tiktok_sync_platform_id');
+    sessionStorage.removeItem('platform_sync_id');
     
     // Fetch the completed accounts from metadata
     const { data } = await supabase
@@ -476,7 +476,7 @@ export default function PlatformConnections() {
           // Handle TikTok background sync
           if (platformType === 'tiktok' && data?.syncInProgress) {
             toast.success("TikTok connected! Syncing advertiser accounts...");
-            sessionStorage.setItem('tiktok_sync_platform_id', data.platformId);
+            sessionStorage.setItem('platform_sync_id', data.platformId);
             setSyncProgressPlatformId(data.platformId);
             setSyncProgressDialogOpen(true);
             await fetchConnectedPlatforms();
@@ -829,10 +829,10 @@ export default function PlatformConnections() {
           />
         )}
 
-        <TikTokSyncProgressDialog
+        <PlatformSyncProgressDialog
           open={syncProgressDialogOpen}
           onOpenChange={setSyncProgressDialogOpen}
-          progress={tiktokSyncProgress}
+          progress={platformSyncProgress}
           onComplete={handleSyncComplete}
         />
       </div>
