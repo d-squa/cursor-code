@@ -824,10 +824,6 @@ export default function CreativeLibrary() {
             <UnifiedPageAssetsLibrary pageConfigs={pageAssetsConfigs} />
           </div>
         </TabsContent>
-              </div>
-            )}
-          </div>
-        </TabsContent>
       </Tabs>
 
         {/* Editor Dialog */}
