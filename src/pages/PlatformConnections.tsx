@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,8 @@ import { PLATFORM_CONFIG } from "@/config/platforms";
 import PlatformAdAccountSelector from "@/components/PlatformAdAccountSelector";
 import ClientSelectionDialog from "@/components/ClientSelectionDialog";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
+import { useTikTokSyncProgress } from "@/hooks/useTikTokSyncProgress";
+import TikTokSyncProgressDialog from "@/components/TikTokSyncProgressDialog";
 
 interface MetaAdAccount {
   id: string;
@@ -77,7 +79,72 @@ export default function PlatformConnections() {
   const [selectedAdAccountForLinking, setSelectedAdAccountForLinking] = useState<string | null>(null);
   const [reconnectingPlatformId, setReconnectingPlatformId] = useState<string | null>(null);
   const [currentPlatformId, setCurrentPlatformId] = useState<string | null>(null);
+  const [syncProgressPlatformId, setSyncProgressPlatformId] = useState<string | null>(null);
+  const [syncProgressDialogOpen, setSyncProgressDialogOpen] = useState(false);
   const processingOAuthRef = useRef(false);
+  
+  // TikTok sync progress tracking
+  const { progress: tiktokSyncProgress } = useTikTokSyncProgress(syncProgressPlatformId);
+  
+  // Check for in-progress syncs on page load
+  useEffect(() => {
+    const checkExistingSyncs = async () => {
+      if (!user) return;
+      
+      // Check sessionStorage for pending sync
+      const pendingSyncPlatformId = sessionStorage.getItem('tiktok_sync_platform_id');
+      if (pendingSyncPlatformId) {
+        // Verify it's still syncing
+        const { data } = await supabase
+          .from('connected_platforms_safe')
+          .select('metadata')
+          .eq('id', pendingSyncPlatformId)
+          .single();
+        
+        const syncProgress = (data?.metadata as any)?.sync_progress;
+        if (syncProgress && (syncProgress.status === 'pending' || syncProgress.status === 'syncing')) {
+          setSyncProgressPlatformId(pendingSyncPlatformId);
+          setSyncProgressDialogOpen(true);
+        } else {
+          sessionStorage.removeItem('tiktok_sync_platform_id');
+        }
+      }
+    };
+    
+    checkExistingSyncs();
+  }, [user]);
+  
+  // Handle sync completion - open account selector
+  const handleSyncComplete = useCallback(async () => {
+    if (!syncProgressPlatformId) return;
+    
+    sessionStorage.removeItem('tiktok_sync_platform_id');
+    
+    // Fetch the completed accounts from metadata
+    const { data } = await supabase
+      .from('connected_platforms_safe')
+      .select('metadata')
+      .eq('id', syncProgressPlatformId)
+      .single();
+    
+    const metadata = data?.metadata as any;
+    if (metadata?.accounts && metadata.accounts.length > 0) {
+      const accountOptions = metadata.accounts.map((acc: any) => ({
+        id: acc.advertiser_id || acc.id,
+        name: acc.name,
+        business_center: acc.business_center
+      }));
+      
+      setAdAccountOptions(accountOptions);
+      setCurrentPlatformId(syncProgressPlatformId);
+      setAccountSelectorOpen(true);
+      toast.success(`Found ${accountOptions.length} advertiser account(s) - please select which to sync`);
+    }
+    
+    setSyncProgressPlatformId(null);
+    setSyncProgressDialogOpen(false);
+    await fetchConnectedPlatforms();
+  }, [syncProgressPlatformId]);
   useEffect(() => {
     if (!authLoading && !user) {
       navigate("/auth");
@@ -406,19 +473,23 @@ export default function PlatformConnections() {
 
           if (error) throw error;
 
+          // Handle TikTok background sync
+          if (platformType === 'tiktok' && data?.syncInProgress) {
+            toast.success("TikTok connected! Syncing advertiser accounts...");
+            sessionStorage.setItem('tiktok_sync_platform_id', data.platformId);
+            setSyncProgressPlatformId(data.platformId);
+            setSyncProgressDialogOpen(true);
+            await fetchConnectedPlatforms();
+            return;
+          }
+
           if (platformId) {
             toast.success("Platform reconnected successfully!");
           } else {
             toast.success(`${platformType === 'tiktok' ? 'TikTok' : 'Platform'} connected successfully!`);
           }
 
-          // Open account selector if accounts are returned
-          console.log('OAuth callback - checking accounts:', {
-            hasAccounts: Array.isArray(data?.accounts),
-            accountCount: data?.accounts?.length,
-            accounts: data?.accounts
-          });
-          
+          // Open account selector if accounts are returned (Meta flow)
           if (Array.isArray(data?.accounts) && data.accounts.length > 0) {
             const accountOptions = data.accounts.map((acc: any) => ({
               id: acc.advertiser_id || acc.id,
@@ -426,14 +497,10 @@ export default function PlatformConnections() {
               business_center: acc.business_center
             }));
             
-            console.log('OAuth callback - mapped account options:', accountOptions);
-            
             setAdAccountOptions(accountOptions);
             setCurrentPlatformId(data.platformId);
             setAccountSelectorOpen(true);
-            toast.success(`Found ${data.accounts.length} advertiser account(s) - please select which to sync`);
-          } else {
-            console.log('OAuth callback - no accounts to display selector');
+            toast.success(`Found ${data.accounts.length} account(s) - please select which to sync`);
           }
 
           await fetchConnectedPlatforms();
@@ -761,6 +828,13 @@ export default function PlatformConnections() {
             onClientSelected={handleLinkAccountToClient}
           />
         )}
+
+        <TikTokSyncProgressDialog
+          open={syncProgressDialogOpen}
+          onOpenChange={setSyncProgressDialogOpen}
+          progress={tiktokSyncProgress}
+          onComplete={handleSyncComplete}
+        />
       </div>
     </div>
   );
