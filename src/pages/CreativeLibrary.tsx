@@ -22,9 +22,9 @@ import { useAuth } from '@/hooks/useAuth';
 import { BugReportDialog } from '@/components/BugReportDialog';
 import { WorkspaceSwitcher } from '@/components/WorkspaceSwitcher';
 import { FeatureGate } from '@/components/FeatureGate';
-import { PlatformAssetLibrary } from '@/components/creative/PlatformAssetLibrary';
 import { PlatformAssetUploader } from '@/components/creative/PlatformAssetUploader';
-import { PageAssetsLibrary } from '@/components/creative/PageAssetsLibrary';
+import { UnifiedAssetsLibrary } from '@/components/creative/UnifiedAssetsLibrary';
+import { UnifiedPageAssetsLibrary } from '@/components/creative/UnifiedPageAssetsLibrary';
 
 interface Campaign {
   id: string;
@@ -60,18 +60,19 @@ export default function CreativeLibrary() {
   
   // Platform assets tab state - now extracted from ActiPlan
   const [platformAssetsCampaignId, setPlatformAssetsCampaignId] = useState('');
-  const [platformAssetsPlatform, setPlatformAssetsPlatform] = useState<'tiktok' | 'meta'>('tiktok');
   const [platformAssetsAdAccounts, setPlatformAssetsAdAccounts] = useState<Array<{ platform: 'meta' | 'tiktok'; accountId: string }>>([]);
   const [showPlatformUploader, setShowPlatformUploader] = useState(false);
+  const [platformUploaderPlatform, setPlatformUploaderPlatform] = useState<'tiktok' | 'meta'>('tiktok');
   
-  // Page assets tab state - extracted from ActiPlan
+  // Page assets tab state - extracted from ActiPlan (supports multiple pages/identities)
   const [pageAssetsCampaignId, setPageAssetsCampaignId] = useState('');
-  const [pageAssetsPlatform, setPageAssetsPlatform] = useState<'tiktok' | 'meta'>('meta');
-  const [pageAssetsConfig, setPageAssetsConfig] = useState<{ 
+  const [pageAssetsConfigs, setPageAssetsConfigs] = useState<Array<{ 
+    platform: 'meta' | 'tiktok';
     pageId?: string; 
     identityId?: string; 
     advertiserId?: string;
-  }>({});
+    pageName?: string;
+  }>>([]);
 
   const selectedCampaign = campaigns.find((c) => c.id === selectedCampaignId);
 
@@ -237,10 +238,7 @@ export default function CreativeLibrary() {
         
         setPlatformAssetsAdAccounts(adAccountsList);
         
-        // Auto-select first matching platform
         if (adAccountsList.length > 0) {
-          const firstAccount = adAccountsList[0];
-          setPlatformAssetsPlatform(firstAccount.platform);
           toast.success(`Found ${adAccountsList.length} ad account(s) from ActiPlan`);
         }
       } catch (err) {
@@ -250,11 +248,11 @@ export default function CreativeLibrary() {
     []
   );
   
-  // Handle campaign selection for Page Assets - extract page/identity config
+  // Handle campaign selection for Page Assets - extract ALL page/identity configs
   const handlePageAssetsCampaignSelect = useCallback(
     async (campaignId: string) => {
       setPageAssetsCampaignId(campaignId);
-      setPageAssetsConfig({});
+      setPageAssetsConfigs([]);
       
       if (!campaignId) return;
       
@@ -271,53 +269,62 @@ export default function CreativeLibrary() {
         }
         
         const budgetAllocation = campaign.budget_allocation as Record<string, any> || {};
-        let config: { pageId?: string; identityId?: string; advertiserId?: string } = {};
+        const configs: Array<{ 
+          platform: 'meta' | 'tiktok';
+          pageId?: string; 
+          identityId?: string; 
+          advertiserId?: string;
+          pageName?: string;
+        }> = [];
         
         for (const [platformKey, platformConfig] of Object.entries(budgetAllocation)) {
           if (!platformConfig || typeof platformConfig !== 'object') continue;
           
           const markets = (platformConfig as any).markets || [];
           for (const market of markets) {
-            // Extract Meta page ID
+            // Extract Meta page IDs
             if (platformKey.toLowerCase().includes('meta')) {
-              if (market.pageId && !config.pageId) {
-                config.pageId = market.pageId;
+              if (market.pageId && !configs.some(c => c.platform === 'meta' && c.pageId === market.pageId)) {
+                configs.push({ platform: 'meta', pageId: market.pageId, pageName: market.pageName });
               }
               const phases = market.phases || [];
               for (const phase of phases) {
-                if (phase.pageId && !config.pageId) {
-                  config.pageId = phase.pageId;
+                if (phase.pageId && !configs.some(c => c.platform === 'meta' && c.pageId === phase.pageId)) {
+                  configs.push({ platform: 'meta', pageId: phase.pageId, pageName: phase.pageName });
                 }
               }
             }
             
-            // Extract TikTok identity ID and advertiser ID
+            // Extract TikTok identity IDs
             if (platformKey.toLowerCase().includes('tiktok')) {
-              if (market.adAccountId && !config.advertiserId) {
-                config.advertiserId = market.adAccountId;
-              }
-              if (market.tiktokIdentityId && !config.identityId) {
-                config.identityId = market.tiktokIdentityId;
+              const advertiserId = market.adAccountId;
+              if (market.tiktokIdentityId && !configs.some(c => c.platform === 'tiktok' && c.identityId === market.tiktokIdentityId)) {
+                configs.push({ 
+                  platform: 'tiktok', 
+                  identityId: market.tiktokIdentityId, 
+                  advertiserId,
+                  pageName: market.tiktokIdentityName 
+                });
               }
               const phases = market.phases || [];
               for (const phase of phases) {
-                if (phase.tiktokIdentityId && !config.identityId) {
-                  config.identityId = phase.tiktokIdentityId;
+                if (phase.tiktokIdentityId && !configs.some(c => c.platform === 'tiktok' && c.identityId === phase.tiktokIdentityId)) {
+                  configs.push({ 
+                    platform: 'tiktok', 
+                    identityId: phase.tiktokIdentityId, 
+                    advertiserId,
+                    pageName: phase.tiktokIdentityName 
+                  });
                 }
               }
             }
           }
         }
         
-        setPageAssetsConfig(config);
+        setPageAssetsConfigs(configs);
         
-        // Auto-select platform based on what's available
-        if (config.identityId) {
-          setPageAssetsPlatform('tiktok');
-          toast.success('TikTok identity loaded from ActiPlan');
-        } else if (config.pageId) {
-          setPageAssetsPlatform('meta');
-          toast.success('Facebook page loaded from ActiPlan');
+        if (configs.length > 0) {
+          toast.success(`Found ${configs.length} page(s)/identity(s) from ActiPlan`);
         }
       } catch (err) {
         console.error('Error extracting campaign config for page assets:', err);
@@ -726,14 +733,14 @@ export default function CreativeLibrary() {
               </div>
               
               {platformAssetsAdAccounts.length > 0 && (
-                <>
+                <div className="flex items-end gap-2">
                   <div className="space-y-1">
-                    <label className="text-sm font-medium">Platform</label>
+                    <label className="text-sm font-medium">Upload to</label>
                     <Select 
-                      value={platformAssetsPlatform} 
-                      onValueChange={(v) => setPlatformAssetsPlatform(v as 'tiktok' | 'meta')}
+                      value={platformUploaderPlatform} 
+                      onValueChange={(v) => setPlatformUploaderPlatform(v as 'tiktok' | 'meta')}
                     >
-                      <SelectTrigger className="w-40">
+                      <SelectTrigger className="w-32">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -746,41 +753,25 @@ export default function CreativeLibrary() {
                       </SelectContent>
                     </Select>
                   </div>
-                  
-                  <div className="flex items-end gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowPlatformUploader(!showPlatformUploader)}
-                    >
-                      <Upload className="h-4 w-4 mr-2" />
-                      {showPlatformUploader ? 'Hide Uploader' : 'Upload Assets'}
-                    </Button>
-                  </div>
-                </>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowPlatformUploader(!showPlatformUploader)}
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    {showPlatformUploader ? 'Hide' : 'Upload'}
+                  </Button>
+                </div>
               )}
             </div>
             
-            {/* Show found ad accounts */}
-            {platformAssetsAdAccounts.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {platformAssetsAdAccounts
-                  .filter(a => a.platform === platformAssetsPlatform)
-                  .map((account, idx) => (
-                    <Badge key={idx} variant="secondary" className="text-xs">
-                      {account.platform === 'tiktok' ? 'TikTok' : 'Meta'}: {account.accountId}
-                    </Badge>
-                  ))}
-              </div>
-            )}
-            
             {/* Uploader (collapsible) */}
-            {showPlatformUploader && platformAssetsAdAccounts.filter(a => a.platform === platformAssetsPlatform).length > 0 && (
+            {showPlatformUploader && platformAssetsAdAccounts.filter(a => a.platform === platformUploaderPlatform).length > 0 && (
               <div className="border rounded-lg p-4 bg-card">
-                <h3 className="text-sm font-medium mb-4">Upload to {platformAssetsPlatform === 'tiktok' ? 'TikTok' : 'Meta'} Creative Library</h3>
+                <h3 className="text-sm font-medium mb-4">Upload to {platformUploaderPlatform === 'tiktok' ? 'TikTok' : 'Meta'} Creative Library</h3>
                 <PlatformAssetUploader
-                  platform={platformAssetsPlatform}
-                  advertiserId={platformAssetsAdAccounts.find(a => a.platform === platformAssetsPlatform)?.accountId || ''}
+                  platform={platformUploaderPlatform}
+                  advertiserId={platformAssetsAdAccounts.find(a => a.platform === platformUploaderPlatform)?.accountId || ''}
                   onUploadComplete={() => {
                     toast.success('Assets uploaded and synced');
                     setShowPlatformUploader(false);
@@ -789,19 +780,8 @@ export default function CreativeLibrary() {
               </div>
             )}
             
-            {/* Asset Library */}
-            {platformAssetsAdAccounts.filter(a => a.platform === platformAssetsPlatform).length > 0 ? (
-              <PlatformAssetLibrary
-                platform={platformAssetsPlatform}
-                advertiserId={platformAssetsAdAccounts.find(a => a.platform === platformAssetsPlatform)?.accountId || ''}
-              />
-            ) : (
-              <div className="text-center py-12 text-muted-foreground">
-                <Cloud className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Select an ActiPlan to load ad accounts</p>
-                <p className="text-xs mt-1">Assets synced from TikTok/Meta Creative Libraries will appear here</p>
-              </div>
-            )}
+            {/* Unified Asset Library - shows ALL assets from ALL accounts */}
+            <UnifiedAssetsLibrary adAccounts={platformAssetsAdAccounts} />
           </div>
         </TabsContent>
         
@@ -821,7 +801,7 @@ export default function CreativeLibrary() {
                 ) : (
                   <Select value={pageAssetsCampaignId || undefined} onValueChange={handlePageAssetsCampaignSelect}>
                     <SelectTrigger className="w-full max-w-md">
-                      <SelectValue placeholder="Select an ActiPlan to load page/identity" />
+                      <SelectValue placeholder="Select an ActiPlan to load pages/identities" />
                     </SelectTrigger>
                     <SelectContent>
                       {campaigns.map((campaign) => (
@@ -838,39 +818,12 @@ export default function CreativeLibrary() {
                   </Select>
                 )}
               </div>
-              
-              {(pageAssetsConfig.pageId || pageAssetsConfig.identityId) && (
-                <div className="space-y-1">
-                  <label className="text-sm font-medium">Platform</label>
-                  <Select 
-                    value={pageAssetsPlatform} 
-                    onValueChange={(v) => setPageAssetsPlatform(v as 'tiktok' | 'meta')}
-                  >
-                    <SelectTrigger className="w-40">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {pageAssetsConfig.pageId && <SelectItem value="meta">Meta</SelectItem>}
-                      {pageAssetsConfig.identityId && <SelectItem value="tiktok">TikTok</SelectItem>}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
             </div>
             
-            {/* Page Assets Library */}
-            {pageAssetsCampaignId && (pageAssetsConfig.pageId || pageAssetsConfig.identityId) ? (
-              <PageAssetsLibrary
-                platform={pageAssetsPlatform}
-                advertiserId={pageAssetsConfig.advertiserId}
-                defaultPageId={pageAssetsConfig.pageId}
-                defaultIdentityId={pageAssetsConfig.identityId}
-              />
-            ) : (
-              <div className="text-center py-12 text-muted-foreground">
-                <FileImage className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Select an ActiPlan to load page/identity</p>
-                <p className="text-xs mt-1">Browse organic posts from Facebook Pages or TikTok accounts</p>
+            {/* Unified Page Assets Library - shows ALL posts from ALL pages/identities */}
+            <UnifiedPageAssetsLibrary pageConfigs={pageAssetsConfigs} />
+          </div>
+        </TabsContent>
               </div>
             )}
           </div>
