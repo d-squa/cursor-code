@@ -94,18 +94,37 @@ export default function PlatformConnections() {
       // Check sessionStorage for pending sync (supports both platforms)
       const pendingSyncPlatformId = sessionStorage.getItem('platform_sync_id');
       if (pendingSyncPlatformId) {
-        // Verify it's still syncing
+        // Verify sync status
         const { data } = await supabase
           .from('connected_platforms_safe')
           .select('metadata')
           .eq('id', pendingSyncPlatformId)
           .single();
         
-        const syncProgress = (data?.metadata as any)?.sync_progress;
-        if (syncProgress && (syncProgress.status === 'pending' || syncProgress.status === 'syncing')) {
+        const metadata = data?.metadata as any;
+        const syncProgress = metadata?.sync_progress;
+        
+        if (syncProgress?.status === 'pending' || syncProgress?.status === 'syncing') {
+          // Still in progress - show the dialog
           setSyncProgressPlatformId(pendingSyncPlatformId);
           setSyncProgressDialogOpen(true);
+        } else if (syncProgress?.status === 'completed' && metadata?.accounts?.length > 0) {
+          // Completed while away - show account selector directly
+          console.log('[PlatformConnections] Sync completed while away, showing account selector');
+          sessionStorage.removeItem('platform_sync_id');
+          
+          const accountOptions = metadata.accounts.map((acc: any) => ({
+            id: acc.advertiser_id || acc.id,
+            name: acc.name,
+            business_center: acc.business_center
+          }));
+          
+          setAdAccountOptions(accountOptions);
+          setCurrentPlatformId(pendingSyncPlatformId);
+          setAccountSelectorOpen(true);
+          toast.success(`Sync complete! Found ${accountOptions.length} account(s) - please select which to link`);
         } else {
+          // Error or no accounts - just clean up
           sessionStorage.removeItem('platform_sync_id');
         }
       }

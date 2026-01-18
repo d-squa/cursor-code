@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
 import { Loader2, CheckCircle2, AlertCircle } from "lucide-react";
@@ -34,6 +35,17 @@ export default function PlatformSyncProgressDialog({ open, onOpenChange, progres
   const isComplete = progress?.status === 'completed';
   const isError = progress?.status === 'error';
   const isSyncing = progress?.status === 'syncing' || progress?.status === 'pending';
+
+  // Auto-trigger onComplete when sync finishes
+  useEffect(() => {
+    if (isComplete && onComplete) {
+      // Small delay to let UI update before transitioning
+      const timer = setTimeout(() => {
+        onComplete();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isComplete, onComplete]);
 
   const platformName = progress?.platform === 'meta' ? 'Meta' : 'TikTok';
   const assetTypeLabel = progress?.currentAssetType 

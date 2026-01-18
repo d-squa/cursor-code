@@ -58,15 +58,28 @@ export function usePlatformSyncProgress(platformId: string | null) {
 
     let intervalId: NodeJS.Timeout;
     let mounted = true;
+    let consecutiveNulls = 0;
+    const MAX_CONSECUTIVE_NULLS = 3;
 
     const poll = async () => {
       const newProgress = await fetchProgress();
       if (!mounted) return;
 
+      if (newProgress === null) {
+        consecutiveNulls++;
+        // If we get multiple nulls in a row, the sync might not have started yet
+        if (consecutiveNulls >= MAX_CONSECUTIVE_NULLS) {
+          console.log('[usePlatformSyncProgress] No sync progress found after multiple attempts');
+        }
+        return; // Don't update state with null, keep previous progress
+      }
+
+      consecutiveNulls = 0;
       setProgress(newProgress);
 
       // Stop polling if completed or error
-      if (newProgress?.status === 'completed' || newProgress?.status === 'error') {
+      if (newProgress.status === 'completed' || newProgress.status === 'error') {
+        console.log('[usePlatformSyncProgress] Sync finished with status:', newProgress.status);
         setIsPolling(false);
         if (intervalId) clearInterval(intervalId);
       }
@@ -76,8 +89,8 @@ export function usePlatformSyncProgress(platformId: string | null) {
     poll();
     setIsPolling(true);
 
-    // Poll every 1.5 seconds
-    intervalId = setInterval(poll, 1500);
+    // Poll every 1 second for faster updates
+    intervalId = setInterval(poll, 1000);
 
     return () => {
       mounted = false;
