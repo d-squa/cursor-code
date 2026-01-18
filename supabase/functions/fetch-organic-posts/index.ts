@@ -1,0 +1,425 @@
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "npm:@supabase/supabase-js@2.76.1";
+import { getAccessToken } from "../_shared/vault-helper.ts";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+interface FetchPostsRequest {
+  platform: 'meta' | 'tiktok';
+  pageId?: string; // For Meta - Facebook Page ID
+  identityId?: string; // For TikTok - Identity ID
+  advertiserId?: string; // For TikTok
+  postIdOrUrl?: string; // For direct lookup by ID or URL
+  limit?: number;
+}
+
+interface OrganicPost {
+  id: string;
+  platform: 'meta' | 'tiktok';
+  postId: string;
+  pageId?: string;
+  identityId?: string;
+  message?: string;
+  caption?: string;
+  thumbnailUrl?: string;
+  mediaType?: 'image' | 'video' | 'carousel';
+  createdTime?: string;
+  permalink?: string;
+  isSparkEligible?: boolean;
+}
+
+serve(async (req: Request): Promise<Response> => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error("Supabase configuration missing");
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Get user from request
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      throw new Error("No authorization header");
+    }
+
+    const { data: { user }, error: userError } = await supabase.auth.getUser(
+      authHeader.replace("Bearer ", "")
+    );
+
+    if (userError || !user) {
+      throw new Error("Unauthorized");
+    }
+
+    const body: FetchPostsRequest = await req.json();
+    const { platform, pageId, identityId, advertiserId, postIdOrUrl, limit = 25 } = body;
+
+    console.log(`[fetch-organic-posts] Request: platform=${platform}, pageId=${pageId}, identityId=${identityId}, postIdOrUrl=${postIdOrUrl}`);
+
+    if (platform === 'meta') {
+      return await handleMetaPosts(supabase, user.id, pageId, postIdOrUrl, limit);
+    } else if (platform === 'tiktok') {
+      return await handleTikTokPosts(supabase, user.id, identityId, advertiserId, postIdOrUrl, limit);
+    } else {
+      throw new Error(`Unsupported platform: ${platform}`);
+    }
+  } catch (error: any) {
+    console.error("[fetch-organic-posts] Error:", error);
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      }
+    );
+  }
+});
+
+async function handleMetaPosts(
+  supabase: any,
+  userId: string,
+  pageId?: string,
+  postIdOrUrl?: string,
+  limit: number = 25
+): Promise<Response> {
+  // Get user's connected Meta platform
+  const { data: platforms, error: platformsError } = await supabase
+    .from("connected_platforms")
+    .select("id, access_token")
+    .eq("user_id", userId)
+    .eq("platform_type", "meta")
+    .eq("is_active", true);
+
+  if (platformsError) throw platformsError;
+
+  if (!platforms || platforms.length === 0) {
+    return new Response(
+      JSON.stringify({ posts: [], error: "Meta platform not connected" }),
+      { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+    );
+  }
+
+  const platform = platforms[0];
+  const accessToken = await getAccessToken(supabase, platform.id, platform.access_token);
+  
+  if (!accessToken) {
+    throw new Error("Meta access token not found");
+  }
+
+  const posts: OrganicPost[] = [];
+
+  // If looking up a specific post by ID or URL
+  if (postIdOrUrl) {
+    const postId = extractMetaPostId(postIdOrUrl);
+    if (postId) {
+      const post = await fetchMetaPostById(accessToken, postId);
+      if (post) posts.push(post);
+    }
+    return new Response(
+      JSON.stringify({ posts }),
+      { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+    );
+  }
+
+  // If pageId provided, fetch promotable posts from that page
+  if (pageId) {
+    // First get page access token
+    const { data: pageData } = await supabase
+      .from("meta_pages")
+      .select("access_token, page_id")
+      .eq("user_id", userId)
+      .eq("page_id", pageId)
+      .maybeSingle();
+
+    // Get token from vault or database
+    let pageAccessToken = accessToken;
+    if (pageData?.access_token) {
+      // Try to get from vault first
+      const vaultToken = await getAccessToken(supabase, `page_${pageId}`, pageData.access_token);
+      pageAccessToken = vaultToken || pageData.access_token;
+    }
+
+    // Fetch promotable posts (posts that can be promoted/boosted)
+    const response = await fetch(
+      `https://graph.facebook.com/v22.0/${pageId}/promotable_posts?fields=id,message,full_picture,created_time,permalink_url,is_published,status_type,attachments{media_type,media,subattachments}&limit=${limit}&access_token=${pageAccessToken}`,
+      { method: "GET" }
+    );
+
+    const data = await response.json();
+    
+    if (data.error) {
+      console.error("[fetch-organic-posts] Meta API error:", data.error);
+      // Fallback to regular feed
+      const feedResponse = await fetch(
+        `https://graph.facebook.com/v22.0/${pageId}/feed?fields=id,message,full_picture,created_time,permalink_url,is_published,attachments{media_type,media,subattachments}&limit=${limit}&access_token=${pageAccessToken}`,
+        { method: "GET" }
+      );
+      const feedData = await feedResponse.json();
+      if (!feedData.error && feedData.data) {
+        for (const post of feedData.data) {
+          posts.push(transformMetaPost(post, pageId));
+        }
+      }
+    } else if (data.data) {
+      for (const post of data.data) {
+        posts.push(transformMetaPost(post, pageId));
+      }
+    }
+  }
+
+  console.log(`[fetch-organic-posts] Found ${posts.length} Meta posts`);
+  return new Response(
+    JSON.stringify({ posts }),
+    { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+  );
+}
+
+async function handleTikTokPosts(
+  supabase: any,
+  userId: string,
+  identityId?: string,
+  advertiserId?: string,
+  postIdOrUrl?: string,
+  limit: number = 25
+): Promise<Response> {
+  // Get user's connected TikTok platform
+  const { data: platforms, error: platformsError } = await supabase
+    .from("connected_platforms")
+    .select("id, access_token, metadata")
+    .eq("user_id", userId)
+    .eq("platform_type", "tiktok")
+    .eq("is_active", true);
+
+  if (platformsError) throw platformsError;
+
+  if (!platforms || platforms.length === 0) {
+    return new Response(
+      JSON.stringify({ posts: [], error: "TikTok platform not connected" }),
+      { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+    );
+  }
+
+  const platform = platforms[0];
+  const accessToken = await getAccessToken(supabase, platform.id, platform.access_token);
+  
+  if (!accessToken) {
+    throw new Error("TikTok access token not found");
+  }
+
+  // Determine advertiser ID
+  const resolvedAdvertiserId = advertiserId || 
+    platform.metadata?.advertiser_id || 
+    platform.metadata?.advertiser_ids?.[0];
+
+  const posts: OrganicPost[] = [];
+
+  // If looking up a specific post by ID or URL
+  if (postIdOrUrl) {
+    const itemId = extractTikTokPostId(postIdOrUrl);
+    if (itemId && resolvedAdvertiserId) {
+      const post = await fetchTikTokPostById(accessToken, resolvedAdvertiserId, itemId);
+      if (post) posts.push(post);
+    }
+    return new Response(
+      JSON.stringify({ posts }),
+      { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+    );
+  }
+
+  // If identityId provided, fetch authorized posts for Spark Ads
+  if (identityId && resolvedAdvertiserId) {
+    // Fetch authorized Spark Ad posts for this identity
+    // TikTok API: /bc/spark_ad/post/get/ for BC-authorized posts
+    // Or /identity/video/get/ for identity's videos
+    
+    try {
+      // First try to get authorized Spark Ad posts
+      const sparkPostsUrl = `https://business-api.tiktok.com/open_api/v1.3/tt_video/list/?advertiser_id=${resolvedAdvertiserId}&identity_id=${identityId}&identity_type=TT_USER`;
+      
+      const response = await fetch(sparkPostsUrl, {
+        method: "GET",
+        headers: {
+          "Access-Token": accessToken,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const data = await response.json();
+      console.log(`[fetch-organic-posts] TikTok tt_video/list response code: ${data.code}`);
+
+      if (data.code === 0 && data.data?.videos) {
+        for (const video of data.data.videos.slice(0, limit)) {
+          posts.push({
+            id: video.item_id || video.video_id,
+            platform: 'tiktok',
+            postId: video.item_id || video.video_id,
+            identityId,
+            caption: video.video_title || video.caption || '',
+            thumbnailUrl: video.cover_image_url || video.video_cover_url,
+            mediaType: 'video',
+            createdTime: video.create_time ? new Date(video.create_time * 1000).toISOString() : undefined,
+            isSparkEligible: true,
+          });
+        }
+      }
+
+      // Also try the authorized post list
+      if (posts.length === 0) {
+        const authPostUrl = `https://business-api.tiktok.com/open_api/v1.3/tt_video/authorized/get/?advertiser_id=${resolvedAdvertiserId}`;
+        
+        const authResponse = await fetch(authPostUrl, {
+          method: "GET",
+          headers: {
+            "Access-Token": accessToken,
+            "Content-Type": "application/json",
+          },
+        });
+
+        const authData = await authResponse.json();
+        console.log(`[fetch-organic-posts] TikTok authorized posts response code: ${authData.code}`);
+
+        if (authData.code === 0 && authData.data?.list) {
+          for (const video of authData.data.list.slice(0, limit)) {
+            posts.push({
+              id: video.item_id || video.video_id,
+              platform: 'tiktok',
+              postId: video.item_id || video.video_id,
+              identityId: video.identity_id,
+              caption: video.video_title || video.caption || '',
+              thumbnailUrl: video.cover_image_url || video.video_cover_url,
+              mediaType: 'video',
+              createdTime: video.create_time ? new Date(video.create_time * 1000).toISOString() : undefined,
+              isSparkEligible: true,
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.error("[fetch-organic-posts] TikTok API error:", err);
+    }
+  }
+
+  console.log(`[fetch-organic-posts] Found ${posts.length} TikTok posts`);
+  return new Response(
+    JSON.stringify({ posts }),
+    { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+  );
+}
+
+// Helper functions
+function extractMetaPostId(input: string): string | null {
+  // Handle URLs like https://www.facebook.com/page/posts/123456 or just IDs
+  const urlMatch = input.match(/(?:posts?|videos?)\/(\d+)/);
+  if (urlMatch) return urlMatch[1];
+  
+  // Handle format: pageId_postId
+  const compoundMatch = input.match(/^\d+_(\d+)$/);
+  if (compoundMatch) return input;
+  
+  // Plain ID
+  if (/^\d+$/.test(input)) return input;
+  
+  return null;
+}
+
+function extractTikTokPostId(input: string): string | null {
+  // Handle URLs like https://www.tiktok.com/@user/video/123456
+  const urlMatch = input.match(/video\/(\d+)/);
+  if (urlMatch) return urlMatch[1];
+  
+  // Plain ID
+  if (/^\d+$/.test(input)) return input;
+  
+  return null;
+}
+
+async function fetchMetaPostById(accessToken: string, postId: string): Promise<OrganicPost | null> {
+  try {
+    const response = await fetch(
+      `https://graph.facebook.com/v22.0/${postId}?fields=id,message,full_picture,created_time,permalink_url,from{id,name},attachments{media_type,media,subattachments}&access_token=${accessToken}`,
+      { method: "GET" }
+    );
+    
+    const data = await response.json();
+    if (data.error) {
+      console.error("[fetch-organic-posts] Error fetching Meta post:", data.error);
+      return null;
+    }
+    
+    return transformMetaPost(data, data.from?.id);
+  } catch (err) {
+    console.error("[fetch-organic-posts] Error:", err);
+    return null;
+  }
+}
+
+async function fetchTikTokPostById(accessToken: string, advertiserId: string, itemId: string): Promise<OrganicPost | null> {
+  try {
+    // Use the tt_video/info endpoint to get video details
+    const response = await fetch(
+      `https://business-api.tiktok.com/open_api/v1.3/tt_video/info/?advertiser_id=${advertiserId}&item_ids=["${itemId}"]`,
+      {
+        method: "GET",
+        headers: {
+          "Access-Token": accessToken,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+    
+    const data = await response.json();
+    if (data.code !== 0 || !data.data?.videos?.[0]) {
+      console.error("[fetch-organic-posts] Error fetching TikTok post:", data);
+      return null;
+    }
+    
+    const video = data.data.videos[0];
+    return {
+      id: video.item_id || itemId,
+      platform: 'tiktok',
+      postId: video.item_id || itemId,
+      caption: video.video_title || video.caption || '',
+      thumbnailUrl: video.cover_image_url || video.video_cover_url,
+      mediaType: 'video',
+      createdTime: video.create_time ? new Date(video.create_time * 1000).toISOString() : undefined,
+      isSparkEligible: true,
+    };
+  } catch (err) {
+    console.error("[fetch-organic-posts] Error:", err);
+    return null;
+  }
+}
+
+function transformMetaPost(post: any, pageId?: string): OrganicPost {
+  let mediaType: 'image' | 'video' | 'carousel' = 'image';
+  
+  if (post.attachments?.data?.[0]) {
+    const attachment = post.attachments.data[0];
+    if (attachment.media_type === 'video') {
+      mediaType = 'video';
+    } else if (attachment.subattachments?.data?.length > 1) {
+      mediaType = 'carousel';
+    }
+  }
+
+  return {
+    id: post.id,
+    platform: 'meta',
+    postId: post.id,
+    pageId: pageId || post.from?.id,
+    message: post.message,
+    thumbnailUrl: post.full_picture,
+    mediaType,
+    createdTime: post.created_time,
+    permalink: post.permalink_url,
+  };
+}

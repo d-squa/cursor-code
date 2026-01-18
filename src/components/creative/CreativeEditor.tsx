@@ -29,10 +29,13 @@ import {
   AlertCircle,
   CheckCircle,
   Loader2,
+  Search,
+  Sparkles,
 } from 'lucide-react';
 import type { Creative, Platform, CreativeStatus, CallToAction } from '@/types/creative';
 import { PLATFORM_SPECS, validateCreative, VALID_FUNNEL_STAGES } from '@/utils/creativeValidation';
 import { cn } from '@/lib/utils';
+import { OrganicPostSelector } from './OrganicPostSelector';
 
 interface CreativeEditorProps {
   creative: Creative | null;
@@ -54,6 +57,7 @@ export function CreativeEditor({
   const [formData, setFormData] = useState<Partial<Creative>>({});
   const [activeTab, setActiveTab] = useState('basic');
   const [validation, setValidation] = useState<ReturnType<typeof validateCreative> | null>(null);
+  const [postSelectorOpen, setPostSelectorOpen] = useState(false);
 
   // Initialize form data when creative changes
   useEffect(() => {
@@ -195,21 +199,57 @@ export function CreativeEditor({
               {formData.creativeType === 'existing_post' && (
                 <>
                   <div className="space-y-2">
-                    <Label>Post ID *</Label>
+                    <div className="flex items-center justify-between">
+                      <Label>Post ID *</Label>
+                      {(formData.platform === 'meta' || formData.platform === 'tiktok') && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setPostSelectorOpen(true)}
+                          className="h-7 text-xs"
+                        >
+                          <Search className="h-3 w-3 mr-1" />
+                          Browse Posts
+                        </Button>
+                      )}
+                    </div>
                     <Input
                       value={formData.externalPostId || ''}
                       onChange={(e) => handleChange('externalPostId', e.target.value)}
-                      placeholder="Enter post ID"
+                      placeholder="Enter post ID or use Browse to select"
                     />
+                    {formData.externalPostId && (
+                      <div className="flex items-center gap-2 text-xs text-green-600">
+                        <CheckCircle className="h-3 w-3" />
+                        Post ID set
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-2">
-                    <Label>Page ID</Label>
+                    <Label>Page/Account ID</Label>
                     <Input
                       value={formData.externalPageId || ''}
                       onChange={(e) => handleChange('externalPageId', e.target.value)}
-                      placeholder="Enter page ID"
+                      placeholder="Auto-filled when browsing"
                     />
                   </div>
+                  
+                  {/* Organic Post Selector Dialog */}
+                  {(formData.platform === 'meta' || formData.platform === 'tiktok') && (
+                    <OrganicPostSelector
+                      open={postSelectorOpen}
+                      onOpenChange={setPostSelectorOpen}
+                      platform={formData.platform as 'meta' | 'tiktok'}
+                      onSelect={(post) => {
+                        handleChange('externalPostId', post.postId);
+                        if (post.pageId) handleChange('externalPageId', post.pageId);
+                        if (post.identityId) handleChange('tiktokIdentityId', post.identityId);
+                        if (post.thumbnailUrl) handleChange('thumbnailUrl', post.thumbnailUrl);
+                        if (post.message || post.caption) handleChange('primaryText', post.message || post.caption);
+                      }}
+                    />
+                  )}
                 </>
               )}
             </TabsContent>
