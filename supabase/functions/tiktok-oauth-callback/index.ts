@@ -21,12 +21,21 @@ const oauthInputSchema = z.object({
 
 interface SyncProgress {
   status: 'pending' | 'syncing' | 'completed' | 'error';
-  totalAdvertisers: number;
-  processedAdvertisers: number;
-  currentAdvertiserName?: string;
+  platform: 'tiktok' | 'meta';
+  totalSteps: number;
+  currentStep: number;
+  currentAssetType?: string;
+  currentAssetName?: string;
   errorMessage?: string;
   startedAt?: string;
   completedAt?: string;
+  processedCounts?: {
+    adAccounts?: number;
+    pixels?: number;
+    identities?: number;
+    catalogs?: number;
+    productSets?: number;
+  };
 }
 
 // Background task to fetch advertiser details
@@ -72,8 +81,10 @@ async function fetchAdvertiserDetailsBackground(
   try {
     await updateProgress({
       status: 'syncing',
-      totalAdvertisers: advertiserIds.length,
-      processedAdvertisers: 0,
+      platform: 'tiktok',
+      totalSteps: advertiserIds.length,
+      currentStep: 0,
+      currentAssetType: 'advertisers',
       startedAt: new Date().toISOString()
     });
 
@@ -97,8 +108,8 @@ async function fetchAdvertiserDetailsBackground(
           
           // Update progress with current advertiser name
           await updateProgress({
-            processedAdvertisers: i + 1,
-            currentAdvertiserName: advertiserInfo.name || `Advertiser ${advertiserId}`
+            currentStep: i + 1,
+            currentAssetName: advertiserInfo.name || `Advertiser ${advertiserId}`
           });
           
           let businessCenterInfo = null;
@@ -153,7 +164,7 @@ async function fetchAdvertiserDetailsBackground(
             bc_id: null,
             business_center: null,
           });
-          await updateProgress({ processedAdvertisers: i + 1 });
+          await updateProgress({ currentStep: i + 1 });
         }
       } catch (error) {
         console.error(`Error fetching advertiser ${advertiserId}:`, error);
@@ -166,7 +177,7 @@ async function fetchAdvertiserDetailsBackground(
           bc_id: null,
           business_center: null,
         });
-        await updateProgress({ processedAdvertisers: i + 1 });
+        await updateProgress({ currentStep: i + 1 });
       }
     }
 
@@ -191,9 +202,14 @@ async function fetchAdvertiserDetailsBackground(
           tiktok_user_info: tiktokUserInfo,
           sync_progress: {
             status: 'completed',
-            totalAdvertisers: advertiserIds.length,
-            processedAdvertisers: advertiserIds.length,
-            completedAt: new Date().toISOString()
+            platform: 'tiktok',
+            totalSteps: advertiserIds.length,
+            currentStep: advertiserIds.length,
+            currentAssetType: 'advertisers',
+            completedAt: new Date().toISOString(),
+            processedCounts: {
+              adAccounts: accounts.length
+            }
           }
         },
         updated_at: new Date().toISOString()
@@ -336,8 +352,10 @@ const handler = async (req: Request): Promise<Response> => {
     // Create initial sync progress
     const initialSyncProgress: SyncProgress = {
       status: 'pending',
-      totalAdvertisers: advertiser_ids.length,
-      processedAdvertisers: 0,
+      platform: 'tiktok',
+      totalSteps: advertiser_ids.length,
+      currentStep: 0,
+      currentAssetType: 'advertisers',
       startedAt: new Date().toISOString()
     };
 
