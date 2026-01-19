@@ -127,67 +127,70 @@ export default function CreativeLibrary() {
     [searchParams, setSearchParams]
   );
 
-  // Handle campaign selection for folder uploads - extract TikTok identity from budget_allocation
+  // Handle campaign selection for folder uploads - extract TikTok identity from market_splits
   const handleFolderUploadCampaignSelect = useCallback(
     async (campaignId: string) => {
       setFolderUploadCampaignId(campaignId);
       setFolderUploadTiktokIdentityId(undefined);
       setFolderUploadAdAccounts([]);
-      
+
       if (!campaignId) return;
-      
+
       try {
-        // Fetch campaign budget_allocation to get TikTok identity
+        // Fetch campaign market_splits to get TikTok identity + ad accounts
         const { data: campaign, error } = await supabase
           .from('campaigns')
-          .select('budget_allocation, platforms')
+          .select('market_splits')
           .eq('id', campaignId)
-          .single();
-        
+          .maybeSingle();
+
         if (error || !campaign) {
           console.error('Error loading campaign for folder upload:', error);
           return;
         }
-        
-        const budgetAllocation = campaign.budget_allocation as Record<string, any> || {};
+
+        const marketSplits = ((campaign as any).market_splits || {}) as Record<string, any>;
         const adAccountsList: Array<{ platform: 'meta' | 'tiktok'; accountId: string }> = [];
-        
+
         // Extract TikTok identity from the first market/phase that has one
         let tiktokIdentity: string | undefined;
-        
-        for (const [platformKey, platformConfig] of Object.entries(budgetAllocation)) {
-          if (!platformConfig || typeof platformConfig !== 'object') continue;
-          
-          const markets = (platformConfig as any).markets || [];
-          for (const market of markets) {
-            // Check for ad account
-            if (market.adAccountId) {
-              if (platformKey.toLowerCase().includes('tiktok')) {
-                adAccountsList.push({ platform: 'tiktok', accountId: market.adAccountId });
-              } else if (platformKey.toLowerCase().includes('meta')) {
-                adAccountsList.push({ platform: 'meta', accountId: market.adAccountId });
-              }
+
+        for (const [platformKey, markets] of Object.entries(marketSplits)) {
+          if (!Array.isArray(markets)) continue;
+
+          const isTikTok = platformKey.toLowerCase().includes('tiktok');
+          const isMeta = platformKey.toLowerCase().includes('meta');
+
+          for (const market of markets as any[]) {
+            const externalAdAccountId =
+              market?.adAccountId || market?.tiktokAdvertiserId || market?.advertiser_id;
+
+            if (externalAdAccountId) {
+              if (isTikTok) adAccountsList.push({ platform: 'tiktok', accountId: String(externalAdAccountId) });
+              if (isMeta) adAccountsList.push({ platform: 'meta', accountId: String(externalAdAccountId) });
             }
-            
-            // Look for TikTok identity in market or phases
-            if (platformKey.toLowerCase().includes('tiktok')) {
-              if (market.tiktokIdentityId && !tiktokIdentity) {
-                tiktokIdentity = market.tiktokIdentityId;
-              }
-              
-              const phases = market.phases || [];
+
+            if (isTikTok && !tiktokIdentity) {
+              const marketIdentity = market?.tiktokIdentityId || market?.tiktokIdentity;
+              if (marketIdentity) tiktokIdentity = String(marketIdentity);
+
+              const phases = Array.isArray(market?.phases) ? market.phases : [];
               for (const phase of phases) {
-                if (phase.tiktokIdentityId && !tiktokIdentity) {
-                  tiktokIdentity = phase.tiktokIdentityId;
-                }
+                const phaseIdentity = phase?.tiktokIdentityId || phase?.tiktokIdentity;
+                if (!tiktokIdentity && phaseIdentity) tiktokIdentity = String(phaseIdentity);
               }
             }
           }
         }
-        
+
+        // Deduplicate accounts
+        const dedupedAccounts = Array.from(
+          new Map(adAccountsList.map((a) => [`${a.platform}:${a.accountId}`, a])).values()
+        );
+
         setFolderUploadTiktokIdentityId(tiktokIdentity);
-        setFolderUploadAdAccounts(adAccountsList);
-        
+        setFolderUploadAdAccounts(dedupedAccounts);
+
         if (tiktokIdentity) {
           toast.success(`TikTok identity loaded from ActiPlan`);
         }
@@ -198,48 +201,58 @@ export default function CreativeLibrary() {
     []
   );
   
-  // Handle campaign selection for Platform Assets - extract ad accounts
+  // Handle campaign selection for Platform Assets - extract ad accounts from market_splits
   const handlePlatformAssetsCampaignSelect = useCallback(
     async (campaignId: string) => {
       setPlatformAssetsCampaignId(campaignId);
       setPlatformAssetsAdAccounts([]);
-      
+
       if (!campaignId) return;
-      
+
       try {
         const { data: campaign, error } = await supabase
           .from('campaigns')
-          .select('budget_allocation, platforms')
+          .select('market_splits')
           .eq('id', campaignId)
-          .single();
-        
+          .maybeSingle();
+
         if (error || !campaign) {
           console.error('Error loading campaign for platform assets:', error);
           return;
         }
-        
-        const budgetAllocation = campaign.budget_allocation as Record<string, any> || {};
+
+        const marketSplits = ((campaign as any).market_splits || {}) as Record<string, any>;
         const adAccountsList: Array<{ platform: 'meta' | 'tiktok'; accountId: string }> = [];
-        
-        for (const [platformKey, platformConfig] of Object.entries(budgetAllocation)) {
-          if (!platformConfig || typeof platformConfig !== 'object') continue;
-          
-          const markets = (platformConfig as any).markets || [];
-          for (const market of markets) {
-            if (market.adAccountId) {
-              const platform = platformKey.toLowerCase().includes('tiktok') ? 'tiktok' : 
-                              platformKey.toLowerCase().includes('meta') ? 'meta' : null;
-              if (platform && !adAccountsList.some(a => a.accountId === market.adAccountId && a.platform === platform)) {
-                adAccountsList.push({ platform, accountId: market.adAccountId });
-              }
+
+        for (const [platformKey, markets] of Object.entries(marketSplits)) {
+          if (!Array.isArray(markets)) continue;
+
+          const platform = platformKey.toLowerCase().includes('tiktok')
+            ? 'tiktok'
+            : platformKey.toLowerCase().includes('meta')
+              ? 'meta'
+              : null;
+
+          if (!platform) continue;
+
+          for (const market of markets as any[]) {
+            const externalAdAccountId =
+              market?.adAccountId || market?.tiktokAdvertiserId || market?.advertiser_id;
+
+            if (externalAdAccountId) {
+              adAccountsList.push({ platform, accountId: String(externalAdAccountId) });
             }
           }
         }
-        
-        setPlatformAssetsAdAccounts(adAccountsList);
-        
-        if (adAccountsList.length > 0) {
-          toast.success(`Found ${adAccountsList.length} ad account(s) from ActiPlan`);
+
+        const deduped = Array.from(
+          new Map(adAccountsList.map((a) => [`${a.platform}:${a.accountId}`, a])).values()
+        );
+
+        setPlatformAssetsAdAccounts(deduped);
+
+        if (deduped.length > 0) {
+          toast.success(`Found ${deduped.length} ad account(s) from ActiPlan`);
         }
       } catch (err) {
         console.error('Error extracting campaign config for platform assets:', err);
@@ -248,81 +261,97 @@ export default function CreativeLibrary() {
     []
   );
   
-  // Handle campaign selection for Page Assets - extract ALL page/identity configs
+  // Handle campaign selection for Page Assets - extract ALL page/identity configs from market_splits
   const handlePageAssetsCampaignSelect = useCallback(
     async (campaignId: string) => {
       setPageAssetsCampaignId(campaignId);
       setPageAssetsConfigs([]);
-      
+
       if (!campaignId) return;
-      
+
       try {
         const { data: campaign, error } = await supabase
           .from('campaigns')
-          .select('budget_allocation, platforms')
+          .select('market_splits')
           .eq('id', campaignId)
-          .single();
-        
+          .maybeSingle();
+
         if (error || !campaign) {
           console.error('Error loading campaign for page assets:', error);
           return;
         }
-        
-        const budgetAllocation = campaign.budget_allocation as Record<string, any> || {};
-        const configs: Array<{ 
+
+        const marketSplits = ((campaign as any).market_splits || {}) as Record<string, any>;
+        const configs: Array<{
           platform: 'meta' | 'tiktok';
-          pageId?: string; 
-          identityId?: string; 
+          pageId?: string;
+          identityId?: string;
           advertiserId?: string;
           pageName?: string;
         }> = [];
-        
-        for (const [platformKey, platformConfig] of Object.entries(budgetAllocation)) {
-          if (!platformConfig || typeof platformConfig !== 'object') continue;
-          
-          const markets = (platformConfig as any).markets || [];
-          for (const market of markets) {
-            // Extract Meta page IDs
-            if (platformKey.toLowerCase().includes('meta')) {
-              if (market.pageId && !configs.some(c => c.platform === 'meta' && c.pageId === market.pageId)) {
-                configs.push({ platform: 'meta', pageId: market.pageId, pageName: market.pageName });
+
+        for (const [platformKey, markets] of Object.entries(marketSplits)) {
+          if (!Array.isArray(markets)) continue;
+
+          const isMeta = platformKey.toLowerCase().includes('meta');
+          const isTikTok = platformKey.toLowerCase().includes('tiktok');
+
+          for (const market of markets as any[]) {
+            const phases = Array.isArray(market?.phases) ? market.phases : [];
+
+            if (isMeta) {
+              const marketPageId = market?.pageId || market?.page;
+              if (marketPageId && !configs.some((c) => c.platform === 'meta' && c.pageId === String(marketPageId))) {
+                configs.push({
+                  platform: 'meta',
+                  pageId: String(marketPageId),
+                  pageName: market?.pageName || market?.pageNameFromApi || market?.name,
+                });
               }
-              const phases = market.phases || [];
+
               for (const phase of phases) {
-                if (phase.pageId && !configs.some(c => c.platform === 'meta' && c.pageId === phase.pageId)) {
-                  configs.push({ platform: 'meta', pageId: phase.pageId, pageName: phase.pageName });
+                const phasePageId = phase?.pageId || phase?.page || phase?.metaPageId;
+                if (phasePageId && !configs.some((c) => c.platform === 'meta' && c.pageId === String(phasePageId))) {
+                  configs.push({
+                    platform: 'meta',
+                    pageId: String(phasePageId),
+                    pageName: phase?.pageName || market?.pageName || market?.name,
+                  });
                 }
               }
             }
-            
-            // Extract TikTok identity IDs
-            if (platformKey.toLowerCase().includes('tiktok')) {
-              const advertiserId = market.adAccountId;
-              if (market.tiktokIdentityId && !configs.some(c => c.platform === 'tiktok' && c.identityId === market.tiktokIdentityId)) {
-                configs.push({ 
-                  platform: 'tiktok', 
-                  identityId: market.tiktokIdentityId, 
-                  advertiserId,
-                  pageName: market.tiktokIdentityName 
+
+            if (isTikTok) {
+              const advertiserId =
+                market?.adAccountId || market?.tiktokAdvertiserId || market?.advertiser_id;
+
+              const marketIdentity = market?.tiktokIdentityId || market?.tiktokIdentity;
+              if (marketIdentity && !configs.some((c) => c.platform === 'tiktok' && c.identityId === String(marketIdentity))) {
+                configs.push({
+                  platform: 'tiktok',
+                  identityId: String(marketIdentity),
+                  advertiserId: advertiserId ? String(advertiserId) : undefined,
+                  pageName: market?.tiktokIdentityName || market?.accountName || market?.name,
                 });
               }
-              const phases = market.phases || [];
+
               for (const phase of phases) {
-                if (phase.tiktokIdentityId && !configs.some(c => c.platform === 'tiktok' && c.identityId === phase.tiktokIdentityId)) {
-                  configs.push({ 
-                    platform: 'tiktok', 
-                    identityId: phase.tiktokIdentityId, 
-                    advertiserId,
-                    pageName: phase.tiktokIdentityName 
+                const phaseIdentity = phase?.tiktokIdentityId || phase?.tiktokIdentity;
+                if (phaseIdentity && !configs.some((c) => c.platform === 'tiktok' && c.identityId === String(phaseIdentity))) {
+                  configs.push({
+                    platform: 'tiktok',
+                    identityId: String(phaseIdentity),
+                    advertiserId: advertiserId ? String(advertiserId) : undefined,
+                    pageName: phase?.tiktokIdentityName || market?.accountName || market?.name,
                   });
                 }
               }
             }
           }
         }
-        
+
         setPageAssetsConfigs(configs);
-        
+
         if (configs.length > 0) {
           toast.success(`Found ${configs.length} page(s)/identity(s) from ActiPlan`);
         }
@@ -781,7 +810,17 @@ export default function CreativeLibrary() {
             )}
             
             {/* Unified Asset Library - shows ALL assets from ALL accounts */}
-            <UnifiedAssetsLibrary adAccounts={platformAssetsAdAccounts} />
+            {!platformAssetsCampaignId ? (
+              <div className="text-sm text-muted-foreground">
+                Select an ActiPlan above to load its connected ad accounts.
+              </div>
+            ) : platformAssetsAdAccounts.length === 0 ? (
+              <div className="text-sm text-muted-foreground">
+                This ActiPlan doesn’t have any ad accounts configured yet. Open the ActiPlan and assign an ad account to at least one market.
+              </div>
+            ) : (
+              <UnifiedAssetsLibrary adAccounts={platformAssetsAdAccounts} />
+            )}
           </div>
         </TabsContent>
         
@@ -821,7 +860,17 @@ export default function CreativeLibrary() {
             </div>
             
             {/* Unified Page Assets Library - shows ALL posts from ALL pages/identities */}
-            <UnifiedPageAssetsLibrary pageConfigs={pageAssetsConfigs} />
+            {!pageAssetsCampaignId ? (
+              <div className="text-sm text-muted-foreground">
+                Select an ActiPlan above to load its connected pages/identities.
+              </div>
+            ) : pageAssetsConfigs.length === 0 ? (
+              <div className="text-sm text-muted-foreground">
+                This ActiPlan doesn’t have any pages (Meta) or identities (TikTok) configured yet. Open the ActiPlan and set a Page/Identity on at least one market.
+              </div>
+            ) : (
+              <UnifiedPageAssetsLibrary pageConfigs={pageAssetsConfigs} />
+            )}
           </div>
         </TabsContent>
       </Tabs>
