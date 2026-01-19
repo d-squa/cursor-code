@@ -213,27 +213,48 @@ async function handleMetaPosts(
         (typeof feedData.error?.message === "string" &&
           feedData.error.message.includes("Page access token is required")));
 
-    if (tokenRelatedError) {
+    // Common when token is missing the required permissions (e.g. pages_read_engagement)
+    const permissionError =
+      !!feedData?.error &&
+      (feedData.error?.code === 10 ||
+        (typeof feedData.error?.message === "string" &&
+          feedData.error.message.includes("pages_read_engagement")));
+
+    // If we got a stale/insufficient page token (or used a user token), force-refresh a page token and retry once.
+    if (tokenRelatedError || permissionError) {
       const tokenInfo = await fetchMetaPageTokenFromAccounts(accessToken, pageId);
       if (tokenInfo?.accessToken) {
-        pageAccessToken = tokenInfo.accessToken;
-        await persistPageToken(tokenInfo.accessToken, tokenInfo.pageName);
+        const newToken = tokenInfo.accessToken;
+        if (newToken !== pageAccessToken) {
+          pageAccessToken = newToken;
+          await persistPageToken(newToken, tokenInfo.pageName);
+        }
         feedData = await fetchFeed(pageAccessToken);
       }
     }
 
     if (feedData.error) {
-      console.error("[fetch-organic-posts] Meta feed API error:", feedData.error);
-
       // Try /posts as fallback (using Page token if available)
       const postsData = await fetchPosts(pageAccessToken || accessToken);
 
       if (!postsData.error && postsData.data) {
+        console.warn(
+          `[fetch-organic-posts] Meta feed failed for page ${pageId} (code ${feedData.error?.code}); used /posts fallback`
+        );
         for (const post of postsData.data) {
           posts.push(transformMetaPost(post, pageId));
         }
-      } else if (postsData.error) {
-        console.error("[fetch-organic-posts] Meta posts API error:", postsData.error);
+      } else {
+        console.error(
+          `[fetch-organic-posts] Meta feed API error for page ${pageId}:`,
+          feedData.error
+        );
+        if (postsData.error) {
+          console.error(
+            `[fetch-organic-posts] Meta posts API error for page ${pageId}:`,
+            postsData.error
+          );
+        }
       }
     } else if (feedData.data) {
       for (const post of feedData.data) {
