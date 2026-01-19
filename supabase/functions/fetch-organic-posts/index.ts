@@ -163,29 +163,33 @@ async function handleMetaPosts(
       pageAccessToken = vaultToken || pageData.access_token;
     }
 
-    // Fetch promotable posts (posts that can be promoted/boosted)
-    const response = await fetch(
-      `https://graph.facebook.com/v22.0/${pageId}/promotable_posts?fields=id,message,full_picture,created_time,permalink_url,is_published,status_type,attachments{media_type,media,subattachments}&limit=${limit}&access_token=${pageAccessToken}`,
+    // Use /feed endpoint directly - promotable_posts requires ads_management permission
+    // which isn't typically granted via standard OAuth flow
+    console.log(`[fetch-organic-posts] Fetching Meta feed for page ${pageId}`);
+    
+    const feedResponse = await fetch(
+      `https://graph.facebook.com/v22.0/${pageId}/feed?fields=id,message,full_picture,created_time,permalink_url,is_published,attachments{media_type,media,subattachments}&limit=${limit}&access_token=${pageAccessToken}`,
       { method: "GET" }
     );
-
-    const data = await response.json();
+    const feedData = await readJsonSafe(feedResponse);
     
-    if (data.error) {
-      console.error("[fetch-organic-posts] Meta API error:", data.error);
-      // Fallback to regular feed
-      const feedResponse = await fetch(
-        `https://graph.facebook.com/v22.0/${pageId}/feed?fields=id,message,full_picture,created_time,permalink_url,is_published,attachments{media_type,media,subattachments}&limit=${limit}&access_token=${pageAccessToken}`,
+    if (feedData.error) {
+      console.error("[fetch-organic-posts] Meta feed API error:", feedData.error);
+      // Try /posts as last resort
+      const postsResponse = await fetch(
+        `https://graph.facebook.com/v22.0/${pageId}/posts?fields=id,message,full_picture,created_time,permalink_url,is_published,attachments{media_type,media,subattachments}&limit=${limit}&access_token=${pageAccessToken}`,
         { method: "GET" }
       );
-      const feedData = await feedResponse.json();
-      if (!feedData.error && feedData.data) {
-        for (const post of feedData.data) {
+      const postsData = await readJsonSafe(postsResponse);
+      if (!postsData.error && postsData.data) {
+        for (const post of postsData.data) {
           posts.push(transformMetaPost(post, pageId));
         }
+      } else if (postsData.error) {
+        console.error("[fetch-organic-posts] Meta posts API error:", postsData.error);
       }
-    } else if (data.data) {
-      for (const post of data.data) {
+    } else if (feedData.data) {
+      for (const post of feedData.data) {
         posts.push(transformMetaPost(post, pageId));
       }
     }
@@ -268,8 +272,8 @@ async function handleTikTokPosts(
         },
       });
 
-      const data = await response.json();
-      console.log(`[fetch-organic-posts] TikTok tt_video/list response code: ${data.code}`);
+      const data = await readJsonSafe(response);
+      console.log(`[fetch-organic-posts] TikTok tt_video/list response code: ${data.code}, error: ${data.error?.message || 'none'}`);
 
       if (data.code === 0 && data.data?.videos) {
         for (const video of data.data.videos.slice(0, limit)) {
@@ -299,8 +303,8 @@ async function handleTikTokPosts(
           },
         });
 
-        const authData = await authResponse.json();
-        console.log(`[fetch-organic-posts] TikTok authorized posts response code: ${authData.code}`);
+        const authData = await readJsonSafe(authResponse);
+        console.log(`[fetch-organic-posts] TikTok authorized posts response code: ${authData.code}, error: ${authData.error?.message || 'none'}`);
 
         if (authData.code === 0 && authData.data?.list) {
           for (const video of authData.data.list.slice(0, limit)) {
