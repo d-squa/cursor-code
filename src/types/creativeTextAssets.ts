@@ -177,6 +177,10 @@ export interface CreativeTextAssetRow {
   // TikTok-specific
   platformThumbnailId?: string;
   tiktokAdvertiserId?: string;
+  
+  // Page/Identity info for publishing
+  pageId?: string;
+  pageName?: string;
 }
 
 // UTM Builder config

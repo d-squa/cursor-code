@@ -39,6 +39,7 @@ import { getPlacementBadges, validateCarouselCreatives } from '@/utils/placement
 import { BulkParameterEditor } from './BulkParameterEditor';
 import { ApplyModeDialog, type ApplyMode } from './ApplyModeDialog';
 import { ThumbnailUploader } from './ThumbnailUploader';
+import { PageIdentityIndicator } from './PageIdentityIndicator';
 
 interface TextAssetExcelEditorProps {
   rows: CreativeTextAssetRow[];
@@ -1342,6 +1343,8 @@ export function TextAssetExcelEditor({
                       
                        if (col.key === 'structure') {
                          const carousel = carouselByCardId.get(row.id);
+                         const rowPageId = (row as any).pageId;
+                         const rowPageName = (row as any).pageName;
 
                          return (
                            <div
@@ -1349,6 +1352,16 @@ export function TextAssetExcelEditor({
                              className="px-2 py-1.5 flex items-center gap-2 border-r shrink-0 pl-[72px]"
                              style={{ width: col.width }}
                            >
+                             {/* Page/Identity indicator */}
+                             {rowPageId && (
+                               <PageIdentityIndicator
+                                 platform={row.platform}
+                                 pageId={rowPageId}
+                                 pageName={rowPageName}
+                                 size="sm"
+                               />
+                             )}
+                             
                              {row.mediaType === 'video' ? (
                                <Video className="h-4 w-4 text-muted-foreground shrink-0" />
                              ) : (
