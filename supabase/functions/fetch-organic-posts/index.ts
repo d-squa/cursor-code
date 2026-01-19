@@ -391,6 +391,42 @@ function extractTikTokPostId(input: string): string | null {
   return null;
 }
 
+/**
+ * Fetch page access token from /me/accounts using user access token
+ */
+async function fetchMetaPageTokenFromAccounts(
+  userAccessToken: string,
+  targetPageId: string
+): Promise<{ accessToken: string; pageName?: string } | null> {
+  try {
+    console.log(`[fetch-organic-posts] Fetching page token for ${targetPageId} via /me/accounts`);
+    const res = await fetch(
+      `https://graph.facebook.com/v22.0/me/accounts?fields=id,name,access_token&access_token=${userAccessToken}`,
+      { method: "GET" }
+    );
+    const data = await readJsonSafe(res);
+
+    if (data.error) {
+      console.error("[fetch-organic-posts] /me/accounts error:", data.error);
+      return null;
+    }
+
+    const pages: Array<{ id: string; name?: string; access_token?: string }> = data.data || [];
+    const match = pages.find((p) => p.id === targetPageId);
+
+    if (match?.access_token) {
+      console.log(`[fetch-organic-posts] Found page token for ${targetPageId}`);
+      return { accessToken: match.access_token, pageName: match.name };
+    }
+
+    console.log(`[fetch-organic-posts] Page ${targetPageId} not found in /me/accounts (${pages.length} pages returned)`);
+    return null;
+  } catch (err) {
+    console.error("[fetch-organic-posts] fetchMetaPageTokenFromAccounts error:", err);
+    return null;
+  }
+}
+
 async function fetchMetaPostById(accessToken: string, postId: string): Promise<OrganicPost | null> {
   try {
     const response = await fetch(
