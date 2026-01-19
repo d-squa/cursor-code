@@ -22,11 +22,14 @@ import {
   ExternalLink,
   CheckCircle2,
   FileImage,
+  Wand2,
+  X,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface OrganicPost {
   id: string;
@@ -57,6 +60,10 @@ interface UnifiedPageAssetsLibraryProps {
   onSelectPost?: (post: OrganicPost) => void;
   selectedPostId?: string;
   selectable?: boolean;
+  /** Enable multi-select mode with auto-mesh capability */
+  multiSelect?: boolean;
+  /** Called when user wants to mesh selected posts */
+  onMeshSelected?: (posts: OrganicPost[]) => void;
 }
 
 export function UnifiedPageAssetsLibrary({
@@ -64,12 +71,44 @@ export function UnifiedPageAssetsLibrary({
   onSelectPost,
   selectedPostId,
   selectable = false,
+  multiSelect = false,
+  onMeshSelected,
 }: UnifiedPageAssetsLibraryProps) {
   const [posts, setPosts] = useState<OrganicPost[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [platformFilter, setPlatformFilter] = useState<'all' | 'meta' | 'tiktok'>('all');
   const [mediaTypeFilter, setMediaTypeFilter] = useState<'all' | 'image' | 'video' | 'carousel'>('all');
+  const [selectedPosts, setSelectedPosts] = useState<Set<string>>(new Set());
+
+  // Toggle post selection in multi-select mode
+  const togglePostSelection = (postId: string) => {
+    setSelectedPosts(prev => {
+      const next = new Set(prev);
+      if (next.has(postId)) {
+        next.delete(postId);
+      } else {
+        next.add(postId);
+      }
+      return next;
+    });
+  };
+
+  // Get selected post objects
+  const selectedPostObjects = useMemo(() => {
+    return posts.filter(p => selectedPosts.has(p.postId));
+  }, [posts, selectedPosts]);
+
+  // Clear selection
+  const clearSelection = () => setSelectedPosts(new Set());
+
+  // Handle mesh action
+  const handleMeshSelected = () => {
+    if (onMeshSelected && selectedPostObjects.length > 0) {
+      onMeshSelected(selectedPostObjects);
+      clearSelection();
+    }
+  };
 
   // Get unique platforms from configs
   const availablePlatforms = useMemo(() => {
@@ -236,6 +275,23 @@ export function UnifiedPageAssetsLibrary({
           </Select>
         </div>
 
+        {/* Multi-select action bar */}
+        {multiSelect && selectedPosts.size > 0 && (
+          <div className="flex items-center justify-between p-3 rounded-lg bg-primary/10 border border-primary/20">
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary">{selectedPosts.size} selected</Badge>
+              <Button variant="ghost" size="sm" onClick={clearSelection}>
+                <X className="h-4 w-4 mr-1" />
+                Clear
+              </Button>
+            </div>
+            <Button size="sm" onClick={handleMeshSelected} disabled={!onMeshSelected}>
+              <Wand2 className="h-4 w-4 mr-2" />
+              Auto-Mesh Selected
+            </Button>
+          </div>
+        )}
+
         {/* Posts Grid */}
         {isLoading ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
@@ -256,8 +312,14 @@ export function UnifiedPageAssetsLibrary({
                 <PostCard
                   key={`${post.postId}-${index}`}
                   post={post}
-                  isSelected={selectedPostId === post.postId}
-                  onSelect={selectable ? () => handleSelect(post) : undefined}
+                  isSelected={multiSelect ? selectedPosts.has(post.postId) : selectedPostId === post.postId}
+                  onSelect={
+                    multiSelect 
+                      ? () => togglePostSelection(post.postId)
+                      : selectable 
+                        ? () => handleSelect(post)
+                        : undefined
+                  }
                 />
               ))}
             </div>
