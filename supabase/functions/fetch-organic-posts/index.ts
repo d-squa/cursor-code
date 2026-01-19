@@ -31,6 +31,21 @@ interface OrganicPost {
   isSparkEligible?: boolean;
 }
 
+async function readJsonSafe(response: Response): Promise<any> {
+  const raw = await response.text();
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return {
+      error: {
+        message: 'Non-JSON response',
+        status: response.status,
+        body: raw.slice(0, 500),
+      },
+    };
+  }
+}
+
 serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
