@@ -30,6 +30,8 @@ import {
   Sparkles,
   Filter,
   Cloud,
+  Wand2,
+  X,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -66,6 +68,10 @@ interface UnifiedAssetsLibraryProps {
   onSelectAsset?: (asset: PlatformAsset) => void;
   selectedAssetId?: string;
   selectable?: boolean;
+  /** Enable multi-select mode with auto-mesh capability */
+  multiSelect?: boolean;
+  /** Called when user wants to mesh selected assets */
+  onMeshSelected?: (assets: PlatformAsset[]) => void;
 }
 
 const approvalStatusColors: Record<string, string> = {
@@ -82,6 +88,8 @@ export function UnifiedAssetsLibrary({
   onSelectAsset,
   selectedAssetId,
   selectable = false,
+  multiSelect = false,
+  onMeshSelected,
 }: UnifiedAssetsLibraryProps) {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
@@ -89,6 +97,23 @@ export function UnifiedAssetsLibrary({
   const [assetTypeFilter, setAssetTypeFilter] = useState<'all' | 'video' | 'image'>('all');
   const [onlyUsable, setOnlyUsable] = useState(true);
   const [syncingAccounts, setSyncingAccounts] = useState<Set<string>>(new Set());
+  const [selectedAssets, setSelectedAssets] = useState<Set<string>>(new Set());
+
+  // Toggle asset selection in multi-select mode
+  const toggleAssetSelection = (assetId: string) => {
+    setSelectedAssets(prev => {
+      const next = new Set(prev);
+      if (next.has(assetId)) {
+        next.delete(assetId);
+      } else {
+        next.add(assetId);
+      }
+      return next;
+    });
+  };
+
+  // Clear selection
+  const clearSelection = () => setSelectedAssets(new Set());
 
   // Build query keys for all accounts
   const accountKeys = useMemo(() => 
@@ -169,6 +194,19 @@ export function UnifiedAssetsLibrary({
       return true;
     });
   }, [assets, search, platformFilter, assetTypeFilter, onlyUsable]);
+
+  // Get selected asset objects (after assets query)
+  const selectedAssetObjects = useMemo(() => {
+    return (assets || []).filter(a => selectedAssets.has(a.id));
+  }, [assets, selectedAssets]);
+
+  // Handle mesh action
+  const handleMeshSelected = () => {
+    if (onMeshSelected && selectedAssetObjects.length > 0) {
+      onMeshSelected(selectedAssetObjects);
+      clearSelection();
+    }
+  };
 
   // Get unique platforms from accounts
   const availablePlatforms = useMemo(() => {
@@ -273,6 +311,23 @@ export function UnifiedAssetsLibrary({
           </label>
         </div>
 
+        {/* Multi-select action bar */}
+        {multiSelect && selectedAssets.size > 0 && (
+          <div className="flex items-center justify-between p-3 rounded-lg bg-primary/10 border border-primary/20">
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary">{selectedAssets.size} selected</Badge>
+              <Button variant="ghost" size="sm" onClick={clearSelection}>
+                <X className="h-4 w-4 mr-1" />
+                Clear
+              </Button>
+            </div>
+            <Button size="sm" onClick={handleMeshSelected} disabled={!onMeshSelected}>
+              <Wand2 className="h-4 w-4 mr-2" />
+              Auto-Mesh Selected
+            </Button>
+          </div>
+        )}
+
         {/* Asset Grid */}
         {isLoading ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
@@ -293,10 +348,17 @@ export function UnifiedAssetsLibrary({
                 <AssetCard
                   key={asset.id}
                   asset={asset}
-                  isSelected={selectedAssetId === asset.id}
-                  onSelect={selectable ? () => onSelectAsset?.(asset) : undefined}
+                  isSelected={multiSelect ? selectedAssets.has(asset.id) : selectedAssetId === asset.id}
+                  onSelect={
+                    multiSelect 
+                      ? () => toggleAssetSelection(asset.id)
+                      : selectable 
+                        ? () => onSelectAsset?.(asset) 
+                        : undefined
+                  }
                   formatDuration={formatDuration}
                   formatFileSize={formatFileSize}
+                  showCheckbox={multiSelect}
                 />
               ))}
             </div>
@@ -314,12 +376,14 @@ function AssetCard({
   onSelect,
   formatDuration,
   formatFileSize,
+  showCheckbox = false,
 }: {
   asset: PlatformAsset;
   isSelected: boolean;
   onSelect?: () => void;
   formatDuration: (s: number | null) => string | null;
   formatFileSize: (b: number | null) => string | null;
+  showCheckbox?: boolean;
 }) {
   const [imageError, setImageError] = useState(false);
   const thumbnailUrl = asset.thumbnail_url || asset.preview_url;
@@ -392,7 +456,11 @@ function AssetCard({
               {/* Selection indicator */}
               {isSelected && (
                 <div className="absolute bottom-1 left-1">
-                  <CheckCircle className="h-5 w-5 text-primary fill-primary-foreground" />
+                  {showCheckbox ? (
+                    <Checkbox checked className="h-5 w-5 data-[state=checked]:bg-primary" />
+                  ) : (
+                    <CheckCircle className="h-5 w-5 text-primary fill-primary-foreground" />
+                  )}
                 </div>
               )}
             </div>
