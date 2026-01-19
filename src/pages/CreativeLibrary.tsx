@@ -58,14 +58,16 @@ export default function CreativeLibrary() {
   const [folderUploadTiktokIdentityId, setFolderUploadTiktokIdentityId] = useState<string | undefined>();
   const [folderUploadAdAccounts, setFolderUploadAdAccounts] = useState<Array<{ platform: 'meta' | 'tiktok'; accountId: string }>>([]);
   
-  // Platform assets tab state - now extracted from ActiPlan
-  const [platformAssetsCampaignId, setPlatformAssetsCampaignId] = useState('');
+  // Platform assets tab state - now extracted from ActiPlan (persist via URL)
+  const urlPlatformAssetsCampaignId = searchParams.get('platformAssetsCampaignId') || '';
+  const [platformAssetsCampaignId, setPlatformAssetsCampaignIdInternal] = useState(urlPlatformAssetsCampaignId);
   const [platformAssetsAdAccounts, setPlatformAssetsAdAccounts] = useState<Array<{ platform: 'meta' | 'tiktok'; accountId: string }>>([]);
   const [showPlatformUploader, setShowPlatformUploader] = useState(false);
   const [platformUploaderPlatform, setPlatformUploaderPlatform] = useState<'tiktok' | 'meta'>('tiktok');
   
-  // Page assets tab state - extracted from ActiPlan (supports multiple pages/identities)
-  const [pageAssetsCampaignId, setPageAssetsCampaignId] = useState('');
+  // Page assets tab state - extracted from ActiPlan (persist via URL)
+  const urlPageAssetsCampaignId = searchParams.get('pageAssetsCampaignId') || '';
+  const [pageAssetsCampaignId, setPageAssetsCampaignIdInternal] = useState(urlPageAssetsCampaignId);
   const [pageAssetsConfigs, setPageAssetsConfigs] = useState<Array<{ 
     platform: 'meta' | 'tiktok';
     pageId?: string; 
@@ -73,6 +75,30 @@ export default function CreativeLibrary() {
     advertiserId?: string;
     pageName?: string;
   }>>([]);
+  
+  // Wrapper to persist platformAssetsCampaignId to URL
+  const setPlatformAssetsCampaignId = useCallback((id: string) => {
+    setPlatformAssetsCampaignIdInternal(id);
+    const newParams = new URLSearchParams(searchParams);
+    if (id) {
+      newParams.set('platformAssetsCampaignId', id);
+    } else {
+      newParams.delete('platformAssetsCampaignId');
+    }
+    setSearchParams(newParams, { replace: true });
+  }, [searchParams, setSearchParams]);
+  
+  // Wrapper to persist pageAssetsCampaignId to URL
+  const setPageAssetsCampaignId = useCallback((id: string) => {
+    setPageAssetsCampaignIdInternal(id);
+    const newParams = new URLSearchParams(searchParams);
+    if (id) {
+      newParams.set('pageAssetsCampaignId', id);
+    } else {
+      newParams.delete('pageAssetsCampaignId');
+    }
+    setSearchParams(newParams, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   const selectedCampaign = campaigns.find((c) => c.id === selectedCampaignId);
 
@@ -101,6 +127,22 @@ export default function CreativeLibrary() {
 
     loadCampaigns();
   }, [user?.id, shouldFetchCampaigns]);
+  
+  // Re-hydrate platform assets selection from URL on mount or when campaigns load
+  useEffect(() => {
+    if (urlPlatformAssetsCampaignId && campaigns.length > 0 && platformAssetsAdAccounts.length === 0) {
+      // Need to re-fetch the campaign data to populate ad accounts
+      handlePlatformAssetsCampaignSelect(urlPlatformAssetsCampaignId);
+    }
+  }, [urlPlatformAssetsCampaignId, campaigns.length]);
+  
+  // Re-hydrate page assets selection from URL on mount or when campaigns load
+  useEffect(() => {
+    if (urlPageAssetsCampaignId && campaigns.length > 0 && pageAssetsConfigs.length === 0) {
+      // Need to re-fetch the campaign data to populate page configs
+      handlePageAssetsCampaignSelect(urlPageAssetsCampaignId);
+    }
+  }, [urlPageAssetsCampaignId, campaigns.length]);
 
   // Sync tab changes with URL (do NOT carry over campaign selection)
   const handleTabChange = useCallback(
@@ -258,7 +300,7 @@ export default function CreativeLibrary() {
         console.error('Error extracting campaign config for platform assets:', err);
       }
     },
-    []
+    [setPlatformAssetsCampaignId]
   );
   
   // Handle campaign selection for Page Assets - extract ALL page/identity configs from market_splits
@@ -359,7 +401,7 @@ export default function CreativeLibrary() {
         console.error('Error extracting campaign config for page assets:', err);
       }
     },
-    []
+    [setPageAssetsCampaignId]
   );
 
   const {
