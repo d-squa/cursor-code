@@ -145,36 +145,66 @@ async function handleMetaPosts(
     );
   }
 
-  // If pageId provided, fetch promotable posts from that page
+  // If pageId provided, fetch recent posts from that page
   if (pageId) {
-    // First get page access token
+    // Read stored page token (if any)
     const { data: pageData } = await supabase
       .from("meta_pages")
-      .select("access_token, page_id")
+      .select("id, access_token, page_id, page_name")
       .eq("user_id", userId)
       .eq("page_id", pageId)
       .maybeSingle();
 
-    // Get token from vault or database
-    let pageAccessToken = accessToken;
-    if (pageData?.access_token) {
-      // Try to get from vault first
-      const vaultToken = await getAccessToken(supabase, `page_${pageId}`, pageData.access_token);
-      pageAccessToken = vaultToken || pageData.access_token;
+    // Start with stored token; fall back to user token
+    let pageAccessToken = pageData?.access_token || accessToken;
+
+    const fetchFeed = async (token: string) => {
+      console.log(`[fetch-organic-posts] Fetching Meta feed for page ${pageId}`);
+      const res = await fetch(
+        `https://graph.facebook.com/v22.0/${pageId}/feed?fields=id,message,full_picture,created_time,permalink_url,is_published,attachments{media_type,media,subattachments}&limit=${limit}&access_token=${token}`,
+        { method: "GET" }
+      );
+      return await readJsonSafe(res);
+    };
+
+    let feedData = await fetchFeed(pageAccessToken);
+
+    // If we used a user token (or stale token), Meta often returns: "A Page access token is required"
+    const needsPageToken =
+      !!feedData?.error &&
+      (feedData.error?.error_subcode === 2069032 ||
+        (typeof feedData.error?.message === "string" &&
+          feedData.error.message.includes("Page access token is required")));
+
+    if (needsPageToken) {
+      const pageTokenInfo = await fetchMetaPageTokenFromAccounts(accessToken, pageId);
+      if (pageTokenInfo?.accessToken) {
+        pageAccessToken = pageTokenInfo.accessToken;
+
+        // Persist token for future calls (best-effort)
+        if (pageData?.id) {
+          await supabase
+            .from("meta_pages")
+            .update({ access_token: pageTokenInfo.accessToken, synced_at: new Date().toISOString() })
+            .eq("id", pageData.id);
+        } else {
+          await supabase.from("meta_pages").insert({
+            user_id: userId,
+            page_id: pageId,
+            page_name: pageTokenInfo.pageName || `Page ${pageId}`,
+            access_token: pageTokenInfo.accessToken,
+            synced_at: new Date().toISOString(),
+          });
+        }
+
+        // Retry with page token
+        feedData = await fetchFeed(pageAccessToken);
+      }
     }
 
-    // Use /feed endpoint directly - promotable_posts requires ads_management permission
-    // which isn't typically granted via standard OAuth flow
-    console.log(`[fetch-organic-posts] Fetching Meta feed for page ${pageId}`);
-    
-    const feedResponse = await fetch(
-      `https://graph.facebook.com/v22.0/${pageId}/feed?fields=id,message,full_picture,created_time,permalink_url,is_published,attachments{media_type,media,subattachments}&limit=${limit}&access_token=${pageAccessToken}`,
-      { method: "GET" }
-    );
-    const feedData = await readJsonSafe(feedResponse);
-    
     if (feedData.error) {
       console.error("[fetch-organic-posts] Meta feed API error:", feedData.error);
+
       // Try /posts as last resort
       const postsResponse = await fetch(
         `https://graph.facebook.com/v22.0/${pageId}/posts?fields=id,message,full_picture,created_time,permalink_url,is_published,attachments{media_type,media,subattachments}&limit=${limit}&access_token=${pageAccessToken}`,
@@ -367,13 +397,13 @@ async function fetchMetaPostById(accessToken: string, postId: string): Promise<O
       `https://graph.facebook.com/v22.0/${postId}?fields=id,message,full_picture,created_time,permalink_url,from{id,name},attachments{media_type,media,subattachments}&access_token=${accessToken}`,
       { method: "GET" }
     );
-    
-    const data = await response.json();
+
+    const data = await readJsonSafe(response);
     if (data.error) {
       console.error("[fetch-organic-posts] Error fetching Meta post:", data.error);
       return null;
     }
-    
+
     return transformMetaPost(data, data.from?.id);
   } catch (err) {
     console.error("[fetch-organic-posts] Error:", err);
@@ -394,13 +424,13 @@ async function fetchTikTokPostById(accessToken: string, advertiserId: string, it
         },
       }
     );
-    
-    const data = await response.json();
-    if (data.code !== 0 || !data.data?.videos?.[0]) {
-      console.error("[fetch-organic-posts] Error fetching TikTok post:", data);
+
+    const data = await readJsonSafe(response);
+    if (data.error || data.code !== 0 || !data.data?.videos?.[0]) {
+      console.error("[fetch-organic-posts] Error fetching TikTok post:", data.error || data);
       return null;
     }
-    
+
     const video = data.data.videos[0];
     return {
       id: video.item_id || itemId,
