@@ -147,7 +147,6 @@ async function handleMetaPosts(
 
   // If pageId provided, fetch recent posts from that page
   if (pageId) {
-    // Read stored page token (if any)
     const { data: pageData } = await supabase
       .from("meta_pages")
       .select("id, access_token, page_id, page_name")
@@ -155,8 +154,23 @@ async function handleMetaPosts(
       .eq("page_id", pageId)
       .maybeSingle();
 
-    // Start with stored token; fall back to user token
-    let pageAccessToken = pageData?.access_token || accessToken;
+    const persistPageToken = async (token: string, pageName?: string) => {
+      const nowIso = new Date().toISOString();
+      if (pageData?.id) {
+        await supabase
+          .from("meta_pages")
+          .update({ access_token: token, synced_at: nowIso })
+          .eq("id", pageData.id);
+      } else {
+        await supabase.from("meta_pages").insert({
+          user_id: userId,
+          page_id: pageId,
+          page_name: pageName || `Page ${pageId}`,
+          access_token: token,
+          synced_at: nowIso,
+        });
+      }
+    };
 
     const fetchFeed = async (token: string) => {
       console.log(`[fetch-organic-posts] Fetching Meta feed for page ${pageId}`);
@@ -167,37 +181,43 @@ async function handleMetaPosts(
       return await readJsonSafe(res);
     };
 
-    let feedData = await fetchFeed(pageAccessToken);
+    const fetchPosts = async (token: string) => {
+      const res = await fetch(
+        `https://graph.facebook.com/v22.0/${pageId}/posts?fields=id,message,full_picture,created_time,permalink_url,is_published,attachments{media_type,media,subattachments}&limit=${limit}&access_token=${token}`,
+        { method: "GET" }
+      );
+      return await readJsonSafe(res);
+    };
 
-    // If we used a user token (or stale token), Meta often returns: "A Page access token is required"
-    const needsPageToken =
+    // Prefer a Page access token (stored from prior sync). If missing, fetch it via /me/accounts.
+    let pageAccessToken: string | null = pageData?.access_token ?? null;
+
+    if (!pageAccessToken) {
+      const tokenInfo = await fetchMetaPageTokenFromAccounts(accessToken, pageId);
+      if (tokenInfo?.accessToken) {
+        pageAccessToken = tokenInfo.accessToken;
+        await persistPageToken(tokenInfo.accessToken, tokenInfo.pageName);
+      }
+    }
+
+    // Fall back to user token if we truly can't obtain a page token
+    const initialToken = pageAccessToken || accessToken;
+
+    let feedData = await fetchFeed(initialToken);
+
+    // If feed fails with token-related errors, retry with a freshly pulled Page token
+    const tokenRelatedError =
       !!feedData?.error &&
       (feedData.error?.error_subcode === 2069032 ||
+        feedData.error?.code === 190 ||
         (typeof feedData.error?.message === "string" &&
           feedData.error.message.includes("Page access token is required")));
 
-    if (needsPageToken) {
-      const pageTokenInfo = await fetchMetaPageTokenFromAccounts(accessToken, pageId);
-      if (pageTokenInfo?.accessToken) {
-        pageAccessToken = pageTokenInfo.accessToken;
-
-        // Persist token for future calls (best-effort)
-        if (pageData?.id) {
-          await supabase
-            .from("meta_pages")
-            .update({ access_token: pageTokenInfo.accessToken, synced_at: new Date().toISOString() })
-            .eq("id", pageData.id);
-        } else {
-          await supabase.from("meta_pages").insert({
-            user_id: userId,
-            page_id: pageId,
-            page_name: pageTokenInfo.pageName || `Page ${pageId}`,
-            access_token: pageTokenInfo.accessToken,
-            synced_at: new Date().toISOString(),
-          });
-        }
-
-        // Retry with page token
+    if (tokenRelatedError) {
+      const tokenInfo = await fetchMetaPageTokenFromAccounts(accessToken, pageId);
+      if (tokenInfo?.accessToken) {
+        pageAccessToken = tokenInfo.accessToken;
+        await persistPageToken(tokenInfo.accessToken, tokenInfo.pageName);
         feedData = await fetchFeed(pageAccessToken);
       }
     }
@@ -205,12 +225,9 @@ async function handleMetaPosts(
     if (feedData.error) {
       console.error("[fetch-organic-posts] Meta feed API error:", feedData.error);
 
-      // Try /posts as last resort
-      const postsResponse = await fetch(
-        `https://graph.facebook.com/v22.0/${pageId}/posts?fields=id,message,full_picture,created_time,permalink_url,is_published,attachments{media_type,media,subattachments}&limit=${limit}&access_token=${pageAccessToken}`,
-        { method: "GET" }
-      );
-      const postsData = await readJsonSafe(postsResponse);
+      // Try /posts as fallback (using Page token if available)
+      const postsData = await fetchPosts(pageAccessToken || accessToken);
+
       if (!postsData.error && postsData.data) {
         for (const post of postsData.data) {
           posts.push(transformMetaPost(post, pageId));
