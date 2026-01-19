@@ -88,7 +88,7 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
       setIsLoadingAssets(true);
 
       try {
-        // Fetch campaign market splits to resolve TikTok advertiser IDs (stored per market)
+        // Fetch campaign market splits to resolve TikTok advertiser IDs and page info (stored per market)
         const { data: campaignData } = await supabase
           .from('campaigns')
           .select('market_splits')
@@ -97,6 +97,14 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
 
         const marketSplits = (campaignData?.market_splits as Record<string, any> | null) || {};
         const tiktokMarkets: any[] = Array.isArray((marketSplits as any).tiktok) ? (marketSplits as any).tiktok : [];
+        const metaMarkets: any[] = [];
+        
+        // Extract Meta markets from all platform keys containing 'meta'
+        for (const [key, markets] of Object.entries(marketSplits)) {
+          if (key.toLowerCase().includes('meta') && Array.isArray(markets)) {
+            metaMarkets.push(...markets);
+          }
+        }
 
         const defaultTikTokMarket =
           tiktokMarkets.find((m) => m?.adAccountId || m?.tiktokAdvertiserId || m?.advertiser_id) || null;
@@ -166,6 +174,28 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
                   ).trim();
                 })()
               : '';
+          
+          // Resolve page/identity info based on platform and market
+          let pageId: string | undefined;
+          let pageName: string | undefined;
+          
+          if (assignment.platform === 'meta') {
+            const marketName = String(assignment.market || '').trim();
+            const metaMatch = metaMarkets.find((m) => 
+              String(m?.name || '').toLowerCase() === marketName.toLowerCase() ||
+              String(m?.id || '').startsWith(`${marketName}-`)
+            );
+            pageId = metaMatch?.pageId || metaMatch?.page;
+            pageName = metaMatch?.pageName || metaMatch?.pageNameFromApi;
+          } else if (assignment.platform === 'tiktok') {
+            const marketName = String(assignment.market || '').trim();
+            const ttMatch = tiktokMarkets.find((m) => 
+              String(m?.name || '').toLowerCase() === marketName.toLowerCase() ||
+              String(m?.id || '').startsWith(`${marketName}-`)
+            );
+            pageId = ttMatch?.tiktokIdentityId;
+            pageName = ttMatch?.tiktokIdentityName;
+          }
 
           return {
             id: `${assignment.id}_${assignment.creative_id}`,
@@ -194,6 +224,9 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
             // TikTok-specific fields
             platformThumbnailId: creative?.platform_thumbnail_id,
             tiktokAdvertiserId: String(creative?.tiktok_asset_advertiser_id || resolvedTikTokAdvertiserId || '').trim(),
+            // Page/Identity info
+            pageId,
+            pageName,
           };
         });
 

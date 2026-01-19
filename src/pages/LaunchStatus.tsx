@@ -36,6 +36,7 @@ import { LaunchProgressTracker } from "@/components/launch/LaunchProgressTracker
 import { LaunchFiltersBar, type LaunchFilters } from "@/components/launch/LaunchFilters";
 import { downloadActiplanShell } from "@/utils/actiplanShellExport";
 import { Download } from "lucide-react";
+import { PushConfirmationDialog } from "@/components/creative/PushConfirmationDialog";
 
 interface LaunchStatusEntry {
   id: string;
@@ -139,6 +140,11 @@ export default function LaunchStatus() {
   const [currentStep, setCurrentStep] = useState<1 | 2>(1);
   const [launchFilters, setLaunchFilters] = useState<LaunchFilters>({ platform: null, market: null, phase: null, parameterSearch: null });
   const [downloadingShell, setDownloadingShell] = useState(false);
+  
+  // Confirmation dialog state
+  const [showCreativePushConfirm, setShowCreativePushConfirm] = useState(false);
+  const [showCampaignPushConfirm, setShowCampaignPushConfirm] = useState(false);
+  const [pushPageInfos, setPushPageInfos] = useState<Array<{ pageId: string; pageName: string; platform: 'meta' | 'tiktok' }>>([]);
 
   // Use the new real-time progress hook
   const {
@@ -487,8 +493,66 @@ export default function LaunchStatus() {
     }
   };
 
+  // Get page info for confirmation dialog
+  const getPageInfoForPush = useCallback(async () => {
+    if (!campaignId) return [];
+    
+    try {
+      // Fetch campaign market_splits to extract pages/identities
+      const { data: campaignData } = await supabase
+        .from('campaigns')
+        .select('market_splits')
+        .eq('id', campaignId)
+        .single();
+      
+      if (!campaignData?.market_splits) return [];
+      
+      const marketSplits = campaignData.market_splits as Record<string, any>;
+      const pages: Array<{ pageId: string; pageName: string; platform: 'meta' | 'tiktok' }> = [];
+      const seen = new Set<string>();
+      
+      for (const [platformKey, markets] of Object.entries(marketSplits)) {
+        if (!Array.isArray(markets)) continue;
+        
+        const isMeta = platformKey.toLowerCase().includes('meta');
+        const isTikTok = platformKey.toLowerCase().includes('tiktok');
+        
+        for (const market of markets as any[]) {
+          if (isMeta && market?.pageId) {
+            const key = `meta-${market.pageId}`;
+            if (!seen.has(key)) {
+              seen.add(key);
+              pages.push({ pageId: market.pageId, pageName: market.pageName || market.pageId, platform: 'meta' });
+            }
+          }
+          if (isTikTok && market?.tiktokIdentityId) {
+            const key = `tiktok-${market.tiktokIdentityId}`;
+            if (!seen.has(key)) {
+              seen.add(key);
+              pages.push({ pageId: market.tiktokIdentityId, pageName: market.tiktokIdentityName || market.tiktokIdentityId, platform: 'tiktok' });
+            }
+          }
+        }
+      }
+      
+      return pages;
+    } catch (err) {
+      console.error('Error extracting page info:', err);
+      return [];
+    }
+  }, [campaignId]);
+
+  // Show confirmation before pushing creatives
+  const handlePushCreativesClick = async () => {
+    const pages = await getPageInfoForPush();
+    setPushPageInfos(pages);
+    setShowCreativePushConfirm(true);
+  };
+
+  // Actual push creatives function
   const handlePushCreatives = async () => {
     if (!campaignId) return;
+    setShowCreativePushConfirm(false);
 
     setPushingCreatives(true);
     try {
@@ -531,6 +595,17 @@ export default function LaunchStatus() {
     } finally {
       setPushingCreatives(false);
     }
+  };
+
+  // Show confirmation before pushing campaign shell
+  const handlePushCampaignClick = () => {
+    setShowCampaignPushConfirm(true);
+  };
+
+  // Modified handlePush to be used after confirmation
+  const handleConfirmedCampaignPush = async () => {
+    setShowCampaignPushConfirm(false);
+    await handlePush();
   };
 
   const handleCheckStatus = async () => {
@@ -861,13 +936,13 @@ export default function LaunchStatus() {
 
               {canCreate ? (
                 <>
-                  <Button onClick={handlePush} disabled={!canPush || allPushed}>
+                  <Button onClick={handlePushCampaignClick} disabled={!canPush || allPushed}>
                     {pushing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Rocket className="h-4 w-4 mr-2" />}
                     {isRetry ? `Retry Failed (${pendingEntities.length})` : "Push to DSP"}
                   </Button>
                   {allAdSetsPushed && creativePushStats.total > 0 && (
                     <Button 
-                      onClick={handlePushCreatives} 
+                      onClick={handlePushCreativesClick} 
                       disabled={!canPushCreatives}
                       variant={creativePushStats.pushed === creativePushStats.total ? "outline" : "default"}
                     >
@@ -986,6 +1061,26 @@ export default function LaunchStatus() {
           />
         </div>
       )}
+
+      {/* Confirmation Dialogs */}
+      <PushConfirmationDialog
+        open={showCreativePushConfirm}
+        onOpenChange={setShowCreativePushConfirm}
+        onConfirm={handlePushCreatives}
+        type="ads"
+        adCount={creativePushStats.pending}
+        pages={pushPageInfos}
+        isLoading={pushingCreatives}
+      />
+      
+      <PushConfirmationDialog
+        open={showCampaignPushConfirm}
+        onOpenChange={setShowCampaignPushConfirm}
+        onConfirm={handleConfirmedCampaignPush}
+        type="campaign"
+        campaignCount={pendingEntities.length}
+        isLoading={pushing}
+      />
 
     </div>
   );

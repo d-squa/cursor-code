@@ -506,6 +506,28 @@ export default function CreativeLibrary() {
     toast.success('Sample structure downloaded');
   }, []);
 
+  // Handle auto-mesh from Platform Assets
+  const handlePlatformAssetsMesh = useCallback((assets: any[]) => {
+    if (!platformAssetsCampaignId) {
+      toast.error('Please select an ActiPlan first');
+      return;
+    }
+    // Navigate to creative matching with the selected assets
+    toast.success(`${assets.length} asset(s) selected for meshing`);
+    navigate(`/creatives/match?campaignId=${platformAssetsCampaignId}&source=platform-assets`);
+  }, [platformAssetsCampaignId, navigate]);
+
+  // Handle auto-mesh from Page Assets (organic posts)
+  const handlePageAssetsMesh = useCallback((posts: any[]) => {
+    if (!pageAssetsCampaignId) {
+      toast.error('Please select an ActiPlan first');
+      return;
+    }
+    // Navigate to creative matching with the selected posts
+    toast.success(`${posts.length} post(s) selected for meshing`);
+    navigate(`/creatives/match?campaignId=${pageAssetsCampaignId}&source=page-assets`);
+  }, [pageAssetsCampaignId, navigate]);
+
   const renderActiPlanSelector = (options?: { rightSlot?: ReactNode }) => (
     <div className="flex items-center gap-4 p-4 border rounded-lg bg-muted/30">
       <div className="flex-1">
@@ -861,7 +883,11 @@ export default function CreativeLibrary() {
                 This ActiPlan doesn’t have any ad accounts configured yet. Open the ActiPlan and assign an ad account to at least one market.
               </div>
             ) : (
-              <UnifiedAssetsLibrary adAccounts={platformAssetsAdAccounts} />
+              <UnifiedAssetsLibrary 
+                adAccounts={platformAssetsAdAccounts} 
+                multiSelect={true}
+                onMeshSelected={handlePlatformAssetsMesh}
+              />
             )}
           </div>
         </TabsContent>
@@ -911,7 +937,11 @@ export default function CreativeLibrary() {
                 This ActiPlan doesn’t have any pages (Meta) or identities (TikTok) configured yet. Open the ActiPlan and set a Page/Identity on at least one market.
               </div>
             ) : (
-              <UnifiedPageAssetsLibrary pageConfigs={pageAssetsConfigs} />
+              <UnifiedPageAssetsLibrary 
+                pageConfigs={pageAssetsConfigs}
+                multiSelect={true}
+                onMeshSelected={handlePageAssetsMesh}
+              />
             )}
           </div>
         </TabsContent>
