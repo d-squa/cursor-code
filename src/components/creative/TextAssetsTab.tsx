@@ -136,7 +136,9 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
               aspect_ratio,
               media_urls,
               platform_thumbnail_id,
-              tiktok_asset_advertiser_id
+              tiktok_asset_advertiser_id,
+              external_post_id,
+              external_page_id
             )
           `)
           .eq('campaign_id', effectiveCampaignId);
@@ -197,6 +199,9 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
             pageName = ttMatch?.tiktokIdentityName;
           }
 
+          // Detect organic posts - those with external_post_id
+          const isOrganic = !!(creative?.external_post_id);
+          
           return {
             id: `${assignment.id}_${assignment.creative_id}`,
             creativeId: assignment.creative_id,
@@ -227,6 +232,10 @@ export function TextAssetsTab({ campaignId, campaignName, hideCampaignSelector, 
             // Page/Identity info
             pageId,
             pageName,
+            // Organic post indicators
+            isOrganic,
+            externalPostId: creative?.external_post_id || undefined,
+            externalPageId: creative?.external_page_id || undefined,
           };
         });
 

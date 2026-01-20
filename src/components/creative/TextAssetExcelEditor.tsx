@@ -69,6 +69,7 @@ interface GridColumn {
 // Base columns always shown
 const BASE_COLUMNS: GridColumn[] = [
   { key: 'select', label: '', width: 36, editable: false, type: 'checkbox' },
+  { key: 'adType', label: 'Type', width: 70, editable: false, type: 'text' },
   { key: 'structure', label: 'Platform / Market / Phase / Ad Set / Creative', width: 300, editable: false, type: 'text' },
   { key: 'placements', label: 'Placements', width: 150, editable: false, type: 'text' },
   { key: 'adFormat', label: 'Ad Format', width: 140, editable: true, type: 'adFormat' },
@@ -1341,7 +1342,29 @@ export function TextAssetExcelEditor({
                         );
                       }
                       
-                       if (col.key === 'structure') {
+                      // Ad Type column - Organic vs Dark
+                      if (col.key === 'adType') {
+                        const isOrganic = !!(row as any).isOrganic || !!(row as any).externalPostId;
+                        return (
+                          <div
+                            key={col.key}
+                            className="px-2 py-1.5 flex items-center justify-center border-r shrink-0"
+                            style={{ width: col.width }}
+                          >
+                            <Badge 
+                              variant={isOrganic ? 'default' : 'secondary'}
+                              className={cn(
+                                "text-[10px] px-1.5",
+                                isOrganic ? "bg-green-600 hover:bg-green-600" : ""
+                              )}
+                            >
+                              {isOrganic ? 'Organic' : 'Dark'}
+                            </Badge>
+                          </div>
+                        );
+                      }
+                      
+                      if (col.key === 'structure') {
                          const carousel = carouselByCardId.get(row.id);
                          const rowPageId = (row as any).pageId;
                          const rowPageName = (row as any).pageName;

@@ -74,6 +74,8 @@ interface UnifiedAssetsLibraryProps {
   onMeshSelected?: (assets: PlatformAsset[]) => void;
   /** Called whenever selection changes (for cumulative selection across tabs) */
   onSelectionChange?: (assets: PlatformAsset[]) => void;
+  /** Externally controlled selection (for cumulative selection persistence) */
+  externalSelection?: PlatformAsset[];
 }
 
 const approvalStatusColors: Record<string, string> = {
@@ -93,6 +95,7 @@ export function UnifiedAssetsLibrary({
   multiSelect = false,
   onMeshSelected,
   onSelectionChange,
+  externalSelection,
 }: UnifiedAssetsLibraryProps) {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
@@ -100,30 +103,53 @@ export function UnifiedAssetsLibrary({
   const [assetTypeFilter, setAssetTypeFilter] = useState<'all' | 'video' | 'image'>('all');
   const [onlyUsable, setOnlyUsable] = useState(true);
   const [syncingAccounts, setSyncingAccounts] = useState<Set<string>>(new Set());
-  const [selectedAssets, setSelectedAssets] = useState<Set<string>>(new Set());
+  
+  // Use external selection if provided, otherwise manage locally
+  const externalSelectionIds = useMemo(() => 
+    new Set(externalSelection?.map(a => a.id) || []),
+    [externalSelection]
+  );
+  const [internalSelectedAssets, setInternalSelectedAssets] = useState<Set<string>>(new Set());
+  
+  // Use external selection if provided
+  const selectedAssets = externalSelection ? externalSelectionIds : internalSelectedAssets;
+  const setSelectedAssets = externalSelection ? undefined : setInternalSelectedAssets;
 
   // Toggle asset selection in multi-select mode
   const toggleAssetSelection = (assetId: string) => {
-    setSelectedAssets(prev => {
-      const next = new Set(prev);
-      if (next.has(assetId)) {
-        next.delete(assetId);
-      } else {
-        next.add(assetId);
-      }
-      // Notify parent of selection change
-      if (onSelectionChange && assets) {
-        const selectedObjects = assets.filter(a => next.has(a.id));
-        setTimeout(() => onSelectionChange(selectedObjects), 0);
-      }
-      return next;
-    });
+    if (externalSelection && onSelectionChange) {
+      // External mode: compute new selection and notify parent
+      const isCurrentlySelected = externalSelectionIds.has(assetId);
+      const newSelection = isCurrentlySelected
+        ? externalSelection.filter(a => a.id !== assetId)
+        : [...externalSelection, assets?.find(a => a.id === assetId)].filter(Boolean) as PlatformAsset[];
+      onSelectionChange(newSelection);
+    } else if (setSelectedAssets) {
+      // Internal mode
+      setSelectedAssets(prev => {
+        const next = new Set(prev);
+        if (next.has(assetId)) {
+          next.delete(assetId);
+        } else {
+          next.add(assetId);
+        }
+        if (onSelectionChange && assets) {
+          const selectedObjects = assets.filter(a => next.has(a.id));
+          setTimeout(() => onSelectionChange(selectedObjects), 0);
+        }
+        return next;
+      });
+    }
   };
 
   // Clear selection
   const clearSelection = () => {
-    setSelectedAssets(new Set());
-    onSelectionChange?.([]);
+    if (externalSelection && onSelectionChange) {
+      onSelectionChange([]);
+    } else if (setSelectedAssets) {
+      setSelectedAssets(new Set());
+      onSelectionChange?.([]);
+    }
   };
 
   // Build query keys for all accounts
