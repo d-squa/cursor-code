@@ -97,7 +97,9 @@ export function TextAssetsStep({
                 aspect_ratio,
                 media_urls,
                 width,
-                height
+                height,
+                external_post_id,
+                external_page_id
               )
             `)
             .order('platform')
@@ -347,6 +349,9 @@ export function TextAssetsStep({
             adSetName = adSetId ? `Ad Set ${adSetId}` : `Ad Set ${assignment.position || 1}`;
           }
           
+          // Detect organic posts - those with external_post_id
+          const isOrganic = !!(creative?.external_post_id);
+          
           return {
             id: `${assignment.id}_${assignment.creative_id}`,
             creativeId: assignment.creative_id,
@@ -377,6 +382,10 @@ export function TextAssetsStep({
             aspectRatio: creative?.aspect_ratio,
             width: creative?.width,
             height: creative?.height,
+            // Organic post indicators
+            isOrganic,
+            externalPostId: creative?.external_post_id || undefined,
+            externalPageId: creative?.external_page_id || undefined,
           };
         });
 

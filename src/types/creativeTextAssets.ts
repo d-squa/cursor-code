@@ -181,6 +181,13 @@ export interface CreativeTextAssetRow {
   // Page/Identity info for publishing
   pageId?: string;
   pageName?: string;
+  
+  // Organic post indicators
+  isOrganic?: boolean;
+  externalPostId?: string;
+  externalPageId?: string;
+  organicMessage?: string;
+  organicPermalink?: string;
 }
 
 // UTM Builder config

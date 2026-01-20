@@ -912,6 +912,7 @@ export default function CreativeLibrary() {
                 adAccounts={platformAssetsAdAccounts} 
                 multiSelect={true}
                 onSelectionChange={handlePlatformAssetsSelection}
+                externalSelection={cumulativeSelection.platformAssets}
               />
             )}
           </div>
@@ -966,6 +967,7 @@ export default function CreativeLibrary() {
                 pageConfigs={pageAssetsConfigs}
                 multiSelect={true}
                 onSelectionChange={handlePageAssetsSelection}
+                externalSelection={cumulativeSelection.pageAssets}
               />
             )}
           </div>

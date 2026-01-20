@@ -66,6 +66,8 @@ interface UnifiedPageAssetsLibraryProps {
   onMeshSelected?: (posts: OrganicPost[]) => void;
   /** Called whenever selection changes (for cumulative selection across tabs) */
   onSelectionChange?: (posts: OrganicPost[]) => void;
+  /** Externally controlled selection (for cumulative selection persistence) */
+  externalSelection?: OrganicPost[];
 }
 
 export function UnifiedPageAssetsLibrary({
@@ -76,30 +78,50 @@ export function UnifiedPageAssetsLibrary({
   multiSelect = false,
   onMeshSelected,
   onSelectionChange,
+  externalSelection,
 }: UnifiedPageAssetsLibraryProps) {
   const [posts, setPosts] = useState<OrganicPost[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [platformFilter, setPlatformFilter] = useState<'all' | 'meta' | 'tiktok'>('all');
   const [mediaTypeFilter, setMediaTypeFilter] = useState<'all' | 'image' | 'video' | 'carousel'>('all');
-  const [selectedPosts, setSelectedPosts] = useState<Set<string>>(new Set());
+  
+  // Use external selection if provided, otherwise manage locally
+  const externalSelectionIds = useMemo(() => 
+    new Set(externalSelection?.map(p => p.postId) || []),
+    [externalSelection]
+  );
+  const [internalSelectedPosts, setInternalSelectedPosts] = useState<Set<string>>(new Set());
+  
+  // Use external selection if provided
+  const selectedPosts = externalSelection ? externalSelectionIds : internalSelectedPosts;
+  const setSelectedPosts = externalSelection ? undefined : setInternalSelectedPosts;
 
   // Toggle post selection in multi-select mode
   const togglePostSelection = (postId: string) => {
-    setSelectedPosts(prev => {
-      const next = new Set(prev);
-      if (next.has(postId)) {
-        next.delete(postId);
-      } else {
-        next.add(postId);
-      }
-      // Notify parent of selection change
-      if (onSelectionChange) {
-        const selectedObjects = posts.filter(p => next.has(p.postId));
-        setTimeout(() => onSelectionChange(selectedObjects), 0);
-      }
-      return next;
-    });
+    if (externalSelection && onSelectionChange) {
+      // External mode: compute new selection and notify parent
+      const isCurrentlySelected = externalSelectionIds.has(postId);
+      const newSelection = isCurrentlySelected
+        ? externalSelection.filter(p => p.postId !== postId)
+        : [...externalSelection, posts.find(p => p.postId === postId)].filter(Boolean) as OrganicPost[];
+      onSelectionChange(newSelection);
+    } else if (setSelectedPosts) {
+      // Internal mode
+      setSelectedPosts(prev => {
+        const next = new Set(prev);
+        if (next.has(postId)) {
+          next.delete(postId);
+        } else {
+          next.add(postId);
+        }
+        if (onSelectionChange) {
+          const selectedObjects = posts.filter(p => next.has(p.postId));
+          setTimeout(() => onSelectionChange(selectedObjects), 0);
+        }
+        return next;
+      });
+    }
   };
 
   // Get selected post objects
@@ -109,8 +131,12 @@ export function UnifiedPageAssetsLibrary({
 
   // Clear selection
   const clearSelection = () => {
-    setSelectedPosts(new Set());
-    onSelectionChange?.([]);
+    if (externalSelection && onSelectionChange) {
+      onSelectionChange([]);
+    } else if (setSelectedPosts) {
+      setSelectedPosts(new Set());
+      onSelectionChange?.([]);
+    }
   };
 
   // Handle mesh action
