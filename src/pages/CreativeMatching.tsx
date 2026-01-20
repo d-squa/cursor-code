@@ -7,9 +7,8 @@ import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent } from '@/components/ui/card';
-import { Upload, FolderUp, Wand2, Check, AlertTriangle, Loader2, ArrowLeft, Save, LayoutGrid, Image, Video, CheckCircle2, Layers, List, X, FileText } from 'lucide-react';
+import { Upload, FolderUp, Wand2, Check, AlertTriangle, Loader2, ArrowLeft, Save, Image, Video, CheckCircle2, Layers, List, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -17,7 +16,6 @@ import { useCreativeMatching, UICreativeMatch } from '@/hooks/useCreativeMatchin
 import { CreativeMatchCard } from '@/components/creative/CreativeMatchCard';
 import { StructureCentricView } from '@/components/creative/StructureCentricView';
 import { TextAssetsStep } from '@/components/creative/TextAssetsStep';
-import type { Creative } from '@/types/creative';
 import { FeatureGate } from '@/components/FeatureGate';
 
 interface CampaignOption {
@@ -31,10 +29,14 @@ export default function CreativeMatching() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const initialCampaignId = searchParams.get('campaignId') || undefined;
+  const preSelectedAssetIds = searchParams.get('selectedAssets')?.split(',').filter(Boolean) || [];
+  const preSelectedSource = searchParams.get('source') as 'platform' | 'page' | null;
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
-  const [activeSourceTab, setActiveSourceTab] = useState<'library' | 'platform' | 'upload'>('library');
+  const [activeSourceTab, setActiveSourceTab] = useState<'selected' | 'upload'>(
+    preSelectedAssetIds.length > 0 ? 'selected' : 'upload'
+  );
   const [activeUploadTab, setActiveUploadTab] = useState('files');
   const [activeViewMode, setActiveViewMode] = useState<'structure' | 'asset'>('structure');
   const [campaigns, setCampaigns] = useState<CampaignOption[]>([]);
@@ -42,19 +44,13 @@ export default function CreativeMatching() {
   const [selectedCampaignName, setSelectedCampaignName] = useState<string>('');
   const [isLoadingCampaigns, setIsLoadingCampaigns] = useState(false);
   
-  // Library creatives state
-  const [libraryCreatives, setLibraryCreatives] = useState<Creative[]>([]);
-  const [selectedCreativeIds, setSelectedCreativeIds] = useState<Set<string>>(new Set());
-  const [isLoadingLibrary, setIsLoadingLibrary] = useState(false);
-
-  // Platform assets state (synced from DSP)
-  const [platformAssets, setPlatformAssets] = useState<any[]>([]);
-  const [selectedPlatformAssetIds, setSelectedPlatformAssetIds] = useState<Set<string>>(new Set());
-  const [isLoadingPlatformAssets, setIsLoadingPlatformAssets] = useState(false);
+  // Pre-selected assets from Creative Library (for auto-mesh flow)
+  const [preSelectedAssets, setPreSelectedAssets] = useState<any[]>([]);
+  const [isLoadingPreSelected, setIsLoadingPreSelected] = useState(preSelectedAssetIds.length > 0);
 
   const effectiveCampaignId = selectedCampaignId ?? initialCampaignId;
 
-  const { state, stats, loadCampaignStructures, processFiles, addLibraryCreatives, addPlatformAssets, runMatching, acceptMatch, rejectMatch, clearRejection, clearAcceptedMatch, removeAsset, clearAll, saveMatches, skipTextAssets } = useCreativeMatching(effectiveCampaignId);
+  const { state, stats, loadCampaignStructures, processFiles, addPlatformAssets, runMatching, acceptMatch, rejectMatch, clearRejection, clearAcceptedMatch, removeAsset, clearAll, saveMatches, skipTextAssets } = useCreativeMatching(effectiveCampaignId);
 
   // Load available campaigns
   useEffect(() => {
@@ -80,68 +76,22 @@ export default function CreativeMatching() {
     }
   }, [user, initialCampaignId]);
 
-  // Load library creatives
+  // Load pre-selected assets from URL params (auto-mesh flow)
   useEffect(() => {
-    if (user) {
-      setIsLoadingLibrary(true);
-      supabase
-        .from('creatives')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .then(({ data, error }) => {
-          if (!error && data) {
-            const creatives: Creative[] = data.map((row: any) => ({
-              id: row.id,
-              userId: row.user_id,
-              teamId: row.team_id,
-              campaignId: row.campaign_id,
-              name: row.name,
-              creativeType: row.creative_type,
-              status: row.status,
-              platform: row.platform,
-              market: row.market,
-              phaseName: row.phase_name,
-              optimizationGoal: row.optimization_goal,
-              funnelStage: row.funnel_stage,
-              mediaUrls: row.media_urls || [],
-              thumbnailUrl: row.thumbnail_url,
-              primaryText: row.primary_text,
-              headline: row.headline,
-              description: row.description,
-              validationErrors: row.validation_errors || [],
-              isValid: row.is_valid ?? true,
-              width: row.width,
-              height: row.height,
-              aspectRatio: row.aspect_ratio,
-              createdAt: row.created_at,
-              updatedAt: row.updated_at,
-            }));
-            setLibraryCreatives(creatives);
-          }
-          setIsLoadingLibrary(false);
-        });
-    }
-  }, [user]);
-
-  // Load platform assets
-  useEffect(() => {
-    if (user) {
-      setIsLoadingPlatformAssets(true);
+    if (preSelectedAssetIds.length > 0 && user) {
+      setIsLoadingPreSelected(true);
       supabase
         .from('creative_library_assets')
         .select('*')
-        .eq('user_id', user.id)
-        .eq('is_usable', true)
-        .order('created_at', { ascending: false })
+        .in('id', preSelectedAssetIds)
         .then(({ data, error }) => {
-          if (!error && data) {
-            setPlatformAssets(data);
+          if (!error && data && data.length > 0) {
+            setPreSelectedAssets(data);
           }
-          setIsLoadingPlatformAssets(false);
+          setIsLoadingPreSelected(false);
         });
     }
-  }, [user]);
+  }, [preSelectedAssetIds, user]);
 
   const handleCampaignSelect = useCallback((campaignId: string) => {
     const campaign = campaigns.find(c => c.id === campaignId);
@@ -163,66 +113,6 @@ export default function CreativeMatching() {
     toast.success(`Processed ${files.length} files from folder`);
   }, [processFiles]);
 
-  const handleCreativeToggle = useCallback((creativeId: string) => {
-    setSelectedCreativeIds(prev => {
-      const next = new Set(prev);
-      if (next.has(creativeId)) {
-        next.delete(creativeId);
-      } else {
-        next.add(creativeId);
-      }
-      return next;
-    });
-  }, []);
-
-  const handleSelectAll = useCallback(() => {
-    if (selectedCreativeIds.size === libraryCreatives.length) {
-      setSelectedCreativeIds(new Set());
-    } else {
-      setSelectedCreativeIds(new Set(libraryCreatives.map(c => c.id)));
-    }
-  }, [libraryCreatives, selectedCreativeIds.size]);
-
-  const handlePlatformAssetToggle = useCallback((assetId: string) => {
-    setSelectedPlatformAssetIds(prev => {
-      const next = new Set(prev);
-      if (next.has(assetId)) {
-        next.delete(assetId);
-      } else {
-        next.add(assetId);
-      }
-      return next;
-    });
-  }, []);
-
-  const handleSelectAllPlatformAssets = useCallback(() => {
-    if (selectedPlatformAssetIds.size === platformAssets.length) {
-      setSelectedPlatformAssetIds(new Set());
-    } else {
-      setSelectedPlatformAssetIds(new Set(platformAssets.map(a => a.id)));
-    }
-  }, [platformAssets, selectedPlatformAssetIds.size]);
-
-  const handleUseSelectedCreatives = useCallback(async () => {
-    const selected = libraryCreatives.filter(c => selectedCreativeIds.has(c.id));
-    if (selected.length === 0) {
-      toast.error('Please select at least one creative');
-      return;
-    }
-    addLibraryCreatives(selected);
-    toast.success(`Added ${selected.length} creatives for matching`);
-  }, [libraryCreatives, selectedCreativeIds, addLibraryCreatives]);
-
-  const handleUseSelectedPlatformAssets = useCallback(async () => {
-    const selected = platformAssets.filter(a => selectedPlatformAssetIds.has(a.id));
-    if (selected.length === 0) {
-      toast.error('Please select at least one asset');
-      return;
-    }
-    addPlatformAssets(selected);
-    toast.success(`Added ${selected.length} platform assets for matching`);
-  }, [platformAssets, selectedPlatformAssetIds, addPlatformAssets]);
-
   const handleRunMatching = async () => {
     const campaignIdToUse = effectiveCampaignId;
     if (!campaignIdToUse) { toast.error('Please select an ActiPlan first'); return; }
@@ -241,8 +131,6 @@ export default function CreativeMatching() {
 
   const stepProgress = state.currentStep === 'upload' ? 0 : state.currentStep === 'match' ? 25 : state.currentStep === 'review' ? 50 : state.currentStep === 'text_assets' ? 75 : 100;
   const needsCampaignSelection = !effectiveCampaignId;
-  const availableCreatives = libraryCreatives.filter(c => !c.campaignId);
-  const availablePlatformAssets = platformAssets.filter(a => !state.assets.some(asset => asset.id === a.id));
 
   // Text Assets step renders full-screen
   if (state.currentStep === 'text_assets') {
@@ -336,21 +224,17 @@ export default function CreativeMatching() {
             {/* Stats bar */}
             <div className="flex gap-4 text-sm border-b pb-3 mb-4">
               <div><span className="text-muted-foreground">Creatives:</span> <span className="font-medium">{stats.totalAssets}</span></div>
-              <div><span className="text-muted-foreground">Matched:</span> <span className="font-medium text-emerald-600">{stats.matchedCount}</span></div>
+              <div><span className="text-muted-foreground">Matched:</span> <span className="font-medium text-primary">{stats.matchedCount}</span></div>
               <div><span className="text-muted-foreground">Accepted:</span> <span className="font-medium text-primary">{stats.acceptedCount}</span></div>
             </div>
 
-            {/* Source Selection: Library, Synced, or Upload */}
+            {/* Source Selection: Selected or Upload */}
             {(state.currentStep === 'upload' || state.currentStep === 'match') && (
-              <Tabs value={activeSourceTab} onValueChange={(v) => setActiveSourceTab(v as 'library' | 'platform' | 'upload')}>
-                <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="library" className="gap-2">
-                    <LayoutGrid className="h-4 w-4" />
-                    Library ({availableCreatives.length})
-                  </TabsTrigger>
-                  <TabsTrigger value="platform" className="gap-2">
-                    <Layers className="h-4 w-4" />
-                    Synced ({availablePlatformAssets.length})
+              <Tabs value={activeSourceTab} onValueChange={(v) => setActiveSourceTab(v as 'selected' | 'upload')}>
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="selected" className="gap-2">
+                    <CheckCircle2 className="h-4 w-4" />
+                    Selected ({preSelectedAssets.length})
                   </TabsTrigger>
                   <TabsTrigger value="upload" className="gap-2">
                     <Upload className="h-4 w-4" />
@@ -358,15 +242,19 @@ export default function CreativeMatching() {
                   </TabsTrigger>
                 </TabsList>
 
-                {/* Library Tab */}
-                <TabsContent value="library" className="mt-4">
-                  {isLoadingLibrary ? (
+                {/* Selected Tab - Pre-selected assets from Creative Library */}
+                <TabsContent value="selected" className="mt-4">
+                  {isLoadingPreSelected ? (
                     <div className="flex items-center justify-center py-8">
                       <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                     </div>
-                  ) : availableCreatives.length === 0 ? (
+                  ) : preSelectedAssets.length === 0 ? (
                     <div className="text-center py-8">
-                      <p className="text-muted-foreground mb-4">No creatives in your library yet.</p>
+                      <CheckCircle2 className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+                      <p className="text-muted-foreground mb-2">No assets selected.</p>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Go to Creative Library → Platform Assets or Page Assets to select assets for auto-meshing.
+                      </p>
                       <Button variant="outline" onClick={() => setActiveSourceTab('upload')}>
                         <Upload className="h-4 w-4 mr-2" />
                         Upload New Creatives
@@ -376,167 +264,66 @@ export default function CreativeMatching() {
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <Checkbox 
-                            checked={selectedCreativeIds.size === availableCreatives.length}
-                            onCheckedChange={handleSelectAll}
-                          />
-                          <span className="text-sm text-muted-foreground">
-                            {selectedCreativeIds.size} selected
-                          </span>
+                          <Badge variant="secondary">
+                            {preSelectedAssets.length} assets ready
+                          </Badge>
+                          {preSelectedSource && (
+                            <Badge variant="outline" className="capitalize">
+                              from {preSelectedSource === 'page' ? 'Page Assets' : 'Platform Assets'}
+                            </Badge>
+                          )}
                         </div>
                         <Button 
                           size="sm" 
-                          onClick={handleUseSelectedCreatives}
-                          disabled={selectedCreativeIds.size === 0}
+                          onClick={() => {
+                            addPlatformAssets(preSelectedAssets);
+                            toast.success(`Added ${preSelectedAssets.length} assets for matching`);
+                          }}
                         >
-                          <CheckCircle2 className="h-4 w-4 mr-2" />
-                          Use Selected ({selectedCreativeIds.size})
+                          <Wand2 className="h-4 w-4 mr-2" />
+                          Add to Matching
                         </Button>
                       </div>
                       <ScrollArea className="h-[400px] pr-4">
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                          {availableCreatives.map(creative => (
-                            <Card 
-                              key={creative.id}
-                              className={`cursor-pointer transition-all ${
-                                selectedCreativeIds.has(creative.id) 
-                                  ? 'ring-2 ring-primary bg-primary/5' 
-                                  : 'hover:bg-muted/50'
-                              }`}
-                              onClick={() => handleCreativeToggle(creative.id)}
-                            >
+                          {preSelectedAssets.map(asset => (
+                            <Card key={asset.id} className="ring-2 ring-primary bg-primary/5">
                               <CardContent className="p-3">
-                                <div className="flex items-start gap-2">
-                                  <Checkbox 
-                                    checked={selectedCreativeIds.has(creative.id)}
-                                    onCheckedChange={() => handleCreativeToggle(creative.id)}
-                                    onClick={(e) => e.stopPropagation()}
-                                  />
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-1 mb-1">
-                                      {creative.creativeType === 'video' ? (
-                                        <Video className="h-3 w-3 text-muted-foreground" />
-                                      ) : (
-                                        <Image className="h-3 w-3 text-muted-foreground" />
-                                      )}
-                                      <span className="text-xs text-muted-foreground capitalize">
-                                        {creative.creativeType}
-                                      </span>
+                                <div className="flex-1 min-w-0">
+                                  {asset.thumbnail_url && (
+                                    <div className="aspect-video mb-2 rounded overflow-hidden bg-muted">
+                                      <img 
+                                        src={asset.thumbnail_url} 
+                                        alt={asset.asset_name || 'Asset'} 
+                                        className="w-full h-full object-cover"
+                                      />
                                     </div>
-                                    <p className="text-sm font-medium truncate" title={creative.name}>
-                                      {creative.name}
-                                    </p>
-                                    <div className="flex flex-wrap gap-1 mt-1">
-                                      <Badge variant="outline" className="text-xs px-1">
-                                        {creative.platform}
-                                      </Badge>
-                                      {creative.market && (
-                                        <Badge variant="secondary" className="text-xs px-1">
-                                          {creative.market}
-                                        </Badge>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          ))}
-                        </div>
-                      </ScrollArea>
-                    </div>
-                  )}
-                </TabsContent>
-
-                {/* Synced Platform Assets Tab */}
-                <TabsContent value="platform" className="mt-4">
-                  {isLoadingPlatformAssets ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : availablePlatformAssets.length === 0 ? (
-                    <div className="text-center py-8">
-                      <Layers className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-                      <p className="text-muted-foreground mb-2">No synced assets available.</p>
-                      <p className="text-sm text-muted-foreground">
-                        Go to Creative Library → Platform Assets to sync assets from TikTok or Meta.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Checkbox 
-                            checked={selectedPlatformAssetIds.size === availablePlatformAssets.length && availablePlatformAssets.length > 0}
-                            onCheckedChange={handleSelectAllPlatformAssets}
-                          />
-                          <span className="text-sm text-muted-foreground">
-                            {selectedPlatformAssetIds.size} selected
-                          </span>
-                        </div>
-                        <Button 
-                          size="sm" 
-                          onClick={handleUseSelectedPlatformAssets}
-                          disabled={selectedPlatformAssetIds.size === 0}
-                        >
-                          <CheckCircle2 className="h-4 w-4 mr-2" />
-                          Use Selected ({selectedPlatformAssetIds.size})
-                        </Button>
-                      </div>
-                      <ScrollArea className="h-[400px] pr-4">
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                          {availablePlatformAssets.map(asset => (
-                            <Card 
-                              key={asset.id}
-                              className={`cursor-pointer transition-all ${
-                                selectedPlatformAssetIds.has(asset.id) 
-                                  ? 'ring-2 ring-primary bg-primary/5' 
-                                  : 'hover:bg-muted/50'
-                              }`}
-                              onClick={() => handlePlatformAssetToggle(asset.id)}
-                            >
-                              <CardContent className="p-3">
-                                <div className="flex items-start gap-2">
-                                  <Checkbox 
-                                    checked={selectedPlatformAssetIds.has(asset.id)}
-                                    onCheckedChange={() => handlePlatformAssetToggle(asset.id)}
-                                    onClick={(e) => e.stopPropagation()}
-                                  />
-                                  <div className="flex-1 min-w-0">
-                                    {asset.thumbnail_url && (
-                                      <div className="aspect-video mb-2 rounded overflow-hidden bg-muted">
-                                        <img 
-                                          src={asset.thumbnail_url} 
-                                          alt={asset.asset_name || 'Asset'} 
-                                          className="w-full h-full object-cover"
-                                        />
-                                      </div>
+                                  )}
+                                  <div className="flex items-center gap-1 mb-1">
+                                    {asset.asset_type === 'video' ? (
+                                      <Video className="h-3 w-3 text-muted-foreground" />
+                                    ) : (
+                                      <Image className="h-3 w-3 text-muted-foreground" />
                                     )}
-                                    <div className="flex items-center gap-1 mb-1">
-                                      {asset.asset_type === 'video' ? (
-                                        <Video className="h-3 w-3 text-muted-foreground" />
-                                      ) : (
-                                        <Image className="h-3 w-3 text-muted-foreground" />
-                                      )}
-                                      <span className="text-xs text-muted-foreground capitalize">
-                                        {asset.asset_type}
-                                      </span>
-                                    </div>
-                                    <p className="text-sm font-medium truncate" title={asset.asset_name || asset.platform_asset_id}>
-                                      {asset.asset_name || asset.platform_asset_id}
-                                    </p>
-                                    <div className="flex flex-wrap gap-1 mt-1">
-                                      <Badge variant="outline" className="text-xs px-1">
-                                        {asset.platform}
+                                    <span className="text-xs text-muted-foreground capitalize">
+                                      {asset.asset_type}
+                                    </span>
+                                  </div>
+                                  <p className="text-sm font-medium truncate" title={asset.asset_name || asset.platform_asset_id}>
+                                    {asset.asset_name || asset.platform_asset_id}
+                                  </p>
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    <Badge variant="outline" className="text-xs px-1">
+                                      {asset.platform}
+                                    </Badge>
+                                    {asset.approval_status && (
+                                      <Badge 
+                                        variant={asset.approval_status === 'approved' ? 'default' : 'secondary'} 
+                                        className="text-xs px-1"
+                                      >
+                                        {asset.approval_status}
                                       </Badge>
-                                      {asset.approval_status && (
-                                        <Badge 
-                                          variant={asset.approval_status === 'approved' ? 'default' : 'secondary'} 
-                                          className="text-xs px-1"
-                                        >
-                                          {asset.approval_status}
-                                        </Badge>
-                                      )}
-                                    </div>
+                                    )}
                                   </div>
                                 </div>
                               </CardContent>
@@ -580,7 +367,7 @@ export default function CreativeMatching() {
             {(state.currentStep === 'upload' || state.currentStep === 'match') && state.assets.length > 0 && (
               <div className="mt-4 p-3 bg-muted/50 rounded-lg flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  <CheckCircle2 className="h-4 w-4 text-primary" />
                   <span className="text-sm font-medium">{state.assets.length} creatives ready for matching</span>
                 </div>
                 <Button size="sm" variant="ghost" onClick={() => clearAll()}>
@@ -684,8 +471,8 @@ export default function CreativeMatching() {
             {/* Complete step */}
             {state.currentStep === 'complete' && (
               <div className="flex flex-col items-center justify-center py-12">
-                <div className="w-16 h-16 rounded-full bg-emerald-500/10 flex items-center justify-center mb-4">
-                  <Check className="h-8 w-8 text-emerald-500" />
+                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+                  <Check className="h-8 w-8 text-primary" />
                 </div>
                 <h3 className="text-xl font-semibold mb-2">Matches Saved!</h3>
                 <p className="text-muted-foreground text-center">{stats.acceptedCount} creatives assigned to {selectedCampaignName}</p>
@@ -695,7 +482,7 @@ export default function CreativeMatching() {
             {/* Footer actions */}
             <div className="flex items-center justify-between pt-6 border-t mt-6">
               <div>{state.currentStep === 'review' && stats.unmatchedCount > 0 && (
-                <div className="flex items-center gap-2 text-amber-600 text-sm"><AlertTriangle className="h-4 w-4" />{stats.unmatchedCount} unmatched</div>
+                <div className="flex items-center gap-2 text-destructive text-sm"><AlertTriangle className="h-4 w-4" />{stats.unmatchedCount} unmatched</div>
               )}</div>
               <div className="flex gap-2">
                 {state.currentStep === 'review' && <Button variant="outline" onClick={clearAll}><ArrowLeft className="h-4 w-4 mr-2" />Start Over</Button>}

@@ -513,8 +513,9 @@ export default function CreativeLibrary() {
       return;
     }
     // Navigate to creative matching with the selected assets
+    const assetIds = assets.map(a => a.id).join(',');
     toast.success(`${assets.length} asset(s) selected for meshing`);
-    navigate(`/creatives/match?campaignId=${platformAssetsCampaignId}&source=platform-assets`);
+    navigate(`/creatives/match?campaignId=${platformAssetsCampaignId}&source=platform&selectedAssets=${assetIds}`);
   }, [platformAssetsCampaignId, navigate]);
 
   // Handle auto-mesh from Page Assets (organic posts)
@@ -524,8 +525,9 @@ export default function CreativeLibrary() {
       return;
     }
     // Navigate to creative matching with the selected posts
+    const postIds = posts.map(p => p.id).join(',');
     toast.success(`${posts.length} post(s) selected for meshing`);
-    navigate(`/creatives/match?campaignId=${pageAssetsCampaignId}&source=page-assets`);
+    navigate(`/creatives/match?campaignId=${pageAssetsCampaignId}&source=page&selectedAssets=${postIds}`);
   }, [pageAssetsCampaignId, navigate]);
 
   const renderActiPlanSelector = (options?: { rightSlot?: ReactNode }) => (
