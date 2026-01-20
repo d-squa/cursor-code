@@ -324,67 +324,108 @@ async function handleTikTokPosts(
 
   // If identityId provided, fetch authorized posts for Spark Ads
   if (identityId && resolvedAdvertiserId) {
-    // Fetch authorized Spark Ad posts for this identity
-    // TikTok API: /bc/spark_ad/post/get/ for BC-authorized posts
-    // Or /identity/video/get/ for identity's videos
-    
     try {
-      // First try to get authorized Spark Ad posts
-      const sparkPostsUrl = `https://business-api.tiktok.com/open_api/v1.3/tt_video/list/?advertiser_id=${resolvedAdvertiserId}&identity_id=${identityId}&identity_type=TT_USER`;
+      // Strategy 1: Use identity/video/list to get videos for the identity
+      const identityVideoUrl = `https://business-api.tiktok.com/open_api/v1.3/identity/video/list/`;
+      const identityVideoBody = {
+        advertiser_id: resolvedAdvertiserId,
+        identity_id: identityId,
+        identity_type: "TT_USER",
+      };
       
-      const response = await fetch(sparkPostsUrl, {
-        method: "GET",
+      console.log(`[fetch-organic-posts] Fetching TikTok identity videos for identity ${identityId}`);
+      
+      const identityResponse = await fetch(identityVideoUrl, {
+        method: "POST",
         headers: {
           "Access-Token": accessToken,
           "Content-Type": "application/json",
         },
+        body: JSON.stringify(identityVideoBody),
       });
 
-      const data = await readJsonSafe(response);
-      console.log(`[fetch-organic-posts] TikTok tt_video/list response code: ${data.code}, error: ${data.error?.message || 'none'}`);
+      const identityData = await readJsonSafe(identityResponse);
+      console.log(`[fetch-organic-posts] TikTok identity/video/list response code: ${identityData.code}, message: ${identityData.message || 'none'}, videos count: ${identityData.data?.video_list?.length || 0}`);
 
-      if (data.code === 0 && data.data?.videos) {
-        for (const video of data.data.videos.slice(0, limit)) {
+      if (identityData.code === 0 && identityData.data?.video_list) {
+        for (const video of identityData.data.video_list.slice(0, limit)) {
           posts.push({
             id: video.item_id || video.video_id,
             platform: 'tiktok',
             postId: video.item_id || video.video_id,
             identityId,
-            caption: video.video_title || video.caption || '',
-            thumbnailUrl: video.cover_image_url || video.video_cover_url,
+            caption: video.display_name || video.video_text || '',
+            thumbnailUrl: video.video_cover_url || video.poster_url,
             mediaType: 'video',
             createdTime: video.create_time ? new Date(video.create_time * 1000).toISOString() : undefined,
             isSparkEligible: true,
+            permalink: video.item_id ? `https://www.tiktok.com/@user/video/${video.item_id}` : undefined,
           });
         }
       }
 
-      // Also try the authorized post list
+      // Strategy 2: If no videos found, try bc/asset/get for TT_ACCOUNT assets
       if (posts.length === 0) {
-        const authPostUrl = `https://business-api.tiktok.com/open_api/v1.3/tt_video/authorized/get/?advertiser_id=${resolvedAdvertiserId}`;
+        const bcId = platform.metadata?.bc_id;
+        if (bcId) {
+          console.log(`[fetch-organic-posts] Trying BC asset fetch for bc_id ${bcId}`);
+          const bcAssetUrl = `https://business-api.tiktok.com/open_api/v1.3/bc/asset/get/`;
+          const bcAssetBody = {
+            bc_id: bcId,
+            asset_type: "TT_ACCOUNT",
+            page: 1,
+            page_size: limit,
+          };
+          
+          const bcResponse = await fetch(bcAssetUrl, {
+            method: "POST",
+            headers: {
+              "Access-Token": accessToken,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(bcAssetBody),
+          });
+
+          const bcData = await readJsonSafe(bcResponse);
+          console.log(`[fetch-organic-posts] TikTok bc/asset/get response code: ${bcData.code}, assets: ${bcData.data?.list?.length || 0}`);
+          
+          // This returns TikTok accounts, not videos - we'd need to fetch videos for each
+        }
+      }
+
+      // Strategy 3: Try spark_ad authorized post list
+      if (posts.length === 0) {
+        console.log(`[fetch-organic-posts] Trying Spark Ad authorized posts for advertiser ${resolvedAdvertiserId}`);
+        const sparkAuthUrl = `https://business-api.tiktok.com/open_api/v1.3/creative/spark_ads/authorized_posts/get/`;
+        const sparkAuthBody = {
+          advertiser_id: resolvedAdvertiserId,
+          page: 1,
+          page_size: limit,
+        };
         
-        const authResponse = await fetch(authPostUrl, {
-          method: "GET",
+        const sparkResponse = await fetch(sparkAuthUrl, {
+          method: "POST",
           headers: {
             "Access-Token": accessToken,
             "Content-Type": "application/json",
           },
+          body: JSON.stringify(sparkAuthBody),
         });
 
-        const authData = await readJsonSafe(authResponse);
-        console.log(`[fetch-organic-posts] TikTok authorized posts response code: ${authData.code}, error: ${authData.error?.message || 'none'}`);
+        const sparkData = await readJsonSafe(sparkResponse);
+        console.log(`[fetch-organic-posts] TikTok spark_ads/authorized_posts response code: ${sparkData.code}, posts: ${sparkData.data?.authorized_posts?.length || 0}`);
 
-        if (authData.code === 0 && authData.data?.list) {
-          for (const video of authData.data.list.slice(0, limit)) {
+        if (sparkData.code === 0 && sparkData.data?.authorized_posts) {
+          for (const post of sparkData.data.authorized_posts.slice(0, limit)) {
             posts.push({
-              id: video.item_id || video.video_id,
+              id: post.item_id || post.video_id,
               platform: 'tiktok',
-              postId: video.item_id || video.video_id,
-              identityId: video.identity_id,
-              caption: video.video_title || video.caption || '',
-              thumbnailUrl: video.cover_image_url || video.video_cover_url,
+              postId: post.item_id || post.video_id,
+              identityId: post.tt_account_id || identityId,
+              caption: post.video_info?.video_text || post.caption || '',
+              thumbnailUrl: post.video_info?.video_cover_url || post.cover_image_url,
               mediaType: 'video',
-              createdTime: video.create_time ? new Date(video.create_time * 1000).toISOString() : undefined,
+              createdTime: post.create_time ? new Date(post.create_time * 1000).toISOString() : undefined,
               isSparkEligible: true,
             });
           }
