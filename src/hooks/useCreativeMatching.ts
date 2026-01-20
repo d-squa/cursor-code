@@ -583,33 +583,46 @@ export function useCreativeMatching(campaignId?: string) {
   }, []);
 
   // Add platform assets from creative_library_assets table (synced from DSP)
+  // Also handles organic page assets (with _source: 'page')
   const addPlatformAssets = useCallback((assets: any[]) => {
-    const digestedAssets: DigestedAsset[] = assets.map(asset => ({
-      id: asset.id,
-      originalFile: null as any,
-      fileName: asset.asset_name || asset.platform_asset_id,
-      filePath: asset.asset_name || asset.platform_asset_id,
-      mediaType: (asset.asset_type === 'VIDEO' ? 'video' : 'image') as AssetMediaType,
-      technicalAttributes: {
-        width: typeof asset.width === 'number' ? asset.width : undefined,
-        height: typeof asset.height === 'number' ? asset.height : undefined,
-        aspectRatio: typeof asset.aspect_ratio === 'string' ? asset.aspect_ratio : undefined,
-        duration: typeof asset.duration_seconds === 'number' ? asset.duration_seconds : undefined,
-        fileSize: typeof asset.file_size_bytes === 'number' ? asset.file_size_bytes : 0,
-      },
-      hardConstraints: {
-        market: undefined, // Platform assets don't have market constraints by default
-        language: undefined,
-      },
-      compatibilitySignals: {
-        platform: asset.platform,
-      },
-      digestedAt: new Date().toISOString(),
-      sourceType: 'platform_asset', // Mark as coming from platform asset library
-      platformAssetId: asset.platform_asset_id,
-      advertiserId: asset.advertiser_id,
-      previewUrl: asset.preview_url || asset.thumbnail_url,
-    }));
+    const digestedAssets: DigestedAsset[] = assets.map(asset => {
+      // Check if this is an organic page asset
+      const isOrganicPost = asset._source === 'page' || !!asset.postId;
+      
+      return {
+        id: asset.id,
+        originalFile: null as any,
+        fileName: asset.asset_name || asset.platform_asset_id || asset.postId || 'Organic Post',
+        filePath: asset.asset_name || asset.platform_asset_id || asset.postId || '',
+        mediaType: (asset.asset_type === 'VIDEO' || asset.asset_type === 'video' || asset.mediaType === 'video' ? 'video' : 'image') as AssetMediaType,
+        technicalAttributes: {
+          width: typeof asset.width === 'number' ? asset.width : undefined,
+          height: typeof asset.height === 'number' ? asset.height : undefined,
+          aspectRatio: typeof asset.aspect_ratio === 'string' ? asset.aspect_ratio : undefined,
+          duration: typeof asset.duration_seconds === 'number' ? asset.duration_seconds : undefined,
+          fileSize: typeof asset.file_size_bytes === 'number' ? asset.file_size_bytes : 0,
+        },
+        hardConstraints: {
+          market: undefined,
+          language: undefined,
+        },
+        compatibilitySignals: {
+          platform: asset.platform,
+        },
+        digestedAt: new Date().toISOString(),
+        // Mark source type based on whether it's organic or platform asset
+        sourceType: isOrganicPost ? 'organic' : 'platform_asset',
+        platformAssetId: asset.platform_asset_id,
+        advertiserId: asset.advertiser_id,
+        previewUrl: asset.preview_url || asset.thumbnail_url || asset.thumbnailUrl,
+        // Organic post-specific fields
+        postId: isOrganicPost ? (asset.postId || asset.external_post_id) : undefined,
+        pageId: isOrganicPost ? (asset.pageId || asset.external_page_id) : undefined,
+        pageName: asset.pageName,
+        organicMessage: asset.message || asset.caption,
+        organicPermalink: asset.permalink,
+      };
+    });
 
     setState(prev => ({
       ...prev,
@@ -1127,6 +1140,58 @@ export function useCreativeMatching(campaignId?: string) {
                 .eq('id', creativeId);
 
               if (updateError) throw updateError;
+              createdCreativeByAssetId.set(assetId, creativeId);
+            }
+          } else if (asset.sourceType === 'organic' && (asset as any).postId) {
+            // Handle organic page assets (spark ads / existing posts)
+            updateSaveProgress(compositeKey, 'saving');
+            
+            const cachedCreativeId = createdCreativeByAssetId.get(assetId);
+            if (cachedCreativeId) {
+              creativeId = cachedCreativeId;
+            } else {
+              const taxonomyName = generateCreativeTaxonomyName(asset, match.structure);
+              
+              const { data: creative, error: insertCreativeError } = await supabase
+                .from('creatives')
+                .insert({
+                  name: taxonomyName,
+                  user_id: user.id,
+                  team_id: null,
+                  platform: match.structure.platform,
+                  creative_type: 'existing_post', // Mark as organic/existing post
+                  media_type: asset.mediaType,
+                  status: 'ready',
+                  market: match.structure.market,
+                  phase_name: match.structure.phases?.[0],
+                  campaign_id: match.structure.campaignId,
+                  width: asset.technicalAttributes.width,
+                  height: asset.technicalAttributes.height,
+                  aspect_ratio: asset.technicalAttributes.aspectRatio,
+                  duration_seconds: typeof asset.technicalAttributes.duration === 'number' ? Math.round(asset.technicalAttributes.duration) : null,
+                  file_size_bytes: asset.technicalAttributes.fileSize,
+                  original_filename: asset.fileName,
+                  folder_path: asset.filePath,
+                  media_urls: (asset as any).previewUrl ? [(asset as any).previewUrl] : [],
+                  thumbnail_url: (asset as any).previewUrl,
+                  language: asset.hardConstraints?.language,
+                  // Organic post-specific fields
+                  external_post_id: (asset as any).postId,
+                  external_page_id: (asset as any).pageId,
+                  external_account_name: (asset as any).pageName,
+                  caption: (asset as any).organicMessage,
+                  tiktok_identity_id: match.structure.platform === 'tiktok' ? match.structure.tiktokIdentityId : null,
+                  tiktok_ad_format: match.structure.platform === 'tiktok' ? 'SPARK_ADS' : null,
+                })
+                .select()
+                .single();
+
+              if (insertCreativeError) throw insertCreativeError;
+              if (!creative) {
+                throw new Error('No creative returned from insert');
+              }
+
+              creativeId = creative.id;
               createdCreativeByAssetId.set(assetId, creativeId);
             }
           } else if (asset.sourceType === 'platform_asset' && (asset as any).platformAssetId) {

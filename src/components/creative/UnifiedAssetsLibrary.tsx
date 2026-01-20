@@ -120,10 +120,17 @@ export function UnifiedAssetsLibrary({
     if (externalSelection && onSelectionChange) {
       // External mode: compute new selection and notify parent
       const isCurrentlySelected = externalSelectionIds.has(assetId);
-      const newSelection = isCurrentlySelected
-        ? externalSelection.filter(a => a.id !== assetId)
-        : [...externalSelection, assets?.find(a => a.id === assetId)].filter(Boolean) as PlatformAsset[];
-      onSelectionChange(newSelection);
+      if (isCurrentlySelected) {
+        // Remove from selection
+        const newSelection = externalSelection.filter(a => a.id !== assetId);
+        onSelectionChange(newSelection);
+      } else {
+        // Add to selection - find the asset in loaded data
+        const assetToAdd = assets?.find(a => a.id === assetId);
+        if (assetToAdd) {
+          onSelectionChange([...externalSelection, assetToAdd]);
+        }
+      }
     } else if (setSelectedAssets) {
       // Internal mode
       setSelectedAssets(prev => {
