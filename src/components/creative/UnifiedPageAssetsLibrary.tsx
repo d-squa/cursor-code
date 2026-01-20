@@ -102,10 +102,17 @@ export function UnifiedPageAssetsLibrary({
     if (externalSelection && onSelectionChange) {
       // External mode: compute new selection and notify parent
       const isCurrentlySelected = externalSelectionIds.has(postId);
-      const newSelection = isCurrentlySelected
-        ? externalSelection.filter(p => p.postId !== postId)
-        : [...externalSelection, posts.find(p => p.postId === postId)].filter(Boolean) as OrganicPost[];
-      onSelectionChange(newSelection);
+      if (isCurrentlySelected) {
+        // Remove from selection
+        const newSelection = externalSelection.filter(p => p.postId !== postId);
+        onSelectionChange(newSelection);
+      } else {
+        // Add to selection - find the post in loaded data
+        const postToAdd = posts.find(p => p.postId === postId);
+        if (postToAdd) {
+          onSelectionChange([...externalSelection, postToAdd]);
+        }
+      }
     } else if (setSelectedPosts) {
       // Internal mode
       setSelectedPosts(prev => {
