@@ -64,6 +64,8 @@ interface UnifiedPageAssetsLibraryProps {
   multiSelect?: boolean;
   /** Called when user wants to mesh selected posts */
   onMeshSelected?: (posts: OrganicPost[]) => void;
+  /** Called whenever selection changes (for cumulative selection across tabs) */
+  onSelectionChange?: (posts: OrganicPost[]) => void;
 }
 
 export function UnifiedPageAssetsLibrary({
@@ -73,6 +75,7 @@ export function UnifiedPageAssetsLibrary({
   selectable = false,
   multiSelect = false,
   onMeshSelected,
+  onSelectionChange,
 }: UnifiedPageAssetsLibraryProps) {
   const [posts, setPosts] = useState<OrganicPost[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -90,6 +93,11 @@ export function UnifiedPageAssetsLibrary({
       } else {
         next.add(postId);
       }
+      // Notify parent of selection change
+      if (onSelectionChange) {
+        const selectedObjects = posts.filter(p => next.has(p.postId));
+        setTimeout(() => onSelectionChange(selectedObjects), 0);
+      }
       return next;
     });
   };
@@ -100,7 +108,10 @@ export function UnifiedPageAssetsLibrary({
   }, [posts, selectedPosts]);
 
   // Clear selection
-  const clearSelection = () => setSelectedPosts(new Set());
+  const clearSelection = () => {
+    setSelectedPosts(new Set());
+    onSelectionChange?.([]);
+  };
 
   // Handle mesh action
   const handleMeshSelected = () => {
@@ -275,8 +286,8 @@ export function UnifiedPageAssetsLibrary({
           </Select>
         </div>
 
-        {/* Multi-select action bar */}
-        {multiSelect && selectedPosts.size > 0 && (
+        {/* Multi-select action bar - only show if not using parent-controlled selection */}
+        {multiSelect && selectedPosts.size > 0 && !onSelectionChange && (
           <div className="flex items-center justify-between p-3 rounded-lg bg-primary/10 border border-primary/20">
             <div className="flex items-center gap-2">
               <Badge variant="secondary">{selectedPosts.size} selected</Badge>

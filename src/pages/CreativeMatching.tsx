@@ -30,16 +30,33 @@ export default function CreativeMatching() {
   const [searchParams] = useSearchParams();
   const initialCampaignId = searchParams.get('campaignId') || undefined;
   const selectedAssetsParam = searchParams.get('selectedAssets');
-  const preSelectedAssetIds = useMemo(
-    () => selectedAssetsParam?.split(',').filter(Boolean) || [],
-    [selectedAssetsParam]
-  );
-  const preSelectedSource = searchParams.get('source') as 'platform' | 'page' | null;
+  
+  // Parse the new format: platform:id or page:id
+  const parsedAssets = useMemo(() => {
+    if (!selectedAssetsParam) return { platformIds: [], pageIds: [] };
+    const parts = selectedAssetsParam.split(',').filter(Boolean);
+    const platformIds: string[] = [];
+    const pageIds: string[] = [];
+    
+    for (const part of parts) {
+      if (part.startsWith('platform:')) {
+        platformIds.push(part.replace('platform:', ''));
+      } else if (part.startsWith('page:')) {
+        pageIds.push(part.replace('page:', ''));
+      } else {
+        // Legacy format - treat as platform asset
+        platformIds.push(part);
+      }
+    }
+    return { platformIds, pageIds };
+  }, [selectedAssetsParam]);
+  
+  const hasPreSelectedAssets = parsedAssets.platformIds.length > 0 || parsedAssets.pageIds.length > 0;
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const [activeSourceTab, setActiveSourceTab] = useState<'selected' | 'upload'>(
-    preSelectedAssetIds.length > 0 ? 'selected' : 'upload'
+    hasPreSelectedAssets ? 'selected' : 'upload'
   );
   const [activeUploadTab, setActiveUploadTab] = useState('files');
   const [activeViewMode, setActiveViewMode] = useState<'structure' | 'asset'>('structure');
@@ -50,7 +67,7 @@ export default function CreativeMatching() {
   
   // Pre-selected assets from Creative Library (for auto-mesh flow)
   const [preSelectedAssets, setPreSelectedAssets] = useState<any[]>([]);
-  const [isLoadingPreSelected, setIsLoadingPreSelected] = useState(preSelectedAssetIds.length > 0);
+  const [isLoadingPreSelected, setIsLoadingPreSelected] = useState(hasPreSelectedAssets);
 
   const effectiveCampaignId = selectedCampaignId ?? initialCampaignId;
 
@@ -82,20 +99,45 @@ export default function CreativeMatching() {
 
   // Load pre-selected assets from URL params (auto-mesh flow)
   useEffect(() => {
-    if (preSelectedAssetIds.length > 0 && user) {
-      setIsLoadingPreSelected(true);
-      supabase
-        .from('creative_library_assets')
-        .select('*')
-        .in('id', preSelectedAssetIds)
-        .then(({ data, error }) => {
-          if (!error && data && data.length > 0) {
-            setPreSelectedAssets(data);
-          }
-          setIsLoadingPreSelected(false);
-        });
-    }
-  }, [preSelectedAssetIds, user]);
+    if (!hasPreSelectedAssets || !user) return;
+    
+    setIsLoadingPreSelected(true);
+    const allAssets: any[] = [];
+    
+    const loadAssets = async () => {
+      // Load platform assets
+      if (parsedAssets.platformIds.length > 0) {
+        const { data, error } = await supabase
+          .from('creative_library_assets')
+          .select('*')
+          .in('id', parsedAssets.platformIds);
+        
+        if (!error && data) {
+          allAssets.push(...data.map(a => ({ ...a, _source: 'platform' })));
+        }
+      }
+      
+      // Page assets don't exist in DB, they're fetched on-demand
+      // We'll create placeholder entries for them with their post IDs
+      if (parsedAssets.pageIds.length > 0) {
+        // Page assets will be loaded separately - just mark them as pending
+        for (const postId of parsedAssets.pageIds) {
+          allAssets.push({
+            id: `page-${postId}`,
+            postId,
+            _source: 'page',
+            asset_type: 'video', // Default, will be refined
+            asset_name: `Organic Post: ${postId.slice(0, 8)}...`,
+          });
+        }
+      }
+      
+      setPreSelectedAssets(allAssets);
+      setIsLoadingPreSelected(false);
+    };
+    
+    loadAssets();
+  }, [parsedAssets.platformIds.join(','), parsedAssets.pageIds.join(','), user, hasPreSelectedAssets]);
 
   const handleCampaignSelect = useCallback((campaignId: string) => {
     const campaign = campaigns.find(c => c.id === campaignId);
@@ -271,9 +313,19 @@ export default function CreativeMatching() {
                           <Badge variant="secondary">
                             {preSelectedAssets.length} assets ready
                           </Badge>
-                          {preSelectedSource && (
+                          {parsedAssets.platformIds.length > 0 && parsedAssets.pageIds.length > 0 && (
                             <Badge variant="outline" className="capitalize">
-                              from {preSelectedSource === 'page' ? 'Page Assets' : 'Platform Assets'}
+                              {parsedAssets.platformIds.length} platform + {parsedAssets.pageIds.length} page
+                            </Badge>
+                          )}
+                          {parsedAssets.platformIds.length > 0 && parsedAssets.pageIds.length === 0 && (
+                            <Badge variant="outline" className="capitalize">
+                              from Platform Assets
+                            </Badge>
+                          )}
+                          {parsedAssets.pageIds.length > 0 && parsedAssets.platformIds.length === 0 && (
+                            <Badge variant="outline" className="capitalize">
+                              from Page Assets
                             </Badge>
                           )}
                         </div>

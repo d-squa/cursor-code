@@ -72,6 +72,8 @@ interface UnifiedAssetsLibraryProps {
   multiSelect?: boolean;
   /** Called when user wants to mesh selected assets */
   onMeshSelected?: (assets: PlatformAsset[]) => void;
+  /** Called whenever selection changes (for cumulative selection across tabs) */
+  onSelectionChange?: (assets: PlatformAsset[]) => void;
 }
 
 const approvalStatusColors: Record<string, string> = {
@@ -90,6 +92,7 @@ export function UnifiedAssetsLibrary({
   selectable = false,
   multiSelect = false,
   onMeshSelected,
+  onSelectionChange,
 }: UnifiedAssetsLibraryProps) {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
@@ -108,12 +111,20 @@ export function UnifiedAssetsLibrary({
       } else {
         next.add(assetId);
       }
+      // Notify parent of selection change
+      if (onSelectionChange && assets) {
+        const selectedObjects = assets.filter(a => next.has(a.id));
+        setTimeout(() => onSelectionChange(selectedObjects), 0);
+      }
       return next;
     });
   };
 
   // Clear selection
-  const clearSelection = () => setSelectedAssets(new Set());
+  const clearSelection = () => {
+    setSelectedAssets(new Set());
+    onSelectionChange?.([]);
+  };
 
   // Build query keys for all accounts
   const accountKeys = useMemo(() => 
@@ -311,8 +322,8 @@ export function UnifiedAssetsLibrary({
           </label>
         </div>
 
-        {/* Multi-select action bar */}
-        {multiSelect && selectedAssets.size > 0 && (
+        {/* Multi-select action bar - only show if not using parent-controlled selection */}
+        {multiSelect && selectedAssets.size > 0 && !onSelectionChange && (
           <div className="flex items-center justify-between p-3 rounded-lg bg-primary/10 border border-primary/20">
             <div className="flex items-center gap-2">
               <Badge variant="secondary">{selectedAssets.size} selected</Badge>

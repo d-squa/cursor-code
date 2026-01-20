@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { FolderUp, FileSpreadsheet, LayoutGrid, Download, Wand2, Type, Layers, Loader2, LogOut, Settings, Bug, Lock, Cloud, Upload, FileImage } from 'lucide-react';
+import { FolderUp, FileSpreadsheet, LayoutGrid, Download, Wand2, Type, Layers, Loader2, LogOut, Settings, Bug, Lock, Cloud, Upload, FileImage, X } from 'lucide-react';
 import { useCreatives } from '@/hooks/useCreatives';
 import { CreativeGrid } from '@/components/creative/CreativeGrid';
 import { FolderUpload } from '@/components/creative/FolderUpload';
@@ -506,29 +506,52 @@ export default function CreativeLibrary() {
     toast.success('Sample structure downloaded');
   }, []);
 
-  // Handle auto-mesh from Platform Assets
-  const handlePlatformAssetsMesh = useCallback((assets: any[]) => {
-    if (!platformAssetsCampaignId) {
-      toast.error('Please select an ActiPlan first');
-      return;
-    }
-    // Navigate to creative matching with the selected assets
-    const assetIds = assets.map(a => a.id).join(',');
-    toast.success(`${assets.length} asset(s) selected for meshing`);
-    navigate(`/creatives/match?campaignId=${platformAssetsCampaignId}&source=platform&selectedAssets=${assetIds}`);
-  }, [platformAssetsCampaignId, navigate]);
+  // Shared selection state for cumulative multi-select across tabs
+  const [cumulativeSelection, setCumulativeSelection] = useState<{
+    platformAssets: any[];
+    pageAssets: any[];
+  }>({ platformAssets: [], pageAssets: [] });
 
-  // Handle auto-mesh from Page Assets (organic posts)
-  const handlePageAssetsMesh = useCallback((posts: any[]) => {
-    if (!pageAssetsCampaignId) {
+  const totalSelected = cumulativeSelection.platformAssets.length + cumulativeSelection.pageAssets.length;
+
+  // Handle selection from Platform Assets - accumulate instead of navigate
+  const handlePlatformAssetsSelection = useCallback((assets: any[]) => {
+    setCumulativeSelection(prev => ({
+      ...prev,
+      platformAssets: assets,
+    }));
+  }, []);
+
+  // Handle selection from Page Assets - accumulate instead of navigate  
+  const handlePageAssetsSelection = useCallback((posts: any[]) => {
+    setCumulativeSelection(prev => ({
+      ...prev,
+      pageAssets: posts,
+    }));
+  }, []);
+
+  // Handle auto-mesh for all selected assets across tabs
+  const handleMeshAllSelected = useCallback(() => {
+    const campaignId = platformAssetsCampaignId || pageAssetsCampaignId;
+    if (!campaignId) {
       toast.error('Please select an ActiPlan first');
       return;
     }
-    // Navigate to creative matching with the selected posts
-    const postIds = posts.map(p => p.id).join(',');
-    toast.success(`${posts.length} post(s) selected for meshing`);
-    navigate(`/creatives/match?campaignId=${pageAssetsCampaignId}&source=page&selectedAssets=${postIds}`);
-  }, [pageAssetsCampaignId, navigate]);
+    
+    // Combine platform assets and page assets
+    // Platform assets have 'id', page assets have 'postId' 
+    const platformIds = cumulativeSelection.platformAssets.map(a => `platform:${a.id}`);
+    const pageIds = cumulativeSelection.pageAssets.map(p => `page:${p.postId}`);
+    const allIds = [...platformIds, ...pageIds].join(',');
+    
+    toast.success(`${totalSelected} asset(s) selected for meshing`);
+    navigate(`/creatives/match?campaignId=${campaignId}&selectedAssets=${allIds}`);
+  }, [platformAssetsCampaignId, pageAssetsCampaignId, cumulativeSelection, totalSelected, navigate]);
+
+  // Clear all selections
+  const handleClearAllSelections = useCallback(() => {
+    setCumulativeSelection({ platformAssets: [], pageAssets: [] });
+  }, []);
 
   const renderActiPlanSelector = (options?: { rightSlot?: ReactNode }) => (
     <div className="flex items-center gap-4 p-4 border rounded-lg bg-muted/30">
@@ -888,7 +911,7 @@ export default function CreativeLibrary() {
               <UnifiedAssetsLibrary 
                 adAccounts={platformAssetsAdAccounts} 
                 multiSelect={true}
-                onMeshSelected={handlePlatformAssetsMesh}
+                onSelectionChange={handlePlatformAssetsSelection}
               />
             )}
           </div>
@@ -942,12 +965,43 @@ export default function CreativeLibrary() {
               <UnifiedPageAssetsLibrary 
                 pageConfigs={pageAssetsConfigs}
                 multiSelect={true}
-                onMeshSelected={handlePageAssetsMesh}
+                onSelectionChange={handlePageAssetsSelection}
               />
             )}
           </div>
         </TabsContent>
       </Tabs>
+      
+        {/* Floating cumulative selection bar */}
+        {totalSelected > 0 && (activeTab === 'platform-assets' || activeTab === 'page-assets') && (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
+            <div className="flex items-center gap-3 px-6 py-3 bg-card border rounded-full shadow-lg">
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="text-sm">
+                  {totalSelected} selected
+                </Badge>
+                {cumulativeSelection.platformAssets.length > 0 && (
+                  <Badge variant="outline" className="text-xs">
+                    {cumulativeSelection.platformAssets.length} platform
+                  </Badge>
+                )}
+                {cumulativeSelection.pageAssets.length > 0 && (
+                  <Badge variant="outline" className="text-xs">
+                    {cumulativeSelection.pageAssets.length} page
+                  </Badge>
+                )}
+              </div>
+              <Button variant="ghost" size="sm" onClick={handleClearAllSelections}>
+                <X className="h-4 w-4 mr-1" />
+                Clear
+              </Button>
+              <Button size="sm" onClick={handleMeshAllSelected}>
+                <Wand2 className="h-4 w-4 mr-2" />
+                Auto-Mesh All
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Editor Dialog */}
         <CreativeEditor
