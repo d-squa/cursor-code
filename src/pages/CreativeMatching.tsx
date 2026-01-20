@@ -1,5 +1,5 @@
 // Auto-Mesh Page - AI-powered creative-to-structure matching workflow
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -29,7 +29,11 @@ export default function CreativeMatching() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const initialCampaignId = searchParams.get('campaignId') || undefined;
-  const preSelectedAssetIds = searchParams.get('selectedAssets')?.split(',').filter(Boolean) || [];
+  const selectedAssetsParam = searchParams.get('selectedAssets');
+  const preSelectedAssetIds = useMemo(
+    () => selectedAssetsParam?.split(',').filter(Boolean) || [],
+    [selectedAssetsParam]
+  );
   const preSelectedSource = searchParams.get('source') as 'platform' | 'page' | null;
   
   const fileInputRef = useRef<HTMLInputElement>(null);
