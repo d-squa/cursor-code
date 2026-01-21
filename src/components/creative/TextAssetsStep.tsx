@@ -46,6 +46,13 @@ interface TextAssetsStepProps {
   onComplete: () => void;
 }
 
+// Local extension used by the grid for TikTok thumbnail actions.
+// (We keep the persisted shape in the DB; this is just UI convenience data.)
+type CreativeTextAssetRowWithTikTok = CreativeTextAssetRow & {
+  platformThumbnailId?: string | null;
+  tiktokAdvertiserId?: string;
+};
+
 export function TextAssetsStep({ 
   campaignId, 
   campaignName, 
@@ -94,10 +101,12 @@ export function TextAssetsStep({
                 call_to_action,
                 destination_url,
                 thumbnail_url,
+                platform_thumbnail_id,
                 aspect_ratio,
                 media_urls,
                 width,
                 height,
+                tiktok_asset_advertiser_id,
                 external_post_id,
                 external_page_id
               )
@@ -146,7 +155,7 @@ export function TextAssetsStep({
         // Campaign metadata (needed for taxonomy)
         const campaignResult = await supabase
           .from('campaigns')
-          .select('id, name, objective, start_date, end_date, bo_number, total_budget, platforms, budget_allocation, team_id, teams(name)')
+          .select('id, name, objective, start_date, end_date, bo_number, total_budget, platforms, budget_allocation, market_splits, team_id, teams(name)')
           .eq('id', campaignId)
           .single();
 
@@ -248,7 +257,7 @@ export function TextAssetsStep({
         }
 
         // Transform to CreativeTextAssetRow format with taxonomy names
-        const transformedRows: CreativeTextAssetRow[] = assignments.map((assignment: any) => {
+        const transformedRows: CreativeTextAssetRowWithTikTok[] = assignments.map((assignment: any) => {
           const creative = assignment.creatives;
           const isVideo = creative?.creative_type === 'video' || 
                          (creative?.media_urls?.[0]?.includes('.mp4') || creative?.media_urls?.[0]?.includes('.mov'));
@@ -351,6 +360,43 @@ export function TextAssetsStep({
           
           // Detect organic posts - those with external_post_id
           const isOrganic = !!(creative?.external_post_id);
+
+          // Resolve advertiser ID for TikTok thumbnail uploads.
+          // Prefer the creative's stored advertiser ID; fallback to ActiPlan (campaign) market settings.
+          const resolveAdvertiserIdFromCampaign = () => {
+            try {
+              const ba = (campaign?.budget_allocation as any) || {};
+              const phaseCfg = ba?.[assignment.phase_name] || {};
+              const platformCfg = phaseCfg?.platformSplits?.[assignment.platform] || {};
+              const marketCfg = platformCfg?.marketSplits?.[assignment.market] || {};
+              const direct = marketCfg?.adAccountId;
+              if (direct) return String(direct);
+
+              // Fallback: if keys don't match exactly, use the first configured account for this platform.
+              const marketSplits = platformCfg?.marketSplits || {};
+              const first = Object.values(marketSplits)[0] as any;
+              if (first?.adAccountId) return String(first.adAccountId);
+
+              // Secondary fallback: some flows store publishing IDs in campaign.market_splits.
+              const ms = (campaign?.market_splits as any) || {};
+              const fromMs1 = ms?.[assignment.platform]?.[assignment.market]?.adAccountId;
+              const fromMs2 = ms?.[assignment.market]?.adAccountId;
+              if (fromMs1) return String(fromMs1);
+              if (fromMs2) return String(fromMs2);
+              if (Array.isArray(ms)) {
+                const match = ms.find((m: any) => m?.name === assignment.market || m?.id === assignment.market);
+                if (match?.adAccountId) return String(match.adAccountId);
+              }
+
+              return '';
+            } catch {
+              return '';
+            }
+          };
+
+          const tiktokAdvertiserId = String(
+            creative?.tiktok_asset_advertiser_id || resolveAdvertiserIdFromCampaign() || ''
+          ).trim();
           
           return {
             id: `${assignment.id}_${assignment.creative_id}`,
@@ -378,6 +424,9 @@ export function TextAssetsStep({
             isValid: true,
             validationErrors: [],
             thumbnailUrl: creative?.thumbnail_url,
+            // Non-schema convenience fields consumed by TextAssetExcelEditor (safe to attach)
+            platformThumbnailId: creative?.platform_thumbnail_id,
+            tiktokAdvertiserId,
             mediaType,
             aspectRatio: creative?.aspect_ratio,
             width: creative?.width,
