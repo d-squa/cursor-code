@@ -1557,7 +1557,7 @@ export function CampaignForecast({
             </LockedFeatureButton>
             <Button 
               variant="outline"
-              onClick={() => navigate(`/creatives/match?campaignId=${campaignId}`)} 
+              onClick={() => navigate(`/creatives?campaignId=${campaignId}`)} 
               disabled={!campaignId}
             >
               <Wand2 className="h-4 w-4 mr-2" />

@@ -545,7 +545,7 @@ export default function CreativeLibrary() {
     const allIds = [...platformIds, ...pageIds].join(',');
     
     toast.success(`${totalSelected} asset(s) selected for meshing`);
-    navigate(`/creatives/match?campaignId=${campaignId}&selectedAssets=${allIds}`);
+    navigate(`/creatives?campaignId=${campaignId}&selectedAssets=${allIds}`);
   }, [platformAssetsCampaignId, pageAssetsCampaignId, cumulativeSelection, totalSelected, navigate]);
 
   // Clear all selections
@@ -648,7 +648,7 @@ export default function CreativeLibrary() {
           </div>
           <div className="flex items-center gap-2">
             {shouldFetchCreatives && <Badge variant="secondary">{creatives.length} creatives</Badge>}
-            <Button variant="default" size="sm" onClick={() => navigate('/creatives/match')}>
+            <Button variant="default" size="sm" onClick={() => navigate('/creatives')}>
               <Wand2 className="h-4 w-4 mr-2" />
               Auto-Mesh
             </Button>
@@ -713,7 +713,7 @@ export default function CreativeLibrary() {
                 <Button
                   variant="default"
                   size="sm"
-                  onClick={() => navigate(`/creatives/match?campaignId=${selectedCampaignId}`)}
+                  onClick={() => navigate(`/creatives?campaignId=${selectedCampaignId}`)}
                 >
                   <Wand2 className="h-4 w-4 mr-2" />
                   Auto-Mesh More
@@ -738,7 +738,7 @@ export default function CreativeLibrary() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => navigate(`/creatives/match?campaignId=${selectedCampaignId}`)}
+                  onClick={() => navigate(`/creatives?campaignId=${selectedCampaignId}`)}
                 >
                   <Wand2 className="h-4 w-4 mr-2" />
                   Open Auto-Mesh

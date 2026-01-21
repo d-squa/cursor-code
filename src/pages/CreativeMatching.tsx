@@ -101,41 +101,88 @@ export default function CreativeMatching() {
       }
 
       // Extract ad accounts and page configs from market_splits
-      const marketSplits = data.market_splits as any;
+      // Structure: { "meta": [...markets], "tiktok": [...markets] }
+      const marketSplits = data.market_splits as Record<string, any>;
       if (marketSplits && typeof marketSplits === 'object') {
-        Object.values(marketSplits).forEach((market: any) => {
-          // Meta
-          if (market.metaAdAccountId) {
-            const exists = adAccounts.some(a => a.platform === 'meta' && a.accountId === market.metaAdAccountId);
-            if (!exists) {
-              adAccounts.push({ platform: 'meta', accountId: market.metaAdAccountId });
+        for (const [platformKey, markets] of Object.entries(marketSplits)) {
+          if (!Array.isArray(markets)) continue;
+
+          const isMeta = platformKey.toLowerCase().includes('meta') || 
+                         platformKey.toLowerCase().includes('facebook') || 
+                         platformKey.toLowerCase().includes('instagram');
+          const isTikTok = platformKey.toLowerCase().includes('tiktok');
+
+          for (const market of markets as any[]) {
+            // Extract ad account ID (works for both Meta and TikTok)
+            const adAccountId = market?.adAccountId || market?.tiktokAdvertiserId || market?.advertiser_id;
+            
+            if (adAccountId) {
+              const platform = isTikTok ? 'tiktok' : 'meta';
+              const exists = adAccounts.some(a => a.platform === platform && a.accountId === String(adAccountId));
+              if (!exists) {
+                adAccounts.push({ platform, accountId: String(adAccountId) });
+              }
+            }
+
+            // Meta page extraction
+            if (isMeta) {
+              const pageId = market?.page || market?.pageId;
+              if (pageId) {
+                const exists = pageConfigs.some(p => p.platform === 'meta' && p.pageId === String(pageId));
+                if (!exists) {
+                  pageConfigs.push({ 
+                    platform: 'meta', 
+                    pageId: String(pageId), 
+                    pageName: market?.pageName || market?.accountName || market?.name,
+                  });
+                }
+              }
+
+              // Also check phases for page IDs
+              const phases = Array.isArray(market?.phases) ? market.phases : [];
+              for (const phase of phases) {
+                const phasePageId = phase?.pageId || phase?.page || phase?.metaPageId;
+                if (phasePageId && !pageConfigs.some(p => p.platform === 'meta' && p.pageId === String(phasePageId))) {
+                  pageConfigs.push({ 
+                    platform: 'meta', 
+                    pageId: String(phasePageId), 
+                    pageName: phase?.pageName || market?.pageName,
+                  });
+                }
+              }
+            }
+
+            // TikTok identity extraction
+            if (isTikTok) {
+              const identityId = market?.tiktokIdentityId || market?.tiktokIdentity;
+              if (identityId) {
+                const exists = pageConfigs.some(p => p.platform === 'tiktok' && p.identityId === String(identityId));
+                if (!exists) {
+                  pageConfigs.push({ 
+                    platform: 'tiktok', 
+                    identityId: String(identityId),
+                    advertiserId: adAccountId ? String(adAccountId) : undefined,
+                    pageName: market?.tiktokIdentityName || market?.accountName || market?.name,
+                  });
+                }
+              }
+
+              // Also check phases for TikTok identities
+              const phases = Array.isArray(market?.phases) ? market.phases : [];
+              for (const phase of phases) {
+                const phaseIdentity = phase?.tiktokIdentityId || phase?.tiktokIdentity;
+                if (phaseIdentity && !pageConfigs.some(p => p.platform === 'tiktok' && p.identityId === String(phaseIdentity))) {
+                  pageConfigs.push({ 
+                    platform: 'tiktok', 
+                    identityId: String(phaseIdentity),
+                    advertiserId: adAccountId ? String(adAccountId) : undefined,
+                    pageName: phase?.tiktokIdentityName || market?.accountName,
+                  });
+                }
+              }
             }
           }
-          if (market.page) {
-            const exists = pageConfigs.some(p => p.platform === 'meta' && p.pageId === market.page);
-            if (!exists) {
-              pageConfigs.push({ platform: 'meta', pageId: market.page, pageName: market.pageName });
-            }
-          }
-          
-          // TikTok
-          if (market.tiktokAdAccountId) {
-            const exists = adAccounts.some(a => a.platform === 'tiktok' && a.accountId === market.tiktokAdAccountId);
-            if (!exists) {
-              adAccounts.push({ platform: 'tiktok', accountId: market.tiktokAdAccountId });
-            }
-          }
-          if (market.tiktokIdentityId) {
-            const exists = pageConfigs.some(p => p.platform === 'tiktok' && p.identityId === market.tiktokIdentityId);
-            if (!exists) {
-              pageConfigs.push({ 
-                platform: 'tiktok', 
-                identityId: market.tiktokIdentityId,
-                advertiserId: market.tiktokAdAccountId,
-              });
-            }
-          }
-        });
+        }
       }
 
       setCampaignData({ adAccounts, pageConfigs, platforms });
@@ -186,13 +233,13 @@ export default function CreativeMatching() {
     if (progress?.campaignId) {
       navigate(`/actiplans/${progress.campaignId}/launch`);
     } else {
-      navigate('/creatives');
+      navigate('/actiplans');
     }
   }, [progress?.campaignId, navigate]);
 
-  // Handle close
+  // Handle close - go back to ActiPlans
   const handleClose = useCallback(() => {
-    navigate('/creatives');
+    navigate('/actiplans');
   }, [navigate]);
 
   // Check if can navigate to a step
