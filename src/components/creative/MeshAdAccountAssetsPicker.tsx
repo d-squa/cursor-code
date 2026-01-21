@@ -27,13 +27,13 @@ export function MeshAdAccountAssetsPicker({
   const externalSelection = useMemo<PlatformAsset[]>(
     () =>
       selectedAssets
-        .filter((a) => !!a.platformAssetId)
+        .filter((a) => a.source === 'ad_account_assets' && !!a.platformAssetId)
         .map((a) => ({
           id: a.id,
-          platform: a.platform,
+          platform: a.platform as 'tiktok' | 'meta',
           platform_asset_id: a.platformAssetId || '',
           advertiser_id: '',
-          asset_type: a.assetType,
+          asset_type: a.assetType as 'video' | 'image',
           asset_name: a.name || null,
           preview_url: a.thumbnailUrl || null,
           thumbnail_url: a.thumbnailUrl || null,
