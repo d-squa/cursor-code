@@ -1,27 +1,32 @@
-// Auto-Mesh Page - AI-powered creative-to-structure matching workflow
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+// Creative Mesh Page - Step-based workflow for matching creatives to campaign structures
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent } from '@/components/ui/card';
-import { Upload, FolderUp, Wand2, Check, AlertTriangle, Loader2, ArrowLeft, Save, Image, Video, CheckCircle2, Layers, List, X } from 'lucide-react';
+import { Wand2, X, ArrowLeft, Save, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useCreativeMatching, UICreativeMatch } from '@/hooks/useCreativeMatching';
-import { CreativeMatchCard } from '@/components/creative/CreativeMatchCard';
+import { useCreativeMeshProgress, MeshStep, SelectedAsset } from '@/hooks/useCreativeMeshProgress';
+import { MeshStepIndicator } from '@/components/creative/MeshStepIndicator';
+import { MeshActiPlanStep } from '@/components/creative/MeshActiPlanStep';
+import { MeshSourceStep } from '@/components/creative/MeshSourceStep';
 import { StructureCentricView } from '@/components/creative/StructureCentricView';
 import { TextAssetsStep } from '@/components/creative/TextAssetsStep';
 import { FeatureGate } from '@/components/FeatureGate';
 
-interface CampaignOption {
-  id: string;
-  name: string;
-  status: string;
+interface AdAccountInfo {
+  platform: 'meta' | 'tiktok';
+  accountId: string;
+}
+
+interface PageConfig {
+  platform: 'meta' | 'tiktok';
+  pageId?: string;
+  identityId?: string;
+  advertiserId?: string;
+  pageName?: string;
 }
 
 export default function CreativeMatching() {
@@ -29,536 +34,353 @@ export default function CreativeMatching() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const initialCampaignId = searchParams.get('campaignId') || undefined;
-  const selectedAssetsParam = searchParams.get('selectedAssets');
-  
-  // Parse the new format: platform:id or page:id
-  const parsedAssets = useMemo(() => {
-    if (!selectedAssetsParam) return { platformIds: [], pageIds: [] };
-    const parts = selectedAssetsParam.split(',').filter(Boolean);
-    const platformIds: string[] = [];
-    const pageIds: string[] = [];
-    
-    for (const part of parts) {
-      if (part.startsWith('platform:')) {
-        platformIds.push(part.replace('platform:', ''));
-      } else if (part.startsWith('page:')) {
-        pageIds.push(part.replace('page:', ''));
-      } else {
-        // Legacy format - treat as platform asset
-        platformIds.push(part);
-      }
-    }
-    return { platformIds, pageIds };
-  }, [selectedAssetsParam]);
-  
-  const hasPreSelectedAssets = parsedAssets.platformIds.length > 0 || parsedAssets.pageIds.length > 0;
-  
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const folderInputRef = useRef<HTMLInputElement>(null);
-  const [activeSourceTab, setActiveSourceTab] = useState<'selected' | 'upload'>(
-    hasPreSelectedAssets ? 'selected' : 'upload'
-  );
-  const [activeUploadTab, setActiveUploadTab] = useState('files');
-  const [activeViewMode, setActiveViewMode] = useState<'structure' | 'asset'>('structure');
-  const [campaigns, setCampaigns] = useState<CampaignOption[]>([]);
-  const [selectedCampaignId, setSelectedCampaignId] = useState<string | undefined>(initialCampaignId);
-  const [selectedCampaignName, setSelectedCampaignName] = useState<string>('');
-  const [isLoadingCampaigns, setIsLoadingCampaigns] = useState(false);
-  
-  // Pre-selected assets from Creative Library (for auto-mesh flow)
-  const [preSelectedAssets, setPreSelectedAssets] = useState<any[]>([]);
-  const [isLoadingPreSelected, setIsLoadingPreSelected] = useState(hasPreSelectedAssets);
 
-  const effectiveCampaignId = selectedCampaignId ?? initialCampaignId;
+  // Mesh progress hook manages step state
+  const {
+    progress,
+    isLoading: isLoadingProgress,
+    currentStep,
+    selectActiPlan,
+    selectPlatform,
+    addAsset,
+    removeAsset,
+    clearAssets,
+    setMeshedCreativeIds,
+    goToStep,
+    reset,
+  } = useCreativeMeshProgress(initialCampaignId);
 
-  const { state, stats, loadCampaignStructures, processFiles, addPlatformAssets, runMatching, acceptMatch, rejectMatch, clearRejection, clearAcceptedMatch, removeAsset, clearAll, saveMatches, skipTextAssets } = useCreativeMatching(effectiveCampaignId);
+  // Creative matching hook for the actual matching logic
+  const {
+    state: matchingState,
+    stats,
+    loadCampaignStructures,
+    processFiles,
+    addPlatformAssets,
+    runMatching,
+    acceptMatch,
+    rejectMatch,
+    clearRejection,
+    clearAcceptedMatch,
+    removeAsset: removeMatchingAsset,
+    clearAll: clearMatching,
+    saveMatches,
+    skipTextAssets,
+  } = useCreativeMatching(progress?.campaignId);
 
-  // Load available campaigns
+  // Campaign data for ad accounts and page configs
+  const [campaignData, setCampaignData] = useState<{
+    adAccounts: AdAccountInfo[];
+    pageConfigs: PageConfig[];
+    platforms: string[];
+  }>({ adAccounts: [], pageConfigs: [], platforms: [] });
+
+  // Load campaign data when ActiPlan is selected
   useEffect(() => {
-    if (user) {
-      setIsLoadingCampaigns(true);
-      supabase
+    if (!progress?.campaignId) return;
+
+    const loadCampaignData = async () => {
+      const { data, error } = await supabase
         .from('campaigns')
-        .select('id, name, status')
-        .order('updated_at', { ascending: false })
-        .then(({ data, error }) => {
-          if (!error && data) {
-            setCampaigns(data);
-            // If we have an initial campaign ID, find and set its name
-            if (initialCampaignId) {
-              const campaign = data.find(c => c.id === initialCampaignId);
-              if (campaign) {
-                setSelectedCampaignName(campaign.name);
-              }
+        .select('platforms, market_splits, budget_allocation')
+        .eq('id', progress.campaignId)
+        .single();
+
+      if (error || !data) return;
+
+      const adAccounts: AdAccountInfo[] = [];
+      const pageConfigs: PageConfig[] = [];
+      const platforms: string[] = [];
+
+      // Extract platforms
+      if (Array.isArray(data.platforms)) {
+        data.platforms.forEach((p: any) => {
+          const platformId = typeof p === 'string' ? p : p.id || p.name;
+          if (platformId) platforms.push(platformId);
+        });
+      }
+
+      // Extract ad accounts and page configs from market_splits
+      const marketSplits = data.market_splits as any;
+      if (marketSplits && typeof marketSplits === 'object') {
+        Object.values(marketSplits).forEach((market: any) => {
+          // Meta
+          if (market.metaAdAccountId) {
+            const exists = adAccounts.some(a => a.platform === 'meta' && a.accountId === market.metaAdAccountId);
+            if (!exists) {
+              adAccounts.push({ platform: 'meta', accountId: market.metaAdAccountId });
             }
           }
-          setIsLoadingCampaigns(false);
+          if (market.page) {
+            const exists = pageConfigs.some(p => p.platform === 'meta' && p.pageId === market.page);
+            if (!exists) {
+              pageConfigs.push({ platform: 'meta', pageId: market.page, pageName: market.pageName });
+            }
+          }
+          
+          // TikTok
+          if (market.tiktokAdAccountId) {
+            const exists = adAccounts.some(a => a.platform === 'tiktok' && a.accountId === market.tiktokAdAccountId);
+            if (!exists) {
+              adAccounts.push({ platform: 'tiktok', accountId: market.tiktokAdAccountId });
+            }
+          }
+          if (market.tiktokIdentityId) {
+            const exists = pageConfigs.some(p => p.platform === 'tiktok' && p.identityId === market.tiktokIdentityId);
+            if (!exists) {
+              pageConfigs.push({ 
+                platform: 'tiktok', 
+                identityId: market.tiktokIdentityId,
+                advertiserId: market.tiktokAdAccountId,
+              });
+            }
+          }
         });
-    }
-  }, [user, initialCampaignId]);
+      }
 
-  // Load pre-selected assets from URL params (auto-mesh flow)
-  useEffect(() => {
-    if (!hasPreSelectedAssets || !user) return;
-    
-    setIsLoadingPreSelected(true);
-    const allAssets: any[] = [];
-    
-    const loadAssets = async () => {
-      // Load platform assets
-      if (parsedAssets.platformIds.length > 0) {
-        const { data, error } = await supabase
-          .from('creative_library_assets')
-          .select('*')
-          .in('id', parsedAssets.platformIds);
-        
-        if (!error && data) {
-          allAssets.push(...data.map(a => ({ ...a, _source: 'platform' })));
-        }
-      }
-      
-      // Page assets don't exist in DB, they're fetched on-demand
-      // We'll create placeholder entries for them with their post IDs
-      if (parsedAssets.pageIds.length > 0) {
-        // Page assets will be loaded separately - just mark them as pending
-        for (const postId of parsedAssets.pageIds) {
-          allAssets.push({
-            id: `page-${postId}`,
-            postId,
-            _source: 'page',
-            asset_type: 'video', // Default, will be refined
-            asset_name: `Organic Post: ${postId.slice(0, 8)}...`,
-          });
-        }
-      }
-      
-      setPreSelectedAssets(allAssets);
-      setIsLoadingPreSelected(false);
+      setCampaignData({ adAccounts, pageConfigs, platforms });
     };
-    
-    loadAssets();
-  }, [parsedAssets.platformIds.join(','), parsedAssets.pageIds.join(','), user, hasPreSelectedAssets]);
 
-  const handleCampaignSelect = useCallback((campaignId: string) => {
-    const campaign = campaigns.find(c => c.id === campaignId);
-    setSelectedCampaignId(campaignId);
-    setSelectedCampaignName(campaign?.name || '');
-  }, [campaigns]);
+    loadCampaignData();
+  }, [progress?.campaignId]);
 
-  const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
-    await processFiles(files);
-    toast.success(`Processed ${files.length} files`);
-  }, [processFiles]);
+  // Handle running the mesh
+  const handleRunMesh = useCallback(async () => {
+    if (!progress?.campaignId) return;
 
-  const handleFolderSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
-    await processFiles(files);
-    toast.success(`Processed ${files.length} files from folder`);
-  }, [processFiles]);
+    // Convert selected assets to matching format
+    const assetsToMatch = progress.selectedAssets.map(asset => ({
+      id: asset.id,
+      platform: asset.platform,
+      asset_type: asset.assetType,
+      thumbnail_url: asset.thumbnailUrl,
+      asset_name: asset.name,
+      post_id: asset.postId,
+      platform_asset_id: asset.platformAssetId,
+      // Mark organic posts for special handling
+      creative_type: asset.source === 'page_assets' ? 'existing_post' : undefined,
+    }));
 
-  const handleRunMatching = async () => {
-    const campaignIdToUse = effectiveCampaignId;
-    if (!campaignIdToUse) { toast.error('Please select an ActiPlan first'); return; }
-    if (state.assets.length === 0) { toast.error('Please add some creatives first'); return; }
+    // Add assets to matching engine
+    addPlatformAssets(assetsToMatch);
 
-    let structures = state.structures;
-    if (structures.length === 0) {
-      structures = await loadCampaignStructures(campaignIdToUse) || [];
+    // Load structures and run matching
+    const structures = await loadCampaignStructures(progress.campaignId);
+    if (structures && structures.length > 0) {
+      runMatching(structures);
+      goToStep('mesh');
+    } else {
+      toast.error('No campaign structures found. Make sure the ActiPlan has phases configured.');
     }
-    runMatching(structures);
-  };
+  }, [progress, addPlatformAssets, loadCampaignStructures, runMatching, goToStep]);
 
-  const handleClose = () => {
+  // Handle save matches
+  const handleSaveMatches = useCallback(async () => {
+    await saveMatches();
+    // After saving, move to content step
+    goToStep('content');
+  }, [saveMatches, goToStep]);
+
+  // Handle content step completion
+  const handleContentComplete = useCallback(() => {
+    if (progress?.campaignId) {
+      navigate(`/actiplans/${progress.campaignId}/launch`);
+    } else {
+      navigate('/creatives');
+    }
+  }, [progress?.campaignId, navigate]);
+
+  // Handle close
+  const handleClose = useCallback(() => {
     navigate('/creatives');
-  };
+  }, [navigate]);
 
-  const stepProgress = state.currentStep === 'upload' ? 0 : state.currentStep === 'match' ? 25 : state.currentStep === 'review' ? 50 : state.currentStep === 'text_assets' ? 75 : 100;
-  const needsCampaignSelection = !effectiveCampaignId;
+  // Check if can navigate to a step
+  const canNavigateToStep = useCallback((step: MeshStep): boolean => {
+    if (!progress) return step === 'actiplan';
+    
+    switch (step) {
+      case 'actiplan':
+        return true;
+      case 'source':
+        return !!progress.campaignId && !!progress.platform;
+      case 'mesh':
+        return progress.selectedAssets.length > 0 || matchingState.results.length > 0;
+      case 'content':
+        return matchingState.savedAssignments && matchingState.savedAssignments.length > 0;
+      default:
+        return false;
+    }
+  }, [progress, matchingState.results.length, matchingState.savedAssignments]);
 
-  // Text Assets step renders full-screen
-  if (state.currentStep === 'text_assets') {
+  // Handle step navigation
+  const handleStepClick = useCallback((step: MeshStep) => {
+    if (canNavigateToStep(step)) {
+      goToStep(step);
+    }
+  }, [canNavigateToStep, goToStep]);
+
+  if (isLoadingProgress) {
     return (
-      <FeatureGate feature="creative_matching">
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <FeatureGate feature="creative_matching">
       <div className="min-h-screen bg-background flex flex-col">
+        {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b bg-background">
           <div className="flex items-center gap-3">
             <Wand2 className="h-5 w-5 text-primary" />
-            <h1 className="text-xl font-semibold">Text Asset Editor</h1>
-            {selectedCampaignName && <Badge variant="secondary">{selectedCampaignName}</Badge>}
+            <h1 className="text-xl font-semibold">Creative Mesh</h1>
+            {progress?.campaignName && (
+              <Badge variant="secondary">{progress.campaignName}</Badge>
+            )}
+            {progress?.platform && (
+              <Badge variant="outline" className="capitalize">{progress.platform}</Badge>
+            )}
           </div>
           <Button variant="ghost" onClick={handleClose}>
             <X className="h-4 w-4 mr-2" />
             Close
           </Button>
         </div>
-        
-        <div className="flex-1 overflow-hidden p-6">
-          <TextAssetsStep
-            campaignId={effectiveCampaignId!}
-            campaignName={selectedCampaignName}
-            savedAssignments={state.savedAssignments}
-            onComplete={() => {
-              skipTextAssets();
-              handleClose();
-            }}
-          />
-        </div>
-      </div>
-      </FeatureGate>
-    );
-  }
 
-  return (
-    <FeatureGate feature="creative_matching">
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b bg-background">
-        <div className="flex items-center gap-3">
-          <Wand2 className="h-5 w-5 text-primary" />
-          <h1 className="text-xl font-semibold">Auto-Mesh</h1>
-          {selectedCampaignName && <Badge variant="secondary">{selectedCampaignName}</Badge>}
-        </div>
-        <Button variant="ghost" onClick={handleClose}>
-          <X className="h-4 w-4 mr-2" />
-          Close
-        </Button>
-      </div>
+        {/* Step Indicator */}
+        <MeshStepIndicator 
+          currentStep={currentStep}
+          onStepClick={handleStepClick}
+          canNavigate={canNavigateToStep}
+        />
 
-      {/* Progress bar */}
-      {!needsCampaignSelection && <Progress value={stepProgress} className="h-1" />}
+        {/* Main Content */}
+        <div className="flex-1 overflow-hidden">
+          {/* Step 1: ActiPlan & Platform Selection */}
+          {currentStep === 'actiplan' && (
+            <MeshActiPlanStep
+              initialCampaignId={initialCampaignId}
+              onSelect={(id, name, platforms) => {
+                selectActiPlan(id, name, platforms);
+              }}
+              onPlatformSelect={(platform) => {
+                selectPlatform(platform);
+                goToStep('source');
+              }}
+              selectedCampaignId={progress?.campaignId}
+              selectedPlatform={progress?.platform}
+            />
+          )}
 
-      {/* Main content */}
-      <div className="flex-1 container mx-auto py-6 px-4 max-w-5xl">
-        {/* Campaign Selection */}
-        {needsCampaignSelection ? (
-          <div className="py-8 space-y-4">
-            <div className="text-center mb-6">
-              <h3 className="text-lg font-medium mb-2">Select an ActiPlan</h3>
-              <p className="text-muted-foreground text-sm">Choose which campaign structure to mesh creatives against</p>
-            </div>
-            {isLoadingCampaigns ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : campaigns.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                No ActiPlans found. Create one first to use Auto-Mesh.
-              </div>
-            ) : (
-              <Select value={selectedCampaignId} onValueChange={handleCampaignSelect}>
-                <SelectTrigger className="w-full max-w-md mx-auto">
-                  <SelectValue placeholder="Select an ActiPlan..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {campaigns.map(campaign => (
-                    <SelectItem key={campaign.id} value={campaign.id}>
-                      <div className="flex items-center gap-2">
-                        <span>{campaign.name}</span>
-                        <Badge variant="outline" className="text-xs">{campaign.status}</Badge>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-        ) : (
-          <>
-            {/* Stats bar */}
-            <div className="flex gap-4 text-sm border-b pb-3 mb-4">
-              <div><span className="text-muted-foreground">Creatives:</span> <span className="font-medium">{stats.totalAssets}</span></div>
-              <div><span className="text-muted-foreground">Matched:</span> <span className="font-medium text-primary">{stats.matchedCount}</span></div>
-              <div><span className="text-muted-foreground">Accepted:</span> <span className="font-medium text-primary">{stats.acceptedCount}</span></div>
-            </div>
+          {/* Step 2: Creative Source Selection */}
+          {currentStep === 'source' && progress && (
+            <MeshSourceStep
+              platform={progress.platform}
+              campaignId={progress.campaignId}
+              adAccounts={campaignData.adAccounts}
+              pageConfigs={campaignData.pageConfigs}
+              selectedAssets={progress.selectedAssets}
+              onAddAsset={addAsset}
+              onRemoveAsset={removeAsset}
+              onClearAssets={clearAssets}
+              onRunMesh={handleRunMesh}
+              isProcessing={matchingState.isProcessing}
+            />
+          )}
 
-            {/* Source Selection: Selected or Upload */}
-            {(state.currentStep === 'upload' || state.currentStep === 'match') && (
-              <Tabs value={activeSourceTab} onValueChange={(v) => setActiveSourceTab(v as 'selected' | 'upload')}>
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="selected" className="gap-2">
-                    <CheckCircle2 className="h-4 w-4" />
-                    Selected ({preSelectedAssets.length})
-                  </TabsTrigger>
-                  <TabsTrigger value="upload" className="gap-2">
-                    <Upload className="h-4 w-4" />
-                    Upload
-                  </TabsTrigger>
-                </TabsList>
-
-                {/* Selected Tab - Pre-selected assets from Creative Library */}
-                <TabsContent value="selected" className="mt-4">
-                  {isLoadingPreSelected ? (
-                    <div className="flex items-center justify-center py-8">
-                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                    </div>
-                  ) : preSelectedAssets.length === 0 ? (
-                    <div className="text-center py-8">
-                      <CheckCircle2 className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-                      <p className="text-muted-foreground mb-2">No assets selected.</p>
-                      <p className="text-sm text-muted-foreground mb-4">
-                        Go to Creative Library → Platform Assets or Page Assets to select assets for auto-meshing.
-                      </p>
-                      <Button variant="outline" onClick={() => setActiveSourceTab('upload')}>
-                        <Upload className="h-4 w-4 mr-2" />
-                        Upload New Creatives
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="secondary">
-                            {preSelectedAssets.length} assets ready
-                          </Badge>
-                          {parsedAssets.platformIds.length > 0 && parsedAssets.pageIds.length > 0 && (
-                            <Badge variant="outline" className="capitalize">
-                              {parsedAssets.platformIds.length} platform + {parsedAssets.pageIds.length} page
-                            </Badge>
-                          )}
-                          {parsedAssets.platformIds.length > 0 && parsedAssets.pageIds.length === 0 && (
-                            <Badge variant="outline" className="capitalize">
-                              from Platform Assets
-                            </Badge>
-                          )}
-                          {parsedAssets.pageIds.length > 0 && parsedAssets.platformIds.length === 0 && (
-                            <Badge variant="outline" className="capitalize">
-                              from Page Assets
-                            </Badge>
-                          )}
-                        </div>
-                        <Button 
-                          size="sm" 
-                          onClick={() => {
-                            addPlatformAssets(preSelectedAssets);
-                            toast.success(`Added ${preSelectedAssets.length} assets for matching`);
-                          }}
-                        >
-                          <Wand2 className="h-4 w-4 mr-2" />
-                          Add to Matching
-                        </Button>
-                      </div>
-                      <ScrollArea className="h-[400px] pr-4">
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                          {preSelectedAssets.map(asset => (
-                            <Card key={asset.id} className="ring-2 ring-primary bg-primary/5">
-                              <CardContent className="p-3">
-                                <div className="flex-1 min-w-0">
-                                  {asset.thumbnail_url && (
-                                    <div className="aspect-video mb-2 rounded overflow-hidden bg-muted">
-                                      <img 
-                                        src={asset.thumbnail_url} 
-                                        alt={asset.asset_name || 'Asset'} 
-                                        className="w-full h-full object-cover"
-                                      />
-                                    </div>
-                                  )}
-                                  <div className="flex items-center gap-1 mb-1">
-                                    {asset.asset_type === 'video' ? (
-                                      <Video className="h-3 w-3 text-muted-foreground" />
-                                    ) : (
-                                      <Image className="h-3 w-3 text-muted-foreground" />
-                                    )}
-                                    <span className="text-xs text-muted-foreground capitalize">
-                                      {asset.asset_type}
-                                    </span>
-                                  </div>
-                                  <p className="text-sm font-medium truncate" title={asset.asset_name || asset.platform_asset_id}>
-                                    {asset.asset_name || asset.platform_asset_id}
-                                  </p>
-                                  <div className="flex flex-wrap gap-1 mt-1">
-                                    <Badge variant="outline" className="text-xs px-1">
-                                      {asset.platform}
-                                    </Badge>
-                                    {asset.approval_status && (
-                                      <Badge 
-                                        variant={asset.approval_status === 'approved' ? 'default' : 'secondary'} 
-                                        className="text-xs px-1"
-                                      >
-                                        {asset.approval_status}
-                                      </Badge>
-                                    )}
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          ))}
-                        </div>
-                      </ScrollArea>
-                    </div>
-                  )}
-                </TabsContent>
-
-                {/* Upload Tab */}
-                <TabsContent value="upload" className="mt-4">
-                  <Tabs value={activeUploadTab} onValueChange={setActiveUploadTab}>
-                    <TabsList>
-                      <TabsTrigger value="files" className="gap-2"><Upload className="h-4 w-4" />Files</TabsTrigger>
-                      <TabsTrigger value="folder" className="gap-2"><FolderUp className="h-4 w-4" />Folder</TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="files" className="mt-4">
-                      <div onClick={() => fileInputRef.current?.click()} className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 transition-colors">
-                        <Upload className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-                        <p className="font-medium">Click to upload files</p>
-                        <p className="text-sm text-muted-foreground">Images and videos</p>
-                      </div>
-                      <input ref={fileInputRef} type="file" multiple accept="image/*,video/*" onChange={handleFileSelect} className="hidden" />
-                    </TabsContent>
-                    <TabsContent value="folder" className="mt-4">
-                      <div onClick={() => folderInputRef.current?.click()} className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary/50 transition-colors">
-                        <FolderUp className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-                        <p className="font-medium">Click to upload a folder</p>
-                        <p className="text-sm text-muted-foreground">Structured by Platform/Market/Phase</p>
-                      </div>
-                      <input ref={folderInputRef} type="file" {...{ webkitdirectory: '', directory: '' } as any} multiple onChange={handleFolderSelect} className="hidden" />
-                    </TabsContent>
-                  </Tabs>
-                </TabsContent>
-              </Tabs>
-            )}
-
-            {/* Show added assets count */}
-            {(state.currentStep === 'upload' || state.currentStep === 'match') && state.assets.length > 0 && (
-              <div className="mt-4 p-3 bg-muted/50 rounded-lg flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-medium">{state.assets.length} creatives ready for matching</span>
+          {/* Step 3: Auto-Mesh Review */}
+          {currentStep === 'mesh' && (
+            <div className="container mx-auto py-6 px-4 max-w-5xl">
+              {/* Stats */}
+              <div className="flex gap-4 text-sm border-b pb-3 mb-4">
+                <div>
+                  <span className="text-muted-foreground">Creatives:</span>{' '}
+                  <span className="font-medium">{stats.totalAssets}</span>
                 </div>
-                <Button size="sm" variant="ghost" onClick={() => clearAll()}>
-                  Clear
+                <div>
+                  <span className="text-muted-foreground">Matched:</span>{' '}
+                  <span className="font-medium text-primary">{stats.matchedCount}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Accepted:</span>{' '}
+                  <span className="font-medium text-primary">{stats.acceptedCount}</span>
+                </div>
+              </div>
+
+              {/* Structure-centric view */}
+              <StructureCentricView
+                structureResults={matchingState.structureResults}
+                unassignedAssets={matchingState.unassignedAssets}
+                acceptedMatches={matchingState.acceptedMatches}
+                saveProgress={matchingState.saveProgress}
+                onAcceptAsset={(assetId, structure) => {
+                  const structureResult = matchingState.structureResults.find(
+                    r => r.structure.id === structure.id
+                  );
+                  const assignedAsset = structureResult?.assignedAssets.find(
+                    a => a.asset.id === assetId
+                  );
+
+                  if (assignedAsset) {
+                    const match: UICreativeMatch = {
+                      structure,
+                      confidenceScore: assignedAsset.confidenceScore,
+                      reasoning: assignedAsset.reasoning,
+                      compatibilityIssues: assignedAsset.issues,
+                      hardConstraintsMet: true,
+                    };
+                    acceptMatch(assetId, match);
+                  } else {
+                    const match: UICreativeMatch = {
+                      structure,
+                      confidenceScore: 40,
+                      reasoning: ['Manually applied by user'],
+                      compatibilityIssues: [],
+                      hardConstraintsMet: false,
+                    };
+                    acceptMatch(assetId, match);
+                  }
+                }}
+                onRejectAsset={(assetId, structureId) => rejectMatch(assetId, structureId)}
+              />
+
+              {/* Actions */}
+              <div className="flex items-center justify-between pt-6 border-t mt-6">
+                <Button variant="outline" onClick={() => goToStep('source')}>
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Back to Sources
                 </Button>
-              </div>
-            )}
-
-            {/* Review step */}
-            {state.currentStep === 'review' && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Tabs value={activeViewMode} onValueChange={(v) => setActiveViewMode(v as 'structure' | 'asset')}>
-                    <TabsList className="h-8">
-                      <TabsTrigger value="structure" className="gap-1.5 text-xs px-3">
-                        <Layers className="h-3.5 w-3.5" />
-                        By Ad Set
-                      </TabsTrigger>
-                      <TabsTrigger value="asset" className="gap-1.5 text-xs px-3">
-                        <List className="h-3.5 w-3.5" />
-                        By Creative
-                      </TabsTrigger>
-                    </TabsList>
-                  </Tabs>
-                  <div className="text-xs text-muted-foreground">
-                    {state.structureResults.filter(r => r.assignedAssets.length > 0).length} ad sets with matches
-                  </div>
+                <div className="flex gap-2">
+                  {stats.acceptedCount > 0 && (
+                    <Button onClick={handleSaveMatches} disabled={matchingState.isProcessing}>
+                      {matchingState.isProcessing ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Save className="h-4 w-4 mr-2" />
+                      )}
+                      Save & Continue
+                    </Button>
+                  )}
                 </div>
-
-                {activeViewMode === 'structure' && (
-                  <StructureCentricView
-                    structureResults={state.structureResults}
-                    unassignedAssets={state.unassignedAssets}
-                    acceptedMatches={state.acceptedMatches}
-                    saveProgress={state.saveProgress}
-                    onAcceptAsset={(assetId, structure) => {
-                      const structureResult = state.structureResults.find(r => r.structure.id === structure.id);
-                      const assignedAsset = structureResult?.assignedAssets.find(a => a.asset.id === assetId);
-                      
-                      if (assignedAsset) {
-                        const match: UICreativeMatch = {
-                          structure,
-                          confidenceScore: assignedAsset.confidenceScore,
-                          reasoning: assignedAsset.reasoning,
-                          compatibilityIssues: assignedAsset.issues,
-                          hardConstraintsMet: true,
-                        };
-                        acceptMatch(assetId, match);
-                      } else {
-                        const unassignedAsset = state.unassignedAssets.find(u => u.asset.id === assetId);
-                        const match: UICreativeMatch = {
-                          structure,
-                          confidenceScore: unassignedAsset ? 50 : 40,
-                          reasoning: ['Manually applied by user (platform constraint relaxed)'],
-                          compatibilityIssues: [],
-                          hardConstraintsMet: false,
-                        };
-                        acceptMatch(assetId, match);
-                      }
-                    }}
-                    onRejectAsset={(assetId, structureId) => rejectMatch(assetId, structureId)}
-                  />
-                )}
-
-                {activeViewMode === 'asset' && (
-                  <ScrollArea className="h-[500px] pr-4">
-                    <div className="space-y-4">
-                      {state.results.map(result => {
-                        const asset = state.assets.find(a => a.id === result.assetId);
-                        if (!asset) return null;
-                        
-                        let acceptedMatch: UICreativeMatch | undefined;
-                        for (const [key, match] of state.acceptedMatches.entries()) {
-                          if (key.startsWith(`${result.assetId}:`)) {
-                            acceptedMatch = match;
-                            break;
-                          }
-                        }
-                        
-                        return (
-                          <CreativeMatchCard
-                            key={result.assetId}
-                            result={result}
-                            asset={asset}
-                            acceptedMatch={acceptedMatch}
-                            rejectedStructureIds={state.rejectedMatches.get(result.assetId) || new Set()}
-                            onAccept={(match: UICreativeMatch) => acceptMatch(result.assetId, match)}
-                            onReject={(structureId: string) => rejectMatch(result.assetId, structureId)}
-                            onClearRejection={(structureId: string) => clearRejection(result.assetId, structureId)}
-                            onClearAccepted={() => clearAcceptedMatch(result.assetId)}
-                            onRemove={() => removeAsset(result.assetId)}
-                          />
-                        );
-                      })}
-                    </div>
-                  </ScrollArea>
-                )}
-              </div>
-            )}
-
-            {/* Complete step */}
-            {state.currentStep === 'complete' && (
-              <div className="flex flex-col items-center justify-center py-12">
-                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-                  <Check className="h-8 w-8 text-primary" />
-                </div>
-                <h3 className="text-xl font-semibold mb-2">Matches Saved!</h3>
-                <p className="text-muted-foreground text-center">{stats.acceptedCount} creatives assigned to {selectedCampaignName}</p>
-              </div>
-            )}
-
-            {/* Footer actions */}
-            <div className="flex items-center justify-between pt-6 border-t mt-6">
-              <div>{state.currentStep === 'review' && stats.unmatchedCount > 0 && (
-                <div className="flex items-center gap-2 text-destructive text-sm"><AlertTriangle className="h-4 w-4" />{stats.unmatchedCount} unmatched</div>
-              )}</div>
-              <div className="flex gap-2">
-                {state.currentStep === 'review' && <Button variant="outline" onClick={clearAll}><ArrowLeft className="h-4 w-4 mr-2" />Start Over</Button>}
-                {(state.currentStep === 'upload' || state.currentStep === 'match') && state.assets.length > 0 && (
-                  <Button onClick={handleRunMatching} disabled={state.isProcessing}>
-                    {state.isProcessing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Wand2 className="h-4 w-4 mr-2" />}Run Matching
-                  </Button>
-                )}
-                {state.currentStep === 'review' && stats.acceptedCount > 0 && (
-                  <Button onClick={saveMatches} disabled={state.isProcessing}>
-                    {state.isProcessing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}Save Matches
-                  </Button>
-                )}
-                {state.currentStep === 'complete' && <Button onClick={handleClose}>Done</Button>}
               </div>
             </div>
-          </>
-        )}
+          )}
+
+          {/* Step 4: Creative Content (formerly Text Assets) */}
+          {currentStep === 'content' && progress && (
+            <div className="flex-1 overflow-hidden p-6">
+              <TextAssetsStep
+                campaignId={progress.campaignId}
+                campaignName={progress.campaignName}
+                savedAssignments={matchingState.savedAssignments}
+                onComplete={handleContentComplete}
+              />
+            </div>
+          )}
+        </div>
       </div>
-    </div>
     </FeatureGate>
   );
 }
