@@ -347,27 +347,23 @@ async function handleTikTokPosts(
 
       // Strategy 1: identity/video/list (most reliable when the account is properly authorized)
       for (const identityType of identityTypesToTry) {
-        const identityVideoUrl = `https://business-api.tiktok.com/open_api/v1.3/identity/video/list/`;
-        const identityVideoBody = {
-          advertiser_id: resolvedAdvertiserId,
-          identity_id: identityId,
-          identity_type: identityType,
-          page: 1,
-          page_size: Math.min(limit, 100),
-        };
+        // TikTok Business API v1.3 listing endpoints are GET with query params.
+        const identityVideoUrl = `https://business-api.tiktok.com/open_api/v1.3/identity/video/list/?advertiser_id=${encodeURIComponent(
+          resolvedAdvertiserId
+        )}&identity_id=${encodeURIComponent(identityId)}&identity_type=${encodeURIComponent(
+          identityType
+        )}&page=1&page_size=${encodeURIComponent(String(Math.min(limit, 100)))}`;
 
         console.log(
           `[fetch-organic-posts] Fetching TikTok identity videos: advertiser=${resolvedAdvertiserId}, identity=${identityId}, identity_type=${identityType}`
         );
 
         const identityResponse = await fetch(identityVideoUrl, {
-          method: "POST",
+          method: "GET",
           headers: {
             "Access-Token": accessToken,
-            "Content-Type": "application/json",
             Accept: "application/json",
           },
-          body: JSON.stringify(identityVideoBody),
         });
 
         const identityData = await readJsonSafe(
@@ -414,21 +410,17 @@ async function handleTikTokPosts(
         console.log(
           `[fetch-organic-posts] Trying Spark Ads authorized posts for advertiser ${resolvedAdvertiserId}`
         );
-        const sparkAuthUrl = `https://business-api.tiktok.com/open_api/v1.3/creative/spark_ads/authorized_posts/get/`;
-        const sparkAuthBody = {
-          advertiser_id: resolvedAdvertiserId,
-          page: 1,
-          page_size: Math.min(limit, 100),
-        };
+        // TikTok Business API v1.3 listing endpoint is GET with query params.
+        const sparkAuthUrl = `https://business-api.tiktok.com/open_api/v1.3/creative/spark_ads/authorized_posts/get/?advertiser_id=${encodeURIComponent(
+          resolvedAdvertiserId
+        )}&page=1&page_size=${encodeURIComponent(String(Math.min(limit, 100)))}`;
 
         const sparkResponse = await fetch(sparkAuthUrl, {
-          method: "POST",
+          method: "GET",
           headers: {
             "Access-Token": accessToken,
-            "Content-Type": "application/json",
             Accept: "application/json",
           },
-          body: JSON.stringify(sparkAuthBody),
         });
 
         const sparkData = await readJsonSafe(
