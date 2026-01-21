@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { PlatformWithMarkets } from "@/types/mediaplan";
 import { GenericConfig } from "./GenericStrategyConfig";
-import { Loader2, TrendingUp, Users, Eye, Target, DollarSign, Download, Mail, FileSpreadsheet, FileText, ChevronDown, Rocket } from "lucide-react";
+import { Loader2, TrendingUp, Users, Eye, Target, DollarSign, Download, Mail, FileSpreadsheet, FileText, ChevronDown, Rocket, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import { getOptimizationGoalMetrics, getResultLabel, calculateResultFromImpressions } from "@/utils/optimizationGoals";
 import { getObjectiveFromPhaseName } from "@/utils/phaseObjectiveMapping";
@@ -1555,6 +1555,14 @@ export function CampaignForecast({
                 Send for Approval
               </Button>
             </LockedFeatureButton>
+            <Button 
+              variant="outline"
+              onClick={() => navigate(`/creatives/match?campaignId=${campaignId}`)} 
+              disabled={!campaignId}
+            >
+              <Wand2 className="h-4 w-4 mr-2" />
+              Mesh Ads
+            </Button>
             <Button 
               variant="gradient" 
               onClick={handleGoToLaunchStatus} 
