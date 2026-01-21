@@ -17,13 +17,12 @@ import {
   FolderUp,
   Image as ImageIcon,
   Video,
-  CheckCircle2,
-  ArrowRight,
   Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
 import { SelectedAsset, CreativeSource } from '@/hooks/useCreativeMeshProgress';
+import { MeshPageAssetsPicker } from '@/components/creative/MeshPageAssetsPicker';
+import { MeshAdAccountAssetsPicker } from '@/components/creative/MeshAdAccountAssetsPicker';
 
 // Ad account configuration passed from parent
 interface AdAccountInfo {
@@ -54,7 +53,6 @@ interface MeshSourceStepProps {
 
 export function MeshSourceStep({
   platform,
-  campaignId,
   adAccounts,
   pageConfigs,
   selectedAssets,
@@ -69,8 +67,6 @@ export function MeshSourceStep({
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
-  const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
-  const [isLoadingAssets, setIsLoadingAssets] = useState(false);
 
   // Filter assets by current platform
   const platformAssets = useMemo(() => 
@@ -135,7 +131,6 @@ export function MeshSourceStep({
       onAddAsset(asset);
     }
     
-    setUploadedFiles(prev => [...prev, ...files]);
     toast.success(`Added ${files.length} files`);
     
     // Reset input
@@ -169,7 +164,6 @@ export function MeshSourceStep({
       onAddAsset(asset);
     }
     
-    setUploadedFiles(prev => [...prev, ...files]);
     toast.success(`Added ${files.length} files from folder`);
     
     if (e.target) e.target.value = '';
@@ -309,9 +303,9 @@ export function MeshSourceStep({
                       No pages connected to this campaign. Configure platform identities in the ActiPlan.
                     </div>
                   ) : (
-                    <PageAssetSelector
+                    <MeshPageAssetsPicker
                       platform={platform}
-                      pageConfigs={pageConfigs}
+                      pageConfigs={pageConfigs.filter(c => c.platform === platform)}
                       selectedAssets={platformAssets.filter(a => a.source === 'page_assets')}
                       onAddAsset={onAddAsset}
                       onRemoveAsset={onRemoveAsset}
@@ -336,8 +330,7 @@ export function MeshSourceStep({
                       No ad account connected for {platform}. Configure in the ActiPlan.
                     </div>
                   ) : (
-                    <AdAccountAssetSelector
-                      platform={platform}
+                    <MeshAdAccountAssetsPicker
                       adAccounts={adAccounts.filter(a => a.platform === platform)}
                       selectedAssets={platformAssets.filter(a => a.source === 'ad_account_assets')}
                       onAddAsset={onAddAsset}
@@ -433,58 +426,6 @@ export function MeshSourceStep({
           </div>
         </div>
       </Tabs>
-    </div>
-  );
-}
-
-// Sub-component for Page Asset selection
-function PageAssetSelector({
-  platform,
-  pageConfigs,
-  selectedAssets,
-  onAddAsset,
-  onRemoveAsset,
-}: {
-  platform: 'meta' | 'tiktok';
-  pageConfigs: PageConfig[];
-  selectedAssets: SelectedAsset[];
-  onAddAsset: (asset: SelectedAsset) => void;
-  onRemoveAsset: (assetId: string) => void;
-}) {
-  // This will be populated with the UnifiedPageAssetsLibrary integration
-  return (
-    <div className="text-center py-8 text-muted-foreground">
-      <FileImage className="h-12 w-12 mx-auto mb-4 opacity-50" />
-      <p>Page assets will load here based on connected pages.</p>
-      <p className="text-xs mt-2">
-        {pageConfigs.length} page(s) configured
-      </p>
-    </div>
-  );
-}
-
-// Sub-component for Ad Account Asset selection
-function AdAccountAssetSelector({
-  platform,
-  adAccounts,
-  selectedAssets,
-  onAddAsset,
-  onRemoveAsset,
-}: {
-  platform: 'meta' | 'tiktok';
-  adAccounts: AdAccountInfo[];
-  selectedAssets: SelectedAsset[];
-  onAddAsset: (asset: SelectedAsset) => void;
-  onRemoveAsset: (assetId: string) => void;
-}) {
-  // This will be populated with the UnifiedAssetsLibrary integration
-  return (
-    <div className="text-center py-8 text-muted-foreground">
-      <Cloud className="h-12 w-12 mx-auto mb-4 opacity-50" />
-      <p>Ad account assets will load here.</p>
-      <p className="text-xs mt-2">
-        {adAccounts.length} ad account(s) connected
-      </p>
     </div>
   );
 }
