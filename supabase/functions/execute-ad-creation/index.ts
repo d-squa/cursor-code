@@ -273,6 +273,18 @@ async function createTikTokAd(
   const asset = config.creative_asset;
   const identity = config.identity;
 
+  // ========== FAIL-FAST: Block API-uploaded creatives ==========
+  // TikTok requires creatives to be uploaded via Ads Manager UI.
+  // API-uploaded creatives will fail with "insufficient permission" errors.
+  const creativeOrigin = asset?.creative_origin || "API_UPLOAD";
+  if (creativeOrigin === "API_UPLOAD") {
+    throw new Error(
+      "TikTok requires creatives to be uploaded via Ads Manager. " +
+      "This creative was uploaded via API and cannot be used for ad delivery. " +
+      "Please upload in TikTok Ads Manager, then sync your Creative Library."
+    );
+  }
+
   // Build TikTok ad payload
   const payload: TikTokAdPayload = {
     advertiser_id: config.advertiser_id,

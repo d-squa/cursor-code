@@ -4,6 +4,26 @@ import { createClient } from "npm:@supabase/supabase-js@2.76.1";
 import { getAccessToken } from "../_shared/vault-helper.ts";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 
+/**
+ * UPLOAD-CREATIVE-TO-TIKTOK
+ * 
+ * ⚠️ CRITICAL LIMITATION NOTICE ⚠️
+ * 
+ * API-uploaded creatives are NOT delivery-eligible on TikTok.
+ * TikTok requires creatives to be uploaded via the Ads Manager UI for ad delivery.
+ * 
+ * This function still works for:
+ * - Storage and preview purposes
+ * - Planning workflows
+ * - Thumbnail uploads (which don't require delivery eligibility)
+ * 
+ * Creatives uploaded via this function will be marked with:
+ *   creative_origin = 'API_UPLOAD'
+ * 
+ * These creatives will be BLOCKED from /ad/create calls.
+ * Users must upload creatives via TikTok Ads Manager, then sync them.
+ */
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -16,6 +36,8 @@ const uploadInputSchema = z.object({
   fileData: z.string(), // Base64 encoded file data
   fileType: z.enum(["image", "video"]),
   mimeType: z.string().optional(),
+  // Flag to indicate if this is for thumbnail use only (allowed) vs ad creative (blocked)
+  isThumbnailOnly: z.boolean().optional(),
 });
 
 serve(async (req: Request) => {

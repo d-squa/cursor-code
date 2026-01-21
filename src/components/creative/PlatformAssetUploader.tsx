@@ -9,6 +9,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Alert,
   AlertDescription,
+  AlertTitle,
 } from '@/components/ui/alert';
 import {
   Upload,
@@ -22,6 +23,8 @@ import {
   Play,
   Image as ImageIcon,
   RefreshCw,
+  AlertTriangle,
+  ExternalLink,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -44,6 +47,21 @@ interface PlatformAssetUploaderProps {
 
 const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500MB for videos
 
+/**
+ * ⚠️ IMPORTANT: TikTok Platform Limitation ⚠️
+ * 
+ * TikTok requires creatives to be uploaded via the Ads Manager UI for ad delivery.
+ * API-uploaded creatives are stored in the Creative Library but are NOT delivery-eligible.
+ * 
+ * For TikTok:
+ * - Users MUST upload creatives manually in TikTok Ads Manager
+ * - Then use "Sync Library" to fetch those creatives into ActiPlan
+ * - Only synced creatives (origin: UI_SYNC) can be used for ad creation
+ * 
+ * For Meta:
+ * - API uploads work normally for ad delivery
+ */
+
 export function PlatformAssetUploader({
   platform,
   advertiserId,
@@ -55,6 +73,9 @@ export function PlatformAssetUploader({
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isDragOver, setIsDragOver] = useState(false);
+
+  // TikTok requires UI uploads for ad delivery
+  const isTikTokBlocked = platform === 'tiktok';
 
   // Handle file selection
   const handleFileSelect = useCallback((selectedFiles: FileList | File[]) => {
@@ -231,45 +252,110 @@ export function PlatformAssetUploader({
   const successCount = files.filter((f) => f.status === 'success').length;
   const errorCount = files.filter((f) => f.status === 'error').length;
 
+  const platformDisplayName = platform === 'tiktok' ? 'TikTok' : 'Meta';
+  
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Upload to {platform === 'tiktok' ? 'TikTok' : 'Meta'} Creative Library</CardTitle>
+        <CardTitle>
+          {isTikTokBlocked 
+            ? 'TikTok Creative Library' 
+            : `Upload to ${platformDisplayName} Creative Library`
+          }
+        </CardTitle>
         <CardDescription>
-          Upload videos and images directly to your {platform === 'tiktok' ? 'TikTok' : 'Meta'} Creative Library
+          {isTikTokBlocked
+            ? 'Upload creatives in TikTok Ads Manager, then sync them here'
+            : `Upload videos and images directly to your ${platformDisplayName} Creative Library`
+          }
         </CardDescription>
       </CardHeader>
 
       <CardContent className="space-y-4">
-        {/* Drop Zone */}
-        <div
-          className={cn(
-            'border-2 border-dashed rounded-lg p-8 text-center transition-colors',
-            isDragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/30',
-            'hover:border-primary hover:bg-primary/5'
-          )}
-          onDragOver={(e) => {
-            e.preventDefault();
-            setIsDragOver(true);
-          }}
-          onDragLeave={() => setIsDragOver(false)}
-          onDrop={handleDrop}
-          onClick={() => inputRef.current?.click()}
-        >
-          <input
-            ref={inputRef}
-            type="file"
-            multiple
-            accept="video/*,image/*"
-            className="hidden"
-            onChange={(e) => e.target.files && handleFileSelect(e.target.files)}
-          />
-          <Upload className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
-          <p className="font-medium">Drop files here or click to select</p>
-          <p className="text-sm text-muted-foreground mt-1">
-            Videos (MP4, MOV, AVI) and Images (JPG, PNG, GIF)
-          </p>
-        </div>
+        {/* TikTok Platform Limitation Warning */}
+        {isTikTokBlocked && (
+          <Alert variant="default" className="border-amber-500/50 bg-amber-500/10">
+            <AlertTriangle className="h-4 w-4 text-amber-600" />
+            <AlertTitle className="text-amber-700">TikTok requires manual upload</AlertTitle>
+            <AlertDescription className="text-amber-600/90">
+              <p className="mb-2">
+                TikTok only allows creatives uploaded through their Ads Manager to be used for ad delivery.
+                API-uploaded creatives cannot be used for launching ads.
+              </p>
+              <p className="font-medium">Required workflow:</p>
+              <ol className="list-decimal list-inside mt-1 space-y-1 text-sm">
+                <li>Upload creatives in TikTok Ads Manager</li>
+                <li>Click "Sync Library" below to import them</li>
+                <li>Assign synced creatives to your campaigns</li>
+              </ol>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="mt-3 border-amber-500/50 text-amber-700 hover:bg-amber-500/10"
+                onClick={() => window.open('https://ads.tiktok.com/i18n/creatives', '_blank')}
+              >
+                <ExternalLink className="h-3 w-3 mr-2" />
+                Open TikTok Ads Manager
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Sync Library Button for TikTok */}
+        {isTikTokBlocked && (
+          <Button 
+            variant="secondary" 
+            className="w-full"
+            onClick={async () => {
+              try {
+                toast.info('Syncing TikTok Creative Library...');
+                await supabase.functions.invoke('sync-creative-library', {
+                  body: { platform: 'tiktok', advertiserId },
+                });
+                queryClient.invalidateQueries({ queryKey: ['platform-assets', 'tiktok', advertiserId] });
+                toast.success('Creative Library synced successfully');
+                onUploadComplete?.(0);
+              } catch (error) {
+                toast.error('Failed to sync library');
+              }
+            }}
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Sync TikTok Creative Library
+          </Button>
+        )}
+
+        {/* Drop Zone - Only show for Meta */}
+        {!isTikTokBlocked && (
+          <div
+            className={cn(
+              'border-2 border-dashed rounded-lg p-8 text-center transition-colors',
+              isDragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/30',
+              'hover:border-primary hover:bg-primary/5'
+            )}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDragOver(true);
+            }}
+            onDragLeave={() => setIsDragOver(false)}
+            onDrop={handleDrop}
+            onClick={() => inputRef.current?.click()}
+          >
+            <input
+              ref={inputRef}
+              type="file"
+              multiple
+              accept="video/*,image/*"
+              className="hidden"
+              onChange={(e) => e.target.files && handleFileSelect(e.target.files)}
+            />
+            <Upload className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
+            <p className="font-medium">Drop files here or click to select</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Videos (MP4, MOV, AVI) and Images (JPG, PNG, GIF)
+            </p>
+          </div>
+        )}
 
         {/* File List */}
         {files.length > 0 && (
@@ -318,19 +404,21 @@ export function PlatformAssetUploader({
               </div>
             )}
 
-            {/* Upload Button */}
-            <Button
-              onClick={handleUploadAll}
-              disabled={pendingCount === 0 || isUploading}
-              className="w-full"
-            >
-              {isUploading ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Upload className="h-4 w-4 mr-2" />
-              )}
-              Upload {pendingCount} file{pendingCount !== 1 ? 's' : ''} to {platform === 'tiktok' ? 'TikTok' : 'Meta'}
-            </Button>
+            {/* Upload Button - Only show for Meta */}
+            {!isTikTokBlocked && (
+              <Button
+                onClick={handleUploadAll}
+                disabled={pendingCount === 0 || isUploading}
+                className="w-full"
+              >
+                {isUploading ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Upload className="h-4 w-4 mr-2" />
+                )}
+                Upload {pendingCount} file{pendingCount !== 1 ? 's' : ''} to {platformDisplayName}
+              </Button>
+            )}
           </div>
         )}
       </CardContent>
