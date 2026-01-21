@@ -1030,6 +1030,7 @@ export type Database = {
           asset_name: string | null
           asset_type: string
           created_at: string | null
+          creative_origin: string | null
           duration_seconds: number | null
           file_size_bytes: number | null
           height: number | null
@@ -1054,6 +1055,7 @@ export type Database = {
           asset_name?: string | null
           asset_type: string
           created_at?: string | null
+          creative_origin?: string | null
           duration_seconds?: number | null
           file_size_bytes?: number | null
           height?: number | null
@@ -1078,6 +1080,7 @@ export type Database = {
           asset_name?: string | null
           asset_type?: string
           created_at?: string | null
+          creative_origin?: string | null
           duration_seconds?: number | null
           file_size_bytes?: number | null
           height?: number | null
@@ -1183,6 +1186,7 @@ export type Database = {
           client_id: string | null
           content_pillar: string | null
           created_at: string
+          creative_origin: string | null
           creative_type: Database["public"]["Enums"]["creative_type"]
           deeplink_url: string | null
           delivery_deadline: string | null
@@ -1280,6 +1284,7 @@ export type Database = {
           client_id?: string | null
           content_pillar?: string | null
           created_at?: string
+          creative_origin?: string | null
           creative_type?: Database["public"]["Enums"]["creative_type"]
           deeplink_url?: string | null
           delivery_deadline?: string | null
@@ -1377,6 +1382,7 @@ export type Database = {
           client_id?: string | null
           content_pillar?: string | null
           created_at?: string
+          creative_origin?: string | null
           creative_type?: Database["public"]["Enums"]["creative_type"]
           deeplink_url?: string | null
           delivery_deadline?: string | null

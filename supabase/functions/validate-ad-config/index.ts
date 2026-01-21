@@ -132,6 +132,21 @@ serve(async (req: Request) => {
       } else {
         const asset = config.creative_asset;
 
+        // ========== CRITICAL: TikTok Creative Origin Validation ==========
+        // API-uploaded creatives are NOT delivery-eligible on TikTok.
+        // Only UI_SYNC creatives (uploaded via TikTok Ads Manager) can be used for ads.
+        if (config.platform === "tiktok") {
+          const creativeOrigin = asset.creative_origin || "API_UPLOAD";
+          if (creativeOrigin === "API_UPLOAD") {
+            errors.push({
+              field: "creative_asset",
+              code: "TIKTOK_API_UPLOAD_NOT_ELIGIBLE",
+              message: "TikTok requires creatives to be uploaded via Ads Manager. API-uploaded creatives cannot be used for ad delivery. Please upload this creative in TikTok Ads Manager, then sync your Creative Library.",
+              severity: "error",
+            });
+          }
+        }
+
         // Check approval status
         if (asset.approval_status !== "approved") {
           errors.push({

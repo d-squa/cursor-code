@@ -154,6 +154,8 @@ serve(async (req: Request) => {
             spark_eligible: false, // Will be updated separately
             platform_metadata: video,
             synced_at: new Date().toISOString(),
+            // CRITICAL: Assets synced from TikTok Creative Library (uploaded via UI) are delivery-eligible
+            creative_origin: "UI_SYNC",
           };
 
           const { error: upsertError } = await supabase
@@ -199,6 +201,8 @@ serve(async (req: Request) => {
             spark_eligible: false,
             platform_metadata: image,
             synced_at: new Date().toISOString(),
+            // CRITICAL: Assets synced from TikTok Creative Library (uploaded via UI) are delivery-eligible
+            creative_origin: "UI_SYNC",
           };
 
           const { error: upsertError } = await supabase

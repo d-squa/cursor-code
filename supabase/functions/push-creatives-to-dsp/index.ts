@@ -992,7 +992,65 @@ const handler = async (req: Request): Promise<Response> => {
 
             const isVideo = creative.media_type === "video" || creative.creative_type === "video";
             
+            // ========== CRITICAL: TikTok Creative Origin Validation ==========
+            // API-uploaded creatives are NOT delivery-eligible on TikTok.
+            // Only UI_SYNC creatives (uploaded via TikTok Ads Manager) can be used for ads.
+            // 
+            // Check the creative's origin - if it came from a platform asset, check that asset's origin.
+            // If no origin is set, we need to check if it's being uploaded via API (which should be blocked).
+            const { data: fullCreativeOriginCheck } = await supabase
+              .from("creatives")
+              .select("creative_origin, platform_metadata")
+              .eq("id", creative.id)
+              .single();
+            
+            // Get origin from creative or from platform_metadata (for assets from creative_library_assets)
+            let creativeOrigin = fullCreativeOriginCheck?.creative_origin;
+            
+            // If creative was created from a platform asset, check the platform asset's origin
+            if (!creativeOrigin && fullCreativeOriginCheck?.platform_metadata) {
+              const platformMeta = fullCreativeOriginCheck.platform_metadata as any;
+              if (platformMeta?.creative_origin) {
+                creativeOrigin = platformMeta.creative_origin;
+              } else if (platformMeta?.platform_asset_id && platformMeta?.advertiser_id) {
+                // Look up the original asset in creative_library_assets
+                const { data: libraryAsset } = await supabase
+                  .from("creative_library_assets")
+                  .select("creative_origin")
+                  .eq("platform", "tiktok")
+                  .eq("platform_asset_id", platformMeta.platform_asset_id)
+                  .maybeSingle();
+                
+                if (libraryAsset?.creative_origin) {
+                  creativeOrigin = libraryAsset.creative_origin;
+                }
+              }
+            }
+            
+            // Default to API_UPLOAD if no origin is set (safer to block than to allow)
+            if (!creativeOrigin) {
+              creativeOrigin = "API_UPLOAD";
+            }
+            
+            // Block API-uploaded creatives from ad delivery
+            if (creativeOrigin === "API_UPLOAD") {
+              console.error(`[push-creatives] ❌ BLOCKED: Creative ${creative.id} has origin=${creativeOrigin}. TikTok requires creatives to be uploaded via Ads Manager.`);
+              await supabase
+                .from("creative_assignments")
+                .update({
+                  status: "error",
+                  error_message: "TikTok requires creatives to be uploaded via Ads Manager. API-uploaded creatives cannot be used for ad delivery. Please upload this creative in TikTok Ads Manager, then sync your Creative Library.",
+                })
+                .eq("id", assignment.id);
+              localFailed++;
+              continue;
+            }
+            
+            console.log(`[push-creatives] ✅ TikTok creative origin validated: ${creativeOrigin}`);
+            
             // ========== TikTok Auto-Upload Logic ==========
+            // NOTE: With the new origin validation, auto-upload is effectively disabled for ad delivery.
+            // This section is kept for backwards compatibility but should rarely trigger.
             // Check if creative needs to be uploaded to TikTok first
             // IMPORTANT: TikTok assets are advertiser-scoped - we must verify the asset belongs to this advertiser
             let hasTikTokAsset = isVideo ? !!creative.platform_video_id : !!creative.platform_image_hash;

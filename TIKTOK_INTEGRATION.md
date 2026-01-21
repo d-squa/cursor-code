@@ -205,3 +205,54 @@ VALUES ('meta', 'NEW_OBJECTIVE', 'tiktok', 'TIKTOK_EQUIVALENT');
 - Service role required for metrics sync
 - User can only access their own data
 - JWT verification enabled for all functions
+
+---
+
+## ⚠️ Critical Platform Limitation: TikTok Creative Delivery
+
+### The Problem (Discovered Through Extensive Testing)
+
+**TikTok's API-uploaded creatives are NOT delivery-eligible for ad creation.**
+
+This is a platform limitation, not a bug:
+
+1. **Creative Library is Business Center-level** - Creatives uploaded via API appear across multiple advertisers
+2. **API-uploaded creatives fail at `/ad/create`** - Even when all parameters are correct, you get:
+   - `insufficient permission`
+   - `identity authorization failed`
+3. **UI-uploaded creatives work** - Creatives uploaded directly in TikTok Ads Manager can be synced via API and used for ad delivery
+4. **No API field distinguishes origin** - `video_material_source` is always "Uploaded to TikTok Ads Manager"
+
+### Architecture Solution
+
+We track creative origin internally since TikTok doesn't expose it:
+
+| Origin | Source | Delivery Eligible |
+|--------|--------|-------------------|
+| `UI_SYNC` | Synced from TikTok Ads Manager | ✅ Yes |
+| `API_UPLOAD` | Uploaded via API | ❌ No |
+
+### Validation Gates
+
+1. **`validate-ad-config`** - Blocks `API_UPLOAD` creatives with clear error
+2. **`execute-ad-creation`** - Fail-fast check before TikTok API call
+3. **`push-creatives-to-dsp`** - Origin validation in bulk push flow
+
+### Required User Workflow (TikTok)
+
+1. Upload creatives in **TikTok Ads Manager UI**
+2. Click "Sync Library" in ActiPlan to import them
+3. Assign synced creatives to campaigns
+4. Launch ads via `/ad/create`
+
+### What Still Works via API
+
+- Storage and preview
+- Planning workflows
+- Thumbnail uploads
+- Campaign/AdGroup shell creation
+- Syncing existing creatives
+
+### Future-Proofing
+
+If TikTok Marketing Partner status is obtained later, the `creative_origin` tracking allows re-enabling API upload + delivery without refactoring.
