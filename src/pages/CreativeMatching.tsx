@@ -237,6 +237,14 @@ export default function CreativeMatching() {
     }
   }, [progress?.campaignId, navigate]);
 
+  // Handle "Saved & Select More Creatives" - go back to step 1
+  const handleSaveAndSelectMore = useCallback(() => {
+    // Clear matching state but keep campaign selection
+    clearMatching();
+    clearAssets();
+    goToStep('actiplan');
+  }, [clearMatching, clearAssets, goToStep]);
+
   // Handle close - go back to ActiPlans
   const handleClose = useCallback(() => {
     navigate('/actiplans');
@@ -337,7 +345,7 @@ export default function CreativeMatching() {
             />
           )}
 
-          {/* Step 3: Auto-Mesh Review */}
+          {/* Step 3: Match Creatives Review */}
           {currentStep === 'mesh' && (
             <div className="container mx-auto py-6 px-4 max-w-5xl">
               {/* Stats */}
@@ -423,6 +431,7 @@ export default function CreativeMatching() {
                 campaignName={progress.campaignName}
                 savedAssignments={matchingState.savedAssignments}
                 onComplete={handleContentComplete}
+                onSaveAndSelectMore={handleSaveAndSelectMore}
               />
             </div>
           )}

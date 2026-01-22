@@ -339,11 +339,11 @@ export function CreativeMatchingDialog({ open, onOpenChange, campaignId: initial
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
             <Wand2 className="h-5 w-5 text-primary" />
-            Auto-Mesh
+            Creative Mesh
             {selectedCampaignName && <Badge variant="secondary">{selectedCampaignName}</Badge>}
           </DialogTitle>
           <DialogDescription>
-            Select creatives from your library or upload new ones, then auto-mesh them to your campaign structure.
+            Select creatives from your library or upload new ones, then match them to your campaign structure.
           </DialogDescription>
         </DialogHeader>
 

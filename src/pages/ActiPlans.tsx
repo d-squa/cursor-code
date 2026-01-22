@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, Play, Edit, CheckCircle, XCircle, MessageSquare, History, Trash2, Download, TrendingUp, MoreVertical, ArrowLeft, Search, BarChart3, FileText, FileSpreadsheet, ChevronDown, Rocket, Lock, ClipboardList, Activity, Send, Copy, PlusCircle } from "lucide-react";
+import { Loader2, Play, Edit, CheckCircle, XCircle, MessageSquare, History, Trash2, Download, TrendingUp, MoreVertical, ArrowLeft, Search, BarChart3, FileText, FileSpreadsheet, ChevronDown, Rocket, Lock, ClipboardList, Activity, Send, Copy, PlusCircle, Wand2 } from "lucide-react";
 import { LockedFeatureButton } from "@/components/ui/locked-feature-button";
 import { LockedDropdownMenuItem } from "@/components/ui/locked-dropdown-menu-item";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
@@ -698,6 +698,18 @@ export default function ActiPlans() {
                     <Edit className="w-4 h-4 mr-2" />
                     Edit ActiPlan
                   </DropdownMenuItem>
+                )}
+
+                {/* Mesh Creatives - available for all campaigns, gated to Enterprise+ */}
+                {hasAccess('creative_matching') ? (
+                  <DropdownMenuItem onClick={() => navigate(`/creatives?campaignId=${campaign.id}`)}>
+                    <Wand2 className="w-4 h-4 mr-2" />
+                    Mesh Creatives
+                  </DropdownMenuItem>
+                ) : (
+                  <LockedDropdownMenuItem feature="creative_matching">
+                    Mesh Creatives
+                  </LockedDropdownMenuItem>
                 )}
                 
                 {/* Extend Campaign - for pushed/live campaigns to add new phases or creatives */}

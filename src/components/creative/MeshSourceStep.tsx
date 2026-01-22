@@ -415,13 +415,13 @@ export function MeshSourceStep({
                 disabled={!hasAssets || isProcessing}
                 onClick={onRunMesh}
               >
-                {isProcessing ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Wand2 className="h-4 w-4" />
-                )}
-                Auto-Mesh {hasAssets && `(${platformAssets.length})`}
-              </Button>
+                  {isProcessing ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Wand2 className="h-4 w-4" />
+                  )}
+                  Run Matching {hasAssets && `(${platformAssets.length})`}
+                </Button>
             </div>
           </div>
         </div>

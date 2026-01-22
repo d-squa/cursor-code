@@ -650,7 +650,7 @@ export default function CreativeLibrary() {
             {shouldFetchCreatives && <Badge variant="secondary">{creatives.length} creatives</Badge>}
             <Button variant="default" size="sm" onClick={() => navigate('/creatives')}>
               <Wand2 className="h-4 w-4 mr-2" />
-              Auto-Mesh
+              Start Matching
             </Button>
             <Button variant="outline" size="sm" onClick={handleDownloadSampleStructure}>
               <Download className="h-4 w-4 mr-2" />
@@ -716,7 +716,7 @@ export default function CreativeLibrary() {
                   onClick={() => navigate(`/creatives?campaignId=${selectedCampaignId}`)}
                 >
                   <Wand2 className="h-4 w-4 mr-2" />
-                  Auto-Mesh More
+                  Add More Creatives
                 </Button>
               ) : null,
             })}
@@ -741,7 +741,7 @@ export default function CreativeLibrary() {
                   onClick={() => navigate(`/creatives?campaignId=${selectedCampaignId}`)}
                 >
                   <Wand2 className="h-4 w-4 mr-2" />
-                  Open Auto-Mesh
+                  Open Mesh
                 </Button>
               ) : null,
             })}
@@ -999,7 +999,7 @@ export default function CreativeLibrary() {
               </Button>
               <Button size="sm" onClick={handleMeshAllSelected}>
                 <Wand2 className="h-4 w-4 mr-2" />
-                Auto-Mesh All
+                Match All
               </Button>
             </div>
           </div>
