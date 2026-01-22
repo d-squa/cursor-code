@@ -579,7 +579,7 @@ export function AssignedCreativesView({
           <div className="text-center py-8 text-muted-foreground">
             <Image className="h-12 w-12 mx-auto mb-3 opacity-50" />
             <p>No creatives meshed to this ActiPlan yet.</p>
-            <p className="text-sm mt-1">Use Auto-Mesh to weave creatives into your campaign structure.</p>
+            <p className="text-sm mt-1">Use Creative Mesh to weave creatives into your campaign structure.</p>
           </div>
         </CardContent>
       </Card>

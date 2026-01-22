@@ -168,9 +168,13 @@ export function UnifiedPageAssetsLibrary({
     setPosts([]);
     
     const allPosts: OrganicPost[] = [];
+    let fetchErrors: string[] = [];
+    
+    console.log('[UnifiedPageAssetsLibrary] Fetching posts from configs:', pageConfigs);
     
     for (const config of pageConfigs) {
       try {
+        console.log('[UnifiedPageAssetsLibrary] Fetching for config:', config);
         const { data, error } = await supabase.functions.invoke('fetch-organic-posts', {
           body: {
             platform: config.platform,
@@ -180,7 +184,21 @@ export function UnifiedPageAssetsLibrary({
           }
         });
         
-        if (!error && data?.posts) {
+        console.log('[UnifiedPageAssetsLibrary] Response:', { data, error, postsCount: data?.posts?.length || 0 });
+        
+        if (error) {
+          console.error(`[UnifiedPageAssetsLibrary] Error fetching posts for ${config.platform}:`, error);
+          fetchErrors.push(`${config.platform}: ${error.message || 'Unknown error'}`);
+          continue;
+        }
+        
+        if (data?.error) {
+          console.warn(`[UnifiedPageAssetsLibrary] API returned error for ${config.platform}:`, data.error);
+          fetchErrors.push(`${config.platform}: ${data.error}`);
+          continue;
+        }
+        
+        if (data?.posts && Array.isArray(data.posts)) {
           // Add page name to each post for identification
           const postsWithSource = data.posts.map((p: OrganicPost) => ({
             ...p,
@@ -189,7 +207,8 @@ export function UnifiedPageAssetsLibrary({
           allPosts.push(...postsWithSource);
         }
       } catch (err) {
-        console.error(`Error fetching posts for ${config.platform}:`, err);
+        console.error(`[UnifiedPageAssetsLibrary] Exception fetching posts for ${config.platform}:`, err);
+        fetchErrors.push(`${config.platform}: ${err instanceof Error ? err.message : 'Unknown error'}`);
       }
     }
     
@@ -205,6 +224,8 @@ export function UnifiedPageAssetsLibrary({
     
     if (allPosts.length > 0) {
       toast.success(`Loaded ${allPosts.length} posts from ${pageConfigs.length} source(s)`);
+    } else if (fetchErrors.length > 0) {
+      toast.error(`Failed to load posts: ${fetchErrors[0]}`);
     }
   };
 
@@ -331,7 +352,7 @@ export function UnifiedPageAssetsLibrary({
             </div>
             <Button size="sm" onClick={handleMeshSelected} disabled={!onMeshSelected}>
               <Wand2 className="h-4 w-4 mr-2" />
-              Auto-Mesh Selected
+              Match Selected
             </Button>
           </div>
         )}

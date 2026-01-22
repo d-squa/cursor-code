@@ -11,7 +11,7 @@ interface Step {
 const STEPS: Step[] = [
   { id: 'actiplan', label: 'ActiPlan' },
   { id: 'source', label: 'Creative Source' },
-  { id: 'mesh', label: 'Auto-Mesh' },
+  { id: 'mesh', label: 'Match Creatives' },
   { id: 'content', label: 'Creative Content' },
 ];
 

@@ -199,10 +199,10 @@ export function MeshActiPlanStep({
         </Card>
       )}
 
-      {/* Continue Button */}
-      {canProceed && (
+      {/* Continue Button - Always show when campaign selected */}
+      {localCampaignId && selectedPlatform && (
         <div className="flex justify-end">
-          <Button size="lg" className="gap-2">
+          <Button size="lg" className="gap-2" onClick={() => onPlatformSelect(selectedPlatform)}>
             Continue to Creative Source
             <ArrowRight className="h-4 w-4" />
           </Button>

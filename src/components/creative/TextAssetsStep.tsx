@@ -44,6 +44,8 @@ interface TextAssetsStepProps {
    */
   savedAssignments?: SavedAssignment[];
   onComplete: () => void;
+  /** Called when user wants to save and select more creatives (goes back to step 1) */
+  onSaveAndSelectMore?: () => void;
 }
 
 // Local extension used by the grid for TikTok thumbnail actions.
@@ -57,7 +59,8 @@ export function TextAssetsStep({
   campaignId, 
   campaignName, 
   savedAssignments,
-  onComplete 
+  onComplete,
+  onSaveAndSelectMore
 }: TextAssetsStepProps) {
   const [rows, setRows] = useState<CreativeTextAssetRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -663,14 +666,29 @@ export function TextAssetsStep({
         />
       </div>
       
-      {/* Skip option */}
+      {/* Action buttons */}
       <div className="flex items-center justify-between pt-4 border-t mt-4">
         <p className="text-sm text-muted-foreground">
           You can also configure text assets later in the Creative Library
         </p>
-        <Button variant="ghost" onClick={onComplete}>
-          Skip for Now
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" onClick={onComplete}>
+            Skip for Now
+          </Button>
+          {onSaveAndSelectMore && (
+            <Button 
+              variant="outline" 
+              onClick={async () => {
+                await handleSave();
+                onSaveAndSelectMore();
+              }}
+              disabled={isSaving}
+            >
+              {isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+              Saved & Select More Creatives
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Add Creatives Dialog */}

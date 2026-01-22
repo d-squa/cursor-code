@@ -367,7 +367,7 @@ export function UnifiedAssetsLibrary({
             </div>
             <Button size="sm" onClick={handleMeshSelected} disabled={!onMeshSelected}>
               <Wand2 className="h-4 w-4 mr-2" />
-              Auto-Mesh Selected
+              Match Selected
             </Button>
           </div>
         )}
