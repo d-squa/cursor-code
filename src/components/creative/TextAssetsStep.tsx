@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Save, Check, AlertCircle, Loader2, Plus, Image, Video } from 'lucide-react';
+import { Save, Check, AlertCircle, Loader2, Plus, Image, Video, Rocket } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { TextAssetExcelEditor } from './TextAssetExcelEditor';
@@ -624,6 +624,25 @@ export function TextAssetsStep({
     rows.filter(r => validateTextAssetRow(r).length === 0).length
   , [rows]);
 
+  // Handle delete assignment - must be before any early returns
+  const handleDeleteAssignment = useCallback(async (assignmentId: string) => {
+    try {
+      const { error } = await supabase
+        .from('creative_assignments')
+        .delete()
+        .eq('id', assignmentId);
+      
+      if (error) throw error;
+      
+      // Remove from local state
+      setRows(prev => prev.filter(r => (r as any).assignmentId !== assignmentId));
+      toast.success('Assignment deleted');
+    } catch (error) {
+      console.error('Error deleting assignment:', error);
+      toast.error('Failed to delete assignment');
+    }
+  }, []);
+
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
@@ -662,7 +681,7 @@ export function TextAssetsStep({
           onImportRows={handleImportRows}
           onSave={handleSave}
           isSaving={isSaving}
-          onAddCreatives={handleOpenAddDialog}
+          onDeleteAssignment={handleDeleteAssignment}
         />
       </div>
       
@@ -685,9 +704,16 @@ export function TextAssetsStep({
               disabled={isSaving}
             >
               {isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-              Saved & Select More Creatives
+              Save & Select More Creatives
             </Button>
           )}
+          <Button 
+            onClick={handleSave}
+            disabled={isSaving}
+          >
+            {isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+            Save & Proceed to Launch
+          </Button>
         </div>
       </div>
 

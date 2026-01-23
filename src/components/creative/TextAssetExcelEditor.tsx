@@ -11,11 +11,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { 
   Save, Download, Upload, Copy, Clipboard, Undo2, Redo2,
   Image, Video, AlertCircle, CheckCircle, XCircle,
   ChevronDown, ChevronRight, Layers, Globe, Target, LayoutGrid, Sparkles,
-  Plus, Link2, Layout, Film, Grid, Settings2, ImageIcon
+  Plus, Link2, Layout, Film, Grid, Settings2, ImageIcon, Maximize2, Minimize2, 
+  ChevronsUpDown, Trash2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -51,6 +53,8 @@ interface TextAssetExcelEditorProps {
   isSaving: boolean;
   /** Called when user wants to add more creatives */
   onAddCreatives?: () => void;
+  /** Called when an assignment should be deleted */
+  onDeleteAssignment?: (assignmentId: string) => void;
 }
 
 // Grid column definition - now includes checkbox for multi-select
@@ -64,20 +68,26 @@ interface GridColumn {
   showFor?: ('image' | 'video' | 'carousel')[];
   // Platform-specific visibility
   showForPlatform?: ('tiktok')[];
+  // Whether this column should be sticky
+  sticky?: boolean;
 }
 
-// Base columns always shown
-const BASE_COLUMNS: GridColumn[] = [
-  { key: 'select', label: '', width: 36, editable: false, type: 'checkbox' },
-  { key: 'adType', label: 'Type', width: 70, editable: false, type: 'text' },
-  { key: 'structure', label: 'Platform / Market / Phase / Ad Set / Creative', width: 300, editable: false, type: 'text' },
+// Hierarchy columns (sticky)
+const HIERARCHY_COLUMNS: GridColumn[] = [
+  { key: 'select', label: '', width: 36, editable: false, type: 'checkbox', sticky: true },
+  { key: 'adType', label: 'Type', width: 70, editable: false, type: 'text', sticky: true },
+  { key: 'platform', label: 'Platform', width: 80, editable: false, type: 'text', sticky: true },
+  { key: 'market', label: 'Market', width: 80, editable: false, type: 'text', sticky: true },
+  { key: 'phase', label: 'Phase', width: 100, editable: false, type: 'text', sticky: true },
+  { key: 'adSet', label: 'Ad Set', width: 140, editable: false, type: 'text', sticky: true },
+  { key: 'creativeName', label: 'Creative', width: 180, editable: false, type: 'text', sticky: true },
+];
+
+// Scrollable columns
+const SCROLLABLE_COLUMNS: GridColumn[] = [
   { key: 'placements', label: 'Placements', width: 150, editable: false, type: 'text' },
   { key: 'adFormat', label: 'Ad Format', width: 140, editable: true, type: 'adFormat' },
   { key: 'thumbnail', label: 'Thumbnail', width: 100, editable: false, type: 'thumbnail', showFor: ['video'], showForPlatform: ['tiktok'] },
-];
-
-// Format-specific text columns
-const TEXT_COLUMNS: GridColumn[] = [
   { key: 'primaryText', label: 'Primary Text', width: 220, editable: true, type: 'text', showFor: ['image', 'video'] },
   { key: 'headline', label: 'Headline', width: 160, editable: true, type: 'text', showFor: ['image', 'video', 'carousel'] },
   { key: 'description', label: 'Description', width: 160, editable: true, type: 'text', showFor: ['image', 'video', 'carousel'] },
@@ -85,10 +95,14 @@ const TEXT_COLUMNS: GridColumn[] = [
   { key: 'callToAction', label: 'CTA', width: 130, editable: true, type: 'select', showFor: ['image', 'video'] },
   { key: 'destinationUrl', label: 'Destination URL', width: 220, editable: true, type: 'text' },
   { key: 'displayLink', label: 'Display Link', width: 120, editable: true, type: 'text', showFor: ['image', 'video'] },
+  { key: 'delete', label: '', width: 50, editable: false, type: 'text' },
 ];
 
 // Combine all columns
-const ALL_GRID_COLUMNS: GridColumn[] = [...BASE_COLUMNS, ...TEXT_COLUMNS];
+const ALL_GRID_COLUMNS: GridColumn[] = [...HIERARCHY_COLUMNS, ...SCROLLABLE_COLUMNS];
+
+// Calculate sticky column total width
+const STICKY_WIDTH = HIERARCHY_COLUMNS.reduce((sum, col) => sum + col.width, 0);
 
 // Placement badge component
 function PlacementBadge({ type, variant, tooltip }: { type: string; variant: 'compatible' | 'primary' | 'incompatible'; tooltip: string }) {
@@ -156,7 +170,8 @@ export function TextAssetExcelEditor({
   onImportRows,
   onSave,
   isSaving,
-  onAddCreatives
+  onAddCreatives,
+  onDeleteAssignment
 }: TextAssetExcelEditorProps) {
   // State
   const [selection, setSelection] = useState<CellSelection | null>(null);
@@ -174,6 +189,9 @@ export function TextAssetExcelEditor({
   const [carousels, setCarousels] = useState<CarouselLink[]>([]);
   const [showBulkEditor, setShowBulkEditor] = useState(true);
   const [lastSelectedRowId, setLastSelectedRowId] = useState<string | null>(null);
+  
+  // Full screen state
+  const [isFullScreen, setIsFullScreen] = useState(false);
   
   // Copied row values for row-to-row paste
   const [copiedRowValues, setCopiedRowValues] = useState<Partial<CreativeTextAssetRow> | null>(null);
@@ -421,6 +439,17 @@ export function TextAssetExcelEditor({
     });
   }, []);
 
+  // Tree view expand/collapse all
+  const expandAll = useCallback(() => {
+    setCollapsedGroups(new Set());
+  }, []);
+
+  const collapseAll = useCallback(() => {
+    // Collapse all platform-level groups
+    const platformKeys = [...new Set(rows.map(r => `platform:${r.platform}`))];
+    setCollapsedGroups(new Set(platformKeys));
+  }, [rows]);
+
   // Build flat list with group headers
   const flatList = useMemo(() => {
     const items: { type: 'group' | 'row'; key: string; row?: CreativeTextAssetRow; groupLabel?: string; groupKey?: string; level?: number; rowIds?: string[] }[] = [];
@@ -519,7 +548,7 @@ export function TextAssetExcelEditor({
     return items;
   }, [rows, collapsedGroups]);
 
-  // Get row indices for selection
+  // Get row indices for actual data rows
   const rowItems = useMemo(() => flatList.filter(item => item.type === 'row'), [flatList]);
 
   // Cell key helper
@@ -573,17 +602,21 @@ export function TextAssetExcelEditor({
   }, []);
 
   // Handle cell double click (start editing)
-  const handleCellDoubleClick = useCallback((rowIndex: number, colIndex: number) => {
+  const handleCellDoubleClick = useCallback((rowIndex: number, colIndex: number, row: CreativeTextAssetRow) => {
     const col = GRID_COLUMNS[colIndex];
     if (!col?.editable || col.type === 'select') return;
     
-    const row = rowItems[rowIndex]?.row;
-    if (!row) return;
+    // Check if row is organic (read-only)
+    const isOrganic = !!(row as any).isOrganic || !!(row as any).externalPostId;
+    if (isOrganic) {
+      toast.info('Organic posts are read-only');
+      return;
+    }
     
     const key = cellKey(rowIndex, colIndex);
     setEditingCell(key);
     setEditValue((row as any)[col.key] || '');
-  }, [rowItems]);
+  }, []);
 
   // Commit edit
   const commitEdit = useCallback(() => {
@@ -611,7 +644,10 @@ export function TextAssetExcelEditor({
 
   // Copy selected cells
   const copySelection = useCallback(async () => {
-    if (!selection) return;
+    if (!selection) {
+      toast.error('Select cells first (Ctrl+C)');
+      return;
+    }
     
     const minRow = Math.min(selection.startRow, selection.endRow);
     const maxRow = Math.max(selection.startRow, selection.endRow);
@@ -640,7 +676,10 @@ export function TextAssetExcelEditor({
 
   // Paste from clipboard with smart header detection
   const pasteSelection = useCallback(async () => {
-    if (!selection) return;
+    if (!selection) {
+      toast.error('Select a cell first, then paste (Ctrl+V)');
+      return;
+    }
     
     try {
       const text = await navigator.clipboard.readText();
@@ -674,6 +713,10 @@ export function TextAssetExcelEditor({
           // If we have match columns and found a match, update that row
           // Otherwise fall back to position-based paste
           if (targetRow) {
+            // Skip organic rows
+            const isOrganic = !!(targetRow as any).isOrganic || !!(targetRow as any).externalPostId;
+            if (isOrganic) continue;
+            
             const updates: Partial<CreativeTextAssetRow> = {};
             
             parsed.headerMap.forEach((colKey, colIdx) => {
@@ -733,6 +776,10 @@ export function TextAssetExcelEditor({
       
       const row = rowItems[targetRowIndex]?.row;
       if (!row) continue;
+      
+      // Skip organic rows
+      const isOrganic = !!(row as any).isOrganic || !!(row as any).externalPostId;
+      if (isOrganic) continue;
       
       const updates: Partial<CreativeTextAssetRow> = {};
       
@@ -922,10 +969,14 @@ export function TextAssetExcelEditor({
     }
   }, [onBulkUpdate, countFilledRows]);
 
-  // Keyboard shortcuts
+  // Keyboard shortcuts - Fixed to work properly
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // If editing, handle edit shortcuts
+      // Don't handle shortcuts when typing in input fields (except our grid)
+      const target = e.target as HTMLElement;
+      const isInputField = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+      
+      // If editing a cell, handle edit shortcuts
       if (editingCell) {
         if (e.key === 'Enter') {
           e.preventDefault();
@@ -936,14 +987,17 @@ export function TextAssetExcelEditor({
         return;
       }
       
-      // Global shortcuts
-      if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+      // Skip if focused on other input fields
+      if (isInputField) return;
+      
+      // Global shortcuts when not editing
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
         e.preventDefault();
         copySelection();
-      } else if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
         e.preventDefault();
         pasteSelection();
-      } else if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         if (e.shiftKey) {
           redo();
@@ -963,6 +1017,10 @@ export function TextAssetExcelEditor({
             const row = rowItems[r]?.row;
             if (!row) continue;
             
+            // Skip organic rows
+            const isOrganic = !!(row as any).isOrganic || !!(row as any).externalPostId;
+            if (isOrganic) continue;
+            
             const updates: Partial<CreativeTextAssetRow> = {};
             for (let c = minCol; c <= maxCol; c++) {
               const col = GRID_COLUMNS[c];
@@ -979,7 +1037,10 @@ export function TextAssetExcelEditor({
         // Start editing selected cell
         const startRow = Math.min(selection.startRow, selection.endRow);
         const startCol = Math.min(selection.startCol, selection.endCol);
-        handleCellDoubleClick(startRow, startCol);
+        const row = rowItems[startRow]?.row;
+        if (row) {
+          handleCellDoubleClick(startRow, startCol, row);
+        }
       }
     };
     
@@ -1029,7 +1090,8 @@ export function TextAssetExcelEditor({
   // Track row index for actual data rows
   let currentRowIndex = -1;
 
-  return (
+  // Render the grid content (reused in both normal and fullscreen mode)
+  const renderGridContent = () => (
     <div className="h-full flex flex-col bg-background">
       {/* Bulk Parameter Editor - Collapsible */}
       <Collapsible open={showBulkEditor} onOpenChange={setShowBulkEditor}>
@@ -1057,8 +1119,34 @@ export function TextAssetExcelEditor({
       </Collapsible>
 
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-3 border-b bg-card shrink-0">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between px-4 py-3 border-b bg-card shrink-0 flex-wrap gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Tree view controls */}
+          <div className="flex items-center gap-1 border-r pr-2 mr-1">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="sm" onClick={expandAll}>
+                    <ChevronsUpDown className="h-4 w-4" />
+                    <span className="ml-1 text-xs">Expand All</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Expand all groups</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="sm" onClick={collapseAll}>
+                    <ChevronsUpDown className="h-4 w-4 rotate-90" />
+                    <span className="ml-1 text-xs">Collapse All</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Collapse all groups</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+          
           {/* Carousel creation button */}
           {selectedRowIds.size > 0 && (
             <>
@@ -1122,12 +1210,6 @@ export function TextAssetExcelEditor({
             </>
           )}
           
-          {onAddCreatives && (
-            <Button variant="outline" size="sm" onClick={onAddCreatives}>
-              <Plus className="h-4 w-4 mr-1" />
-              Add Creatives
-            </Button>
-          )}
           <Button variant="outline" size="sm" onClick={handleDownload}>
             <Download className="h-4 w-4 mr-1" />
             Download Excel
@@ -1196,6 +1278,11 @@ export function TextAssetExcelEditor({
               </Badge>
             )}
           </div>
+          {/* Full Screen toggle */}
+          <Button variant="outline" size="sm" onClick={() => setIsFullScreen(!isFullScreen)}>
+            {isFullScreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            <span className="ml-1">{isFullScreen ? 'Exit' : 'Full Screen'}</span>
+          </Button>
           <Button onClick={onSave} disabled={isSaving || validCount === 0}>
             {isSaving ? 'Saving...' : (
               <>
@@ -1212,437 +1299,537 @@ export function TextAssetExcelEditor({
         <span className="font-medium">Excel-like editing:</span> Select cells and paste from Excel (Ctrl+V) • Copy selection (Ctrl+C) • Double-click to edit • Delete to clear • F2 to edit
         <span className="mx-2">|</span>
         <span className="font-medium">Carousel:</span> Select 2+ creatives in same ad set → Create Carousel
+        <span className="mx-2">|</span>
+        <span className="text-amber-600 font-medium">Organic posts are read-only</span>
       </div>
 
-      {/* Grid */}
-      <div className="flex-1 overflow-hidden" ref={containerRef}>
-        <ScrollArea className="h-full">
-          <div className="min-w-max">
-            {/* Header */}
-            <div className="sticky top-0 z-10 bg-muted border-b flex">
-              {GRID_COLUMNS.map((col, colIdx) => (
-                <div
-                  key={col.key}
-                  className="px-2 py-2 text-xs font-medium text-muted-foreground border-r shrink-0"
-                  style={{ width: col.width }}
-                >
-                  {col.label}
-                </div>
-              ))}
-            </div>
-
-            {/* Body */}
-            <div className="divide-y">
-              {flatList.map((item) => {
-                if (item.type === 'group') {
-                  const isCollapsed = collapsedGroups.has(item.groupKey!);
-                  
-                  return (
-                    <div
-                      key={item.key}
-                      className={cn("flex border-b cursor-pointer hover:bg-accent/50", getLevelBg(item.level!))}
-                      onClick={() => toggleGroup(item.groupKey!)}
-                    >
-                      {/* Checkbox for ad set level (level 3) */}
-                      {item.level === 3 && (
-                        <div 
-                          className="px-2 py-2 flex items-center justify-center shrink-0"
-                          style={{ width: GRID_COLUMNS[0].width }}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <Checkbox
-                            checked={item.rowIds?.every(id => selectedRowIds.has(id)) || false}
-                            onCheckedChange={() => toggleAdSetSelection(item.rowIds || [])}
-                            className="h-4 w-4"
-                          />
-                        </div>
-                      )}
-                      <div 
-                        className={cn("flex items-center gap-2 py-2 shrink-0", item.level !== 3 && getLevelIndent(item.level!))}
-                        style={{ width: item.level === 3 ? GRID_COLUMNS[1].width : GRID_COLUMNS[0].width + GRID_COLUMNS[1].width }}
-                      >
-                        {isCollapsed ? (
-                          <ChevronRight className="h-4 w-4 shrink-0" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4 shrink-0" />
-                        )}
-                        {getLevelIcon(item.level!)}
-                        <span className="font-medium truncate">{item.groupLabel}</span>
-                        <Badge variant="secondary" className="text-xs ml-auto mr-2">
-                          {item.rowIds?.length || 0}
-                        </Badge>
-                      </div>
-                      
-                      {/* Paste to group button */}
-                      <div className="flex-1 flex items-center px-2 gap-2">
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-7 text-xs"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handlePasteToGroup(item.rowIds || [], item.groupLabel || '');
-                                }}
-                              >
-                                <Clipboard className="h-3 w-3 mr-1" />
-                                Paste to all
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              Paste from clipboard to {item.rowIds?.length || 0} creatives
-                              <br />
-                              <span className="text-muted-foreground">Format: Primary Text, Headline, Description, CTA, URL (tab-separated)</span>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </div>
-                    </div>
-                  );
-                }
-                
-                // Data row
-                currentRowIndex++;
-                const rowIndex = currentRowIndex;
-                const row = item.row!;
-                const errors = validateTextAssetRow(row);
-                const hasErrors = errors.length > 0;
-                const platform = row.platform.toLowerCase() as Platform;
-                
-                return (
+      {/* Grid with sticky columns */}
+      <div className="flex-1 overflow-hidden relative" ref={containerRef}>
+        <div className="h-full flex">
+          {/* Sticky columns (left side) */}
+          <div className="shrink-0 bg-background z-10 border-r shadow-sm" style={{ width: STICKY_WIDTH }}>
+            <ScrollArea className="h-full">
+              {/* Header for sticky columns */}
+              <div className="sticky top-0 z-20 bg-muted border-b flex">
+                {HIERARCHY_COLUMNS.map((col) => (
                   <div
-                    key={item.key}
-                    className={cn("flex border-b", hasErrors && "bg-destructive/5", "hover:bg-accent/10")}
+                    key={col.key}
+                    className="px-2 py-2 text-xs font-medium text-muted-foreground border-r shrink-0 whitespace-nowrap"
+                    style={{ width: col.width }}
                   >
-                    {GRID_COLUMNS.map((col, colIdx) => {
-                      const isSelected = isInSelection(rowIndex, colIdx);
-                      const isEditing = editingCell === cellKey(rowIndex, colIdx);
-                      
-                      // Checkbox column for multi-select
-                      if (col.key === 'select') {
-                        const isRowSelected = selectedRowIds.has(row.id);
-                        return (
-                          <div
-                            key={col.key}
-                            className="px-2 py-1.5 flex items-center justify-center border-r shrink-0 cursor-pointer"
-                            style={{ width: col.width }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleRowSelection(row.id, e.shiftKey);
-                            }}
-                          >
-                            <Checkbox
-                              checked={isRowSelected}
-                              onCheckedChange={() => {}}
-                              className="h-4 w-4 pointer-events-none"
-                            />
-                          </div>
-                        );
-                      }
-                      
-                      // Ad Type column - Organic vs Dark
-                      if (col.key === 'adType') {
-                        const isOrganic = !!(row as any).isOrganic || !!(row as any).externalPostId;
-                        return (
-                          <div
-                            key={col.key}
-                            className="px-2 py-1.5 flex items-center justify-center border-r shrink-0"
-                            style={{ width: col.width }}
-                          >
-                            <Badge 
-                              variant={isOrganic ? 'default' : 'secondary'}
-                              className={cn(
-                                "text-[10px] px-1.5",
-                                isOrganic ? "bg-green-600 hover:bg-green-600" : ""
-                              )}
-                            >
-                              {isOrganic ? 'Organic' : 'Dark'}
-                            </Badge>
-                          </div>
-                        );
-                      }
-                      
-                      if (col.key === 'structure') {
-                         const carousel = carouselByCardId.get(row.id);
-                         const rowPageId = (row as any).pageId;
-                         const rowPageName = (row as any).pageName;
+                    {col.label}
+                  </div>
+                ))}
+              </div>
 
-                         return (
-                           <div
-                             key={col.key}
-                             className="px-2 py-1.5 flex items-center gap-2 border-r shrink-0 pl-[72px]"
-                             style={{ width: col.width }}
-                           >
-                             {/* Page/Identity indicator */}
-                             {rowPageId && (
-                               <PageIdentityIndicator
-                                 platform={row.platform}
-                                 pageId={rowPageId}
-                                 pageName={rowPageName}
-                                 size="sm"
-                               />
-                             )}
-                             
-                             {row.mediaType === 'video' ? (
-                               <Video className="h-4 w-4 text-muted-foreground shrink-0" />
-                             ) : (
-                               <Image className="h-4 w-4 text-muted-foreground shrink-0" />
-                             )}
-                             <span className="text-sm truncate" title={row.creativeName}>
-                               {row.creativeName}
-                             </span>
-
-                             {carousel && (
-                               <Button
-                                 variant="secondary"
-                                 size="sm"
-                                 className="h-6 px-2 text-[11px] gap-1"
-                                 onClick={() => openEditCarousel(carousel)}
-                               >
-                                 <Layers className="h-3 w-3" />
-                                 <span className="max-w-[140px] truncate">{carousel.carouselName}</span>
-                               </Button>
-                             )}
-
-                             {hasErrors && (
-                               <TooltipProvider>
-                                 <Tooltip>
-                                   <TooltipTrigger>
-                                     <AlertCircle className="h-3.5 w-3.5 text-destructive shrink-0" />
-                                   </TooltipTrigger>
-                                   <TooltipContent side="right" className="max-w-xs">
-                                     <ul className="text-xs space-y-1">
-                                       {errors.map((err, i) => <li key={i}>{err}</li>)}
-                                     </ul>
-                                   </TooltipContent>
-                                 </Tooltip>
-                               </TooltipProvider>
-                             )}
-                           </div>
-                         );
-                       }
-
-                      // Placements column - shows compatibility badges
-                      if (col.key === 'placements') {
-                        // Parse dimensions from row - they might be stored as width/height or in aspectRatio
-                        const width = (row as any).width;
-                        const height = (row as any).height;
-                        const placementBadges = getPlacementBadges(width, height, row.mediaType, row.platform);
-                        
-                        return (
-                          <div
-                            key={col.key}
-                            className="px-1 py-1.5 flex items-center gap-1 border-r shrink-0"
-                            style={{ width: col.width }}
-                          >
-                            {placementBadges.map((badge) => (
-                              <PlacementBadge
-                                key={badge.type}
-                                type={badge.type}
-                                variant={badge.variant}
-                                tooltip={badge.tooltip}
-                              />
-                            ))}
-                          </div>
-                        );
-                      }
-                      
-                      // Skip columns not applicable to this row's format
-                      if (col.showFor && !col.showFor.includes(row.mediaType)) {
-                        return (
-                          <div
-                            key={col.key}
-                            className="px-1 py-1 border-r shrink-0 bg-muted/20"
-                            style={{ width: col.width }}
-                          >
-                            <div className="h-7 flex items-center justify-center text-xs text-muted-foreground italic">
-                              N/A
-                            </div>
-                          </div>
-                        );
-                      }
-                      
-                      // Skip columns not applicable to this row's platform
-                      if (col.showForPlatform && !col.showForPlatform.includes(platform as 'tiktok')) {
-                        return (
-                          <div
-                            key={col.key}
-                            className="px-1 py-1 border-r shrink-0 bg-muted/20"
-                            style={{ width: col.width }}
-                          >
-                            <div className="h-7 flex items-center justify-center text-xs text-muted-foreground italic">
-                              —
-                            </div>
-                          </div>
-                        );
-                      }
-                      
-                      // Thumbnail column for TikTok videos
-                      if (col.type === 'thumbnail') {
-                        const creativeId = row.creativeId;
-                        const advertiserId = (row as any).tiktokAdvertiserId || (row as any).advertiserId || '';
-                        const thumbnailId = (row as any).platformThumbnailId;
-                        const thumbnailUrl = (row as any).thumbnailUrl || (row as any).thumbnail_url;
-                        
-                        return (
-                          <div
-                            key={col.key}
-                            className="px-1 py-1 border-r shrink-0"
-                            style={{ width: col.width }}
-                          >
-                            <ThumbnailUploader
-                              creativeId={creativeId}
-                              advertiserId={advertiserId}
-                              currentThumbnailId={thumbnailId}
-                              thumbnailPreviewUrl={thumbnailUrl}
-                              compact
-                              onThumbnailChange={(newId) => {
-                                // Trigger a refresh - the ThumbnailUploader already saves to DB
-                                toast.success('Thumbnail updated');
-                              }}
-                            />
-                          </div>
-                        );
-                      }
-                      
-                      const value = (row as any)[col.key] || '';
-                      const fieldConfig = PLATFORM_TEXT_FIELDS[platform]?.find(f => f.id === col.key);
-                      
-                      if (col.type === 'adFormat') {
-                        const availableFormats = getAvailableFormats(row.platform, row.mediaType);
-                        const isSuggested = !row.adFormatConfirmed && row.suggestedAdFormat;
-                        
-                        return (
-                          <div
-                            key={col.key}
-                            className={cn(
-                              "px-1 py-1 border-r shrink-0",
-                              isSelected && "bg-primary/20 outline outline-2 outline-primary"
-                            )}
-                            style={{ width: col.width }}
-                            onMouseDown={(e) => handleCellMouseDown(rowIndex, colIdx, e)}
-                            onMouseEnter={() => handleCellMouseEnter(rowIndex, colIdx)}
-                          >
-                            <div className="flex items-center gap-1">
-                              {isSuggested && (
-                                <Sparkles className="h-3 w-3 text-amber-500 shrink-0" />
-                              )}
-                              <Select
-                                value={row.adFormat}
-                                onValueChange={(v) => onRowChange(row.id, { 
-                                  adFormat: v as AdFormat, 
-                                  adFormatConfirmed: true 
-                                })}
-                              >
-                                <SelectTrigger className={cn(
-                                  "h-7 text-xs border-transparent hover:border-input bg-transparent flex-1",
-                                  isSuggested && "text-amber-600"
-                                )}>
-                                  <SelectValue placeholder="Select format..." />
-                                </SelectTrigger>
-                                <SelectContent className="bg-popover z-50">
-                                  {availableFormats.map(format => (
-                                    <SelectItem key={format} value={format} className="text-xs">
-                                      {getFormatLabel(format)}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          </div>
-                        );
-                      }
-                      
-                      if (col.type === 'select') {
-                        return (
-                          <div
-                            key={col.key}
-                            className={cn(
-                              "px-1 py-1 border-r shrink-0",
-                              isSelected && "bg-primary/20 outline outline-2 outline-primary"
-                            )}
-                            style={{ width: col.width }}
-                            onMouseDown={(e) => handleCellMouseDown(rowIndex, colIdx, e)}
-                            onMouseEnter={() => handleCellMouseEnter(rowIndex, colIdx)}
-                          >
-                            <Select
-                              value={value}
-                              onValueChange={(v) => onRowChange(row.id, { [col.key]: v })}
-                            >
-                              <SelectTrigger className="h-7 text-xs border-transparent hover:border-input bg-transparent">
-                                <SelectValue placeholder="Select..." />
-                              </SelectTrigger>
-                              <SelectContent className="bg-popover z-50">
-                                {(PLATFORM_CTAS[platform] || PLATFORM_CTAS.meta).map(cta => (
-                                  <SelectItem key={cta} value={cta} className="text-xs">
-                                    {cta.replace(/_/g, ' ')}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        );
-                      }
+              {/* Body for sticky columns */}
+              <div className="divide-y">
+                {(() => {
+                  let rowIdx = -1;
+                  return flatList.map((item) => {
+                    if (item.type === 'group') {
+                      const isCollapsed = collapsedGroups.has(item.groupKey!);
                       
                       return (
                         <div
-                          key={col.key}
-                          className={cn(
-                            "px-1 py-1 border-r shrink-0",
-                            isSelected && "bg-primary/20 outline outline-2 outline-primary"
-                          )}
-                          style={{ width: col.width }}
-                          onMouseDown={(e) => handleCellMouseDown(rowIndex, colIdx, e)}
-                          onMouseEnter={() => handleCellMouseEnter(rowIndex, colIdx)}
-                          onDoubleClick={() => handleCellDoubleClick(rowIndex, colIdx)}
+                          key={item.key}
+                          className={cn("flex border-b cursor-pointer hover:bg-accent/50", getLevelBg(item.level!))}
+                          onClick={() => toggleGroup(item.groupKey!)}
+                          style={{ height: 40 }}
                         >
-                          <div className="flex items-center">
-                            {isEditing ? (
-                              <Input
-                                ref={inputRef}
-                                value={editValue}
-                                onChange={(e) => setEditValue(e.target.value)}
-                                onBlur={commitEdit}
-                                className="h-7 text-xs"
+                          {/* Checkbox for ad set level (level 3) */}
+                          {item.level === 3 && (
+                            <div 
+                              className="px-2 py-2 flex items-center justify-center shrink-0"
+                              style={{ width: HIERARCHY_COLUMNS[0].width }}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Checkbox
+                                checked={item.rowIds?.every(id => selectedRowIds.has(id)) || false}
+                                onCheckedChange={() => toggleAdSetSelection(item.rowIds || [])}
+                                className="h-4 w-4"
                               />
+                            </div>
+                          )}
+                          <div 
+                            className={cn("flex items-center gap-2 py-2 shrink-0", item.level !== 3 && getLevelIndent(item.level!))}
+                            style={{ width: item.level === 3 ? STICKY_WIDTH - HIERARCHY_COLUMNS[0].width : STICKY_WIDTH }}
+                          >
+                            {isCollapsed ? (
+                              <ChevronRight className="h-4 w-4 shrink-0" />
                             ) : (
-                              <>
-                                <div 
-                                  className="h-7 px-2 text-xs flex items-center truncate flex-1 rounded hover:bg-muted/50"
-                                  title={value}
-                                >
-                                  {value || <span className="text-muted-foreground italic">Empty</span>}
-                                </div>
-                                {fieldConfig?.maxLength && (
-                                  <CharCounter value={value} maxLength={fieldConfig.maxLength} />
-                                )}
-                              </>
+                              <ChevronDown className="h-4 w-4 shrink-0" />
                             )}
+                            {getLevelIcon(item.level!)}
+                            <span className="font-medium truncate">{item.groupLabel}</span>
+                            <Badge variant="secondary" className="text-xs ml-auto mr-2">
+                              {item.rowIds?.length || 0}
+                            </Badge>
                           </div>
                         </div>
                       );
-                    })}
-                  </div>
-                );
-              })}
-            </div>
+                    }
+                    
+                    // Data row
+                    rowIdx++;
+                    const row = item.row!;
+                    const errors = validateTextAssetRow(row);
+                    const hasErrors = errors.length > 0;
+                    const isOrganic = !!(row as any).isOrganic || !!(row as any).externalPostId;
+                    
+                    return (
+                      <div
+                        key={item.key}
+                        className={cn(
+                          "flex border-b",
+                          hasErrors && "bg-destructive/5",
+                          isOrganic && "bg-green-50/50 dark:bg-green-950/20",
+                          "hover:bg-accent/10"
+                        )}
+                        style={{ height: 40 }}
+                      >
+                        {/* Select checkbox */}
+                        <div
+                          className="px-2 py-1.5 flex items-center justify-center border-r shrink-0 cursor-pointer"
+                          style={{ width: HIERARCHY_COLUMNS[0].width }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleRowSelection(row.id, e.shiftKey);
+                          }}
+                        >
+                          <Checkbox
+                            checked={selectedRowIds.has(row.id)}
+                            onCheckedChange={() => {}}
+                            className="h-4 w-4 pointer-events-none"
+                          />
+                        </div>
+                        
+                        {/* Ad Type */}
+                        <div
+                          className="px-2 py-1.5 flex items-center justify-center border-r shrink-0"
+                          style={{ width: HIERARCHY_COLUMNS[1].width }}
+                        >
+                          <Badge 
+                            variant={isOrganic ? 'default' : 'secondary'}
+                            className={cn(
+                              "text-[10px] px-1.5",
+                              isOrganic ? "bg-green-600 hover:bg-green-600" : ""
+                            )}
+                          >
+                            {isOrganic ? 'Organic' : 'Dark'}
+                          </Badge>
+                        </div>
+                        
+                        {/* Platform */}
+                        <div
+                          className="px-2 py-1.5 flex items-center border-r shrink-0"
+                          style={{ width: HIERARCHY_COLUMNS[2].width }}
+                        >
+                          <span className="text-xs capitalize truncate">{row.platform}</span>
+                        </div>
+                        
+                        {/* Market */}
+                        <div
+                          className="px-2 py-1.5 flex items-center border-r shrink-0"
+                          style={{ width: HIERARCHY_COLUMNS[3].width }}
+                        >
+                          <span className="text-xs truncate">{row.market}</span>
+                        </div>
+                        
+                        {/* Phase */}
+                        <div
+                          className="px-2 py-1.5 flex items-center border-r shrink-0"
+                          style={{ width: HIERARCHY_COLUMNS[4].width }}
+                        >
+                          <span className="text-xs truncate">{row.phase}</span>
+                        </div>
+                        
+                        {/* Ad Set */}
+                        <div
+                          className="px-2 py-1.5 flex items-center border-r shrink-0"
+                          style={{ width: HIERARCHY_COLUMNS[5].width }}
+                        >
+                          <span className="text-xs truncate" title={row.adSet}>{row.adSet}</span>
+                        </div>
+                        
+                        {/* Creative Name */}
+                        <div
+                          className="px-2 py-1.5 flex items-center gap-1 border-r shrink-0"
+                          style={{ width: HIERARCHY_COLUMNS[6].width }}
+                        >
+                          {row.mediaType === 'video' ? (
+                            <Video className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          ) : (
+                            <Image className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          )}
+                          <span className="text-xs truncate" title={row.creativeName}>
+                            {row.creativeName}
+                          </span>
+                          {hasErrors && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger>
+                                  <AlertCircle className="h-3 w-3 text-destructive shrink-0" />
+                                </TooltipTrigger>
+                                <TooltipContent side="right" className="max-w-xs">
+                                  <ul className="text-xs space-y-1">
+                                    {errors.map((err, i) => <li key={i}>{err}</li>)}
+                                  </ul>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </ScrollArea>
           </div>
-        </ScrollArea>
+
+          {/* Scrollable columns (right side) */}
+          <div className="flex-1 overflow-hidden">
+            <ScrollArea className="h-full">
+              <div className="min-w-max">
+                {/* Header for scrollable columns */}
+                <div className="sticky top-0 z-10 bg-muted border-b flex">
+                  {SCROLLABLE_COLUMNS.map((col) => (
+                    <div
+                      key={col.key}
+                      className="px-2 py-2 text-xs font-medium text-muted-foreground border-r shrink-0"
+                      style={{ width: col.width }}
+                    >
+                      {col.label}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Body for scrollable columns */}
+                <div className="divide-y">
+                  {(() => {
+                    let rowIdx = -1;
+                    return flatList.map((item) => {
+                      if (item.type === 'group') {
+                        const isCollapsed = collapsedGroups.has(item.groupKey!);
+                        
+                        return (
+                          <div
+                            key={item.key}
+                            className={cn("flex border-b", getLevelBg(item.level!))}
+                            style={{ height: 40 }}
+                          >
+                            {/* Paste to group button in scrollable area */}
+                            <div className="flex-1 flex items-center px-2 gap-2">
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-7 text-xs"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handlePasteToGroup(item.rowIds || [], item.groupLabel || '');
+                                      }}
+                                    >
+                                      <Clipboard className="h-3 w-3 mr-1" />
+                                      Paste to all
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    Paste from clipboard to {item.rowIds?.length || 0} creatives
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            </div>
+                          </div>
+                        );
+                      }
+                      
+                      // Data row
+                      rowIdx++;
+                      const rowIndex = rowIdx;
+                      const row = item.row!;
+                      const errors = validateTextAssetRow(row);
+                      const hasErrors = errors.length > 0;
+                      const platform = row.platform.toLowerCase() as Platform;
+                      const isOrganic = !!(row as any).isOrganic || !!(row as any).externalPostId;
+                      
+                      return (
+                        <div
+                          key={item.key}
+                          className={cn(
+                            "flex border-b",
+                            hasErrors && "bg-destructive/5",
+                            isOrganic && "bg-green-50/50 dark:bg-green-950/20",
+                            "hover:bg-accent/10"
+                          )}
+                          style={{ height: 40 }}
+                        >
+                          {SCROLLABLE_COLUMNS.map((col, colIdx) => {
+                            const absoluteColIdx = HIERARCHY_COLUMNS.length + colIdx;
+                            const isSelected = isInSelection(rowIndex, absoluteColIdx);
+                            const isEditing = editingCell === cellKey(rowIndex, absoluteColIdx);
+                            
+                            // Placements column
+                            if (col.key === 'placements') {
+                              const width = (row as any).width;
+                              const height = (row as any).height;
+                              const placementBadges = getPlacementBadges(width, height, row.mediaType, row.platform);
+                              
+                              return (
+                                <div
+                                  key={col.key}
+                                  className="px-1 py-1.5 flex items-center gap-1 border-r shrink-0"
+                                  style={{ width: col.width }}
+                                >
+                                  {placementBadges.map((badge) => (
+                                    <PlacementBadge
+                                      key={badge.type}
+                                      type={badge.type}
+                                      variant={badge.variant}
+                                      tooltip={badge.tooltip}
+                                    />
+                                  ))}
+                                </div>
+                              );
+                            }
+                            
+                            // Skip columns not applicable to this row's format
+                            if (col.showFor && !col.showFor.includes(row.mediaType)) {
+                              return (
+                                <div
+                                  key={col.key}
+                                  className="px-1 py-1 border-r shrink-0 bg-muted/20"
+                                  style={{ width: col.width }}
+                                >
+                                  <div className="h-7 flex items-center justify-center text-xs text-muted-foreground italic">
+                                    N/A
+                                  </div>
+                                </div>
+                              );
+                            }
+                            
+                            // Skip columns not applicable to this row's platform
+                            if (col.showForPlatform && !col.showForPlatform.includes(platform as 'tiktok')) {
+                              return (
+                                <div
+                                  key={col.key}
+                                  className="px-1 py-1 border-r shrink-0 bg-muted/20"
+                                  style={{ width: col.width }}
+                                >
+                                  <div className="h-7 flex items-center justify-center text-xs text-muted-foreground italic">
+                                    —
+                                  </div>
+                                </div>
+                              );
+                            }
+                            
+                            // Thumbnail column for TikTok videos
+                            if (col.type === 'thumbnail') {
+                              const creativeId = row.creativeId;
+                              const advertiserId = (row as any).tiktokAdvertiserId || (row as any).advertiserId || '';
+                              const thumbnailId = (row as any).platformThumbnailId;
+                              const thumbnailUrl = (row as any).thumbnailUrl || (row as any).thumbnail_url;
+                              
+                              return (
+                                <div
+                                  key={col.key}
+                                  className="px-1 py-1 border-r shrink-0"
+                                  style={{ width: col.width }}
+                                >
+                                  <ThumbnailUploader
+                                    creativeId={creativeId}
+                                    advertiserId={advertiserId}
+                                    currentThumbnailId={thumbnailId}
+                                    thumbnailPreviewUrl={thumbnailUrl}
+                                    compact
+                                    onThumbnailChange={(newId) => {
+                                      toast.success('Thumbnail updated');
+                                    }}
+                                  />
+                                </div>
+                              );
+                            }
+                            
+                            // Delete column
+                            if (col.key === 'delete') {
+                              return (
+                                <div
+                                  key={col.key}
+                                  className="px-1 py-1 border-r shrink-0 flex items-center justify-center"
+                                  style={{ width: col.width }}
+                                >
+                                  {onDeleteAssignment && (row as any).assignmentId && (
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                                            onClick={() => onDeleteAssignment((row as any).assignmentId)}
+                                          >
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                          </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Delete this assignment</TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  )}
+                                </div>
+                              );
+                            }
+                            
+                            const value = (row as any)[col.key] || '';
+                            const fieldConfig = PLATFORM_TEXT_FIELDS[platform]?.find(f => f.id === col.key);
+                            
+                            if (col.type === 'adFormat') {
+                              const availableFormats = getAvailableFormats(row.platform, row.mediaType);
+                              const isSuggested = !row.adFormatConfirmed && row.suggestedAdFormat;
+                              
+                              return (
+                                <div
+                                  key={col.key}
+                                  className={cn(
+                                    "px-1 py-1 border-r shrink-0",
+                                    isSelected && "bg-primary/20 outline outline-2 outline-primary"
+                                  )}
+                                  style={{ width: col.width }}
+                                  onMouseDown={(e) => handleCellMouseDown(rowIndex, absoluteColIdx, e)}
+                                  onMouseEnter={() => handleCellMouseEnter(rowIndex, absoluteColIdx)}
+                                >
+                                  <div className="flex items-center gap-1">
+                                    {isSuggested && (
+                                      <Sparkles className="h-3 w-3 text-amber-500 shrink-0" />
+                                    )}
+                                    <Select
+                                      value={row.adFormat}
+                                      onValueChange={(v) => onRowChange(row.id, { 
+                                        adFormat: v as AdFormat, 
+                                        adFormatConfirmed: true 
+                                      })}
+                                      disabled={isOrganic}
+                                    >
+                                      <SelectTrigger className={cn(
+                                        "h-7 text-xs border-transparent hover:border-input bg-transparent flex-1",
+                                        isSuggested && "text-amber-600"
+                                      )}>
+                                        <SelectValue placeholder="Select format..." />
+                                      </SelectTrigger>
+                                      <SelectContent className="bg-popover z-50">
+                                        {availableFormats.map(format => (
+                                          <SelectItem key={format} value={format} className="text-xs">
+                                            {getFormatLabel(format)}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </div>
+                              );
+                            }
+                            
+                            if (col.type === 'select') {
+                              return (
+                                <div
+                                  key={col.key}
+                                  className={cn(
+                                    "px-1 py-1 border-r shrink-0",
+                                    isSelected && "bg-primary/20 outline outline-2 outline-primary",
+                                    isOrganic && "opacity-75"
+                                  )}
+                                  style={{ width: col.width }}
+                                  onMouseDown={(e) => handleCellMouseDown(rowIndex, absoluteColIdx, e)}
+                                  onMouseEnter={() => handleCellMouseEnter(rowIndex, absoluteColIdx)}
+                                >
+                                  <Select
+                                    value={value}
+                                    onValueChange={(v) => onRowChange(row.id, { [col.key]: v })}
+                                    disabled={isOrganic}
+                                  >
+                                    <SelectTrigger className="h-7 text-xs border-transparent hover:border-input bg-transparent">
+                                      <SelectValue placeholder="Select..." />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-popover z-50">
+                                      {(PLATFORM_CTAS[platform] || PLATFORM_CTAS.meta).map(cta => (
+                                        <SelectItem key={cta} value={cta} className="text-xs">
+                                          {cta.replace(/_/g, ' ')}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              );
+                            }
+                            
+                            // Text columns - read-only for organic posts
+                            return (
+                              <div
+                                key={col.key}
+                                className={cn(
+                                  "px-1 py-1 border-r shrink-0",
+                                  isSelected && "bg-primary/20 outline outline-2 outline-primary",
+                                  isOrganic && "bg-green-50/30 dark:bg-green-950/10"
+                                )}
+                                style={{ width: col.width }}
+                                onMouseDown={(e) => !isOrganic && handleCellMouseDown(rowIndex, absoluteColIdx, e)}
+                                onMouseEnter={() => !isOrganic && handleCellMouseEnter(rowIndex, absoluteColIdx)}
+                                onDoubleClick={() => !isOrganic && handleCellDoubleClick(rowIndex, absoluteColIdx, row)}
+                              >
+                                <div className="flex items-center">
+                                  {isEditing && !isOrganic ? (
+                                    <Input
+                                      ref={inputRef}
+                                      value={editValue}
+                                      onChange={(e) => setEditValue(e.target.value)}
+                                      onBlur={commitEdit}
+                                      className="h-7 text-xs"
+                                    />
+                                  ) : (
+                                    <>
+                                      <div 
+                                        className={cn(
+                                          "h-7 px-2 text-xs flex items-center truncate flex-1 rounded",
+                                          !isOrganic && "hover:bg-muted/50",
+                                          isOrganic && "cursor-default italic text-muted-foreground"
+                                        )}
+                                        title={value}
+                                      >
+                                        {value || <span className="text-muted-foreground italic">{isOrganic ? '—' : 'Empty'}</span>}
+                                      </div>
+                                      {fieldConfig?.maxLength && !isOrganic && (
+                                        <CharCounter value={value} maxLength={fieldConfig.maxLength} />
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
+            </ScrollArea>
+          </div>
+        </div>
       </div>
       
-       {/* Carousel Creator Dialog */}
-       <CarouselCreator
-         selectedRows={carouselDialogRows}
-         existingCarousel={editingCarousel}
-         onCreateCarousel={handleCreateCarousel}
-         onCancel={() => {
-           setShowCarouselCreator(false);
-           setEditingCarousel(null);
-         }}
-         open={showCarouselCreator}
-       />
+      {/* Carousel Creator Dialog */}
+      <CarouselCreator
+        selectedRows={carouselDialogRows}
+        existingCarousel={editingCarousel}
+        onCreateCarousel={handleCreateCarousel}
+        onCancel={() => {
+          setShowCarouselCreator(false);
+          setEditingCarousel(null);
+        }}
+        open={showCarouselCreator}
+      />
       
       {/* Apply Mode Dialog */}
       <ApplyModeDialog
@@ -1658,4 +1845,20 @@ export function TextAssetExcelEditor({
       />
     </div>
   );
+
+  // Full screen modal
+  if (isFullScreen) {
+    return (
+      <Dialog open={isFullScreen} onOpenChange={setIsFullScreen}>
+        <DialogContent className="max-w-[98vw] w-[98vw] h-[95vh] max-h-[95vh] p-0 overflow-hidden">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Creative Content Editor - Full Screen</DialogTitle>
+          </DialogHeader>
+          {renderGridContent()}
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  return renderGridContent();
 }
