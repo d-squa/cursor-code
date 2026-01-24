@@ -334,16 +334,38 @@ async function handleTikTokPosts(
   if (identityId && resolvedAdvertiserId) {
     try {
       // Attempt to resolve the identity type from the DB (if we have it)
+      // First check platform_identities (new table), then tiktok_identities (legacy table)
+      let identityType: string | null = null;
+      
       const { data: identityRow } = await supabase
         .from("platform_identities")
         .select("identity_type")
         .eq("user_id", userId)
         .eq("identity_id", identityId)
         .maybeSingle();
+      
+      if (identityRow?.identity_type) {
+        identityType = identityRow.identity_type;
+        console.log(`[fetch-organic-posts] Found identity_type from platform_identities: ${identityType}`);
+      } else {
+        // Fallback to legacy tiktok_identities table
+        const { data: legacyRow } = await supabase
+          .from("tiktok_identities")
+          .select("identity_type")
+          .eq("user_id", userId)
+          .eq("identity_id", identityId)
+          .maybeSingle();
+        
+        if (legacyRow?.identity_type) {
+          identityType = legacyRow.identity_type;
+          console.log(`[fetch-organic-posts] Found identity_type from tiktok_identities: ${identityType}`);
+        }
+      }
 
-      const identityTypesToTry: string[] = identityRow?.identity_type
-        ? [identityRow.identity_type]
-        : ["TT_USER", "BC_AUTH_TT"];
+      // Build list of identity types to try - include TT_ACCOUNT which is commonly used
+      const identityTypesToTry: string[] = identityType
+        ? [identityType]
+        : ["TT_ACCOUNT", "TT_USER", "BC_AUTH_TT", "CUSTOMIZED_USER"];
 
       // Strategy 1: identity/video/list (most reliable when the account is properly authorized)
       for (const identityType of identityTypesToTry) {

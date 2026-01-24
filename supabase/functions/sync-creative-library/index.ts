@@ -96,31 +96,34 @@ serve(async (req: Request) => {
 
     console.log(`📦 Syncing ${platform} creative library for advertiser ${advertiserId}`);
 
-    if (platform !== "tiktok") {
-      throw new Error(`Platform ${platform} not yet implemented`);
-    }
-
-    // Get TikTok connection and access token
+    // Get platform connection and access token
     const { data: connections, error: connError } = await supabase
       .from("connected_platforms")
       .select("id, metadata")
       .eq("user_id", user.id)
-      .eq("platform_type", "tiktok")
+      .eq("platform_type", platform)
       .eq("is_active", true);
 
     if (connError || !connections?.length) {
-      throw new Error("No active TikTok connection found");
+      throw new Error(`No active ${platform} connection found`);
     }
 
     // Find connection that has this advertiser
-    const connection = connections.find((c: any) =>
-      Array.isArray(c.metadata?.advertiser_ids) &&
-      c.metadata.advertiser_ids.map(String).includes(String(advertiserId))
-    ) || connections[0];
+    const connection = platform === "tiktok"
+      ? connections.find((c: any) =>
+          Array.isArray(c.metadata?.advertiser_ids) &&
+          c.metadata.advertiser_ids.map(String).includes(String(advertiserId))
+        ) || connections[0]
+      : connections[0];
 
     const accessToken = await getAccessToken(supabase, connection.id);
     if (!accessToken) {
-      throw new Error("Failed to retrieve TikTok access token");
+      throw new Error(`Failed to retrieve ${platform} access token`);
+    }
+
+    // Handle platform-specific syncing
+    if (platform === "meta") {
+      return await syncMetaAssets(supabase, user.id, advertiserId, accessToken, assetTypes);
     }
 
     const results = {
@@ -352,4 +355,227 @@ function calculateAspectRatio(width: number, height: number): string {
   if (Math.abs(ratio - 4/3) < 0.01) return "4:3";
   
   return `${w}:${h}`;
+}
+
+// ============================================
+// META PLATFORM SUPPORT
+// ============================================
+
+interface MetaAdImage {
+  id: string;
+  hash: string;
+  name?: string;
+  permalink_url?: string;
+  url?: string;
+  url_128?: string;
+  width?: number;
+  height?: number;
+  created_time?: string;
+  status?: string;
+}
+
+interface MetaAdVideo {
+  id: string;
+  title?: string;
+  source?: string;
+  picture?: string;
+  length?: number;
+  created_time?: string;
+  updated_time?: string;
+  status?: string;
+  thumbnails?: { uri: string }[];
+}
+
+/**
+ * Sync Meta ad account assets (images and videos from the Ad Account's Media Library)
+ */
+async function syncMetaAssets(
+  supabase: any,
+  userId: string,
+  adAccountId: string,
+  accessToken: string,
+  assetTypes: ("video" | "image")[]
+): Promise<Response> {
+  const corsHeaders = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  };
+
+  const results = {
+    videos: { synced: 0, total: 0 },
+    images: { synced: 0, total: 0 },
+  };
+
+  // Ensure ad account ID has act_ prefix
+  const formattedAccountId = adAccountId.startsWith("act_") ? adAccountId : `act_${adAccountId}`;
+
+  // Sync images
+  if (assetTypes.includes("image")) {
+    console.log("🖼️ Fetching Meta ad images...");
+    const images = await fetchMetaAdImages(accessToken, formattedAccountId);
+    results.images.total = images.length;
+
+    for (const image of images) {
+      try {
+        const assetData = {
+          user_id: userId,
+          platform: "meta",
+          advertiser_id: adAccountId.replace("act_", ""),
+          asset_type: "image",
+          platform_asset_id: image.hash, // Meta uses hash as the unique identifier for images
+          asset_name: image.name || `Image ${image.hash}`,
+          thumbnail_url: image.url_128 || image.url,
+          preview_url: image.url || image.permalink_url,
+          width: image.width,
+          height: image.height,
+          aspect_ratio: calculateAspectRatio(image.width || 0, image.height || 0),
+          approval_status: image.status?.toUpperCase() === "ACTIVE" ? "approved" : "pending",
+          spark_eligible: false,
+          platform_metadata: image,
+          synced_at: new Date().toISOString(),
+          creative_origin: "UI_SYNC",
+        };
+
+        const { error: upsertError } = await supabase
+          .from("creative_library_assets")
+          .upsert(assetData, {
+            onConflict: "platform,advertiser_id,platform_asset_id",
+          });
+
+        if (!upsertError) {
+          results.images.synced++;
+        } else {
+          console.error(`Failed to upsert Meta image ${image.hash}:`, upsertError);
+        }
+      } catch (err) {
+        console.error(`Error processing Meta image ${image.hash}:`, err);
+      }
+    }
+    console.log(`✅ Meta images synced: ${results.images.synced}/${results.images.total}`);
+  }
+
+  // Sync videos
+  if (assetTypes.includes("video")) {
+    console.log("📹 Fetching Meta ad videos...");
+    const videos = await fetchMetaAdVideos(accessToken, formattedAccountId);
+    results.videos.total = videos.length;
+
+    for (const video of videos) {
+      try {
+        const assetData = {
+          user_id: userId,
+          platform: "meta",
+          advertiser_id: adAccountId.replace("act_", ""),
+          asset_type: "video",
+          platform_asset_id: video.id,
+          asset_name: video.title || `Video ${video.id}`,
+          thumbnail_url: video.picture || video.thumbnails?.[0]?.uri,
+          preview_url: video.source,
+          duration_seconds: video.length,
+          approval_status: video.status?.toUpperCase() === "READY" ? "approved" : "pending",
+          spark_eligible: false,
+          platform_metadata: video,
+          synced_at: new Date().toISOString(),
+          creative_origin: "UI_SYNC",
+        };
+
+        const { error: upsertError } = await supabase
+          .from("creative_library_assets")
+          .upsert(assetData, {
+            onConflict: "platform,advertiser_id,platform_asset_id",
+          });
+
+        if (!upsertError) {
+          results.videos.synced++;
+        } else {
+          console.error(`Failed to upsert Meta video ${video.id}:`, upsertError);
+        }
+      } catch (err) {
+        console.error(`Error processing Meta video ${video.id}:`, err);
+      }
+    }
+    console.log(`✅ Meta videos synced: ${results.videos.synced}/${results.videos.total}`);
+  }
+
+  return new Response(
+    JSON.stringify({
+      success: true,
+      platform: "meta",
+      advertiserId: adAccountId,
+      results,
+      syncedCount: results.images.synced + results.videos.synced,
+    }),
+    {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 200,
+    }
+  );
+}
+
+/**
+ * Fetch all ad images from Meta Ad Account
+ */
+async function fetchMetaAdImages(accessToken: string, adAccountId: string): Promise<MetaAdImage[]> {
+  const allImages: MetaAdImage[] = [];
+  let url = `https://graph.facebook.com/v22.0/${adAccountId}/adimages?fields=id,hash,name,permalink_url,url,url_128,width,height,created_time,status&limit=100&access_token=${accessToken}`;
+
+  while (url) {
+    try {
+      const response = await fetch(url, { method: "GET" });
+      const data = await response.json();
+
+      if (data.error) {
+        console.error("Meta ad images fetch error:", data.error);
+        break;
+      }
+
+      const images = data.data || [];
+      allImages.push(...images);
+
+      // Handle pagination
+      url = data.paging?.next || "";
+
+      // Safety limit
+      if (allImages.length > 5000) break;
+    } catch (err) {
+      console.error("Error fetching Meta ad images:", err);
+      break;
+    }
+  }
+
+  return allImages;
+}
+
+/**
+ * Fetch all ad videos from Meta Ad Account
+ */
+async function fetchMetaAdVideos(accessToken: string, adAccountId: string): Promise<MetaAdVideo[]> {
+  const allVideos: MetaAdVideo[] = [];
+  let url = `https://graph.facebook.com/v22.0/${adAccountId}/advideos?fields=id,title,source,picture,length,created_time,updated_time,status,thumbnails&limit=100&access_token=${accessToken}`;
+
+  while (url) {
+    try {
+      const response = await fetch(url, { method: "GET" });
+      const data = await response.json();
+
+      if (data.error) {
+        console.error("Meta ad videos fetch error:", data.error);
+        break;
+      }
+
+      const videos = data.data || [];
+      allVideos.push(...videos);
+
+      // Handle pagination
+      url = data.paging?.next || "";
+
+      // Safety limit
+      if (allVideos.length > 5000) break;
+    } catch (err) {
+      console.error("Error fetching Meta ad videos:", err);
+      break;
+    }
+  }
+
+  return allVideos;
 }
