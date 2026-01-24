@@ -11,13 +11,20 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Upload, Rocket, AlertTriangle } from 'lucide-react';
+import { Upload, Rocket, AlertTriangle, Image, Video, Layers, Repeat } from 'lucide-react';
 
 interface PageInfo {
   pageId: string;
   pageName: string;
   pictureUrl?: string;
   platform: 'meta' | 'tiktok';
+}
+
+interface AdSummary {
+  total: number;
+  dark: number;
+  organic: number;
+  carousel: number;
 }
 
 interface PushConfirmationDialogProps {
@@ -28,6 +35,7 @@ interface PushConfirmationDialogProps {
   adCount?: number;
   campaignCount?: number;
   pages?: PageInfo[];
+  adSummary?: AdSummary;
   isLoading?: boolean;
 }
 
@@ -39,6 +47,7 @@ export function PushConfirmationDialog({
   adCount = 0,
   campaignCount = 0,
   pages = [],
+  adSummary,
   isLoading = false,
 }: PushConfirmationDialogProps) {
   const title = type === 'ads' 
@@ -65,30 +74,69 @@ export function PushConfirmationDialog({
           </AlertDialogDescription>
         </AlertDialogHeader>
 
-        {type === 'ads' && pages.length > 0 && (
-          <div className="space-y-3 py-2">
-            <p className="text-sm font-medium text-foreground">Target Pages/Identities:</p>
-            <div className="space-y-2 max-h-[200px] overflow-y-auto">
-              {pages.map((page, idx) => (
-                <div 
-                  key={`${page.platform}-${page.pageId}-${idx}`}
-                  className="flex items-center gap-3 p-2 rounded-lg bg-muted/50"
-                >
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage src={page.pictureUrl} alt={page.pageName} />
-                    <AvatarFallback className={page.platform === 'meta' ? 'bg-blue-600 text-white' : 'bg-black text-white'}>
-                      {page.pageName?.charAt(0) || (page.platform === 'meta' ? 'F' : 'T')}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{page.pageName || page.pageId}</p>
-                    <Badge variant="secondary" className="text-xs capitalize">
-                      {page.platform === 'meta' ? 'Facebook/Instagram' : 'TikTok'}
+        {type === 'ads' && (
+          <div className="space-y-4 py-2">
+            {/* Ad Summary Stats */}
+            {adSummary && adSummary.total > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-foreground">Ad Summary:</p>
+                <div className="flex flex-wrap gap-2">
+                  {adSummary.dark > 0 && (
+                    <Badge variant="secondary" className="flex items-center gap-1.5">
+                      <Image className="h-3 w-3" />
+                      {adSummary.dark} Dark Ad{adSummary.dark !== 1 ? 's' : ''}
                     </Badge>
-                  </div>
+                  )}
+                  {adSummary.organic > 0 && (
+                    <Badge variant="outline" className="flex items-center gap-1.5 border-green-500/50 text-green-700 dark:text-green-400">
+                      <Repeat className="h-3 w-3" />
+                      {adSummary.organic} Organic Post{adSummary.organic !== 1 ? 's' : ''}
+                    </Badge>
+                  )}
+                  {adSummary.carousel > 0 && (
+                    <Badge variant="secondary" className="flex items-center gap-1.5">
+                      <Layers className="h-3 w-3" />
+                      {adSummary.carousel} Carousel{adSummary.carousel !== 1 ? 's' : ''}
+                    </Badge>
+                  )}
                 </div>
-              ))}
-            </div>
+              </div>
+            )}
+
+            {/* Target Pages */}
+            {pages.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-foreground">Target Pages/Identities:</p>
+                <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                  {pages.map((page, idx) => (
+                    <div 
+                      key={`${page.platform}-${page.pageId}-${idx}`}
+                      className="flex items-center gap-3 p-2 rounded-lg bg-muted/50"
+                    >
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage src={page.pictureUrl} alt={page.pageName} />
+                        <AvatarFallback className={page.platform === 'meta' ? 'bg-blue-600 text-white' : 'bg-black text-white'}>
+                          {page.pageName?.charAt(0) || (page.platform === 'meta' ? 'F' : 'T')}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{page.pageName}</p>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="secondary" className="text-xs capitalize">
+                            {page.platform === 'meta' ? 'Facebook/Instagram' : 'TikTok'}
+                          </Badge>
+                          {page.pageName !== page.pageId && (
+                            <span className="text-xs text-muted-foreground truncate">
+                              ID: {page.pageId.length > 12 ? `${page.pageId.slice(0, 6)}...${page.pageId.slice(-4)}` : page.pageId}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

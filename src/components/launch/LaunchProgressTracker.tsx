@@ -44,6 +44,7 @@ export interface CreativeAssignmentItem {
   creativeName: string;
   originalFilename?: string;
   mediaType: string;
+  creativeType?: string;
   platform: string;
   market: string;
   phaseName: string;

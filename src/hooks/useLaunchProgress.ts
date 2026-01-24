@@ -61,7 +61,7 @@ export function useLaunchProgress({ campaignId, enabled = true }: UseLaunchProgr
           status,
           error_message,
           url_parameters,
-          creative:creatives(name, media_type, original_filename)
+          creative:creatives(name, media_type, original_filename, creative_type)
         `
         )
         .eq("campaign_id", campaignId)
@@ -76,6 +76,7 @@ export function useLaunchProgress({ campaignId, enabled = true }: UseLaunchProgr
         creativeName: a.display_name || a.creative?.name || "Unknown Creative",
         originalFilename: a.creative?.original_filename || undefined,
         mediaType: a.creative?.media_type || "image",
+        creativeType: a.creative?.creative_type || "dark_post",
         platform: a.platform,
         market: a.market,
         phaseName: a.phase_name,

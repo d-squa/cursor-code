@@ -828,7 +828,13 @@ export default function LaunchStatus() {
     const pushing = liveCreativeAssignments.filter((c) => c.status === "pushing").length;
     const errors = liveCreativeAssignments.filter((c) => c.status === "error").length;
     const pending = total - pushed;
-    return { total, pushed, pending, errors, pushing };
+    
+    // Categorize by creative type
+    const organic = liveCreativeAssignments.filter((c) => c.creativeType === "existing_post").length;
+    const carousel = liveCreativeAssignments.filter((c) => c.creativeType === "carousel").length;
+    const dark = total - organic; // All non-organic are considered dark ads
+    
+    return { total, pushed, pending, errors, pushing, organic, carousel, dark };
   }, [liveCreativeAssignments]);
 
   // Determine if we can push - allow push if there are any ready_for_push, push_failed, or validation_error entities
@@ -1070,6 +1076,12 @@ export default function LaunchStatus() {
         type="ads"
         adCount={creativePushStats.pending}
         pages={pushPageInfos}
+        adSummary={{
+          total: creativePushStats.total,
+          dark: creativePushStats.dark,
+          organic: creativePushStats.organic,
+          carousel: creativePushStats.carousel,
+        }}
         isLoading={pushingCreatives}
       />
       
