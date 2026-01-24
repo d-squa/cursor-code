@@ -587,13 +587,16 @@ export function useCreativeMatching(campaignId?: string) {
   const addPlatformAssets = useCallback((assets: any[]) => {
     const digestedAssets: DigestedAsset[] = assets.map(asset => {
       // Check if this is an organic page asset
-      const isOrganicPost = asset._source === 'page' || !!asset.postId;
+      // Some callers historically used snake_case (post_id). Be tolerant.
+      const inferredPostId = asset.postId || asset.post_id || asset.external_post_id;
+      const inferredPageId = asset.pageId || asset.page_id || asset.external_page_id;
+      const isOrganicPost = asset._source === 'page' || !!inferredPostId || asset.creative_type === 'existing_post';
       
       return {
         id: asset.id,
         originalFile: null as any,
-        fileName: asset.asset_name || asset.platform_asset_id || asset.postId || 'Organic Post',
-        filePath: asset.asset_name || asset.platform_asset_id || asset.postId || '',
+        fileName: asset.asset_name || asset.platform_asset_id || inferredPostId || 'Organic Post',
+        filePath: asset.asset_name || asset.platform_asset_id || inferredPostId || '',
         mediaType: (asset.asset_type === 'VIDEO' || asset.asset_type === 'video' || asset.mediaType === 'video' ? 'video' : 'image') as AssetMediaType,
         technicalAttributes: {
           width: typeof asset.width === 'number' ? asset.width : undefined,
@@ -616,8 +619,8 @@ export function useCreativeMatching(campaignId?: string) {
         advertiserId: asset.advertiser_id,
         previewUrl: asset.preview_url || asset.thumbnail_url || asset.thumbnailUrl,
         // Organic post-specific fields
-        postId: isOrganicPost ? (asset.postId || asset.external_post_id) : undefined,
-        pageId: isOrganicPost ? (asset.pageId || asset.external_page_id) : undefined,
+        postId: isOrganicPost ? inferredPostId : undefined,
+        pageId: isOrganicPost ? inferredPageId : undefined,
         pageName: asset.pageName,
         organicMessage: asset.message || asset.caption,
         organicPermalink: asset.permalink,

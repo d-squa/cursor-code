@@ -202,7 +202,9 @@ export default function CreativeMatching() {
       asset_type: asset.assetType,
       thumbnail_url: asset.thumbnailUrl,
       asset_name: asset.name,
-      post_id: asset.postId,
+      // IMPORTANT: `useCreativeMatching.addPlatformAssets()` expects `postId` (camelCase)
+      // for organic page assets; using `post_id` causes organic posts to be mis-classified.
+      postId: asset.postId,
       platform_asset_id: asset.platformAssetId,
       // Mark organic posts for special handling
       creative_type: asset.source === 'page_assets' ? 'existing_post' : undefined,
