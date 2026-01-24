@@ -5,8 +5,8 @@ export const PLATFORM_CONFIG = {
   meta: {
     appId: import.meta.env.VITE_META_APP_ID || "",
     configId: "2625506637799260",
-    oauthScopes: "ads_management,ads_read,pages_show_list,pages_read_engagement,instagram_basic,instagram_manage_insights,business_management,catalog_management,read_insights",
-    managedLoginScopes: "openid,ads_management,ads_read,pages_show_list,pages_read_engagement,instagram_basic,instagram_manage_insights,business_management,catalog_management,read_insights",
+    oauthScopes: "ads_management,ads_read,pages_show_list,pages_read_engagement,instagram_basic,instagram_manage_insights,business_management,catalog_management",
+    managedLoginScopes: "openid,ads_management,ads_read,pages_show_list,pages_read_engagement,instagram_basic,instagram_manage_insights,business_management,catalog_management",
     apiVersion: "v21.0",
     authType: "reauthenticate",
     responseType: "code"
