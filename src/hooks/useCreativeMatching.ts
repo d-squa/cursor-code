@@ -1056,13 +1056,13 @@ export function useCreativeMatching(campaignId?: string) {
     });
   }, []);
 
-  const saveMatches = useCallback(async () => {
+  const saveMatches = useCallback(async (): Promise<boolean> => {
     // Use stateRef to always get the latest state (avoids stale closure issues)
     const currentState = stateRef.current;
 
     if (!user || currentState.acceptedMatches.size === 0) {
       toast.error('No matches to save');
-      return;
+      return false;
     }
 
     // Initialize progress for all accepted matches
@@ -1442,6 +1442,8 @@ export function useCreativeMatching(campaignId?: string) {
           currentStep: 'text_assets',
           savedAssignments,
         }));
+
+        return true;
       } else {
         if (errorCount > 0) {
           toast.error(`All ${errorCount} assignments failed`);
@@ -1449,6 +1451,8 @@ export function useCreativeMatching(campaignId?: string) {
           toast.info('No assignments to save');
         }
         setState(prev => ({ ...prev, isProcessing: false, currentStep: errorCount > 0 ? 'review' : 'complete' }));
+
+        return false;
       }
     } catch (error) {
       console.error('Error saving matches:', error);
@@ -1463,6 +1467,8 @@ export function useCreativeMatching(campaignId?: string) {
         }
         return { ...prev, isProcessing: false, saveProgress: newProgress };
       });
+
+      return false;
     }
   }, [user, updateSaveProgress]); // Only depend on user - we use stateRef for state access
 

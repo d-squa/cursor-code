@@ -247,9 +247,11 @@ export default function CreativeMatching() {
 
   // Handle save matches
   const handleSaveMatches = useCallback(async () => {
-    await saveMatches();
-    // After saving, move to content step
-    goToStep('content');
+    const ok = await saveMatches();
+    // Only advance if the save actually created assignments
+    if (ok) {
+      goToStep('content');
+    }
   }, [saveMatches, goToStep]);
 
   // Handle content step completion
