@@ -367,7 +367,7 @@ export default function PlatformConnections() {
     setSelectingAccount(true);
     try {
       const selectedIds = accounts.map(a => a.id);
-      const { error } = await supabase.functions.invoke("sync-selected-accounts", {
+      const { data, error } = await supabase.functions.invoke("sync-selected-accounts", {
         body: { 
           selectedAccountIds: selectedIds,
           platformId: currentPlatformId 
@@ -376,11 +376,23 @@ export default function PlatformConnections() {
 
       if (error) throw error;
 
-      toast.success("Selected ad accounts synced successfully!");
-      setAccountSelectorOpen(false);
-      setAdAccountOptions([]);
-      setCurrentPlatformId(null);
-      await fetchConnectedPlatforms();
+      // Check if this is a background sync (Meta with many accounts)
+      if (data?.background) {
+        // Store platform ID for progress tracking
+        sessionStorage.setItem('platform_sync_id', currentPlatformId);
+        setSyncProgressPlatformId(currentPlatformId);
+        setSyncProgressDialogOpen(true);
+        setAccountSelectorOpen(false);
+        setAdAccountOptions([]);
+        toast.info(`Syncing ${selectedIds.length} accounts in background...`);
+      } else {
+        // Synchronous sync completed (TikTok or small account sets)
+        toast.success("Selected ad accounts synced successfully!");
+        setAccountSelectorOpen(false);
+        setAdAccountOptions([]);
+        setCurrentPlatformId(null);
+        await fetchConnectedPlatforms();
+      }
     } catch (error: any) {
       console.error("Sync error:", error);
       toast.error(error.message || "Failed to sync selected accounts");
