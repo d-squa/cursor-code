@@ -508,9 +508,11 @@ export default function LaunchStatus() {
       if (!campaignData?.market_splits) return [];
       
       const marketSplits = campaignData.market_splits as Record<string, any>;
-      const pages: Array<{ pageId: string; pageName: string; platform: 'meta' | 'tiktok' }> = [];
+      const pageIds: string[] = [];
+      const tiktokIdentities: Array<{ id: string; name?: string }> = [];
       const seen = new Set<string>();
       
+      // Collect all page IDs and TikTok identities
       for (const [platformKey, markets] of Object.entries(marketSplits)) {
         if (!Array.isArray(markets)) continue;
         
@@ -522,18 +524,53 @@ export default function LaunchStatus() {
             const key = `meta-${market.pageId}`;
             if (!seen.has(key)) {
               seen.add(key);
-              pages.push({ pageId: market.pageId, pageName: market.pageName || market.pageId, platform: 'meta' });
+              pageIds.push(market.pageId);
             }
           }
           if (isTikTok && market?.tiktokIdentityId) {
             const key = `tiktok-${market.tiktokIdentityId}`;
             if (!seen.has(key)) {
               seen.add(key);
-              pages.push({ pageId: market.tiktokIdentityId, pageName: market.tiktokIdentityName || market.tiktokIdentityId, platform: 'tiktok' });
+              tiktokIdentities.push({ 
+                id: market.tiktokIdentityId, 
+                name: market.tiktokIdentityName 
+              });
             }
           }
         }
       }
+      
+      // Fetch actual page names from meta_pages table
+      const pages: Array<{ pageId: string; pageName: string; platform: 'meta' | 'tiktok' }> = [];
+      
+      if (pageIds.length > 0) {
+        const { data: metaPages } = await supabase
+          .from('meta_pages')
+          .select('page_id, page_name')
+          .in('page_id', pageIds);
+        
+        const pageNameMap = new Map<string, string>();
+        (metaPages || []).forEach((p: any) => {
+          pageNameMap.set(p.page_id, p.page_name);
+        });
+        
+        pageIds.forEach(pageId => {
+          pages.push({ 
+            pageId, 
+            pageName: pageNameMap.get(pageId) || pageId, 
+            platform: 'meta' 
+          });
+        });
+      }
+      
+      // Add TikTok identities
+      tiktokIdentities.forEach(identity => {
+        pages.push({ 
+          pageId: identity.id, 
+          pageName: identity.name || identity.id, 
+          platform: 'tiktok' 
+        });
+      });
       
       return pages;
     } catch (err) {
