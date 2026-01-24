@@ -592,6 +592,10 @@ export function useCreativeMatching(campaignId?: string) {
       const inferredPageId = asset.pageId || asset.page_id || asset.external_page_id;
       const isOrganicPost = asset._source === 'page' || !!inferredPostId || asset.creative_type === 'existing_post';
       
+      // Track creative_origin for TikTok delivery eligibility validation
+      // TikTok requires UI_SYNC (manual upload in Ads Manager) - API_UPLOAD is not delivery-eligible
+      const creativeOrigin = asset.creative_origin || asset.creativeOrigin;
+      
       return {
         id: asset.id,
         originalFile: null as any,
@@ -611,6 +615,7 @@ export function useCreativeMatching(campaignId?: string) {
         },
         compatibilitySignals: {
           platform: asset.platform,
+          creativeOrigin, // Track origin for TikTok validation
         },
         digestedAt: new Date().toISOString(),
         // Mark source type based on whether it's organic or platform asset
@@ -624,6 +629,8 @@ export function useCreativeMatching(campaignId?: string) {
         pageName: asset.pageName,
         organicMessage: asset.message || asset.caption,
         organicPermalink: asset.permalink,
+        // TikTok-specific: track origin for delivery eligibility
+        creativeOrigin,
       };
     });
 
@@ -2216,6 +2223,30 @@ function matchAssetToStructure(
       reason: `"${assetPlatform}" matches (${signals.sources.platform || 'creative metadata'})`,
     });
     score += 15;
+  }
+
+  // STRICT: TikTok Delivery Eligibility - Block manual uploads and API-uploaded creatives
+  // TikTok only allows creatives uploaded through Ads Manager (UI_SYNC) for ad delivery
+  // Manual file uploads (sourceType: 'upload') and API uploads (creative_origin: 'API_UPLOAD') are NOT delivery-eligible
+  if (structure.platform === 'tiktok') {
+    const sourceType = (asset as any).sourceType;
+    const creativeOrigin = (asset as any).creativeOrigin || (asset as any).compatibilitySignals?.creativeOrigin;
+    
+    // Block manual file uploads (user dragged/dropped files)
+    if (sourceType === 'upload') {
+      blockingReasons.push(
+        'TikTok requires creatives to be uploaded in TikTok Ads Manager. Manual file uploads cannot be used for TikTok ad delivery. Please upload to TikTok Ads Manager first, then sync.'
+      );
+      return { isMatch: false, score: 0, matchedCriteria, blockingReasons, issues };
+    }
+    
+    // Block API-uploaded platform assets (these are not delivery-eligible per TikTok limitations)
+    if (sourceType === 'platform_asset' && creativeOrigin === 'API_UPLOAD') {
+      blockingReasons.push(
+        'This TikTok creative was uploaded via API and is not eligible for ad delivery. Only creatives uploaded through TikTok Ads Manager can be used. Please re-upload in TikTok Ads Manager, then sync.'
+      );
+      return { isMatch: false, score: 0, matchedCriteria, blockingReasons, issues };
+    }
   }
 
   // STRICT: Campaign Type must match if the ad set taxonomy specifies it (e.g., UAC, PMAX)
