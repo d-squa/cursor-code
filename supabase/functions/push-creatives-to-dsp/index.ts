@@ -47,6 +47,20 @@ function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// Normalize/validate URLs coming from campaign JSON / user inputs.
+// - Treat empty strings as null
+// - Accept protocol in any casing (e.g. "Https://") and normalize to lowercase
+// - Add https:// if missing
+function normalizeHttpUrl(input: unknown): string | null {
+  if (typeof input !== "string") return null;
+  const raw = input.trim();
+  if (!raw) return null;
+
+  const normalizedProtocol = raw.replace(/^https?:\/\//i, (m) => m.toLowerCase());
+  if (/^https?:\/\//i.test(normalizedProtocol)) return normalizedProtocol;
+  return `https://${raw}`;
+}
+
 function findMarketAndPhaseConfig(
   campaign: any,
   platformKey: PlatformKey,
@@ -555,8 +569,22 @@ const handler = async (req: Request): Promise<Response> => {
             // Get tracking pixel from phase/market config
             const pixelId = (phase as any)?.metaPixelId || (market as any)?.metaPixelId || metaAdAccountDefaults?.default_pixel_id;
             
-            // Get landing page URL from ad account defaults
-            const metaLandingPageUrl = metaAdAccountDefaults?.default_landing_page_url;
+            // Resolve landing page URL (phase/market override ad account defaults) and normalize it
+            const phaseLandingPageUrl =
+              (phase as any)?.metaLandingPageUrl ||
+              (phase as any)?.meta_landing_page_url ||
+              (phase as any)?.landingPageUrl ||
+              (phase as any)?.landing_page_url;
+
+            const marketLandingPageUrl =
+              (market as any)?.metaLandingPageUrl ||
+              (market as any)?.meta_landing_page_url ||
+              (market as any)?.landingPageUrl ||
+              (market as any)?.landing_page_url;
+
+            const metaLandingPageUrl = normalizeHttpUrl(
+              phaseLandingPageUrl || marketLandingPageUrl || metaAdAccountDefaults?.default_landing_page_url,
+            );
             
             console.log(`[push-creatives] Advantage+ features:`, JSON.stringify(advantagePlusFeatures));
             console.log(`[push-creatives] UTM mode: ${utmMode}, URL params: ${finalUrlParameters || "none"}`);
@@ -732,6 +760,10 @@ const handler = async (req: Request): Promise<Response> => {
 
             // Step 1: Create ad creative
             // Note: standard_enhancements is deprecated - Meta now requires individual feature settings
+            const baseDestinationUrl = normalizeHttpUrl(
+              resolvedText.destinationUrl || creative.destination_url || metaLandingPageUrl,
+            );
+
             const creativePayload: any = {
               name: creative.name,
             };
@@ -741,6 +773,46 @@ const handler = async (req: Request): Promise<Response> => {
               // external_post_id format is typically "pageId_postId" - use as-is for object_story_id
               creativePayload.object_story_id = creative.external_post_id;
               console.log(`[push-creatives] Using object_story_id for organic post: ${creative.external_post_id}`);
+
+              // Meta Traffic / LPV / Link Clicks phases require a website destination even when using object_story_id.
+              // If we have a destination configured, attach a CTA at the root level.
+              const phaseOptimizationGoal = String((phase as any)?.optimizationGoal || "").toUpperCase();
+              const marketOptimizationLocation = String((market as any)?.metaOptimizationLocation || "").toUpperCase();
+              const needsWebsiteDestination =
+                marketOptimizationLocation === "WEBSITE" ||
+                phaseOptimizationGoal === "LANDING_PAGE_VIEWS" ||
+                phaseOptimizationGoal === "LINK_CLICKS";
+
+              const shouldAttachCta = needsWebsiteDestination || !!resolvedText.callToAction;
+
+              if (shouldAttachCta) {
+                if (!baseDestinationUrl) {
+                  await supabase
+                    .from("creative_assignments")
+                    .update({
+                      status: "error",
+                      error_message:
+                        "This phase is optimized for website traffic and requires a landing page URL. Set it on the phase (Meta Landing Page URL), the assignment destination URL, or ad account defaults.",
+                    })
+                    .eq("id", assignment.id);
+                  localFailed++;
+                  continue;
+                }
+
+                creativePayload.call_to_action = {
+                  type: resolvedText.callToAction || "LEARN_MORE",
+                  value: {
+                    link: baseDestinationUrl,
+                  },
+                };
+
+                // Add URL parameters to CTA link if specified
+                if (finalUrlParameters && creativePayload.call_to_action?.value?.link) {
+                  const ctaLink = creativePayload.call_to_action.value.link;
+                  const separator = ctaLink.includes("?") ? "&" : "?";
+                  creativePayload.call_to_action.value.link = `${ctaLink}${separator}${finalUrlParameters}`;
+                }
+              }
             } else {
               // Build new object_story_spec for dark posts
               creativePayload.object_story_spec = {
@@ -749,7 +821,7 @@ const handler = async (req: Request): Promise<Response> => {
             }
 
             // Build destination URL with optional URL parameters
-            let finalDestinationUrl = resolvedText.destinationUrl || metaLandingPageUrl;
+            let finalDestinationUrl = baseDestinationUrl;
             if (finalDestinationUrl && finalUrlParameters) {
               const separator = finalDestinationUrl.includes("?") ? "&" : "?";
               finalDestinationUrl = `${finalDestinationUrl}${separator}${finalUrlParameters}`;
@@ -821,17 +893,11 @@ const handler = async (req: Request): Promise<Response> => {
                 // Build video_data - Meta requires either image_hash or image_url
                 // Meta ALSO requires a call_to_action with link for video ads
                 // Use multiple fallbacks for destination URL
-                let destinationLink = resolvedText.destinationUrl 
-                  || creative.destination_url 
-                  || metaLandingPageUrl 
-                  || metaAdAccountDefaults?.default_landing_page_url;
-                
-                // Ensure URL has protocol
-                if (destinationLink && !destinationLink.startsWith('http://') && !destinationLink.startsWith('https://')) {
-                  destinationLink = `https://${destinationLink}`;
-                }
-                
-                console.log(`[push-creatives] Video destination URL resolution: assignment=${resolvedText.destinationUrl}, creative=${creative.destination_url}, phase=${metaLandingPageUrl}, adAccountDefaults=${metaAdAccountDefaults?.default_landing_page_url}, final=${destinationLink}`);
+                const destinationLink = baseDestinationUrl;
+
+                console.log(
+                  `[push-creatives] Video destination URL resolution: assignment=${resolvedText.destinationUrl}, creative=${creative.destination_url}, phase=${phaseLandingPageUrl}, market=${marketLandingPageUrl}, adAccountDefaults=${metaAdAccountDefaults?.default_landing_page_url}, final=${destinationLink}`,
+                );
                 
                 if (!destinationLink) {
                   console.error(`[push-creatives] No destination URL for video ad ${creative.name} (checked assignment, creative, and ad account defaults)`);
