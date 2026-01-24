@@ -734,10 +734,19 @@ const handler = async (req: Request): Promise<Response> => {
             // Note: standard_enhancements is deprecated - Meta now requires individual feature settings
             const creativePayload: any = {
               name: creative.name,
-              object_story_spec: {
-                page_id: pageId,
-              },
             };
+            
+            // For organic posts (existing_post), use object_story_id instead of building new object_story_spec
+            if (isOrganicPost && creative.external_post_id) {
+              // external_post_id format is typically "pageId_postId" - use as-is for object_story_id
+              creativePayload.object_story_id = creative.external_post_id;
+              console.log(`[push-creatives] Using object_story_id for organic post: ${creative.external_post_id}`);
+            } else {
+              // Build new object_story_spec for dark posts
+              creativePayload.object_story_spec = {
+                page_id: pageId,
+              };
+            }
 
             // Build destination URL with optional URL parameters
             let finalDestinationUrl = resolvedText.destinationUrl || metaLandingPageUrl;
@@ -746,133 +755,137 @@ const handler = async (req: Request): Promise<Response> => {
               finalDestinationUrl = `${finalDestinationUrl}${separator}${finalUrlParameters}`;
             }
 
-            if (isVideo) {
-              // For video ads, we need to ensure a thumbnail is provided
-              // Meta requires either image_hash or image_url in video_data
-              let thumbnailImageHash = creative.platform_thumbnail_id;
-              let thumbnailImageUrl = creative.thumbnail_url;
-              
-              // IMPORTANT: If thumbnail_url is actually a video file (.mp4, .mov, etc.), ignore it
-              // This can happen when thumbnail_url mistakenly stores the video URL itself
-              const videoExtensions = ['.mp4', '.mov', '.avi', '.webm', '.mkv', '.m4v'];
-              if (thumbnailImageUrl && videoExtensions.some(ext => thumbnailImageUrl.toLowerCase().endsWith(ext))) {
-                console.log(`[push-creatives] Ignoring thumbnail_url because it's a video file: ${thumbnailImageUrl}`);
-                thumbnailImageUrl = null;
-              }
-              
-              // If no existing thumbnail, try to fetch from Meta's video thumbnails endpoint
-              if (!thumbnailImageHash && !thumbnailImageUrl && creative.platform_video_id) {
-                console.log(`[push-creatives] Fetching thumbnail for video ${creative.platform_video_id}`);
-                try {
-                  // First try to get thumbnails from Meta API
-                  const thumbResponse = await fetch(
-                    `https://graph.facebook.com/v22.0/${creative.platform_video_id}?fields=thumbnails,picture&access_token=${platform.access_token}`
-                  );
-                  const thumbData = await thumbResponse.json();
-                  console.log(`[push-creatives] Video thumbnail data:`, JSON.stringify(thumbData));
-                  
-                  // Try to get a thumbnail from the thumbnails array
-                  if (thumbData.thumbnails?.data?.length > 0) {
-                    // Find the preferred thumbnail or use the first/largest one
-                    const preferredThumb = thumbData.thumbnails.data.find((t: any) => t.is_preferred) 
-                      || thumbData.thumbnails.data.sort((a: any, b: any) => (b.width || 0) - (a.width || 0))[0];
-                    if (preferredThumb?.uri) {
-                      thumbnailImageUrl = preferredThumb.uri;
-                      console.log(`[push-creatives] Using thumbnail from thumbnails API: ${thumbnailImageUrl}`);
-                    }
-                  }
-                  
-                  // Fallback to picture field if no thumbnails array
-                  if (!thumbnailImageUrl && thumbData.picture) {
-                    thumbnailImageUrl = thumbData.picture;
-                    console.log(`[push-creatives] Using picture field as thumbnail: ${thumbnailImageUrl}`);
-                  }
-                } catch (thumbError) {
-                  console.error(`[push-creatives] Error fetching video thumbnail:`, thumbError);
+            // Only build video_data/link_data for dark posts (not organic posts)
+            // Organic posts use object_story_id which already contains all the creative content
+            if (!isOrganicPost) {
+              if (isVideo) {
+                // For video ads, we need to ensure a thumbnail is provided
+                // Meta requires either image_hash or image_url in video_data
+                let thumbnailImageHash = creative.platform_thumbnail_id;
+                let thumbnailImageUrl = creative.thumbnail_url;
+                
+                // IMPORTANT: If thumbnail_url is actually a video file (.mp4, .mov, etc.), ignore it
+                // This can happen when thumbnail_url mistakenly stores the video URL itself
+                const videoExtensions = ['.mp4', '.mov', '.avi', '.webm', '.mkv', '.m4v'];
+                if (thumbnailImageUrl && videoExtensions.some(ext => thumbnailImageUrl.toLowerCase().endsWith(ext))) {
+                  console.log(`[push-creatives] Ignoring thumbnail_url because it's a video file: ${thumbnailImageUrl}`);
+                  thumbnailImageUrl = null;
                 }
-              }
-              
-              // If we still don't have a thumbnail, fail the ad creation
-              if (!thumbnailImageHash && !thumbnailImageUrl) {
-                console.error(`[push-creatives] No thumbnail available for video ${creative.platform_video_id}`);
-                await supabase
-                  .from("creative_assignments")
-                  .update({ 
-                    status: "error", 
-                    error_message: "Video ads require a thumbnail. Please upload a video with a valid thumbnail." 
-                  })
-                  .eq("id", assignment.id);
-                localFailed++;
-                continue;
-              }
-              
-              // Build video_data - Meta requires either image_hash or image_url
-              // Meta ALSO requires a call_to_action with link for video ads
-              // Use multiple fallbacks for destination URL
-              let destinationLink = resolvedText.destinationUrl 
-                || creative.destination_url 
-                || metaLandingPageUrl 
-                || metaAdAccountDefaults?.default_landing_page_url;
-              
-              // Ensure URL has protocol
-              if (destinationLink && !destinationLink.startsWith('http://') && !destinationLink.startsWith('https://')) {
-                destinationLink = `https://${destinationLink}`;
-              }
-              
-              console.log(`[push-creatives] Video destination URL resolution: assignment=${resolvedText.destinationUrl}, creative=${creative.destination_url}, phase=${metaLandingPageUrl}, adAccountDefaults=${metaAdAccountDefaults?.default_landing_page_url}, final=${destinationLink}`);
-              
-              if (!destinationLink) {
-                console.error(`[push-creatives] No destination URL for video ad ${creative.name} (checked assignment, creative, and ad account defaults)`);
-                await supabase
-                  .from("creative_assignments")
-                  .update({ status: "error", error_message: "Video ads require a destination URL. Set it on the assignment, creative, or in ad account defaults." })
-                  .eq("id", assignment.id);
-                localFailed++;
-                continue;
-              }
-              
-              console.log(`[push-creatives] Using destination URL: ${destinationLink} for video ${creative.name}`);
-              
-              creativePayload.object_story_spec.video_data = {
-                video_id: creative.platform_video_id,
-                title: resolvedText.headline || creative.name,
-                message: resolvedText.primaryText,
-                // Meta requires call_to_action with link for video ads - default to LEARN_MORE if no CTA specified
-                call_to_action: {
-                  type: resolvedText.callToAction || "LEARN_MORE",
-                  value: {
-                    link: destinationLink,
-                  },
-                },
-              };
-              
-              // Add thumbnail - prefer image_hash if available, otherwise use image_url
-              if (thumbnailImageHash) {
-                creativePayload.object_story_spec.video_data.image_hash = thumbnailImageHash;
-              } else if (thumbnailImageUrl) {
-                creativePayload.object_story_spec.video_data.image_url = thumbnailImageUrl;
-              }
-              
-              // Add URL parameters to the CTA link if specified
-              if (finalUrlParameters && creativePayload.object_story_spec.video_data.call_to_action?.value?.link) {
-                const ctaLink = creativePayload.object_story_spec.video_data.call_to_action.value.link;
-                const separator = ctaLink.includes("?") ? "&" : "?";
-                creativePayload.object_story_spec.video_data.call_to_action.value.link = `${ctaLink}${separator}${finalUrlParameters}`;
-              }
-            } else {
-              creativePayload.object_story_spec.link_data = {
-                image_hash: creative.platform_image_hash,
-                link: finalDestinationUrl,
-                message: resolvedText.primaryText,
-                name: resolvedText.headline,
-                description: resolvedText.description,
-                call_to_action: resolvedText.callToAction
-                  ? {
-                      type: resolvedText.callToAction,
-                      value: { link: finalDestinationUrl },
+                
+                // If no existing thumbnail, try to fetch from Meta's video thumbnails endpoint
+                if (!thumbnailImageHash && !thumbnailImageUrl && creative.platform_video_id) {
+                  console.log(`[push-creatives] Fetching thumbnail for video ${creative.platform_video_id}`);
+                  try {
+                    // First try to get thumbnails from Meta API
+                    const thumbResponse = await fetch(
+                      `https://graph.facebook.com/v22.0/${creative.platform_video_id}?fields=thumbnails,picture&access_token=${platform.access_token}`
+                    );
+                    const thumbData = await thumbResponse.json();
+                    console.log(`[push-creatives] Video thumbnail data:`, JSON.stringify(thumbData));
+                    
+                    // Try to get a thumbnail from the thumbnails array
+                    if (thumbData.thumbnails?.data?.length > 0) {
+                      // Find the preferred thumbnail or use the first/largest one
+                      const preferredThumb = thumbData.thumbnails.data.find((t: any) => t.is_preferred) 
+                        || thumbData.thumbnails.data.sort((a: any, b: any) => (b.width || 0) - (a.width || 0))[0];
+                      if (preferredThumb?.uri) {
+                        thumbnailImageUrl = preferredThumb.uri;
+                        console.log(`[push-creatives] Using thumbnail from thumbnails API: ${thumbnailImageUrl}`);
+                      }
                     }
-                  : undefined,
-              };
+                    
+                    // Fallback to picture field if no thumbnails array
+                    if (!thumbnailImageUrl && thumbData.picture) {
+                      thumbnailImageUrl = thumbData.picture;
+                      console.log(`[push-creatives] Using picture field as thumbnail: ${thumbnailImageUrl}`);
+                    }
+                  } catch (thumbError) {
+                    console.error(`[push-creatives] Error fetching video thumbnail:`, thumbError);
+                  }
+                }
+                
+                // If we still don't have a thumbnail, fail the ad creation
+                if (!thumbnailImageHash && !thumbnailImageUrl) {
+                  console.error(`[push-creatives] No thumbnail available for video ${creative.platform_video_id}`);
+                  await supabase
+                    .from("creative_assignments")
+                    .update({ 
+                      status: "error", 
+                      error_message: "Video ads require a thumbnail. Please upload a video with a valid thumbnail." 
+                    })
+                    .eq("id", assignment.id);
+                  localFailed++;
+                  continue;
+                }
+                
+                // Build video_data - Meta requires either image_hash or image_url
+                // Meta ALSO requires a call_to_action with link for video ads
+                // Use multiple fallbacks for destination URL
+                let destinationLink = resolvedText.destinationUrl 
+                  || creative.destination_url 
+                  || metaLandingPageUrl 
+                  || metaAdAccountDefaults?.default_landing_page_url;
+                
+                // Ensure URL has protocol
+                if (destinationLink && !destinationLink.startsWith('http://') && !destinationLink.startsWith('https://')) {
+                  destinationLink = `https://${destinationLink}`;
+                }
+                
+                console.log(`[push-creatives] Video destination URL resolution: assignment=${resolvedText.destinationUrl}, creative=${creative.destination_url}, phase=${metaLandingPageUrl}, adAccountDefaults=${metaAdAccountDefaults?.default_landing_page_url}, final=${destinationLink}`);
+                
+                if (!destinationLink) {
+                  console.error(`[push-creatives] No destination URL for video ad ${creative.name} (checked assignment, creative, and ad account defaults)`);
+                  await supabase
+                    .from("creative_assignments")
+                    .update({ status: "error", error_message: "Video ads require a destination URL. Set it on the assignment, creative, or in ad account defaults." })
+                    .eq("id", assignment.id);
+                  localFailed++;
+                  continue;
+                }
+                
+                console.log(`[push-creatives] Using destination URL: ${destinationLink} for video ${creative.name}`);
+                
+                creativePayload.object_story_spec.video_data = {
+                  video_id: creative.platform_video_id,
+                  title: resolvedText.headline || creative.name,
+                  message: resolvedText.primaryText,
+                  // Meta requires call_to_action with link for video ads - default to LEARN_MORE if no CTA specified
+                  call_to_action: {
+                    type: resolvedText.callToAction || "LEARN_MORE",
+                    value: {
+                      link: destinationLink,
+                    },
+                  },
+                };
+                
+                // Add thumbnail - prefer image_hash if available, otherwise use image_url
+                if (thumbnailImageHash) {
+                  creativePayload.object_story_spec.video_data.image_hash = thumbnailImageHash;
+                } else if (thumbnailImageUrl) {
+                  creativePayload.object_story_spec.video_data.image_url = thumbnailImageUrl;
+                }
+                
+                // Add URL parameters to the CTA link if specified
+                if (finalUrlParameters && creativePayload.object_story_spec.video_data.call_to_action?.value?.link) {
+                  const ctaLink = creativePayload.object_story_spec.video_data.call_to_action.value.link;
+                  const separator = ctaLink.includes("?") ? "&" : "?";
+                  creativePayload.object_story_spec.video_data.call_to_action.value.link = `${ctaLink}${separator}${finalUrlParameters}`;
+                }
+              } else {
+                creativePayload.object_story_spec.link_data = {
+                  image_hash: creative.platform_image_hash,
+                  link: finalDestinationUrl,
+                  message: resolvedText.primaryText,
+                  name: resolvedText.headline,
+                  description: resolvedText.description,
+                  call_to_action: resolvedText.callToAction
+                    ? {
+                        type: resolvedText.callToAction,
+                        value: { link: finalDestinationUrl },
+                      }
+                    : undefined,
+                };
+              }
             }
 
             console.log(`[push-creatives] Creating ad creative with payload:`, JSON.stringify(creativePayload, null, 2));
