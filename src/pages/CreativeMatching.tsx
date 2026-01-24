@@ -195,11 +195,13 @@ export default function CreativeMatching() {
   const handleRunMesh = useCallback(async () => {
     if (!progress?.campaignId) return;
 
-    // Convert selected assets to matching format
-    const assetsToMatch = progress.selectedAssets.map(asset => {
+    // Separate uploads (need processFiles) from platform assets (use addPlatformAssets)
+    const uploads: File[] = [];
+    const platformAssets: any[] = [];
+
+    for (const asset of progress.selectedAssets) {
       const anyAsset = asset as any;
-      // Be tolerant: different sources may provide different casing
-      const source = String(anyAsset.source ?? (asset as any).source ?? '');
+      const source = String(anyAsset.source ?? '');
       const postId = asset.postId ?? anyAsset.post_id ?? anyAsset.external_post_id ?? anyAsset.postID;
       const pageId = anyAsset.pageId ?? anyAsset.page_id ?? anyAsset.external_page_id;
       const pageName = anyAsset.pageName ?? anyAsset.page_name ?? anyAsset.external_account_name;
@@ -211,29 +213,38 @@ export default function CreativeMatching() {
         source === 'organic' ||
         Boolean(postId);
 
-      return {
-      id: asset.id,
-      platform: asset.platform,
-      asset_type: asset.assetType,
-      thumbnail_url: asset.thumbnailUrl,
-      asset_name: asset.name,
-        mediaType: anyAsset.mediaType,
-        platform_asset_id: asset.platformAssetId,
+      // Handle uploads separately - they need the File object for processFiles
+      if (source === 'upload' && anyAsset.file instanceof File) {
+        uploads.push(anyAsset.file);
+      } else {
+        // Platform assets and organic posts
+        platformAssets.push({
+          id: asset.id,
+          platform: asset.platform,
+          asset_type: asset.assetType,
+          thumbnail_url: asset.thumbnailUrl,
+          asset_name: asset.name,
+          mediaType: anyAsset.mediaType,
+          platform_asset_id: asset.platformAssetId,
+          postId,
+          pageId,
+          pageName,
+          message,
+          permalink,
+          creative_type: isOrganic ? 'existing_post' : undefined,
+        });
+      }
+    }
 
-        // Organic post fields (used by addPlatformAssets/saveMatches)
-        postId,
-        pageId,
-        pageName,
-        message,
-        permalink,
+    // Process uploads first (if any)
+    if (uploads.length > 0) {
+      await processFiles(uploads);
+    }
 
-        // Mark organic posts for special handling
-        creative_type: isOrganic ? 'existing_post' : undefined,
-      };
-    });
-
-    // Add assets to matching engine
-    addPlatformAssets(assetsToMatch);
+    // Add platform assets
+    if (platformAssets.length > 0) {
+      addPlatformAssets(platformAssets);
+    }
 
     // Load structures and run matching
     const structures = await loadCampaignStructures(progress.campaignId);
@@ -243,7 +254,7 @@ export default function CreativeMatching() {
     } else {
       toast.error('No campaign structures found. Make sure the ActiPlan has phases configured.');
     }
-  }, [progress, addPlatformAssets, loadCampaignStructures, runMatching, goToStep]);
+  }, [progress, processFiles, addPlatformAssets, loadCampaignStructures, runMatching, goToStep]);
 
   // Handle save matches
   const handleSaveMatches = useCallback(async () => {

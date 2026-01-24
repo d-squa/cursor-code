@@ -241,7 +241,13 @@ export function getCharacterStatus(value: string, field: TextAssetFieldConfig): 
 }
 
 // Validate a text asset row based on platform requirements
+// Organic posts bypass validation since their content comes from the platform
 export function validateTextAssetRow(row: CreativeTextAssetRow): string[] {
+  // Skip validation for organic posts - they are read-only and use platform content
+  if (row.isOrganic || row.externalPostId) {
+    return [];
+  }
+
   const errors: string[] = [];
   const platform = row.platform.toLowerCase() as Platform;
   const fields = PLATFORM_TEXT_FIELDS[platform] || PLATFORM_TEXT_FIELDS.meta;

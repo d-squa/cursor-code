@@ -101,6 +101,7 @@ export function TextAssetsStep({
                 primary_text,
                 headline,
                 description,
+                caption,
                 call_to_action,
                 destination_url,
                 thumbnail_url,
@@ -418,13 +419,18 @@ export function TextAssetsStep({
             adFormat: suggestedFormat,
             suggestedAdFormat: suggestedFormat,
             adFormatConfirmed: false,
-            primaryText: creative?.primary_text || '',
+            // For organic posts, use caption as primary text (read-only, populated from platform)
+            primaryText: isOrganic 
+              ? (creative?.caption || creative?.primary_text || '') 
+              : (creative?.primary_text || ''),
             headline: creative?.headline || '',
             description: creative?.description || '',
+            caption: creative?.caption || '',
             callToAction: (creative?.call_to_action || 'LEARN_MORE') as CallToAction,
             destinationUrl: creative?.destination_url || '',
             autoBuildUtm: false,
-            isValid: true,
+            // Organic posts are always valid (skip validation)
+            isValid: isOrganic ? true : true,
             validationErrors: [],
             thumbnailUrl: creative?.thumbnail_url,
             // Non-schema convenience fields consumed by TextAssetExcelEditor (safe to attach)
@@ -438,6 +444,7 @@ export function TextAssetsStep({
             isOrganic,
             externalPostId: creative?.external_post_id || undefined,
             externalPageId: creative?.external_page_id || undefined,
+            organicMessage: creative?.caption || undefined,
           };
         });
 
@@ -455,10 +462,12 @@ export function TextAssetsStep({
     loadAssignments();
   }, [savedAssignments, campaignId, campaignName]);
 
-  // Handle individual row changes
+  // Handle individual row changes (skip organic posts - they are read-only)
   const handleRowChange = useCallback((id: string, updates: Partial<CreativeTextAssetRow>) => {
     setRows(prev => prev.map(row => {
       if (row.id !== id) return row;
+      // Skip updates for organic posts
+      if (row.isOrganic || row.externalPostId) return row;
       const updated = { ...row, ...updates };
       // Re-validate after update
       const errors = validateTextAssetRow(updated);
@@ -466,10 +475,12 @@ export function TextAssetsStep({
     }));
   }, []);
 
-  // Handle bulk updates
+  // Handle bulk updates (skip organic posts - they are read-only)
   const handleBulkUpdate = useCallback((ids: string[], updates: Partial<CreativeTextAssetRow>) => {
     setRows(prev => prev.map(row => {
       if (!ids.includes(row.id)) return row;
+      // Skip updates for organic posts
+      if (row.isOrganic || row.externalPostId) return row;
       const updated = { ...row, ...updates };
       const errors = validateTextAssetRow(updated);
       return { ...updated, validationErrors: errors, isValid: errors.length === 0 };

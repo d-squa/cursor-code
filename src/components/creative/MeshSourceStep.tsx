@@ -114,7 +114,7 @@ export function MeshSourceStep({
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
 
-    // Create assets from files
+    // Create assets from files - store File object for processFiles
     for (const file of files) {
       const isVideo = file.type.startsWith('video/');
       const previewUrl = URL.createObjectURL(file);
@@ -126,6 +126,7 @@ export function MeshSourceStep({
         assetType: isVideo ? 'video' : 'image',
         thumbnailUrl: previewUrl,
         name: file.name,
+        file, // Store File object for later use
       };
       
       onAddAsset(asset);
@@ -159,6 +160,7 @@ export function MeshSourceStep({
         assetType: isVideo ? 'video' : 'image',
         thumbnailUrl: previewUrl,
         name: file.name,
+        file, // Store File object for later use
       };
       
       onAddAsset(asset);
