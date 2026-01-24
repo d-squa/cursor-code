@@ -196,19 +196,41 @@ export default function CreativeMatching() {
     if (!progress?.campaignId) return;
 
     // Convert selected assets to matching format
-    const assetsToMatch = progress.selectedAssets.map(asset => ({
+    const assetsToMatch = progress.selectedAssets.map(asset => {
+      const anyAsset = asset as any;
+      // Be tolerant: different sources may provide different casing
+      const source = String(anyAsset.source ?? (asset as any).source ?? '');
+      const postId = asset.postId ?? anyAsset.post_id ?? anyAsset.external_post_id ?? anyAsset.postID;
+      const pageId = anyAsset.pageId ?? anyAsset.page_id ?? anyAsset.external_page_id;
+      const pageName = anyAsset.pageName ?? anyAsset.page_name ?? anyAsset.external_account_name;
+      const message = anyAsset.message ?? anyAsset.caption ?? anyAsset.organicMessage;
+      const permalink = anyAsset.permalink ?? anyAsset.url;
+      const isOrganic =
+        source === 'page_assets' ||
+        source === 'page' ||
+        source === 'organic' ||
+        Boolean(postId);
+
+      return {
       id: asset.id,
       platform: asset.platform,
       asset_type: asset.assetType,
       thumbnail_url: asset.thumbnailUrl,
       asset_name: asset.name,
-      // IMPORTANT: `useCreativeMatching.addPlatformAssets()` expects `postId` (camelCase)
-      // for organic page assets; using `post_id` causes organic posts to be mis-classified.
-      postId: asset.postId,
-      platform_asset_id: asset.platformAssetId,
-      // Mark organic posts for special handling
-      creative_type: asset.source === 'page_assets' ? 'existing_post' : undefined,
-    }));
+        mediaType: anyAsset.mediaType,
+        platform_asset_id: asset.platformAssetId,
+
+        // Organic post fields (used by addPlatformAssets/saveMatches)
+        postId,
+        pageId,
+        pageName,
+        message,
+        permalink,
+
+        // Mark organic posts for special handling
+        creative_type: isOrganic ? 'existing_post' : undefined,
+      };
+    });
 
     // Add assets to matching engine
     addPlatformAssets(assetsToMatch);
