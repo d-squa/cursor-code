@@ -274,12 +274,12 @@ export default function CreativeMatching() {
     }
   }, [progress?.campaignId, navigate]);
 
-  // Handle "Saved & Select More Creatives" - go back to step 1
+  // Handle "Saved & Select More Creatives" - go back to step 2 (source) to add more assets
   const handleSaveAndSelectMore = useCallback(() => {
-    // Clear matching state but keep campaign selection
+    // Clear matching state but keep campaign and platform selection
     clearMatching();
     clearAssets();
-    goToStep('actiplan');
+    goToStep('source');
   }, [clearMatching, clearAssets, goToStep]);
 
   // Handle close - go back to ActiPlans
