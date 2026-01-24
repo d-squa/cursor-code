@@ -587,10 +587,10 @@ export function TextAssetsStep({
     toast.success(`Added ${newRows.length} creative(s) to the editor`);
   }, [availableCreatives, selectedNewCreatives]);
 
-  // Save text assets to database
-  const handleSave = useCallback(async () => {
+  // Save text assets to database (no navigation)
+  const saveTextAssets = useCallback(async (): Promise<boolean> => {
     setIsSaving(true);
-    
+
     try {
       // Update creatives with text assets
       const updates = rows.map(row => ({
@@ -622,14 +622,25 @@ export function TextAssetsStep({
       }
 
       toast.success(`Saved text assets for ${rows.length} creatives`);
-      onComplete();
+      return true;
     } catch (error) {
       console.error('Error saving text assets:', error);
       toast.error('Failed to save text assets');
+      return false;
     } finally {
       setIsSaving(false);
     }
-  }, [rows, onComplete]);
+  }, [rows]);
+
+  const handleSaveAndProceed = useCallback(async () => {
+    const ok = await saveTextAssets();
+    if (ok) onComplete();
+  }, [saveTextAssets, onComplete]);
+
+  // TextAssetExcelEditor expects onSave to return Promise<void>
+  const handleSaveOnly = useCallback(async (): Promise<void> => {
+    await saveTextAssets();
+  }, [saveTextAssets]);
 
   const validCount = useMemo(() => 
     rows.filter(r => validateTextAssetRow(r).length === 0).length
@@ -690,7 +701,7 @@ export function TextAssetsStep({
           onRowChange={handleRowChange}
           onBulkUpdate={handleBulkUpdate}
           onImportRows={handleImportRows}
-          onSave={handleSave}
+            onSave={handleSaveOnly}
           isSaving={isSaving}
           onDeleteAssignment={handleDeleteAssignment}
         />
@@ -709,8 +720,8 @@ export function TextAssetsStep({
             <Button 
               variant="outline" 
               onClick={async () => {
-                await handleSave();
-                onSaveAndSelectMore();
+                const ok = await saveTextAssets();
+                if (ok) onSaveAndSelectMore();
               }}
               disabled={isSaving}
             >
@@ -719,7 +730,7 @@ export function TextAssetsStep({
             </Button>
           )}
           <Button 
-            onClick={handleSave}
+            onClick={handleSaveAndProceed}
             disabled={isSaving}
           >
             {isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}

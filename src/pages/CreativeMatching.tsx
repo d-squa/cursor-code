@@ -276,11 +276,10 @@ export default function CreativeMatching() {
 
   // Handle "Saved & Select More Creatives" - go back to step 2 (source) to add more assets
   const handleSaveAndSelectMore = useCallback(() => {
-    // Clear matching state but keep campaign and platform selection
+    // Clear matching UI state but keep already-selected assets so the user can add more on top
     clearMatching();
-    clearAssets();
     goToStep('source');
-  }, [clearMatching, clearAssets, goToStep]);
+  }, [clearMatching, goToStep]);
 
   // Handle close - go back to ActiPlans
   const handleClose = useCallback(() => {
