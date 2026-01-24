@@ -340,9 +340,47 @@ function StructureCard({
   );
 }
 
-function UnassignedAssetsPanel({ unassignedAssets }: { unassignedAssets: UnassignedAsset[] }) {
+function UnassignedAssetsPanel({ 
+  unassignedAssets,
+  structureResults,
+  onManualAssign
+}: { 
+  unassignedAssets: UnassignedAsset[];
+  structureResults: StructureMatchResult[];
+  onManualAssign: (assetId: string, structure: CampaignStructure) => void;
+}) {
   // Default to collapsed
   const [isExpanded, setIsExpanded] = useState(false);
+  const [assigningAssetId, setAssigningAssetId] = useState<string | null>(null);
+  
+  // Get all available structures for manual assignment
+  const availableStructures = useMemo(() => {
+    return structureResults.map(r => r.structure);
+  }, [structureResults]);
+
+  // Group structures by platform > market > phase for easier selection
+  const groupedStructures = useMemo(() => {
+    const groups: Record<string, Record<string, Record<string, CampaignStructure[]>>> = {};
+    
+    for (const structure of availableStructures) {
+      const platform = structure.platform || 'unknown';
+      const market = structure.market || 'Global';
+      const phase = structure.phases?.[0] || structure.campaignName || 'Default';
+      
+      if (!groups[platform]) groups[platform] = {};
+      if (!groups[platform][market]) groups[platform][market] = {};
+      if (!groups[platform][market][phase]) groups[platform][market][phase] = [];
+      
+      groups[platform][market][phase].push(structure);
+    }
+    
+    return groups;
+  }, [availableStructures]);
+
+  const handleAssign = (assetId: string, structure: CampaignStructure) => {
+    onManualAssign(assetId, structure);
+    setAssigningAssetId(null);
+  };
   
   if (unassignedAssets.length === 0) return null;
   
@@ -360,7 +398,7 @@ function UnassignedAssetsPanel({ unassignedAssets }: { unassignedAssets: Unassig
                   Unassigned Creatives
                 </CardTitle>
                 <p className="text-xs text-amber-600/80">
-                  Could not match to any ad set
+                  Could not match to any ad set - use manual assign to override
                 </p>
               </div>
               <Badge variant="outline" className="border-amber-500/50 text-amber-600">
@@ -375,16 +413,74 @@ function UnassignedAssetsPanel({ unassignedAssets }: { unassignedAssets: Unassig
           <CardContent className="pt-0 space-y-3">
             {unassignedAssets.map((unassigned) => {
               const { asset, extractedSignals, reasons, closestMatches } = unassigned;
+              const isAssigning = assigningAssetId === asset.id;
               
               return (
                 <div key={asset.id} className="p-3 rounded-lg border border-amber-500/20 bg-background">
                   <div className="flex items-start gap-3">
                     <AssetThumbnail asset={asset} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{asset.fileName}</p>
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-medium truncate">{asset.fileName}</p>
+                        <Button
+                          size="sm"
+                          variant={isAssigning ? "secondary" : "outline"}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setAssigningAssetId(isAssigning ? null : asset.id);
+                          }}
+                          className="shrink-0 text-xs h-7"
+                        >
+                          {isAssigning ? 'Cancel' : 'Assign'}
+                        </Button>
+                      </div>
+                      
+                      {/* Manual assignment selector */}
+                      {isAssigning && (
+                        <div className="mt-3 p-3 rounded-lg border border-primary/30 bg-primary/5">
+                          <p className="text-xs font-medium text-primary mb-2">
+                            Select an ad set to assign this creative:
+                          </p>
+                          <ScrollArea className="max-h-[200px]">
+                            <div className="space-y-2">
+                              {Object.entries(groupedStructures).map(([platform, markets]) => (
+                                <div key={platform} className="space-y-1">
+                                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">
+                                    {platform}
+                                  </p>
+                                  {Object.entries(markets).map(([market, phases]) => (
+                                    <div key={market} className="pl-2 space-y-1">
+                                      {Object.entries(phases).map(([phase, structures]) => (
+                                        <div key={phase} className="space-y-0.5">
+                                          <p className="text-[10px] text-muted-foreground">
+                                            {market} › {phase}
+                                          </p>
+                                          <div className="pl-2 flex flex-wrap gap-1">
+                                            {structures.map((structure) => (
+                                              <Button
+                                                key={structure.id}
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={() => handleAssign(asset.id, structure)}
+                                                className="text-[10px] h-6 px-2"
+                                              >
+                                                {structure.adSetName}
+                                              </Button>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ))}
+                                </div>
+                              ))}
+                            </div>
+                          </ScrollArea>
+                        </div>
+                      )}
                       
                       {/* Extracted signals */}
-                      {Object.keys(extractedSignals).length > 0 && (
+                      {!isAssigning && Object.keys(extractedSignals).length > 0 && (
                         <div className="mt-2">
                           <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">
                             Extracted from filename:
@@ -404,22 +500,24 @@ function UnassignedAssetsPanel({ unassignedAssets }: { unassignedAssets: Unassig
                       )}
                       
                       {/* Reasons for not matching */}
-                      <div className="mt-2">
-                        <p className="text-[10px] text-destructive uppercase tracking-wide mb-1">
-                          Why not assigned:
-                        </p>
-                        <ul className="space-y-0.5">
-                          {reasons.map((reason, i) => (
-                            <li key={i} className="text-xs text-muted-foreground flex items-start gap-1">
-                              <X className="h-3 w-3 text-destructive shrink-0 mt-0.5" />
-                              <span>{reason}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
+                      {!isAssigning && (
+                        <div className="mt-2">
+                          <p className="text-[10px] text-destructive uppercase tracking-wide mb-1">
+                            Why not assigned:
+                          </p>
+                          <ul className="space-y-0.5">
+                            {reasons.map((reason, i) => (
+                              <li key={i} className="text-xs text-muted-foreground flex items-start gap-1">
+                                <X className="h-3 w-3 text-destructive shrink-0 mt-0.5" />
+                                <span>{reason}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                       
                       {/* Closest matches */}
-                      {closestMatches && closestMatches.length > 0 && (
+                      {!isAssigning && closestMatches && closestMatches.length > 0 && (
                         <div className="mt-2 pt-2 border-t">
                           <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">
                             Closest matches:
@@ -431,6 +529,15 @@ function UnassignedAssetsPanel({ unassignedAssets }: { unassignedAssets: Unassig
                                 <Badge variant="outline" className="text-[10px] py-0">
                                   {match.score}%
                                 </Badge>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => handleAssign(asset.id, match.structure)}
+                                  className="text-[10px] h-5 px-1.5 text-primary hover:text-primary"
+                                >
+                                  <Check className="h-3 w-3 mr-0.5" />
+                                  Assign
+                                </Button>
                               </div>
                             ))}
                           </div>
@@ -1650,7 +1757,11 @@ export function StructureCentricView({
           />
 
           {/* Unassigned assets panel */}
-          <UnassignedAssetsPanel unassignedAssets={displayUnassignedAssets} />
+          <UnassignedAssetsPanel 
+            unassignedAssets={displayUnassignedAssets} 
+            structureResults={structureResults}
+            onManualAssign={onAcceptAsset}
+          />
         </div>
       </ScrollArea>
     </div>
