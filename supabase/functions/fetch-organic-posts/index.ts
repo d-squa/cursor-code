@@ -324,12 +324,22 @@ async function handleTikTokPosts(
 
   const posts: OrganicPost[] = [];
 
-  // If looking up a specific post by ID or URL
+  // If looking up a specific post by ID, URL, or auth code
   if (postIdOrUrl) {
-    const itemId = extractTikTokPostId(postIdOrUrl);
-    if (itemId && resolvedAdvertiserId) {
-      const post = await fetchTikTokPostById(accessToken, resolvedAdvertiserId, itemId);
-      if (post) posts.push(post);
+    // Check if this is a Spark Ads authorization code
+    if (isSparkAuthCode(postIdOrUrl)) {
+      console.log(`[fetch-organic-posts] Detected Spark Ads auth code, validating...`);
+      if (resolvedAdvertiserId) {
+        const post = await validateSparkAuthCode(accessToken, resolvedAdvertiserId, postIdOrUrl);
+        if (post) posts.push(post);
+      }
+    } else {
+      // Regular video ID or URL
+      const itemId = extractTikTokPostId(postIdOrUrl);
+      if (itemId && resolvedAdvertiserId) {
+        const post = await fetchTikTokPostById(accessToken, resolvedAdvertiserId, itemId);
+        if (post) posts.push(post);
+      }
     }
     return new Response(
       JSON.stringify({ posts }),
@@ -540,6 +550,115 @@ function extractTikTokPostId(input: string): string | null {
   
   // Plain ID
   if (/^\d+$/.test(input)) return input;
+  
+  return null;
+}
+
+/**
+ * Check if the input looks like a Spark Ads authorization code
+ * Auth codes are typically base64-encoded strings, often with special characters
+ */
+function isSparkAuthCode(input: string): boolean {
+  // Auth codes often start with # or contain special characters like +, /, =
+  // and are NOT purely numeric (video IDs are numeric)
+  const trimmed = input.trim().replace(/^#/, '');
+  
+  // Must contain at least some base64-ish characters and not be a simple numeric ID
+  const hasSpecialChars = /[+/=]/.test(trimmed);
+  const isNotNumeric = !/^\d+$/.test(trimmed);
+  const isLongEnough = trimmed.length > 20;
+  
+  return hasSpecialChars && isNotNumeric && isLongEnough;
+}
+
+/**
+ * Validate a Spark Ads authorization code and get video details
+ */
+async function validateSparkAuthCode(
+  accessToken: string,
+  advertiserId: string,
+  authCode: string
+): Promise<OrganicPost | null> {
+  // Remove leading # if present
+  const cleanAuthCode = authCode.trim().replace(/^#/, '');
+  
+  console.log(`[fetch-organic-posts] Validating Spark Ads auth code for advertiser ${advertiserId}`);
+  
+  // TikTok Business API v1.3 for Spark Ads validation
+  const tiktokApiBases = [
+    "https://business-api.tiktok.com/open_api/v1.3",
+    "https://business-api.tiktok.com/open_api/v1.2",
+  ];
+  
+  for (const baseUrl of tiktokApiBases) {
+    try {
+      // Use POST to validate the authorization code
+      const validateUrl = `${baseUrl}/tt_video/authorize/`;
+      
+      console.log(`[fetch-organic-posts] Calling ${validateUrl} with auth_code`);
+      
+      const response = await fetch(validateUrl, {
+        method: "POST",
+        headers: {
+          "Access-Token": accessToken,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          advertiser_id: advertiserId,
+          auth_code: cleanAuthCode,
+        }),
+      });
+      
+      const data = await readJsonSafe(response, `tiktok tt_video/authorize (base=${baseUrl})`);
+      
+      console.log(`[fetch-organic-posts] Spark auth validation response (base=${baseUrl}):`, JSON.stringify(data));
+      
+      if (data?.error) {
+        console.warn(`[fetch-organic-posts] tt_video/authorize error (base=${baseUrl}):`, data.error);
+        continue;
+      }
+      
+      // Success - code 0 means the auth code was validated
+      if (data.code === 0 && data.data) {
+        const videoData = data.data;
+        
+        return {
+          id: videoData.item_id || videoData.video_id || 'unknown',
+          platform: 'tiktok',
+          postId: videoData.item_id || videoData.video_id || 'unknown',
+          identityId: videoData.tt_account_id,
+          caption: videoData.video_info?.video_text || videoData.caption || '',
+          thumbnailUrl: videoData.video_info?.video_cover_url || videoData.cover_image_url,
+          mediaType: 'video',
+          createdTime: videoData.create_time
+            ? new Date(videoData.create_time * 1000).toISOString()
+            : undefined,
+          isSparkEligible: true,
+        };
+      }
+      
+      // If we get a different response format, try to extract video info
+      if (data.code === 0) {
+        console.log(`[fetch-organic-posts] Auth code validated but no video data in response`);
+        // The auth code was accepted - return a placeholder that indicates success
+        return {
+          id: 'spark-authorized',
+          platform: 'tiktok',
+          postId: 'spark-authorized',
+          caption: 'Spark Ads authorized video',
+          mediaType: 'video',
+          isSparkEligible: true,
+        };
+      }
+      
+      // Log any error codes for debugging
+      console.warn(`[fetch-organic-posts] tt_video/authorize returned code ${data.code}: ${data.message}`);
+      
+    } catch (err) {
+      console.error(`[fetch-organic-posts] tt_video/authorize exception (base=${baseUrl}):`, err);
+    }
+  }
   
   return null;
 }
