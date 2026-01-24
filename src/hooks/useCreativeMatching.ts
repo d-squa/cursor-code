@@ -1111,14 +1111,28 @@ export function useCreativeMatching(campaignId?: string) {
       const assignments: any[] = [];
       const compositeKeyToAssignmentIndex = new Map<string, number>();
       let errorCount = 0;
+      let firstErrorMessage: string | undefined;
+
+      const formatSaveError = (err: any): string => {
+        if (!err) return 'Unknown error';
+        if (typeof err === 'string') return err;
+        const parts: string[] = [];
+        if (typeof err.code === 'string') parts.push(`[${err.code}]`);
+        if (typeof err.message === 'string') parts.push(err.message);
+        if (typeof err.details === 'string') parts.push(err.details);
+        if (typeof err.hint === 'string') parts.push(err.hint);
+        return parts.join(' • ') || 'Unknown error';
+      };
 
       for (const [compositeKey, match] of currentState.acceptedMatches) {
         // Parse composite key: assetId:structureId
         const assetId = compositeKey.split(':')[0];
         const asset = currentState.assets.find(a => a.id === assetId);
         if (!asset) {
-          updateSaveProgress(compositeKey, 'error', 'Asset not found');
+          const msg = 'Asset not found';
+          updateSaveProgress(compositeKey, 'error', msg);
           errorCount++;
+          firstErrorMessage = firstErrorMessage || msg;
           continue;
         }
 
@@ -1336,8 +1350,10 @@ export function useCreativeMatching(campaignId?: string) {
           });
         } catch (itemError: any) {
           console.error(`Error processing ${compositeKey}:`, itemError);
-          updateSaveProgress(compositeKey, 'error', itemError?.message || 'Failed to process');
+          const msg = formatSaveError(itemError);
+          updateSaveProgress(compositeKey, 'error', msg);
           errorCount++;
+          firstErrorMessage = firstErrorMessage || msg;
         }
       }
 
@@ -1446,7 +1462,7 @@ export function useCreativeMatching(campaignId?: string) {
         return true;
       } else {
         if (errorCount > 0) {
-          toast.error(`All ${errorCount} assignments failed`);
+          toast.error(`All ${errorCount} assignments failed${firstErrorMessage ? `: ${firstErrorMessage}` : ''}`);
         } else {
           toast.info('No assignments to save');
         }
