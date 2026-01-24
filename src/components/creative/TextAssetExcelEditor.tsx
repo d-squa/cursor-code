@@ -1505,13 +1505,13 @@ export function TextAssetExcelEditor({
                   ))}
                 </div>
 
-                {/* Body for scrollable columns */}
-                <div className="divide-y">
-                  {(() => {
-                    let rowIdx = -1;
-                    return flatList.map((item) => {
-                      if (item.type === 'group') {
-                        const isCollapsed = collapsedGroups.has(item.groupKey!);
+              {/* Body for scrollable columns */}
+              <div className="divide-y">
+                {(() => {
+                  let rowIdx = -1;
+                  return flatList.map((item) => {
+                    if (item.type === 'group') {
+                      const isCollapsed = collapsedGroups.has(item.groupKey!);
                         
                         return (
                           <div
