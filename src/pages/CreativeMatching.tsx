@@ -118,9 +118,11 @@ export default function CreativeMatching() {
             
             if (adAccountId) {
               const platform = isTikTok ? 'tiktok' : 'meta';
-              const exists = adAccounts.some(a => a.platform === platform && a.accountId === String(adAccountId));
+              // Normalize: strip 'act_' prefix for consistent matching with DB
+              const normalizedId = String(adAccountId).replace(/^act_/, '');
+              const exists = adAccounts.some(a => a.platform === platform && a.accountId === normalizedId);
               if (!exists) {
-                adAccounts.push({ platform, accountId: String(adAccountId) });
+                adAccounts.push({ platform, accountId: normalizedId });
               }
             }
 
