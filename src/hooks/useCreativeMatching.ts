@@ -1068,7 +1068,10 @@ export function useCreativeMatching(campaignId?: string) {
     // Initialize progress for all accepted matches
     const initialProgress = new Map<string, SaveProgressItem>();
     for (const compositeKey of currentState.acceptedMatches.keys()) {
-      const [assetId, structureId] = compositeKey.split(':');
+      // Parse compositeKey: last segment is structureId, everything before is assetId
+      const lastColonIdx = compositeKey.lastIndexOf(':');
+      const assetId = compositeKey.slice(0, lastColonIdx);
+      const structureId = compositeKey.slice(lastColonIdx + 1);
       initialProgress.set(compositeKey, { compositeKey, assetId, structureId, status: 'pending' });
     }
     setState(prev => ({ ...prev, isProcessing: true, saveProgress: initialProgress }));
@@ -1125,8 +1128,9 @@ export function useCreativeMatching(campaignId?: string) {
       };
 
       for (const [compositeKey, match] of currentState.acceptedMatches) {
-        // Parse composite key: assetId:structureId
-        const assetId = compositeKey.split(':')[0];
+      // Parse compositeKey: last segment is structureId, everything before is assetId
+      const lastColonIdx = compositeKey.lastIndexOf(':');
+      const assetId = compositeKey.slice(0, lastColonIdx);
         const asset = currentState.assets.find(a => a.id === assetId);
         if (!asset) {
           const msg = 'Asset not found';
@@ -1406,7 +1410,8 @@ export function useCreativeMatching(campaignId?: string) {
           // Find the accepted match that produced this assignment
           // Match by creative_id since we now have the real DB id
           for (const [key, m] of currentState.acceptedMatches.entries()) {
-            const assetId = key.split(':')[0];
+            const lastColonIdx = key.lastIndexOf(':');
+            const assetId = key.slice(0, lastColonIdx);
             const asset = currentState.assets.find(as => as.id === assetId);
             
             // For existing creatives, check if the creative_id matches
