@@ -362,10 +362,14 @@ async function handleTikTokPosts(
         }
       }
 
-      // Build list of identity types to try - include TT_ACCOUNT which is commonly used
-      const identityTypesToTry: string[] = identityType
-        ? [identityType]
-        : ["TT_ACCOUNT", "TT_USER", "BC_AUTH_TT", "CUSTOMIZED_USER"];
+      // Build list of identity types to try.
+      // IMPORTANT: Even if we have a stored identity_type, TikTok sometimes returns an empty list
+      // (no error) when the identity_type is not the one expected by the listing endpoint.
+      // So we always try a small, ordered set of fallbacks.
+      const fallbackIdentityTypes = ["TT_USER", "BC_AUTH_TT", "TT_ACCOUNT", "CUSTOMIZED_USER"];
+      const identityTypesToTry: string[] = Array.from(
+        new Set([...(identityType ? [identityType] : []), ...fallbackIdentityTypes])
+      );
 
       // Strategy 1: identity/video/list (most reliable when the account is properly authorized)
       for (const identityType of identityTypesToTry) {
