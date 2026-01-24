@@ -87,6 +87,30 @@ export function PlatformAssetLibrary({
   const [assetTypeFilter, setAssetTypeFilter] = useState<'all' | 'video' | 'image'>('all');
   const [onlyUsable, setOnlyUsable] = useState(true);
 
+  // Fetch account name for display
+  const { data: accountName } = useQuery({
+    queryKey: ['account-name', platform, advertiserId],
+    queryFn: async (): Promise<string | null> => {
+      if (platform === 'tiktok') {
+        const { data } = await supabase
+          .from('tiktok_ad_accounts')
+          .select('account_name')
+          .eq('advertiser_id', advertiserId)
+          .maybeSingle();
+        return data?.account_name || null;
+      } else {
+        const { data } = await supabase
+          .from('meta_ad_accounts')
+          .select('account_name')
+          .eq('account_id', advertiserId)
+          .maybeSingle();
+        return data?.account_name || null;
+      }
+    },
+    enabled: !!advertiserId,
+    staleTime: 1000 * 60 * 10, // Cache for 10 minutes
+  });
+
   // Fetch assets from creative_library_assets table
   const { data: assets, isLoading, refetch } = useQuery({
     queryKey: ['platform-assets', platform, advertiserId],
@@ -169,6 +193,9 @@ export function PlatformAssetLibrary({
             Sync
           </Button>
         </div>
+        <p className="text-xs text-muted-foreground mt-1">
+          Showing assets from {accountName || advertiserId}
+        </p>
       </CardHeader>
 
       <CardContent className="space-y-4">

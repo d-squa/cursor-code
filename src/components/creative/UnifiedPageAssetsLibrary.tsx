@@ -376,7 +376,12 @@ export function UnifiedPageAssetsLibrary({
           </Button>
         </div>
         <p className="text-xs text-muted-foreground mt-1">
-          Showing organic posts from {pageConfigs.length} page(s)/identity(s)
+          Showing organic posts from {pageConfigs.length} {pageConfigs.length === 1 ? 'page/identity' : 'pages/identities'}
+          {pageConfigs.length > 0 && (
+            <span className="ml-1">
+              ({pageConfigs.map(c => c.pageName || c.pageId || c.identityId || 'Unknown').join(', ')})
+            </span>
+          )}
         </p>
       </CardHeader>
 
