@@ -564,7 +564,14 @@ const handler = async (req: Request): Promise<Response> => {
 
             let hasMetaAsset = creative.platform_image_hash || creative.platform_video_id;
             
-            // Auto-upload to Meta if creative is missing DSP asset IDs
+            // Skip auto-upload for organic posts - they use external_post_id directly
+            const isOrganicPost = creative.creative_type === "existing_post" && creative.external_post_id;
+            if (isOrganicPost) {
+              console.log(`[push-creatives] Creative ${creative.id} is an organic post (${creative.external_post_id}), skipping auto-upload`);
+              hasMetaAsset = true; // Mark as having asset to proceed with ad creation
+            }
+            
+            // Auto-upload to Meta if creative is missing DSP asset IDs (and not an organic post)
             if (!hasMetaAsset) {
               console.log(`[push-creatives] Creative ${creative.id} missing Meta asset, attempting auto-upload`);
               
@@ -589,8 +596,12 @@ const handler = async (req: Request): Promise<Response> => {
               }
               
               const mediaUrl = fullCreative.media_urls[0];
-              const isVideoFile = fullCreative.media_type === "video" || 
-                                  mediaUrl.toLowerCase().match(/\.(mp4|mov|avi|wmv|flv|webm|m4v)$/);
+              // Prioritize URL extension over media_type field (DB can have stale/incorrect data)
+              const urlLower = mediaUrl.toLowerCase();
+              const hasVideoExtension = /\.(mp4|mov|avi|wmv|flv|webm|m4v)(\?|$)/.test(urlLower);
+              const hasImageExtension = /\.(jpg|jpeg|png|gif|webp|bmp)(\?|$)/.test(urlLower);
+              // Use URL extension if detectable, otherwise fall back to media_type field
+              const isVideoFile = hasVideoExtension || (!hasImageExtension && fullCreative.media_type === "video");
               
               try {
                 // Download the media file
