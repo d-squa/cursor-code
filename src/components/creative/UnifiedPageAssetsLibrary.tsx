@@ -242,17 +242,9 @@ export function UnifiedPageAssetsLibrary({
     }
   }, [JSON.stringify(pageConfigs)]);
 
-  // Import a single post by URL/ID (fallback when listing API doesn't work)
+  // Import a single post by URL/ID or Spark Ads auth code (fallback when listing API doesn't work)
   const handleImportByUrl = async () => {
     if (!importUrl.trim()) return;
-    
-    // Extract video ID from URL or use as-is if numeric
-    const videoIdMatch = importUrl.match(/video\/(\d+)/) || importUrl.match(/^(\d+)$/);
-    if (!videoIdMatch) {
-      toast.error('Please enter a valid TikTok video URL or ID');
-      return;
-    }
-    const videoId = videoIdMatch[1];
     
     // Find a TikTok config to use for the lookup
     const tiktokConfig = pageConfigs.find(c => c.platform === 'tiktok' && c.advertiserId);
@@ -261,14 +253,33 @@ export function UnifiedPageAssetsLibrary({
       return;
     }
     
+    const trimmedInput = importUrl.trim();
+    
+    // Check if this looks like a Spark Ads authorization code
+    // Auth codes contain special chars like +, /, = and are not numeric
+    const isAuthCode = /[+/=]/.test(trimmedInput) && !/^\d+$/.test(trimmedInput.replace(/^#/, ''));
+    
+    // For video URLs/IDs, extract the numeric ID
+    let postIdOrUrl = trimmedInput;
+    if (!isAuthCode) {
+      const videoIdMatch = trimmedInput.match(/video\/(\d+)/) || trimmedInput.match(/^(\d+)$/);
+      if (!videoIdMatch) {
+        toast.error('Please enter a valid TikTok video URL, ID, or Spark Ads authorization code');
+        return;
+      }
+      postIdOrUrl = videoIdMatch[1];
+    }
+    
     setIsImporting(true);
     try {
+      console.log('[UnifiedPageAssetsLibrary] Importing:', { postIdOrUrl, isAuthCode });
+      
       const { data, error } = await supabase.functions.invoke('fetch-organic-posts', {
         body: {
           platform: 'tiktok',
           advertiserId: tiktokConfig.advertiserId,
           identityId: tiktokConfig.identityId,
-          postIdOrUrl: videoId,
+          postIdOrUrl,
         }
       });
       
@@ -286,12 +297,15 @@ export function UnifiedPageAssetsLibrary({
             toast.info('This video is already in the list');
             return prev;
           }
-          toast.success('Video imported successfully');
+          toast.success(isAuthCode ? 'Spark Ads video authorized successfully' : 'Video imported successfully');
           return [newPost, ...prev];
         });
         setImportUrl('');
       } else {
-        toast.error('Video not found or not accessible');
+        toast.error(isAuthCode 
+          ? 'Authorization code invalid or expired. Make sure it\'s for this advertiser account.'
+          : 'Video not found or not accessible'
+        );
       }
     } catch (err) {
       console.error('[UnifiedPageAssetsLibrary] Import error:', err);
@@ -435,20 +449,20 @@ export function UnifiedPageAssetsLibrary({
             <p className="font-medium">No posts found</p>
             <p className="text-sm">Organic posts from your pages will appear here</p>
             
-            {/* Import by URL fallback for TikTok */}
+            {/* Import by URL or Auth Code fallback for TikTok */}
             {pageConfigs.some(c => c.platform === 'tiktok') && (
-              <div className="mt-6 max-w-md mx-auto">
+              <div className="mt-6 max-w-lg mx-auto">
                 <p className="text-xs text-muted-foreground mb-2">
-                  Can't see your videos? Import by URL instead:
+                  Can't see your videos? Import by URL or Spark Ads code:
                 </p>
                 <div className="flex gap-2">
                   <div className="relative flex-1">
                     <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                      placeholder="Paste TikTok video URL or ID..."
+                      placeholder="Video URL, ID, or Spark Ads auth code (#HCn...)"
                       value={importUrl}
                       onChange={(e) => setImportUrl(e.target.value)}
-                      className="pl-9"
+                      className="pl-9 text-sm"
                       onKeyDown={(e) => e.key === 'Enter' && handleImportByUrl()}
                     />
                   </div>
@@ -464,6 +478,9 @@ export function UnifiedPageAssetsLibrary({
                     )}
                   </Button>
                 </div>
+                <p className="text-xs text-muted-foreground mt-2 opacity-70">
+                  Tip: Get the Spark Ads code from TikTok Ad Settings → Generate Code
+                </p>
               </div>
             )}
           </div>
