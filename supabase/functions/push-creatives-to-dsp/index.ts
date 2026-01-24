@@ -389,7 +389,7 @@ const handler = async (req: Request): Promise<Response> => {
             platform_video_id, platform_image_hash, platform_thumbnail_id, thumbnail_url,
             primary_text, headline, description, call_to_action,
             destination_url, url_parameters,
-            external_page_id, tiktok_identity_id, tiktok_display_name, tiktok_ad_format,
+             external_post_id, external_page_id, tiktok_identity_id, tiktok_display_name, tiktok_ad_format,
             dsp_upload_status, brand_name, app_link
           )
         `,
