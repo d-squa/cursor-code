@@ -144,7 +144,15 @@ export default function LaunchStatus() {
   // Confirmation dialog state
   const [showCreativePushConfirm, setShowCreativePushConfirm] = useState(false);
   const [showCampaignPushConfirm, setShowCampaignPushConfirm] = useState(false);
-  const [pushPageInfos, setPushPageInfos] = useState<Array<{ pageId: string; pageName: string; platform: 'meta' | 'tiktok' }>>([]);
+  const [pushPageInfos, setPushPageInfos] = useState<
+    Array<{
+      pageId: string;
+      pageName: string;
+      platform: 'meta' | 'tiktok';
+      adAccountId?: string;
+      adAccountName?: string;
+    }>
+  >([]);
 
   // Use the new real-time progress hook
   const {
@@ -508,70 +516,194 @@ export default function LaunchStatus() {
       if (!campaignData?.market_splits) return [];
       
       const marketSplits = campaignData.market_splits as Record<string, any>;
-      const pageIds: string[] = [];
-      const tiktokIdentities: Array<{ id: string; name?: string }> = [];
-      const seen = new Set<string>();
-      
-      // Collect all page IDs and TikTok identities
+
+      const isUuid = (v: string) =>
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+
+      // One entry per destination page/identity + destination ad account.
+      const metaTargets = new Map<string, { pageRef: string; adAccountId?: string; adAccountName?: string }>();
+      const tiktokTargets = new Map<string, { identityId: string; identityName?: string; advertiserId?: string }>();
+
       for (const [platformKey, markets] of Object.entries(marketSplits)) {
         if (!Array.isArray(markets)) continue;
-        
-        const isMeta = platformKey.toLowerCase().includes('meta');
-        const isTikTok = platformKey.toLowerCase().includes('tiktok');
-        
+
+        const pk = platformKey.toLowerCase();
+        const isMeta = pk.includes('meta') || pk.includes('facebook') || pk.includes('instagram');
+        const isTikTok = pk.includes('tiktok');
+
         for (const market of markets as any[]) {
-          if (isMeta && market?.pageId) {
-            const key = `meta-${market.pageId}`;
-            if (!seen.has(key)) {
-              seen.add(key);
-              pageIds.push(market.pageId);
+          if (isMeta) {
+            const pageRef = market?.pageId ?? market?.page ?? market?.metaPageId;
+            const adAccountId = market?.adAccountId ?? market?.ad_account_id;
+            const adAccountName = market?.accountName ?? market?.adAccountName;
+
+            if (pageRef && !metaTargets.has(String(pageRef))) {
+              metaTargets.set(String(pageRef), {
+                pageRef: String(pageRef),
+                adAccountId: adAccountId ? String(adAccountId) : undefined,
+                adAccountName: adAccountName ? String(adAccountName) : undefined,
+              });
+            }
+
+            // Also check phases for page IDs
+            const phases = Array.isArray(market?.phases) ? market.phases : [];
+            for (const phase of phases) {
+              const phasePageRef = phase?.pageId ?? phase?.page ?? phase?.metaPageId;
+              if (phasePageRef && !metaTargets.has(String(phasePageRef))) {
+                metaTargets.set(String(phasePageRef), {
+                  pageRef: String(phasePageRef),
+                  adAccountId: adAccountId ? String(adAccountId) : undefined,
+                  adAccountName: adAccountName ? String(adAccountName) : undefined,
+                });
+              }
             }
           }
-          if (isTikTok && market?.tiktokIdentityId) {
-            const key = `tiktok-${market.tiktokIdentityId}`;
-            if (!seen.has(key)) {
-              seen.add(key);
-              tiktokIdentities.push({ 
-                id: market.tiktokIdentityId, 
-                name: market.tiktokIdentityName 
+
+          if (isTikTok) {
+            const identityId = market?.tiktokIdentityId ?? market?.tiktokIdentity;
+            const advertiserId = market?.tiktokAdvertiserId ?? market?.adAccountId ?? market?.advertiser_id;
+
+            if (identityId && !tiktokTargets.has(String(identityId))) {
+              tiktokTargets.set(String(identityId), {
+                identityId: String(identityId),
+                identityName: market?.tiktokIdentityName ? String(market.tiktokIdentityName) : undefined,
+                advertiserId: advertiserId ? String(advertiserId) : undefined,
               });
+            }
+
+            // Also check phases for identities
+            const phases = Array.isArray(market?.phases) ? market.phases : [];
+            for (const phase of phases) {
+              const phaseIdentity = phase?.tiktokIdentityId ?? phase?.tiktokIdentity;
+              if (phaseIdentity && !tiktokTargets.has(String(phaseIdentity))) {
+                tiktokTargets.set(String(phaseIdentity), {
+                  identityId: String(phaseIdentity),
+                  identityName: phase?.tiktokIdentityName
+                    ? String(phase.tiktokIdentityName)
+                    : market?.tiktokIdentityName
+                      ? String(market.tiktokIdentityName)
+                      : undefined,
+                  advertiserId: advertiserId ? String(advertiserId) : undefined,
+                });
+              }
             }
           }
         }
       }
-      
-      // Fetch actual page names from meta_pages table
-      const pages: Array<{ pageId: string; pageName: string; platform: 'meta' | 'tiktok' }> = [];
-      
-      if (pageIds.length > 0) {
-        const { data: metaPages } = await supabase
+
+      // Resolve Meta page names (supports either storing meta_pages.page_id or meta_pages.id)
+      const metaKeys = Array.from(metaTargets.keys());
+      const metaDbIds = metaKeys.filter(isUuid);
+      const metaExternalIds = metaKeys.filter((v) => !isUuid(v));
+
+      const metaPageMap = new Map<string, { pageId: string; pageName: string }>();
+
+      if (metaDbIds.length > 0) {
+        const { data: metaPagesById } = await supabase
           .from('meta_pages')
-          .select('page_id, page_name')
-          .in('page_id', pageIds);
-        
-        const pageNameMap = new Map<string, string>();
-        (metaPages || []).forEach((p: any) => {
-          pageNameMap.set(p.page_id, p.page_name);
-        });
-        
-        pageIds.forEach(pageId => {
-          pages.push({ 
-            pageId, 
-            pageName: pageNameMap.get(pageId) || pageId, 
-            platform: 'meta' 
-          });
+          .select('id, page_id, page_name')
+          .in('id', metaDbIds);
+
+        (metaPagesById || []).forEach((p: any) => {
+          if (p?.id) metaPageMap.set(String(p.id), { pageId: String(p.page_id), pageName: String(p.page_name) });
+          if (p?.page_id) metaPageMap.set(String(p.page_id), { pageId: String(p.page_id), pageName: String(p.page_name) });
         });
       }
-      
-      // Add TikTok identities
-      tiktokIdentities.forEach(identity => {
-        pages.push({ 
-          pageId: identity.id, 
-          pageName: identity.name || identity.id, 
-          platform: 'tiktok' 
+
+      if (metaExternalIds.length > 0) {
+        const { data: metaPagesByExternal } = await supabase
+          .from('meta_pages')
+          .select('id, page_id, page_name')
+          .in('page_id', metaExternalIds);
+
+        (metaPagesByExternal || []).forEach((p: any) => {
+          if (p?.id) metaPageMap.set(String(p.id), { pageId: String(p.page_id), pageName: String(p.page_name) });
+          if (p?.page_id) metaPageMap.set(String(p.page_id), { pageId: String(p.page_id), pageName: String(p.page_name) });
+        });
+      }
+
+      // Resolve Meta ad account names
+      const metaAdAccountNameMap = new Map<string, string>();
+      const rawMetaAdAccountIds = Array.from(
+        new Set(Array.from(metaTargets.values()).map((t) => t.adAccountId).filter(Boolean) as string[])
+      );
+
+      if (rawMetaAdAccountIds.length > 0) {
+        const normalized = Array.from(new Set(rawMetaAdAccountIds.map((id) => id.replace(/^act_/, ''))));
+        const orFilter = normalized
+          .flatMap((id) => [`account_id.eq.${id}`, `account_id.eq.act_${id}`])
+          .join(',');
+
+        if (orFilter) {
+          const { data: metaAccounts } = await supabase
+            .from('meta_ad_accounts')
+            .select('account_id, account_name')
+            .or(orFilter);
+
+          (metaAccounts || []).forEach((a: any) => {
+            if (!a?.account_id) return;
+            metaAdAccountNameMap.set(String(a.account_id), String(a.account_name));
+            metaAdAccountNameMap.set(String(a.account_id).replace(/^act_/, ''), String(a.account_name));
+          });
+        }
+      }
+
+      // Resolve TikTok advertiser names
+      const tiktokAdvertiserNameMap = new Map<string, string>();
+      const tiktokAdvertiserIds = Array.from(
+        new Set(Array.from(tiktokTargets.values()).map((t) => t.advertiserId).filter(Boolean) as string[])
+      );
+
+      if (tiktokAdvertiserIds.length > 0) {
+        const { data: tiktokAccounts } = await supabase
+          .from('tiktok_ad_accounts')
+          .select('advertiser_id, account_name')
+          .in('advertiser_id', tiktokAdvertiserIds);
+
+        (tiktokAccounts || []).forEach((a: any) => {
+          if (a?.advertiser_id) tiktokAdvertiserNameMap.set(String(a.advertiser_id), String(a.account_name));
+        });
+      }
+
+      const pages: Array<{
+        pageId: string;
+        pageName: string;
+        platform: 'meta' | 'tiktok';
+        adAccountId?: string;
+        adAccountName?: string;
+      }> = [];
+
+      metaTargets.forEach((t, key) => {
+        const resolved = metaPageMap.get(key);
+        const pageId = resolved?.pageId || t.pageRef;
+        const pageName = resolved?.pageName || t.pageRef;
+
+        const adAccountId = t.adAccountId;
+        const adAccountName =
+          t.adAccountName ||
+          (adAccountId
+            ? metaAdAccountNameMap.get(adAccountId) || metaAdAccountNameMap.get(adAccountId.replace(/^act_/, ''))
+            : undefined);
+
+        pages.push({
+          pageId,
+          pageName,
+          platform: 'meta',
+          adAccountId,
+          adAccountName,
         });
       });
-      
+
+      tiktokTargets.forEach((t) => {
+        pages.push({
+          pageId: t.identityId,
+          pageName: t.identityName || t.identityId,
+          platform: 'tiktok',
+          adAccountId: t.advertiserId,
+          adAccountName: t.advertiserId ? tiktokAdvertiserNameMap.get(t.advertiserId) : undefined,
+        });
+      });
+
       return pages;
     } catch (err) {
       console.error('Error extracting page info:', err);
