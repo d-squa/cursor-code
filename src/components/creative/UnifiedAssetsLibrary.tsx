@@ -172,9 +172,11 @@ export function UnifiedAssetsLibrary({
       if (adAccounts.length === 0) return [];
       
       // Build OR conditions for each account
-      const conditions = adAccounts.map(a => 
-        `and(platform.eq.${a.platform},advertiser_id.eq.${a.accountId})`
-      );
+      // Normalize accountId: strip 'act_' prefix for Meta accounts since DB stores numeric ID only
+      const conditions = adAccounts.map(a => {
+        const normalizedId = a.accountId.replace(/^act_/, '');
+        return `and(platform.eq.${a.platform},advertiser_id.eq.${normalizedId})`;
+      });
       
       const { data, error } = await supabase
         .from('creative_library_assets')
