@@ -245,10 +245,23 @@ export function TextAssetExcelEditor({
   }, [selectedRows]);
 
   // Toggle row selection with shift+click support
+  // Organic posts are excluded from selection (they are read-only)
   const toggleRowSelection = useCallback((rowId: string, shiftKey: boolean = false) => {
+    // Find the row to check if it's organic
+    const row = rows.find(r => r.id === rowId);
+    const isOrganic = !!(row as any)?.isOrganic || !!(row as any)?.externalPostId;
+    
+    // Don't allow selection of organic posts
+    if (isOrganic) {
+      toast.info('Organic posts are read-only and cannot be selected');
+      return;
+    }
+    
     if (shiftKey && lastSelectedRowId) {
-      // Get all row IDs in order
-      const allRowIds = rows.map(r => r.id);
+      // Get all row IDs in order (excluding organic posts)
+      const allRowIds = rows
+        .filter(r => !(r as any).isOrganic && !(r as any).externalPostId)
+        .map(r => r.id);
       const lastIndex = allRowIds.indexOf(lastSelectedRowId);
       const currentIndex = allRowIds.indexOf(rowId);
       
@@ -278,19 +291,30 @@ export function TextAssetExcelEditor({
     setLastSelectedRowId(rowId);
   }, [rows, lastSelectedRowId]);
 
-  // Select/deselect all in ad set
+  // Select/deselect all in ad set (excluding organic posts)
   const toggleAdSetSelection = useCallback((rowIds: string[]) => {
+    // Filter out organic posts
+    const selectableIds = rowIds.filter(id => {
+      const row = rows.find(r => r.id === id);
+      return !(row as any)?.isOrganic && !(row as any)?.externalPostId;
+    });
+    
+    if (selectableIds.length === 0) {
+      toast.info('No selectable rows (organic posts are read-only)');
+      return;
+    }
+    
     setSelectedRowIds(prev => {
-      const allSelected = rowIds.every(id => prev.has(id));
+      const allSelected = selectableIds.every(id => prev.has(id));
       const next = new Set(prev);
       if (allSelected) {
-        rowIds.forEach(id => next.delete(id));
+        selectableIds.forEach(id => next.delete(id));
       } else {
-        rowIds.forEach(id => next.add(id));
+        selectableIds.forEach(id => next.add(id));
       }
       return next;
     });
-  }, []);
+  }, [rows]);
 
   // Clear selection
   const clearSelection = useCallback(() => {

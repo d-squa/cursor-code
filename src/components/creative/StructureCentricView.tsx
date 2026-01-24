@@ -673,7 +673,8 @@ function AssignedAssetsPanel({
   saveProgress,
   onAcceptAsset,
   onRejectAsset,
-  onAcceptAll
+  onAcceptAll,
+  forceExpand,
 }: { 
   structureResults: StructureMatchResult[];
   acceptedMatches: Map<string, UICreativeMatch>;
@@ -681,8 +682,9 @@ function AssignedAssetsPanel({
   onAcceptAsset: (assetId: string, structure: StructureMatchResult['structure']) => void;
   onRejectAsset: (assetId: string, structureId: string) => void;
   onAcceptAll: () => void;
+  forceExpand?: boolean;
 }) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(forceExpand ?? false);
   const [expandedPlatforms, setExpandedPlatforms] = useState<Set<string>>(new Set());
   const [expandedMarkets, setExpandedMarkets] = useState<Set<string>>(new Set());
   const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());
@@ -697,6 +699,29 @@ function AssignedAssetsPanel({
     () => groupResultsHierarchically(resultsWithAssets),
     [resultsWithAssets]
   );
+
+  // React to forceExpand changes - expand/collapse all levels
+  useEffect(() => {
+    if (forceExpand === undefined) return;
+    setIsExpanded(forceExpand);
+    if (forceExpand) {
+      // Expand all levels
+      setExpandedPlatforms(new Set(hierarchicalGroups.map(g => g.platform)));
+      setExpandedMarkets(new Set(hierarchicalGroups.flatMap(g => 
+        g.markets.map(m => `${g.platform}:${m.market}`)
+      )));
+      setExpandedCampaigns(new Set(hierarchicalGroups.flatMap(g => 
+        g.markets.flatMap(m => m.campaigns.map(c => `${g.platform}:${m.market}:${c.campaignName}`))
+      )));
+      setExpandedAdSets(new Set(resultsWithAssets.map(r => r.structure.id)));
+    } else {
+      // Collapse all levels
+      setExpandedPlatforms(new Set());
+      setExpandedMarkets(new Set());
+      setExpandedCampaigns(new Set());
+      setExpandedAdSets(new Set());
+    }
+  }, [forceExpand, hierarchicalGroups, resultsWithAssets]);
 
   const activeSaveInProgress = useMemo(() => {
     if (!saveProgress || saveProgress.size === 0) return false;
@@ -1282,8 +1307,10 @@ export function StructureCentricView({
   onAcceptAsset,
   onRejectAsset,
 }: StructureCentricViewProps) {
-  // Expand/collapse all state for panels
-  const [allExpanded, setAllExpanded] = useState(true);
+  // Global expand/collapse state - passed to child panels
+  const [globalExpanded, setGlobalExpanded] = useState(true);
+  // Key to force re-render child panels when global state changes
+  const [expandKey, setExpandKey] = useState(0);
 
   // Treat accepted suggestions as assigned for UI (so empty/unassigned counts update live)
   const acceptedAssetIds = useMemo(() => {
@@ -1566,8 +1593,10 @@ export function StructureCentricView({
           <Button 
             variant="outline" 
             size="sm"
-            onClick={() => setAllExpanded(true)}
-            disabled={allExpanded}
+            onClick={() => {
+              setGlobalExpanded(true);
+              setExpandKey(k => k + 1);
+            }}
           >
             <ChevronDown className="h-4 w-4 mr-1" />
             Expand All
@@ -1575,8 +1604,10 @@ export function StructureCentricView({
           <Button 
             variant="outline" 
             size="sm"
-            onClick={() => setAllExpanded(false)}
-            disabled={!allExpanded}
+            onClick={() => {
+              setGlobalExpanded(false);
+              setExpandKey(k => k + 1);
+            }}
           >
             <ChevronUp className="h-4 w-4 mr-1" />
             Collapse All
@@ -1588,6 +1619,7 @@ export function StructureCentricView({
         <div className="space-y-3">
           {/* Assigned creatives panel - grouped under one foldable card */}
           <AssignedAssetsPanel
+            key={expandKey}
             structureResults={sortedResults}
             acceptedMatches={acceptedMatches}
             saveProgress={saveProgress}
@@ -1598,6 +1630,7 @@ export function StructureCentricView({
                 result.assignedAssets.forEach(a => onAcceptAsset(a.asset.id, result.structure));
               });
             }}
+            forceExpand={globalExpanded}
           />
 
           {/* Keep legacy SuggestionsPanel mounted but hidden (we now show suggestions under each empty ad set) */}

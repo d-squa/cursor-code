@@ -17,6 +17,13 @@ export interface SelectedAsset {
   name?: string;
   postId?: string; // For page assets
   platformAssetId?: string; // For ad account assets
+  // File object for uploads - not persisted but needed for processFiles
+  file?: File;
+  // Organic post fields
+  pageId?: string;
+  pageName?: string;
+  message?: string;
+  permalink?: string;
 }
 
 export interface MeshProgress {
