@@ -24,6 +24,8 @@ import {
   FileImage,
   Wand2,
   X,
+  Link2,
+  Loader2,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -85,6 +87,10 @@ export function UnifiedPageAssetsLibrary({
   const [search, setSearch] = useState('');
   const [platformFilter, setPlatformFilter] = useState<'all' | 'meta' | 'tiktok'>('all');
   const [mediaTypeFilter, setMediaTypeFilter] = useState<'all' | 'image' | 'video' | 'carousel'>('all');
+  
+  // Import by URL state
+  const [importUrl, setImportUrl] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
   
   // Use external selection if provided, otherwise manage locally
   const externalSelectionIds = useMemo(() => 
@@ -236,6 +242,65 @@ export function UnifiedPageAssetsLibrary({
     }
   }, [JSON.stringify(pageConfigs)]);
 
+  // Import a single post by URL/ID (fallback when listing API doesn't work)
+  const handleImportByUrl = async () => {
+    if (!importUrl.trim()) return;
+    
+    // Extract video ID from URL or use as-is if numeric
+    const videoIdMatch = importUrl.match(/video\/(\d+)/) || importUrl.match(/^(\d+)$/);
+    if (!videoIdMatch) {
+      toast.error('Please enter a valid TikTok video URL or ID');
+      return;
+    }
+    const videoId = videoIdMatch[1];
+    
+    // Find a TikTok config to use for the lookup
+    const tiktokConfig = pageConfigs.find(c => c.platform === 'tiktok' && c.advertiserId);
+    if (!tiktokConfig) {
+      toast.error('No TikTok advertiser configured');
+      return;
+    }
+    
+    setIsImporting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('fetch-organic-posts', {
+        body: {
+          platform: 'tiktok',
+          advertiserId: tiktokConfig.advertiserId,
+          identityId: tiktokConfig.identityId,
+          postIdOrUrl: videoId,
+        }
+      });
+      
+      if (error) throw error;
+      
+      if (data?.posts?.length > 0) {
+        const newPost: OrganicPost = {
+          ...data.posts[0],
+          pageName: tiktokConfig.pageName || tiktokConfig.identityId,
+        };
+        // Add to existing posts (deduplicate)
+        setPosts(prev => {
+          const exists = prev.some(p => p.postId === newPost.postId);
+          if (exists) {
+            toast.info('This video is already in the list');
+            return prev;
+          }
+          toast.success('Video imported successfully');
+          return [newPost, ...prev];
+        });
+        setImportUrl('');
+      } else {
+        toast.error('Video not found or not accessible');
+      }
+    } catch (err) {
+      console.error('[UnifiedPageAssetsLibrary] Import error:', err);
+      toast.error('Failed to import video');
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   // Filter posts
   const filteredPosts = useMemo(() => {
     return posts.filter((post) => {
@@ -365,10 +430,42 @@ export function UnifiedPageAssetsLibrary({
             ))}
           </div>
         ) : filteredPosts.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
+          <div className="text-center py-12 text-muted-foreground space-y-4">
             <ImageIcon className="h-12 w-12 mx-auto mb-3 opacity-50" />
             <p className="font-medium">No posts found</p>
             <p className="text-sm">Organic posts from your pages will appear here</p>
+            
+            {/* Import by URL fallback for TikTok */}
+            {pageConfigs.some(c => c.platform === 'tiktok') && (
+              <div className="mt-6 max-w-md mx-auto">
+                <p className="text-xs text-muted-foreground mb-2">
+                  Can't see your videos? Import by URL instead:
+                </p>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Paste TikTok video URL or ID..."
+                      value={importUrl}
+                      onChange={(e) => setImportUrl(e.target.value)}
+                      className="pl-9"
+                      onKeyDown={(e) => e.key === 'Enter' && handleImportByUrl()}
+                    />
+                  </div>
+                  <Button
+                    onClick={handleImportByUrl}
+                    disabled={isImporting || !importUrl.trim()}
+                    size="sm"
+                  >
+                    {isImporting ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      'Import'
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <ScrollArea className="h-[500px]">
