@@ -18,6 +18,8 @@ interface PageInfo {
   pageName: string;
   pictureUrl?: string;
   platform: 'meta' | 'tiktok';
+  adAccountId?: string;
+  adAccountName?: string;
 }
 
 interface AdSummary {
@@ -125,9 +127,18 @@ export function PushConfirmationDialog({
                           <Badge variant="secondary" className="text-xs capitalize">
                             {page.platform === 'meta' ? 'Facebook/Instagram' : 'TikTok'}
                           </Badge>
+
+                          {(page.adAccountName || page.adAccountId) && (
+                            <span className="text-xs text-muted-foreground truncate">
+                              {page.platform === 'meta' ? 'Ad account:' : 'Advertiser:'}{' '}
+                              {page.adAccountName || 'Unknown'}
+                              {page.adAccountId ? ` (${page.adAccountId})` : ''}
+                            </span>
+                          )}
+
                           {page.pageName !== page.pageId && (
                             <span className="text-xs text-muted-foreground truncate">
-                              ID: {page.pageId.length > 12 ? `${page.pageId.slice(0, 6)}...${page.pageId.slice(-4)}` : page.pageId}
+                              Page: {page.pageId.length > 12 ? `${page.pageId.slice(0, 6)}...${page.pageId.slice(-4)}` : page.pageId}
                             </span>
                           )}
                         </div>
