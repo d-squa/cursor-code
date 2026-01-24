@@ -373,22 +373,23 @@ export default function CreativeMatching() {
 
           {/* Step 3: Match Creatives Review */}
           {currentStep === 'mesh' && (
-            <div className="container mx-auto py-6 px-4 max-w-5xl">
-              {/* Stats */}
-              <div className="flex gap-4 text-sm border-b pb-3 mb-4">
-                <div>
-                  <span className="text-muted-foreground">Creatives:</span>{' '}
-                  <span className="font-medium">{stats.totalAssets}</span>
+            <div className="h-full overflow-auto">
+              <div className="w-full min-w-[1200px] py-6 px-6">
+                {/* Stats */}
+                <div className="flex gap-4 text-sm border-b pb-3 mb-4">
+                  <div>
+                    <span className="text-muted-foreground">Creatives:</span>{' '}
+                    <span className="font-medium">{stats.totalAssets}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Matched:</span>{' '}
+                    <span className="font-medium text-primary">{stats.matchedCount}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Accepted:</span>{' '}
+                    <span className="font-medium text-primary">{stats.acceptedCount}</span>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-muted-foreground">Matched:</span>{' '}
-                  <span className="font-medium text-primary">{stats.matchedCount}</span>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Accepted:</span>{' '}
-                  <span className="font-medium text-primary">{stats.acceptedCount}</span>
-                </div>
-              </div>
 
               {/* Structure-centric view */}
               <StructureCentricView
@@ -427,23 +428,24 @@ export default function CreativeMatching() {
                 onRejectAsset={(assetId, structureId) => rejectMatch(assetId, structureId)}
               />
 
-              {/* Actions */}
-              <div className="flex items-center justify-between pt-6 border-t mt-6">
-                <Button variant="outline" onClick={() => goToStep('source')}>
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  Back to Sources
-                </Button>
-                <div className="flex gap-2">
-                  {stats.acceptedCount > 0 && (
-                    <Button onClick={handleSaveMatches} disabled={matchingState.isProcessing}>
-                      {matchingState.isProcessing ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        <Save className="h-4 w-4 mr-2" />
-                      )}
-                      Save & Continue
-                    </Button>
-                  )}
+                {/* Actions */}
+                <div className="flex items-center justify-between pt-6 border-t mt-6">
+                  <Button variant="outline" onClick={() => goToStep('source')}>
+                    <ArrowLeft className="h-4 w-4 mr-2" />
+                    Back to Sources
+                  </Button>
+                  <div className="flex gap-2">
+                    {stats.acceptedCount > 0 && (
+                      <Button onClick={handleSaveMatches} disabled={matchingState.isProcessing}>
+                        {matchingState.isProcessing ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Save className="h-4 w-4 mr-2" />
+                        )}
+                        Save & Continue
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

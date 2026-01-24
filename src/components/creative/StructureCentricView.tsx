@@ -1282,11 +1282,16 @@ export function StructureCentricView({
   onAcceptAsset,
   onRejectAsset,
 }: StructureCentricViewProps) {
+  // Expand/collapse all state for panels
+  const [allExpanded, setAllExpanded] = useState(true);
+
   // Treat accepted suggestions as assigned for UI (so empty/unassigned counts update live)
   const acceptedAssetIds = useMemo(() => {
     const ids = new Set<string>();
     for (const key of acceptedMatches.keys()) {
-      const [assetId] = key.split(':');
+      // Parse compositeKey: last segment is structureId, everything before is assetId
+      const lastColonIdx = key.lastIndexOf(':');
+      const assetId = key.slice(0, lastColonIdx);
       if (assetId) ids.add(assetId);
     }
     return ids;
@@ -1310,7 +1315,10 @@ export function StructureCentricView({
     // Group accepted matches by structure id
     const acceptedByStructureId = new Map<string, Array<{ assetId: string; match: UICreativeMatch }>>();
     for (const [key, match] of acceptedMatches.entries()) {
-      const [assetId, structureId] = key.split(':');
+      // Parse compositeKey: last segment is structureId, everything before is assetId
+      const lastColonIdx = key.lastIndexOf(':');
+      const assetId = key.slice(0, lastColonIdx);
+      const structureId = key.slice(lastColonIdx + 1);
       if (!assetId || !structureId) continue;
       const arr = acceptedByStructureId.get(structureId) ?? [];
       arr.push({ assetId, match });
@@ -1525,35 +1533,58 @@ export function StructureCentricView({
         </div>
       )}
 
-      {/* Summary header */}
-      <div className="flex items-center gap-4 text-sm pb-3 border-b">
-        <div>
-          <span className="text-muted-foreground">Ad Sets:</span>{' '}
-          <span className="font-medium">{structuresWithAssets}/{mergedStructureResults.length}</span>
-        </div>
-        <div>
-          <span className="text-muted-foreground">Assigned:</span>{' '}
-          <span className="font-medium text-emerald-600">{totalAssigned}</span>
-        </div>
-        <div>
-          <span className="text-muted-foreground">Unassigned:</span>{' '}
-          <span className="font-medium text-amber-600">{displayUnassignedAssets.length}</span>
-        </div>
-        {emptyStructures.length > 0 && (
+      {/* Summary header with expand/collapse controls */}
+      <div className="flex items-center justify-between gap-4 text-sm pb-3 border-b">
+        <div className="flex items-center gap-4 flex-wrap">
           <div>
-            <span className="text-muted-foreground">Empty Slots:</span>{' '}
-            <span className="font-medium text-orange-600">{emptyStructures.length}</span>
+            <span className="text-muted-foreground">Ad Sets:</span>{' '}
+            <span className="font-medium">{structuresWithAssets}/{mergedStructureResults.length}</span>
           </div>
-        )}
-        {suggestions.length > 0 && (
           <div>
-            <span className="text-muted-foreground">Suggestions:</span>{' '}
-            <span className="font-medium text-blue-600">{suggestions.reduce((s, x) => s + x.suggestedAssets.length, 0)}</span>
+            <span className="text-muted-foreground">Assigned:</span>{' '}
+            <span className="font-medium text-emerald-600">{totalAssigned}</span>
           </div>
-        )}
+          <div>
+            <span className="text-muted-foreground">Unassigned:</span>{' '}
+            <span className="font-medium text-amber-600">{displayUnassignedAssets.length}</span>
+          </div>
+          {emptyStructures.length > 0 && (
+            <div>
+              <span className="text-muted-foreground">Empty Slots:</span>{' '}
+              <span className="font-medium text-orange-600">{emptyStructures.length}</span>
+            </div>
+          )}
+          {suggestions.length > 0 && (
+            <div>
+              <span className="text-muted-foreground">Suggestions:</span>{' '}
+              <span className="font-medium text-blue-600">{suggestions.reduce((s, x) => s + x.suggestedAssets.length, 0)}</span>
+            </div>
+          )}
+        </div>
+        {/* Expand/Collapse controls */}
+        <div className="flex items-center gap-2 shrink-0">
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => setAllExpanded(true)}
+            disabled={allExpanded}
+          >
+            <ChevronDown className="h-4 w-4 mr-1" />
+            Expand All
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => setAllExpanded(false)}
+            disabled={!allExpanded}
+          >
+            <ChevronUp className="h-4 w-4 mr-1" />
+            Collapse All
+          </Button>
+        </div>
       </div>
 
-      <ScrollArea className="h-[400px] pr-4">
+      <ScrollArea className="h-[600px] pr-4">
         <div className="space-y-3">
           {/* Assigned creatives panel - grouped under one foldable card */}
           <AssignedAssetsPanel
