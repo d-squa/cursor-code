@@ -135,7 +135,8 @@ export default function CreativeMatching() {
                   pageConfigs.push({ 
                     platform: 'meta', 
                     pageId: String(pageId), 
-                    pageName: market?.pageName || market?.accountName || market?.name,
+                    // IMPORTANT: do not fall back to ad account name (it's not the page name)
+                    pageName: market?.pageName || undefined,
                   });
                 }
               }
@@ -148,7 +149,7 @@ export default function CreativeMatching() {
                   pageConfigs.push({ 
                     platform: 'meta', 
                     pageId: String(phasePageId), 
-                    pageName: phase?.pageName || market?.pageName,
+                    pageName: phase?.pageName || market?.pageName || undefined,
                   });
                 }
               }
@@ -164,7 +165,8 @@ export default function CreativeMatching() {
                     platform: 'tiktok', 
                     identityId: String(identityId),
                     advertiserId: adAccountId ? String(adAccountId) : undefined,
-                    pageName: market?.tiktokIdentityName || market?.accountName || market?.name,
+                    // IMPORTANT: do not fall back to ad account name (it's not the identity name)
+                    pageName: market?.tiktokIdentityName || undefined,
                   });
                 }
               }
@@ -178,7 +180,7 @@ export default function CreativeMatching() {
                     platform: 'tiktok', 
                     identityId: String(phaseIdentity),
                     advertiserId: adAccountId ? String(adAccountId) : undefined,
-                    pageName: phase?.tiktokIdentityName || market?.accountName,
+                    pageName: phase?.tiktokIdentityName || market?.tiktokIdentityName || undefined,
                   });
                 }
               }
