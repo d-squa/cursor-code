@@ -104,16 +104,37 @@ serve(async (req) => {
         console.log(`Found ${businesses.length} Business Managers`);
         
         if (businesses.length > 0) {
-          // Fetch ad accounts from ALL Business Managers
+          // Fetch ad accounts from ALL Business Managers with pagination
           console.log("Fetching ad accounts from all Business Managers...");
-          const allAccountPromises = businesses.map((bm: any) =>
-            fetch(
-              `https://graph.facebook.com/v21.0/${bm.id}/owned_ad_accounts?fields=id,name,account_status,currency,timezone_name&access_token=${access_token}`
-            ).then(res => res.ok ? res.json() : { data: [] })
-          );
           
+          const fetchAllAccountsFromBM = async (bmId: string): Promise<any[]> => {
+            const accounts: any[] = [];
+            let url: string | null = `https://graph.facebook.com/v21.0/${bmId}/owned_ad_accounts?fields=id,name,account_status,currency,timezone_name&limit=200&access_token=${access_token}`;
+            
+            while (url) {
+              try {
+                const response: Response = await fetch(url);
+                if (!response.ok) {
+                  console.error(`Failed to fetch accounts from BM ${bmId}:`, await response.text());
+                  break;
+                }
+                const data: any = await response.json();
+                if (data.data) {
+                  accounts.push(...data.data);
+                }
+                // Follow pagination if more results exist
+                url = data.paging?.next || null;
+              } catch (e) {
+                console.error(`Error fetching accounts from BM ${bmId}:`, e);
+                break;
+              }
+            }
+            return accounts;
+          };
+          
+          const allAccountPromises = businesses.map((bm: any) => fetchAllAccountsFromBM(bm.id));
           const allAccountsResults = await Promise.all(allAccountPromises);
-          adAccounts = allAccountsResults.flatMap(result => result.data || []);
+          adAccounts = allAccountsResults.flat();
           
           // Use first BM as selectedBmId for backwards compatibility
           selectedBmId = businesses[0].id;
@@ -131,24 +152,31 @@ serve(async (req) => {
     
     // Fallback to user's ad accounts if BM fetch failed
     if (adAccounts.length === 0) {
-      console.log("Fetching ad accounts from user...");
-      const adAccountsResponse = await fetch(
-        `https://graph.facebook.com/v21.0/me/adaccounts?fields=id,name,account_status,currency,timezone_name&access_token=${access_token}`
-      );
+      console.log("Fetching ad accounts from user with pagination...");
+      let userAccountsUrl: string | null = `https://graph.facebook.com/v21.0/me/adaccounts?fields=id,name,account_status,currency,timezone_name&limit=200&access_token=${access_token}`;
+      
+      while (userAccountsUrl) {
+        const adAccountsResponse: Response = await fetch(userAccountsUrl);
 
-      if (!adAccountsResponse.ok) {
-        const errorData = await adAccountsResponse.json();
-        console.error("Failed to fetch ad accounts:", errorData);
-        
-        if (errorData.error?.code === 200 || errorData.error?.code === 190) {
-          throw new Error("Permission denied. Please ensure your account has access to ad accounts and try reconnecting.");
+        if (!adAccountsResponse.ok) {
+          const errorData = await adAccountsResponse.json();
+          console.error("Failed to fetch ad accounts:", errorData);
+          
+          if (errorData.error?.code === 200 || errorData.error?.code === 190) {
+            throw new Error("Permission denied. Please ensure your account has access to ad accounts and try reconnecting.");
+          }
+          
+          throw new Error(`Failed to fetch ad accounts: ${errorData.error?.message || 'Unknown error'}`);
         }
-        
-        throw new Error(`Failed to fetch ad accounts: ${errorData.error?.message || 'Unknown error'}`);
-      }
 
-      const adAccountsData = await adAccountsResponse.json();
-      adAccounts = adAccountsData.data || [];
+        const adAccountsData: any = await adAccountsResponse.json();
+        if (adAccountsData.data) {
+          adAccounts.push(...adAccountsData.data);
+        }
+        // Follow pagination if more results exist
+        userAccountsUrl = adAccountsData.paging?.next || null;
+      }
+      
       console.log(`Found ${adAccounts.length} ad accounts from user`);
       console.log("Ad account IDs:", adAccounts.map((acc: any) => `${acc.id}: ${acc.name}`).join(", "));
     }
