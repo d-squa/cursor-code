@@ -196,14 +196,15 @@ export function PlatformMarketBudgetSelector({
     
     try {
       // Fetch ad accounts from database with their defaults
-      // If a client is selected, filter by client_id
+      // Show all accounts - client filtering is optional (accounts without client_id should always be visible)
       let query = supabase
         .from("meta_ad_accounts" as any)
         .select("*")
         .order("synced_at", { ascending: false });
       
+      // If a client is selected, show accounts assigned to that client OR accounts with no client assigned
       if (selectedClientId) {
-        query = query.eq("client_id", selectedClientId);
+        query = query.or(`client_id.eq.${selectedClientId},client_id.is.null`);
       }
 
       const { data: adAccountsData, error: adAccountsError } = await query;
