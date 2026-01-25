@@ -87,6 +87,9 @@ export function UnifiedPageAssetsLibrary({
   const [search, setSearch] = useState('');
   const [platformFilter, setPlatformFilter] = useState<'all' | 'meta' | 'tiktok'>('all');
   const [mediaTypeFilter, setMediaTypeFilter] = useState<'all' | 'image' | 'video' | 'carousel'>('all');
+
+  // Resolve real page/identity display names (market_splits often doesn't include them)
+  const [resolvedSourceNames, setResolvedSourceNames] = useState<Record<string, string>>({});
   
   // Import by URL state
   const [importUrl, setImportUrl] = useState('');
@@ -166,6 +169,92 @@ export function UnifiedPageAssetsLibrary({
     return Array.from(platforms);
   }, [pageConfigs]);
 
+  const getConfigKey = (config: PageConfig) => {
+    const id = config.platform === 'meta' ? config.pageId : config.identityId;
+    return `${config.platform}:${id || ''}`;
+  };
+
+  const getFallbackSourceName = (config: PageConfig) => {
+    return (
+      config.pageName ||
+      (config.platform === 'meta' ? config.pageId : config.identityId) ||
+      'Unknown'
+    );
+  };
+
+  const getSourceName = (config: PageConfig) => {
+    const key = getConfigKey(config);
+    return resolvedSourceNames[key] || getFallbackSourceName(config);
+  };
+
+  const pageConfigDisplayNames = useMemo(() => {
+    return pageConfigs
+      .map((c) => getSourceName(c))
+      .filter(Boolean);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageConfigs, resolvedSourceNames]);
+
+  // Hydrate names from DB
+  useEffect(() => {
+    if (pageConfigs.length === 0) return;
+
+    let cancelled = false;
+    const run = async () => {
+      const entries = await Promise.all(
+        pageConfigs.map(async (config) => {
+          const key = getConfigKey(config);
+          const id = config.platform === 'meta' ? config.pageId : config.identityId;
+          if (!id) return [key, getFallbackSourceName(config)] as const;
+
+          try {
+            if (config.platform === 'meta' && config.pageId) {
+              const { data } = await supabase
+                .from('meta_pages')
+                .select('page_name')
+                .eq('page_id', config.pageId)
+                .maybeSingle();
+
+              const name = data?.page_name || getFallbackSourceName(config);
+              return [key, name] as const;
+            }
+
+            if (config.platform === 'tiktok' && config.identityId) {
+              let query = supabase
+                .from('platform_identities')
+                .select('display_name')
+                .eq('platform', 'tiktok')
+                .eq('identity_id', config.identityId);
+
+              // Narrow to advertiser if available (helps if identity_id isn't globally unique)
+              if (config.advertiserId) {
+                query = query.eq('advertiser_id', config.advertiserId);
+              }
+
+              const { data } = await query.limit(1).maybeSingle();
+              const name = data?.display_name || getFallbackSourceName(config);
+              return [key, name] as const;
+            }
+          } catch (e) {
+            console.warn('[UnifiedPageAssetsLibrary] Failed to resolve source name', e);
+          }
+
+          return [key, getFallbackSourceName(config)] as const;
+        })
+      );
+
+      if (cancelled) return;
+      const next: Record<string, string> = {};
+      for (const [k, v] of entries) next[k] = v;
+      setResolvedSourceNames(next);
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(pageConfigs)]);
+
   // Fetch posts from all configured pages/identities
   const fetchAllPosts = async () => {
     if (pageConfigs.length === 0) return;
@@ -208,7 +297,7 @@ export function UnifiedPageAssetsLibrary({
           // Add page name to each post for identification
           const postsWithSource = data.posts.map((p: OrganicPost) => ({
             ...p,
-            pageName: config.pageName || (config.platform === 'meta' ? config.pageId : config.identityId),
+            pageName: getSourceName(config),
           }));
           allPosts.push(...postsWithSource);
         }
@@ -288,7 +377,7 @@ export function UnifiedPageAssetsLibrary({
       if (data?.posts?.length > 0) {
         const newPost: OrganicPost = {
           ...data.posts[0],
-          pageName: tiktokConfig.pageName || tiktokConfig.identityId,
+          pageName: getSourceName(tiktokConfig),
         };
         // Add to existing posts (deduplicate)
         setPosts(prev => {
@@ -376,11 +465,9 @@ export function UnifiedPageAssetsLibrary({
           </Button>
         </div>
         <p className="text-xs text-muted-foreground mt-1">
-          Showing organic posts from {pageConfigs.length} {pageConfigs.length === 1 ? 'page/identity' : 'pages/identities'}
-          {pageConfigs.length > 0 && (
-            <span className="ml-1">
-              ({pageConfigs.map(c => c.pageName || c.pageId || c.identityId || 'Unknown').join(', ')})
-            </span>
+          Showing organic posts from {pageConfigs.length} page(s)/identity(s)
+          {pageConfigDisplayNames.length > 0 && (
+            <span className="ml-1">({pageConfigDisplayNames.join(', ')})</span>
           )}
         </p>
       </CardHeader>

@@ -83,26 +83,34 @@ export function PlatformAssetLibrary({
   selectable = false,
 }: PlatformAssetLibraryProps) {
   const queryClient = useQueryClient();
+  // Meta IDs can appear as "act_123" (API/UI) while our DB stores numeric advertiser_id ("123")
+  const normalizedAdvertiserId = platform === 'meta' ? advertiserId.replace(/^act_/, '') : advertiserId;
+  const metaAccountIdWithPrefix =
+    platform === 'meta'
+      ? advertiserId.startsWith('act_')
+        ? advertiserId
+        : `act_${advertiserId}`
+      : advertiserId;
   const [search, setSearch] = useState('');
   const [assetTypeFilter, setAssetTypeFilter] = useState<'all' | 'video' | 'image'>('all');
   const [onlyUsable, setOnlyUsable] = useState(true);
 
   // Fetch account name for display
   const { data: accountName } = useQuery({
-    queryKey: ['account-name', platform, advertiserId],
+    queryKey: ['account-name', platform, normalizedAdvertiserId],
     queryFn: async (): Promise<string | null> => {
       if (platform === 'tiktok') {
         const { data } = await supabase
           .from('tiktok_ad_accounts')
           .select('account_name')
-          .eq('advertiser_id', advertiserId)
+          .eq('advertiser_id', normalizedAdvertiserId)
           .maybeSingle();
         return data?.account_name || null;
       } else {
         const { data } = await supabase
           .from('meta_ad_accounts')
           .select('account_name')
-          .eq('account_id', advertiserId)
+          .eq('account_id', metaAccountIdWithPrefix)
           .maybeSingle();
         return data?.account_name || null;
       }
@@ -113,13 +121,13 @@ export function PlatformAssetLibrary({
 
   // Fetch assets from creative_library_assets table
   const { data: assets, isLoading, refetch } = useQuery({
-    queryKey: ['platform-assets', platform, advertiserId],
+    queryKey: ['platform-assets', platform, normalizedAdvertiserId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('creative_library_assets')
         .select('*')
         .eq('platform', platform)
-        .eq('advertiser_id', advertiserId)
+        .eq('advertiser_id', normalizedAdvertiserId)
         .order('synced_at', { ascending: false });
 
       if (error) throw error;
@@ -132,14 +140,15 @@ export function PlatformAssetLibrary({
   const syncMutation = useMutation({
     mutationFn: async () => {
       const { data, error } = await supabase.functions.invoke('sync-creative-library', {
-        body: { platform, advertiserId },
+        // For Meta, this can be numeric or act_-prefixed; backend handles both, but DB uses numeric.
+        body: { platform, advertiserId: normalizedAdvertiserId },
       });
       if (error) throw error;
       if (!data?.success) throw new Error(data?.error || 'Sync failed');
       return data;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['platform-assets', platform, advertiserId] });
+      queryClient.invalidateQueries({ queryKey: ['platform-assets', platform, normalizedAdvertiserId] });
       toast.success(`Synced ${data.syncedCount || 0} assets from ${platform}`);
     },
     onError: (error) => {
@@ -194,7 +203,7 @@ export function PlatformAssetLibrary({
           </Button>
         </div>
         <p className="text-xs text-muted-foreground mt-1">
-          Showing assets from {accountName || `account ${advertiserId}`}
+          Showing assets from {accountName || `account ${metaAccountIdWithPrefix}`}
         </p>
       </CardHeader>
 
