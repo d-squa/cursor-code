@@ -194,7 +194,7 @@ export function PlatformAssetLibrary({
           </Button>
         </div>
         <p className="text-xs text-muted-foreground mt-1">
-          Showing assets from {accountName || advertiserId}
+          Showing assets from {accountName || `account ${advertiserId}`}
         </p>
       </CardHeader>
 
