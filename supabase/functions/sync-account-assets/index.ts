@@ -358,14 +358,28 @@ async function syncAccountBenchmarks(
   console.log(`[BENCHMARK] Date range: ${dateRangeStart} to ${dateRangeEnd}`);
 
   // Get client industry for this account
+  let industry: string | null = null;
+  
   const { data: accountData } = await supabase
     .from("meta_ad_accounts")
-    .select("client_id, clients(industry)")
+    .select("client_id")
     .eq("account_id", accountId)
     .eq("user_id", userId)
     .maybeSingle();
 
-  const industry = (accountData?.clients as any)?.industry || null;
+  // If client_id is set, fetch the industry from the clients table
+  if (accountData?.client_id) {
+    const { data: clientData } = await supabase
+      .from("clients")
+      .select("industry")
+      .eq("id", accountData.client_id)
+      .maybeSingle();
+    
+    industry = clientData?.industry || null;
+    console.log(`[BENCHMARK] Found client industry: ${industry}`);
+  } else {
+    console.log(`[BENCHMARK] No client linked to account ${accountId}, industry will be null`);
+  }
 
   // Fetch campaign insights with country breakdown
   const benchmarkMap = new Map<string, {
