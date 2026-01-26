@@ -68,7 +68,7 @@ export function MediaPlanEditor() {
   const location = useLocation();
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedClientId, setSelectedClientId] = useState<string>("");
-  const [clients, setClients] = useState<Array<{id: string; name: string}>>([]);
+  const [clients, setClients] = useState<Array<{id: string; name: string; industry?: string}>>([]);
   const [campaignName, setCampaignName] = useState<string>("");
   const [boNumber, setBoNumber] = useState<string>("");
   const [totalBudget, setTotalBudget] = useState<string>("");
@@ -148,7 +148,7 @@ export function MediaPlanEditor() {
       const loadClients = async () => {
         const { data } = await supabase
           .from("clients")
-          .select("id, name, platforms, markets, default_age_min, default_age_max, default_gender, default_devices, default_languages")
+          .select("id, name, industry, platforms, markets, default_age_min, default_age_max, default_gender, default_devices, default_languages")
           .order("name");
         setClients(data || []);
       };
@@ -2812,6 +2812,7 @@ export function MediaPlanEditor() {
           endDate={endDate}
           campaignId={savedCampaignId || undefined}
           basicTargeting={basicTargeting}
+          clientIndustry={clients.find(c => c.id === selectedClientId)?.industry}
           onBack={() => setCurrentStep(3)}
           onFinalize={handleLaunch}
         />
