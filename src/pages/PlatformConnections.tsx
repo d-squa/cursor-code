@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2, CheckCircle2, AlertCircle, Facebook, Link2, Unlink, Video, RefreshCw, Sparkles } from "lucide-react";
+import { Loader2, Plus, Trash2, CheckCircle2, AlertCircle, Facebook, Link2, Unlink, Video, RefreshCw } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { LockedFeatureButton } from "@/components/ui/locked-feature-button";
 import { useAuth } from "@/hooks/useAuth";
@@ -78,6 +78,7 @@ export default function PlatformConnections() {
   const [accountSelectorOpen, setAccountSelectorOpen] = useState(false);
   const [clientSelectorOpen, setClientSelectorOpen] = useState(false);
   const [selectedAdAccountForLinking, setSelectedAdAccountForLinking] = useState<string | null>(null);
+  const [pendingSyncAfterLink, setPendingSyncAfterLink] = useState<MetaAdAccount | null>(null);
   const [reconnectingPlatformId, setReconnectingPlatformId] = useState<string | null>(null);
   const [currentPlatformId, setCurrentPlatformId] = useState<string | null>(null);
   const [syncProgressPlatformId, setSyncProgressPlatformId] = useState<string | null>(null);
@@ -420,10 +421,21 @@ export default function PlatformConnections() {
 
       toast.success("Ad account linked to client successfully");
       await fetchConnectedPlatforms();
+      
+      // If there's a pending sync after link, trigger it now
+      if (pendingSyncAfterLink && !isTikTok) {
+        const updatedAccount = { ...pendingSyncAfterLink, client_id: clientId };
+        setPendingSyncAfterLink(null);
+        // Trigger sync with updated account (skip client check since we just linked)
+        await handleSyncAccountAssets(updatedAccount, true);
+      }
     } catch (error: any) {
       console.error("Error linking account:", error);
       toast.error("Failed to link account to client");
       throw error;
+    } finally {
+      setSelectedAdAccountForLinking(null);
+      setPendingSyncAfterLink(null);
     }
   };
 
@@ -553,7 +565,15 @@ export default function PlatformConnections() {
     }
   }, [user]);
 
-  const handleSyncAccountAssets = async (account: MetaAdAccount) => {
+  const handleSyncAccountAssets = async (account: MetaAdAccount, skipClientCheck = false) => {
+    // If account has no client linked, prompt user to link first (for benchmark features)
+    if (!account.client_id && !skipClientCheck && canManageClients) {
+      setPendingSyncAfterLink(account);
+      setSelectedAdAccountForLinking(account.id);
+      setClientSelectorOpen(true);
+      return;
+    }
+
     setSyncingAssets(account.id);
     try {
       const { data, error } = await supabase.functions.invoke("sync-account-assets", {
@@ -576,6 +596,21 @@ export default function PlatformConnections() {
     } finally {
       setSyncingAssets(null);
     }
+  };
+
+  const handleClientSelectorClose = (open: boolean) => {
+    if (!open && pendingSyncAfterLink) {
+      // User closed without selecting - ask if they want to sync anyway
+      const syncAnyway = window.confirm(
+        "Syncing without a client linked means benchmark data won't be available for improved forecasting.\n\nDo you want to sync anyway?"
+      );
+      if (syncAnyway) {
+        handleSyncAccountAssets(pendingSyncAfterLink, true);
+      }
+      setPendingSyncAfterLink(null);
+      setSelectedAdAccountForLinking(null);
+    }
+    setClientSelectorOpen(open);
   };
 
   if (authLoading || loading) {
@@ -794,17 +829,6 @@ export default function PlatformConnections() {
                         </Button>
                       </div>
                     </div>
-                    {/* Benchmark hint for unlinked accounts */}
-                    {!account.client_id && (
-                      <div className="ml-4 px-3 py-2 bg-accent/10 border border-accent/30 rounded-md">
-                        <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-                          <Sparkles className="h-3.5 w-3.5 flex-shrink-0" />
-                          <span>
-                            <strong>Tip:</strong> Link this account to a client to unlock benchmark-based forecasting for more accurate campaign predictions.
-                          </span>
-                        </p>
-                      </div>
-                    )}
                   </div>
                 ))}
               </div>
@@ -915,9 +939,11 @@ export default function PlatformConnections() {
         {user && (
           <ClientSelectionDialog
             open={clientSelectorOpen}
-            onOpenChange={setClientSelectorOpen}
+            onOpenChange={handleClientSelectorClose}
             userId={user.id}
             onClientSelected={handleLinkAccountToClient}
+            title={pendingSyncAfterLink ? "Link Account for Better Forecasting" : undefined}
+            description={pendingSyncAfterLink ? "Link this ad account to a client to enable benchmark-based forecasting. This uses your historical performance data for more accurate predictions." : undefined}
           />
         )}
 
