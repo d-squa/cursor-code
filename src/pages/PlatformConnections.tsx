@@ -33,6 +33,7 @@ interface TikTokAdAccount {
   id: string;
   account_id: string;
   account_name: string;
+  advertiser_id: string;
   account_status: string | null;
   client_id: string | null;
   bc_id?: string | null;
@@ -78,7 +79,8 @@ export default function PlatformConnections() {
   const [accountSelectorOpen, setAccountSelectorOpen] = useState(false);
   const [clientSelectorOpen, setClientSelectorOpen] = useState(false);
   const [selectedAdAccountForLinking, setSelectedAdAccountForLinking] = useState<string | null>(null);
-  const [pendingSyncAfterLink, setPendingSyncAfterLink] = useState<MetaAdAccount | null>(null);
+  const [pendingSyncAfterLink, setPendingSyncAfterLink] = useState<MetaAdAccount | TikTokAdAccount | null>(null);
+  const [pendingSyncPlatform, setPendingSyncPlatform] = useState<'meta' | 'tiktok' | null>(null);
   const [reconnectingPlatformId, setReconnectingPlatformId] = useState<string | null>(null);
   const [currentPlatformId, setCurrentPlatformId] = useState<string | null>(null);
   const [syncProgressPlatformId, setSyncProgressPlatformId] = useState<string | null>(null);
@@ -423,11 +425,16 @@ export default function PlatformConnections() {
       await fetchConnectedPlatforms();
       
       // If there's a pending sync after link, trigger it now
-      if (pendingSyncAfterLink && !isTikTok) {
+      if (pendingSyncAfterLink) {
         const updatedAccount = { ...pendingSyncAfterLink, client_id: clientId };
         setPendingSyncAfterLink(null);
+        setPendingSyncPlatform(null);
         // Trigger sync with updated account (skip client check since we just linked)
-        await handleSyncAccountAssets(updatedAccount, true);
+        if (isTikTok) {
+          await handleSyncTikTokAccountAssets(updatedAccount as TikTokAdAccount, true);
+        } else {
+          await handleSyncAccountAssets(updatedAccount as MetaAdAccount, true);
+        }
       }
     } catch (error: any) {
       console.error("Error linking account:", error);
@@ -436,6 +443,7 @@ export default function PlatformConnections() {
     } finally {
       setSelectedAdAccountForLinking(null);
       setPendingSyncAfterLink(null);
+      setPendingSyncPlatform(null);
     }
   };
 
@@ -569,6 +577,7 @@ export default function PlatformConnections() {
     // If account has no client linked, prompt user to link first (for benchmark features)
     if (!account.client_id && !skipClientCheck && canManageClients) {
       setPendingSyncAfterLink(account);
+      setPendingSyncPlatform('meta');
       setSelectedAdAccountForLinking(account.id);
       setClientSelectorOpen(true);
       return;
@@ -586,10 +595,51 @@ export default function PlatformConnections() {
       if (error) throw error;
 
       toast.success(`Assets synced for ${account.account_name}`, {
-        description: data?.message || "Pixels, pages, catalogs synced successfully",
+        description: data?.message || "Pixels, pages, catalogs, and benchmarks synced successfully",
       });
     } catch (error: any) {
       console.error("Error syncing assets:", error);
+      toast.error("Failed to sync assets", {
+        description: error.message || "Please try again",
+      });
+    } finally {
+      setSyncingAssets(null);
+    }
+  };
+
+  const handleSyncTikTokAccountAssets = async (account: TikTokAdAccount, skipClientCheck = false) => {
+    // If account has no client linked, prompt user to link first (for benchmark features)
+    if (!account.client_id && !skipClientCheck && canManageClients) {
+      setPendingSyncAfterLink(account);
+      setPendingSyncPlatform('tiktok');
+      setSelectedAdAccountForLinking('tiktok_' + account.id);
+      setClientSelectorOpen(true);
+      return;
+    }
+
+    setSyncingAssets(account.id);
+    try {
+      // First sync TikTok resources (pixels, identities, catalogs)
+      const { error: resourcesError } = await supabase.functions.invoke("sync-tiktok-resources", {
+        body: {
+          advertiserId: account.advertiser_id,
+        },
+      });
+
+      if (resourcesError) {
+        console.error("Error syncing TikTok resources:", resourcesError);
+      }
+
+      // Then sync benchmarks
+      const { data, error } = await supabase.functions.invoke("sync-tiktok-benchmarks", {});
+
+      if (error) throw error;
+
+      toast.success(`Assets synced for ${account.account_name}`, {
+        description: "Pixels, identities, and benchmarks synced successfully",
+      });
+    } catch (error: any) {
+      console.error("Error syncing TikTok assets:", error);
       toast.error("Failed to sync assets", {
         description: error.message || "Please try again",
       });
@@ -605,9 +655,14 @@ export default function PlatformConnections() {
         "Syncing without a client linked means benchmark data won't be available for improved forecasting.\n\nDo you want to sync anyway?"
       );
       if (syncAnyway) {
-        handleSyncAccountAssets(pendingSyncAfterLink, true);
+        if (pendingSyncPlatform === 'tiktok') {
+          handleSyncTikTokAccountAssets(pendingSyncAfterLink as TikTokAdAccount, true);
+        } else {
+          handleSyncAccountAssets(pendingSyncAfterLink as MetaAdAccount, true);
+        }
       }
       setPendingSyncAfterLink(null);
+      setPendingSyncPlatform(null);
       setSelectedAdAccountForLinking(null);
     }
     setClientSelectorOpen(open);
@@ -877,6 +932,28 @@ export default function PlatformConnections() {
                       )}
                     </div>
                     <div className="flex gap-2">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleSyncTikTokAccountAssets(account)}
+                              disabled={syncingAssets === account.id}
+                              className="border-black/20 dark:border-white/20"
+                            >
+                              {syncingAssets === account.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <RefreshCw className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Sync pixels, identities & benchmarks</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                       {canManageClients ? (
                         account.client_id ? (
                           <Button 
