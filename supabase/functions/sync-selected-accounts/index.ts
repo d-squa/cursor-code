@@ -71,9 +71,12 @@ async function syncMetaAccountsInBackground(
   const selectedIds = selectedAccountIds.map((id: any) => String(id));
   const totalAccounts = selectedIds.length;
   
-  // Total steps: fetch each account + save to DB (estimate 2 steps per account + final save steps)
-  const totalSteps = totalAccounts + 6; // accounts + 6 save operations
+  // For large syncs (>100 accounts), use lightweight mode (skip nested resources)
+  const isLargeSync = totalAccounts > 100;
+  const totalSteps = totalAccounts + 6;
   let currentStep = 0;
+  
+  console.log(`[SYNC-META] Starting sync for ${totalAccounts} accounts (${isLargeSync ? 'LIGHTWEIGHT' : 'FULL'} mode)`);
 
   const processedCounts = {
     adAccounts: 0,
@@ -86,7 +89,15 @@ async function syncMetaAccountsInBackground(
   };
 
   try {
-    await updateSyncProgress(supabase, platformId, 'syncing', 1, totalSteps, 'ad_accounts', 'Fetching account details...');
+    await updateSyncProgress(
+      supabase, 
+      platformId, 
+      'syncing', 
+      1, 
+      totalSteps, 
+      'ad_accounts', 
+      isLargeSync ? `Fast sync mode: ${totalAccounts} accounts` : 'Fetching account details...'
+    );
 
     const accountsToInsert: any[] = [];
     const allPixels: any[] = [];
@@ -96,10 +107,21 @@ async function syncMetaAccountsInBackground(
     const allProductSets: any[] = [];
     const allConversionEvents: any[] = [];
 
-    // Process accounts in batches to avoid rate limits
-    const BATCH_SIZE = 10;
+    // Use smaller batches for large syncs to avoid timeout
+    const BATCH_SIZE = isLargeSync ? 25 : 10;
+    const startTime = Date.now();
+    const MAX_EXECUTION_TIME = 120000; // 120 seconds safety margin
+    
     for (let i = 0; i < selectedIds.length; i += BATCH_SIZE) {
+      // Check if we're approaching timeout
+      const elapsedTime = Date.now() - startTime;
+      if (elapsedTime > MAX_EXECUTION_TIME) {
+        console.log(`[SYNC-META] Timeout protection triggered at ${i} accounts after ${elapsedTime}ms`);
+        throw new Error(`Partial sync completed: ${i}/${totalAccounts} accounts. Please reconnect to continue.`);
+      }
+      
       const batch = selectedIds.slice(i, i + BATCH_SIZE);
+      console.log(`[SYNC-META] Processing batch ${Math.floor(i/BATCH_SIZE) + 1}/${Math.ceil(totalAccounts/BATCH_SIZE)}: accounts ${i+1}-${Math.min(i+BATCH_SIZE, totalAccounts)}`);
       
       // Process batch in parallel
       await Promise.all(batch.map(async (accountId) => {
@@ -123,86 +145,339 @@ async function syncMetaAccountsInBackground(
             currency: accountData.currency,
           });
 
-          // Fetch pixels for this account
-          try {
-            const pixelsResponse = await fetch(
-              `https://graph.facebook.com/v21.0/${accountId}/adspixels?fields=id,name&access_token=${accessToken}`
-            );
-            const pixelsData = await pixelsResponse.json();
-            if (pixelsData?.data) {
-              pixelsData.data.forEach((pixel: any) => {
-                allPixels.push({
-                  user_id: userId,
-                  ad_account_id: accountData.id,
-                  pixel_id: pixel.id,
-                  pixel_name: pixel.name,
-                });
-              });
-            }
-          } catch (error) {
-            console.error(`Error fetching pixels for ${accountId}:`, error);
-          }
-
-          const businessId = accountData.business?.id;
-          if (businessId) {
-            // Fetch pages from business
+          // Only fetch nested resources in FULL mode (small syncs)
+          if (!isLargeSync) {
+            // Fetch pixels for this account
             try {
-              const [ownedPagesResponse, clientPagesResponse] = await Promise.all([
-                fetch(`https://graph.facebook.com/v21.0/${businessId}/owned_pages?fields=id,name,instagram_business_account&access_token=${accessToken}`),
-                fetch(`https://graph.facebook.com/v21.0/${businessId}/client_pages?fields=id,name,instagram_business_account&access_token=${accessToken}`),
-              ]);
+              const pixelsResponse = await fetch(
+                `https://graph.facebook.com/v21.0/${accountId}/adspixels?fields=id,name&access_token=${accessToken}`
+              );
+              const pixelsData = await pixelsResponse.json();
+              if (pixelsData?.data) {
+                pixelsData.data.forEach((pixel: any) => {
+                  allPixels.push({
+                    user_id: userId,
+                    ad_account_id: accountData.id,
+                    pixel_id: pixel.id,
+                    pixel_name: pixel.name,
+                  });
+                });
+              }
+            } catch (error) {
+              console.error(`Error fetching pixels for ${accountId}:`, error);
+            }
 
-              const ownedPagesData = await ownedPagesResponse.json();
-              const clientPagesData = await clientPagesResponse.json();
+            const businessId = accountData.business?.id;
+            if (businessId) {
+              // Fetch pages from business
+              try {
+                const [ownedPagesResponse, clientPagesResponse] = await Promise.all([
+                  fetch(`https://graph.facebook.com/v21.0/${businessId}/owned_pages?fields=id,name,instagram_business_account&access_token=${accessToken}`),
+                  fetch(`https://graph.facebook.com/v21.0/${businessId}/client_pages?fields=id,name,instagram_business_account&access_token=${accessToken}`),
+                ]);
 
-              const allPagesData = [
-                ...(ownedPagesData?.data || []),
-                ...(clientPagesData?.data || []),
+                const ownedPagesData = await ownedPagesResponse.json();
+                const clientPagesData = await clientPagesResponse.json();
+
+                const allPagesData = [
+                  ...(ownedPagesData?.data || []),
+                  ...(clientPagesData?.data || []),
+                ];
+
+                allPagesData.forEach((page: any) => {
+                  allPages.push({
+                    user_id: userId,
+                    page_id: page.id,
+                    page_name: page.name,
+                  });
+
+                  // Extract Instagram accounts from pages
+                  if (page.instagram_business_account) {
+                    allInstagramAccounts.push({
+                      user_id: userId,
+                      instagram_account_id: page.instagram_business_account.id,
+                      username: page.instagram_business_account.username || page.name,
+                    });
+                  }
+                });
+              } catch (error) {
+                console.error(`Error fetching pages for business ${businessId}:`, error);
+              }
+
+              // Fetch catalogs from business
+              try {
+                const [ownedCatalogsResponse, clientCatalogsResponse] = await Promise.all([
+                  fetch(`https://graph.facebook.com/v21.0/${businessId}/owned_product_catalogs?fields=id,name&access_token=${accessToken}`),
+                  fetch(`https://graph.facebook.com/v21.0/${businessId}/client_product_catalogs?fields=id,name&access_token=${accessToken}`),
+                ]);
+
+                const ownedCatalogsData = await ownedCatalogsResponse.json();
+                const clientCatalogsData = await clientCatalogsResponse.json();
+
+                const allCatalogsData = [
+                  ...(ownedCatalogsData?.data || []),
+                  ...(clientCatalogsData?.data || []),
+                ];
+
+                for (const catalog of allCatalogsData) {
+                  allCatalogs.push({
+                    user_id: userId,
+                    catalog_id: catalog.id,
+                    catalog_name: catalog.name,
+                  });
+
+                  // Fetch product sets for each catalog
+                  try {
+                    const productSetsResponse = await fetch(
+                      `https://graph.facebook.com/v21.0/${catalog.id}/product_sets?fields=id,name&access_token=${accessToken}`
+                    );
+                    const productSetsData = await productSetsResponse.json();
+
+                    if (productSetsData?.data) {
+                      productSetsData.data.forEach((productSet: any) => {
+                        allProductSets.push({
+                          user_id: userId,
+                          catalog_id: catalog.id,
+                          product_set_id: productSet.id,
+                          product_set_name: productSet.name,
+                        });
+                      });
+                    }
+                  } catch (error) {
+                    console.error(`Error fetching product sets for catalog ${catalog.id}:`, error);
+                  }
+                }
+              } catch (error) {
+                console.error(`Error fetching catalogs for business ${businessId}:`, error);
+              }
+            }
+
+            // Fetch conversion events for pixels (only in FULL mode)
+            for (const pixel of allPixels.filter(p => p.ad_account_id === accountData.id)) {
+              // Add standard events
+              const standardEvents = [
+                'PageView', 'ViewContent', 'Search', 'AddToCart', 'AddToWishlist',
+                'InitiateCheckout', 'AddPaymentInfo', 'Purchase', 'Lead', 'CompleteRegistration'
               ];
 
-              allPagesData.forEach((page: any) => {
-                allPages.push({
+              standardEvents.forEach(eventName => {
+                allConversionEvents.push({
                   user_id: userId,
-                  page_id: page.id,
-                  page_name: page.name,
+                  pixel_id: pixel.pixel_id,
+                  event_name: eventName,
+                  event_type: 'standard',
                 });
+              });
 
-                // Extract Instagram accounts from pages
-                if (page.instagram_business_account) {
-                  allInstagramAccounts.push({
-                    user_id: userId,
-                    instagram_account_id: page.instagram_business_account.id,
-                    username: page.instagram_business_account.username || page.name,
+              // Fetch custom conversions
+              try {
+                const customConversionsResponse = await fetch(
+                  `https://graph.facebook.com/v21.0/${accountId}/customconversions?fields=name&access_token=${accessToken}`
+                );
+                const customConversionsData = await customConversionsResponse.json();
+
+                if (customConversionsData?.data) {
+                  customConversionsData.data.forEach((customConversion: any) => {
+                    allConversionEvents.push({
+                      user_id: userId,
+                      pixel_id: pixel.pixel_id,
+                      event_name: customConversion.name,
+                      event_type: 'custom',
+                    });
                   });
                 }
-              });
-            } catch (error) {
-              console.error(`Error fetching pages for business ${businessId}:`, error);
+              } catch (error) {
+                console.error(`Error fetching custom conversions for account ${accountId}:`, error);
+              }
             }
+          } else {
+            // LIGHTWEIGHT mode: Only sync ad accounts, skip nested resources
+            console.log(`[SYNC-META] Skipping nested resources for account ${accountId} (lightweight mode)`);
+          }
+        } catch (error) {
+          console.error(`[SYNC-META] Error fetching account ${accountId}:`, error);
+        }
+      }));
 
-            // Fetch catalogs from business
-            try {
-              const [ownedCatalogsResponse, clientCatalogsResponse] = await Promise.all([
-                fetch(`https://graph.facebook.com/v21.0/${businessId}/owned_product_catalogs?fields=id,name&access_token=${accessToken}`),
-                fetch(`https://graph.facebook.com/v21.0/${businessId}/client_product_catalogs?fields=id,name&access_token=${accessToken}`),
-              ]);
+      // Update progress after each batch
+      currentStep = Math.min(i + BATCH_SIZE, totalAccounts);
+      const progressMessage = isLargeSync 
+        ? `Fast sync: ${currentStep}/${totalAccounts} accounts (${Math.round(currentStep/totalAccounts*100)}%)`
+        : `Processed ${currentStep}/${totalAccounts} accounts...`;
+      
+      await updateSyncProgress(
+        supabase, 
+        platformId, 
+        'syncing', 
+        currentStep, 
+        totalSteps, 
+        'ad_accounts', 
+        progressMessage,
+        processedCounts
+      );
+      
+      console.log(`[SYNC-META] Batch complete. Progress: ${currentStep}/${totalAccounts}. Time elapsed: ${Math.round((Date.now() - startTime)/1000)}s`);
+    }
 
-              const ownedCatalogsData = await ownedCatalogsResponse.json();
-              const clientCatalogsData = await clientCatalogsResponse.json();
+    if (accountsToInsert.length === 0) {
+      throw new Error("Failed to fetch any selected accounts");
+    }
 
-              const allCatalogsData = [
-                ...(ownedCatalogsData?.data || []),
-                ...(clientCatalogsData?.data || []),
-              ];
+    // Save to database
+    console.log(`[SYNC-META] Fetching complete. Saving ${accountsToInsert.length} accounts to database...`);
+    processedCounts.adAccounts = accountsToInsert.length;
+    currentStep = totalAccounts + 1;
+    await updateSyncProgress(supabase, platformId, 'syncing', currentStep, totalSteps, 'ad_accounts', 'Saving ad accounts...', processedCounts);
 
-              for (const catalog of allCatalogsData) {
-                allCatalogs.push({
-                  user_id: userId,
-                  catalog_id: catalog.id,
-                  catalog_name: catalog.name,
-                });
+    // Delete only the accounts we're about to insert (to update them), keep others
+    const accountIdsToSync = accountsToInsert.map(acc => acc.account_id);
+    await supabase
+      .from("meta_ad_accounts")
+      .delete()
+      .eq("user_id", userId)
+      .in("account_id", accountIdsToSync);
+    
+    const { error: insertError } = await supabase.from("meta_ad_accounts").insert(accountsToInsert);
+    
+    if (insertError) {
+      console.error("[SYNC-META] Insert error:", insertError);
+      throw new Error("Failed to save selected accounts");
+    }
 
-                // Fetch product sets for each catalog
+    // Only save nested resources if we fetched them (FULL mode)
+    if (!isLargeSync) {
+      // Sync pixels
+      currentStep++;
+      processedCounts.pixels = allPixels.length;
+      await updateSyncProgress(supabase, platformId, 'syncing', currentStep, totalSteps, 'pixels', `Saving ${allPixels.length} pixels...`, processedCounts);
+      
+      if (allPixels.length > 0) {
+        const pixelIdsToSync = allPixels.map(p => p.pixel_id);
+        await supabase
+          .from("meta_pixels")
+          .delete()
+          .eq("user_id", userId)
+          .in("pixel_id", pixelIdsToSync);
+        
+        const { error: pixelsError } = await supabase.from("meta_pixels").insert(allPixels);
+        if (pixelsError) {
+          console.error("[SYNC-META] Error inserting pixels:", pixelsError);
+        }
+      }
+
+      // Sync pages
+      currentStep++;
+      processedCounts.pages = allPages.length;
+      await updateSyncProgress(supabase, platformId, 'syncing', currentStep, totalSteps, 'pages', `Saving ${allPages.length} pages...`, processedCounts);
+      
+      if (allPages.length > 0) {
+        const pageIdsToSync = allPages.map(p => p.page_id);
+        await supabase
+          .from("meta_pages")
+          .delete()
+          .eq("user_id", userId)
+          .in("page_id", pageIdsToSync);
+        
+        const { error: pagesError } = await supabase.from("meta_pages").insert(allPages);
+        if (pagesError) {
+          console.error("[SYNC-META] Error inserting pages:", pagesError);
+        }
+      }
+
+      // Sync Instagram accounts
+      currentStep++;
+      processedCounts.instagramAccounts = allInstagramAccounts.length;
+      await updateSyncProgress(supabase, platformId, 'syncing', currentStep, totalSteps, 'instagram_accounts', `Saving ${allInstagramAccounts.length} Instagram accounts...`, processedCounts);
+      
+      if (allInstagramAccounts.length > 0) {
+        const igIdsToSync = allInstagramAccounts.map(ig => ig.instagram_account_id);
+        await supabase
+          .from("meta_instagram_accounts")
+          .delete()
+          .eq("user_id", userId)
+          .in("instagram_account_id", igIdsToSync);
+        
+        const { error: igError } = await supabase.from("meta_instagram_accounts").insert(allInstagramAccounts);
+        if (igError) {
+          console.error("[SYNC-META] Error inserting Instagram accounts:", igError);
+        }
+      }
+
+      // Sync catalogs
+      currentStep++;
+      processedCounts.catalogs = allCatalogs.length;
+      await updateSyncProgress(supabase, platformId, 'syncing', currentStep, totalSteps, 'catalogs', `Saving ${allCatalogs.length} catalogs...`, processedCounts);
+      
+      if (allCatalogs.length > 0) {
+        const catalogIdsToSync = allCatalogs.map(c => c.catalog_id);
+        await supabase
+          .from("meta_catalogs")
+          .delete()
+          .eq("user_id", userId)
+          .in("catalog_id", catalogIdsToSync);
+        
+        const { error: catalogsError } = await supabase.from("meta_catalogs").insert(allCatalogs);
+        if (catalogsError) {
+          console.error("[SYNC-META] Error inserting catalogs:", catalogsError);
+        }
+      }
+
+      // Sync product sets
+      processedCounts.productSets = allProductSets.length;
+      if (allProductSets.length > 0) {
+        const productSetIdsToSync = allProductSets.map(ps => ps.product_set_id);
+        await supabase
+          .from("meta_product_sets")
+          .delete()
+          .eq("user_id", userId)
+          .in("product_set_id", productSetIdsToSync);
+        
+        const { error: productSetsError } = await supabase.from("meta_product_sets").insert(allProductSets);
+        if (productSetsError) {
+          console.error("[SYNC-META] Error inserting product sets:", productSetsError);
+        }
+      }
+
+      // Sync conversion events
+      currentStep++;
+      processedCounts.conversionEvents = allConversionEvents.length;
+      await updateSyncProgress(supabase, platformId, 'syncing', currentStep, totalSteps, 'conversion_events', `Saving ${allConversionEvents.length} conversion events...`, processedCounts);
+      
+      if (allConversionEvents.length > 0) {
+        const pixelIds = [...new Set(allConversionEvents.map(e => e.pixel_id))];
+        await supabase
+          .from("meta_conversion_events")
+          .delete()
+          .eq("user_id", userId)
+          .in("pixel_id", pixelIds);
+        
+        const { error: eventsError } = await supabase.from("meta_conversion_events").insert(allConversionEvents);
+        if (eventsError) {
+          console.error("[SYNC-META] Error inserting conversion events:", eventsError);
+        }
+      }
+
+      console.log(`[SYNC-META] ✓ Full sync complete: ${accountsToInsert.length} accounts with all resources`);
+      console.log(`[SYNC-META] Resources synced: ${allPixels.length} pixels, ${allPages.length} pages, ${allInstagramAccounts.length} IG accounts, ${allCatalogs.length} catalogs, ${allProductSets.length} product sets, ${allConversionEvents.length} conversion events`);
+    } else {
+      console.log(`[SYNC-META] ✓ Lightweight sync complete: ${accountsToInsert.length} accounts (nested resources skipped for performance)`);
+    }
+
+    // Mark as completed
+    const finalMessage = isLargeSync 
+      ? `${accountsToInsert.length} accounts synced (fast mode - nested resources skipped)`
+      : `${accountsToInsert.length} accounts synced with all resources`;
+    
+    await updateSyncProgress(supabase, platformId, 'completed', totalSteps, totalSteps, undefined, finalMessage, processedCounts);
+    
+  } catch (error: any) {
+    console.error("[SYNC-META] Background sync error:", error);
+    const errorMsg = error.message.includes('Partial sync') 
+      ? error.message 
+      : `Sync failed: ${error.message}`;
+    await updateSyncProgress(supabase, platformId, 'error', 0, 0, undefined, undefined, undefined, errorMsg);
+  }
+}
                 try {
                   const productSetsResponse = await fetch(
                     `https://graph.facebook.com/v21.0/${catalog.id}/product_sets?fields=id,name&access_token=${accessToken}`
