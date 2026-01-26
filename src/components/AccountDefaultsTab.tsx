@@ -8,13 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Save, Phone, ChevronDown, Sparkles, Link2 } from "lucide-react";
+import { Loader2, Save, Phone, ChevronDown, Sparkles, Link2, RefreshCw } from "lucide-react";
 import { MultiSelect } from "@/components/ui/multi-select";
 import { MARKET_OPTIONS, TIKTOK_MARKET_OPTIONS } from "@/utils/markets";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Separator } from "@/components/ui/separator";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import AccountTaxonomySection from "./AccountTaxonomySection";
 import MetaAppSearch from "./MetaAppSearch";
 import ConversionLocationsSection from "./ConversionLocationsSection";
@@ -202,6 +203,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
     default_languages: [],
   });
   const [savingClientDefaults, setSavingClientDefaults] = useState(false);
+  const [syncingAssets, setSyncingAssets] = useState<string | null>(null);
 
   useEffect(() => {
     if (clientId && userId) {
@@ -725,6 +727,39 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
     }
   };
 
+  // Sync assets for a single Meta ad account
+  const handleSyncAccountAssets = async (account: AdAccount) => {
+    if (account.platform !== "meta") {
+      toast.info("Asset sync is only available for Meta accounts");
+      return;
+    }
+
+    setSyncingAssets(account.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("sync-account-assets", {
+        body: {
+          accountId: account.account_id,
+          platform: "meta",
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast.success(data.message || "Assets synced successfully");
+        // Reload data to show new assets
+        await loadData();
+      } else {
+        throw new Error(data?.error || "Sync failed");
+      }
+    } catch (error: any) {
+      console.error("Error syncing account assets:", error);
+      toast.error(error.message || "Failed to sync assets");
+    } finally {
+      setSyncingAssets(null);
+    }
+  };
+
   const updateDefault = (accountId: string, field: keyof AdAccount, value: any) => {
     console.log(`[AccountDefaultsTab] updateDefault called:`, { accountId, field, value });
     setLocalDefaults((prev) => {
@@ -920,6 +955,34 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                       </div>
                       <p className="text-sm text-muted-foreground">ID: {account.account_id}</p>
                     </div>
+                    {account.platform === "meta" && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSyncAccountAssets(account);
+                              }}
+                              disabled={syncingAssets === account.id}
+                              className="mr-2"
+                            >
+                              {syncingAssets === account.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                              ) : (
+                                <RefreshCw className="h-4 w-4 mr-2" />
+                              )}
+                              Sync Assets
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Sync pixels, pages, catalogs, Instagram accounts</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
                   </div>
                 </AccordionTrigger>
                 <AccordionContent>
