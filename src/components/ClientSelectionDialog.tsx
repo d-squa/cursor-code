@@ -20,9 +20,18 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   onClientSelected: (clientId: string) => void;
   userId: string;
+  title?: string;
+  description?: string;
 }
 
-export default function ClientSelectionDialog({ open, onOpenChange, onClientSelected, userId }: Props) {
+export default function ClientSelectionDialog({ 
+  open, 
+  onOpenChange, 
+  onClientSelected, 
+  userId,
+  title = "Select Client",
+  description = "Choose a client to associate with this ad account"
+}: Props) {
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string>("");
   const [showNewClientForm, setShowNewClientForm] = useState(false);
@@ -90,9 +99,9 @@ export default function ClientSelectionDialog({ open, onOpenChange, onClientSele
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Select Client</DialogTitle>
+          <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            Choose a client to associate with this ad account
+            {description}
           </DialogDescription>
         </DialogHeader>
 
