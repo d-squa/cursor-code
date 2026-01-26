@@ -1017,7 +1017,8 @@ export function CampaignForecast({
               let result = calculateResultFromImpressions(phaseImpressions, campaignBudget, optimizationGoal);
               
               // Apply benchmark if available (industry + market + optimization_goal must all match)
-              const benchmarkKey = `${market.name}_${optimizationGoal}`;
+              // Use uppercase for case-insensitive matching
+              const benchmarkKey = `${(market.name || '').toUpperCase()}_${(optimizationGoal || '').toUpperCase()}`;
               const benchmark = benchmarks.get(benchmarkKey);
               
               let costPerResult: number;
