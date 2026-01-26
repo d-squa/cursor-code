@@ -1,15 +1,18 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Loader2, CheckCircle2, AlertCircle, X } from "lucide-react";
 import { PlatformSyncProgress } from "@/hooks/useTikTokSyncProgress";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   progress: PlatformSyncProgress | null;
+  platformId?: string | null;
   onComplete?: () => void;
 }
 
@@ -27,7 +30,10 @@ const ASSET_TYPE_LABELS: Record<string, string> = {
   'identities': 'Identities',
 };
 
-export default function PlatformSyncProgressDialog({ open, onOpenChange, progress, onComplete }: Props) {
+export default function PlatformSyncProgressDialog({ open, onOpenChange, progress, platformId, onComplete }: Props) {
+  const [isForceClosing, setIsForceClosing] = useState(false);
+  const { toast } = useToast();
+  
   const percentage = progress 
     ? Math.round((progress.currentStep / Math.max(progress.totalSteps, 1)) * 100)
     : 0;
@@ -77,8 +83,50 @@ export default function PlatformSyncProgressDialog({ open, onOpenChange, progres
     return parts.length > 0 ? parts.join(', ') : null;
   };
 
+  const handleForceClose = async () => {
+    if (!platformId) return;
+    
+    setIsForceClosing(true);
+    try {
+      // Update the sync status to error so it can be retried
+      const { error } = await supabase
+        .from('connected_platforms')
+        .update({
+          metadata: {
+            sync_progress: {
+              status: 'error',
+              errorMessage: 'Sync cancelled by user',
+              currentStep: progress.currentStep,
+              totalSteps: progress.totalSteps,
+              platform: progress.platform,
+              processedCounts: progress.processedCounts
+            }
+          }
+        })
+        .eq('id', platformId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Sync Cancelled",
+        description: "You can reconnect to retry the sync process.",
+      });
+
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Failed to cancel sync:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to cancel sync. Please try again.",
+      });
+    } finally {
+      setIsForceClosing(false);
+    }
+  };
+
   return (
-    <Dialog open={open} onOpenChange={isSyncing ? undefined : onOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md" onInteractOutside={(e) => isSyncing && e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -86,6 +134,18 @@ export default function PlatformSyncProgressDialog({ open, onOpenChange, progres
             {isComplete && <CheckCircle2 className="h-5 w-5 text-green-500" />}
             {isError && <AlertCircle className="h-5 w-5 text-destructive" />}
             {isSyncing ? `Syncing ${platformName} Assets` : isComplete ? "Sync Complete" : "Sync Failed"}
+            {isSyncing && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="ml-auto h-6 w-6 p-0"
+                onClick={handleForceClose}
+                disabled={isForceClosing}
+                title="Cancel sync"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
           </DialogTitle>
           <DialogDescription>
             {isSyncing && "Please wait while we fetch your account assets. This may take a moment if you have many accounts."}
@@ -114,9 +174,15 @@ export default function PlatformSyncProgressDialog({ open, onOpenChange, progres
               )}
               <Alert>
                 <AlertDescription className="text-sm">
-                  You can close this page and come back later. The sync will continue in the background.
+                  The sync is running in the background. You can close this dialog, but if the sync appears stuck, click the X button to cancel and retry.
                 </AlertDescription>
               </Alert>
+              {progress && progress.currentStep > 0 && percentage < 100 && (
+                <div className="text-xs text-muted-foreground mt-2">
+                  <p>If the sync hasn't progressed in several minutes, it may be stuck.</p>
+                  <p className="mt-1">Last update: Step {progress.currentStep} - {progress.currentAssetType}</p>
+                </div>
+              )}
             </>
           )}
 

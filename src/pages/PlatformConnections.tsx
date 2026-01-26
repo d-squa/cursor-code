@@ -864,6 +864,7 @@ export default function PlatformConnections() {
           open={syncProgressDialogOpen}
           onOpenChange={setSyncProgressDialogOpen}
           progress={platformSyncProgress}
+          platformId={syncProgressPlatformId}
           onComplete={handleSyncComplete}
         />
       </div>
