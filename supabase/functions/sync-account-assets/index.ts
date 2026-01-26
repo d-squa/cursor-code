@@ -302,12 +302,26 @@ serve(async (req) => {
 
     console.log(`[SYNC-ACCOUNT-ASSETS] ✓ Asset sync complete for ${accountId}:`, syncResults);
 
+    // 4. Sync performance benchmarks for this specific account
+    let benchmarkResults = { synced: 0, error: null as string | null };
+    try {
+      console.log(`[SYNC-ACCOUNT-ASSETS] Syncing performance benchmarks for ${accountId}...`);
+      benchmarkResults = await syncAccountBenchmarks(supabase, user.id, accountId, accessToken);
+      console.log(`[SYNC-ACCOUNT-ASSETS] ✓ Synced ${benchmarkResults.synced} benchmarks`);
+    } catch (error: any) {
+      console.error("[SYNC-ACCOUNT-ASSETS] Error syncing benchmarks:", error);
+      benchmarkResults.error = error.message;
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
         accountId,
-        syncResults,
-        message: `Synced ${syncResults.pixels} pixels, ${syncResults.pages} pages, ${syncResults.instagramAccounts} Instagram accounts, ${syncResults.catalogs} catalogs, ${syncResults.productSets} product sets, ${syncResults.conversionEvents} conversion events`,
+        syncResults: {
+          ...syncResults,
+          benchmarks: benchmarkResults.synced,
+        },
+        message: `Synced ${syncResults.pixels} pixels, ${syncResults.pages} pages, ${syncResults.instagramAccounts} Instagram accounts, ${syncResults.catalogs} catalogs, ${syncResults.productSets} product sets, ${syncResults.conversionEvents} conversion events, ${benchmarkResults.synced} benchmarks`,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -324,3 +338,198 @@ serve(async (req) => {
     );
   }
 });
+
+/**
+ * Sync performance benchmarks for a specific ad account
+ * Fetches campaign insights from Meta API and calculates CPR by market/optimization goal
+ */
+async function syncAccountBenchmarks(
+  supabase: any,
+  userId: string,
+  accountId: string,
+  accessToken: string
+): Promise<{ synced: number; error: string | null }> {
+  // Calculate date range (last 3 months)
+  const endDate = new Date();
+  const startDate = new Date();
+  startDate.setMonth(startDate.getMonth() - 3);
+
+  const dateRangeStart = startDate.toISOString().split("T")[0];
+  const dateRangeEnd = endDate.toISOString().split("T")[0];
+
+  console.log(`[BENCHMARK] Date range: ${dateRangeStart} to ${dateRangeEnd}`);
+
+  // Get client industry for this account
+  const { data: accountData } = await supabase
+    .from("meta_ad_accounts")
+    .select("client_id, clients(industry)")
+    .eq("account_id", accountId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  const industry = (accountData?.clients as any)?.industry || null;
+
+  // Fetch campaign insights with country breakdown
+  const benchmarkMap = new Map<string, {
+    market: string;
+    optimization_goal: string;
+    total_spend: number;
+    total_results: number;
+    impressions: number;
+    campaign_count: number;
+    industry: string | null;
+  }>();
+
+  // Fetch insights at ad account level with country breakdown
+  const insightsUrl = `https://graph.facebook.com/v21.0/${accountId}/insights?` +
+    `time_range={'since':'${dateRangeStart}','until':'${dateRangeEnd}'}` +
+    `&fields=spend,impressions,actions,clicks,reach` +
+    `&breakdowns=country` +
+    `&level=account` +
+    `&limit=500` +
+    `&access_token=${accessToken}`;
+
+  console.log(`[BENCHMARK] Fetching account-level insights...`);
+  
+  const insightsResponse = await fetch(insightsUrl);
+  if (!insightsResponse.ok) {
+    const errorText = await insightsResponse.text();
+    console.error(`[BENCHMARK] Error fetching insights: ${errorText}`);
+    throw new Error(`Failed to fetch insights: ${errorText}`);
+  }
+
+  const insightsData = await insightsResponse.json();
+  const insights = insightsData.data || [];
+
+  console.log(`[BENCHMARK] Retrieved ${insights.length} insight rows`);
+
+  // Map action types to optimization goals
+  const actionTypeMap: { [key: string]: string } = {
+    "link_click": "LINK_CLICKS",
+    "post_engagement": "POST_ENGAGEMENT",
+    "page_engagement": "PAGE_LIKES",
+    "video_view": "VIDEO_VIEWS",
+    "offsite_conversion.fb_pixel_purchase": "OFFSITE_CONVERSIONS",
+    "offsite_conversion.fb_pixel_lead": "LEAD_GENERATION",
+    "omni_purchase": "PURCHASE",
+    "app_install": "APP_INSTALLS",
+    "landing_page_view": "LANDING_PAGE_VIEWS",
+    "onsite_conversion.post_save": "POST_ENGAGEMENT",
+    "comment": "POST_ENGAGEMENT",
+    "like": "POST_ENGAGEMENT",
+    "post": "POST_ENGAGEMENT",
+    "photo_view": "POST_ENGAGEMENT",
+    "complete_registration": "COMPLETE_REGISTRATION",
+    "lead": "LEAD_GENERATION",
+    "purchase": "PURCHASE",
+  };
+
+  for (const insight of insights) {
+    const country = insight.country || "UNKNOWN";
+    const spend = parseFloat(insight.spend || "0");
+    const impressions = parseFloat(insight.impressions || "0");
+    const clicks = parseFloat(insight.clicks || "0");
+    const reach = parseFloat(insight.reach || "0");
+
+    // Process actions
+    const actions = insight.actions || [];
+    
+    for (const action of actions) {
+      const optimizationGoal = actionTypeMap[action.action_type];
+      if (!optimizationGoal) continue; // Skip unmapped action types
+      
+      const results = parseFloat(action.value || "0");
+      if (results <= 0) continue;
+
+      const key = `${country}_${optimizationGoal}`;
+      
+      if (!benchmarkMap.has(key)) {
+        benchmarkMap.set(key, {
+          market: country,
+          optimization_goal: optimizationGoal,
+          total_spend: 0,
+          total_results: 0,
+          impressions: 0,
+          campaign_count: 1, // Account-level aggregation
+          industry: industry,
+        });
+      }
+
+      const benchmark = benchmarkMap.get(key)!;
+      benchmark.total_spend = spend; // Use full spend for this country
+      benchmark.total_results += results;
+      benchmark.impressions = impressions;
+    }
+
+    // Also add REACH and IMPRESSIONS benchmarks
+    if (reach > 0) {
+      const reachKey = `${country}_REACH`;
+      if (!benchmarkMap.has(reachKey)) {
+        benchmarkMap.set(reachKey, {
+          market: country,
+          optimization_goal: "REACH",
+          total_spend: spend,
+          total_results: reach,
+          impressions: impressions,
+          campaign_count: 1,
+          industry: industry,
+        });
+      }
+    }
+
+    // ThruPlay (video views >=15s or completed if shorter)
+    const thruplayAction = actions.find((a: any) => a.action_type === "video_view" || a.action_type === "thruplay");
+    if (thruplayAction) {
+      const thruplayKey = `${country}_THRUPLAY`;
+      if (!benchmarkMap.has(thruplayKey)) {
+        benchmarkMap.set(thruplayKey, {
+          market: country,
+          optimization_goal: "THRUPLAY",
+          total_spend: spend,
+          total_results: parseFloat(thruplayAction.value || "0"),
+          impressions: impressions,
+          campaign_count: 1,
+          industry: industry,
+        });
+      }
+    }
+  }
+
+  console.log(`[BENCHMARK] Calculated ${benchmarkMap.size} unique benchmarks`);
+
+  // Store benchmarks in database
+  let storedCount = 0;
+  
+  for (const [key, benchmark] of benchmarkMap.entries()) {
+    const avgCostPerResult = benchmark.total_results > 0
+      ? benchmark.total_spend / benchmark.total_results
+      : null;
+
+    const { error } = await supabase
+      .from("campaign_performance_benchmarks")
+      .upsert({
+        user_id: userId,
+        market: benchmark.market,
+        optimization_goal: benchmark.optimization_goal,
+        industry: benchmark.industry,
+        avg_cost_per_result: avgCostPerResult,
+        total_spend: benchmark.total_spend,
+        total_results: benchmark.total_results,
+        impressions: benchmark.impressions,
+        campaign_count: benchmark.campaign_count,
+        date_range_start: dateRangeStart,
+        date_range_end: dateRangeEnd,
+      }, {
+        onConflict: "user_id,market,optimization_goal,date_range_start,date_range_end"
+      });
+
+    if (error) {
+      console.error(`[BENCHMARK] Error storing ${key}:`, error);
+    } else {
+      console.log(`[BENCHMARK] ✓ ${benchmark.market}/${benchmark.optimization_goal}: CPR $${avgCostPerResult?.toFixed(2) || 'N/A'} (${benchmark.total_results.toFixed(0)} results)`);
+      storedCount++;
+    }
+  }
+
+  return { synced: storedCount, error: null };
+}
