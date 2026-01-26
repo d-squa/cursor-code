@@ -317,11 +317,9 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         accountId,
-        syncResults: {
-          ...syncResults,
-          benchmarks: benchmarkResults.synced,
-        },
-        message: `Synced ${syncResults.pixels} pixels, ${syncResults.pages} pages, ${syncResults.instagramAccounts} Instagram accounts, ${syncResults.catalogs} catalogs, ${syncResults.productSets} product sets, ${syncResults.conversionEvents} conversion events, ${benchmarkResults.synced} benchmarks`,
+        syncResults,
+        benchmarksSynced: benchmarkResults.synced,
+        message: `Synced ${syncResults.pixels} pixels, ${syncResults.pages} pages, ${syncResults.instagramAccounts} Instagram accounts, ${syncResults.catalogs} catalogs, ${syncResults.productSets} product sets, ${syncResults.conversionEvents} conversion events`,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
