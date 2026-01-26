@@ -465,7 +465,7 @@ async function syncMetaAccountsInBackground(
 
     // Mark as completed
     const finalMessage = isLargeSync 
-      ? `${accountsToInsert.length} accounts synced (fast mode - nested resources skipped)`
+      ? `${accountsToInsert.length} accounts synced. Use "Sync Assets" in Client Management to load pixels, pages, catalogs for specific accounts.`
       : `${accountsToInsert.length} accounts synced with all resources`;
     
     await updateSyncProgress(supabase, platformId, 'completed', totalSteps, totalSteps, undefined, finalMessage, processedCounts);
