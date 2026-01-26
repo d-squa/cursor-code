@@ -1711,6 +1711,7 @@ export type Database = {
       }
       meta_catalogs: {
         Row: {
+          ad_account_id: string | null
           catalog_id: string
           catalog_name: string
           created_at: string
@@ -1719,6 +1720,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          ad_account_id?: string | null
           catalog_id: string
           catalog_name: string
           created_at?: string
@@ -1727,6 +1729,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          ad_account_id?: string | null
           catalog_id?: string
           catalog_name?: string
           created_at?: string
@@ -1738,6 +1741,7 @@ export type Database = {
       }
       meta_conversion_events: {
         Row: {
+          ad_account_id: string | null
           created_at: string
           event_name: string
           event_type: string | null
@@ -1747,6 +1751,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          ad_account_id?: string | null
           created_at?: string
           event_name: string
           event_type?: string | null
@@ -1756,6 +1761,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          ad_account_id?: string | null
           created_at?: string
           event_name?: string
           event_type?: string | null
@@ -1768,6 +1774,7 @@ export type Database = {
       }
       meta_instagram_accounts: {
         Row: {
+          ad_account_id: string | null
           created_at: string
           id: string
           instagram_account_id: string
@@ -1776,6 +1783,7 @@ export type Database = {
           username: string
         }
         Insert: {
+          ad_account_id?: string | null
           created_at?: string
           id?: string
           instagram_account_id: string
@@ -1784,6 +1792,7 @@ export type Database = {
           username: string
         }
         Update: {
+          ad_account_id?: string | null
           created_at?: string
           id?: string
           instagram_account_id?: string
@@ -1796,6 +1805,7 @@ export type Database = {
       meta_pages: {
         Row: {
           access_token: string | null
+          ad_account_id: string | null
           category: string | null
           created_at: string
           id: string
@@ -1806,6 +1816,7 @@ export type Database = {
         }
         Insert: {
           access_token?: string | null
+          ad_account_id?: string | null
           category?: string | null
           created_at?: string
           id?: string
@@ -1816,6 +1827,7 @@ export type Database = {
         }
         Update: {
           access_token?: string | null
+          ad_account_id?: string | null
           category?: string | null
           created_at?: string
           id?: string
@@ -1858,6 +1870,7 @@ export type Database = {
       }
       meta_product_sets: {
         Row: {
+          ad_account_id: string | null
           catalog_id: string
           created_at: string
           id: string
@@ -1867,6 +1880,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          ad_account_id?: string | null
           catalog_id: string
           created_at?: string
           id?: string
@@ -1876,6 +1890,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          ad_account_id?: string | null
           catalog_id?: string
           created_at?: string
           id?: string
