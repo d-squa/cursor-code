@@ -2,7 +2,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { ChevronDown, ChevronUp, Database, Calculator } from "lucide-react";
 import { format } from "date-fns";
 import { useState } from "react";
 import { DataSourceBadge } from "@/components/ui/data-source-badge";
@@ -37,33 +39,35 @@ interface ActiplanDeliverablesViewProps {
         cpm: number;
         frequency: number;
         sov: number;
-        resultsByGoal: Array<{
-          goal: string;
-          kpi: string;
-          result: number;
-          costPerResult: number;
-          resultRate: number;
-        }>;
-        phases: Array<{
-          phaseName: string;
-          budget: number;
-          startDate: string;
-          endDate: string;
-          kpi: string;
-          optimizationGoal: string;
-          result: number;
-          costPerResult: number;
-          resultRate: number;
-          adSets?: Array<{
-            adSetName: string;
-            budget: number;
-            budgetPercentage: number;
-            impressions: number;
-            reach: number;
+          resultsByGoal: Array<{
+            goal: string;
+            kpi: string;
             result: number;
             costPerResult: number;
+            resultRate: number;
+            isBenchmarkBased?: boolean;
           }>;
-        }>;
+          phases: Array<{
+            phaseName: string;
+            budget: number;
+            startDate: string;
+            endDate: string;
+            kpi: string;
+            optimizationGoal: string;
+            result: number;
+            costPerResult: number;
+            resultRate: number;
+            isBenchmarkBased?: boolean; // Indicates if result is based on actual benchmark data
+            adSets?: Array<{
+              adSetName: string;
+              budget: number;
+              budgetPercentage: number;
+              impressions: number;
+              reach: number;
+              result: number;
+              costPerResult: number;
+            }>;
+          }>;
       }>;
     }>;
   };
@@ -275,6 +279,7 @@ export function ActiplanDeliverablesView({ actiplanForecast }: ActiplanDeliverab
                             <TableHead>Budget</TableHead>
                             <TableHead>Result</TableHead>
                             <TableHead>Cost/Result</TableHead>
+                            <TableHead>Source</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -288,6 +293,31 @@ export function ActiplanDeliverablesView({ actiplanForecast }: ActiplanDeliverab
                                 <TableCell>${formatNumber(phase.budget)}</TableCell>
                                 <TableCell>{formatNumber(phase.result)}</TableCell>
                                 <TableCell>${phase.costPerResult.toFixed(3)}</TableCell>
+                                <TableCell>
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        {phase.isBenchmarkBased ? (
+                                          <Badge className="gap-1 text-xs bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-700 dark:hover:bg-emerald-600">
+                                            <Database className="h-3 w-3" />
+                                            Benchmark
+                                          </Badge>
+                                        ) : (
+                                          <Badge variant="secondary" className="gap-1 text-xs">
+                                            <Calculator className="h-3 w-3" />
+                                            Estimated
+                                          </Badge>
+                                        )}
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        {phase.isBenchmarkBased 
+                                          ? "Based on actual historical performance data (industry + market + optimization goal)"
+                                          : "Estimated using industry averages - no matching benchmark found"
+                                        }
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                </TableCell>
                               </TableRow>
                               {/* Display Ad Set splits if present */}
                               {phase.adSets && phase.adSets.length > 0 && phase.adSets.map((adSet, adSetIdx) => (

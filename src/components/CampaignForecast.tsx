@@ -43,6 +43,7 @@ interface CampaignForecastProps {
   endDate: string;
   campaignId?: string;
   basicTargeting?: BasicTargetingConfig;
+  clientIndustry?: string;
   onBack: () => void;
   onFinalize: () => void;
 }
@@ -85,6 +86,7 @@ interface PhaseForecast {
   result: number;
   costPerResult: number;
   resultRate: number;
+  isBenchmarkBased?: boolean; // Indicates if result is based on actual benchmark data
   adSets?: AdSetForecast[];
 }
 
@@ -149,6 +151,7 @@ export function CampaignForecast({
   endDate,
   campaignId,
   basicTargeting,
+  clientIndustry,
   onBack,
   onFinalize,
 }: CampaignForecastProps) {
@@ -194,20 +197,20 @@ export function CampaignForecast({
     };
 
     const loadBenchmarks = async () => {
-      console.log("📊 Loading benchmarks...");
-      const benchmarkData = await getAllBenchmarks();
+      console.log("📊 Loading benchmarks for industry:", clientIndustry || "(none)");
+      const benchmarkData = await getAllBenchmarks(clientIndustry);
       setBenchmarks(benchmarkData);
       console.log(`✅ Loaded ${benchmarkData.size} benchmarks:`);
       
       // Log details of each benchmark
       benchmarkData.forEach((benchmark, key) => {
-        console.log(`  • ${key}: CPR=$${benchmark.avg_cost_per_result?.toFixed(2) || 'N/A'}, Campaigns=${benchmark.campaign_count}`);
+        console.log(`  • ${key}: CPR=$${benchmark.avg_cost_per_result?.toFixed(2) || 'N/A'}, Industry=${benchmark.industry}, Campaigns=${benchmark.campaign_count}`);
       });
     };
 
     loadExistingForecast();
     loadBenchmarks();
-  }, [campaignId]);
+  }, [campaignId, clientIndustry]);
 
   // Auto-fetch forecasts once existing-load check completes and none exist yet
   useEffect(() => {
@@ -1013,17 +1016,20 @@ export function CampaignForecast({
               // Calculate results using optimization goal modifiers
               let result = calculateResultFromImpressions(phaseImpressions, campaignBudget, optimizationGoal);
               
-              // Apply benchmark if available
+              // Apply benchmark if available (industry + market + optimization_goal must all match)
               const benchmarkKey = `${market.name}_${optimizationGoal}`;
               const benchmark = benchmarks.get(benchmarkKey);
               
               let costPerResult: number;
+              let isBenchmarkBased = false;
               if (benchmark?.avg_cost_per_result && benchmark.avg_cost_per_result > 0) {
                 costPerResult = benchmark.avg_cost_per_result;
                 result = campaignBudget / costPerResult;
-                console.log(`✓ Using benchmark CPR (phase) for ${market.name}/${optimizationGoal}: $${costPerResult.toFixed(2)}`);
+                isBenchmarkBased = true;
+                console.log(`✓ Using benchmark CPR (phase) for ${clientIndustry}/${market.name}/${optimizationGoal}: $${costPerResult.toFixed(2)}`);
               } else {
                 costPerResult = result > 0 ? campaignBudget / result : 0;
+                console.log(`ℹ No benchmark found for ${clientIndustry || 'no-industry'}/${market.name}/${optimizationGoal} - using estimation`);
               }
               
               const resultRate = phaseImpressions > 0 ? (result / phaseImpressions) * 100 : 0;
@@ -1106,6 +1112,7 @@ export function CampaignForecast({
                 result,
                 costPerResult: parseFloat(costPerResult.toFixed(2)),
                 resultRate: parseFloat(resultRate.toFixed(2)),
+                isBenchmarkBased,
                 adSets: adSetForecasts,
               });
 
