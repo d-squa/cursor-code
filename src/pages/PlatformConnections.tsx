@@ -5,7 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2, CheckCircle2, AlertCircle, Facebook, Link2, Unlink, Video } from "lucide-react";
+import { Loader2, Plus, Trash2, CheckCircle2, AlertCircle, Facebook, Link2, Unlink, Video, RefreshCw } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { LockedFeatureButton } from "@/components/ui/locked-feature-button";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
@@ -81,6 +82,7 @@ export default function PlatformConnections() {
   const [currentPlatformId, setCurrentPlatformId] = useState<string | null>(null);
   const [syncProgressPlatformId, setSyncProgressPlatformId] = useState<string | null>(null);
   const [syncProgressDialogOpen, setSyncProgressDialogOpen] = useState(false);
+  const [syncingAssets, setSyncingAssets] = useState<string | null>(null);
   const processingOAuthRef = useRef(false);
   
   // Platform sync progress tracking (works for both TikTok and Meta)
@@ -551,6 +553,31 @@ export default function PlatformConnections() {
     }
   }, [user]);
 
+  const handleSyncAccountAssets = async (account: MetaAdAccount) => {
+    setSyncingAssets(account.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("sync-account-assets", {
+        body: {
+          accountId: account.account_id,
+          platform: "meta",
+        },
+      });
+
+      if (error) throw error;
+
+      toast.success(`Assets synced for ${account.account_name}`, {
+        description: data?.message || "Pixels, pages, catalogs synced successfully",
+      });
+    } catch (error: any) {
+      console.error("Error syncing assets:", error);
+      toast.error("Failed to sync assets", {
+        description: error.message || "Please try again",
+      });
+    } finally {
+      setSyncingAssets(null);
+    }
+  };
+
   if (authLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -702,6 +729,27 @@ export default function PlatformConnections() {
                       )}
                     </div>
                     <div className="flex gap-2">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleSyncAccountAssets(account)}
+                              disabled={syncingAssets === account.id}
+                            >
+                              {syncingAssets === account.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <RefreshCw className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Sync pixels, pages, catalogs for this account</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                       {canManageClients ? (
                         account.client_id ? (
                           <Button 
