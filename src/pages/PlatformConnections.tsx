@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2, CheckCircle2, AlertCircle, Facebook, Link2, Unlink, Video, RefreshCw } from "lucide-react";
+import { Loader2, Plus, Trash2, CheckCircle2, AlertCircle, Facebook, Link2, Unlink, Video, RefreshCw, Sparkles } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { LockedFeatureButton } from "@/components/ui/locked-feature-button";
 import { useAuth } from "@/hooks/useAuth";
@@ -712,86 +712,99 @@ export default function PlatformConnections() {
             ) : (
               <div className="space-y-3">
                 {metaAdAccounts.map((account) => (
-                  <div key={account.id} className="flex items-center justify-between p-4 rounded-lg border">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium">{account.account_name}</p>
-                        <Badge variant="outline">{account.account_id}</Badge>
-                        {account.client_id && account.clients && (
-                          <Badge variant="secondary">
-                            <Link2 className="h-3 w-3 mr-1" />
-                            {account.clients.name}
-                          </Badge>
+                  <div key={account.id} className="space-y-2">
+                    <div className="flex items-center justify-between p-4 rounded-lg border">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium">{account.account_name}</p>
+                          <Badge variant="outline">{account.account_id}</Badge>
+                          {account.client_id && account.clients && (
+                            <Badge variant="secondary">
+                              <Link2 className="h-3 w-3 mr-1" />
+                              {account.clients.name}
+                            </Badge>
+                          )}
+                        </div>
+                        {account.account_status && (
+                          <p className="text-sm text-muted-foreground">Status: {account.account_status}</p>
                         )}
                       </div>
-                      {account.account_status && (
-                        <p className="text-sm text-muted-foreground">Status: {account.account_status}</p>
-                      )}
-                    </div>
-                    <div className="flex gap-2">
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="outline"
+                      <div className="flex gap-2">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleSyncAccountAssets(account)}
+                                disabled={syncingAssets === account.id}
+                              >
+                                {syncingAssets === account.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <RefreshCw className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Sync pixels, pages, catalogs for this account</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                        {canManageClients ? (
+                          account.client_id ? (
+                            <Button 
+                              variant="outline" 
                               size="sm"
-                              onClick={() => handleSyncAccountAssets(account)}
-                              disabled={syncingAssets === account.id}
+                              onClick={() => handleUnlinkAccount(account.id, 'meta')}
                             >
-                              {syncingAssets === account.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <RefreshCw className="h-4 w-4" />
-                              )}
+                              <Unlink className="h-4 w-4 mr-2" />
+                              Unlink
                             </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Sync pixels, pages, catalogs for this account</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                      {canManageClients ? (
-                        account.client_id ? (
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => handleUnlinkAccount(account.id, 'meta')}
-                          >
-                            <Unlink className="h-4 w-4 mr-2" />
-                            Unlink
-                          </Button>
+                          ) : (
+                            <Button 
+                              variant="default" 
+                              size="sm"
+                              onClick={() => {
+                                setSelectedAdAccountForLinking(account.id);
+                                setClientSelectorOpen(true);
+                              }}
+                            >
+                              <Link2 className="h-4 w-4 mr-2" />
+                              Link to Client
+                            </Button>
+                          )
                         ) : (
-                          <Button 
-                            variant="default" 
-                            size="sm"
-                            onClick={() => {
-                              setSelectedAdAccountForLinking(account.id);
-                              setClientSelectorOpen(true);
-                            }}
-                          >
-                            <Link2 className="h-4 w-4 mr-2" />
-                            Link to Client
-                          </Button>
-                        )
-                      ) : (
-                        <LockedFeatureButton feature="client_management">
-                          <Button 
-                            variant="default" 
-                            size="sm"
-                          >
-                            <Link2 className="h-4 w-4 mr-2" />
-                            Link to Client
-                          </Button>
-                        </LockedFeatureButton>
-                      )}
-                      <Button 
-                        variant="destructive" 
-                        size="sm"
-                        onClick={() => handleDeleteAccount(account.id, 'meta')}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                          <LockedFeatureButton feature="client_management">
+                            <Button 
+                              variant="default" 
+                              size="sm"
+                            >
+                              <Link2 className="h-4 w-4 mr-2" />
+                              Link to Client
+                            </Button>
+                          </LockedFeatureButton>
+                        )}
+                        <Button 
+                          variant="destructive" 
+                          size="sm"
+                          onClick={() => handleDeleteAccount(account.id, 'meta')}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
+                    {/* Benchmark hint for unlinked accounts */}
+                    {!account.client_id && (
+                      <div className="ml-4 px-3 py-2 bg-accent/10 border border-accent/30 rounded-md">
+                        <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                          <Sparkles className="h-3.5 w-3.5 flex-shrink-0" />
+                          <span>
+                            <strong>Tip:</strong> Link this account to a client to unlock benchmark-based forecasting for more accurate campaign predictions.
+                          </span>
+                        </p>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
