@@ -104,31 +104,41 @@ serve(async (req) => {
         console.log(`Found ${businesses.length} Business Managers`);
         
         if (businesses.length > 0) {
-          // Fetch ad accounts from ALL Business Managers with pagination
-          console.log("Fetching ad accounts from all Business Managers...");
+          console.log(`[META-OAUTH] Fetching ad accounts from ${businesses.length} Business Managers with pagination...`);
           
           const fetchAllAccountsFromBM = async (bmId: string): Promise<any[]> => {
             const accounts: any[] = [];
             let url: string | null = `https://graph.facebook.com/v21.0/${bmId}/owned_ad_accounts?fields=id,name,account_status,currency,timezone_name&limit=200&access_token=${access_token}`;
             
+            console.log(`[META-OAUTH] Starting fetch for BM ${bmId}`);
+            let pageCount = 0;
+            
             while (url) {
               try {
+                pageCount++;
+                console.log(`[META-OAUTH] BM ${bmId} - Fetching page ${pageCount}, current total: ${accounts.length}`);
                 const response: Response = await fetch(url);
                 if (!response.ok) {
-                  console.error(`Failed to fetch accounts from BM ${bmId}:`, await response.text());
+                  const errorText = await response.text();
+                  console.error(`[META-OAUTH] Failed to fetch accounts from BM ${bmId} on page ${pageCount}:`, errorText);
                   break;
                 }
                 const data: any = await response.json();
                 if (data.data) {
                   accounts.push(...data.data);
+                  console.log(`[META-OAUTH] BM ${bmId} page ${pageCount}: Added ${data.data.length} accounts, total now: ${accounts.length}`);
                 }
                 // Follow pagination if more results exist
                 url = data.paging?.next || null;
+                if (url) {
+                  console.log(`[META-OAUTH] BM ${bmId}: More pages available, continuing...`);
+                }
               } catch (e) {
-                console.error(`Error fetching accounts from BM ${bmId}:`, e);
+                console.error(`[META-OAUTH] Exception fetching accounts from BM ${bmId} on page ${pageCount}:`, e);
                 break;
               }
             }
+            console.log(`[META-OAUTH] Completed fetch for BM ${bmId}: ${accounts.length} total accounts across ${pageCount} pages`);
             return accounts;
           };
           
@@ -139,28 +149,33 @@ serve(async (req) => {
           // Use first BM as selectedBmId for backwards compatibility
           selectedBmId = businesses[0].id;
           
-          console.log(`Found ${adAccounts.length} total ad accounts across all Business Managers`);
-          console.log("Ad account IDs:", adAccounts.map((acc: any) => `${acc.id}: ${acc.name}`).join(", "));
+          console.log(`[META-OAUTH] ✓ Found ${adAccounts.length} total ad accounts across ${businesses.length} Business Managers`);
+          if (adAccounts.length > 0) {
+            console.log(`[META-OAUTH] Sample accounts:`, adAccounts.slice(0, 5).map((acc: any) => `${acc.id}: ${acc.name}`).join(", "));
+          }
         }
       } else {
         const errorData = await businessesResponse.json();
-        console.log("Business Manager fetch warning:", errorData.error?.message);
+        console.log("[META-OAUTH] Business Manager fetch warning:", errorData.error?.message);
       }
     } catch (e: any) {
-      console.log("Could not fetch Business Managers:", e.message);
+      console.log("[META-OAUTH] Could not fetch Business Managers:", e.message);
     }
     
     // Fallback to user's ad accounts if BM fetch failed
     if (adAccounts.length === 0) {
-      console.log("Fetching ad accounts from user with pagination...");
+      console.log("[META-OAUTH] No BM accounts found, fetching from user's personal accounts with pagination...");
       let userAccountsUrl: string | null = `https://graph.facebook.com/v21.0/me/adaccounts?fields=id,name,account_status,currency,timezone_name&limit=200&access_token=${access_token}`;
       
+      let userPageCount = 0;
       while (userAccountsUrl) {
+        userPageCount++;
+        console.log(`[META-OAUTH] User accounts - Fetching page ${userPageCount}, current total: ${adAccounts.length}`);
         const adAccountsResponse: Response = await fetch(userAccountsUrl);
 
         if (!adAccountsResponse.ok) {
           const errorData = await adAccountsResponse.json();
-          console.error("Failed to fetch ad accounts:", errorData);
+          console.error(`[META-OAUTH] Failed to fetch user ad accounts on page ${userPageCount}:`, errorData);
           
           if (errorData.error?.code === 200 || errorData.error?.code === 190) {
             throw new Error("Permission denied. Please ensure your account has access to ad accounts and try reconnecting.");
@@ -172,17 +187,21 @@ serve(async (req) => {
         const adAccountsData: any = await adAccountsResponse.json();
         if (adAccountsData.data) {
           adAccounts.push(...adAccountsData.data);
+          console.log(`[META-OAUTH] User page ${userPageCount}: Added ${adAccountsData.data.length} accounts, total now: ${adAccounts.length}`);
         }
         // Follow pagination if more results exist
         userAccountsUrl = adAccountsData.paging?.next || null;
       }
       
-      console.log(`Found ${adAccounts.length} ad accounts from user`);
-      console.log("Ad account IDs:", adAccounts.map((acc: any) => `${acc.id}: ${acc.name}`).join(", "));
+      console.log(`[META-OAUTH] ✓ Found ${adAccounts.length} ad accounts from user across ${userPageCount} pages`);
+      if (adAccounts.length > 0) {
+        console.log(`[META-OAUTH] Sample accounts:`, adAccounts.slice(0, 5).map((acc: any) => `${acc.id}: ${acc.name}`).join(", "));
+      }
     }
 
     
     if (adAccounts.length === 0) {
+      console.error("[META-OAUTH] ERROR: No ad accounts found after checking both BM and user accounts");
       throw new Error("No ad accounts found. Please ensure you have access to at least one ad account in your Business Manager.");
     }
 
@@ -212,10 +231,10 @@ serve(async (req) => {
       
       // Store token securely in Vault
       await storePlatformToken(supabase, platformData.id, access_token, 'access');
-      console.log("Platform reconnected, ID:", platformData.id);
+      console.log(`[META-OAUTH] ✓ Platform reconnected successfully, ID: ${platformData.id}`);
     } else {
       // Create new platform connection (allow multiple connections)
-      console.log("Creating new platform connection...");
+      console.log("[META-OAUTH] Creating new platform connection...");
       const platformName = selectedBmId && businessesMeta.length > 0
         ? `Meta - ${businessesMeta[0].name}`
         : "Meta (Facebook & Instagram)";
@@ -241,12 +260,11 @@ serve(async (req) => {
       
       // Store token securely in Vault
       await storePlatformToken(supabase, platformData.id, access_token, 'access');
-      console.log("Platform connected, ID:", platformData.id);
+      console.log(`[META-OAUTH] ✓ Platform connected successfully, ID: ${platformData.id}`);
     }
 
-    console.log("Platform connected, ID:", platformData.id);
-
     // Return token and ad accounts - frontend will trigger sync after user confirms
+    console.log(`[META-OAUTH] ✓ Returning ${adAccounts.length} accounts to frontend for user selection`);
 
     return new Response(
       JSON.stringify({
