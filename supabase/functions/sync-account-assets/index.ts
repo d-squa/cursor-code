@@ -64,22 +64,6 @@ serve(async (req) => {
       throw new Error("Failed to retrieve access token");
     }
 
-    // Fetch account details including business ID
-    const accountResponse = await fetch(
-      `https://graph.facebook.com/v21.0/${accountId}?fields=id,name,business&access_token=${accessToken}`
-    );
-    
-    if (!accountResponse.ok) {
-      const errorData = await accountResponse.json();
-      console.error("[SYNC-ACCOUNT-ASSETS] Account fetch error:", errorData);
-      throw new Error(`Failed to fetch account: ${errorData.error?.message || 'Unknown error'}`);
-    }
-
-    const accountData = await accountResponse.json();
-    const businessId = accountData.business?.id;
-    
-    console.log(`[SYNC-ACCOUNT-ASSETS] Account ${accountId} belongs to business ${businessId || 'N/A'}`);
-
     const syncResults = {
       pixels: 0,
       pages: 0,
@@ -89,7 +73,7 @@ serve(async (req) => {
       conversionEvents: 0,
     };
 
-    // 1. Fetch and sync pixels
+    // 1. Fetch pixels directly associated with this ad account
     try {
       console.log(`[SYNC-ACCOUNT-ASSETS] Fetching pixels for ${accountId}...`);
       const pixelsResponse = await fetch(
@@ -98,22 +82,21 @@ serve(async (req) => {
       const pixelsData = await pixelsResponse.json();
       
       if (pixelsData?.data && pixelsData.data.length > 0) {
+        // Delete existing pixels for this specific account
+        await supabase
+          .from("meta_pixels")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("ad_account_id", accountId);
+
         const pixelsToInsert = pixelsData.data.map((pixel: any) => ({
           user_id: user.id,
-          ad_account_id: accountData.id,
+          ad_account_id: accountId,
           pixel_id: pixel.id,
           pixel_name: pixel.name,
           synced_at: new Date().toISOString(),
         }));
 
-        // Upsert pixels
-        const pixelIds = pixelsToInsert.map((p: any) => p.pixel_id);
-        await supabase
-          .from("meta_pixels")
-          .delete()
-          .eq("user_id", user.id)
-          .in("pixel_id", pixelIds);
-        
         const { error: pixelsError } = await supabase.from("meta_pixels").insert(pixelsToInsert);
         if (pixelsError) {
           console.error("[SYNC-ACCOUNT-ASSETS] Error inserting pixels:", pixelsError);
@@ -131,13 +114,14 @@ serve(async (req) => {
 
           const eventsToInsert = standardEvents.map(eventName => ({
             user_id: user.id,
+            ad_account_id: accountId,
             pixel_id: pixel.pixel_id,
             event_name: eventName,
             event_type: 'standard',
             synced_at: new Date().toISOString(),
           }));
 
-          // Fetch custom conversions
+          // Fetch custom conversions for this account
           try {
             const customConversionsResponse = await fetch(
               `https://graph.facebook.com/v21.0/${accountId}/customconversions?fields=name&limit=100&access_token=${accessToken}`
@@ -148,6 +132,7 @@ serve(async (req) => {
               customConversionsData.data.forEach((customConversion: any) => {
                 eventsToInsert.push({
                   user_id: user.id,
+                  ad_account_id: accountId,
                   pixel_id: pixel.pixel_id,
                   event_name: customConversion.name,
                   event_type: 'custom',
@@ -159,11 +144,12 @@ serve(async (req) => {
             console.error(`[SYNC-ACCOUNT-ASSETS] Error fetching custom conversions:`, error);
           }
 
-          // Upsert events
+          // Delete and re-insert events for this account+pixel combo
           await supabase
             .from("meta_conversion_events")
             .delete()
             .eq("user_id", user.id)
+            .eq("ad_account_id", accountId)
             .eq("pixel_id", pixel.pixel_id);
           
           const { error: eventsError } = await supabase.from("meta_conversion_events").insert(eventsToInsert);
@@ -177,155 +163,141 @@ serve(async (req) => {
       console.error("[SYNC-ACCOUNT-ASSETS] Error fetching pixels:", error);
     }
 
-    // 2. Fetch pages and Instagram accounts from business
-    if (businessId) {
-      try {
-        console.log(`[SYNC-ACCOUNT-ASSETS] Fetching pages from business ${businessId}...`);
-        const [ownedPagesResponse, clientPagesResponse] = await Promise.all([
-          fetch(`https://graph.facebook.com/v21.0/${businessId}/owned_pages?fields=id,name,instagram_business_account{id,username}&limit=100&access_token=${accessToken}`),
-          fetch(`https://graph.facebook.com/v21.0/${businessId}/client_pages?fields=id,name,instagram_business_account{id,username}&limit=100&access_token=${accessToken}`),
-        ]);
+    // 2. Fetch pages assigned to this specific ad account
+    try {
+      console.log(`[SYNC-ACCOUNT-ASSETS] Fetching pages assigned to ad account ${accountId}...`);
+      const assignedPagesResponse = await fetch(
+        `https://graph.facebook.com/v21.0/${accountId}/promote_pages?fields=id,name,instagram_business_account{id,username}&limit=100&access_token=${accessToken}`
+      );
+      const assignedPagesData = await assignedPagesResponse.json();
+      
+      if (assignedPagesData?.data && assignedPagesData.data.length > 0) {
+        // Delete existing pages for this specific account
+        await supabase
+          .from("meta_pages")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("ad_account_id", accountId);
 
-        const ownedPagesData = await ownedPagesResponse.json();
-        const clientPagesData = await clientPagesResponse.json();
+        const pagesToInsert = assignedPagesData.data.map((page: any) => ({
+          user_id: user.id,
+          ad_account_id: accountId,
+          page_id: page.id,
+          page_name: page.name,
+          synced_at: new Date().toISOString(),
+        }));
 
-        const allPagesData = [
-          ...(ownedPagesData?.data || []),
-          ...(clientPagesData?.data || []),
-        ];
+        const { error: pagesError } = await supabase.from("meta_pages").insert(pagesToInsert);
+        if (!pagesError) {
+          syncResults.pages = pagesToInsert.length;
+          console.log(`[SYNC-ACCOUNT-ASSETS] Synced ${syncResults.pages} pages`);
+        }
 
-        if (allPagesData.length > 0) {
-          const pagesToInsert = allPagesData.map((page: any) => ({
-            user_id: user.id,
-            page_id: page.id,
-            page_name: page.name,
-            synced_at: new Date().toISOString(),
-          }));
+        // Delete existing Instagram accounts for this ad account
+        await supabase
+          .from("meta_instagram_accounts")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("ad_account_id", accountId);
 
-          const instagramToInsert: any[] = [];
-          allPagesData.forEach((page: any) => {
-            if (page.instagram_business_account) {
-              instagramToInsert.push({
+        const instagramToInsert: any[] = [];
+        assignedPagesData.data.forEach((page: any) => {
+          if (page.instagram_business_account) {
+            instagramToInsert.push({
+              user_id: user.id,
+              ad_account_id: accountId,
+              instagram_account_id: page.instagram_business_account.id,
+              username: page.instagram_business_account.username || page.name,
+              synced_at: new Date().toISOString(),
+            });
+          }
+        });
+
+        if (instagramToInsert.length > 0) {
+          const { error: igError } = await supabase.from("meta_instagram_accounts").insert(instagramToInsert);
+          if (!igError) {
+            syncResults.instagramAccounts = instagramToInsert.length;
+            console.log(`[SYNC-ACCOUNT-ASSETS] Synced ${syncResults.instagramAccounts} Instagram accounts`);
+          }
+        }
+      } else {
+        console.log(`[SYNC-ACCOUNT-ASSETS] No pages assigned to ad account ${accountId}`);
+      }
+    } catch (error) {
+      console.error("[SYNC-ACCOUNT-ASSETS] Error fetching pages:", error);
+    }
+
+    // 3. Fetch catalogs accessible by this ad account
+    try {
+      console.log(`[SYNC-ACCOUNT-ASSETS] Fetching catalogs for ad account ${accountId}...`);
+      const catalogsResponse = await fetch(
+        `https://graph.facebook.com/v21.0/${accountId}/product_catalogs?fields=id,name&limit=100&access_token=${accessToken}`
+      );
+      const catalogsData = await catalogsResponse.json();
+      
+      if (catalogsData?.data && catalogsData.data.length > 0) {
+        // Delete existing catalogs for this specific account
+        await supabase
+          .from("meta_catalogs")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("ad_account_id", accountId);
+
+        const catalogsToInsert = catalogsData.data.map((catalog: any) => ({
+          user_id: user.id,
+          ad_account_id: accountId,
+          catalog_id: catalog.id,
+          catalog_name: catalog.name,
+          synced_at: new Date().toISOString(),
+        }));
+
+        const { error: catalogsError } = await supabase.from("meta_catalogs").insert(catalogsToInsert);
+        if (!catalogsError) {
+          syncResults.catalogs = catalogsToInsert.length;
+          console.log(`[SYNC-ACCOUNT-ASSETS] Synced ${syncResults.catalogs} catalogs`);
+        }
+
+        // Fetch product sets for each catalog
+        for (const catalog of catalogsData.data) {
+          try {
+            const productSetsResponse = await fetch(
+              `https://graph.facebook.com/v21.0/${catalog.id}/product_sets?fields=id,name&limit=100&access_token=${accessToken}`
+            );
+            const productSetsData = await productSetsResponse.json();
+
+            if (productSetsData?.data && productSetsData.data.length > 0) {
+              const productSetsToInsert = productSetsData.data.map((productSet: any) => ({
                 user_id: user.id,
-                instagram_account_id: page.instagram_business_account.id,
-                username: page.instagram_business_account.username || page.name,
+                ad_account_id: accountId,
+                catalog_id: catalog.id,
+                product_set_id: productSet.id,
+                product_set_name: productSet.name,
                 synced_at: new Date().toISOString(),
-              });
-            }
-          });
+              }));
 
-          // Upsert pages
-          const pageIds = pagesToInsert.map((p: any) => p.page_id);
-          await supabase
-            .from("meta_pages")
-            .delete()
-            .eq("user_id", user.id)
-            .in("page_id", pageIds);
-          
-          const { error: pagesError } = await supabase.from("meta_pages").insert(pagesToInsert);
-          if (!pagesError) {
-            syncResults.pages = pagesToInsert.length;
-            console.log(`[SYNC-ACCOUNT-ASSETS] Synced ${syncResults.pages} pages`);
-          }
-
-          // Upsert Instagram accounts
-          if (instagramToInsert.length > 0) {
-            const igIds = instagramToInsert.map((ig: any) => ig.instagram_account_id);
-            await supabase
-              .from("meta_instagram_accounts")
-              .delete()
-              .eq("user_id", user.id)
-              .in("instagram_account_id", igIds);
-            
-            const { error: igError } = await supabase.from("meta_instagram_accounts").insert(instagramToInsert);
-            if (!igError) {
-              syncResults.instagramAccounts = instagramToInsert.length;
-              console.log(`[SYNC-ACCOUNT-ASSETS] Synced ${syncResults.instagramAccounts} Instagram accounts`);
-            }
-          }
-        }
-      } catch (error) {
-        console.error("[SYNC-ACCOUNT-ASSETS] Error fetching pages:", error);
-      }
-
-      // 3. Fetch catalogs from business
-      try {
-        console.log(`[SYNC-ACCOUNT-ASSETS] Fetching catalogs from business ${businessId}...`);
-        const [ownedCatalogsResponse, clientCatalogsResponse] = await Promise.all([
-          fetch(`https://graph.facebook.com/v21.0/${businessId}/owned_product_catalogs?fields=id,name&limit=100&access_token=${accessToken}`),
-          fetch(`https://graph.facebook.com/v21.0/${businessId}/client_product_catalogs?fields=id,name&limit=100&access_token=${accessToken}`),
-        ]);
-
-        const ownedCatalogsData = await ownedCatalogsResponse.json();
-        const clientCatalogsData = await clientCatalogsResponse.json();
-
-        const allCatalogsData = [
-          ...(ownedCatalogsData?.data || []),
-          ...(clientCatalogsData?.data || []),
-        ];
-
-        if (allCatalogsData.length > 0) {
-          const catalogsToInsert = allCatalogsData.map((catalog: any) => ({
-            user_id: user.id,
-            catalog_id: catalog.id,
-            catalog_name: catalog.name,
-            synced_at: new Date().toISOString(),
-          }));
-
-          // Upsert catalogs
-          const catalogIds = catalogsToInsert.map((c: any) => c.catalog_id);
-          await supabase
-            .from("meta_catalogs")
-            .delete()
-            .eq("user_id", user.id)
-            .in("catalog_id", catalogIds);
-          
-          const { error: catalogsError } = await supabase.from("meta_catalogs").insert(catalogsToInsert);
-          if (!catalogsError) {
-            syncResults.catalogs = catalogsToInsert.length;
-            console.log(`[SYNC-ACCOUNT-ASSETS] Synced ${syncResults.catalogs} catalogs`);
-          }
-
-          // Fetch product sets for each catalog
-          for (const catalog of allCatalogsData) {
-            try {
-              const productSetsResponse = await fetch(
-                `https://graph.facebook.com/v21.0/${catalog.id}/product_sets?fields=id,name&limit=100&access_token=${accessToken}`
-              );
-              const productSetsData = await productSetsResponse.json();
-
-              if (productSetsData?.data && productSetsData.data.length > 0) {
-                const productSetsToInsert = productSetsData.data.map((productSet: any) => ({
-                  user_id: user.id,
-                  catalog_id: catalog.id,
-                  product_set_id: productSet.id,
-                  product_set_name: productSet.name,
-                  synced_at: new Date().toISOString(),
-                }));
-
-                const productSetIds = productSetsToInsert.map((ps: any) => ps.product_set_id);
-                await supabase
-                  .from("meta_product_sets")
-                  .delete()
-                  .eq("user_id", user.id)
-                  .in("product_set_id", productSetIds);
-                
-                const { error: psError } = await supabase.from("meta_product_sets").insert(productSetsToInsert);
-                if (!psError) {
-                  syncResults.productSets += productSetsToInsert.length;
-                }
+              // Delete existing product sets for this account+catalog combo
+              await supabase
+                .from("meta_product_sets")
+                .delete()
+                .eq("user_id", user.id)
+                .eq("ad_account_id", accountId)
+                .eq("catalog_id", catalog.id);
+              
+              const { error: psError } = await supabase.from("meta_product_sets").insert(productSetsToInsert);
+              if (!psError) {
+                syncResults.productSets += productSetsToInsert.length;
               }
-            } catch (error) {
-              console.error(`[SYNC-ACCOUNT-ASSETS] Error fetching product sets for catalog ${catalog.id}:`, error);
             }
+          } catch (error) {
+            console.error(`[SYNC-ACCOUNT-ASSETS] Error fetching product sets for catalog ${catalog.id}:`, error);
           }
-          console.log(`[SYNC-ACCOUNT-ASSETS] Synced ${syncResults.productSets} product sets`);
         }
-      } catch (error) {
-        console.error("[SYNC-ACCOUNT-ASSETS] Error fetching catalogs:", error);
+        console.log(`[SYNC-ACCOUNT-ASSETS] Synced ${syncResults.productSets} product sets`);
+      } else {
+        console.log(`[SYNC-ACCOUNT-ASSETS] No catalogs accessible by ad account ${accountId}`);
       }
-    } else {
-      console.log(`[SYNC-ACCOUNT-ASSETS] No business ID found for account ${accountId}, skipping pages/catalogs`);
+    } catch (error) {
+      console.error("[SYNC-ACCOUNT-ASSETS] Error fetching catalogs:", error);
     }
 
     console.log(`[SYNC-ACCOUNT-ASSETS] ✓ Asset sync complete for ${accountId}:`, syncResults);
