@@ -28,12 +28,13 @@ export async function getBenchmarkCostPerResult(
     let query = supabase
       .from("campaign_performance_benchmarks")
       .select("avg_cost_per_result")
-      .eq("market", market)
-      .eq("optimization_goal", optimizationGoal);
+      .ilike("market", market)
+      .ilike("optimization_goal", optimizationGoal);
     
     // Industry is a HARD condition - only match if industry is provided and matches
     if (industry) {
-      query = query.eq("industry", industry);
+      // Use case-insensitive matching for industry
+      query = query.ilike("industry", industry);
     } else {
       // If no industry provided, we can't use benchmarks (hard requirement)
       console.log(`No industry provided, skipping benchmark for ${market}/${optimizationGoal}`);
@@ -70,8 +71,9 @@ export async function getAllBenchmarks(industry?: string | null): Promise<Map<st
     
     // Industry is a HARD condition when provided
     if (industry) {
-      query = query.eq("industry", industry);
-      console.log(`📊 Fetching benchmarks filtered by industry: ${industry}`);
+      // Use case-insensitive matching via ilike
+      query = query.ilike("industry", industry);
+      console.log(`📊 Fetching benchmarks filtered by industry (case-insensitive): ${industry}`);
     } else {
       console.log(`⚠️ No industry provided - benchmarks will not be used (hard requirement)`);
       return new Map(); // Return empty map if no industry - can't use benchmarks without it
@@ -87,12 +89,17 @@ export async function getAllBenchmarks(industry?: string | null): Promise<Map<st
     const benchmarkMap = new Map<string, BenchmarkData>();
     
     // Group by market and optimization goal, keeping only the most recent
+    // Use uppercase keys for case-insensitive lookup
     const seen = new Set<string>();
     for (const item of data || []) {
-      const key = `${item.market}_${item.optimization_goal}`;
+      // Normalize to uppercase for consistent lookup
+      const normalizedMarket = item.market?.toUpperCase() || '';
+      const normalizedGoal = item.optimization_goal?.toUpperCase() || '';
+      const key = `${normalizedMarket}_${normalizedGoal}`;
       if (!seen.has(key)) {
         benchmarkMap.set(key, item as BenchmarkData);
         seen.add(key);
+        console.log(`  📌 Benchmark loaded: ${key} → CPR: $${item.avg_cost_per_result?.toFixed(2)}`);
       }
     }
     
