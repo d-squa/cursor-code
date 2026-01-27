@@ -456,6 +456,7 @@ export type Database = {
           industry: string | null
           market: string
           optimization_goal: string
+          platform: string
           total_results: number
           total_spend: number
           updated_at: string
@@ -472,6 +473,7 @@ export type Database = {
           industry?: string | null
           market: string
           optimization_goal: string
+          platform?: string
           total_results?: number
           total_spend?: number
           updated_at?: string
@@ -488,6 +490,7 @@ export type Database = {
           industry?: string | null
           market?: string
           optimization_goal?: string
+          platform?: string
           total_results?: number
           total_spend?: number
           updated_at?: string
