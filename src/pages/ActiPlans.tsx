@@ -390,8 +390,43 @@ export default function ActiPlans() {
 
       if (error) throw error;
 
+      // Duplicate creative assignments from the original campaign
+      const { data: originalAssignments, error: assignmentsError } = await supabase
+        .from("creative_assignments")
+        .select("*")
+        .eq("campaign_id", campaign.id);
+
+      if (assignmentsError) {
+        console.error("Error fetching creative assignments:", assignmentsError);
+        // Continue - campaign was duplicated, just log the error
+      } else if (originalAssignments && originalAssignments.length > 0) {
+        // Create new assignments for the duplicated campaign
+        const newAssignments = originalAssignments.map((assignment) => {
+          // Remove id and timestamps, update campaign_id
+          const { id, assigned_at, dsp_creative_id, error_message, status, ...rest } = assignment;
+          return {
+            ...rest,
+            campaign_id: newCampaign.id,
+            assigned_by: user?.id || null,
+            status: 'pending', // Reset status for new assignments
+          };
+        });
+
+        const { error: insertError } = await supabase
+          .from("creative_assignments")
+          .insert(newAssignments);
+
+        if (insertError) {
+          console.error("Error duplicating creative assignments:", insertError);
+          toast.warning("ActiPlan duplicated but some creative assignments failed to copy");
+        } else {
+          console.log(`Duplicated ${newAssignments.length} creative assignments`);
+        }
+      }
+
       const targetWorkspace = workspaces.find(w => w.id === targetWorkspaceId);
-      toast.success(`ActiPlan duplicated${targetWorkspace ? ` to ${targetWorkspace.name}` : ""}`);
+      const assignmentCount = originalAssignments?.length || 0;
+      toast.success(`ActiPlan duplicated${targetWorkspace ? ` to ${targetWorkspace.name}` : ""}${assignmentCount > 0 ? ` with ${assignmentCount} creative assignments` : ""}`);
       refetchLimits();
       loadCampaigns();
     } catch (error: any) {
