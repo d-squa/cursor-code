@@ -99,6 +99,9 @@ export function MediaPlanEditor() {
   });
   const [platformsWithMarkets, setPlatformsWithMarkets] = useState<PlatformWithMarkets[]>([]);
   const [globalFunnel, setGlobalFunnel] = useState<FunnelStage[]>([]);
+  
+  // Guard: skip the next generic→market phase sync (prevents circular clobber of budgetType, etc.)
+  const skipPhaseSyncRef = useRef(false);
   const [expandedPlatforms, setExpandedPlatforms] = useState<Record<string, boolean>>({});
   const [bulkBudgetDialogOpen, setBulkBudgetDialogOpen] = useState(false);
   const [bulkPlatform, setBulkPlatform] = useState<PlatformWithMarkets | null>(null);
@@ -533,6 +536,11 @@ export function MediaPlanEditor() {
     });
     
     if (needsSync) {
+      // If a child signaled to skip (e.g. budgetType toggle), abort and reset flag.
+      if (skipPhaseSyncRef.current) {
+        skipPhaseSyncRef.current = false;
+        return;
+      }
       console.log('🔄 Syncing genericConfig.phases to market phases');
       setPlatformsWithMarkets(prev => prev.map(platform => ({
         ...platform,
@@ -2267,6 +2275,7 @@ export function MediaPlanEditor() {
                             } : p
                           ));
                         }}
+                        onSkipNextSync={() => { skipPhaseSyncRef.current = true; }}
                         startDate={startDate}
                         endDate={endDate}
                         platformName={singlePlatform?.name || "Facebook (Meta)"}
@@ -2578,6 +2587,7 @@ export function MediaPlanEditor() {
                                       } : p
                                     ));
                                   }}
+                                  onSkipNextSync={() => { skipPhaseSyncRef.current = true; }}
                                   startDate={startDate}
                                   endDate={endDate}
                                   platformName={platform.name}
