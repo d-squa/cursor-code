@@ -547,6 +547,8 @@ export function MediaPlanEditor() {
                   !!existing && Object.prototype.hasOwnProperty.call(existing, "objective");
                 const hasOptimizationGoalOverride =
                   !!existing && Object.prototype.hasOwnProperty.call(existing, "optimizationGoal");
+                const hasBudgetTypeOverride =
+                  !!existing && Object.prototype.hasOwnProperty.call(existing, "budgetType");
 
                 return {
                   ...genericPhase,
@@ -557,6 +559,10 @@ export function MediaPlanEditor() {
                   startDate: genericPhase.startDate,
                   endDate: genericPhase.endDate,
                   budgetPercentage: genericPhase.budgetPercentage,
+                  // Preserve budgetType overrides so the user's selection doesn't revert
+                  budgetType: hasBudgetTypeOverride
+                    ? (existing as any).budgetType
+                    : (genericPhase as any).budgetType,
                   // IMPORTANT: do NOT clobber manual overrides (even if explicitly set to `undefined` for Auto-detect)
                   objective: hasObjectiveOverride ? (existing as any).objective : (genericPhase as any).objective,
                   optimizationGoal: hasOptimizationGoalOverride

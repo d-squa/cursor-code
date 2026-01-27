@@ -19,6 +19,7 @@ import { CampaignPublisherConfig } from "./CampaignPublisherConfig";
 import { TargetingConfigComponent } from "./TargetingConfig";
 import { getOptimizationGoalForFocus } from "@/utils/strategyFocusMapping";
 import { BudgetTypeApplyDialog } from "./BudgetTypeApplyDialog";
+import { BudgetTypeToggleGroup } from "./BudgetTypeToggleGroup";
 import { PhaseAudienceSelector } from "./PhaseAudienceSelector";
 import { BroadTargetingAudiences } from "./BroadTargetingAudiences";
 import { UnifiedTargeting, UnifiedTargetingConfig } from "./UnifiedTargeting";
@@ -174,6 +175,7 @@ export function PhaseScheduler({
   const [budgetTypeDialogOpen, setBudgetTypeDialogOpen] = useState(false);
   const [pendingBudgetType, setPendingBudgetType] = useState<"daily" | "lifetime" | null>(null);
   const [pendingBudgetPhaseId, setPendingBudgetPhaseId] = useState<string | null>(null);
+  const [optimisticBudgetTypes, setOptimisticBudgetTypes] = useState<Record<string, Phase["budgetType"] | undefined>>({});
   const containerRef = useRef<HTMLDivElement>(null);
   const splitManagerRefs = useRef<{ [phaseId: string]: HTMLDivElement | null }>({});
   const [scrollToSplitPhaseId, setScrollToSplitPhaseId] = useState<string | null>(null);
@@ -183,6 +185,25 @@ export function PhaseScheduler({
   const phasesRef = useRef<Phase[]>(phases);
   useEffect(() => {
     phasesRef.current = phases;
+  }, [phases]);
+
+  // Clear optimistic budget type once it matches the canonical phases prop.
+  useEffect(() => {
+    setOptimisticBudgetTypes((prev) => {
+      const keys = Object.keys(prev);
+      if (keys.length === 0) return prev;
+
+      let changed = false;
+      const next = { ...prev };
+      for (const phaseId of keys) {
+        const canonical = phases.find((p) => p.id === phaseId)?.budgetType;
+        if (canonical === next[phaseId]) {
+          delete next[phaseId];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
   }, [phases]);
   
   // Track previous default split dimensions to detect when they're cleared
@@ -839,57 +860,10 @@ export function PhaseScheduler({
     return phaseName === "Awareness" ? "OUTCOME_AWARENESS" : phaseName === "Consideration" ? "OUTCOME_TRAFFIC" : "OUTCOME_SALES";
   };
 
-  // Validate dates
-  if (!startDate || !endDate) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Phase Timeline</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Please select activation start and end dates first to enable phase scheduling.
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
-
   const campaignStart = parseISO(startDate);
   const campaignEnd = parseISO(endDate);
   
-  // Check if dates are valid
-  if (isNaN(campaignStart.getTime()) || isNaN(campaignEnd.getTime())) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Phase Timeline</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Invalid dates selected. Please check your activation dates.
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
-  
   const totalDays = differenceInDays(campaignEnd, campaignStart);
-
-  if (totalDays <= 0) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Phase Timeline</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            End date must be after start date to schedule phases.
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
 
   const dateToPosition = (dateStr: string): number => {
     if (!dateStr || totalDays <= 0) return 0;
@@ -1008,6 +982,51 @@ export function PhaseScheduler({
       };
     }
   }, [dragging, phases]);
+
+  // Validate dates (MUST be after hooks to keep hook order stable)
+  if (!startDate || !endDate) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Phase Timeline</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            Please select activation start and end dates first to enable phase scheduling.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Check if dates are valid
+  if (isNaN(campaignStart.getTime()) || isNaN(campaignEnd.getTime())) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Phase Timeline</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            Invalid dates selected. Please check your activation dates.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (totalDays <= 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Phase Timeline</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">End date must be after start date to schedule phases.</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const addPhase = () => {
     const defaultPublisherConfig = getDefaultPublisherConfig();
@@ -2580,87 +2599,110 @@ export function PhaseScheduler({
                       })()}
 
                       {/* Budget Type - Inline with validation */}
-                      <div className={`p-4 rounded-lg border-2 ${!phase.budgetType ? 'border-yellow-500 bg-yellow-50 dark:bg-yellow-950/20' : 'border-border bg-muted/50'}`}>
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <Label className="font-medium">Budget Type *</Label>
-                            {!phase.budgetType && (
-                              <Badge variant="outline" className="border-yellow-500 text-yellow-700 dark:text-yellow-300">
-                                Required
-                              </Badge>
-                            )}
-                          </div>
-                          <Select
-                            value={phase.budgetType || "none"}
-                            onValueChange={(value: string) => {
-                              const bt = value === "none" ? null : (value as "daily" | "lifetime");
+                      {(() => {
+                        const effectiveBudgetType = optimisticBudgetTypes[phase.id] ?? phase.budgetType;
 
-                              // Apply immediately so the UI doesn't snap back / flicker.
-                              onPhasesChange(
-                                phasesRef.current.map((p) =>
-                                  p.id === phase.id ? { ...p, budgetType: bt } : p,
-                                ),
-                              );
-
-                              // Ask whether to apply this type to all phases.
-                              if (onApplyBudgetTypeToAll && bt) {
-                                setPendingBudgetType(bt);
-                                setPendingBudgetPhaseId(phase.id);
-                                setBudgetTypeDialogOpen(true);
-                              }
-                            }}
+                        return (
+                          <div
+                            className={`p-4 rounded-lg border-2 ${!effectiveBudgetType ? "border-yellow-500 bg-yellow-50 dark:bg-yellow-950/20" : "border-border bg-muted/50"}`}
                           >
-                            <SelectTrigger className={!phase.budgetType ? 'border-yellow-500' : ''}>
-                              <SelectValue placeholder="Select budget type" />
-                            </SelectTrigger>
-                          <SelectContent className="bg-popover z-50">
-                            <SelectItem value="none">None (not set)</SelectItem>
-                            <SelectItem value="daily">Daily Budget</SelectItem>
-                            <SelectItem value="lifetime">Lifetime Budget</SelectItem>
-                          </SelectContent>
-                          </Select>
-                          {!phase.budgetType && (
-                            <p className="text-xs text-yellow-700 dark:text-yellow-300">Please select a budget type to continue</p>
-                          )}
-                          
-                          {/* Daily Budget Breakdown */}
-                          {phase.budgetType === "daily" && marketBudget && marketBudget > 0 && (
-                            <div className="mt-3 p-3 rounded-md bg-muted/30 border border-border">
-                              <div className="text-xs font-semibold text-muted-foreground mb-2">Daily Budget Breakdown</div>
-                              <div className="space-y-2 text-sm">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-muted-foreground">Phase Budget:</span>
-                                  <span className="font-medium">${((marketBudget * phase.budgetPercentage) / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                  <span className="text-muted-foreground">Duration:</span>
-                                  <span className="font-medium">
-                                    {(() => {
-                                      const start = parseISO(phase.startDate);
-                                      const end = parseISO(phase.endDate);
-                                      const duration = differenceInDays(end, start) + 1;
-                                      return `${duration} day${duration !== 1 ? 's' : ''}`;
-                                    })()}
-                                  </span>
-                                </div>
-                                <div className="flex items-center justify-between pt-2 border-t border-border">
-                                  <span className="text-muted-foreground font-medium">Daily Budget:</span>
-                                  <span className="font-semibold text-primary">
-                                    ${(() => {
-                                      const start = parseISO(phase.startDate);
-                                      const end = parseISO(phase.endDate);
-                                      const duration = differenceInDays(end, start) + 1;
-                                      const phaseBudget = (marketBudget * phase.budgetPercentage) / 100;
-                                      const dailyBudget = phaseBudget / duration;
-                                      return dailyBudget.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                                    })()}
-                                  </span>
-                                </div>
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <Label className="font-medium">Budget Type *</Label>
+                                {!effectiveBudgetType && (
+                                  <Badge
+                                    variant="outline"
+                                    className="border-yellow-500 text-yellow-700 dark:text-yellow-300"
+                                  >
+                                    Required
+                                  </Badge>
+                                )}
                               </div>
+
+                              <BudgetTypeToggleGroup
+                                id={`budget-type-${phase.id}`}
+                                value={effectiveBudgetType ?? "none"}
+                                options={[
+                                  { value: "none", label: "None" },
+                                  { value: "daily", label: "Daily" },
+                                  { value: "lifetime", label: "Lifetime" },
+                                ]}
+                                onValueChange={(value) => {
+                                  const bt: Phase["budgetType"] | undefined =
+                                    value === "none" ? undefined : (value as "daily" | "lifetime");
+
+                                  // Update UI immediately (prevents reverting during intermediate re-renders).
+                                  setOptimisticBudgetTypes((prev) => ({ ...prev, [phase.id]: bt }));
+
+                                  // Commit to parent state.
+                                  onPhasesChange(
+                                    phasesRef.current.map((p) => (p.id === phase.id ? { ...p, budgetType: bt } : p)),
+                                  );
+
+                                  // Ask whether to apply this type to all phases.
+                                  if (onApplyBudgetTypeToAll && bt) {
+                                    setPendingBudgetType(bt);
+                                    setPendingBudgetPhaseId(phase.id);
+                                    // Defer opening so we don't compete with intermediate renders.
+                                    setTimeout(() => setBudgetTypeDialogOpen(true), 0);
+                                  }
+                                }}
+                              />
+
+                              {!effectiveBudgetType && (
+                                <p className="text-xs text-yellow-700 dark:text-yellow-300">
+                                  Please select a budget type to continue
+                                </p>
+                              )}
+
+                              {/* Daily Budget Breakdown */}
+                              {effectiveBudgetType === "daily" && marketBudget && marketBudget > 0 && (
+                                <div className="mt-3 p-3 rounded-md bg-muted/30 border border-border">
+                                  <div className="text-xs font-semibold text-muted-foreground mb-2">Daily Budget Breakdown</div>
+                                  <div className="space-y-2 text-sm">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-muted-foreground">Phase Budget:</span>
+                                      <span className="font-medium">
+                                        ${((marketBudget * phase.budgetPercentage) / 100).toLocaleString(undefined, {
+                                          minimumFractionDigits: 2,
+                                          maximumFractionDigits: 2,
+                                        })}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-muted-foreground">Duration:</span>
+                                      <span className="font-medium">
+                                        {(() => {
+                                          const start = parseISO(phase.startDate);
+                                          const end = parseISO(phase.endDate);
+                                          const duration = differenceInDays(end, start) + 1;
+                                          return `${duration} day${duration !== 1 ? "s" : ""}`;
+                                        })()}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center justify-between pt-2 border-t border-border">
+                                      <span className="text-muted-foreground font-medium">Daily Budget:</span>
+                                      <span className="font-semibold text-primary">
+                                        ${(() => {
+                                          const start = parseISO(phase.startDate);
+                                          const end = parseISO(phase.endDate);
+                                          const duration = differenceInDays(end, start) + 1;
+                                          const phaseBudget = (marketBudget * phase.budgetPercentage) / 100;
+                                          const dailyBudget = phaseBudget / duration;
+                                          return dailyBudget.toLocaleString(undefined, {
+                                            minimumFractionDigits: 2,
+                                            maximumFractionDigits: 2,
+                                          });
+                                        })()}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-                      </div>
+                          </div>
+                        );
+                      })()}
 
                       {/* Publisher Platforms & Placements with Split Button */}
                       <SplittableSection
