@@ -203,6 +203,36 @@ export function PlatformCustomization({
     onPlatformsUpdate(updatedPlatforms);
   };
 
+  // Batch multiple field updates into a single platforms update.
+  // This prevents dependent Selects (objective -> optimization goal) from momentarily receiving
+  // mismatched `value` + `items`, which causes visible flicker.
+  const updateCampaignFields = (
+    platformId: string,
+    marketId: string,
+    phaseId: string,
+    updates: Record<string, any>
+  ) => {
+    const updatedPlatforms = platforms.map((p) => {
+      if (p.id === platformId) {
+        return {
+          ...p,
+          markets: p.markets.map((m) =>
+            m.id === marketId
+              ? {
+                  ...m,
+                  phases: (m.phases || []).map((phase) =>
+                    phase.id === phaseId ? { ...phase, ...updates } : phase,
+                  ),
+                }
+              : m,
+          ),
+        };
+      }
+      return p;
+    });
+    onPlatformsUpdate(updatedPlatforms);
+  };
+
   const toggleCampaign = (key: string) => {
     setExpandedCampaigns(prev => ({ ...prev, [key]: !prev[key] }));
   };
@@ -602,17 +632,20 @@ return (
                                                             value={currentObjective}
                                                             onValueChange={(value) => {
                                                               if (value === "AUTO_DETECT") {
-                                                                updateCampaignField(platform.id, market.id, phase.id, "objective", undefined);
-                                                                updateCampaignField(platform.id, market.id, phase.id, "optimizationGoal", undefined);
+                                                                 updateCampaignFields(platform.id, market.id, phase.id, {
+                                                                   objective: undefined,
+                                                                   optimizationGoal: undefined,
+                                                                 });
                                                               } else {
-                                                                updateCampaignField(platform.id, market.id, phase.id, "objective", value);
-                                                                // Auto-set optimization goal when objective changes
-                                                                if (detectedPlatform) {
-                                                                  const defaultGoal = getDefaultOptimizationGoal(detectedPlatform, value);
-                                                                  if (defaultGoal) {
-                                                                    updateCampaignField(platform.id, market.id, phase.id, "optimizationGoal", defaultGoal);
-                                                                  }
-                                                                }
+                                                                 // Auto-set optimization goal in the SAME update so the Optimization Goal Select
+                                                                 // never renders with a value that isn't in its item list.
+                                                                 const defaultGoal = detectedPlatform
+                                                                   ? getDefaultOptimizationGoal(detectedPlatform, value)
+                                                                   : null;
+                                                                 updateCampaignFields(platform.id, market.id, phase.id, {
+                                                                   objective: value,
+                                                                   optimizationGoal: defaultGoal ?? undefined,
+                                                                 });
                                                               }
                                                             }}
                                                           >
