@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -614,23 +615,24 @@ return (
                                               return (
                                                 <>
                                                   {isAutoDetected && (
-                                                    <p className="text-xs text-blue-600 dark:text-blue-400">
+                                                     <p className="text-xs text-primary">
                                                       ✓ Auto-detected from phase name "{phase.name}"
                                                     </p>
                                                   )}
                                                   <div className="grid gap-3 md:grid-cols-2">
                                                     <div className="space-y-1">
                                                       <Label htmlFor={`objective-${phase.id}`} className="text-xs">
-                                                        Objective {isAutoDetected && <span className="text-blue-600">(Auto-detected)</span>}
+                                                         Objective {isAutoDetected && <span className="text-primary">(Auto-detected)</span>}
                                                       </Label>
                                                       {(() => {
                                                         const detectedPlatform = detectPlatformType(platform.name);
                                                         const objectives = detectedPlatform ? getObjectivesForPlatform(detectedPlatform) : [];
                                                         
                                                         return (
-                                                          <Select
-                                                            value={currentObjective}
-                                                            onValueChange={(value) => {
+                                                           <Combobox
+                                                             id={`objective-${phase.id}`}
+                                                             value={currentObjective}
+                                                             onValueChange={(value) => {
                                                               if (value === "AUTO_DETECT") {
                                                                  updateCampaignFields(platform.id, market.id, phase.id, {
                                                                    objective: undefined,
@@ -648,27 +650,19 @@ return (
                                                                  });
                                                               }
                                                             }}
-                                                          >
-                                                            <SelectTrigger id={`objective-${phase.id}`}>
-                                                              <SelectValue placeholder="Select objective" />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                              <SelectItem value="AUTO_DETECT" className="text-blue-600 font-medium">
-                                                                🔄 Auto-detect from phase
-                                                              </SelectItem>
-                                                              {objectives.map((obj) => (
-                                                                <SelectItem key={obj.value} value={obj.value}>
-                                                                  {obj.label}
-                                                                </SelectItem>
-                                                              ))}
-                                                            </SelectContent>
-                                                          </Select>
+                                                             options={[
+                                                               { value: "AUTO_DETECT", label: "Auto-detect from phase" },
+                                                               ...objectives.map((obj) => ({ value: obj.value, label: obj.label })),
+                                                             ]}
+                                                             placeholder="Select objective"
+                                                             searchPlaceholder="Search objectives..."
+                                                           />
                                                         );
                                                       })()}
                                                     </div>
                                                     <div className="space-y-1">
                                                       <Label htmlFor={`opt-goal-${phase.id}`} className="text-xs">
-                                                        Optimization Goal {isAutoDetected && <span className="text-blue-600">(Auto-detected)</span>}
+                                                         Optimization Goal {isAutoDetected && <span className="text-primary">(Auto-detected)</span>}
                                                       </Label>
                                                       {(() => {
                                                         const detectedPlatform = detectPlatformType(platform.name);
@@ -678,9 +672,10 @@ return (
                                                         const isDisabled = !currentObjective || currentObjective === "AUTO_DETECT";
                                                         
                                                         return (
-                                                          <Select
-                                                            value={currentOptGoal}
-                                                            onValueChange={(value) => {
+                                                           <Combobox
+                                                             id={`opt-goal-${phase.id}`}
+                                                             value={currentOptGoal}
+                                                             onValueChange={(value) => {
                                                               if (value === "AUTO_DETECT") {
                                                                 updateCampaignField(platform.id, market.id, phase.id, "optimizationGoal", undefined);
                                                               } else {
@@ -688,21 +683,14 @@ return (
                                                               }
                                                             }}
                                                             disabled={isDisabled}
-                                                          >
-                                                            <SelectTrigger id={`opt-goal-${phase.id}`} className={isDisabled ? 'opacity-50' : ''}>
-                                                              <SelectValue placeholder={isDisabled ? "Select objective first" : "Select optimization goal"} />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                              <SelectItem value="AUTO_DETECT" className="text-blue-600 font-medium">
-                                                                🔄 Auto-detect from phase
-                                                              </SelectItem>
-                                                              {optimizationGoals.map((goal) => (
-                                                                <SelectItem key={goal.value} value={goal.value}>
-                                                                  {goal.label}
-                                                                </SelectItem>
-                                                              ))}
-                                                            </SelectContent>
-                                                          </Select>
+                                                             className={isDisabled ? "opacity-50" : undefined}
+                                                             options={[
+                                                               { value: "AUTO_DETECT", label: "Auto-detect from phase" },
+                                                               ...optimizationGoals.map((goal) => ({ value: goal.value, label: goal.label })),
+                                                             ]}
+                                                             placeholder={isDisabled ? "Select objective first" : "Select optimization goal"}
+                                                             searchPlaceholder="Search optimization goals..."
+                                                           />
                                                         );
                                                       })()}
                                                     </div>
