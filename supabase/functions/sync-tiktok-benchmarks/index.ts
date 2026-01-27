@@ -225,6 +225,7 @@ serve(async (req) => {
           .from("campaign_performance_benchmarks")
           .upsert({
             user_id: user.id,
+            platform: 'tiktok',
             market: benchmark.market,
             optimization_goal: benchmark.optimization_goal,
             industry: benchmark.industry,
@@ -236,7 +237,7 @@ serve(async (req) => {
             date_range_start: dateRangeStart,
             date_range_end: dateRangeEnd,
           }, {
-            onConflict: "user_id,market,optimization_goal,date_range_start,date_range_end"
+            onConflict: "user_id,platform,market,optimization_goal,industry,date_range_start,date_range_end"
           });
 
         if (error) {
