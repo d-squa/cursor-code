@@ -90,10 +90,15 @@ export function PushConfirmationDialog({
                     </Badge>
                   )}
                   {adSummary.organic > 0 && (
-                    <Badge variant="outline" className="flex items-center gap-1.5 border-green-500/50 text-green-700 dark:text-green-400">
-                      <Repeat className="h-3 w-3" />
-                      {adSummary.organic} Organic Post{adSummary.organic !== 1 ? 's' : ''}
-                    </Badge>
+                    <div className="flex flex-col gap-1">
+                      <Badge variant="outline" className="flex items-center gap-1.5 border-green-500/50 text-green-700 dark:text-green-400 w-fit">
+                        <Repeat className="h-3 w-3" />
+                        {adSummary.organic} Organic Post{adSummary.organic !== 1 ? 's' : ''}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        Note: Organic posts with website traffic optimization require a landing page URL
+                      </span>
+                    </div>
                   )}
                   {adSummary.carousel > 0 && (
                     <Badge variant="secondary" className="flex items-center gap-1.5">
