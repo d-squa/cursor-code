@@ -22,8 +22,10 @@ import {
   ClipboardList,
 } from "lucide-react";
 import { BugReportDialog } from "@/components/BugReportDialog";
-import { CampaignOverviewCard } from "@/components/overview/CampaignOverviewCard";
+import { CampaignOverviewCard, PlatformPerformance } from "@/components/overview/CampaignOverviewCard";
 import { BlurredPlaceholderCard } from "@/components/overview/BlurredPlaceholderCard";
+import { OverviewFiltersBar, OverviewFilters } from "@/components/overview/OverviewFilters";
+import { PerformanceMetric, getPerformanceStatus } from "@/components/overview/PerformanceBar";
 import { Loader2 } from "lucide-react";
 import { differenceInDays, differenceInHours, startOfWeek, isAfter, subDays } from "date-fns";
 
@@ -36,6 +38,7 @@ interface Campaign {
   end_date: string;
   updated_at: string;
   platforms?: any;
+  forecast_data?: any;
 }
 
 interface CampaignInsight {
@@ -139,6 +142,12 @@ const Overview = () => {
   const [insights, setInsights] = useState<CampaignInsight[]>([]);
   const [modRequests, setModRequests] = useState<ModificationRequest[]>([]);
   const [savedAnalyses, setSavedAnalyses] = useState<SavedAnalysis[]>([]);
+  const [filters, setFilters] = useState<OverviewFilters>({
+    status: null,
+    pacingStatus: null,
+    platform: null,
+    performanceStatus: null,
+  });
 
   const getNextTierName = (): string => {
     const tierOrder: SubscriptionTier[] = ['trial', 'basic', 'freelancer', 'enterprise', 'agency'];
@@ -353,6 +362,113 @@ const Overview = () => {
       const totalBudgetPct = campaign.total_budget > 0 ? (totalSpent / campaign.total_budget) * 100 : 0;
       const totalPacingDiff = totalBudgetPct - timePct;
 
+      // Extract performance metrics from forecast_data and campaign_insights
+      const platformPerformance: PlatformPerformance[] = [];
+      const actiplanForecast = campaign.forecast_data?.actiplanForecast;
+      
+      if (actiplanForecast?.platforms) {
+        actiplanForecast.platforms.forEach((pf: any) => {
+          const platformName = (pf.platformName || pf.platformId || '').toLowerCase();
+          const insight = campaignInsights.find(i => i.platform.toLowerCase() === platformName);
+          const pConfig = platformMap[platformName];
+          const pTimePct = pConfig?.timePct || timePct;
+          
+          const metrics: PerformanceMetric[] = [];
+          
+          // Aggregate targets from all markets for this platform
+          let totalTargetImpressions = 0;
+          let totalTargetReach = 0;
+          let totalTargetClicks = 0;
+          let totalTargetConversions = 0;
+          
+          (pf.markets || []).forEach((market: any) => {
+            totalTargetImpressions += market.impressions || 0;
+            totalTargetReach += market.reach || 0;
+            // Calculate results from phases based on optimization goals
+            (market.phases || []).forEach((phase: any) => {
+              if (phase.optimizationGoal === 'LINK_CLICKS' || phase.optimizationGoal === 'LANDING_PAGE_VIEWS') {
+                totalTargetClicks += phase.result || 0;
+              }
+              if (phase.optimizationGoal === 'CONVERSIONS' || phase.optimizationGoal === 'OFFSITE_CONVERSIONS') {
+                totalTargetConversions += phase.result || 0;
+              }
+            });
+          });
+          
+          // Get actual metrics from insights
+          const actualImpressions = insight?.metrics?.impressions || 0;
+          const actualReach = insight?.metrics?.reach || 0;
+          const actualClicks = insight?.metrics?.clicks || 0;
+          const actualConversions = insight?.metrics?.conversion || insight?.metrics?.conversions || 0;
+          
+          // Add metrics that have targets
+          if (totalTargetImpressions > 0) {
+            metrics.push({
+              label: 'Impressions',
+              kpi: 'Impressions',
+              targetValue: totalTargetImpressions,
+              actualValue: actualImpressions,
+              timePct: pTimePct,
+            });
+          }
+          
+          if (totalTargetReach > 0) {
+            metrics.push({
+              label: 'Reach',
+              kpi: 'Reach',
+              targetValue: totalTargetReach,
+              actualValue: actualReach,
+              timePct: pTimePct,
+            });
+          }
+          
+          if (totalTargetClicks > 0) {
+            metrics.push({
+              label: 'Clicks',
+              kpi: 'Clicks',
+              targetValue: totalTargetClicks,
+              actualValue: actualClicks,
+              timePct: pTimePct,
+            });
+          }
+          
+          if (totalTargetConversions > 0) {
+            metrics.push({
+              label: 'Conversions',
+              kpi: 'Conversions',
+              targetValue: totalTargetConversions,
+              actualValue: actualConversions,
+              timePct: pTimePct,
+            });
+          }
+          
+          if (metrics.length > 0) {
+            platformPerformance.push({ platform: platformName, metrics });
+          }
+        });
+      }
+      
+      // For sample campaign, add mock performance data
+      if (campaign.id === "sample-campaign-1") {
+        const metaTimePct = platformMap["meta"]?.timePct || timePct;
+        const tiktokTimePct = platformMap["tiktok"]?.timePct || timePct;
+        
+        platformPerformance.push({
+          platform: "meta",
+          metrics: [
+            { label: "Impressions", kpi: "Impressions", targetValue: 8000000, actualValue: 2500000, timePct: metaTimePct },
+            { label: "Reach", kpi: "Reach", targetValue: 3500000, actualValue: 1200000, timePct: metaTimePct },
+          ]
+        });
+        platformPerformance.push({
+          platform: "tiktok",
+          metrics: [
+            { label: "Impressions", kpi: "Impressions", targetValue: 5000000, actualValue: 1800000, timePct: tiktokTimePct },
+            { label: "Views", kpi: "Video Views", targetValue: 2000000, actualValue: 850000, timePct: tiktokTimePct },
+          ]
+        });
+      }
+
       // Modification requests for this campaign
       const campaignModRequests = displayData.modRequests.filter(m => m.campaign_id === campaign.id);
       const pendingRequests = campaignModRequests.filter(m => m.status === "pending" || m.status === "sent").length;
@@ -416,9 +532,20 @@ const Overview = () => {
       const campaignAnalyses = displayData.savedAnalyses.filter(a => a.campaign_id === campaign.id);
       const hasRecentAnalysis = campaignAnalyses.some(a => isAfter(new Date(a.created_at), weekStart));
 
+      // Calculate pacing status
+      const pacingStatus = Math.abs(totalPacingDiff) <= 5 
+        ? 'on-track' 
+        : totalPacingDiff > 5 ? 'overpacing' : 'underpacing';
+      
+      // Calculate performance status
+      const performanceStatus = platformPerformance.length > 0 
+        ? getPerformanceStatus(platformPerformance.flatMap(p => p.metrics))
+        : null;
+
       return {
         campaign,
         platformPacing,
+        platformPerformance,
         totalBudgetSpent: totalSpent,
         totalTimePct: timePct,
         totalBudgetPct,
@@ -433,9 +560,51 @@ const Overview = () => {
         hasRecentAnalysis,
         statsByDateRange,
         platformStatsByDateRange,
+        pacingStatus,
+        performanceStatus,
       };
     });
   }, [sortedCampaigns, displayData]);
+
+  // Get available platforms for filter
+  const availablePlatforms = useMemo(() => {
+    const platforms = new Set<string>();
+    campaignPacingData.forEach(data => {
+      data.platformPacing.forEach(p => platforms.add(p.platform));
+    });
+    return Array.from(platforms);
+  }, [campaignPacingData]);
+
+  // Apply filters
+  const filteredCampaignData = useMemo(() => {
+    return campaignPacingData.filter(data => {
+      // Status filter
+      if (filters.status && data.campaign.status !== filters.status) {
+        return false;
+      }
+      
+      // Pacing status filter
+      if (filters.pacingStatus && data.pacingStatus !== filters.pacingStatus) {
+        return false;
+      }
+      
+      // Platform filter - check if campaign has this platform
+      if (filters.platform) {
+        const hasPlatform = data.platformPacing.some(
+          p => p.platform.toLowerCase() === filters.platform?.toLowerCase()
+        );
+        if (!hasPlatform) return false;
+      }
+      
+      // Performance status filter
+      if (filters.performanceStatus) {
+        if (!data.performanceStatus) return false;
+        if (data.performanceStatus !== filters.performanceStatus) return false;
+      }
+      
+      return true;
+    });
+  }, [campaignPacingData, filters]);
 
   const hasAnyCampaigns = campaigns.length > 0;
 
@@ -562,6 +731,15 @@ const Overview = () => {
           </div>
         </div>
 
+        {/* Filters */}
+        {hasAnyCampaigns && (
+          <OverviewFiltersBar 
+            filters={filters} 
+            onFiltersChange={setFilters} 
+            availablePlatforms={availablePlatforms}
+          />
+        )}
+
         {/* Campaign Cards */}
         {loading ? (
           <div className="flex items-center justify-center py-20">
@@ -573,13 +751,18 @@ const Overview = () => {
             <BlurredPlaceholderCard />
             <BlurredPlaceholderCard />
           </div>
+        ) : filteredCampaignData.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">No campaigns match the selected filters.</p>
+          </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            {campaignPacingData.map(data => (
+            {filteredCampaignData.map(data => (
               <CampaignOverviewCard
                 key={data.campaign.id}
                 campaign={data.campaign}
                 platformPacing={data.platformPacing}
+                platformPerformance={data.platformPerformance}
                 totalBudgetSpent={data.totalBudgetSpent}
                 totalTimePct={data.totalTimePct}
                 totalBudgetPct={data.totalBudgetPct}
