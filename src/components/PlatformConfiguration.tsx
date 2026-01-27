@@ -11,6 +11,7 @@ import { AdFormatSelector } from "./AdFormatSelector";
 import { getPhasesFromAdFormats } from "@/utils/adFormats";
 import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { BudgetTypeToggleGroup } from "./BudgetTypeToggleGroup";
 
 export interface Phase {
   id: string;
@@ -729,30 +730,19 @@ export function PlatformConfiguration({ platforms, setPlatforms, startDate, endD
                                 </Badge>
                               )}
                             </div>
-                            <Select
-                              value={campaign.budgetType || ""}
-                              onValueChange={(value: "daily" | "lifetime") => 
-                                updateCampaign(platform.id, campaign.id, "budgetType", value)
-                              }
-                            >
-                              <SelectTrigger className={!campaign.budgetType ? 'border-yellow-500' : ''}>
-                                <SelectValue placeholder="Select budget type" />
-                              </SelectTrigger>
-                              <SelectContent className="bg-popover z-50">
-                                <SelectItem value="daily">
-                                  <div className="flex flex-col">
-                                    <span className="font-medium">Daily Budget</span>
-                                    <span className="text-xs text-muted-foreground">Fixed daily spend limit</span>
-                                  </div>
-                                </SelectItem>
-                                <SelectItem value="lifetime">
-                                  <div className="flex flex-col">
-                                    <span className="font-medium">Lifetime Budget</span>
-                                    <span className="text-xs text-muted-foreground">Total budget optimized over campaign duration</span>
-                                  </div>
-                                </SelectItem>
-                              </SelectContent>
-                            </Select>
+                            <BudgetTypeToggleGroup
+                              id={`campaign-budget-type-${campaign.id}`}
+                              value={campaign.budgetType ?? ""}
+                              options={[
+                                { value: "daily", label: "Daily" },
+                                { value: "lifetime", label: "Lifetime" },
+                              ]}
+                              onValueChange={(value) => {
+                                if (value === "daily" || value === "lifetime") {
+                                  updateCampaign(platform.id, campaign.id, "budgetType", value);
+                                }
+                              }}
+                            />
                             {!campaign.budgetType && (
                               <p className="text-xs text-yellow-700 dark:text-yellow-300">
                                 Please select a budget type to continue
