@@ -54,6 +54,8 @@ import {
 interface PhaseSchedulerProps {
   phases: Phase[];
   onPhasesChange: (phases: Phase[]) => void;
+  /** Signals parent to skip the next generic→market phase sync (prevents circular clobber). */
+  onSkipNextSync?: () => void;
   startDate: string;
   endDate: string;
   platformId?: string;
@@ -151,7 +153,8 @@ interface DraggingState {
 
 export function PhaseScheduler({ 
   phases, 
-  onPhasesChange, 
+  onPhasesChange,
+  onSkipNextSync, 
   startDate, 
   endDate, 
   platformId = "meta", 
@@ -2633,6 +2636,9 @@ export function PhaseScheduler({
 
                                   // Update UI immediately (prevents reverting during intermediate re-renders).
                                   setOptimisticBudgetTypes((prev) => ({ ...prev, [phase.id]: bt }));
+
+                                  // Signal parent to skip the next generic→market phase sync (prevents circular clobber).
+                                  onSkipNextSync?.();
 
                                   // Commit via the stable helper (updates phasesRef.current first),
                                   // otherwise rapid toggles can read a stale phasesRef snapshot and "snap back".
