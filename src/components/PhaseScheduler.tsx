@@ -2634,10 +2634,9 @@ export function PhaseScheduler({
                                   // Update UI immediately (prevents reverting during intermediate re-renders).
                                   setOptimisticBudgetTypes((prev) => ({ ...prev, [phase.id]: bt }));
 
-                                  // Commit to parent state.
-                                  onPhasesChange(
-                                    phasesRef.current.map((p) => (p.id === phase.id ? { ...p, budgetType: bt } : p)),
-                                  );
+                                  // Commit via the stable helper (updates phasesRef.current first),
+                                  // otherwise rapid toggles can read a stale phasesRef snapshot and "snap back".
+                                  updatePhaseField(phase.id, "budgetType", bt);
 
                                   // Ask whether to apply this type to all phases.
                                   if (onApplyBudgetTypeToAll && bt) {
