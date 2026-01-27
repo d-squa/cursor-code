@@ -1788,22 +1788,26 @@ export function TextAssetExcelEditor({
                               );
                             }
                             
-                            // Text columns - read-only for organic posts
+                            // Text columns - read-only for organic posts EXCEPT destinationUrl (required for traffic objectives)
+                            const isOrganicEditableColumn = col.key === 'destinationUrl';
+                            const isLockedOrganic = isOrganic && !isOrganicEditableColumn;
+                            
                             return (
                               <div
                                 key={col.key}
                                 className={cn(
                                   "px-1 py-1 border-r shrink-0",
                                   isSelected && "bg-primary/20 outline outline-2 outline-primary",
-                                  isOrganic && "bg-green-50/30 dark:bg-green-950/10"
+                                  isOrganic && !isOrganicEditableColumn && "bg-green-50/30 dark:bg-green-950/10",
+                                  isOrganic && isOrganicEditableColumn && "bg-amber-50/30 dark:bg-amber-950/10"
                                 )}
                                 style={{ width: col.width }}
-                                onMouseDown={(e) => !isOrganic && handleCellMouseDown(rowIndex, absoluteColIdx, e)}
-                                onMouseEnter={() => !isOrganic && handleCellMouseEnter(rowIndex, absoluteColIdx)}
-                                onDoubleClick={() => !isOrganic && handleCellDoubleClick(rowIndex, absoluteColIdx, row)}
+                                onMouseDown={(e) => !isLockedOrganic && handleCellMouseDown(rowIndex, absoluteColIdx, e)}
+                                onMouseEnter={() => !isLockedOrganic && handleCellMouseEnter(rowIndex, absoluteColIdx)}
+                                onDoubleClick={() => !isLockedOrganic && handleCellDoubleClick(rowIndex, absoluteColIdx, row)}
                               >
                                 <div className="flex items-center">
-                                  {isEditing && !isOrganic ? (
+                                  {isEditing && !isLockedOrganic ? (
                                     <Input
                                       ref={inputRef}
                                       value={editValue}
@@ -1816,14 +1820,14 @@ export function TextAssetExcelEditor({
                                       <div 
                                         className={cn(
                                           "h-7 px-2 text-xs flex items-center truncate flex-1 rounded",
-                                          !isOrganic && "hover:bg-muted/50",
-                                          isOrganic && "cursor-default italic text-muted-foreground"
+                                          !isLockedOrganic && "hover:bg-muted/50",
+                                          isLockedOrganic && "cursor-default italic text-muted-foreground"
                                         )}
                                         title={value}
                                       >
-                                        {value || <span className="text-muted-foreground italic">{isOrganic ? '—' : 'Empty'}</span>}
+                                        {value || <span className="text-muted-foreground italic">{isLockedOrganic ? '—' : 'Empty'}</span>}
                                       </div>
-                                      {fieldConfig?.maxLength && !isOrganic && (
+                                      {fieldConfig?.maxLength && !isLockedOrganic && (
                                         <CharCounter value={value} maxLength={fieldConfig.maxLength} />
                                       )}
                                     </>
