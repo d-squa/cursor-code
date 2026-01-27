@@ -630,10 +630,11 @@ export function TextAssetExcelEditor({
     const col = GRID_COLUMNS[colIndex];
     if (!col?.editable || col.type === 'select') return;
     
-    // Check if row is organic (read-only)
+    // Check if row is organic (read-only) - but allow destinationUrl editing
     const isOrganic = !!(row as any).isOrganic || !!(row as any).externalPostId;
-    if (isOrganic) {
-      toast.info('Organic posts are read-only');
+    const isOrganicEditableColumn = col.key === 'destinationUrl';
+    if (isOrganic && !isOrganicEditableColumn) {
+      toast.info('Organic posts are read-only (except Destination URL)');
       return;
     }
     
@@ -1324,7 +1325,7 @@ export function TextAssetExcelEditor({
         <span className="mx-2">|</span>
         <span className="font-medium">Carousel:</span> Select 2+ creatives in same ad set → Create Carousel
         <span className="mx-2">|</span>
-        <span className="text-amber-600 font-medium">Organic posts are read-only</span>
+        <span className="text-amber-600 font-medium">Organic posts: read-only except Destination URL</span>
       </div>
 
       {/* Grid with sticky columns */}
