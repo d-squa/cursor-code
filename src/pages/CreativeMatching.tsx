@@ -66,7 +66,15 @@ export default function CreativeMatching() {
     clearAll: clearMatching,
     saveMatches,
     skipTextAssets,
+    loadExistingAssignments,
   } = useCreativeMatching(progress?.campaignId);
+
+  // Load existing assignments when campaign is loaded (for duplicated ActiPlans)
+  useEffect(() => {
+    if (progress?.campaignId && !matchingState.savedAssignments?.length) {
+      loadExistingAssignments(progress.campaignId);
+    }
+  }, [progress?.campaignId, loadExistingAssignments, matchingState.savedAssignments?.length]);
 
   // Campaign data for ad accounts and page configs
   const [campaignData, setCampaignData] = useState<{
@@ -294,15 +302,18 @@ export default function CreativeMatching() {
   const canNavigateToStep = useCallback((step: MeshStep): boolean => {
     if (!progress) return step === 'actiplan';
     
+    const hasExistingAssignments = matchingState.savedAssignments && matchingState.savedAssignments.length > 0;
+    
     switch (step) {
       case 'actiplan':
         return true;
       case 'source':
         return !!progress.campaignId && !!progress.platform;
       case 'mesh':
-        return progress.selectedAssets.length > 0 || matchingState.results.length > 0;
+        // Allow access if: selecting new assets, have matching results, OR have existing assignments
+        return progress.selectedAssets.length > 0 || matchingState.results.length > 0 || hasExistingAssignments;
       case 'content':
-        return matchingState.savedAssignments && matchingState.savedAssignments.length > 0;
+        return hasExistingAssignments;
       default:
         return false;
     }

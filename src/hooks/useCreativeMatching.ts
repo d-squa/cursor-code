@@ -1513,7 +1513,68 @@ export function useCreativeMatching(campaignId?: string) {
     setState(prev => ({ ...prev, currentStep: 'complete' }));
   }, []);
 
-  return { state, stats, loadCampaignStructures, processFiles, addLibraryCreatives, addPlatformAssets, runMatching, acceptMatch, rejectMatch, clearRejection, clearAcceptedMatch, removeAsset, clearAll, saveMatches, skipTextAssets };
+  // Load existing assignments from database (for duplicated ActiPlans or returning to workflow)
+  const loadExistingAssignments = useCallback(async (targetCampaignId: string) => {
+    if (!user) return;
+
+    try {
+      const { data: assignments, error } = await supabase
+        .from('creative_assignments')
+        .select(`
+          id,
+          creative_id,
+          platform,
+          market,
+          phase_name,
+          ad_set_name,
+          ad_set_id,
+          creatives (
+            id,
+            name,
+            creative_type,
+            media_urls
+          )
+        `)
+        .eq('campaign_id', targetCampaignId);
+
+      if (error) {
+        console.error('Error loading existing assignments:', error);
+        return;
+      }
+
+      if (assignments && assignments.length > 0) {
+        const savedAssignments = assignments.map((a: any) => {
+          const creative = a.creatives;
+          const isVideo = creative?.creative_type === 'video' || 
+            creative?.media_urls?.[0]?.includes('.mp4') || 
+            creative?.media_urls?.[0]?.includes('.mov');
+
+          return {
+            id: a.id,
+            creativeId: a.creative_id,
+            platform: a.platform,
+            market: a.market,
+            phaseName: a.phase_name,
+            adSetName: a.ad_set_name || 'Ad Set 1',
+            adSetId: a.ad_set_id,
+            creativeName: creative?.name || 'Creative',
+            mediaType: (isVideo ? 'video' : 'image') as 'image' | 'video',
+          };
+        });
+
+        setState(prev => ({
+          ...prev,
+          savedAssignments,
+        }));
+
+        console.log(`Loaded ${savedAssignments.length} existing assignments for campaign ${targetCampaignId}`);
+      }
+    } catch (error) {
+      console.error('Error loading existing assignments:', error);
+    }
+  }, [user]);
+
+  return { state, stats, loadCampaignStructures, processFiles, addLibraryCreatives, addPlatformAssets, runMatching, acceptMatch, rejectMatch, clearRejection, clearAcceptedMatch, removeAsset, clearAll, saveMatches, skipTextAssets, loadExistingAssignments };
 }
 
 // Helper functions
