@@ -315,9 +315,26 @@ export function CampaignForecast({
     for (const advertiserId of tiktokAdvertiserIds) {
       console.log(`  → Syncing TikTok account: ${advertiserId}`);
       syncPromises.push(
-        supabase.functions.invoke('sync-tiktok-benchmarks', {
-          body: { advertiserId }
-        }).catch(err => {
+        (async () => {
+          // Mirror Meta behavior: sync account assets + benchmarks before forecasting
+          const { error: resourcesError } = await supabase.functions.invoke('sync-tiktok-resources', {
+            body: { advertiserId },
+          });
+
+          if (resourcesError) {
+            console.warn(`TikTok resources sync error for ${advertiserId}:`, resourcesError);
+          }
+
+          const { error: benchmarksError } = await supabase.functions.invoke('sync-tiktok-benchmarks', {
+            body: { advertiserId },
+          });
+
+          if (benchmarksError) {
+            console.warn(`TikTok benchmarks sync error for ${advertiserId}:`, benchmarksError);
+          }
+
+          return { resourcesError, benchmarksError };
+        })().catch((err) => {
           console.warn(`Failed to sync TikTok account ${advertiserId}:`, err);
           return null;
         })

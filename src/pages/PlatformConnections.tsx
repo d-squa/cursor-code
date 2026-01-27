@@ -631,7 +631,11 @@ export default function PlatformConnections() {
       }
 
       // Then sync benchmarks
-      const { data, error } = await supabase.functions.invoke("sync-tiktok-benchmarks", {});
+      const { data, error } = await supabase.functions.invoke("sync-tiktok-benchmarks", {
+        body: {
+          advertiserId: account.advertiser_id,
+        },
+      });
 
       if (error) throw error;
 
