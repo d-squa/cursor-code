@@ -167,22 +167,34 @@ const Overview = () => {
   const loadData = async () => {
     if (!user || workspaceLoading) return;
     
+    // Wait for workspace to be resolved if we're still loading
+    if (!activeWorkspaceId && workspaceLoading) return;
+    
     try {
       // Fetch campaigns with relevant statuses for the active workspace
-      let query = supabase
-        .from("campaigns")
-        .select("*")
-        .in("status", ["pushed_to_dsp", "partially_pushed", "live", "ended"])
-        .order("updated_at", { ascending: false });
-
-      // Filter by workspace (team_id) if available, otherwise by user_id
+      // Use team_id filter exclusively when a workspace is selected
+      // RLS policies handle access control - we just need to filter to the right workspace
+      let campaignData: Campaign[] | null = null;
+      
       if (activeWorkspaceId) {
-        query = query.eq("team_id", activeWorkspaceId);
+        // Filter by workspace team_id only - this ensures we only see campaigns for the active workspace
+        const { data } = await supabase
+          .from("campaigns")
+          .select("*")
+          .eq("team_id", activeWorkspaceId)
+          .in("status", ["pushed_to_dsp", "partially_pushed", "live", "ended"])
+          .order("updated_at", { ascending: false });
+        campaignData = data;
       } else {
-        query = query.eq("user_id", user.id);
+        // No workspace selected - show user's own campaigns (fallback)
+        const { data } = await supabase
+          .from("campaigns")
+          .select("*")
+          .eq("user_id", user.id)
+          .in("status", ["pushed_to_dsp", "partially_pushed", "live", "ended"])
+          .order("updated_at", { ascending: false });
+        campaignData = data;
       }
-
-      const { data: campaignData } = await query;
 
       if (campaignData) {
         setCampaigns(campaignData);
@@ -219,6 +231,12 @@ const Overview = () => {
   };
 
   useEffect(() => {
+    // Reset state when workspace changes to prevent stale data
+    setLoading(true);
+    setCampaigns([]);
+    setInsights([]);
+    setModRequests([]);
+    setSavedAnalyses([]);
     loadData();
   }, [user, activeWorkspaceId, workspaceLoading]);
 
