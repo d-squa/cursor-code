@@ -3,15 +3,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2, CheckCircle2, AlertCircle, Facebook, Link2, Unlink, Video, RefreshCw } from "lucide-react";
+import { Loader2, Plus, Trash2, CheckCircle2, AlertCircle, Facebook, Link2, Unlink, Video, RefreshCw, ChevronDown, ChevronRight } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { LockedFeatureButton } from "@/components/ui/locked-feature-button";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { PLATFORM_CONFIG } from "@/config/platforms";
 import PlatformAdAccountSelector from "@/components/PlatformAdAccountSelector";
+import PlatformAccountsCollapsible from "@/components/PlatformAccountsCollapsible";
 import ClientSelectionDialog from "@/components/ClientSelectionDialog";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { usePlatformSyncProgress } from "@/hooks/useTikTokSyncProgress";
@@ -787,227 +789,50 @@ export default function PlatformConnections() {
           </CardContent>
         </Card>
 
-        {/* Synced Meta Ad Accounts */}
+        {/* Platform Ad Accounts - Collapsible */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Facebook className="h-5 w-5 text-blue-600" />
-              Meta Ad Accounts
-            </CardTitle>
-            <CardDescription>Manage Meta ad accounts, link to clients, and configure settings</CardDescription>
+            <CardTitle>Ad Accounts</CardTitle>
+            <CardDescription>Manage ad accounts by platform. Click to expand each platform.</CardDescription>
           </CardHeader>
-          <CardContent>
-            {metaAdAccounts.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-muted-foreground">
-                  No Meta ad accounts synced yet. Connect a Meta platform to get started.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {metaAdAccounts.map((account) => (
-                  <div key={account.id} className="space-y-2">
-                    <div className="flex items-center justify-between p-4 rounded-lg border">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium">{account.account_name}</p>
-                          <Badge variant="outline">{account.account_id}</Badge>
-                          {account.client_id && account.clients && (
-                            <Badge variant="secondary">
-                              <Link2 className="h-3 w-3 mr-1" />
-                              {account.clients.name}
-                            </Badge>
-                          )}
-                        </div>
-                        {account.account_status && (
-                          <p className="text-sm text-muted-foreground">Status: {account.account_status}</p>
-                        )}
-                      </div>
-                      <div className="flex gap-2">
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleSyncAccountAssets(account)}
-                                disabled={syncingAssets === account.id}
-                              >
-                                {syncingAssets === account.id ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <RefreshCw className="h-4 w-4" />
-                                )}
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Sync pixels, pages, catalogs for this account</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                        {canManageClients ? (
-                          account.client_id ? (
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => handleUnlinkAccount(account.id, 'meta')}
-                            >
-                              <Unlink className="h-4 w-4 mr-2" />
-                              Unlink
-                            </Button>
-                          ) : (
-                            <Button 
-                              variant="default" 
-                              size="sm"
-                              onClick={() => {
-                                setSelectedAdAccountForLinking(account.id);
-                                setClientSelectorOpen(true);
-                              }}
-                            >
-                              <Link2 className="h-4 w-4 mr-2" />
-                              Link to Client
-                            </Button>
-                          )
-                        ) : (
-                          <LockedFeatureButton feature="client_management">
-                            <Button 
-                              variant="default" 
-                              size="sm"
-                            >
-                              <Link2 className="h-4 w-4 mr-2" />
-                              Link to Client
-                            </Button>
-                          </LockedFeatureButton>
-                        )}
-                        <Button 
-                          variant="destructive" 
-                          size="sm"
-                          onClick={() => handleDeleteAccount(account.id, 'meta')}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+          <CardContent className="space-y-3">
+            {/* Meta Ad Accounts - Collapsible */}
+            <PlatformAccountsCollapsible
+              platform="meta"
+              icon={<Facebook className="h-5 w-5 text-blue-600" />}
+              title="Meta Ad Accounts"
+              accounts={metaAdAccounts}
+              emptyMessage="No Meta ad accounts synced yet. Connect a Meta platform to get started."
+              syncingAssets={syncingAssets}
+              canManageClients={canManageClients}
+              onSyncAccount={handleSyncAccountAssets}
+              onLinkAccount={(accountId) => {
+                setSelectedAdAccountForLinking(accountId);
+                setClientSelectorOpen(true);
+              }}
+              onUnlinkAccount={(accountId) => handleUnlinkAccount(accountId, 'meta')}
+              onDeleteAccount={(accountId) => handleDeleteAccount(accountId, 'meta')}
+            />
+
+            {/* TikTok Ad Accounts - Collapsible */}
+            <PlatformAccountsCollapsible
+              platform="tiktok"
+              icon={<Video className="h-5 w-5 text-black dark:text-white" />}
+              title="TikTok Ad Accounts"
+              accounts={tiktokAdAccounts}
+              emptyMessage="No TikTok ad accounts synced yet. Connect a TikTok platform to get started."
+              syncingAssets={syncingAssets}
+              canManageClients={canManageClients}
+              onSyncAccount={handleSyncTikTokAccountAssets}
+              onLinkAccount={(accountId) => {
+                setSelectedAdAccountForLinking('tiktok_' + accountId);
+                setClientSelectorOpen(true);
+              }}
+              onUnlinkAccount={(accountId) => handleUnlinkAccount(accountId, 'tiktok')}
+              onDeleteAccount={(accountId) => handleDeleteAccount(accountId, 'tiktok')}
+            />
           </CardContent>
         </Card>
-
-        {/* Synced TikTok Ad Accounts */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Video className="h-5 w-5 text-black dark:text-white" />
-              TikTok Ad Accounts
-            </CardTitle>
-            <CardDescription>Manage TikTok advertiser accounts, link to clients, and configure settings</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {tiktokAdAccounts.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-muted-foreground">
-                  No TikTok ad accounts synced yet. Connect a TikTok platform to get started.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {tiktokAdAccounts.map((account) => (
-                  <div key={account.id} className="flex items-center justify-between p-4 rounded-lg border bg-black/5 dark:bg-white/5">
-                    <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium">{account.account_name}</p>
-                          {account.bc_id && account.business_center && (
-                            <Badge variant="outline" className="text-xs">
-                              BC: {account.business_center.name}
-                            </Badge>
-                          )}
-                          <Badge variant="outline" className="border-black/20 dark:border-white/20">{account.account_id}</Badge>
-                        {account.client_id && account.clients && (
-                          <Badge variant="secondary">
-                            <Link2 className="h-3 w-3 mr-1" />
-                            {account.clients.name}
-                          </Badge>
-                        )}
-                      </div>
-                      {account.account_status && (
-                        <p className="text-sm text-muted-foreground">Status: {account.account_status}</p>
-                      )}
-                    </div>
-                    <div className="flex gap-2">
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleSyncTikTokAccountAssets(account)}
-                              disabled={syncingAssets === account.id}
-                              className="border-black/20 dark:border-white/20"
-                            >
-                              {syncingAssets === account.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <RefreshCw className="h-4 w-4" />
-                              )}
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>Sync pixels, identities & benchmarks</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                      {canManageClients ? (
-                        account.client_id ? (
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => handleUnlinkAccount(account.id, 'tiktok')}
-                            className="border-black/20 dark:border-white/20"
-                          >
-                            <Unlink className="h-4 w-4 mr-2" />
-                            Unlink
-                          </Button>
-                        ) : (
-                          <Button 
-                            variant="default" 
-                            size="sm"
-                            onClick={() => {
-                              setSelectedAdAccountForLinking('tiktok_' + account.id);
-                              setClientSelectorOpen(true);
-                            }}
-                          >
-                            <Link2 className="h-4 w-4 mr-2" />
-                            Link to Client
-                          </Button>
-                        )
-                      ) : (
-                        <LockedFeatureButton feature="client_management">
-                          <Button 
-                            variant="default" 
-                            size="sm"
-                          >
-                            <Link2 className="h-4 w-4 mr-2" />
-                            Link to Client
-                          </Button>
-                        </LockedFeatureButton>
-                      )}
-                      <Button 
-                        variant="destructive" 
-                        size="sm"
-                        onClick={() => handleDeleteAccount(account.id, 'tiktok')}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
         <PlatformAdAccountSelector
           open={accountSelectorOpen}
           onOpenChange={setAccountSelectorOpen}
