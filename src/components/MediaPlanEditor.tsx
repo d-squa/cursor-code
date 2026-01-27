@@ -541,18 +541,29 @@ export function MediaPlanEditor() {
           if (usesGlobalStrategy && genericConfig.phases && genericConfig.phases.length > 0) {
             return {
               ...market,
-              phases: genericConfig.phases.map(phase => ({
-                ...phase,
-                // Preserve any market-specific overrides that might exist
-                ...(market.phases?.find(mp => mp.name === phase.name) || {}),
-                // But ensure core phase properties come from genericConfig
-                name: phase.name,
-                startDate: phase.startDate,
-                endDate: phase.endDate,
-                budgetPercentage: phase.budgetPercentage,
-                objective: phase.objective,
-                optimizationGoal: phase.optimizationGoal,
-              })),
+              phases: genericConfig.phases.map((genericPhase) => {
+                const existing = market.phases?.find((mp) => mp.name === genericPhase.name);
+                const hasObjectiveOverride =
+                  !!existing && Object.prototype.hasOwnProperty.call(existing, "objective");
+                const hasOptimizationGoalOverride =
+                  !!existing && Object.prototype.hasOwnProperty.call(existing, "optimizationGoal");
+
+                return {
+                  ...genericPhase,
+                  // Preserve any market-specific overrides that might exist
+                  ...(existing || {}),
+                  // Ensure core phase structure comes from genericConfig
+                  name: genericPhase.name,
+                  startDate: genericPhase.startDate,
+                  endDate: genericPhase.endDate,
+                  budgetPercentage: genericPhase.budgetPercentage,
+                  // IMPORTANT: do NOT clobber manual overrides (even if explicitly set to `undefined` for Auto-detect)
+                  objective: hasObjectiveOverride ? (existing as any).objective : (genericPhase as any).objective,
+                  optimizationGoal: hasOptimizationGoalOverride
+                    ? (existing as any).optimizationGoal
+                    : (genericPhase as any).optimizationGoal,
+                };
+              }),
             };
           }
           return market;
