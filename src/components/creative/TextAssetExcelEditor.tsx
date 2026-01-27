@@ -9,6 +9,8 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
+import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -1477,7 +1479,7 @@ export function TextAssetExcelEditor({
                           <span className="text-xs truncate" title={row.adSet}>{row.adSet}</span>
                         </div>
                         
-                        {/* Creative Name */}
+                        {/* Creative Name with Thumbnail Preview */}
                         <div
                           className="px-2 py-1.5 flex items-center gap-1 border-r shrink-0"
                           style={{ width: HIERARCHY_COLUMNS[6].width }}
@@ -1487,9 +1489,52 @@ export function TextAssetExcelEditor({
                           ) : (
                             <Image className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                           )}
-                          <span className="text-xs truncate" title={row.creativeName}>
-                            {row.creativeName}
-                          </span>
+                          <HoverCard openDelay={200} closeDelay={100}>
+                            <HoverCardTrigger asChild>
+                              <span className="text-xs truncate cursor-pointer hover:text-primary hover:underline" title={row.creativeName}>
+                                {row.creativeName}
+                              </span>
+                            </HoverCardTrigger>
+                            <HoverCardContent side="right" align="start" className="w-64 p-2">
+                              <div className="space-y-2">
+                                {row.thumbnailUrl ? (
+                                  <AspectRatio ratio={row.width && row.height ? row.width / row.height : 16 / 9}>
+                                    <div className="relative w-full h-full rounded-md overflow-hidden bg-muted">
+                                      <img
+                                        src={row.thumbnailUrl}
+                                        alt={row.creativeName}
+                                        className="w-full h-full object-cover"
+                                      />
+                                      {row.mediaType === 'video' && (
+                                        <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                                          <Video className="h-8 w-8 text-white" />
+                                        </div>
+                                      )}
+                                    </div>
+                                  </AspectRatio>
+                                ) : (
+                                  <div className="aspect-video flex items-center justify-center bg-muted rounded-md">
+                                    {row.mediaType === 'video' ? (
+                                      <Video className="h-10 w-10 text-muted-foreground" />
+                                    ) : (
+                                      <Image className="h-10 w-10 text-muted-foreground" />
+                                    )}
+                                  </div>
+                                )}
+                                <div className="space-y-1">
+                                  <p className="text-xs font-medium truncate">{row.creativeName}</p>
+                                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                    {row.width && row.height && (
+                                      <span>{row.width}×{row.height}</span>
+                                    )}
+                                    {row.aspectRatio && (
+                                      <span>({row.aspectRatio})</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </HoverCardContent>
+                          </HoverCard>
                           {hasErrors && (
                             <TooltipProvider>
                               <Tooltip>
