@@ -1,10 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
+import { getAccessToken } from "../_shared/vault-helper.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+const TIKTOK_API_BASE = "https://business-api.tiktok.com/open_api/v1.3";
 
 interface BenchmarkData {
   market: string;
@@ -35,36 +38,63 @@ serve(async (req) => {
       throw new Error("Unauthorized");
     }
 
+    const { advertiserId } = await req.json();
+
+    if (!advertiserId) {
+      throw new Error("Advertiser ID is required");
+    }
+
     console.log("=".repeat(60));
     console.log("🚀 STARTING TIKTOK BENCHMARK SYNC");
     console.log("User ID:", user.id);
+    console.log("Advertiser ID:", advertiserId);
     console.log("Timestamp:", new Date().toISOString());
     console.log("=".repeat(60));
 
-    // Get all TikTok ad accounts for the user with client industry
-    const { data: adAccounts, error: accountsError } = await supabase
+    // Get user's active TikTok platform connection
+    const { data: platformData, error: platformError } = await supabase
+      .from("connected_platforms")
+      .select("id, access_token")
+      .eq("user_id", user.id)
+      .eq("platform_type", "tiktok")
+      .eq("is_active", true)
+      .limit(1)
+      .maybeSingle();
+
+    if (platformError || !platformData) {
+      console.error("❌ Platform lookup error:", platformError);
+      throw new Error("No active TikTok platform connection found");
+    }
+
+    // Get access token from Vault (with fallback to database column)
+    const accessToken = await getAccessToken(supabase, platformData.id, platformData.access_token);
+    
+    if (!accessToken) {
+      throw new Error("Failed to retrieve access token");
+    }
+
+    // Get client industry for this advertiser
+    let industry: string | null = null;
+    
+    const { data: accountData } = await supabase
       .from("tiktok_ad_accounts")
-      .select(`
-        advertiser_id,
-        client_id,
-        clients!inner(industry)
-      `)
-      .eq("user_id", user.id);
+      .select("client_id")
+      .eq("advertiser_id", advertiserId)
+      .eq("user_id", user.id)
+      .maybeSingle();
 
-    if (accountsError) {
-      console.error("❌ Error fetching ad accounts:", accountsError);
-      throw accountsError;
+    if (accountData?.client_id) {
+      const { data: clientData } = await supabase
+        .from("clients")
+        .select("industry")
+        .eq("id", accountData.client_id)
+        .maybeSingle();
+      
+      industry = clientData?.industry || null;
+      console.log(`[BENCHMARK] Found client industry: ${industry}`);
+    } else {
+      console.log(`[BENCHMARK] No client linked to advertiser ${advertiserId}, industry will be null`);
     }
-
-    if (!adAccounts || adAccounts.length === 0) {
-      console.log("⚠️ No TikTok ad accounts found for user");
-      return new Response(
-        JSON.stringify({ message: "No TikTok ad accounts found" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    console.log(`📊 Found ${adAccounts.length} TikTok ad accounts to process`);
 
     // Calculate date range (last 3 months)
     const endDate = new Date();
@@ -76,195 +106,260 @@ serve(async (req) => {
 
     console.log(`📅 Date Range: ${dateRangeStart} to ${dateRangeEnd}`);
 
-    // Process each ad account's metrics
+    // Fetch insights from TikTok API with country breakdown
     const benchmarkMap = new Map<string, BenchmarkData>();
-    let processedAccounts = 0;
-    let failedAccounts = 0;
 
-    for (const account of adAccounts) {
-      try {
-        console.log(`\n📱 Processing account ${processedAccounts + 1}/${adAccounts.length}: ${account.advertiser_id}`);
-        
-        // Get all campaigns for this advertiser
-        const { data: campaigns } = await supabase
-          .from("tiktok_campaigns")
-          .select("tiktok_campaign_id, objective_type")
-          .eq("advertiser_id", account.advertiser_id)
-          .eq("user_id", user.id);
+    // TikTok Integrated Reports API - fetch at campaign level with location breakdown
+    const reportPayload = {
+      advertiser_id: advertiserId,
+      report_type: "BASIC",
+      data_level: "AUCTION_ADGROUP", // Ad group level has optimization_goal
+      dimensions: ["adgroup_id", "country_code"],
+      metrics: [
+        "spend",
+        "impressions",
+        "clicks",
+        "conversion",
+        "reach",
+        "video_views_p100"
+      ],
+      start_date: dateRangeStart,
+      end_date: dateRangeEnd,
+      page_size: 1000,
+    };
 
-        if (!campaigns || campaigns.length === 0) {
-          console.log(`  ⚠️  No campaigns found for advertiser ${account.advertiser_id}`);
-          processedAccounts++;
-          continue;
+    console.log(`[BENCHMARK] Fetching TikTok insights...`);
+    
+    const insightsResponse = await fetch(`${TIKTOK_API_BASE}/report/integrated/get/`, {
+      method: "POST",
+      headers: {
+        "Access-Token": accessToken,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(reportPayload),
+    });
+
+    if (!insightsResponse.ok) {
+      const errorText = await insightsResponse.text();
+      console.error(`[BENCHMARK] Error fetching insights: ${errorText}`);
+      throw new Error(`Failed to fetch TikTok insights: ${errorText}`);
+    }
+
+    const insightsData = await insightsResponse.json();
+    
+    if (insightsData.code !== 0) {
+      console.error(`[BENCHMARK] TikTok API error:`, insightsData.message);
+      throw new Error(`TikTok API error: ${insightsData.message}`);
+    }
+
+    const insights = insightsData.data?.list || [];
+    console.log(`[BENCHMARK] Retrieved ${insights.length} insight rows`);
+
+    // We need to get optimization_goal from ad groups table or API
+    // First, fetch all ad groups for this advertiser to get their optimization goals
+    const adGroupOptimizationMap = new Map<string, string>();
+    
+    // Try to get ad group optimization goals from API
+    const adGroupResponse = await fetch(
+      `${TIKTOK_API_BASE}/adgroup/get/?advertiser_id=${advertiserId}&page_size=1000`,
+      {
+        headers: {
+          "Access-Token": accessToken,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    if (adGroupResponse.ok) {
+      const adGroupData = await adGroupResponse.json();
+      if (adGroupData.code === 0 && adGroupData.data?.list) {
+        for (const adGroup of adGroupData.data.list) {
+          adGroupOptimizationMap.set(
+            adGroup.adgroup_id,
+            adGroup.optimization_goal || adGroup.optimize_goal || "UNKNOWN"
+          );
         }
-
-        console.log(`  ✅ Found ${campaigns.length} campaigns`);
-
-        // Get ad groups to access targeting/market data
-        const { data: adGroups } = await supabase
-          .from("tiktok_ad_groups")
-          .select("tiktok_ad_group_id, tiktok_campaign_id, optimization_goal, targeting")
-          .eq("advertiser_id", account.advertiser_id)
-          .eq("user_id", user.id)
-          .in("tiktok_campaign_id", campaigns.map(c => c.tiktok_campaign_id));
-
-        console.log(`  ✅ Found ${adGroups?.length || 0} ad groups`);
-
-        // Fetch metrics for this advertiser in the date range
-        const { data: metrics } = await supabase
-          .from("tiktok_metrics")
-          .select("*")
-          .eq("advertiser_id", account.advertiser_id)
-          .eq("user_id", user.id)
-          .gte("date", dateRangeStart)
-          .lte("date", dateRangeEnd);
-
-        if (!metrics || metrics.length === 0) {
-          console.log(`  ⚠️  No metrics found for date range`);
-          processedAccounts++;
-          continue;
-        }
-
-        console.log(`  ✅ Retrieved ${metrics.length} metric records`);
-
-        // Group metrics by campaign and ad group
-        const campaignMetricsMap = new Map<string, any[]>();
-        const adGroupMetricsMap = new Map<string, any[]>();
-
-        for (const metric of metrics) {
-          if (metric.tiktok_campaign_id) {
-            if (!campaignMetricsMap.has(metric.tiktok_campaign_id)) {
-              campaignMetricsMap.set(metric.tiktok_campaign_id, []);
-            }
-            campaignMetricsMap.get(metric.tiktok_campaign_id)!.push(metric);
-          }
-          if (metric.tiktok_ad_group_id) {
-            if (!adGroupMetricsMap.has(metric.tiktok_ad_group_id)) {
-              adGroupMetricsMap.set(metric.tiktok_ad_group_id, []);
-            }
-            adGroupMetricsMap.get(metric.tiktok_ad_group_id)!.push(metric);
-          }
-        }
-
-        // Process ad group level benchmarks (more granular)
-        for (const adGroup of (adGroups || [])) {
-          const adGroupMetrics = adGroupMetricsMap.get(adGroup.tiktok_ad_group_id) || [];
-          if (adGroupMetrics.length === 0) continue;
-
-          // Extract market from targeting
-          const targeting = adGroup.targeting as any;
-          const markets = targeting?.location_ids || targeting?.countries || [];
-          const market = markets.length > 0 ? markets[0] : "UNKNOWN";
-
-          const optimizationGoal = adGroup.optimization_goal || "UNKNOWN";
-
-          // Aggregate metrics
-          const totalSpend = adGroupMetrics.reduce((sum, m) => sum + (m.spend || 0), 0);
-          const totalImpressions = adGroupMetrics.reduce((sum, m) => sum + (m.impressions || 0), 0);
-          const totalConversions = adGroupMetrics.reduce((sum, m) => sum + (m.conversions || 0), 0);
-          const totalClicks = adGroupMetrics.reduce((sum, m) => sum + (m.clicks || 0), 0);
-
-          // Determine result count based on optimization goal
-          let results = 0;
-          if (optimizationGoal.includes("CONVERSION") || optimizationGoal.includes("PURCHASE")) {
-            results = totalConversions;
-          } else if (optimizationGoal.includes("CLICK")) {
-            results = totalClicks;
-          } else {
-            results = totalImpressions / 1000; // Use impressions as fallback
-          }
-
-          const key = `${market}_${optimizationGoal}`;
-
-          if (!benchmarkMap.has(key)) {
-            benchmarkMap.set(key, {
-              market,
-              optimization_goal: optimizationGoal,
-              total_spend: 0,
-              total_results: 0,
-              impressions: 0,
-              campaign_count: 0,
-              industry: (account.clients as any)?.industry || null,
-            });
-          }
-
-          const benchmark = benchmarkMap.get(key)!;
-          benchmark.total_spend += totalSpend;
-          benchmark.total_results += results;
-          benchmark.impressions += totalImpressions;
-          benchmark.campaign_count += 1;
-        }
-
-        processedAccounts++;
-        console.log(`✅ Account ${account.advertiser_id} processed successfully`);
-        
-      } catch (error) {
-        failedAccounts++;
-        console.error(`❌ Error processing account ${account.advertiser_id}:`, error);
+        console.log(`[BENCHMARK] Loaded ${adGroupOptimizationMap.size} ad group optimization goals`);
       }
     }
 
-    console.log(`\n📊 Processing Summary:`);
-    console.log(`  - Accounts processed: ${processedAccounts}`);
-    console.log(`  - Accounts failed: ${failedAccounts}`);
-    console.log(`  - Unique benchmarks found: ${benchmarkMap.size}`);
+    // Map TikTok optimization goals to standardized names
+    const optimizationGoalMap: { [key: string]: string } = {
+      "CLICK": "CLICK",
+      "CONVERT": "CONVERSION",
+      "SHOW": "IMPRESSION",
+      "REACH": "REACH",
+      "VIDEO_VIEW": "VIDEO_VIEWS",
+      "ENGAGED_VIEW": "VIDEO_VIEWS",
+      "SIX_SECOND_VIDEO_VIEW": "VIDEO_VIEWS",
+      "TWO_SECOND_VIDEO_VIEW": "VIDEO_VIEWS",
+      "INSTALL": "APP_INSTALLS",
+      "IN_APP_EVENT": "IN_APP_EVENT",
+      "LEAD_GENERATION": "LEAD_GENERATION",
+      "ON_WEB_ORDER": "PURCHASE",
+      "ON_WEB_ADD_TO_CART": "ADD_TO_CART",
+      "ON_WEB_SUBSCRIBE": "SUBSCRIBE",
+      "COMPLETE_PAYMENT": "PURCHASE",
+      "VALUE": "VALUE_OPTIMIZATION",
+    };
+
+    // Process insights
+    for (const insight of insights) {
+      const dimensions = insight.dimensions || {};
+      const metrics = insight.metrics || {};
+      
+      const adGroupId = dimensions.adgroup_id;
+      const country = dimensions.country_code || "UNKNOWN";
+      
+      const spend = parseFloat(metrics.spend || "0");
+      const impressions = parseFloat(metrics.impressions || "0");
+      const clicks = parseFloat(metrics.clicks || "0");
+      const conversions = parseFloat(metrics.conversion || "0");
+      const reach = parseFloat(metrics.reach || "0");
+      const videoViews = parseFloat(metrics.video_views_p100 || "0");
+
+      // Get optimization goal for this ad group
+      let rawGoal = adGroupOptimizationMap.get(adGroupId) || "UNKNOWN";
+      const optimizationGoal = optimizationGoalMap[rawGoal] || rawGoal;
+
+      // Skip if no spend
+      if (spend <= 0) continue;
+
+      // Determine result based on optimization goal
+      let results = 0;
+      if (optimizationGoal.includes("CONVERSION") || optimizationGoal.includes("PURCHASE") || optimizationGoal === "ADD_TO_CART" || optimizationGoal === "SUBSCRIBE") {
+        results = conversions;
+      } else if (optimizationGoal === "CLICK") {
+        results = clicks;
+      } else if (optimizationGoal === "REACH") {
+        results = reach;
+      } else if (optimizationGoal.includes("VIDEO")) {
+        results = videoViews;
+      } else if (optimizationGoal === "APP_INSTALLS" || optimizationGoal === "INSTALL") {
+        results = conversions; // App installs come through as conversions
+      } else if (optimizationGoal === "LEAD_GENERATION") {
+        results = conversions;
+      } else {
+        results = impressions / 1000; // Fallback to CPM-style
+      }
+
+      const key = `${country}_${optimizationGoal}`;
+      
+      if (!benchmarkMap.has(key)) {
+        benchmarkMap.set(key, {
+          market: country,
+          optimization_goal: optimizationGoal,
+          total_spend: 0,
+          total_results: 0,
+          impressions: 0,
+          campaign_count: 0,
+          industry: industry,
+        });
+      }
+
+      const benchmark = benchmarkMap.get(key)!;
+      benchmark.total_spend += spend;
+      benchmark.total_results += results;
+      benchmark.impressions += impressions;
+      benchmark.campaign_count += 1;
+    }
+
+    // Also add REACH and CLICK benchmarks if we have the data
+    // These are useful for broad targeting campaigns
+    const countrySpendMap = new Map<string, { spend: number; reach: number; clicks: number; impressions: number }>();
+    
+    for (const insight of insights) {
+      const dimensions = insight.dimensions || {};
+      const metrics = insight.metrics || {};
+      const country = dimensions.country_code || "UNKNOWN";
+      const spend = parseFloat(metrics.spend || "0");
+      const reach = parseFloat(metrics.reach || "0");
+      const clicks = parseFloat(metrics.clicks || "0");
+      const impressions = parseFloat(metrics.impressions || "0");
+
+      if (!countrySpendMap.has(country)) {
+        countrySpendMap.set(country, { spend: 0, reach: 0, clicks: 0, impressions: 0 });
+      }
+      const countryData = countrySpendMap.get(country)!;
+      countryData.spend += spend;
+      countryData.reach += reach;
+      countryData.clicks += clicks;
+      countryData.impressions += impressions;
+    }
+
+    // Add aggregated REACH and CLICK benchmarks per country
+    for (const [country, data] of countrySpendMap.entries()) {
+      if (data.reach > 0 && !benchmarkMap.has(`${country}_REACH`)) {
+        benchmarkMap.set(`${country}_REACH`, {
+          market: country,
+          optimization_goal: "REACH",
+          total_spend: data.spend,
+          total_results: data.reach,
+          impressions: data.impressions,
+          campaign_count: 1,
+          industry: industry,
+        });
+      }
+      if (data.clicks > 0 && !benchmarkMap.has(`${country}_CLICK`)) {
+        benchmarkMap.set(`${country}_CLICK`, {
+          market: country,
+          optimization_goal: "CLICK",
+          total_spend: data.spend,
+          total_results: data.clicks,
+          impressions: data.impressions,
+          campaign_count: 1,
+          industry: industry,
+        });
+      }
+    }
+
+    console.log(`[BENCHMARK] Calculated ${benchmarkMap.size} unique benchmarks`);
 
     // Store benchmarks in database
-    console.log(`\n💾 Storing ${benchmarkMap.size} TikTok benchmarks in database...`);
-    
     let storedCount = 0;
-    let storageErrors = 0;
     
     for (const [key, benchmark] of benchmarkMap.entries()) {
       const avgCostPerResult = benchmark.total_results > 0
         ? benchmark.total_spend / benchmark.total_results
         : null;
 
-      try {
-        const { error } = await supabase
-          .from("campaign_performance_benchmarks")
-          .upsert({
-            user_id: user.id,
-            platform: 'tiktok',
-            market: benchmark.market,
-            optimization_goal: benchmark.optimization_goal,
-            industry: benchmark.industry,
-            avg_cost_per_result: avgCostPerResult,
-            total_spend: benchmark.total_spend,
-            total_results: benchmark.total_results,
-            impressions: benchmark.impressions,
-            campaign_count: benchmark.campaign_count,
-            date_range_start: dateRangeStart,
-            date_range_end: dateRangeEnd,
-          }, {
-            onConflict: "user_id,platform,market,optimization_goal,industry,date_range_start,date_range_end"
-          });
+      const { error } = await supabase
+        .from("campaign_performance_benchmarks")
+        .upsert({
+          user_id: user.id,
+          platform: 'tiktok',
+          market: benchmark.market,
+          optimization_goal: benchmark.optimization_goal,
+          industry: benchmark.industry,
+          avg_cost_per_result: avgCostPerResult,
+          total_spend: benchmark.total_spend,
+          total_results: benchmark.total_results,
+          impressions: benchmark.impressions,
+          campaign_count: benchmark.campaign_count,
+          date_range_start: dateRangeStart,
+          date_range_end: dateRangeEnd,
+        }, {
+          onConflict: "user_id,platform,market,optimization_goal,industry,date_range_start,date_range_end"
+        });
 
-        if (error) {
-          console.error(`❌ Error storing benchmark ${key}:`, error);
-          storageErrors++;
-        } else {
-          console.log(`✅ Stored: ${benchmark.market} / ${benchmark.optimization_goal} - CPR: $${avgCostPerResult?.toFixed(2) || 'N/A'} (${benchmark.campaign_count} campaigns)`);
-          storedCount++;
-        }
-      } catch (error) {
-        console.error(`❌ Exception storing benchmark ${key}:`, error);
-        storageErrors++;
+      if (error) {
+        console.error(`[BENCHMARK] Error storing ${key}:`, error);
+      } else {
+        console.log(`[BENCHMARK] ✓ ${benchmark.market}/${benchmark.optimization_goal}: CPR $${avgCostPerResult?.toFixed(2) || 'N/A'} (${benchmark.total_results.toFixed(0)} results)`);
+        storedCount++;
       }
     }
 
-    console.log(`\n💾 Storage Summary:`);
-    console.log(`  - Successfully stored: ${storedCount}`);
-    console.log(`  - Storage errors: ${storageErrors}`);
     console.log("\n" + "=".repeat(60));
-    console.log("✅ TIKTOK BENCHMARK SYNC COMPLETED");
+    console.log(`✅ TIKTOK BENCHMARK SYNC COMPLETED - ${storedCount} benchmarks stored`);
     console.log("=".repeat(60));
 
     return new Response(
       JSON.stringify({
         success: true,
-        benchmarks_synced: benchmarkMap.size,
-        date_range: { start: dateRangeStart, end: dateRangeEnd }
+        advertiserId,
+        benchmarksSynced: storedCount,
+        dateRange: { start: dateRangeStart, end: dateRangeEnd }
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
