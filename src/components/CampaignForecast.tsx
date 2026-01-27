@@ -265,7 +265,7 @@ export function CampaignForecast({
   const syncBenchmarksForSelectedAccounts = async (): Promise<void> => {
     // Extract unique account IDs from platforms
     const metaAccountIds = new Set<string>();
-    let hasTikTokAccounts = false;
+    const tiktokAdvertiserIds = new Set<string>();
 
     for (const platform of platforms) {
       const platformName = platform.id.toLowerCase();
@@ -281,23 +281,24 @@ export function CampaignForecast({
               : `act_${market.adAccountId}`;
             metaAccountIds.add(cleanId);
           } else if (isTikTok) {
-            hasTikTokAccounts = true;
+            // TikTok uses advertiser_id directly
+            tiktokAdvertiserIds.add(market.adAccountId);
           }
         }
       }
     }
 
-    const totalSyncs = metaAccountIds.size + (hasTikTokAccounts ? 1 : 0);
+    const totalSyncs = metaAccountIds.size + tiktokAdvertiserIds.size;
     if (totalSyncs === 0) {
       console.log("📊 No ad accounts found in ActiPlan - skipping benchmark sync");
       return;
     }
 
-    console.log(`🔄 Syncing benchmarks for ${metaAccountIds.size} Meta accounts and ${hasTikTokAccounts ? '1 TikTok sync' : 'no TikTok'}...`);
+    console.log(`🔄 Syncing benchmarks for ${metaAccountIds.size} Meta accounts and ${tiktokAdvertiserIds.size} TikTok accounts...`);
 
     const syncPromises: Promise<any>[] = [];
 
-    // Sync Meta accounts
+    // Sync Meta accounts (per-account)
     for (const accountId of metaAccountIds) {
       console.log(`  → Syncing Meta account: ${accountId}`);
       syncPromises.push(
@@ -310,12 +311,14 @@ export function CampaignForecast({
       );
     }
 
-    // Sync TikTok (single call syncs all accounts)
-    if (hasTikTokAccounts) {
-      console.log(`  → Syncing TikTok benchmarks (all accounts)`);
+    // Sync TikTok accounts (per-account, same as Meta)
+    for (const advertiserId of tiktokAdvertiserIds) {
+      console.log(`  → Syncing TikTok account: ${advertiserId}`);
       syncPromises.push(
-        supabase.functions.invoke('sync-tiktok-benchmarks', {}).catch(err => {
-          console.warn(`Failed to sync TikTok benchmarks:`, err);
+        supabase.functions.invoke('sync-tiktok-benchmarks', {
+          body: { advertiserId }
+        }).catch(err => {
+          console.warn(`Failed to sync TikTok account ${advertiserId}:`, err);
           return null;
         })
       );
