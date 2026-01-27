@@ -7,7 +7,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { PlatformWithMarkets } from "@/types/mediaplan";
 import { GenericConfig } from "./GenericStrategyConfig";
-import { Loader2, TrendingUp, Users, Eye, Target, DollarSign, Download, Mail, FileSpreadsheet, FileText, ChevronDown, Rocket, Wand2 } from "lucide-react";
+import { Loader2, TrendingUp, Users, Eye, Target, DollarSign, Download, Mail, FileSpreadsheet, FileText, ChevronDown, Rocket, Wand2, RefreshCw } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getOptimizationGoalMetrics, getResultLabel, calculateResultFromImpressions } from "@/utils/optimizationGoals";
 import { getObjectiveFromPhaseName } from "@/utils/phaseObjectiveMapping";
@@ -168,6 +169,7 @@ export function CampaignForecast({
   const [expandedMarkets, setExpandedMarkets] = useState<Record<string, boolean>>({});
   const [existingLoadComplete, setExistingLoadComplete] = useState(false);
   const [benchmarks, setBenchmarks] = useState<Map<string, BenchmarkData>>(new Map());
+  const [isSyncingBenchmarks, setIsSyncingBenchmarks] = useState(false);
 
   // Load existing forecast on mount
   useEffect(() => {
@@ -258,6 +260,80 @@ export function CampaignForecast({
 
     saveForecastData();
   }, [forecasts, actiplanForecast, campaignId]);
+
+  // Sync benchmarks for all selected ad accounts across platforms
+  const syncBenchmarksForSelectedAccounts = async (): Promise<void> => {
+    // Extract unique account IDs from platforms
+    const metaAccountIds = new Set<string>();
+    let hasTikTokAccounts = false;
+
+    for (const platform of platforms) {
+      const platformName = platform.id.toLowerCase();
+      const isMeta = platformName.includes("facebook") || platformName.includes("instagram") || platformName.includes("meta");
+      const isTikTok = platformName.includes("tiktok");
+
+      for (const market of platform.markets) {
+        if (market.adAccountId) {
+          if (isMeta) {
+            // Clean the account ID (remove "act_" prefix if present for sync)
+            const cleanId = market.adAccountId.startsWith("act_") 
+              ? market.adAccountId 
+              : `act_${market.adAccountId}`;
+            metaAccountIds.add(cleanId);
+          } else if (isTikTok) {
+            hasTikTokAccounts = true;
+          }
+        }
+      }
+    }
+
+    const totalSyncs = metaAccountIds.size + (hasTikTokAccounts ? 1 : 0);
+    if (totalSyncs === 0) {
+      console.log("📊 No ad accounts found in ActiPlan - skipping benchmark sync");
+      return;
+    }
+
+    console.log(`🔄 Syncing benchmarks for ${metaAccountIds.size} Meta accounts and ${hasTikTokAccounts ? '1 TikTok sync' : 'no TikTok'}...`);
+
+    const syncPromises: Promise<any>[] = [];
+
+    // Sync Meta accounts
+    for (const accountId of metaAccountIds) {
+      console.log(`  → Syncing Meta account: ${accountId}`);
+      syncPromises.push(
+        supabase.functions.invoke('sync-account-assets', {
+          body: { accountId, platform: 'meta' }
+        }).catch(err => {
+          console.warn(`Failed to sync Meta account ${accountId}:`, err);
+          return null;
+        })
+      );
+    }
+
+    // Sync TikTok (single call syncs all accounts)
+    if (hasTikTokAccounts) {
+      console.log(`  → Syncing TikTok benchmarks (all accounts)`);
+      syncPromises.push(
+        supabase.functions.invoke('sync-tiktok-benchmarks', {}).catch(err => {
+          console.warn(`Failed to sync TikTok benchmarks:`, err);
+          return null;
+        })
+      );
+    }
+
+    // Wait for all syncs to complete
+    await Promise.all(syncPromises);
+    console.log("✅ Benchmark sync completed");
+  };
+
+  // Reload benchmarks after sync
+  const reloadBenchmarks = async () => {
+    console.log("📊 Reloading benchmarks for industry:", clientIndustry || "(none)");
+    const benchmarkData = await getAllBenchmarks(clientIndustry);
+    setBenchmarks(benchmarkData);
+    console.log(`✅ Loaded ${benchmarkData.size} benchmarks`);
+    return benchmarkData;
+  };
 
   const handleGoToLaunchStatus = () => {
     if (!campaignId) {
@@ -923,7 +999,24 @@ export function CampaignForecast({
   const handleFetchForecasts = async () => {
     setLoading(true);
     setHasExistingForecast(false);
+    
     try {
+      // Step 1: Sync benchmarks for all selected ad accounts
+      setIsSyncingBenchmarks(true);
+      toast.info("Syncing latest benchmark data...", { duration: 3000 });
+      
+      try {
+        await syncBenchmarksForSelectedAccounts();
+        // Reload benchmarks after sync completes
+        await reloadBenchmarks();
+      } catch (syncError) {
+        console.warn("Benchmark sync failed, continuing with existing data:", syncError);
+        toast.warning("Could not sync latest benchmarks. Using cached data.", { duration: 3000 });
+      } finally {
+        setIsSyncingBenchmarks(false);
+      }
+      
+      // Step 2: Process forecasts with updated benchmarks
       const newForecasts: Record<string, CampaignForecast[]> = {};
       const platformForecasts: PlatformForecast[] = [];
 
@@ -1490,15 +1583,33 @@ export function CampaignForecast({
           </div>
           <div className="flex gap-2">
             {!loading && Object.keys(forecasts).length === 0 && (
-              <Button onClick={handleFetchForecasts}>
-                <TrendingUp className="h-4 w-4 mr-2" />
-                Fetch Forecasts
+              <Button onClick={handleFetchForecasts} disabled={isSyncingBenchmarks}>
+                {isSyncingBenchmarks ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Syncing Benchmarks...
+                  </>
+                ) : (
+                  <>
+                    <TrendingUp className="h-4 w-4 mr-2" />
+                    Fetch Forecasts
+                  </>
+                )}
               </Button>
             )}
             {!loading && Object.keys(forecasts).length > 0 && (
-              <Button onClick={handleFetchForecasts} variant="outline">
-                <TrendingUp className="h-4 w-4 mr-2" />
-                Refresh Forecast
+              <Button onClick={handleFetchForecasts} variant="outline" disabled={isSyncingBenchmarks}>
+                {isSyncingBenchmarks ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Syncing...
+                  </>
+                ) : (
+                  <>
+                    <TrendingUp className="h-4 w-4 mr-2" />
+                    Refresh Forecast
+                  </>
+                )}
               </Button>
             )}
           </div>
