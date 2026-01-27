@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useActiplanLimits } from "@/hooks/useActiplanLimits";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { TIER_DISPLAY_NAMES, SubscriptionTier } from "@/config/subscriptionTiers";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { WorkspaceSwitcher } from "@/components/WorkspaceSwitcher";
@@ -129,6 +130,7 @@ const Overview = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { tier } = useFeatureAccess();
+  const { activeWorkspaceId, loading: workspaceLoading } = useWorkspace();
   const { dailyLimit, remaining, usedToday, canCreate } = useActiplanLimits();
   const [bugDialogOpen, setBugDialogOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -154,16 +156,24 @@ const Overview = () => {
     }
   }, [searchParams, navigate]);
   const loadData = async () => {
-    if (!user) return;
+    if (!user || workspaceLoading) return;
     
     try {
-      // Fetch campaigns with relevant statuses
-      const { data: campaignData } = await supabase
+      // Fetch campaigns with relevant statuses for the active workspace
+      let query = supabase
         .from("campaigns")
         .select("*")
-        .eq("user_id", user.id)
-        .in("status", ["pushed_to_dsp", "live", "ended"])
+        .in("status", ["pushed_to_dsp", "partially_pushed", "live", "ended"])
         .order("updated_at", { ascending: false });
+
+      // Filter by workspace (team_id) if available, otherwise by user_id
+      if (activeWorkspaceId) {
+        query = query.eq("team_id", activeWorkspaceId);
+      } else {
+        query = query.eq("user_id", user.id);
+      }
+
+      const { data: campaignData } = await query;
 
       if (campaignData) {
         setCampaigns(campaignData);
@@ -201,7 +211,7 @@ const Overview = () => {
 
   useEffect(() => {
     loadData();
-  }, [user]);
+  }, [user, activeWorkspaceId, workspaceLoading]);
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -224,12 +234,17 @@ const Overview = () => {
     };
   }, [campaigns, insights, modRequests, savedAnalyses, sampleData]);
 
-  // Sort campaigns: live first, then ended, then by most recent
+  // Sort campaigns: live first, then partially_pushed, then pushed_to_dsp, then ended, then by most recent
   const sortedCampaigns = useMemo(() => {
     return [...displayData.campaigns].sort((a, b) => {
-      const statusOrder: Record<string, number> = { live: 0, ended: 1, pushed_to_dsp: 2 };
-      const aOrder = statusOrder[a.status] ?? 3;
-      const bOrder = statusOrder[b.status] ?? 3;
+      const statusOrder: Record<string, number> = { 
+        live: 0, 
+        partially_pushed: 1, 
+        pushed_to_dsp: 2, 
+        ended: 3 
+      };
+      const aOrder = statusOrder[a.status] ?? 4;
+      const bOrder = statusOrder[b.status] ?? 4;
       
       if (aOrder !== bOrder) return aOrder - bOrder;
       
