@@ -38,7 +38,18 @@ serve(async (req) => {
       throw new Error("Unauthorized");
     }
 
-    const { advertiserId } = await req.json();
+    // Safely parse request body
+    let advertiserId: string | undefined;
+    try {
+      const body = await req.text();
+      if (body && body.trim()) {
+        const parsed = JSON.parse(body);
+        advertiserId = parsed.advertiserId;
+      }
+    } catch (parseError) {
+      console.error("Failed to parse request body:", parseError);
+      throw new Error("Invalid request body - expected JSON with advertiserId");
+    }
 
     if (!advertiserId) {
       throw new Error("Advertiser ID is required");
