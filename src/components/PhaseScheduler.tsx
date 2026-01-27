@@ -13,6 +13,7 @@ import { format, addDays, differenceInDays, parseISO } from "date-fns";
 import { platformAdFormats } from "@/utils/adFormats";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { Switch } from "@/components/ui/switch";
 import { CampaignPublisherConfig } from "./CampaignPublisherConfig";
 import { TargetingConfigComponent } from "./TargetingConfig";
@@ -2065,7 +2066,8 @@ export function PhaseScheduler({
                             </Badge>
                           )}
                         </div>
-                        <Select
+                        <Combobox
+                          id={`objective-${phase.id}`}
                           value={phase.objective ?? ""}
                           onValueChange={(value) => {
                             const isTikTok = platformName.toLowerCase().includes('tiktok');
@@ -2156,18 +2158,10 @@ export function PhaseScheduler({
 
                             updatePhaseFields(phase.id, updates);
                           }}
-                        >
-                          <SelectTrigger id={`objective-${phase.id}`}>
-                            <SelectValue placeholder="Select objective" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {availableObjectives.map((obj) => (
-                              <SelectItem key={obj.value} value={obj.value}>
-                                {obj.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          options={availableObjectives.map((obj) => ({ value: obj.value, label: obj.label }))}
+                          placeholder="Select objective"
+                          searchPlaceholder="Search objectives..."
+                        />
                       </div>
 
                       {/* Optimization Goal with Split Button */}
@@ -2201,7 +2195,8 @@ export function PhaseScheduler({
                       >
                         <div className="space-y-2">
                           <Label htmlFor={`optimization-${phase.id}`}>Optimization Goal</Label>
-                          <Select
+                          <Combobox
+                            id={`optimization-${phase.id}`}
                             value={phase.optimizationGoal ?? ""}
                             onValueChange={(value) => {
                               const isMeta = !platformName.toLowerCase().includes('tiktok');
@@ -2263,18 +2258,14 @@ export function PhaseScheduler({
                               }
                             }}
                             disabled={!phase.objective}
-                          >
-                            <SelectTrigger id={`optimization-${phase.id}`} className={!phase.objective ? 'opacity-50' : ''}>
-                              <SelectValue placeholder={phase.objective ? "Select optimization goal" : "Select objective first"} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {getOptimizationGoalsForPhase(phase.objective || "").map((goal) => (
-                                <SelectItem key={goal.value} value={goal.value}>
-                                  {goal.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                            className={!phase.objective ? "opacity-50" : undefined}
+                            options={getOptimizationGoalsForPhase(phase.objective || "").map((goal) => ({
+                              value: goal.value,
+                              label: goal.label,
+                            }))}
+                            placeholder={phase.objective ? "Select optimization goal" : "Select objective first"}
+                            searchPlaceholder="Search optimization goals..."
+                          />
                         </div>
                       </SplittableSection>
 
