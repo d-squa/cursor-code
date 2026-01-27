@@ -87,6 +87,7 @@ const statusConfig: Record<string, { label: string; variant: "default" | "second
   live: { label: "Live", variant: "default" },
   ended: { label: "Ended", variant: "secondary" },
   pushed_to_dsp: { label: "Pushed", variant: "outline" },
+  partially_pushed: { label: "Partial", variant: "destructive" },
 };
 
 // Pacing bar component - shows actual spend vs expected with over/under indication
