@@ -462,12 +462,24 @@ export function TextAssetsStep({
     loadAssignments();
   }, [savedAssignments, campaignId, campaignName]);
 
-  // Handle individual row changes (skip organic posts - they are read-only)
+  // Handle individual row changes
+  // Organic posts are read-only EXCEPT for destinationUrl (required for traffic objectives)
   const handleRowChange = useCallback((id: string, updates: Partial<CreativeTextAssetRow>) => {
     setRows(prev => prev.map(row => {
       if (row.id !== id) return row;
-      // Skip updates for organic posts
-      if (row.isOrganic || row.externalPostId) return row;
+      // For organic posts, only allow destinationUrl updates
+      if (row.isOrganic || row.externalPostId) {
+        const allowedKeys = ['destinationUrl'] as const;
+        const filteredUpdates: Partial<CreativeTextAssetRow> = {};
+        for (const key of allowedKeys) {
+          if (key in updates) {
+            (filteredUpdates as any)[key] = (updates as any)[key];
+          }
+        }
+        if (Object.keys(filteredUpdates).length === 0) return row;
+        const updated = { ...row, ...filteredUpdates };
+        return updated;
+      }
       const updated = { ...row, ...updates };
       // Re-validate after update
       const errors = validateTextAssetRow(updated);
@@ -475,12 +487,24 @@ export function TextAssetsStep({
     }));
   }, []);
 
-  // Handle bulk updates (skip organic posts - they are read-only)
+  // Handle bulk updates
+  // Organic posts are read-only EXCEPT for destinationUrl (required for traffic objectives)
   const handleBulkUpdate = useCallback((ids: string[], updates: Partial<CreativeTextAssetRow>) => {
     setRows(prev => prev.map(row => {
       if (!ids.includes(row.id)) return row;
-      // Skip updates for organic posts
-      if (row.isOrganic || row.externalPostId) return row;
+      // For organic posts, only allow destinationUrl updates
+      if (row.isOrganic || row.externalPostId) {
+        const allowedKeys = ['destinationUrl'] as const;
+        const filteredUpdates: Partial<CreativeTextAssetRow> = {};
+        for (const key of allowedKeys) {
+          if (key in updates) {
+            (filteredUpdates as any)[key] = (updates as any)[key];
+          }
+        }
+        if (Object.keys(filteredUpdates).length === 0) return row;
+        const updated = { ...row, ...filteredUpdates };
+        return updated;
+      }
       const updated = { ...row, ...updates };
       const errors = validateTextAssetRow(updated);
       return { ...updated, validationErrors: errors, isValid: errors.length === 0 };
