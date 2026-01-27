@@ -2076,88 +2076,85 @@ export function PhaseScheduler({
                             const platformType = isTikTok ? "tiktok" : "meta";
                             const validDestinations = getDestinationsForObjective(platformType, adjustedObjective);
                             
-                            const updatedPhases = phases.map(p => {
-                              if (p.id === phase.id) {
-                                // Auto-set optimization goal based on objective and platform
-                                const autoGoal = getAutoOptimizationGoal(adjustedObjective);
-                                
-                                // Get audience strategy config for this objective/goal
-                                const audienceStrategy = getAudienceStrategyConfig(platformName, adjustedObjective, autoGoal);
-                                
-                                // Build updated phase with destination defaults if applicable
-                                const updatedPhase: any = { 
-                                  ...p, 
-                                  objective: adjustedObjective, 
-                                  optimizationGoal: autoGoal,
-                                  // Auto-enable/disable broad targeting based on strategy
-                                  useBroadTargeting: audienceStrategy.useBroadTargeting,
-                                  // Disable override if broad targeting is auto-enabled
-                                  overrideTargeting: audienceStrategy.useBroadTargeting ? false : p.overrideTargeting,
-                                };
-                                
-                                // Auto-populate destination from account defaults if objective requires destination
-                                if (validDestinations.length > 0 && adAccountDefaults) {
-                                  // Always load landing page URL from defaults (used across destinations)
-                                  if (isMeta && !p.metaLandingPageUrl && adAccountDefaults.metaLandingPageUrl) {
-                                    updatedPhase.metaLandingPageUrl = adAccountDefaults.metaLandingPageUrl;
-                                  }
-                                  if (!isMeta && !p.tiktokLandingPageUrl && adAccountDefaults.tiktokLandingPageUrl) {
-                                    updatedPhase.tiktokLandingPageUrl = adAccountDefaults.tiktokLandingPageUrl;
-                                  }
-                                  
-                                  if (isMeta) {
-                                    // Set Meta destination defaults only if not already set
-                                    if (!p.metaOptimizationLocation && adAccountDefaults.metaOptimizationLocation) {
-                                      const defaultDest = adAccountDefaults.metaOptimizationLocation;
-                                      // Only set if it's a valid destination for this objective
-                                      if (validDestinations.some(d => d.value === defaultDest)) {
-                                        updatedPhase.metaOptimizationLocation = defaultDest;
-                                        // Auto-populate related fields based on destination
-                                        if (defaultDest === 'APP') {
-                                          updatedPhase.metaAppStore = p.metaAppStore || adAccountDefaults.metaAppStore;
-                                          updatedPhase.metaAppId = p.metaAppId || adAccountDefaults.metaAppId;
-                                        } else if (defaultDest === 'MESSAGING_APPS') {
-                                          updatedPhase.metaMessagingMode = p.metaMessagingMode || adAccountDefaults.metaMessagingMode;
-                                          updatedPhase.metaMessengerEnabled = p.metaMessengerEnabled !== undefined ? p.metaMessengerEnabled : adAccountDefaults.metaMessengerEnabled;
-                                          updatedPhase.metaInstagramDmEnabled = p.metaInstagramDmEnabled !== undefined ? p.metaInstagramDmEnabled : adAccountDefaults.metaInstagramDmEnabled;
-                                          updatedPhase.metaWhatsappEnabled = p.metaWhatsappEnabled !== undefined ? p.metaWhatsappEnabled : adAccountDefaults.metaWhatsappEnabled;
-                                          updatedPhase.metaWhatsappNumber = p.metaWhatsappNumber || adAccountDefaults.metaWhatsappNumber;
-                                          updatedPhase.metaPageId = p.metaPageId || adAccountDefaults.metaPageId;
-                                          updatedPhase.metaInstagramAccountId = p.metaInstagramAccountId || adAccountDefaults.metaInstagramAccountId;
-                                        }
-                                      }
-                                    }
-                                  } else {
-                                    // Set TikTok destination defaults only if not already set
-                                    if (!p.tiktokOptimizationLocation && adAccountDefaults.tiktokOptimizationLocation) {
-                                      const defaultDest = adAccountDefaults.tiktokOptimizationLocation;
-                                      // Only set if it's a valid destination for this objective
-                                      if (validDestinations.some(d => d.value === defaultDest)) {
-                                        updatedPhase.tiktokOptimizationLocation = defaultDest;
-                                        // Auto-populate related fields based on destination
-                                        if (defaultDest === 'App') {
-                                          updatedPhase.tiktokAppId = p.tiktokAppId || adAccountDefaults.tiktokAppId;
-                                          updatedPhase.tiktokAppName = p.tiktokAppName || adAccountDefaults.tiktokAppName;
-                                        } else if (defaultDest === 'Instant Messaging Apps') {
-                                          updatedPhase.tiktokMessagingApp = p.tiktokMessagingApp || adAccountDefaults.tiktokMessagingApp;
-                                          updatedPhase.tiktokFacebookPageId = p.tiktokFacebookPageId || adAccountDefaults.tiktokFacebookPageId;
-                                          updatedPhase.tiktokMessageEventSet = p.tiktokMessageEventSet || adAccountDefaults.tiktokMessageEventSet;
-                                          updatedPhase.tiktokWhatsappNumber = p.tiktokWhatsappNumber || adAccountDefaults.tiktokWhatsappNumber;
-                                          updatedPhase.tiktokZaloAccountId = p.tiktokZaloAccountId || adAccountDefaults.tiktokZaloAccountId;
-                                          updatedPhase.tiktokLineBusinessId = p.tiktokLineBusinessId || adAccountDefaults.tiktokLineBusinessId;
-                                        } else if (defaultDest === 'TikTok Direct Messages') {
-                                          updatedPhase.tiktokMessageEventSet = p.tiktokMessageEventSet || adAccountDefaults.tiktokMessageEventSet;
-                                        }
-                                      }
+                            // IMPORTANT: Use the ref-backed batch updater so we never write based on a stale `phases` array.
+                            // This prevents the Select from “snapping back” to the previous value.
+                            const basePhase = phasesRef.current.find((p) => p.id === phase.id) ?? phase;
+
+                            // Auto-set optimization goal based on objective and platform
+                            const autoGoal = getAutoOptimizationGoal(adjustedObjective);
+
+                            // Get audience strategy config for this objective/goal
+                            const audienceStrategy = getAudienceStrategyConfig(platformName, adjustedObjective, autoGoal);
+
+                            // Build updates (single atomic write)
+                            const updates: any = {
+                              objective: adjustedObjective,
+                              optimizationGoal: autoGoal,
+                              // Auto-enable/disable broad targeting based on strategy
+                              useBroadTargeting: audienceStrategy.useBroadTargeting,
+                              // Disable override if broad targeting is auto-enabled
+                              overrideTargeting: audienceStrategy.useBroadTargeting ? false : basePhase.overrideTargeting,
+                            };
+
+                            // Auto-populate destination from account defaults if objective requires destination
+                            if (validDestinations.length > 0 && adAccountDefaults) {
+                              // Always load landing page URL from defaults (used across destinations)
+                              if (isMeta && !basePhase.metaLandingPageUrl && adAccountDefaults.metaLandingPageUrl) {
+                                updates.metaLandingPageUrl = adAccountDefaults.metaLandingPageUrl;
+                              }
+                              if (!isMeta && !basePhase.tiktokLandingPageUrl && adAccountDefaults.tiktokLandingPageUrl) {
+                                updates.tiktokLandingPageUrl = adAccountDefaults.tiktokLandingPageUrl;
+                              }
+
+                              if (isMeta) {
+                                // Set Meta destination defaults only if not already set
+                                if (!basePhase.metaOptimizationLocation && adAccountDefaults.metaOptimizationLocation) {
+                                  const defaultDest = adAccountDefaults.metaOptimizationLocation;
+                                  // Only set if it's a valid destination for this objective
+                                  if (validDestinations.some((d) => d.value === defaultDest)) {
+                                    updates.metaOptimizationLocation = defaultDest;
+                                    // Auto-populate related fields based on destination
+                                    if (defaultDest === 'APP') {
+                                      updates.metaAppStore = basePhase.metaAppStore || adAccountDefaults.metaAppStore;
+                                      updates.metaAppId = basePhase.metaAppId || adAccountDefaults.metaAppId;
+                                    } else if (defaultDest === 'MESSAGING_APPS') {
+                                      updates.metaMessagingMode = basePhase.metaMessagingMode || adAccountDefaults.metaMessagingMode;
+                                      updates.metaMessengerEnabled = basePhase.metaMessengerEnabled !== undefined ? basePhase.metaMessengerEnabled : adAccountDefaults.metaMessengerEnabled;
+                                      updates.metaInstagramDmEnabled = basePhase.metaInstagramDmEnabled !== undefined ? basePhase.metaInstagramDmEnabled : adAccountDefaults.metaInstagramDmEnabled;
+                                      updates.metaWhatsappEnabled = basePhase.metaWhatsappEnabled !== undefined ? basePhase.metaWhatsappEnabled : adAccountDefaults.metaWhatsappEnabled;
+                                      updates.metaWhatsappNumber = basePhase.metaWhatsappNumber || adAccountDefaults.metaWhatsappNumber;
+                                      updates.metaPageId = basePhase.metaPageId || adAccountDefaults.metaPageId;
+                                      updates.metaInstagramAccountId = basePhase.metaInstagramAccountId || adAccountDefaults.metaInstagramAccountId;
                                     }
                                   }
                                 }
-                                
-                                return updatedPhase;
+                              } else {
+                                // Set TikTok destination defaults only if not already set
+                                if (!basePhase.tiktokOptimizationLocation && adAccountDefaults.tiktokOptimizationLocation) {
+                                  const defaultDest = adAccountDefaults.tiktokOptimizationLocation;
+                                  // Only set if it's a valid destination for this objective
+                                  if (validDestinations.some((d) => d.value === defaultDest)) {
+                                    updates.tiktokOptimizationLocation = defaultDest;
+                                    // Auto-populate related fields based on destination
+                                    if (defaultDest === 'App') {
+                                      updates.tiktokAppId = basePhase.tiktokAppId || adAccountDefaults.tiktokAppId;
+                                      updates.tiktokAppName = basePhase.tiktokAppName || adAccountDefaults.tiktokAppName;
+                                    } else if (defaultDest === 'Instant Messaging Apps') {
+                                      updates.tiktokMessagingApp = basePhase.tiktokMessagingApp || adAccountDefaults.tiktokMessagingApp;
+                                      updates.tiktokFacebookPageId = basePhase.tiktokFacebookPageId || adAccountDefaults.tiktokFacebookPageId;
+                                      updates.tiktokMessageEventSet = basePhase.tiktokMessageEventSet || adAccountDefaults.tiktokMessageEventSet;
+                                      updates.tiktokWhatsappNumber = basePhase.tiktokWhatsappNumber || adAccountDefaults.tiktokWhatsappNumber;
+                                      updates.tiktokZaloAccountId = basePhase.tiktokZaloAccountId || adAccountDefaults.tiktokZaloAccountId;
+                                      updates.tiktokLineBusinessId = basePhase.tiktokLineBusinessId || adAccountDefaults.tiktokLineBusinessId;
+                                    } else if (defaultDest === 'TikTok Direct Messages') {
+                                      updates.tiktokMessageEventSet = basePhase.tiktokMessageEventSet || adAccountDefaults.tiktokMessageEventSet;
+                                    }
+                                  }
+                                }
                               }
-                              return p;
-                            });
-                            onPhasesChange(updatedPhases);
+                            }
+
+                            updatePhaseFields(phase.id, updates);
                           }}
                         >
                           <SelectTrigger id={`objective-${phase.id}`}>
