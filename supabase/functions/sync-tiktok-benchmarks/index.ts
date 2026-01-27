@@ -141,13 +141,31 @@ serve(async (req) => {
 
     console.log(`[BENCHMARK] Fetching TikTok insights...`);
     
-    const insightsResponse = await fetch(`${TIKTOK_API_BASE}/report/integrated/get/`, {
-      method: "POST",
+    // TikTok Integrated Reports API requires GET with query parameters
+    const queryParams = new URLSearchParams({
+      advertiser_id: advertiserId,
+      report_type: "BASIC",
+      data_level: "AUCTION_ADGROUP",
+      dimensions: JSON.stringify(["adgroup_id", "country_code"]),
+      metrics: JSON.stringify([
+        "spend",
+        "impressions",
+        "clicks",
+        "conversion",
+        "reach",
+        "video_views_p100"
+      ]),
+      start_date: dateRangeStart,
+      end_date: dateRangeEnd,
+      page_size: "1000",
+    });
+
+    const insightsResponse = await fetch(`${TIKTOK_API_BASE}/report/integrated/get/?${queryParams.toString()}`, {
+      method: "GET",
       headers: {
         "Access-Token": accessToken,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(reportPayload),
     });
 
     if (!insightsResponse.ok) {
