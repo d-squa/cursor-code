@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { PerformanceBar, PerformanceMetric, getPerformanceStatus } from "./PerformanceBar";
 
 interface PlatformPacing {
   platform: string;
@@ -25,6 +26,11 @@ interface PlatformPacing {
   endDate: string;
   totalDays: number;
   elapsedDays: number;
+}
+
+export interface PlatformPerformance {
+  platform: string;
+  metrics: PerformanceMetric[];
 }
 
 interface CompletedRequestsByCategory {
@@ -54,6 +60,7 @@ interface CampaignOverviewCardProps {
     updated_at: string;
   };
   platformPacing: PlatformPacing[];
+  platformPerformance?: PlatformPerformance[];
   totalBudgetSpent: number;
   totalTimePct: number;
   totalBudgetPct: number;
@@ -275,6 +282,7 @@ const dateRangeLabels: Record<DateRangeFilter, string> = {
 export function CampaignOverviewCard({
   campaign,
   platformPacing,
+  platformPerformance,
   totalBudgetSpent,
   totalTimePct,
   totalBudgetPct,
@@ -292,6 +300,13 @@ export function CampaignOverviewCard({
   const [platformsOpen, setPlatformsOpen] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
   const [dateRange, setDateRange] = useState<DateRangeFilter>("lifetime");
+
+  // Calculate overall performance status
+  const overallPerformanceStatus = useMemo(() => {
+    if (!platformPerformance || platformPerformance.length === 0) return null;
+    const allMetrics = platformPerformance.flatMap(p => p.metrics);
+    return getPerformanceStatus(allMetrics);
+  }, [platformPerformance]);
 
   const pacingStatus = useMemo(() => {
     const absDiff = Math.abs(totalPacingDiff);
@@ -392,20 +407,34 @@ export function CampaignOverviewCard({
                 <span className="font-medium">By Platform ({platformPacing.length})</span>
                 <ChevronDown className={cn("h-3 w-3 transition-transform", platformsOpen && "rotate-180")} />
               </CollapsibleTrigger>
-              <CollapsibleContent className="space-y-3 pt-2">
+              <CollapsibleContent className="space-y-4 pt-2">
                 {platformPacing.map((platform) => {
                   const platformTooltip = `${format(new Date(platform.startDate), "MMM d")} - ${format(new Date(platform.endDate), "MMM d, yyyy")} (${platform.totalDays} days)\n${platform.elapsedDays} days (${platform.timePct.toFixed(0)}%) elapsed\n\nBudget: ${formatCurrency(platform.budgetSpent)} of ${formatCurrency(platform.budgetTotal)} (${platform.budgetPct.toFixed(0)}%)\nExpected: ${platform.timePct.toFixed(0)}% | Actual: ${platform.budgetPct.toFixed(0)}%\nDiff: ${platform.pacingDiff > 0 ? "+" : ""}${platform.pacingDiff.toFixed(1)}%`;
                   
+                  // Get performance metrics for this platform
+                  const perfData = platformPerformance?.find(p => p.platform.toLowerCase() === platform.platform.toLowerCase());
+                  
                   return (
-                    <PacingBar
-                      key={platform.platform}
-                      timePct={platform.timePct}
-                      budgetPct={platform.budgetPct}
-                      pacingDiff={platform.pacingDiff}
-                      label={platform.platform.charAt(0).toUpperCase() + platform.platform.slice(1)}
-                      tooltipContent={platformTooltip}
-                      hasRecentImpressions={platform.hasRecentImpressions}
-                    />
+                    <div key={platform.platform} className="space-y-1.5">
+                      {/* Budget Pacing Bar */}
+                      <PacingBar
+                        timePct={platform.timePct}
+                        budgetPct={platform.budgetPct}
+                        pacingDiff={platform.pacingDiff}
+                        label={platform.platform.charAt(0).toUpperCase() + platform.platform.slice(1)}
+                        tooltipContent={platformTooltip}
+                        hasRecentImpressions={platform.hasRecentImpressions}
+                      />
+                      
+                      {/* Performance KPI Bars */}
+                      {perfData && perfData.metrics.length > 0 && (
+                        <div className="pl-2 border-l-2 border-muted space-y-1">
+                          {perfData.metrics.map((metric, idx) => (
+                            <PerformanceBar key={`${platform.platform}-${metric.kpi}-${idx}`} metric={metric} />
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
               </CollapsibleContent>
