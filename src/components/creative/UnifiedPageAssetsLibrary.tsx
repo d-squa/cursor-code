@@ -47,6 +47,8 @@ interface OrganicPost {
   createdTime?: string;
   permalink?: string;
   isSparkEligible?: boolean;
+  /** For Meta posts: 'facebook' or 'instagram' based on post source */
+  sourceNetwork?: 'facebook' | 'instagram';
 }
 
 interface PageConfig {
@@ -87,6 +89,7 @@ export function UnifiedPageAssetsLibrary({
   const [search, setSearch] = useState('');
   const [platformFilter, setPlatformFilter] = useState<'all' | 'meta' | 'tiktok'>('all');
   const [mediaTypeFilter, setMediaTypeFilter] = useState<'all' | 'image' | 'video' | 'carousel'>('all');
+  const [networkFilter, setNetworkFilter] = useState<'all' | 'facebook' | 'instagram'>('all');
 
   // Resolve real page/identity display names (market_splits often doesn't include them)
   const [resolvedSourceNames, setResolvedSourceNames] = useState<Record<string, string>>({});
@@ -421,9 +424,15 @@ export function UnifiedPageAssetsLibrary({
       if (mediaTypeFilter !== 'all' && post.mediaType !== mediaTypeFilter) {
         return false;
       }
+      // Network filter for Meta posts (Facebook vs Instagram)
+      if (networkFilter !== 'all' && post.platform === 'meta') {
+        if (post.sourceNetwork !== networkFilter) {
+          return false;
+        }
+      }
       return true;
     });
-  }, [posts, search, platformFilter, mediaTypeFilter]);
+  }, [posts, search, platformFilter, mediaTypeFilter, networkFilter]);
 
   const handleSelect = (post: OrganicPost) => {
     if (selectable && onSelectPost) {
@@ -509,6 +518,20 @@ export function UnifiedPageAssetsLibrary({
               <SelectItem value="carousel">Carousels</SelectItem>
             </SelectContent>
           </Select>
+
+          {/* Network filter - only show when Meta platform is present */}
+          {(platformFilter === 'all' || platformFilter === 'meta') && availablePlatforms.includes('meta') && (
+            <Select value={networkFilter} onValueChange={(v) => setNetworkFilter(v as any)}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">FB & Instagram</SelectItem>
+                <SelectItem value="facebook">Facebook Only</SelectItem>
+                <SelectItem value="instagram">Instagram Only</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
         </div>
 
         {/* Multi-select action bar - only show if not using parent-controlled selection */}
@@ -642,15 +665,23 @@ function PostCard({
           </div>
         )}
 
-        {/* Platform badge */}
+        {/* Platform badge - shows specific network for Meta posts */}
         <Badge 
           variant="secondary" 
           className={cn(
             "absolute top-1 left-1 text-xs",
-            post.platform === 'tiktok' ? 'bg-black text-white' : 'bg-blue-600 text-white'
+            post.platform === 'tiktok' 
+              ? 'bg-black text-white' 
+              : post.sourceNetwork === 'instagram'
+                ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                : 'bg-blue-600 text-white'
           )}
         >
-          {post.platform === 'meta' ? 'FB/IG' : 'TikTok'}
+          {post.platform === 'tiktok' 
+            ? 'TikTok' 
+            : post.sourceNetwork === 'instagram' 
+              ? 'Instagram' 
+              : 'Facebook'}
         </Badge>
 
         {/* Media type badge */}
