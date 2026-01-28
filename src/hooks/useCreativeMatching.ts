@@ -1188,6 +1188,9 @@ export function useCreativeMatching(campaignId?: string) {
             } else {
               const taxonomyName = generateCreativeTaxonomyName(asset, match.structure);
               
+              // Capture source network for organic posts (facebook vs instagram)
+              const assetSourceNetwork = (asset as any).sourceNetwork as 'facebook' | 'instagram' | undefined;
+              
               const { data: creative, error: insertCreativeError } = await supabase
                 .from('creatives')
                 .insert({
@@ -1218,6 +1221,8 @@ export function useCreativeMatching(campaignId?: string) {
                   caption: (asset as any).organicMessage,
                   tiktok_identity_id: match.structure.platform === 'tiktok' ? match.structure.tiktokIdentityId : null,
                   tiktok_ad_format: match.structure.platform === 'tiktok' ? 'SPARK_ADS' : null,
+                  // Store source network in platform_metadata for Instagram vs Facebook detection
+                  platform_metadata: assetSourceNetwork ? { sourceNetwork: assetSourceNetwork } : null,
                 })
                 .select()
                 .single();

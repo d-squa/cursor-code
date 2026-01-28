@@ -404,7 +404,7 @@ const handler = async (req: Request): Promise<Response> => {
             primary_text, headline, description, call_to_action,
             destination_url, url_parameters,
              external_post_id, external_page_id, tiktok_identity_id, tiktok_display_name, tiktok_ad_format,
-            dsp_upload_status, brand_name, app_link
+            dsp_upload_status, brand_name, app_link, platform_metadata
           )
         `,
         )
@@ -768,11 +768,25 @@ const handler = async (req: Request): Promise<Response> => {
               name: creative.name,
             };
             
-            // For organic posts (existing_post), use object_story_id instead of building new object_story_spec
+            // For organic posts (existing_post), determine if it's Facebook or Instagram
+            // Instagram posts use source_instagram_media_id, Facebook posts use object_story_id
             if (isOrganicPost && creative.external_post_id) {
-              // external_post_id format is typically "pageId_postId" - use as-is for object_story_id
-              creativePayload.object_story_id = creative.external_post_id;
-              console.log(`[push-creatives] Using object_story_id for organic post: ${creative.external_post_id}`);
+              // Check platform_metadata for sourceNetwork, fallback to ID format detection
+              // Instagram media IDs are purely numeric (e.g., "17978083595953638")
+              // Facebook post IDs contain underscore (e.g., "pageId_postId")
+              const sourceNetwork = (creative.platform_metadata as any)?.sourceNetwork;
+              const isInstagramPost = sourceNetwork === 'instagram' || 
+                (!sourceNetwork && !creative.external_post_id.includes('_'));
+              
+              if (isInstagramPost) {
+                // Instagram posts use source_instagram_media_id parameter
+                creativePayload.source_instagram_media_id = creative.external_post_id;
+                console.log(`[push-creatives] Using source_instagram_media_id for Instagram post: ${creative.external_post_id}`);
+              } else {
+                // Facebook posts use object_story_id (format: pageId_postId)
+                creativePayload.object_story_id = creative.external_post_id;
+                console.log(`[push-creatives] Using object_story_id for Facebook post: ${creative.external_post_id}`);
+              }
 
               // Meta Traffic / LPV / Link Clicks phases require a website destination even when using object_story_id.
               // If we have a destination configured, attach a CTA at the root level.
