@@ -29,6 +29,8 @@ interface OrganicPost {
   createdTime?: string;
   permalink?: string;
   isSparkEligible?: boolean;
+  /** For Meta posts: 'facebook' or 'instagram' based on post source */
+  sourceNetwork?: 'facebook' | 'instagram';
 }
 
 async function readJsonSafe(response: Response, context?: string): Promise<any> {
@@ -768,6 +770,14 @@ function transformMetaPost(post: any, pageId?: string): OrganicPost {
     }
   }
 
+  // Detect source network from permalink or post structure
+  // Instagram posts have instagram.com in the permalink or have instagram-specific fields
+  let sourceNetwork: 'facebook' | 'instagram' = 'facebook';
+  const permalink = post.permalink_url || '';
+  if (permalink.includes('instagram.com') || post.instagram_media_id) {
+    sourceNetwork = 'instagram';
+  }
+
   return {
     id: post.id,
     platform: 'meta',
@@ -778,5 +788,6 @@ function transformMetaPost(post: any, pageId?: string): OrganicPost {
     mediaType,
     createdTime: post.created_time,
     permalink: post.permalink_url,
+    sourceNetwork,
   };
 }
