@@ -8,7 +8,7 @@ export interface OverviewFilters {
   status: string | null;
   pacingStatus: string | null;
   platform: string | null;
-  performanceStatus: string | null;
+  performanceStatus: string | null; // Format: "platform:status" e.g., "meta:overachieving" or just "status" for all platforms
 }
 
 interface OverviewFiltersProps {
@@ -30,11 +30,29 @@ const pacingStatusOptions = [
   { value: 'underpacing', label: 'Underpacing' },
 ];
 
-const performanceStatusOptions = [
+const basePerformanceStatuses = [
   { value: 'overachieving', label: 'Overachieving' },
   { value: 'on-target', label: 'On Target' },
   { value: 'underachieving', label: 'Underachieving' },
 ];
+
+// Generate platform-specific performance options dynamically
+const generatePerformanceOptions = (platforms: string[]) => {
+  const options: { value: string; label: string }[] = [];
+  
+  // Add platform-specific options
+  platforms.forEach(platform => {
+    const platformLabel = platform.charAt(0).toUpperCase() + platform.slice(1);
+    basePerformanceStatuses.forEach(status => {
+      options.push({
+        value: `${platform}:${status.value}`,
+        label: `${platformLabel} - ${status.label}`,
+      });
+    });
+  });
+  
+  return options;
+};
 
 export function OverviewFiltersBar({ 
   filters, 
@@ -100,12 +118,12 @@ export function OverviewFiltersBar({
       </Select>
 
       <Select value={filters.performanceStatus || 'all'} onValueChange={(v) => updateFilter('performanceStatus', v)}>
-        <SelectTrigger className="w-[140px] h-8 text-xs">
+        <SelectTrigger className="w-[180px] h-8 text-xs">
           <SelectValue placeholder="Performance" />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">All Performance</SelectItem>
-          {performanceStatusOptions.map(opt => (
+          {generatePerformanceOptions(availablePlatforms).map(opt => (
             <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
           ))}
         </SelectContent>
