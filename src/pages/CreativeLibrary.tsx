@@ -319,11 +319,12 @@ export default function CreativeLibrary() {
           .maybeSingle();
 
         if (error || !campaign) {
-          console.error('Error loading campaign for page assets:', error);
+          console.error('[PageAssets] Error loading campaign for page assets:', error);
           return;
         }
 
         const marketSplits = ((campaign as any).market_splits || {}) as Record<string, any>;
+        console.log('[PageAssets] Loaded market_splits for campaign:', campaignId, JSON.stringify(marketSplits, null, 2));
         const configs: Array<{
           platform: 'meta' | 'tiktok';
           pageId?: string;
@@ -392,10 +393,14 @@ export default function CreativeLibrary() {
           }
         }
 
+        console.log('[PageAssets] Extracted configs:', configs);
         setPageAssetsConfigs(configs);
 
         if (configs.length > 0) {
           toast.success(`Found ${configs.length} page(s)/identity(s) from ActiPlan`);
+        } else {
+          console.warn('[PageAssets] No page/identity configs found in market_splits');
+          toast.warning('No Facebook Pages or TikTok identities found in this ActiPlan');
         }
       } catch (err) {
         console.error('Error extracting campaign config for page assets:', err);

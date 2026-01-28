@@ -4,7 +4,7 @@ import { getAccessToken } from "../_shared/vault-helper.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 interface FetchPostsRequest {
@@ -71,9 +71,17 @@ serve(async (req: Request): Promise<Response> => {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Debug: log all received headers
+    const allHeaders: Record<string, string> = {};
+    req.headers.forEach((value, key) => {
+      allHeaders[key] = key.toLowerCase() === 'authorization' ? '[REDACTED]' : value;
+    });
+    console.log('[fetch-organic-posts] Request headers:', JSON.stringify(allHeaders));
+
     // Get user from request
-    const authHeader = req.headers.get("Authorization");
+    const authHeader = req.headers.get("Authorization") || req.headers.get("authorization");
     if (!authHeader) {
+      console.error('[fetch-organic-posts] No authorization header found. Available headers:', Object.keys(allHeaders).join(', '));
       throw new Error("No authorization header");
     }
 
