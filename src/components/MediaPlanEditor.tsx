@@ -991,6 +991,20 @@ export function MediaPlanEditor() {
     const timer = setTimeout(async () => {
       try {
         const selectedPlatforms = platformsWithMarkets.filter((p) => p.id !== "");
+
+        // Safety: if the editor state is temporarily empty (e.g. during re-hydration / route changes),
+        // do NOT overwrite an existing campaign with empty platforms/market_splits.
+        if (selectedPlatforms.length === 0) {
+          console.log('⏸️ Auto-save skipped (no selected platforms; avoiding market_splits clobber)');
+          return;
+        }
+
+        const hasAnyMarkets = selectedPlatforms.some((p) => (p.markets?.length || 0) > 0);
+        if (!hasAnyMarkets) {
+          console.log('⏸️ Auto-save skipped (no markets; avoiding market_splits clobber)');
+          return;
+        }
+
         const budgetAllocation = selectedPlatforms.reduce((acc, p) => ({ ...acc, [p.id]: p.budgetPercentage }), {});
 
         await supabase

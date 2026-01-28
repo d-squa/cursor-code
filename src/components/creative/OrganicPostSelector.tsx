@@ -130,7 +130,10 @@ export function OrganicPostSelector({
     setIsLoadingPosts(true);
     setPosts([]);
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
       const { data, error } = await supabase.functions.invoke('fetch-organic-posts', {
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
         body: {
           platform,
           pageId: platform === 'meta' ? selectedPageId : undefined,
@@ -154,7 +157,10 @@ export function OrganicPostSelector({
     setIsSearching(true);
     setSearchResult(null);
     try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
       const { data, error } = await supabase.functions.invoke('fetch-organic-posts', {
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
         body: {
           platform,
           postIdOrUrl: searchInput.trim(),
