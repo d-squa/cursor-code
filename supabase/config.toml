@@ -135,3 +135,6 @@ verify_jwt = false
 
 [functions.execute-ad-creation]
 verify_jwt = false
+
+[functions.fetch-organic-posts]
+verify_jwt = false
