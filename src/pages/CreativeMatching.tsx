@@ -244,6 +244,8 @@ export default function CreativeMatching() {
           message,
           permalink,
           creative_type: isOrganic ? 'existing_post' : undefined,
+          // Pass source network for matching algorithm (FB vs IG organic posts)
+          sourceNetwork: anyAsset.sourceNetwork,
         });
       }
     }

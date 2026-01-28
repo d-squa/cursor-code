@@ -65,6 +65,9 @@ export function MeshPageAssetsPicker({
       const assetType: 'image' | 'video' = mediaType === 'video' ? 'video' : 'image';
       const name = post.message || post.caption || post.postId;
 
+      // Determine source network from post data
+      const sourceNetwork = (post as any).sourceNetwork as 'facebook' | 'instagram' | undefined;
+
       onAddAsset({
         id: `page:${post.platform}:${post.postId}`,
         source: 'page_assets',
@@ -73,7 +76,9 @@ export function MeshPageAssetsPicker({
         thumbnailUrl: post.thumbnailUrl,
         name,
         postId: post.postId,
-      });
+        // Pass source network for matching algorithm
+        sourceNetwork,
+      } as any);
     }
   };
 
