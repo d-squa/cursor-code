@@ -165,10 +165,9 @@ const Overview = () => {
     }
   }, [searchParams, navigate]);
   const loadData = async () => {
+    // Wait for user and workspace to be fully resolved before loading
+    // workspaceLoading now includes the workspace resolution step, so we only need to check it
     if (!user || workspaceLoading) return;
-    
-    // Wait for workspace to be resolved if we're still loading
-    if (!activeWorkspaceId && workspaceLoading) return;
     
     try {
       // Fetch campaigns with relevant statuses for the active workspace

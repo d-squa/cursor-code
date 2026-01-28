@@ -17,6 +17,8 @@ export function useWorkspace() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [activeWorkspaceId, _setActiveWorkspaceId] = useState<string | null>(null);
+  // Track whether we've resolved the active workspace after loading completes
+  const [workspaceResolved, setWorkspaceResolved] = useState(false);
 
   const { data: workspaces = [], isLoading } = useQuery({
     queryKey: ["workspaces", user?.id],
@@ -62,13 +64,18 @@ export function useWorkspace() {
   useEffect(() => {
     if (!user?.id) {
       _setActiveWorkspaceId(null);
+      setWorkspaceResolved(false);
       return;
     }
-    if (isLoading) return;
+    if (isLoading) {
+      setWorkspaceResolved(false);
+      return;
+    }
 
     // If no workspaces exist, set to null and exit (this is a valid end state)
     if (workspaces.length === 0) {
       _setActiveWorkspaceId(null);
+      setWorkspaceResolved(true);
       return;
     }
 
@@ -77,6 +84,7 @@ export function useWorkspace() {
 
     const next = savedIsValid ? (saved as string) : workspaces[0]?.id ?? null;
     _setActiveWorkspaceId(next);
+    setWorkspaceResolved(true);
 
     if (next) localStorage.setItem(storageKey(user.id), next);
   }, [user?.id, isLoading, workspaces]);
@@ -109,14 +117,15 @@ export function useWorkspace() {
     [workspaces, activeWorkspaceId]
   );
 
-  // Consider loading only during the actual query.
-  // Once workspaces are fetched, the useEffect will set activeWorkspaceId synchronously.
-  // If workspaces.length === 0, activeWorkspaceId = null is valid (no workspaces available).
+  // Loading is true until BOTH the query completes AND we've resolved the active workspace
+  // This prevents race conditions where workspaceLoading is false but activeWorkspaceId isn't set yet
+  const loading = isLoading || !workspaceResolved;
+
   return {
     workspaces,
     activeWorkspace,
     activeWorkspaceId,
     setActiveWorkspaceId,
-    loading: isLoading,
+    loading,
   };
 }
