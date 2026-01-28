@@ -271,9 +271,13 @@ async function handleMetaPosts(
         posts.push(transformMetaPost(post, pageId));
       }
     }
+
+    // Also fetch Instagram posts from connected Instagram Business Account
+    const instagramPosts = await fetchInstagramPosts(supabase, userId, accessToken, pageAccessToken || accessToken, limit);
+    posts.push(...instagramPosts);
   }
 
-  console.log(`[fetch-organic-posts] Found ${posts.length} Meta posts`);
+  console.log(`[fetch-organic-posts] Found ${posts.length} Meta posts (FB: ${posts.filter(p => p.sourceNetwork === 'facebook').length}, IG: ${posts.filter(p => p.sourceNetwork === 'instagram').length})`);
   return new Response(
     JSON.stringify({ posts }),
     { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
@@ -556,6 +560,97 @@ function extractTikTokPostId(input: string): string | null {
   return null;
 }
 
+/**
+ * Fetch posts from connected Instagram Business Account(s)
+ * Uses the Instagram Graph API /media endpoint
+ */
+async function fetchInstagramPosts(
+  supabase: any,
+  userId: string,
+  userAccessToken: string,
+  pageAccessToken: string,
+  limit: number = 25
+): Promise<OrganicPost[]> {
+  const posts: OrganicPost[] = [];
+
+  try {
+    // Look up connected Instagram Business Accounts for this user
+    const { data: igAccounts, error: igError } = await supabase
+      .from("meta_instagram_accounts")
+      .select("instagram_account_id, username")
+      .eq("user_id", userId);
+
+    if (igError || !igAccounts || igAccounts.length === 0) {
+      console.log(`[fetch-organic-posts] No Instagram accounts found for user`);
+      return posts;
+    }
+
+    // Dedupe by instagram_account_id (in case of duplicates)
+    const uniqueIgAccounts = Array.from(
+      new Map(igAccounts.map((a: any) => [a.instagram_account_id, a])).values()
+    ) as any[];
+
+    console.log(`[fetch-organic-posts] Found ${uniqueIgAccounts.length} Instagram account(s) to fetch`);
+
+    for (const igAccount of uniqueIgAccounts) {
+      const igAccountId = igAccount.instagram_account_id;
+      
+      // Use the page access token (Instagram Business Accounts use Page tokens)
+      const token = pageAccessToken || userAccessToken;
+      
+      console.log(`[fetch-organic-posts] Fetching Instagram media for account ${igAccountId}`);
+      
+      const mediaUrl = `https://graph.facebook.com/v22.0/${igAccountId}/media?fields=id,caption,media_type,media_url,thumbnail_url,timestamp,permalink&limit=${limit}&access_token=${token}`;
+      
+      const response = await fetch(mediaUrl, { method: "GET" });
+      const data = await readJsonSafe(response, `Instagram media for ${igAccountId}`);
+
+      if (data.error) {
+        console.error(`[fetch-organic-posts] Instagram API error for account ${igAccountId}:`, data.error);
+        continue;
+      }
+
+      if (data.data && Array.isArray(data.data)) {
+        console.log(`[fetch-organic-posts] Found ${data.data.length} Instagram posts for account ${igAccountId}`);
+        
+        for (const media of data.data) {
+          posts.push(transformInstagramPost(media, igAccountId, igAccount.username));
+        }
+      }
+    }
+  } catch (err) {
+    console.error("[fetch-organic-posts] Error fetching Instagram posts:", err);
+  }
+
+  return posts;
+}
+
+/**
+ * Transform an Instagram media object into the OrganicPost format
+ */
+function transformInstagramPost(media: any, igAccountId: string, username?: string): OrganicPost {
+  // Map Instagram media_type to our format
+  let mediaType: 'image' | 'video' | 'carousel' = 'image';
+  if (media.media_type === 'VIDEO') {
+    mediaType = 'video';
+  } else if (media.media_type === 'CAROUSEL_ALBUM') {
+    mediaType = 'carousel';
+  }
+
+  return {
+    id: `ig_${media.id}`,
+    platform: 'meta',
+    postId: media.id,
+    pageId: igAccountId,
+    message: media.caption,
+    caption: media.caption,
+    thumbnailUrl: media.thumbnail_url || media.media_url,
+    mediaType,
+    createdTime: media.timestamp,
+    permalink: media.permalink,
+    sourceNetwork: 'instagram',
+  };
+}
 /**
  * Check if the input looks like a Spark Ads authorization code
  * Auth codes are typically base64-encoded strings, often with special characters
