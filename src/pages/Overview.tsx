@@ -613,10 +613,25 @@ const Overview = () => {
         if (!hasPlatform) return false;
       }
       
-      // Performance status filter
+      // Performance status filter - now supports platform-specific format "platform:status"
       if (filters.performanceStatus) {
-        if (!data.performanceStatus) return false;
-        if (data.performanceStatus !== filters.performanceStatus) return false;
+        const [filterPlatform, filterStatus] = filters.performanceStatus.includes(':') 
+          ? filters.performanceStatus.split(':') 
+          : [null, filters.performanceStatus];
+        
+        if (filterPlatform) {
+          // Platform-specific performance filter
+          const platformData = data.platformPerformance.find(
+            p => p.platform.toLowerCase() === filterPlatform.toLowerCase()
+          );
+          if (!platformData) return false;
+          const platformStatus = getPerformanceStatus(platformData.metrics);
+          if (platformStatus !== filterStatus) return false;
+        } else {
+          // Global performance filter (legacy)
+          if (!data.performanceStatus) return false;
+          if (data.performanceStatus !== filterStatus) return false;
+        }
       }
       
       return true;
