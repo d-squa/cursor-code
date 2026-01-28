@@ -770,6 +770,7 @@ const handler = async (req: Request): Promise<Response> => {
             
             // For organic posts (existing_post), determine if it's Facebook or Instagram
             // Instagram posts use source_instagram_media_id, Facebook posts use object_story_id
+            // EXCEPTION: Instagram VIDEOS must be uploaded to Facebook first (Meta API requirement)
             if (isOrganicPost && creative.external_post_id) {
               // Check platform_metadata for sourceNetwork, fallback to ID format detection
               // Instagram media IDs are purely numeric (e.g., "17978083595953638")
@@ -778,10 +779,105 @@ const handler = async (req: Request): Promise<Response> => {
               const isInstagramPost = sourceNetwork === 'instagram' || 
                 (!sourceNetwork && !creative.external_post_id.includes('_'));
               
-              if (isInstagramPost) {
-                // Instagram posts use source_instagram_media_id parameter
+              // Check if this is a video (from platform_metadata or media_type)
+              const mediaType = (creative.platform_metadata as any)?.mediaType || creative.media_type;
+              const isInstagramVideo = isInstagramPost && (mediaType === 'video' || mediaType === 'VIDEO');
+              
+              if (isInstagramVideo) {
+                // Instagram videos MUST be uploaded to Facebook before creating ads
+                // Per Meta API: "When advertising an existing Instagram video, you need to upload it to Facebook"
+                console.log(`[push-creatives] Instagram video detected, uploading to Facebook first...`);
+                
+                try {
+                  // Step 1: Fetch the Instagram media details to get the video URL
+                  const igMediaResponse = await fetch(
+                    `https://graph.facebook.com/v22.0/${creative.external_post_id}?fields=media_url,media_type,thumbnail_url&access_token=${platform.access_token}`
+                  );
+                  const igMediaData = await igMediaResponse.json();
+                  console.log(`[push-creatives] Instagram media data:`, JSON.stringify(igMediaData));
+                  
+                  if (igMediaData.error) {
+                    throw new Error(`Instagram API error: ${igMediaData.error.message}`);
+                  }
+                  
+                  const videoUrl = igMediaData.media_url;
+                  const thumbnailUrl = igMediaData.thumbnail_url;
+                  
+                  if (!videoUrl) {
+                    throw new Error('Could not retrieve Instagram video URL. The video may be too old or access is restricted.');
+                  }
+                  
+                  // Step 2: Upload the video to Facebook ad account using file_url
+                  console.log(`[push-creatives] Uploading Instagram video to Facebook: ${videoUrl.substring(0, 100)}...`);
+                  
+                  const uploadFormData = new FormData();
+                  uploadFormData.append('access_token', platform.access_token);
+                  uploadFormData.append('file_url', videoUrl);
+                  uploadFormData.append('title', creative.name || 'Instagram Video');
+                  
+                  const uploadResponse = await fetch(
+                    `https://graph.facebook.com/v22.0/${adAccountPath}/advideos`,
+                    {
+                      method: 'POST',
+                      body: uploadFormData,
+                    }
+                  );
+                  
+                  const uploadResult = await uploadResponse.json();
+                  console.log(`[push-creatives] Facebook video upload result:`, JSON.stringify(uploadResult));
+                  
+                  if (uploadResult.error) {
+                    throw new Error(`Video upload failed: ${uploadResult.error.message}`);
+                  }
+                  
+                  if (!uploadResult.id) {
+                    throw new Error('Video upload did not return a video ID');
+                  }
+                  
+                  // Step 3: Build the ad creative using video_data (like a dark post)
+                  const uploadedVideoId = uploadResult.id;
+                  console.log(`[push-creatives] Instagram video uploaded to Facebook, video_id: ${uploadedVideoId}`);
+                  
+                  // Update the creative record with the uploaded video ID for future use
+                  await supabase
+                    .from("creatives")
+                    .update({ 
+                      platform_video_id: uploadedVideoId,
+                      dsp_upload_status: "uploaded",
+                      dsp_uploaded_at: new Date().toISOString()
+                    })
+                    .eq("id", creative.id);
+                  
+                  // Use video_data structure for the ad creative
+                  creativePayload.object_story_spec = {
+                    page_id: pageId,
+                    video_data: {
+                      video_id: uploadedVideoId,
+                      message: resolvedText.primaryText || creative.primary_text || "",
+                      title: resolvedText.headline || creative.headline || "",
+                      ...(thumbnailUrl ? { image_url: thumbnailUrl } : {}),
+                    },
+                  };
+                  
+                  // Mark that we've handled this as a video upload (skip the later video_data building)
+                  creative._instagramVideoUploaded = true;
+                  
+                } catch (igVideoError) {
+                  console.error(`[push-creatives] Instagram video upload failed:`, igVideoError);
+                  await supabase
+                    .from("creative_assignments")
+                    .update({
+                      status: "error",
+                      error_message: `Instagram video upload to Facebook failed: ${(igVideoError as any).message}. Try uploading the video directly to the ad account.`,
+                    })
+                    .eq("id", assignment.id);
+                  localFailed++;
+                  continue;
+                }
+              } else if (isInstagramPost) {
+                // Instagram IMAGE posts use source_instagram_media_id parameter
                 creativePayload.source_instagram_media_id = creative.external_post_id;
-                console.log(`[push-creatives] Using source_instagram_media_id for Instagram post: ${creative.external_post_id}`);
+                console.log(`[push-creatives] Using source_instagram_media_id for Instagram image post: ${creative.external_post_id}`);
               } else {
                 // Facebook posts use object_story_id (format: pageId_postId)
                 creativePayload.object_story_id = creative.external_post_id;
@@ -789,7 +885,7 @@ const handler = async (req: Request): Promise<Response> => {
               }
 
               // Meta Traffic / LPV / Link Clicks phases require a website destination even when using object_story_id.
-              // If we have a destination configured, attach a CTA at the root level.
+              // If we have a destination configured, attach a CTA (inside video_data for uploaded IG videos, or at root level otherwise).
               const phaseOptimizationGoal = String((phase as any)?.optimizationGoal || "").toUpperCase();
               const marketOptimizationLocation = String((market as any)?.metaOptimizationLocation || "").toUpperCase();
               const needsWebsiteDestination =
@@ -813,18 +909,30 @@ const handler = async (req: Request): Promise<Response> => {
                   continue;
                 }
 
-                creativePayload.call_to_action = {
-                  type: resolvedText.callToAction || "LEARN_MORE",
-                  value: {
-                    link: baseDestinationUrl,
-                  },
-                };
-
-                // Add URL parameters to CTA link if specified
-                if (finalUrlParameters && creativePayload.call_to_action?.value?.link) {
-                  const ctaLink = creativePayload.call_to_action.value.link;
+                // Build destination URL with optional URL parameters
+                let ctaLink = baseDestinationUrl;
+                if (finalUrlParameters) {
                   const separator = ctaLink.includes("?") ? "&" : "?";
-                  creativePayload.call_to_action.value.link = `${ctaLink}${separator}${finalUrlParameters}`;
+                  ctaLink = `${ctaLink}${separator}${finalUrlParameters}`;
+                }
+
+                // For uploaded Instagram videos, CTA goes inside video_data
+                // For other organic posts (FB posts, IG images), CTA goes at root level
+                if ((creative as any)._instagramVideoUploaded && creativePayload.object_story_spec?.video_data) {
+                  creativePayload.object_story_spec.video_data.call_to_action = {
+                    type: resolvedText.callToAction || "LEARN_MORE",
+                    value: {
+                      link: ctaLink,
+                    },
+                  };
+                  console.log(`[push-creatives] Added CTA to video_data for uploaded Instagram video`);
+                } else {
+                  creativePayload.call_to_action = {
+                    type: resolvedText.callToAction || "LEARN_MORE",
+                    value: {
+                      link: ctaLink,
+                    },
+                  };
                 }
               }
             } else {
