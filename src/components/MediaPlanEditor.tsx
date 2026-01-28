@@ -78,6 +78,8 @@ export function MediaPlanEditor() {
   const [savedCampaignId, setSavedCampaignId] = useState<string | null>(null);
   const [isHydrated, setIsHydrated] = useState(false);
   const lastCampaignIdRef = useRef<string | null>(null);
+  // Mutex to prevent concurrent draft creation (race condition fix)
+  const draftCreationInProgressRef = useRef<boolean>(false);
   const [genericConfig, setGenericConfig] = useState<GenericConfig>({
     strategy: "auto-detect",
     strategyFocus: "auto",
@@ -1649,8 +1651,17 @@ export function MediaPlanEditor() {
   };
 
   const ensureDraft = async () => {
-    if (!savedCampaignId) {
+    // Prevent concurrent draft creation - this fixes the race condition
+    // where multiple field changes trigger multiple INSERTs before the first completes
+    if (savedCampaignId || draftCreationInProgressRef.current) {
+      return;
+    }
+    
+    draftCreationInProgressRef.current = true;
+    try {
       await saveCampaignDraft();
+    } finally {
+      draftCreationInProgressRef.current = false;
     }
   };
 
