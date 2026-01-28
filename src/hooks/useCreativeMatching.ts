@@ -75,6 +75,8 @@ export interface DigestedAsset {
   compatibilitySignals: any;
   digestedAt: string;
   sourceType: string;
+  // Source network for organic posts (facebook vs instagram)
+  sourceNetwork?: 'facebook' | 'instagram';
 }
 
 export interface CampaignStructure {
@@ -596,6 +598,9 @@ export function useCreativeMatching(campaignId?: string) {
       // TikTok requires UI_SYNC (manual upload in Ads Manager) - API_UPLOAD is not delivery-eligible
       const creativeOrigin = asset.creative_origin || asset.creativeOrigin;
       
+      // Capture source network for organic posts (facebook vs instagram)
+      const sourceNetwork = asset.sourceNetwork as 'facebook' | 'instagram' | undefined;
+      
       return {
         id: asset.id,
         originalFile: null as any,
@@ -616,10 +621,13 @@ export function useCreativeMatching(campaignId?: string) {
         compatibilitySignals: {
           platform: asset.platform,
           creativeOrigin, // Track origin for TikTok validation
+          sourceNetwork, // Track source network for organic posts
         },
         digestedAt: new Date().toISOString(),
         // Mark source type based on whether it's organic or platform asset
         sourceType: isOrganicPost ? 'organic' : 'platform_asset',
+        // Source network for organic posts
+        sourceNetwork,
         platformAssetId: asset.platform_asset_id,
         advertiserId: asset.advertiser_id,
         previewUrl: asset.preview_url || asset.thumbnail_url || asset.thumbnailUrl,
@@ -2544,6 +2552,67 @@ function matchAssetToStructure(
     if (publisherMatch) {
       matchedCriteria.push({ criterion: 'Publisher', reason: `"${signals.publisher}" matches placements (${signals.sources.publisher})` });
       score += 6;
+    }
+  }
+
+  // Source network matching for organic posts (Meta only: Facebook vs Instagram)
+  // If the asset is from a specific source (FB or IG), prefer matching with ad sets configured for that publisher
+  const assetSourceNetwork = (asset as any).sourceNetwork as 'facebook' | 'instagram' | undefined;
+  if (assetSourceNetwork && structure.platform === 'meta' && structure.placementConstraints?.length) {
+    const placements = structure.placementConstraints.map(p => p.toLowerCase());
+    const hasInstagram = placements.some(p => p.includes('instagram') || p === 'ig');
+    const hasFacebook = placements.some(p => p.includes('facebook') || p === 'fb');
+    const isInstagramOnly = hasInstagram && !hasFacebook;
+    const isFacebookOnly = hasFacebook && !hasInstagram;
+    
+    if (assetSourceNetwork === 'instagram') {
+      if (isInstagramOnly) {
+        // Perfect match: Instagram post with Instagram-only ad set
+        matchedCriteria.push({ 
+          criterion: 'Source Network', 
+          reason: 'Instagram organic post matches Instagram-only ad set' 
+        });
+        score += 15;
+      } else if (isFacebookOnly) {
+        // Mismatch: Instagram post cannot be promoted on Facebook-only ad set
+        issues.push({ 
+          type: 'source_network', 
+          severity: 'warning', 
+          message: 'Instagram organic post may not be optimal for Facebook-only ad set' 
+        });
+        score -= 10;
+      } else if (hasInstagram) {
+        // Ad set targets both, but Instagram post gives a small boost for IG placements
+        matchedCriteria.push({ 
+          criterion: 'Source Network', 
+          reason: 'Instagram organic post (ad set includes Instagram placements)' 
+        });
+        score += 8;
+      }
+    } else if (assetSourceNetwork === 'facebook') {
+      if (isFacebookOnly) {
+        // Perfect match: Facebook post with Facebook-only ad set
+        matchedCriteria.push({ 
+          criterion: 'Source Network', 
+          reason: 'Facebook organic post matches Facebook-only ad set' 
+        });
+        score += 12;
+      } else if (isInstagramOnly) {
+        // Mismatch: Facebook post with Instagram-only ad set
+        issues.push({ 
+          type: 'source_network', 
+          severity: 'warning', 
+          message: 'Facebook organic post may not be optimal for Instagram-only ad set' 
+        });
+        score -= 10;
+      } else if (hasFacebook) {
+        // Ad set targets both, Facebook post gets a small boost
+        matchedCriteria.push({ 
+          criterion: 'Source Network', 
+          reason: 'Facebook organic post (ad set includes Facebook placements)' 
+        });
+        score += 6;
+      }
     }
   }
 
