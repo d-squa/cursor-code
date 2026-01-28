@@ -264,6 +264,11 @@ export function UnifiedPageAssetsLibrary({
     
     setIsLoading(true);
     setPosts([]);
+
+    // Some environments have been dropping the implicit Authorization header.
+    // Explicitly attach the user's access token to ensure backend auth.
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
     
     const allPosts: OrganicPost[] = [];
     let fetchErrors: string[] = [];
@@ -274,6 +279,7 @@ export function UnifiedPageAssetsLibrary({
       try {
         console.log('[UnifiedPageAssetsLibrary] Fetching for config:', config);
         const { data, error } = await supabase.functions.invoke('fetch-organic-posts', {
+          headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
           body: {
             platform: config.platform,
             pageId: config.platform === 'meta' ? config.pageId : undefined,
@@ -337,6 +343,9 @@ export function UnifiedPageAssetsLibrary({
   // Import a single post by URL/ID or Spark Ads auth code (fallback when listing API doesn't work)
   const handleImportByUrl = async () => {
     if (!importUrl.trim()) return;
+
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
     
     // Find a TikTok config to use for the lookup
     const tiktokConfig = pageConfigs.find(c => c.platform === 'tiktok' && c.advertiserId);
@@ -367,6 +376,7 @@ export function UnifiedPageAssetsLibrary({
       console.log('[UnifiedPageAssetsLibrary] Importing:', { postIdOrUrl, isAuthCode });
       
       const { data, error } = await supabase.functions.invoke('fetch-organic-posts', {
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
         body: {
           platform: 'tiktok',
           advertiserId: tiktokConfig.advertiserId,
