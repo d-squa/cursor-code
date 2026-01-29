@@ -26,9 +26,9 @@ export const PLATFORM_CONFIG = {
    */
   metaAdLibrary: {
     appId: import.meta.env.VITE_META_APP_ID || "",
-    // No explicit scope needed - public_profile is granted by default.
-    // Empty string means we rely on the implicit default.
-    oauthScopes: "",
+    // Explicitly request at least one supported permission.
+    // Some Meta app configurations reject OAuth requests that omit `scope`.
+    oauthScopes: "public_profile",
     apiVersion: "v21.0",
     responseType: "code",
     // Must use www.facebook.com (NOT business.facebook.com)
