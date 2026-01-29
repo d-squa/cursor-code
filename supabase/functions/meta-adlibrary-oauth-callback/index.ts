@@ -61,7 +61,19 @@ serve(async (req) => {
         }
       );
     }
-    const { code, redirectUri } = parseResult.data;
+    const { code, redirectUri: providedRedirectUri } = parseResult.data;
+
+    // IMPORTANT: Must exactly match the redirect URI configured in the Meta Consumer App
+    // and the value used in the initial OAuth dialog request.
+    // We intentionally force the production URL to avoid preview/staging domain mismatches.
+    const redirectUri = "https://actiplan.app/settings/platforms";
+
+    if (providedRedirectUri !== redirectUri) {
+      console.warn(
+        "[AD-LIBRARY-OAUTH] Client provided redirectUri differs from expected; forcing expected value",
+        { providedRedirectUri, expected: redirectUri },
+      );
+    }
 
     // Exchange code for access token
     const clientId = Deno.env.get("META_APP_ID");

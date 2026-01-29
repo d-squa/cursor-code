@@ -66,6 +66,10 @@ const PLATFORM_TYPES = [
   { id: "tiktok", name: "TikTok Ads", icon: Video, color: "bg-black" },
 ];
 
+// IMPORTANT: Must exactly match the URL configured in Meta/TikTok app settings.
+// Keep as a single constant to avoid subtle mismatches (preview domains, trailing slashes, etc.).
+const OAUTH_REDIRECT_URI = "https://actiplan.app/settings/platforms";
+
 export default function PlatformConnections() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
@@ -97,7 +101,7 @@ export default function PlatformConnections() {
   const triggerAdLibraryOAuth = useCallback(() => {
     // IMPORTANT: Use the exact production URL - must match what's configured in Meta App
     // Do NOT use window.location.origin as it varies between environments
-    const redirectUri = 'https://actiplan.app/settings/platforms';
+    const redirectUri = OAUTH_REDIRECT_URI;
     const clientId = PLATFORM_CONFIG.metaAdLibrary.appId;
     
     if (!clientId) {
@@ -311,7 +315,7 @@ export default function PlatformConnections() {
     if (platformType === "meta") {
       try {
         // Redirect to Meta OAuth
-        const redirectUri = "https://actiplan.app/settings/platforms";
+        const redirectUri = OAUTH_REDIRECT_URI;
         const clientId = PLATFORM_CONFIG.meta.appId;
         
         console.log("Meta OAuth - Client ID:", clientId ? "Configured" : "Missing");
@@ -364,7 +368,7 @@ export default function PlatformConnections() {
       }
     } else if (platformType === "tiktok") {
       try {
-        const redirectUri = "https://actiplan.app/settings/platforms";
+        const redirectUri = OAUTH_REDIRECT_URI;
         const appId = PLATFORM_CONFIG.tiktok.appId;
         
         console.log("TikTok OAuth - App ID:", appId ? "Configured" : "Missing");
@@ -576,7 +580,9 @@ export default function PlatformConnections() {
         
         setSaving(true);
         try {
-          const redirectUri = `${window.location.origin}/settings/platforms`;
+          // IMPORTANT: The redirect_uri used here MUST be identical to the one used in the OAuth dialog request.
+          // Never derive from window.location.origin (preview / staging domains will cause code exchange failures).
+          const redirectUri = OAUTH_REDIRECT_URI;
           
           // Check if this is the Ad Library OAuth callback
           if (state === 'meta_adlibrary') {
