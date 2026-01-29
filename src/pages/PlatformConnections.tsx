@@ -106,24 +106,20 @@ export default function PlatformConnections() {
     // Store a flag to indicate we're doing Ad Library OAuth
     sessionStorage.setItem('pending_adlibrary_oauth', 'true');
     
-    // Build OAuth URL for pure Facebook Login (NOT business.facebook.com)
-    // Important: Only include `scope` if it is non-empty; passing an empty/unsupported scope
-    // can cause Facebook to show "This app needs at least one supported permission".
+    // Build OAuth URL for classic Facebook Login (NOT Facebook Login for Business)
+    // IMPORTANT: We intentionally omit config_id here because:
+    // 1. config_id is tied to Facebook Login for Business permission sets
+    // 2. Ad Library API requires a pure user token, not a business-scoped token
+    // 3. Using config_id with minimal/no scopes causes validation errors
+    // Instead, we use classic OAuth which grants public_profile by default
     const oauthParams = new URLSearchParams({
       response_type: 'code',
       client_id: clientId,
       redirect_uri: redirectUri,
-      state: 'meta_adlibrary', // Special state to identify this flow
+      state: 'meta_adlibrary',
     });
 
-    // Some Meta apps have "Facebook Login for Business" enabled.
-    // In that case, Facebook may require a `config_id` to be present, otherwise it can show:
-    // "This app needs at least one supported permission".
-    // We reuse the existing configId already used for the Meta managed-login flow.
-    if (PLATFORM_CONFIG.meta?.configId) {
-      oauthParams.set('config_id', PLATFORM_CONFIG.meta.configId);
-    }
-
+    // Only add scope if explicitly configured; public_profile is granted by default
     const scopes = PLATFORM_CONFIG.metaAdLibrary.oauthScopes?.trim();
     if (scopes) oauthParams.set('scope', scopes);
 
