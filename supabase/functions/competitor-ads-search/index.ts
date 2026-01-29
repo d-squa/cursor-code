@@ -1,11 +1,14 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.76.1";
 import { getAccessToken } from "../_shared/vault-helper.ts";
+import { createApiLogger } from "../_shared/api-logger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+const logger = createApiLogger("competitor-ads-search");
 
 interface CompetitorSearchRequest {
   clientId?: string;
@@ -272,14 +275,20 @@ async function searchMetaForCompetitor(
     pageUrl.searchParams.set('fields', 'id,ad_creation_time,ad_creative_bodies,page_name,publisher_platforms,ad_snapshot_url');
     pageUrl.searchParams.set('limit', '50');
     
+    // Log the full URL (mask token for security)
+    const logUrl = pageUrl.toString().replace(accessToken, '<USER_ACCESS_TOKEN>');
+    logger.logRequest(logUrl, 'GET', null, `Meta Ad Library - page search for "${pageName}" in ${market} (Token: User OAuth)`);
+    
     const pageResponse = await fetch(pageUrl.toString());
     
     if (pageResponse.ok) {
       const pageData = await pageResponse.json();
       allAds = pageData.data || [];
+      logger.logResponse(logUrl, { resultCount: allAds.length, sample: allAds.slice(0, 2) }, `Meta Ad Library response`);
       console.log(`[META] Found ${allAds.length} ads by page name "${pageName}"`);
     } else {
       const errorText = await pageResponse.text();
+      logger.logResponse(logUrl, { error: errorText }, `Meta Ad Library error`);
       console.error(`[META] API error for page "${pageName}":`, errorText);
       
       if (errorText.includes('OAuthException')) {
@@ -301,11 +310,15 @@ async function searchMetaForCompetitor(
       websiteUrl.searchParams.set('fields', 'id,ad_creation_time,ad_creative_bodies,page_name,publisher_platforms,ad_snapshot_url');
       websiteUrl.searchParams.set('limit', '50');
       
+      const websiteLogUrl = websiteUrl.toString().replace(accessToken, '<USER_ACCESS_TOKEN>');
+      logger.logRequest(websiteLogUrl, 'GET', null, `Meta Ad Library - website search for "${website}" in ${market} (Token: User OAuth)`);
+      
       const websiteResponse = await fetch(websiteUrl.toString());
       
       if (websiteResponse.ok) {
         const websiteData = await websiteResponse.json();
         allAds = websiteData.data || [];
+        logger.logResponse(websiteLogUrl, { resultCount: allAds.length }, `Meta Ad Library website response`);
         console.log(`[META] Found ${allAds.length} ads by website "${website}"`);
       }
     }
@@ -323,11 +336,15 @@ async function searchMetaForCompetitor(
       brandUrl.searchParams.set('fields', 'id,ad_creation_time,ad_creative_bodies,page_name,publisher_platforms,ad_snapshot_url');
       brandUrl.searchParams.set('limit', '50');
       
+      const brandLogUrl = brandUrl.toString().replace(accessToken, '<USER_ACCESS_TOKEN>');
+      logger.logRequest(brandLogUrl, 'GET', null, `Meta Ad Library - brand search for "${competitorName}" in ${market} (Token: User OAuth)`);
+      
       const brandResponse = await fetch(brandUrl.toString());
       
       if (brandResponse.ok) {
         const brandData = await brandResponse.json();
         allAds = brandData.data || [];
+        logger.logResponse(brandLogUrl, { resultCount: allAds.length }, `Meta Ad Library brand response`);
         console.log(`[META] Found ${allAds.length} ads by brand name "${competitorName}"`);
       }
     }
@@ -366,21 +383,27 @@ async function searchTikTokForCompetitor(
   try {
     console.log(`[TIKTOK] Searching for "${competitorName}" in ${market}`);
     
-    const response = await fetch('https://business-api.tiktok.com/open_api/v1.3/creative/ads_library/search/', {
+    const tiktokUrl = 'https://business-api.tiktok.com/open_api/v1.3/creative/ads_library/search/';
+    const requestBody = {
+      advertiser_name: competitorName,
+      region: market,
+      page_size: 50
+    };
+    
+    logger.logRequest(tiktokUrl, 'POST', requestBody, `TikTok Commercial Content Library - search for "${competitorName}" in ${market} (Token: User OAuth)`);
+    
+    const response = await fetch(tiktokUrl, {
       method: 'POST',
       headers: {
         'Access-Token': accessToken,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        advertiser_name: competitorName,
-        region: market,
-        page_size: 50
-      })
+      body: JSON.stringify(requestBody)
     });
     
     if (!response.ok) {
       const errorText = await response.text();
+      logger.logResponse(tiktokUrl, { error: errorText }, `TikTok error`);
       console.log(`[TIKTOK] API response for "${competitorName}":`, errorText);
       return { isLive: false, adCount: 0, ads: [] };
     }
@@ -388,6 +411,7 @@ async function searchTikTokForCompetitor(
     const data = await response.json();
     const ads = data.data?.ads || [];
     
+    logger.logResponse(tiktokUrl, { resultCount: ads.length, code: data.code, message: data.message }, `TikTok response`);
     console.log(`[TIKTOK] Found ${ads.length} ads for "${competitorName}" in ${market}`);
     
     return {
