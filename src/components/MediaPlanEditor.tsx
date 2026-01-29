@@ -80,8 +80,8 @@ export function MediaPlanEditor() {
   const lastCampaignIdRef = useRef<string | null>(null);
   // Mutex to prevent concurrent draft creation (race condition fix)
   const draftCreationInProgressRef = useRef<boolean>(false);
-  const [genericConfig, setGenericConfig] = useState<GenericConfig>({
-    strategy: "auto-detect",
+const [genericConfig, setGenericConfig] = useState<GenericConfig>({
+    strategy: "manual",
     strategyFocus: "auto",
     targeting: {
       adFormats: [],
