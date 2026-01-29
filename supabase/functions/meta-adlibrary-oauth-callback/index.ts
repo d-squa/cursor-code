@@ -76,12 +76,15 @@ serve(async (req) => {
     }
 
     // Exchange code for access token
-    const clientId = Deno.env.get("META_APP_ID");
-    const clientSecret = Deno.env.get("META_APP_SECRET");
+    // IMPORTANT: Use the Ad Library consumer app credentials, NOT the main business app
+    const clientId = Deno.env.get("META_ADLIBRARY_APP_ID");
+    const clientSecret = Deno.env.get("META_ADLIBRARY_APP_SECRET");
 
     if (!clientId || !clientSecret) {
-      throw new Error("Meta credentials not configured");
+      throw new Error("Meta Ad Library credentials not configured (META_ADLIBRARY_APP_ID / META_ADLIBRARY_APP_SECRET)");
     }
+
+    console.log("[AD-LIBRARY-OAUTH] Using Ad Library consumer app ID:", clientId);
 
     console.log("[AD-LIBRARY-OAUTH] Exchanging code for access token...");
     console.log("[AD-LIBRARY-OAUTH] This is a pure Facebook Login token (public_profile only)");
