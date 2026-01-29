@@ -26,9 +26,11 @@ export const PLATFORM_CONFIG = {
    */
   metaAdLibrary: {
     appId: import.meta.env.VITE_META_APP_ID || "",
-    // Explicitly request at least one supported permission.
-    // Some Meta app configurations reject OAuth requests that omit `scope`.
-    oauthScopes: "public_profile",
+    // Use the same config_id as business login - required when Facebook Login for Business is enabled
+    // public_profile is implicitly granted even with business config
+    configId: "2625506637799260",
+    // No explicit scope needed - config_id defines the permissions
+    oauthScopes: "",
     apiVersion: "v21.0",
     responseType: "code",
     // Must use www.facebook.com (NOT business.facebook.com)
