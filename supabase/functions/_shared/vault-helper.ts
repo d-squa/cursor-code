@@ -121,3 +121,82 @@ export async function storePageToken(
     // Don't throw - page tokens are less critical
   }
 }
+
+/**
+ * Store Ad Library user token in Supabase Vault
+ * 
+ * This stores a PURE Facebook Login token (public_profile only) that works
+ * with the Meta Ad Library API. This is separate from business tokens.
+ * 
+ * @param supabase - Supabase client with service role key
+ * @param userId - UUID of the user
+ * @param tokenValue - The pure user access token
+ */
+export async function storeAdLibraryToken(
+  supabase: any,
+  userId: string,
+  tokenValue: string
+): Promise<void> {
+  const secretName = `adlibrary_user_token_${userId}`;
+  
+  // Check if secret already exists
+  const { data: existingSecret } = await supabase
+    .rpc('get_vault_secret_id', { secret_name: secretName });
+  
+  if (existingSecret) {
+    // Update existing secret
+    const { error } = await supabase.rpc('update_vault_secret', {
+      secret_id: existingSecret,
+      new_value: tokenValue
+    });
+    if (error) {
+      console.error(`Failed to update Ad Library token in Vault:`, error.message);
+      throw new Error(`Failed to update Ad Library token: ${error.message}`);
+    }
+  } else {
+    // Create new secret using vault.create_secret
+    const { error } = await supabase.rpc('create_vault_secret', {
+      secret_value: tokenValue,
+      secret_name: secretName
+    });
+    if (error) {
+      console.error(`Failed to store Ad Library token in Vault:`, error.message);
+      throw new Error(`Failed to store Ad Library token: ${error.message}`);
+    }
+  }
+  
+  console.log(`Successfully stored Ad Library token in Vault for user ${userId}`);
+}
+
+/**
+ * Retrieve Ad Library user token from Supabase Vault
+ * 
+ * @param supabase - Supabase client with service role key
+ * @param userId - UUID of the user
+ * @returns The Ad Library user token or null if not found
+ */
+export async function getAdLibraryToken(
+  supabase: any,
+  userId: string
+): Promise<string | null> {
+  const secretName = `adlibrary_user_token_${userId}`;
+  
+  console.log(`Attempting to retrieve Ad Library token from Vault for user ${userId}`);
+  
+  const { data, error } = await supabase.rpc('get_vault_secret', {
+    secret_name: secretName
+  });
+
+  if (error) {
+    console.error(`Failed to retrieve Ad Library token from Vault:`, error.message);
+    return null;
+  }
+
+  if (data) {
+    console.log(`Successfully retrieved Ad Library token from Vault for user ${userId}`);
+  } else {
+    console.log(`No Ad Library token found in Vault for user ${userId}`);
+  }
+
+  return data as string | null;
+}

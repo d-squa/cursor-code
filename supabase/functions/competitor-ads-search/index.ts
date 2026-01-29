@@ -10,6 +10,33 @@ const corsHeaders = {
 
 const logger = createApiLogger("competitor-ads-search");
 
+/**
+ * Get Ad Library user token from Vault
+ * This is a PURE Facebook Login token (public_profile only) that works
+ * with the Meta Ad Library API, separate from business tokens.
+ */
+async function getAdLibraryToken(supabase: any, userId: string): Promise<string | null> {
+  try {
+    const { data, error } = await supabase.rpc('get_adlibrary_token', {
+      user_id_param: userId
+    });
+    
+    if (error) {
+      console.log(`[AD-LIBRARY] No dedicated token found for user ${userId}:`, error.message);
+      return null;
+    }
+    
+    if (data) {
+      console.log(`[AD-LIBRARY] Retrieved dedicated Ad Library token for user ${userId}`);
+    }
+    
+    return data as string | null;
+  } catch (e) {
+    console.log(`[AD-LIBRARY] Error retrieving token:`, e);
+    return null;
+  }
+}
+
 interface CompetitorSearchRequest {
   clientId?: string;
   clientName: string;
@@ -482,17 +509,29 @@ serve(async (req) => {
     
     if (userId) {
       if (platforms.includes('meta')) {
-        const { data: metaPlatform } = await supabase
-          .from('connected_platforms')
-          .select('id, access_token')
-          .eq('user_id', userId)
-          .eq('platform_type', 'meta')
-          .eq('is_active', true)
-          .single();
+        // IMPORTANT: For Meta Ad Library, we need a PURE user token, not a business token
+        // First try the dedicated Ad Library token (from separate Facebook Login flow)
+        metaAccessToken = await getAdLibraryToken(supabase, userId);
         
-        if (metaPlatform) {
-          metaAccessToken = await getAccessToken(supabase, metaPlatform.id, metaPlatform.access_token);
-          console.log(`[META] Token available: ${!!metaAccessToken}`);
+        if (metaAccessToken) {
+          console.log(`[META] Using dedicated Ad Library token (pure user token)`);
+        } else {
+          // Fallback to business token (may fail with OAuthException on Ad Library)
+          console.log(`[META] No Ad Library token found, falling back to business token`);
+          console.log(`[META] WARNING: Business tokens often fail on Ad Library API`);
+          
+          const { data: metaPlatform } = await supabase
+            .from('connected_platforms')
+            .select('id, access_token')
+            .eq('user_id', userId)
+            .eq('platform_type', 'meta')
+            .eq('is_active', true)
+            .single();
+          
+          if (metaPlatform) {
+            metaAccessToken = await getAccessToken(supabase, metaPlatform.id, metaPlatform.access_token);
+            console.log(`[META] Business token available (fallback): ${!!metaAccessToken}`);
+          }
         }
       }
       

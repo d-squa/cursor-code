@@ -11,6 +11,28 @@ export const PLATFORM_CONFIG = {
     authType: "reauthenticate",
     responseType: "code"
   },
+  /**
+   * Meta Ad Library OAuth Configuration
+   * 
+   * IMPORTANT: The Meta Ad Library API (ads_archive) requires a PURE Facebook Login
+   * user token - NOT a business-scoped token from Facebook Login for Business.
+   * 
+   * Business-scoped tokens (with ads_management, business_management, etc.) cause
+   * OAuthException (code 1) errors because Ad Library is intentionally decoupled
+   * from business assets like Ad Accounts, Pages, or Business Managers.
+   * 
+   * This separate OAuth flow captures just `public_profile` scope to get a
+   * user-context token that works with the Ad Library API.
+   */
+  metaAdLibrary: {
+    appId: import.meta.env.VITE_META_APP_ID || "",
+    // Minimal scope - just need to identify the user as a person, not a business
+    oauthScopes: "public_profile",
+    apiVersion: "v21.0",
+    responseType: "code",
+    // Must use www.facebook.com (NOT business.facebook.com)
+    authBaseUrl: "https://www.facebook.com"
+  },
   tiktok: {
     appId: import.meta.env.VITE_TIKTOK_APP_ID || "",
     oauthScopes: "ad_management,user.info.basic",

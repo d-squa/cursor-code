@@ -486,6 +486,39 @@ export default function PlatformConnections() {
       toast.error("Failed to delete account");
     }
   };
+  
+  // Function to trigger Ad Library OAuth (pure Facebook Login)
+  const triggerAdLibraryOAuth = useCallback(() => {
+    const redirectUri = "https://actiplan.app/settings/platforms";
+    const clientId = PLATFORM_CONFIG.metaAdLibrary.appId;
+    
+    if (!clientId) {
+      console.error("Meta App ID not configured for Ad Library OAuth");
+      return;
+    }
+    
+    // Store a flag to indicate we're doing Ad Library OAuth
+    sessionStorage.setItem('pending_adlibrary_oauth', 'true');
+    
+    // Build OAuth URL for pure Facebook Login (NOT business.facebook.com)
+    const oauthParams = new URLSearchParams({
+      response_type: 'code',
+      scope: PLATFORM_CONFIG.metaAdLibrary.oauthScopes, // Just 'public_profile'
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      state: 'meta_adlibrary', // Special state to identify this flow
+    });
+    
+    const oauthUrl = `${PLATFORM_CONFIG.metaAdLibrary.authBaseUrl}/dialog/oauth?${oauthParams.toString()}`;
+    
+    console.log("Ad Library OAuth - Redirecting to:", oauthUrl.replace(clientId, 'HIDDEN'));
+    toast.loading("Enabling Competitor Research...");
+    
+    setTimeout(() => {
+      window.location.href = oauthUrl;
+    }, 100);
+  }, []);
+  
   // Handle OAuth callback
   useEffect(() => {
     const handleOAuthCallback = async () => {
@@ -501,6 +534,27 @@ export default function PlatformConnections() {
         setSaving(true);
         try {
           const redirectUri = "https://actiplan.app/settings/platforms";
+          
+          // Check if this is the Ad Library OAuth callback
+          if (state === 'meta_adlibrary') {
+            console.log('Ad Library OAuth callback - processing...');
+            sessionStorage.removeItem('pending_adlibrary_oauth');
+            
+            const { data, error } = await supabase.functions.invoke('meta-adlibrary-oauth-callback', {
+              body: { code, redirectUri }
+            });
+            
+            if (error) throw error;
+            
+            toast.success("Competitor Research enabled!", {
+              description: `Authorized as ${data.userName}`
+            });
+            
+            await fetchConnectedPlatforms();
+            return;
+          }
+          
+          // Regular platform OAuth flow
           const platformId = sessionStorage.getItem('reconnecting_platform_id');
           const platformType = sessionStorage.getItem('reconnecting_platform_type') || state;
           sessionStorage.removeItem('reconnecting_platform_id');
@@ -557,6 +611,20 @@ export default function PlatformConnections() {
             setAccountSelectorOpen(true);
             toast.success(`Found ${data.accounts.length} account(s) - please select which to sync`);
           }
+          
+          // After successful Meta business OAuth, trigger Ad Library OAuth
+          // This creates a seamless two-step flow during onboarding
+          if (platformType === 'meta' && !platformId) {
+            // Small delay to let the user see the success message
+            setTimeout(() => {
+              toast.info("One more step: Authorizing Competitor Research...", {
+                description: "This enables you to search the Meta Ad Library for competitor ads."
+              });
+              setTimeout(() => {
+                triggerAdLibraryOAuth();
+              }, 2000);
+            }, 1500);
+          }
 
           await fetchConnectedPlatforms();
         } catch (error: any) {
@@ -573,7 +641,7 @@ export default function PlatformConnections() {
     if (user) {
       handleOAuthCallback();
     }
-  }, [user]);
+  }, [user, triggerAdLibraryOAuth]);
 
   const handleSyncAccountAssets = async (account: MetaAdAccount, skipClientCheck = false) => {
     // If account has no client linked, prompt user to link first (for benchmark features)
