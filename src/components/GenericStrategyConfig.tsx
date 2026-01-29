@@ -119,7 +119,7 @@ export function GenericStrategyConfig({
   
   useEffect(() => {
     if (!isInitialized && !config.strategy) {
-      updateConfig("strategy", "auto-detect");
+      updateConfig("strategy", "manual");
       setIsInitialized(true);
     } else if (!isInitialized && config.strategy) {
       // Strategy already set, mark as initialized
