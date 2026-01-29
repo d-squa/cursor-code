@@ -1217,8 +1217,13 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
       toast.error("Please enter a campaign name");
       return;
     }
+
+    if (!boNumber.trim()) {
+      toast.error("Please enter a BO number");
+      return;
+    }
     
-    // Check if BO number is unique within the same workspace (if provided)
+    // Check if BO number is unique within the same workspace
     if (boNumber.trim() && activeWorkspaceId) {
       const { data: existingCampaign } = await supabase
         .from("campaigns")
@@ -1526,13 +1531,18 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
       toast.error("Please enter a campaign name");
       return null;
     }
+
+    if (!boNumber.trim()) {
+      toast.error("Please enter a BO number");
+      return null;
+    }
     
     if (!validateBudgetTypes()) {
       return null;
     }
 
-    // Check if BO number is unique within the same workspace (if provided)
-    if (boNumber.trim() && activeWorkspaceId) {
+    // Check if BO number is unique within the same workspace
+    if (activeWorkspaceId) {
       const { data: existingCampaign } = await supabase
         .from("campaigns")
         .select("id")
@@ -1934,14 +1944,15 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="bo-number">BO Number</Label>
+                <Label htmlFor="bo-number">BO Number <span className="text-destructive">*</span></Label>
                 <Input
                   id="bo-number"
                   value={boNumber}
                   onChange={(e) => { setBoNumber(e.target.value); ensureDraft(); }}
                   placeholder="e.g., BO-2025-001"
+                  required
                 />
-                <p className="text-xs text-muted-foreground">Optional unique financial reference for invoicing</p>
+                <p className="text-xs text-muted-foreground">Unique financial reference for invoicing</p>
               </div>
             </div>
 
