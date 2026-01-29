@@ -95,7 +95,9 @@ export default function PlatformConnections() {
   
   // Function to trigger Ad Library OAuth (pure Facebook Login) - defined early for use in callbacks
   const triggerAdLibraryOAuth = useCallback(() => {
-    const redirectUri = `${window.location.origin}/settings/platforms`;
+    // IMPORTANT: Use the exact production URL - must match what's configured in Meta App
+    // Do NOT use window.location.origin as it varies between environments
+    const redirectUri = 'https://actiplan.app/settings/platforms';
     const clientId = PLATFORM_CONFIG.metaAdLibrary.appId;
     
     if (!clientId) {
