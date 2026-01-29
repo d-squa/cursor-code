@@ -93,6 +93,38 @@ export default function PlatformConnections() {
   // Platform sync progress tracking (works for both TikTok and Meta)
   const { progress: platformSyncProgress } = usePlatformSyncProgress(syncProgressPlatformId);
   
+  // Function to trigger Ad Library OAuth (pure Facebook Login) - defined early for use in callbacks
+  const triggerAdLibraryOAuth = useCallback(() => {
+    const redirectUri = "https://actiplan.app/settings/platforms";
+    const clientId = PLATFORM_CONFIG.metaAdLibrary.appId;
+    
+    if (!clientId) {
+      console.error("Meta App ID not configured for Ad Library OAuth");
+      return;
+    }
+    
+    // Store a flag to indicate we're doing Ad Library OAuth
+    sessionStorage.setItem('pending_adlibrary_oauth', 'true');
+    
+    // Build OAuth URL for pure Facebook Login (NOT business.facebook.com)
+    const oauthParams = new URLSearchParams({
+      response_type: 'code',
+      scope: PLATFORM_CONFIG.metaAdLibrary.oauthScopes, // Just 'public_profile'
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      state: 'meta_adlibrary', // Special state to identify this flow
+    });
+    
+    const oauthUrl = `${PLATFORM_CONFIG.metaAdLibrary.authBaseUrl}/dialog/oauth?${oauthParams.toString()}`;
+    
+    console.log("Ad Library OAuth - Redirecting to:", oauthUrl.replace(clientId, 'HIDDEN'));
+    toast.loading("Enabling Competitor Research...");
+    
+    setTimeout(() => {
+      window.location.href = oauthUrl;
+    }, 100);
+  }, []);
+
   // Check for in-progress syncs on page load
   useEffect(() => {
     const checkExistingSyncs = async () => {
@@ -140,7 +172,7 @@ export default function PlatformConnections() {
     checkExistingSyncs();
   }, [user]);
   
-  // Handle sync completion - open account selector
+  // Handle sync completion - open account selector or trigger Ad Library OAuth
   const handleSyncComplete = useCallback(async () => {
     if (!syncProgressPlatformId) return;
     
@@ -149,11 +181,13 @@ export default function PlatformConnections() {
     // Fetch the completed accounts from metadata
     const { data } = await supabase
       .from('connected_platforms_safe')
-      .select('metadata')
+      .select('metadata, platform_type')
       .eq('id', syncProgressPlatformId)
       .single();
     
     const metadata = data?.metadata as any;
+    const platformType = data?.platform_type;
+    
     if (metadata?.accounts && metadata.accounts.length > 0) {
       const accountOptions = metadata.accounts.map((acc: any) => ({
         id: acc.advertiser_id || acc.id,
@@ -165,12 +199,26 @@ export default function PlatformConnections() {
       setCurrentPlatformId(syncProgressPlatformId);
       setAccountSelectorOpen(true);
       toast.success(`Found ${accountOptions.length} advertiser account(s) - please select which to sync`);
+    } else {
+      // No more accounts to select - check if we need to trigger Ad Library OAuth
+      const pendingAdLibraryOAuth = sessionStorage.getItem('pending_adlibrary_oauth_after_sync');
+      if (pendingAdLibraryOAuth && platformType === 'meta') {
+        sessionStorage.removeItem('pending_adlibrary_oauth_after_sync');
+        setTimeout(() => {
+          toast.info("One more step: Authorizing Competitor Research...", {
+            description: "This enables you to search the Meta Ad Library for competitor ads."
+          });
+          setTimeout(() => {
+            triggerAdLibraryOAuth();
+          }, 1500);
+        }, 1000);
+      }
     }
     
     setSyncProgressPlatformId(null);
     setSyncProgressDialogOpen(false);
     await fetchConnectedPlatforms();
-  }, [syncProgressPlatformId]);
+  }, [syncProgressPlatformId, triggerAdLibraryOAuth]);
   useEffect(() => {
     if (!authLoading && !user) {
       navigate("/auth");
@@ -397,6 +445,22 @@ export default function PlatformConnections() {
         toast.success("Selected ad accounts synced successfully!");
         setAccountSelectorOpen(false);
         setAdAccountOptions([]);
+        
+        // Check if we need to trigger Ad Library OAuth after account selection (seamless onboarding)
+        const pendingAdLibraryOAuth = sessionStorage.getItem('pending_adlibrary_oauth_after_sync');
+        if (pendingAdLibraryOAuth) {
+          sessionStorage.removeItem('pending_adlibrary_oauth_after_sync');
+          // Small delay to let user see success message before next step
+          setTimeout(() => {
+            toast.info("One more step: Authorizing Competitor Research...", {
+              description: "This enables you to search the Meta Ad Library for competitor ads."
+            });
+            setTimeout(() => {
+              triggerAdLibraryOAuth();
+            }, 1500);
+          }, 1000);
+        }
+        
         setCurrentPlatformId(null);
         await fetchConnectedPlatforms();
       }
@@ -486,38 +550,6 @@ export default function PlatformConnections() {
       toast.error("Failed to delete account");
     }
   };
-  
-  // Function to trigger Ad Library OAuth (pure Facebook Login)
-  const triggerAdLibraryOAuth = useCallback(() => {
-    const redirectUri = "https://actiplan.app/settings/platforms";
-    const clientId = PLATFORM_CONFIG.metaAdLibrary.appId;
-    
-    if (!clientId) {
-      console.error("Meta App ID not configured for Ad Library OAuth");
-      return;
-    }
-    
-    // Store a flag to indicate we're doing Ad Library OAuth
-    sessionStorage.setItem('pending_adlibrary_oauth', 'true');
-    
-    // Build OAuth URL for pure Facebook Login (NOT business.facebook.com)
-    const oauthParams = new URLSearchParams({
-      response_type: 'code',
-      scope: PLATFORM_CONFIG.metaAdLibrary.oauthScopes, // Just 'public_profile'
-      client_id: clientId,
-      redirect_uri: redirectUri,
-      state: 'meta_adlibrary', // Special state to identify this flow
-    });
-    
-    const oauthUrl = `${PLATFORM_CONFIG.metaAdLibrary.authBaseUrl}/dialog/oauth?${oauthParams.toString()}`;
-    
-    console.log("Ad Library OAuth - Redirecting to:", oauthUrl.replace(clientId, 'HIDDEN'));
-    toast.loading("Enabling Competitor Research...");
-    
-    setTimeout(() => {
-      window.location.href = oauthUrl;
-    }, 100);
-  }, []);
   
   // Handle OAuth callback
   useEffect(() => {
@@ -612,18 +644,10 @@ export default function PlatformConnections() {
             toast.success(`Found ${data.accounts.length} account(s) - please select which to sync`);
           }
           
-          // After successful Meta business OAuth, trigger Ad Library OAuth
+          // Track that we need to trigger Ad Library OAuth after account selection
           // This creates a seamless two-step flow during onboarding
           if (platformType === 'meta' && !platformId) {
-            // Small delay to let the user see the success message
-            setTimeout(() => {
-              toast.info("One more step: Authorizing Competitor Research...", {
-                description: "This enables you to search the Meta Ad Library for competitor ads."
-              });
-              setTimeout(() => {
-                triggerAdLibraryOAuth();
-              }, 2000);
-            }, 1500);
+            sessionStorage.setItem('pending_adlibrary_oauth_after_sync', 'true');
           }
 
           await fetchConnectedPlatforms();

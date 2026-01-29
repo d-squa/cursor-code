@@ -138,3 +138,6 @@ verify_jwt = false
 
 [functions.fetch-organic-posts]
 verify_jwt = false
+
+[functions.meta-adlibrary-oauth-callback]
+verify_jwt = true
