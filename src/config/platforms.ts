@@ -26,8 +26,9 @@ export const PLATFORM_CONFIG = {
    */
   metaAdLibrary: {
     appId: import.meta.env.VITE_META_APP_ID || "",
-    // Minimal scope - just need to identify the user as a person, not a business
-    oauthScopes: "public_profile",
+    // Minimal supported permission (public_profile is implicit). Using `email` avoids
+    // Facebook showing "This app needs at least one supported permission" for some app configs.
+    oauthScopes: "email",
     apiVersion: "v21.0",
     responseType: "code",
     // Must use www.facebook.com (NOT business.facebook.com)

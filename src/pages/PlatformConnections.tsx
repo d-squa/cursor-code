@@ -95,7 +95,7 @@ export default function PlatformConnections() {
   
   // Function to trigger Ad Library OAuth (pure Facebook Login) - defined early for use in callbacks
   const triggerAdLibraryOAuth = useCallback(() => {
-    const redirectUri = "https://actiplan.app/settings/platforms";
+    const redirectUri = `${window.location.origin}/settings/platforms`;
     const clientId = PLATFORM_CONFIG.metaAdLibrary.appId;
     
     if (!clientId) {
@@ -107,15 +107,20 @@ export default function PlatformConnections() {
     sessionStorage.setItem('pending_adlibrary_oauth', 'true');
     
     // Build OAuth URL for pure Facebook Login (NOT business.facebook.com)
+    // Important: Only include `scope` if it is non-empty; passing an empty/unsupported scope
+    // can cause Facebook to show "This app needs at least one supported permission".
     const oauthParams = new URLSearchParams({
       response_type: 'code',
-      scope: PLATFORM_CONFIG.metaAdLibrary.oauthScopes, // Just 'public_profile'
       client_id: clientId,
       redirect_uri: redirectUri,
       state: 'meta_adlibrary', // Special state to identify this flow
     });
-    
-    const oauthUrl = `${PLATFORM_CONFIG.metaAdLibrary.authBaseUrl}/dialog/oauth?${oauthParams.toString()}`;
+
+    const scopes = PLATFORM_CONFIG.metaAdLibrary.oauthScopes?.trim();
+    if (scopes) oauthParams.set('scope', scopes);
+
+    const apiVersion = PLATFORM_CONFIG.metaAdLibrary.apiVersion;
+    const oauthUrl = `${PLATFORM_CONFIG.metaAdLibrary.authBaseUrl}/${apiVersion}/dialog/oauth?${oauthParams.toString()}`;
     
     console.log("Ad Library OAuth - Redirecting to:", oauthUrl.replace(clientId, 'HIDDEN'));
     toast.loading("Enabling Competitor Research...");
@@ -565,7 +570,7 @@ export default function PlatformConnections() {
         
         setSaving(true);
         try {
-          const redirectUri = "https://actiplan.app/settings/platforms";
+          const redirectUri = `${window.location.origin}/settings/platforms`;
           
           // Check if this is the Ad Library OAuth callback
           if (state === 'meta_adlibrary') {
