@@ -116,6 +116,14 @@ export default function PlatformConnections() {
       state: 'meta_adlibrary', // Special state to identify this flow
     });
 
+    // Some Meta apps have "Facebook Login for Business" enabled.
+    // In that case, Facebook may require a `config_id` to be present, otherwise it can show:
+    // "This app needs at least one supported permission".
+    // We reuse the existing configId already used for the Meta managed-login flow.
+    if (PLATFORM_CONFIG.meta?.configId) {
+      oauthParams.set('config_id', PLATFORM_CONFIG.meta.configId);
+    }
+
     const scopes = PLATFORM_CONFIG.metaAdLibrary.oauthScopes?.trim();
     if (scopes) oauthParams.set('scope', scopes);
 
