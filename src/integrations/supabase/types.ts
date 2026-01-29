@@ -2245,6 +2245,8 @@ export type Database = {
       }
       profiles: {
         Row: {
+          adlibrary_authorized: boolean | null
+          adlibrary_authorized_at: string | null
           company_name: string | null
           created_at: string
           discovery_source: string | null
@@ -2258,6 +2260,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          adlibrary_authorized?: boolean | null
+          adlibrary_authorized_at?: string | null
           company_name?: string | null
           created_at?: string
           discovery_source?: string | null
@@ -2271,6 +2275,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          adlibrary_authorized?: boolean | null
+          adlibrary_authorized_at?: string | null
           company_name?: string | null
           created_at?: string
           discovery_source?: string | null
@@ -3160,6 +3166,7 @@ export type Database = {
         Returns: boolean
       }
       ensure_user_workspace: { Args: never; Returns: string }
+      get_adlibrary_token: { Args: { user_id_param: string }; Returns: string }
       get_platform_token: {
         Args: { platform_id: string; token_type?: string }
         Returns: string
@@ -3175,6 +3182,10 @@ export type Database = {
       is_owner: { Args: { _user_id: string }; Returns: boolean }
       is_team_owner: { Args: { _user_id: string }; Returns: boolean }
       migrate_tokens_to_vault: { Args: never; Returns: undefined }
+      store_adlibrary_token: {
+        Args: { token_value: string; user_id_param: string }
+        Returns: undefined
+      }
       store_platform_token: {
         Args: { platform_id: string; token_type?: string; token_value: string }
         Returns: undefined
