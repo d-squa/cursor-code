@@ -17,22 +17,26 @@ const logger = createApiLogger("competitor-ads-search");
  */
 async function getAdLibraryToken(supabase: any, userId: string): Promise<string | null> {
   try {
+    console.log(`[AD-LIBRARY] Attempting to retrieve token for user ${userId}`);
+    
     const { data, error } = await supabase.rpc('get_adlibrary_token', {
       user_id_param: userId
     });
     
     if (error) {
-      console.log(`[AD-LIBRARY] No dedicated token found for user ${userId}:`, error.message);
+      console.error(`[AD-LIBRARY] RPC error for user ${userId}:`, error.message, error.code);
       return null;
     }
     
     if (data) {
-      console.log(`[AD-LIBRARY] Retrieved dedicated Ad Library token for user ${userId}`);
+      console.log(`[AD-LIBRARY] SUCCESS: Retrieved dedicated Ad Library token for user ${userId} (length: ${data.length})`);
+      return data as string;
+    } else {
+      console.log(`[AD-LIBRARY] No token found in vault for user ${userId}`);
+      return null;
     }
-    
-    return data as string | null;
-  } catch (e) {
-    console.log(`[AD-LIBRARY] Error retrieving token:`, e);
+  } catch (e: any) {
+    console.error(`[AD-LIBRARY] Exception retrieving token:`, e?.message || e);
     return null;
   }
 }
