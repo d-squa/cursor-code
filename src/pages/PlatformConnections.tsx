@@ -812,6 +812,25 @@ export default function PlatformConnections() {
           </AlertDescription>
         </Alert>
 
+        {/* Meta Identity Confirmation Notice for Competitor Research */}
+        <Alert variant="destructive" className="border-orange-500/50 bg-orange-50 dark:bg-orange-950/20 [&>svg]:text-orange-600">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription className="text-orange-800 dark:text-orange-200">
+            <strong>Competitor Research requires Meta Identity Confirmation:</strong> To use the Ad Library for competitor analysis, 
+            you must complete identity verification at{" "}
+            <a 
+              href="https://www.facebook.com/ID" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="underline font-medium"
+            >
+              facebook.com/ID
+            </a>
+            . When prompted, select <strong>"Running ads about social issues, elections or politics"</strong> as your reason, 
+            then upload your government-issued ID. This is a Meta requirement for accessing the Ad Library API.
+          </AlertDescription>
+        </Alert>
+
         {/* Platform Authentication */}
         <Card>
           <CardHeader>
