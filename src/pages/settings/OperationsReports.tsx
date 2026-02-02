@@ -13,9 +13,10 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format, differenceInMinutes } from "date-fns";
-import { Loader2, CalendarIcon, Clock, Users, TrendingUp, AlertTriangle } from "lucide-react";
+import { Loader2, CalendarIcon, Clock, Users, TrendingUp, AlertTriangle, Timer } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FeatureGate } from "@/components/FeatureGate";
+import { formatActiveTime } from "@/hooks/useActiplanTimeTracking";
 import {
   BarChart,
   Bar,
@@ -84,6 +85,7 @@ export default function OperationsReports() {
   const [operations, setOperations] = useState<OperationRecord[]>([]);
   const [availablePlatforms, setAvailablePlatforms] = useState<string[]>([]);
   const [availableMarkets, setAvailableMarkets] = useState<string[]>([]);
+  const [timeTrackingData, setTimeTrackingData] = useState<Record<string, number>>({});
 
   // Only redirect AFTER we have a definitive answer (loading complete AND access denied)
   useEffect(() => {
@@ -302,6 +304,23 @@ export default function OperationsReports() {
       setOperations(combinedOperations);
       setAvailablePlatforms(Array.from(platformSet));
       setAvailableMarkets(Array.from(marketSet));
+
+      // Fetch time tracking data for campaigns
+      const { data: timeSessions } = await supabase
+        .from("actiplan_time_sessions")
+        .select("campaign_id, active_seconds")
+        .in("campaign_id", campaignIdsForWorkspace);
+
+      // Aggregate time by campaign
+      const timeByPlan: Record<string, number> = {};
+      timeSessions?.forEach(session => {
+        if (!timeByPlan[session.campaign_id]) {
+          timeByPlan[session.campaign_id] = 0;
+        }
+        timeByPlan[session.campaign_id] += session.active_seconds || 0;
+      });
+      setTimeTrackingData(timeByPlan);
+
     } catch (error: any) {
       console.error("Error loading operations data:", error);
       toast.error("Failed to load operations data");
@@ -339,14 +358,25 @@ export default function OperationsReports() {
       ? completedOps.reduce((sum, op) => sum + (op.time_to_complete || 0), 0) / completedOps.length
       : 0;
 
+    // Calculate total active time from time tracking
+    // Filter to campaigns that match the current filter
+    const relevantCampaignIds = selectedCampaign !== 'all' 
+      ? [selectedCampaign]
+      : [...new Set(filteredOperations.map(op => op.campaign_id).filter(Boolean) as string[])];
+    
+    const totalActiveSeconds = relevantCampaignIds.reduce((sum, id) => sum + (timeTrackingData[id] || 0), 0);
+    const totalActiveHours = totalActiveSeconds / 3600;
+
     return {
       totalOperations: filteredOperations.length,
       totalEstimatedHours: totalEstimated,
       totalActualHours: totalActual,
       avgTimeToComplete,
       completedCount: completedOps.length,
+      totalActiveSeconds,
+      totalActiveHours,
     };
-  }, [filteredOperations]);
+  }, [filteredOperations, timeTrackingData, selectedCampaign]);
 
   // Group by dimension
   const groupedData = useMemo(() => {
@@ -577,7 +607,7 @@ export default function OperationsReports() {
             ) : (
               <>
                 {/* Scorecards */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                   <Card>
                     <CardContent className="pt-6">
                       <div className="flex items-center gap-3">
@@ -613,6 +643,19 @@ export default function OperationsReports() {
                         <div>
                           <p className="text-sm text-muted-foreground">Actual Hours</p>
                           <p className="text-2xl font-bold">{stats.totalActualHours.toFixed(1)}h</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="pt-6">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-accent/10 rounded-lg">
+                          <Timer className="h-5 w-5 text-accent-foreground" />
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">Active Time (Tracked)</p>
+                          <p className="text-2xl font-bold">{formatActiveTime(stats.totalActiveSeconds)}</p>
                         </div>
                       </div>
                     </CardContent>

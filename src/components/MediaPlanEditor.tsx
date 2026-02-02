@@ -28,6 +28,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useWorkspace } from "@/hooks/useWorkspace";
+import { useActiplanTimeTracking } from "@/hooks/useActiplanTimeTracking";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { TIER_DISPLAY_NAMES } from "@/config/subscriptionTiers";
 import { PlatformWithMarkets, FunnelStage } from "@/types/mediaplan";
@@ -109,6 +110,12 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
   const [bulkPlatform, setBulkPlatform] = useState<PlatformWithMarkets | null>(null);
   const [creativeMatcherOpen, setCreativeMatcherOpen] = useState(false);
   const [teamName, setTeamName] = useState<string>("");
+  
+  // Time tracking for operations reports (hidden from user)
+  useActiplanTimeTracking({ 
+    campaignId: savedCampaignId, 
+    enabled: !!savedCampaignId && !!user?.id 
+  });
   
   // Taxonomy validation state - track per market
   const [taxonomyValidation, setTaxonomyValidation] = useState<Record<string, { isComplete: boolean; missingCount: number }>>({});
