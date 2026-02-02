@@ -14,6 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
+      actiplan_time_sessions: {
+        Row: {
+          active_seconds: number
+          campaign_id: string
+          created_at: string
+          id: string
+          is_active: boolean
+          session_end: string | null
+          session_start: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          active_seconds?: number
+          campaign_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          session_end?: string | null
+          session_start?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          active_seconds?: number
+          campaign_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          session_end?: string | null
+          session_start?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "actiplan_time_sessions_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "actiplan_time_sessions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       activity_logs: {
         Row: {
           action_type: string
