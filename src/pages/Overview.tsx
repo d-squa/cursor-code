@@ -150,6 +150,7 @@ const Overview = () => {
     performanceStatus: null,
     boSearch: null,
     nameSearch: null,
+    activityStatus: null,
   });
 
   const getNextTierName = (): string => {
@@ -660,6 +661,33 @@ const Overview = () => {
           // Global performance filter (legacy)
           if (!data.performanceStatus) return false;
           if (data.performanceStatus !== filterStatus) return false;
+        }
+      }
+      
+      // Activity status filter
+      if (filters.activityStatus) {
+        const stats30d = data.statsByDateRange?.this_month || { changes: 0, optimized: 0, notes: 0 };
+        const stats7d = data.statsByDateRange?.last_7_days || { changes: 0, optimized: 0, notes: 0 };
+        
+        switch (filters.activityStatus) {
+          case 'no_changes_30d':
+            if (stats30d.changes > 0) return false;
+            break;
+          case 'no_changes_7d':
+            if (stats7d.changes > 0) return false;
+            break;
+          case 'no_optimization_30d':
+            if (stats30d.optimized > 0) return false;
+            break;
+          case 'no_optimization_7d':
+            if (stats7d.optimized > 0) return false;
+            break;
+          case 'no_notes_30d':
+            if (stats30d.notes > 0) return false;
+            break;
+          case 'no_notes_7d':
+            if (stats7d.notes > 0) return false;
+            break;
         }
       }
       

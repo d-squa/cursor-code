@@ -15,6 +15,7 @@ export interface OverviewFilters {
   performanceStatus: string | null;
   boSearch: string | null;
   nameSearch: string | null;
+  activityStatus: string | null;
 }
 
 interface OverviewFiltersProps {
@@ -42,6 +43,15 @@ const basePerformanceStatuses = [
   { value: 'overachieving', label: 'Overachieving' },
   { value: 'on-target', label: 'On Target' },
   { value: 'underachieving', label: 'Underachieving' },
+];
+
+const activityStatusOptions = [
+  { value: 'no_changes_30d', label: 'No Changes (30d)' },
+  { value: 'no_changes_7d', label: 'No Changes (7d)' },
+  { value: 'no_optimization_30d', label: 'No Optimization (30d)' },
+  { value: 'no_optimization_7d', label: 'No Optimization (7d)' },
+  { value: 'no_notes_30d', label: 'No Notes (30d)' },
+  { value: 'no_notes_7d', label: 'No Notes (7d)' },
 ];
 
 // Generate platform-specific performance options dynamically
@@ -86,6 +96,7 @@ export function OverviewFiltersBar({
       performanceStatus: null,
       boSearch: null,
       nameSearch: null,
+      activityStatus: null,
     });
   };
 
@@ -247,6 +258,18 @@ export function OverviewFiltersBar({
         <SelectContent>
           <SelectItem value="all">All Performance</SelectItem>
           {generatePerformanceOptions(availablePlatforms).map(opt => (
+            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Select value={filters.activityStatus || 'all'} onValueChange={(v) => updateFilter('activityStatus', v)}>
+        <SelectTrigger className="w-[180px] h-8 text-xs">
+          <SelectValue placeholder="Activity Status" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All Activity</SelectItem>
+          {activityStatusOptions.map(opt => (
             <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
           ))}
         </SelectContent>
