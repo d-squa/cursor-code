@@ -785,16 +785,7 @@ export default function ActiPlans() {
                         Edit ActiPlan
                       </DropdownMenuItem>
                     )}
-                  {/* Mesh Creatives - available for all campaigns, gated to Enterprise+ */}
-                  {hasAccess("creative_matching") ? (
-        <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => navigate(`/creatives?campaignId=${campaign.id}`)}>
-                      <Wand2 className="w-4 h-4 mr-2" />
-                      Mesh Creatives
-                    </DropdownMenuItem>
-                  ) : (
-                    <LockedDropdownMenuItem feature="creative_matching">Mesh Creatives</LockedDropdownMenuItem>
-                  )}
+
                   {/* Extend Campaign - for pushed/live campaigns to add new phases or creatives */}
                   {canEdit(campaign) &&
                     ["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
@@ -803,65 +794,18 @@ export default function ActiPlans() {
                         Extend Campaign
                       </DropdownMenuItem>
                     )}
-                  {/* Duplicate ActiPlan */}
-                  {hasAccess("duplicate_actiplans") ? (
-                    <DropdownMenuItem onClick={() => handleDuplicateClick(campaign)} disabled={actionLoading}>
-                      <Copy className="w-4 h-4 mr-2" />
-                      Duplicate ActiPlan
+                  {/* Mesh Creatives - available for all campaigns, gated to Enterprise+ */}
+                  {hasAccess("creative_matching") ? (
+                    <DropdownMenuItem onClick={() => navigate(`/creatives?campaignId=${campaign.id}`)}>
+                      <Wand2 className="w-4 h-4 mr-2" />
+                      Mesh Creatives
                     </DropdownMenuItem>
                   ) : (
-                    <LockedDropdownMenuItem feature="duplicate_actiplans">Duplicate ActiPlan</LockedDropdownMenuItem>
+                    <LockedDropdownMenuItem feature="creative_matching">Mesh Creatives</LockedDropdownMenuItem>
                   )}
-
-                  {canDelete(campaign) && (
-                    <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onClick={() => {
-                          setCampaignToDelete(campaign);
-                          setDeleteDialogOpen(true);
-                        }}
-                        className="text-destructive"
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Delete ActiPlan
-                      </DropdownMenuItem>
-                    </>
-                  )}
-                  
 
                   {/* Launch/Push menu item - conditional based on status */}
-                  
-                  {canApprove(campaign) && hasAccess("approve_actiplans") && (
-                    <>
-                      <DropdownMenuItem onClick={() => handleApprove(campaign)} disabled={actionLoading}>
-                        <CheckCircle className="w-4 h-4 mr-2" />
-                        Approve ActiPlan
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => handleReject(campaign)}
-                        disabled={actionLoading}
-                        className="text-destructive"
-                      >
-                        <XCircle className="w-4 h-4 mr-2" />
-                        Reject Campaign
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                    </>
-                  )}
-{(() => {{hasAccess("change_history_dialog") ? (
-                    <DropdownMenuItem
-                      onClick={() => {
-                        setSelectedCampaign(campaign);
-                        setHistoryDialogOpen(true);
-                      }}
-                    >
-                      <History className="w-4 h-4 mr-2" />
-                      View History
-                    </DropdownMenuItem>
-                  ) : (
-                    <LockedDropdownMenuItem feature="change_history_dialog">View History</LockedDropdownMenuItem>
-                  )}
+                  {(() => {
                     const status = campaign.status || "";
                     // Show for draft, approved, ready_for_push, pushed_to_dsp, partially_pushed, live
                     if (
@@ -900,6 +844,24 @@ export default function ActiPlans() {
                     }
                     return null;
                   })()}
+                  {canApprove(campaign) && hasAccess("approve_actiplans") && (
+                    <>
+                      <DropdownMenuItem onClick={() => handleApprove(campaign)} disabled={actionLoading}>
+                        <CheckCircle className="w-4 h-4 mr-2" />
+                        Approve ActiPlan
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => handleReject(campaign)}
+                        disabled={actionLoading}
+                        className="text-destructive"
+                      >
+                        <XCircle className="w-4 h-4 mr-2" />
+                        Reject Campaign
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                    </>
+                  )}
+
                   {canApprove(campaign) && !hasAccess("approve_actiplans") && (
                     <>
                       <LockedDropdownMenuItem feature="approve_actiplans">Approve ActiPlan</LockedDropdownMenuItem>
@@ -907,7 +869,19 @@ export default function ActiPlans() {
                       <DropdownMenuSeparator />
                     </>
                   )}
-                  
+                  {hasAccess("change_history_dialog") ? (
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setSelectedCampaign(campaign);
+                        setHistoryDialogOpen(true);
+                      }}
+                    >
+                      <History className="w-4 h-4 mr-2" />
+                      View History
+                    </DropdownMenuItem>
+                  ) : (
+                    <LockedDropdownMenuItem feature="change_history_dialog">View History</LockedDropdownMenuItem>
+                  )}
                   {/* Log an Action - only for post-push campaigns */}
                   {["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
                     <DropdownMenuItem
@@ -1035,6 +1009,32 @@ export default function ActiPlans() {
                       <BarChart3 className="w-4 h-4 mr-2" />
                       Operations Analytics
                     </DropdownMenuItem>
+                  )}
+
+                  {/* Duplicate ActiPlan */}
+                  {hasAccess("duplicate_actiplans") ? (
+                    <DropdownMenuItem onClick={() => handleDuplicateClick(campaign)} disabled={actionLoading}>
+                      <Copy className="w-4 h-4 mr-2" />
+                      Duplicate ActiPlan
+                    </DropdownMenuItem>
+                  ) : (
+                    <LockedDropdownMenuItem feature="duplicate_actiplans">Duplicate ActiPlan</LockedDropdownMenuItem>
+                  )}
+
+                  {canDelete(campaign) && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setCampaignToDelete(campaign);
+                          setDeleteDialogOpen(true);
+                        }}
+                        className="text-destructive"
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Delete ActiPlan
+                      </DropdownMenuItem>
+                    </>
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
