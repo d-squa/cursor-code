@@ -785,6 +785,15 @@ export default function ActiPlans() {
                         Edit ActiPlan
                       </DropdownMenuItem>
                     )}
+                  {/* Mesh Creatives - available for all campaigns, gated to Enterprise+ */}
+                  {hasAccess("creative_matching") ? (
+                    <DropdownMenuItem onClick={() => navigate(`/creatives?campaignId=${campaign.id}`)}>
+                      <Wand2 className="w-4 h-4 mr-2" />
+                      Mesh Creatives
+                    </DropdownMenuItem>
+                  ) : (
+                    <LockedDropdownMenuItem feature="creative_matching">Mesh Creatives</LockedDropdownMenuItem>
+                  )}
 
                   {/* Extend Campaign - for pushed/live campaigns to add new phases or creatives */}
                   {canEdit(campaign) &&
@@ -829,6 +838,45 @@ export default function ActiPlans() {
                     <LockedDropdownMenuItem feature="creative_matching">Mesh Creatives</LockedDropdownMenuItem>
                   )}
 
+                  {["ready_for_push", "pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
+                    <>
+                      {(canEdit(campaign) || canApprove(campaign) || canPushToDSP(campaign)) && (
+                        <DropdownMenuSeparator />
+                      )}
+                      <DropdownMenuItem
+                        onClick={() => {
+                          navigate(`/actiplans/${campaign.id}/report`);
+                        }}
+                      >
+                        <TrendingUp className="w-4 h-4 mr-2" />
+                        Check Performance
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          navigate(`/actiplans/${campaign.id}/insights`);
+                        }}
+                      >
+                        <BarChart3 className="w-4 h-4 mr-2" />
+                        Insights & Recommendations
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                  {canApprove(campaign) && hasAccess("approve_actiplans") && (
+                    <>
+                      <DropdownMenuItem onClick={() => handleApprove(campaign)} disabled={actionLoading}>
+                        <CheckCircle className="w-4 h-4 mr-2" />
+                        Approve ActiPlan
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => handleReject(campaign)}
+                        disabled={actionLoading}
+                        className="text-destructive"
+                      >
+                        <XCircle className="w-4 h-4 mr-2" />
+                        Reject Campaign
+                      </DropdownMenuItem>
+                    </>
+                  )}
                   {/* Launch/Push menu item - conditional based on status */}
                   {(() => {
                     const status = campaign.status || "";
@@ -869,45 +917,6 @@ export default function ActiPlans() {
                     }
                     return null;
                   })()}
-                  {["ready_for_push", "pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
-                    <>
-                      {(canEdit(campaign) || canApprove(campaign) || canPushToDSP(campaign)) && (
-                        <DropdownMenuSeparator />
-                      )}
-                      <DropdownMenuItem
-                        onClick={() => {
-                          navigate(`/actiplans/${campaign.id}/report`);
-                        }}
-                      >
-                        <TrendingUp className="w-4 h-4 mr-2" />
-                        Check Performance
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => {
-                          navigate(`/actiplans/${campaign.id}/insights`);
-                        }}
-                      >
-                        <BarChart3 className="w-4 h-4 mr-2" />
-                        Insights & Recommendations
-                      </DropdownMenuItem>
-                    </>
-                  )}
-                  {canApprove(campaign) && hasAccess("approve_actiplans") && (
-                    <>
-                      <DropdownMenuItem onClick={() => handleApprove(campaign)} disabled={actionLoading}>
-                        <CheckCircle className="w-4 h-4 mr-2" />
-                        Approve ActiPlan
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => handleReject(campaign)}
-                        disabled={actionLoading}
-                        className="text-destructive"
-                      >
-                        <XCircle className="w-4 h-4 mr-2" />
-                        Reject Campaign
-                      </DropdownMenuItem>
-                    </>
-                  )}
                   {hasAccess("change_history_dialog") ? (
                     <DropdownMenuItem
                       onClick={() => {
