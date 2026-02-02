@@ -6,7 +6,20 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2, CheckCircle2, AlertCircle, Facebook, Link2, Unlink, Video, RefreshCw, ChevronDown, ChevronRight } from "lucide-react";
+import {
+  Loader2,
+  Plus,
+  Trash2,
+  CheckCircle2,
+  AlertCircle,
+  Facebook,
+  Link2,
+  Unlink,
+  Video,
+  RefreshCw,
+  ChevronDown,
+  ChevronRight,
+} from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { LockedFeatureButton } from "@/components/ui/locked-feature-button";
 import { useAuth } from "@/hooks/useAuth";
@@ -74,7 +87,7 @@ export default function PlatformConnections() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const { hasAccess } = useFeatureAccess();
-  const canManageClients = hasAccess('client_management');
+  const canManageClients = hasAccess("client_management");
   const [platforms, setPlatforms] = useState<ConnectedPlatform[]>([]);
   const [metaAdAccounts, setMetaAdAccounts] = useState<MetaAdAccount[]>([]);
   const [tiktokAdAccounts, setTikTokAdAccounts] = useState<TikTokAdAccount[]>([]);
@@ -86,32 +99,32 @@ export default function PlatformConnections() {
   const [clientSelectorOpen, setClientSelectorOpen] = useState(false);
   const [selectedAdAccountForLinking, setSelectedAdAccountForLinking] = useState<string | null>(null);
   const [pendingSyncAfterLink, setPendingSyncAfterLink] = useState<MetaAdAccount | TikTokAdAccount | null>(null);
-  const [pendingSyncPlatform, setPendingSyncPlatform] = useState<'meta' | 'tiktok' | null>(null);
+  const [pendingSyncPlatform, setPendingSyncPlatform] = useState<"meta" | "tiktok" | null>(null);
   const [reconnectingPlatformId, setReconnectingPlatformId] = useState<string | null>(null);
   const [currentPlatformId, setCurrentPlatformId] = useState<string | null>(null);
   const [syncProgressPlatformId, setSyncProgressPlatformId] = useState<string | null>(null);
   const [syncProgressDialogOpen, setSyncProgressDialogOpen] = useState(false);
   const [syncingAssets, setSyncingAssets] = useState<string | null>(null);
   const processingOAuthRef = useRef(false);
-  
+
   // Platform sync progress tracking (works for both TikTok and Meta)
   const { progress: platformSyncProgress } = usePlatformSyncProgress(syncProgressPlatformId);
-  
+
   // Function to trigger Ad Library OAuth (pure Facebook Login) - defined early for use in callbacks
   const triggerAdLibraryOAuth = useCallback(() => {
     // IMPORTANT: Use the exact production URL - must match what's configured in Meta App
     // Do NOT use window.location.origin as it varies between environments
     const redirectUri = OAUTH_REDIRECT_URI;
     const clientId = PLATFORM_CONFIG.metaAdLibrary.appId;
-    
+
     if (!clientId) {
       console.error("Meta App ID not configured for Ad Library OAuth");
       return;
     }
-    
+
     // Store a flag to indicate we're doing Ad Library OAuth
-    sessionStorage.setItem('pending_adlibrary_oauth', 'true');
-    
+    sessionStorage.setItem("pending_adlibrary_oauth", "true");
+
     // Build OAuth URL for regular Facebook Login (NOT Facebook Login for Business)
     // IMPORTANT: We intentionally OMIT config_id here because:
     // 1. config_id routes through Facebook Login for Business
@@ -119,22 +132,22 @@ export default function PlatformConnections() {
     // 3. Regular Facebook Login grants public_profile by default
     // This requires the "Facebook Login" product (not Business) to be enabled in Meta Developer Console
     const oauthParams = new URLSearchParams({
-      response_type: 'code',
+      response_type: "code",
       client_id: clientId,
       redirect_uri: redirectUri,
-      state: 'meta_adlibrary',
+      state: "meta_adlibrary",
     });
 
     // Only add scope if explicitly configured; public_profile is granted by default
     const scopes = PLATFORM_CONFIG.metaAdLibrary.oauthScopes?.trim();
-    if (scopes) oauthParams.set('scope', scopes);
+    if (scopes) oauthParams.set("scope", scopes);
 
     const apiVersion = PLATFORM_CONFIG.metaAdLibrary.apiVersion;
     const oauthUrl = `${PLATFORM_CONFIG.metaAdLibrary.authBaseUrl}/${apiVersion}/dialog/oauth?${oauthParams.toString()}`;
-    
-    console.log("Ad Library OAuth - Redirecting to:", oauthUrl.replace(clientId, 'HIDDEN'));
+
+    console.log("Ad Library OAuth - Redirecting to:", oauthUrl.replace(clientId, "HIDDEN"));
     toast.loading("Enabling Competitor Research...");
-    
+
     setTimeout(() => {
       window.location.href = oauthUrl;
     }, 100);
@@ -144,84 +157,84 @@ export default function PlatformConnections() {
   useEffect(() => {
     const checkExistingSyncs = async () => {
       if (!user) return;
-      
+
       // Check sessionStorage for pending sync (supports both platforms)
-      const pendingSyncPlatformId = sessionStorage.getItem('platform_sync_id');
+      const pendingSyncPlatformId = sessionStorage.getItem("platform_sync_id");
       if (pendingSyncPlatformId) {
         // Verify sync status
         const { data } = await supabase
-          .from('connected_platforms_safe')
-          .select('metadata')
-          .eq('id', pendingSyncPlatformId)
+          .from("connected_platforms_safe")
+          .select("metadata")
+          .eq("id", pendingSyncPlatformId)
           .single();
-        
+
         const metadata = data?.metadata as any;
         const syncProgress = metadata?.sync_progress;
-        
-        if (syncProgress?.status === 'pending' || syncProgress?.status === 'syncing') {
+
+        if (syncProgress?.status === "pending" || syncProgress?.status === "syncing") {
           // Still in progress - show the dialog
           setSyncProgressPlatformId(pendingSyncPlatformId);
           setSyncProgressDialogOpen(true);
-        } else if (syncProgress?.status === 'completed' && metadata?.accounts?.length > 0) {
+        } else if (syncProgress?.status === "completed" && metadata?.accounts?.length > 0) {
           // Completed while away - show account selector directly
-          console.log('[PlatformConnections] Sync completed while away, showing account selector');
-          sessionStorage.removeItem('platform_sync_id');
-          
+          console.log("[PlatformConnections] Sync completed while away, showing account selector");
+          sessionStorage.removeItem("platform_sync_id");
+
           const accountOptions = metadata.accounts.map((acc: any) => ({
             id: acc.advertiser_id || acc.id,
             name: acc.name,
-            business_center: acc.business_center
+            business_center: acc.business_center,
           }));
-          
+
           setAdAccountOptions(accountOptions);
           setCurrentPlatformId(pendingSyncPlatformId);
           setAccountSelectorOpen(true);
           toast.success(`Sync complete! Found ${accountOptions.length} account(s) - please select which to link`);
         } else {
           // Error or no accounts - just clean up
-          sessionStorage.removeItem('platform_sync_id');
+          sessionStorage.removeItem("platform_sync_id");
         }
       }
     };
-    
+
     checkExistingSyncs();
   }, [user]);
-  
+
   // Handle sync completion - open account selector or trigger Ad Library OAuth
   const handleSyncComplete = useCallback(async () => {
     if (!syncProgressPlatformId) return;
-    
-    sessionStorage.removeItem('platform_sync_id');
-    
+
+    sessionStorage.removeItem("platform_sync_id");
+
     // Fetch the completed accounts from metadata
     const { data } = await supabase
-      .from('connected_platforms_safe')
-      .select('metadata, platform_type')
-      .eq('id', syncProgressPlatformId)
+      .from("connected_platforms_safe")
+      .select("metadata, platform_type")
+      .eq("id", syncProgressPlatformId)
       .single();
-    
+
     const metadata = data?.metadata as any;
     const platformType = data?.platform_type;
-    
+
     if (metadata?.accounts && metadata.accounts.length > 0) {
       const accountOptions = metadata.accounts.map((acc: any) => ({
         id: acc.advertiser_id || acc.id,
         name: acc.name,
-        business_center: acc.business_center
+        business_center: acc.business_center,
       }));
-      
+
       setAdAccountOptions(accountOptions);
       setCurrentPlatformId(syncProgressPlatformId);
       setAccountSelectorOpen(true);
       toast.success(`Found ${accountOptions.length} advertiser account(s) - please select which to sync`);
     } else {
       // No more accounts to select - check if we need to trigger Ad Library OAuth
-      const pendingAdLibraryOAuth = sessionStorage.getItem('pending_adlibrary_oauth_after_sync');
-      if (pendingAdLibraryOAuth && platformType === 'meta') {
-        sessionStorage.removeItem('pending_adlibrary_oauth_after_sync');
+      const pendingAdLibraryOAuth = sessionStorage.getItem("pending_adlibrary_oauth_after_sync");
+      if (pendingAdLibraryOAuth && platformType === "meta") {
+        sessionStorage.removeItem("pending_adlibrary_oauth_after_sync");
         setTimeout(() => {
           toast.info("One more step: Authorizing Competitor Research...", {
-            description: "This enables you to search the Meta Ad Library for competitor ads."
+            description: "This enables you to search the Meta Ad Library for competitor ads.",
           });
           setTimeout(() => {
             triggerAdLibraryOAuth();
@@ -229,7 +242,7 @@ export default function PlatformConnections() {
         }, 1000);
       }
     }
-    
+
     setSyncProgressPlatformId(null);
     setSyncProgressDialogOpen(false);
     await fetchConnectedPlatforms();
@@ -261,7 +274,7 @@ export default function PlatformConnections() {
         supabase
           .from("tiktok_ad_accounts")
           .select("id, account_id, account_name, advertiser_id, account_status, client_id, clients(id, name)")
-          .order("account_name")
+          .order("account_name"),
       ]);
 
       if (platformsRes.error) throw platformsRes.error;
@@ -270,34 +283,32 @@ export default function PlatformConnections() {
 
       setPlatforms(platformsRes.data || []);
       setMetaAdAccounts(metaAccountsRes.data || []);
-      
+
       // Enrich TikTok accounts with business center info from platform metadata
-      const tiktokPlatforms = platformsRes.data?.filter(p => p.platform_type === 'tiktok') || [];
-      const enrichedTiktokAccounts = (tiktokAccountsRes.data || []).map(account => {
+      const tiktokPlatforms = platformsRes.data?.filter((p) => p.platform_type === "tiktok") || [];
+      const enrichedTiktokAccounts = (tiktokAccountsRes.data || []).map((account) => {
         // Find the platform that contains this advertiser
-        const platform = tiktokPlatforms.find(p => {
+        const platform = tiktokPlatforms.find((p) => {
           const metadata = p.metadata as any;
           return metadata?.advertiser_ids?.includes(account.advertiser_id);
         });
-        
+
         if (platform?.metadata) {
           const metadata = platform.metadata as any;
-          const accountInfo = metadata.accounts?.find(
-            (acc: any) => acc.advertiser_id === account.advertiser_id
-          );
-          
+          const accountInfo = metadata.accounts?.find((acc: any) => acc.advertiser_id === account.advertiser_id);
+
           if (accountInfo) {
             return {
               ...account,
               bc_id: accountInfo.bc_id,
-              business_center: accountInfo.business_center
+              business_center: accountInfo.business_center,
             };
           }
         }
-        
+
         return account;
       });
-      
+
       setTikTokAdAccounts(enrichedTiktokAccounts);
     } catch (error: any) {
       console.error("Error fetching data:", error);
@@ -309,59 +320,58 @@ export default function PlatformConnections() {
 
   const handleConnectPlatform = async (platformType: string, useManagedLogin = false, platformId?: string) => {
     // Always clear reconnection state for fresh connections
-    sessionStorage.removeItem('reconnecting_platform_id');
-    sessionStorage.removeItem('reconnecting_platform_type');
-    
+    sessionStorage.removeItem("reconnecting_platform_id");
+    sessionStorage.removeItem("reconnecting_platform_type");
+
     if (platformType === "meta") {
       try {
         // Redirect to Meta OAuth
         const redirectUri = OAUTH_REDIRECT_URI;
         const clientId = PLATFORM_CONFIG.meta.appId;
-        
+
         console.log("Meta OAuth - Client ID:", clientId ? "Configured" : "Missing");
         console.log("Meta OAuth - Redirect URI:", redirectUri);
         console.log("Meta OAuth - Managed Login:", useManagedLogin);
-        
+
         if (!clientId) {
           toast.error("Meta App ID not configured. Please contact support.");
           return;
         }
 
         const scope = useManagedLogin ? PLATFORM_CONFIG.meta.managedLoginScopes : PLATFORM_CONFIG.meta.oauthScopes;
-        
+
         // Store platformId in sessionStorage ONLY for explicit reconnection
         if (platformId) {
-          sessionStorage.setItem('reconnecting_platform_id', platformId);
+          sessionStorage.setItem("reconnecting_platform_id", platformId);
         }
-        
+
         // Build OAuth URL matching working Supermetrics flow
         const oauthParams = new URLSearchParams({
-          response_type: 'code',
+          response_type: "code",
           scope,
           client_id: clientId,
           redirect_uri: redirectUri,
           state: platformType,
-          ret: 'login'
+          ret: "login",
         });
-        
+
         // Include Facebook Login for Business configuration when using Managed Login (OpenID)
         if (useManagedLogin && PLATFORM_CONFIG.meta.configId) {
-          oauthParams.set('config_id', PLATFORM_CONFIG.meta.configId);
+          oauthParams.set("config_id", PLATFORM_CONFIG.meta.configId);
         }
-        
+
         // Use business.facebook.com for managed accounts, www.facebook.com for regular
-        const baseUrl = useManagedLogin ? 'https://business.facebook.com' : 'https://www.facebook.com';
+        const baseUrl = useManagedLogin ? "https://business.facebook.com" : "https://www.facebook.com";
         const oauthUrl = `${baseUrl}/dialog/oauth?${oauthParams.toString()}`;
-        
-        console.log("Meta OAuth - Redirecting to:", oauthUrl.replace(clientId, 'HIDDEN'));
-        
+
+        console.log("Meta OAuth - Redirecting to:", oauthUrl.replace(clientId, "HIDDEN"));
+
         // Add a small delay to ensure UI updates before redirect
         toast.loading("Redirecting to Facebook...");
-        
+
         setTimeout(() => {
           window.location.href = oauthUrl;
         }, 100);
-        
       } catch (error: any) {
         console.error("Error connecting to Meta:", error);
         toast.error(error.message || "Failed to connect to Facebook");
@@ -370,10 +380,10 @@ export default function PlatformConnections() {
       try {
         const redirectUri = OAUTH_REDIRECT_URI;
         const appId = PLATFORM_CONFIG.tiktok.appId;
-        
+
         console.log("TikTok OAuth - App ID:", appId ? "Configured" : "Missing");
         console.log("TikTok OAuth - Redirect URI:", redirectUri);
-        
+
         if (!appId) {
           toast.error("TikTok App ID not configured. Please contact support.");
           return;
@@ -381,27 +391,26 @@ export default function PlatformConnections() {
 
         // Store platformId in sessionStorage ONLY for explicit reconnection
         if (platformId) {
-          sessionStorage.setItem('reconnecting_platform_id', platformId);
-          sessionStorage.setItem('reconnecting_platform_type', 'tiktok');
+          sessionStorage.setItem("reconnecting_platform_id", platformId);
+          sessionStorage.setItem("reconnecting_platform_type", "tiktok");
         }
-        
+
         // Build TikTok OAuth URL
         const oauthParams = new URLSearchParams({
           app_id: appId,
           redirect_uri: redirectUri,
           state: platformType,
         });
-        
+
         const oauthUrl = `${PLATFORM_CONFIG.tiktok.authEndpoint}?${oauthParams.toString()}`;
-        
-        console.log("TikTok OAuth - Redirecting to:", oauthUrl.replace(appId, 'HIDDEN'));
-        
+
+        console.log("TikTok OAuth - Redirecting to:", oauthUrl.replace(appId, "HIDDEN"));
+
         toast.loading("Redirecting to TikTok...");
-        
+
         setTimeout(() => {
           window.location.href = oauthUrl;
         }, 100);
-        
       } catch (error: any) {
         console.error("Error connecting to TikTok:", error);
         toast.error(error.message || "Failed to connect to TikTok");
@@ -412,7 +421,8 @@ export default function PlatformConnections() {
   };
 
   const handleDisconnectPlatform = async (platformId: string) => {
-    if (!confirm("Are you sure you want to disconnect this platform? All related data will be permanently deleted.")) return;
+    if (!confirm("Are you sure you want to disconnect this platform? All related data will be permanently deleted."))
+      return;
 
     try {
       toast.loading("Disconnecting and purging platform data...");
@@ -433,15 +443,15 @@ export default function PlatformConnections() {
 
   const handleSaveAdAccounts = async (accounts: { id: string; name: string; business_center?: any }[]) => {
     if (accounts.length === 0 || !currentPlatformId) return;
-    
+
     setSelectingAccount(true);
     try {
-      const selectedIds = accounts.map(a => a.id);
+      const selectedIds = accounts.map((a) => a.id);
       const { data, error } = await supabase.functions.invoke("sync-selected-accounts", {
-        body: { 
+        body: {
           selectedAccountIds: selectedIds,
-          platformId: currentPlatformId 
-        }
+          platformId: currentPlatformId,
+        },
       });
 
       if (error) throw error;
@@ -449,7 +459,7 @@ export default function PlatformConnections() {
       // Check if this is a background sync (Meta with many accounts)
       if (data?.background) {
         // Store platform ID for progress tracking
-        sessionStorage.setItem('platform_sync_id', currentPlatformId);
+        sessionStorage.setItem("platform_sync_id", currentPlatformId);
         setSyncProgressPlatformId(currentPlatformId);
         setSyncProgressDialogOpen(true);
         setAccountSelectorOpen(false);
@@ -460,22 +470,22 @@ export default function PlatformConnections() {
         toast.success("Selected ad accounts synced successfully!");
         setAccountSelectorOpen(false);
         setAdAccountOptions([]);
-        
+
         // Check if we need to trigger Ad Library OAuth after account selection (seamless onboarding)
-        const pendingAdLibraryOAuth = sessionStorage.getItem('pending_adlibrary_oauth_after_sync');
+        const pendingAdLibraryOAuth = sessionStorage.getItem("pending_adlibrary_oauth_after_sync");
         if (pendingAdLibraryOAuth) {
-          sessionStorage.removeItem('pending_adlibrary_oauth_after_sync');
+          sessionStorage.removeItem("pending_adlibrary_oauth_after_sync");
           // Small delay to let user see success message before next step
           setTimeout(() => {
             toast.info("One more step: Authorizing Competitor Research...", {
-              description: "This enables you to search the Meta Ad Library for competitor ads."
+              description: "This enables you to search the Meta Ad Library for competitor ads.",
             });
             setTimeout(() => {
               triggerAdLibraryOAuth();
             }, 1500);
           }, 1000);
         }
-        
+
         setCurrentPlatformId(null);
         await fetchConnectedPlatforms();
       }
@@ -491,20 +501,17 @@ export default function PlatformConnections() {
     if (!selectedAdAccountForLinking) return;
 
     try {
-      const isTikTok = selectedAdAccountForLinking.startsWith('tiktok_');
-      const table = isTikTok ? 'tiktok_ad_accounts' : 'meta_ad_accounts';
-      const cleanId = isTikTok ? selectedAdAccountForLinking.replace('tiktok_', '') : selectedAdAccountForLinking;
-      
-      const { error } = await supabase
-        .from(table)
-        .update({ client_id: clientId })
-        .eq("id", cleanId);
+      const isTikTok = selectedAdAccountForLinking.startsWith("tiktok_");
+      const table = isTikTok ? "tiktok_ad_accounts" : "meta_ad_accounts";
+      const cleanId = isTikTok ? selectedAdAccountForLinking.replace("tiktok_", "") : selectedAdAccountForLinking;
+
+      const { error } = await supabase.from(table).update({ client_id: clientId }).eq("id", cleanId);
 
       if (error) throw error;
 
       toast.success("Ad account linked to client successfully");
       await fetchConnectedPlatforms();
-      
+
       // If there's a pending sync after link, trigger it now
       if (pendingSyncAfterLink) {
         const updatedAccount = { ...pendingSyncAfterLink, client_id: clientId };
@@ -528,13 +535,10 @@ export default function PlatformConnections() {
     }
   };
 
-  const handleUnlinkAccount = async (accountId: string, platform: 'meta' | 'tiktok' = 'meta') => {
+  const handleUnlinkAccount = async (accountId: string, platform: "meta" | "tiktok" = "meta") => {
     try {
-      const table = platform === 'tiktok' ? 'tiktok_ad_accounts' : 'meta_ad_accounts';
-      const { error } = await supabase
-        .from(table)
-        .update({ client_id: null })
-        .eq("id", accountId);
+      const table = platform === "tiktok" ? "tiktok_ad_accounts" : "meta_ad_accounts";
+      const { error } = await supabase.from(table).update({ client_id: null }).eq("id", accountId);
 
       if (error) throw error;
 
@@ -546,15 +550,12 @@ export default function PlatformConnections() {
     }
   };
 
-  const handleDeleteAccount = async (accountId: string, platform: 'meta' | 'tiktok' = 'meta') => {
+  const handleDeleteAccount = async (accountId: string, platform: "meta" | "tiktok" = "meta") => {
     if (!confirm("Are you sure you want to delete this ad account? This action cannot be undone.")) return;
 
     try {
-      const table = platform === 'tiktok' ? 'tiktok_ad_accounts' : 'meta_ad_accounts';
-      const { error } = await supabase
-        .from(table)
-        .delete()
-        .eq("id", accountId);
+      const table = platform === "tiktok" ? "tiktok_ad_accounts" : "meta_ad_accounts";
+      const { error } = await supabase.from(table).delete().eq("id", accountId);
 
       if (error) throw error;
 
@@ -565,7 +566,7 @@ export default function PlatformConnections() {
       toast.error("Failed to delete account");
     }
   };
-  
+
   // Handle OAuth callback
   useEffect(() => {
     const handleOAuthCallback = async () => {
@@ -577,64 +578,64 @@ export default function PlatformConnections() {
         processingOAuthRef.current = true;
         // Clear URL immediately to prevent reuse
         window.history.replaceState({}, document.title, window.location.pathname);
-        
+
         setSaving(true);
         try {
           // IMPORTANT: The redirect_uri used here MUST be identical to the one used in the OAuth dialog request.
           // Never derive from window.location.origin (preview / staging domains will cause code exchange failures).
           const redirectUri = OAUTH_REDIRECT_URI;
-          
+
           // Check if this is the Ad Library OAuth callback
-          if (state === 'meta_adlibrary') {
-            console.log('Ad Library OAuth callback - processing...');
-            sessionStorage.removeItem('pending_adlibrary_oauth');
-            
-            const { data, error } = await supabase.functions.invoke('meta-adlibrary-oauth-callback', {
-              body: { code, redirectUri }
+          if (state === "meta_adlibrary") {
+            console.log("Ad Library OAuth callback - processing...");
+            sessionStorage.removeItem("pending_adlibrary_oauth");
+
+            const { data, error } = await supabase.functions.invoke("meta-adlibrary-oauth-callback", {
+              body: { code, redirectUri },
             });
-            
+
             if (error) throw error;
-            
+
             toast.success("Competitor Research enabled!", {
-              description: `Authorized as ${data.userName}`
+              description: `Authorized as ${data.userName}`,
             });
-            
+
             await fetchConnectedPlatforms();
             return;
           }
-          
+
           // Regular platform OAuth flow
-          const platformId = sessionStorage.getItem('reconnecting_platform_id');
-          const platformType = sessionStorage.getItem('reconnecting_platform_type') || state;
-          sessionStorage.removeItem('reconnecting_platform_id');
-          sessionStorage.removeItem('reconnecting_platform_type');
-          
-          console.log('OAuth callback - platformType:', platformType);
-          console.log('OAuth callback - platformId:', platformId);
-          
+          const platformId = sessionStorage.getItem("reconnecting_platform_id");
+          const platformType = sessionStorage.getItem("reconnecting_platform_type") || state;
+          sessionStorage.removeItem("reconnecting_platform_id");
+          sessionStorage.removeItem("reconnecting_platform_type");
+
+          console.log("OAuth callback - platformType:", platformType);
+          console.log("OAuth callback - platformId:", platformId);
+
           const callbackFunction = platformType === "tiktok" ? "tiktok-oauth-callback" : "meta-oauth-callback";
-          
-          console.log('OAuth callback - calling function:', callbackFunction);
-          
+
+          console.log("OAuth callback - calling function:", callbackFunction);
+
           // Only include platformId if it's a valid string (not null/undefined)
           const { data, error } = await supabase.functions.invoke(callbackFunction, {
-            body: { 
-              code, 
-              platformType: state, 
-              redirectUri, 
-              ...(platformId ? { platformId } : {}) 
-            }
+            body: {
+              code,
+              platformType: state,
+              redirectUri,
+              ...(platformId ? { platformId } : {}),
+            },
           });
 
-          console.log('OAuth callback - response data:', data);
-          console.log('OAuth callback - response error:', error);
+          console.log("OAuth callback - response data:", data);
+          console.log("OAuth callback - response error:", error);
 
           if (error) throw error;
 
           // Handle TikTok background sync
-          if (platformType === 'tiktok' && data?.syncInProgress) {
+          if (platformType === "tiktok" && data?.syncInProgress) {
             toast.success("TikTok connected! Syncing advertiser accounts...");
-            sessionStorage.setItem('platform_sync_id', data.platformId);
+            sessionStorage.setItem("platform_sync_id", data.platformId);
             setSyncProgressPlatformId(data.platformId);
             setSyncProgressDialogOpen(true);
             await fetchConnectedPlatforms();
@@ -644,7 +645,7 @@ export default function PlatformConnections() {
           if (platformId) {
             toast.success("Platform reconnected successfully!");
           } else {
-            toast.success(`${platformType === 'tiktok' ? 'TikTok' : 'Platform'} connected successfully!`);
+            toast.success(`${platformType === "tiktok" ? "TikTok" : "Platform"} connected successfully!`);
           }
 
           // Open account selector if accounts are returned (Meta flow)
@@ -652,25 +653,25 @@ export default function PlatformConnections() {
             const accountOptions = data.accounts.map((acc: any) => ({
               id: acc.advertiser_id || acc.id,
               name: acc.name,
-              business_center: acc.business_center
+              business_center: acc.business_center,
             }));
-            
+
             setAdAccountOptions(accountOptions);
             setCurrentPlatformId(data.platformId);
             setAccountSelectorOpen(true);
             toast.success(`Found ${data.accounts.length} account(s) - please select which to sync`);
           }
-          
+
           // Track that we need to trigger Ad Library OAuth after account selection
           // This creates a seamless two-step flow during onboarding
-          if (platformType === 'meta' && !platformId) {
-            sessionStorage.setItem('pending_adlibrary_oauth_after_sync', 'true');
+          if (platformType === "meta" && !platformId) {
+            sessionStorage.setItem("pending_adlibrary_oauth_after_sync", "true");
           }
 
           await fetchConnectedPlatforms();
         } catch (error: any) {
           console.error("OAuth callback error:", error);
-          const msg = (error?.message || "Failed to complete authentication");
+          const msg = error?.message || "Failed to complete authentication";
           toast.error(msg + ". Please restart the connection process.");
         } finally {
           setSaving(false);
@@ -688,7 +689,7 @@ export default function PlatformConnections() {
     // If account has no client linked, prompt user to link first (for benchmark features)
     if (!account.client_id && !skipClientCheck && canManageClients) {
       setPendingSyncAfterLink(account);
-      setPendingSyncPlatform('meta');
+      setPendingSyncPlatform("meta");
       setSelectedAdAccountForLinking(account.id);
       setClientSelectorOpen(true);
       return;
@@ -722,8 +723,8 @@ export default function PlatformConnections() {
     // If account has no client linked, prompt user to link first (for benchmark features)
     if (!account.client_id && !skipClientCheck && canManageClients) {
       setPendingSyncAfterLink(account);
-      setPendingSyncPlatform('tiktok');
-      setSelectedAdAccountForLinking('tiktok_' + account.id);
+      setPendingSyncPlatform("tiktok");
+      setSelectedAdAccountForLinking("tiktok_" + account.id);
       setClientSelectorOpen(true);
       return;
     }
@@ -767,10 +768,10 @@ export default function PlatformConnections() {
     if (!open && pendingSyncAfterLink) {
       // User closed without selecting - ask if they want to sync anyway
       const syncAnyway = window.confirm(
-        "Syncing without a client linked means benchmark data won't be available for improved forecasting.\n\nDo you want to sync anyway?"
+        "Syncing without a client linked means benchmark data won't be available for improved forecasting.\n\nDo you want to sync anyway?",
       );
       if (syncAnyway) {
-        if (pendingSyncPlatform === 'tiktok') {
+        if (pendingSyncPlatform === "tiktok") {
           handleSyncTikTokAccountAssets(pendingSyncAfterLink as TikTokAdAccount, true);
         } else {
           handleSyncAccountAssets(pendingSyncAfterLink as MetaAdAccount, true);
@@ -807,27 +808,31 @@ export default function PlatformConnections() {
         <Alert>
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            Connecting your platforms allows the system to access your ad accounts, pages, and Instagram accounts
-            for accurate forecasting and campaign management.
+            Connecting your platforms allows the system to access your ad accounts, pages, and Instagram accounts for
+            accurate forecasting and campaign management.
           </AlertDescription>
         </Alert>
 
         {/* Meta Identity Confirmation Notice for Competitor Research */}
-        <Alert variant="destructive" className="border-orange-500/50 bg-orange-50 dark:bg-orange-950/20 [&>svg]:text-orange-600">
+        <Alert
+          variant="destructive"
+          className="border-orange-500/50 bg-orange-50 dark:bg-orange-950/20 [&>svg]:text-orange-600"
+        >
           <AlertCircle className="h-4 w-4" />
           <AlertDescription className="text-orange-800 dark:text-orange-200">
-            <strong>Competitor Research requires Meta Identity Confirmation:</strong> To use the Ad Library for competitor analysis, 
+            <strong>Competitor Research API requires Meta Identity Confirmation:</strong>
             you must complete identity verification at{" "}
-            <a 
-              href="https://www.facebook.com/ID" 
-              target="_blank" 
+            <a
+              href="https://www.facebook.com/ID"
+              target="_blank"
               rel="noopener noreferrer"
               className="underline font-medium"
             >
               facebook.com/ID
             </a>
-            . When prompted, select <strong>"Running ads about social issues, elections or politics"</strong> as your reason, 
-            then upload your government-issued ID. This is a Meta requirement for accessing the Ad Library API.
+            . When prompted, select <strong>"Running ads about social issues, elections or politics"</strong> as your
+            reason, then upload your government-issued ID. This is a Meta requirement for accessing Competition Research
+            API.
           </AlertDescription>
         </Alert>
 
@@ -846,73 +851,78 @@ export default function PlatformConnections() {
                     <Facebook className="h-4 w-4 mr-2" />
                     Connect Meta
                   </Button>
-                  <Button onClick={() => handleConnectPlatform("tiktok", false)} variant="outline" className="border-black/20 dark:border-white/20">
+                  <Button
+                    onClick={() => handleConnectPlatform("tiktok", false)}
+                    variant="outline"
+                    className="border-black/20 dark:border-white/20"
+                  >
                     <Video className="h-4 w-4 mr-2" />
                     Connect TikTok
                   </Button>
                 </div>
               </div>
             ) : (
-            <div className="space-y-3">
-              {platforms.map((platform) => {
-                const businessName = platform.metadata?.businesses?.[0]?.name;
-                const advertiserIds = platform.metadata?.advertiser_ids;
-                const isTikTok = platform.platform_type === 'tiktok';
-                const Icon = isTikTok ? Video : Facebook;
-                const iconColor = isTikTok ? 'text-black dark:text-white' : 'text-blue-600';
-                const bgColor = isTikTok ? 'bg-black/5 dark:bg-white/5' : '';
-                
-                return (
-                  <div key={platform.id} className={`flex items-center justify-between p-4 rounded-lg border ${bgColor}`}>
-                    <div className="flex items-center gap-3">
-                      <Icon className={`h-5 w-5 ${iconColor}`} />
-                      <div>
-                        <p className="font-medium">{platform.platform_name}</p>
-                        {businessName && (
-                          <p className="text-sm text-muted-foreground">Business: {businessName}</p>
-                        )}
-                        {isTikTok && advertiserIds && advertiserIds.length > 0 && (
-                          <p className="text-sm text-muted-foreground">
-                            {advertiserIds.length} advertiser account{advertiserIds.length !== 1 ? 's' : ''}
+              <div className="space-y-3">
+                {platforms.map((platform) => {
+                  const businessName = platform.metadata?.businesses?.[0]?.name;
+                  const advertiserIds = platform.metadata?.advertiser_ids;
+                  const isTikTok = platform.platform_type === "tiktok";
+                  const Icon = isTikTok ? Video : Facebook;
+                  const iconColor = isTikTok ? "text-black dark:text-white" : "text-blue-600";
+                  const bgColor = isTikTok ? "bg-black/5 dark:bg-white/5" : "";
+
+                  return (
+                    <div
+                      key={platform.id}
+                      className={`flex items-center justify-between p-4 rounded-lg border ${bgColor}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Icon className={`h-5 w-5 ${iconColor}`} />
+                        <div>
+                          <p className="font-medium">{platform.platform_name}</p>
+                          {businessName && <p className="text-sm text-muted-foreground">Business: {businessName}</p>}
+                          {isTikTok && advertiserIds && advertiserIds.length > 0 && (
+                            <p className="text-sm text-muted-foreground">
+                              {advertiserIds.length} advertiser account{advertiserIds.length !== 1 ? "s" : ""}
+                            </p>
+                          )}
+                          <p className="text-xs text-muted-foreground">
+                            Connected {new Date(platform.created_at).toLocaleDateString()}
                           </p>
-                        )}
-                        <p className="text-xs text-muted-foreground">
-                          Connected {new Date(platform.created_at).toLocaleDateString()}
-                        </p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleConnectPlatform(platform.platform_type, false, platform.id)}
+                        >
+                          <CheckCircle2 className="h-4 w-4 mr-2" />
+                          Reconnect
+                        </Button>
+                        <Button variant="destructive" size="sm" onClick={() => handleDisconnectPlatform(platform.id)}>
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Disconnect
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex gap-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={() => handleConnectPlatform(platform.platform_type, false, platform.id)}
-                      >
-                        <CheckCircle2 className="h-4 w-4 mr-2" />
-                        Reconnect
-                      </Button>
-                      <Button 
-                        variant="destructive" 
-                        size="sm" 
-                        onClick={() => handleDisconnectPlatform(platform.id)}
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Disconnect
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
-              <div className="pt-4 border-t flex gap-3">
-                <Button onClick={() => handleConnectPlatform("meta", false)}>
-                  <Facebook className="h-4 w-4 mr-2" />
-                  Connect Another Meta Account
-                </Button>
-                <Button onClick={() => handleConnectPlatform("tiktok", false)} variant="outline" className="border-black/20 dark:border-white/20">
-                  <Video className="h-4 w-4 mr-2" />
-                  Connect TikTok Account
-                </Button>
+                  );
+                })}
+                <div className="pt-4 border-t flex gap-3">
+                  <Button onClick={() => handleConnectPlatform("meta", false)}>
+                    <Facebook className="h-4 w-4 mr-2" />
+                    Connect Another Meta Account
+                  </Button>
+                  <Button
+                    onClick={() => handleConnectPlatform("tiktok", false)}
+                    variant="outline"
+                    className="border-black/20 dark:border-white/20"
+                  >
+                    <Video className="h-4 w-4 mr-2" />
+                    Connect TikTok Account
+                  </Button>
+                </div>
               </div>
-            </div>
             )}
           </CardContent>
         </Card>
@@ -938,8 +948,8 @@ export default function PlatformConnections() {
                 setSelectedAdAccountForLinking(accountId);
                 setClientSelectorOpen(true);
               }}
-              onUnlinkAccount={(accountId) => handleUnlinkAccount(accountId, 'meta')}
-              onDeleteAccount={(accountId) => handleDeleteAccount(accountId, 'meta')}
+              onUnlinkAccount={(accountId) => handleUnlinkAccount(accountId, "meta")}
+              onDeleteAccount={(accountId) => handleDeleteAccount(accountId, "meta")}
             />
 
             {/* TikTok Ad Accounts - Collapsible */}
@@ -953,11 +963,11 @@ export default function PlatformConnections() {
               canManageClients={canManageClients}
               onSyncAccount={handleSyncTikTokAccountAssets}
               onLinkAccount={(accountId) => {
-                setSelectedAdAccountForLinking('tiktok_' + accountId);
+                setSelectedAdAccountForLinking("tiktok_" + accountId);
                 setClientSelectorOpen(true);
               }}
-              onUnlinkAccount={(accountId) => handleUnlinkAccount(accountId, 'tiktok')}
-              onDeleteAccount={(accountId) => handleDeleteAccount(accountId, 'tiktok')}
+              onUnlinkAccount={(accountId) => handleUnlinkAccount(accountId, "tiktok")}
+              onDeleteAccount={(accountId) => handleDeleteAccount(accountId, "tiktok")}
             />
           </CardContent>
         </Card>
@@ -967,7 +977,7 @@ export default function PlatformConnections() {
           adAccounts={adAccountOptions}
           onSelect={handleSaveAdAccounts}
           loading={selectingAccount}
-          platformType={platforms.find(p => p.id === currentPlatformId)?.platform_type || 'meta'}
+          platformType={platforms.find((p) => p.id === currentPlatformId)?.platform_type || "meta"}
         />
 
         {user && (
@@ -977,7 +987,11 @@ export default function PlatformConnections() {
             userId={user.id}
             onClientSelected={handleLinkAccountToClient}
             title={pendingSyncAfterLink ? "Link Account for Better Forecasting" : undefined}
-            description={pendingSyncAfterLink ? "Link this ad account to a client to enable benchmark-based forecasting. This uses your historical performance data for more accurate predictions." : undefined}
+            description={
+              pendingSyncAfterLink
+                ? "Link this ad account to a client to enable benchmark-based forecasting. This uses your historical performance data for more accurate predictions."
+                : undefined
+            }
           />
         )}
 
