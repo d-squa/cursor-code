@@ -120,49 +120,66 @@ serve(async (req) => {
         const activeSub = subscriptions.data.find(
           (s: { status: string }) => s.status === "active" || s.status === "trialing"
         );
-
+        
         if (activeSub) {
           let subscriptionStart: string | null = null;
           let subscriptionEnd: string | null = null;
           let trialEnd: string | null = null;
 
-          // Handle current_period_start - could be number (timestamp) or object
-          const periodStart = activeSub.current_period_start;
+          // In Stripe API 2025+, current_period_start/end are on subscription items, not root
+          // Also check root level for older API compatibility
+          const subAny = activeSub as any;
+          
+          // Try subscription root level first (older API)
+          let periodStart = subAny.current_period_start;
+          let periodEnd = subAny.current_period_end;
+          
+          // If not on root, try subscription items (newer API 2025+)
+          if (!periodStart && activeSub.items?.data?.[0]) {
+            const firstItem = activeSub.items.data[0] as any;
+            periodStart = firstItem.current_period_start;
+            periodEnd = firstItem.current_period_end;
+          }
+          
+          // Fallback to billing_cycle_anchor and start_date
+          if (!periodStart && subAny.billing_cycle_anchor) {
+            periodStart = subAny.billing_cycle_anchor;
+          }
+          if (!periodStart && subAny.start_date) {
+            periodStart = subAny.start_date;
+          }
+          
+          logStep("Period dates extraction", { 
+            rootPeriodStart: subAny.current_period_start,
+            rootPeriodEnd: subAny.current_period_end,
+            itemPeriodStart: activeSub.items?.data?.[0] ? (activeSub.items.data[0] as any).current_period_start : null,
+            itemPeriodEnd: activeSub.items?.data?.[0] ? (activeSub.items.data[0] as any).current_period_end : null,
+            billingCycleAnchor: subAny.billing_cycle_anchor,
+            startDate: subAny.start_date,
+            finalPeriodStart: periodStart,
+            finalPeriodEnd: periodEnd
+          });
+
+          // Convert to ISO strings
           if (periodStart) {
             if (typeof periodStart === "number") {
               subscriptionStart = new Date(periodStart * 1000).toISOString();
-            } else if (typeof periodStart === "object" && periodStart !== null) {
-              // Stripe might return a Date-like object
-              subscriptionStart = new Date(periodStart as any).toISOString();
             }
           }
 
-          // Handle current_period_end - could be number (timestamp) or object
-          const periodEnd = activeSub.current_period_end;
           if (periodEnd) {
             if (typeof periodEnd === "number") {
               subscriptionEnd = new Date(periodEnd * 1000).toISOString();
-            } else if (typeof periodEnd === "object" && periodEnd !== null) {
-              subscriptionEnd = new Date(periodEnd as any).toISOString();
             }
           }
 
-          // Handle trial_end - could be number (timestamp) or object
-          const trialEndVal = activeSub.trial_end;
-          if (trialEndVal) {
-            if (typeof trialEndVal === "number") {
-              trialEnd = new Date(trialEndVal * 1000).toISOString();
-            } else if (typeof trialEndVal === "object" && trialEndVal !== null) {
-              trialEnd = new Date(trialEndVal as any).toISOString();
-            }
+          // Handle trial_end
+          const trialEndVal = subAny.trial_end;
+          if (trialEndVal && typeof trialEndVal === "number") {
+            trialEnd = new Date(trialEndVal * 1000).toISOString();
           }
           
-          logStep("Parsed subscription dates", { 
-            rawPeriodStart: periodStart, 
-            rawPeriodEnd: periodEnd,
-            subscriptionStart, 
-            subscriptionEnd 
-          });
+          logStep("Parsed subscription dates", { subscriptionStart, subscriptionEnd, trialEnd });
 
           const priceItem = activeSub.items.data[0]?.price;
           const productId = priceItem?.product as string;
@@ -287,34 +304,40 @@ serve(async (req) => {
           let subscriptionEnd: string | null = null;
           let trialEnd: string | null = null;
 
-          // Handle current_period_start - could be number (timestamp) or object
-          const periodStart = ownerEligibleSub.current_period_start;
-          if (periodStart) {
-            if (typeof periodStart === "number") {
-              subscriptionStart = new Date(periodStart * 1000).toISOString();
-            } else if (typeof periodStart === "object" && periodStart !== null) {
-              subscriptionStart = new Date(periodStart as any).toISOString();
-            }
+          // In Stripe API 2025+, current_period_start/end are on subscription items, not root
+          const subAny = ownerEligibleSub as any;
+          
+          // Try subscription root level first (older API)
+          let periodStart = subAny.current_period_start;
+          let periodEnd = subAny.current_period_end;
+          
+          // If not on root, try subscription items (newer API 2025+)
+          if (!periodStart && ownerEligibleSub.items?.data?.[0]) {
+            const firstItem = ownerEligibleSub.items.data[0] as any;
+            periodStart = firstItem.current_period_start;
+            periodEnd = firstItem.current_period_end;
+          }
+          
+          // Fallback to billing_cycle_anchor and start_date
+          if (!periodStart && subAny.billing_cycle_anchor) {
+            periodStart = subAny.billing_cycle_anchor;
+          }
+          if (!periodStart && subAny.start_date) {
+            periodStart = subAny.start_date;
           }
 
-          // Handle current_period_end - could be number (timestamp) or object
-          const periodEnd = ownerEligibleSub.current_period_end;
-          if (periodEnd) {
-            if (typeof periodEnd === "number") {
-              subscriptionEnd = new Date(periodEnd * 1000).toISOString();
-            } else if (typeof periodEnd === "object" && periodEnd !== null) {
-              subscriptionEnd = new Date(periodEnd as any).toISOString();
-            }
+          // Convert to ISO strings
+          if (periodStart && typeof periodStart === "number") {
+            subscriptionStart = new Date(periodStart * 1000).toISOString();
           }
-
-          // Handle trial_end - could be number (timestamp) or object
-          const trialEndVal = ownerEligibleSub.trial_end;
-          if (trialEndVal) {
-            if (typeof trialEndVal === "number") {
-              trialEnd = new Date(trialEndVal * 1000).toISOString();
-            } else if (typeof trialEndVal === "object" && trialEndVal !== null) {
-              trialEnd = new Date(trialEndVal as any).toISOString();
-            }
+          if (periodEnd && typeof periodEnd === "number") {
+            subscriptionEnd = new Date(periodEnd * 1000).toISOString();
+          }
+          
+          // Handle trial_end
+          const trialEndVal = subAny.trial_end;
+          if (trialEndVal && typeof trialEndVal === "number") {
+            trialEnd = new Date(trialEndVal * 1000).toISOString();
           }
 
           const onTrial = ownerEligibleSub.status === "trialing";
