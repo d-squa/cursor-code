@@ -12,11 +12,21 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { format, differenceInMinutes } from "date-fns";
-import { Loader2, CalendarIcon, Clock, Users, TrendingUp, AlertTriangle, Timer } from "lucide-react";
+import { format, differenceInMinutes, differenceInHours } from "date-fns";
+import { Loader2, CalendarIcon, Clock, Users, TrendingUp, AlertTriangle, Timer, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FeatureGate } from "@/components/FeatureGate";
 import { formatActiveTime } from "@/hooks/useActiplanTimeTracking";
+
+interface ActiPlanSummary {
+  id: string;
+  name: string;
+  status: string | null;
+  created_at: string;
+  published_at: string | null;
+  draftingWorkSeconds: number;
+  planToLaunchHours: number | null;
+}
 import {
   BarChart,
   Bar,
@@ -35,6 +45,9 @@ interface Campaign {
   id: string;
   name: string;
   team_id?: string;
+  status?: string | null;
+  created_at?: string;
+  published_at?: string | null;
 }
 
 interface OperationRecord {
@@ -86,6 +99,7 @@ export default function OperationsReports() {
   const [availablePlatforms, setAvailablePlatforms] = useState<string[]>([]);
   const [availableMarkets, setAvailableMarkets] = useState<string[]>([]);
   const [timeTrackingData, setTimeTrackingData] = useState<Record<string, number>>({});
+  const [actiplanSummaries, setActiplanSummaries] = useState<ActiPlanSummary[]>([]);
 
   // Only redirect AFTER we have a definitive answer (loading complete AND access denied)
   useEffect(() => {
@@ -125,10 +139,10 @@ export default function OperationsReports() {
     try {
       setLoading(true);
 
-      // Load campaigns for the active workspace only
+      // Load campaigns for the active workspace only with additional fields for time metrics
       const { data: campaignsData } = await supabase
         .from("campaigns")
-        .select("id, name, team_id")
+        .select("id, name, team_id, status, created_at, published_at")
         .eq("team_id", activeWorkspaceId)
         .order("name");
       setCampaigns(campaignsData || []);
@@ -321,6 +335,25 @@ export default function OperationsReports() {
       });
       setTimeTrackingData(timeByPlan);
 
+      // Build ActiPlan summaries with drafting work and plan-to-launch metrics
+      const summaries: ActiPlanSummary[] = campaigns.map(c => {
+        const draftingWorkSeconds = timeByPlan[c.id] || 0;
+        const planToLaunchHours = c.published_at && c.created_at
+          ? differenceInHours(new Date(c.published_at), new Date(c.created_at))
+          : null;
+        
+        return {
+          id: c.id,
+          name: c.name,
+          status: c.status || null,
+          created_at: c.created_at || '',
+          published_at: c.published_at || null,
+          draftingWorkSeconds,
+          planToLaunchHours,
+        };
+      });
+      setActiplanSummaries(summaries);
+
     } catch (error: any) {
       console.error("Error loading operations data:", error);
       toast.error("Failed to load operations data");
@@ -358,25 +391,14 @@ export default function OperationsReports() {
       ? completedOps.reduce((sum, op) => sum + (op.time_to_complete || 0), 0) / completedOps.length
       : 0;
 
-    // Calculate total active time from time tracking
-    // Filter to campaigns that match the current filter
-    const relevantCampaignIds = selectedCampaign !== 'all' 
-      ? [selectedCampaign]
-      : [...new Set(filteredOperations.map(op => op.campaign_id).filter(Boolean) as string[])];
-    
-    const totalActiveSeconds = relevantCampaignIds.reduce((sum, id) => sum + (timeTrackingData[id] || 0), 0);
-    const totalActiveHours = totalActiveSeconds / 3600;
-
     return {
       totalOperations: filteredOperations.length,
       totalEstimatedHours: totalEstimated,
       totalActualHours: totalActual,
       avgTimeToComplete,
       completedCount: completedOps.length,
-      totalActiveSeconds,
-      totalActiveHours,
     };
-  }, [filteredOperations, timeTrackingData, selectedCampaign]);
+  }, [filteredOperations]);
 
   // Group by dimension
   const groupedData = useMemo(() => {
@@ -607,7 +629,7 @@ export default function OperationsReports() {
             ) : (
               <>
                 {/* Scorecards */}
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <Card>
                     <CardContent className="pt-6">
                       <div className="flex items-center gap-3">
@@ -643,19 +665,6 @@ export default function OperationsReports() {
                         <div>
                           <p className="text-sm text-muted-foreground">Actual Hours</p>
                           <p className="text-2xl font-bold">{stats.totalActualHours.toFixed(1)}h</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="pt-6">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-accent/10 rounded-lg">
-                          <Timer className="h-5 w-5 text-accent-foreground" />
-                        </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">Active Time (Tracked)</p>
-                          <p className="text-2xl font-bold">{formatActiveTime(stats.totalActiveSeconds)}</p>
                         </div>
                       </div>
                     </CardContent>
@@ -731,10 +740,88 @@ export default function OperationsReports() {
                   </Card>
                 </div>
 
+                {/* ActiPlans Summary Table */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <FileText className="h-5 w-5" />
+                      ActiPlans Time Metrics
+                    </CardTitle>
+                    <CardDescription>
+                      Drafting works measures effective active time spent. Plan to launch measures total elapsed time.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>ActiPlan Name</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Created</TableHead>
+                          <TableHead>Published</TableHead>
+                          <TableHead>
+                            <div className="flex items-center gap-1">
+                              <Timer className="h-4 w-4" />
+                              ActiPlan Drafting Works
+                            </div>
+                          </TableHead>
+                          <TableHead>Plan to Launch Time</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {actiplanSummaries
+                          .filter(s => selectedCampaign === 'all' || s.id === selectedCampaign)
+                          .map((summary) => (
+                          <TableRow key={summary.id}>
+                            <TableCell className="font-medium max-w-[200px] truncate">
+                              {summary.name}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={summary.status === 'live' ? 'default' : 'secondary'}>
+                                {summary.status || 'draft'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              {summary.created_at 
+                                ? format(new Date(summary.created_at), "MMM dd, yyyy") 
+                                : '-'}
+                            </TableCell>
+                            <TableCell>
+                              {summary.published_at 
+                                ? format(new Date(summary.published_at), "MMM dd, yyyy")
+                                : '-'}
+                            </TableCell>
+                            <TableCell className="font-medium text-primary">
+                              {summary.draftingWorkSeconds > 0 
+                                ? formatActiveTime(summary.draftingWorkSeconds)
+                                : '-'}
+                            </TableCell>
+                            <TableCell>
+                              {summary.planToLaunchHours !== null 
+                                ? `${summary.planToLaunchHours}h`
+                                : '-'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                        {actiplanSummaries.filter(s => selectedCampaign === 'all' || s.id === selectedCampaign).length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                              No ActiPlans found in this workspace
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+
                 {/* Operations Table */}
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-lg">Recent Operations</CardTitle>
+                    <CardDescription>
+                      Individual tasks, requests, and optimizations with user-defined hours
+                    </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <Table>
