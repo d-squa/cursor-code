@@ -58,6 +58,7 @@ interface CampaignOverviewCardProps {
     start_date: string;
     end_date: string;
     updated_at: string;
+    bo_number?: string;
   };
   platformPacing: PlatformPacing[];
   platformPerformance?: PlatformPerformance[];
@@ -356,8 +357,13 @@ export function CampaignOverviewCard({
           <div className="flex items-start justify-between gap-2 mb-3">
             <div className="flex-1 min-w-0">
               <h3 className="text-sm font-semibold truncate">{campaign.name}</h3>
+              {campaign.bo_number && (
+                <span className="text-[10px] text-muted-foreground font-medium">
+                  BO: {campaign.bo_number}
+                </span>
+              )}
               {isSampleData && (
-                <Badge variant="outline" className="mt-0.5 text-[9px] h-4">Sample</Badge>
+                <Badge variant="outline" className="mt-0.5 text-[9px] h-4 ml-1">Sample</Badge>
               )}
             </div>
             <Badge 
