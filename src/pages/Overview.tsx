@@ -84,6 +84,9 @@ interface CompletedRequestsByCategory {
 
 // Generate sample data for mid-January scenario
 const generateSampleData = () => {
+  // Use the same sampleNow that pacing calculations use
+  const sampleNow = new Date("2026-01-16T12:00:00Z");
+  
   const sampleCampaign: Campaign = {
     id: "sample-campaign-1",
     name: "Q4 Holiday Campaign 2025",
@@ -91,39 +94,48 @@ const generateSampleData = () => {
     total_budget: 80000,
     start_date: "2025-12-16T00:00:00Z",
     end_date: "2026-01-31T23:59:59Z",
-    updated_at: new Date().toISOString(),
+    updated_at: sampleNow.toISOString(),
     platforms: [
       { name: "Meta", enabled: true, budgetPercentage: 62.5 }, // 50k of 80k
       { name: "TikTok", enabled: true, budgetPercentage: 37.5 }, // 30k of 80k
     ],
   };
 
-  // Simulate mid-January (Jan 16, 2026)
+  // Simulate mid-January (Jan 16, 2026) - fetched_at relative to sampleNow
   const sampleInsights: CampaignInsight[] = [
     {
       campaign_id: "sample-campaign-1",
       platform: "meta",
       metrics: { spend: 41000, impressions: 2500000 },
-      fetched_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(), // 30 min ago
+      fetched_at: new Date(sampleNow.getTime() - 30 * 60 * 1000).toISOString(), // 30 min before sampleNow
     },
     {
       campaign_id: "sample-campaign-1",
       platform: "tiktok",
       metrics: { spend: 14000, impressions: 1800000 },
-      fetched_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
+      fetched_at: new Date(sampleNow.getTime() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours before sampleNow
     },
   ];
 
+  // Use dates relative to sampleNow so filters work correctly
+  // sampleNow = Jan 16, 2026
+  // thisMonthStart for sample = Jan 1, 2026
+  // last7Days for sample = Jan 9, 2026
   const sampleModRequests: ModificationRequest[] = [
-    { campaign_id: "sample-campaign-1", status: "completed", change_type: "budget", updated_at: subDays(new Date(), 2).toISOString() },
-    { campaign_id: "sample-campaign-1", status: "completed", change_type: "targeting", updated_at: subDays(new Date(), 5).toISOString() },
-    { campaign_id: "sample-campaign-1", status: "pending", change_type: "creative", updated_at: subDays(new Date(), 1).toISOString() },
-    { campaign_id: "sample-campaign-1", status: "completed", change_type: "note", updated_at: subDays(new Date(), 3).toISOString() },
-    { campaign_id: "sample-campaign-1", status: "completed", change_type: "note", updated_at: subDays(new Date(), 1).toISOString() },
+    // Within last 7 days (Jan 14 - 2 days before Jan 16)
+    { campaign_id: "sample-campaign-1", status: "completed", change_type: "budget", updated_at: subDays(sampleNow, 2).toISOString() },
+    // Within this month but NOT last 7 days (Jan 5 - 11 days before Jan 16)
+    { campaign_id: "sample-campaign-1", status: "completed", change_type: "targeting", updated_at: subDays(sampleNow, 11).toISOString() },
+    // Within last 7 days (Jan 15 - 1 day before)
+    { campaign_id: "sample-campaign-1", status: "pending", change_type: "creative", updated_at: subDays(sampleNow, 1).toISOString() },
+    // Before this month - lifetime only (Dec 20, 2025 - 27 days before Jan 16)
+    { campaign_id: "sample-campaign-1", status: "completed", change_type: "note", updated_at: subDays(sampleNow, 27).toISOString() },
+    // Within last 7 days (Jan 13 - 3 days before)
+    { campaign_id: "sample-campaign-1", status: "completed", change_type: "note", updated_at: subDays(sampleNow, 3).toISOString() },
   ];
 
   const sampleAnalyses: SavedAnalysis[] = [
-    { campaign_id: "sample-campaign-1", created_at: subDays(new Date(), 2).toISOString() },
+    { campaign_id: "sample-campaign-1", created_at: subDays(sampleNow, 2).toISOString() },
   ];
 
   return { sampleCampaign, sampleInsights, sampleModRequests, sampleAnalyses };
