@@ -882,6 +882,62 @@ export default function ActiPlans() {
                   ) : (
                     <LockedDropdownMenuItem feature="change_history_dialog">View History</LockedDropdownMenuItem>
                   )}
+                  {/* Request Changes - available for all statuses including pushed_to_dsp */}
+                  {hasAccess("request_modifications") ? (
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setSelectedCampaign(campaign);
+                        setModificationDialogOpen(true);
+                      }}
+                    >
+                      <MessageSquare className="w-4 h-4 mr-2" />
+                      Request Changes
+                    </DropdownMenuItem>
+                  ) : (
+                    <LockedDropdownMenuItem feature="request_modifications">Request Changes</LockedDropdownMenuItem>
+                  )}
+
+                  {["ready_for_push", "pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
+                    <>
+                      {(canEdit(campaign) || canApprove(campaign) || canPushToDSP(campaign)) && (
+                        <DropdownMenuSeparator />
+                      )}
+                      <DropdownMenuItem
+                        onClick={() => {
+                          navigate(`/actiplans/${campaign.id}/report`);
+                        }}
+                      >
+                        <TrendingUp className="w-4 h-4 mr-2" />
+                        Check Performance
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          navigate(`/actiplans/${campaign.id}/insights`);
+                        }}
+                      >
+                        <BarChart3 className="w-4 h-4 mr-2" />
+                        Insights & Recommendations
+                      </DropdownMenuItem>
+                    </>
+                  )}
+
+                  {/* Operations Analytics - available for all ActiPlans */}
+                  {hasAccess("operations_analytics") && (
+                    <DropdownMenuItem
+                      onClick={() => {
+                        navigate(`/operations-analytics?campaign=${campaign.id}`);
+                      }}
+                    >
+                      <Activity className="w-4 h-4 mr-2" />
+                      Operations Analytics
+                    </DropdownMenuItem>
+                  )}
+
+                  {(canEdit(campaign) ||
+                    canApprove(campaign) ||
+                    canPushToDSP(campaign) ||
+                    campaign.status === "live") && <DropdownMenuSeparator />}
+
                   {/* Log an Action - only for post-push campaigns */}
                   {["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
                     <DropdownMenuItem
@@ -941,62 +997,6 @@ export default function ActiPlans() {
                       Check Modification Requests
                     </LockedDropdownMenuItem>
                   )}
-
-                  {/* Request Changes - available for all statuses including pushed_to_dsp */}
-                  {hasAccess("request_modifications") ? (
-                    <DropdownMenuItem
-                      onClick={() => {
-                        setSelectedCampaign(campaign);
-                        setModificationDialogOpen(true);
-                      }}
-                    >
-                      <MessageSquare className="w-4 h-4 mr-2" />
-                      Request Changes
-                    </DropdownMenuItem>
-                  ) : (
-                    <LockedDropdownMenuItem feature="request_modifications">Request Changes</LockedDropdownMenuItem>
-                  )}
-
-                  {["ready_for_push", "pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
-                    <>
-                      {(canEdit(campaign) || canApprove(campaign) || canPushToDSP(campaign)) && (
-                        <DropdownMenuSeparator />
-                      )}
-                      <DropdownMenuItem
-                        onClick={() => {
-                          navigate(`/actiplans/${campaign.id}/report`);
-                        }}
-                      >
-                        <TrendingUp className="w-4 h-4 mr-2" />
-                        Check Performance
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => {
-                          navigate(`/actiplans/${campaign.id}/insights`);
-                        }}
-                      >
-                        <BarChart3 className="w-4 h-4 mr-2" />
-                        Insights & Recommendations
-                      </DropdownMenuItem>
-                    </>
-                  )}
-
-                  {/* Operations Analytics - available for all ActiPlans */}
-                  {hasAccess("operations_analytics") && (
-                    <DropdownMenuItem
-                      onClick={() => {
-                        navigate(`/operations-analytics?campaign=${campaign.id}`);
-                      }}
-                    >
-                      <Activity className="w-4 h-4 mr-2" />
-                      Operations Analytics
-                    </DropdownMenuItem>
-                  )}
-
-                  {(canEdit(campaign) ||
-                    canApprove(campaign) ||
-                    canPushToDSP(campaign) ||
-                    campaign.status === "live") && <DropdownMenuSeparator />}
 
                   {/* Operations Analytics - admin only */}
                   {isAdminOrOwner && hasAccess("operations_analytics") && (
