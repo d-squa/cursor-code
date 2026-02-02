@@ -30,11 +30,6 @@ import {
   Legend,
 } from "recharts";
 
-interface Client {
-  id: string;
-  name: string;
-}
-
 interface Team {
   id: string;
   name: string;
@@ -43,6 +38,7 @@ interface Team {
 interface Campaign {
   id: string;
   name: string;
+  team_id?: string;
 }
 
 interface OperationRecord {
@@ -77,11 +73,9 @@ export default function OperationsReports() {
   const [loading, setLoading] = useState(true);
   
   // Filter states
-  const [clients, setClients] = useState<Client[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [selectedClients, setSelectedClients] = useState<string[]>([]);
-  const [selectedTeam, setSelectedTeam] = useState<string>("all");
+  const [selectedWorkspaces, setSelectedWorkspaces] = useState<string[]>([]);
   const [selectedCampaign, setSelectedCampaign] = useState<string>("all");
   const [selectedPlatform, setSelectedPlatform] = useState<string>("all");
   const [selectedMarket, setSelectedMarket] = useState<string>("all");
@@ -124,33 +118,26 @@ export default function OperationsReports() {
   }, [user, hasAccess]);
 
   useEffect(() => {
-    if (user && hasAccess && selectedClients.length > 0) {
+    if (user && hasAccess && selectedWorkspaces.length > 0) {
       loadOperationsData();
     }
-  }, [user, hasAccess, selectedClients, selectedTeam, selectedCampaign]);
+  }, [user, hasAccess, selectedWorkspaces, selectedCampaign]);
 
   const loadInitialData = async () => {
     try {
       setLoading(true);
-      
-      // Load all clients
-      const { data: clientsData } = await supabase
-        .from("clients")
-        .select("id, name")
-        .order("name");
-      setClients(clientsData || []);
 
-      // Load all teams
+      // Load all teams/workspaces
       const { data: teamsData } = await supabase
         .from("teams")
         .select("id, name")
         .order("name");
       setTeams(teamsData || []);
 
-      // Load all campaigns
+      // Load all campaigns with team_id
       const { data: campaignsData } = await supabase
         .from("campaigns")
-        .select("id, name")
+        .select("id, name, team_id")
         .order("name");
       setCampaigns(campaignsData || []);
     } catch (error: any) {
@@ -165,7 +152,20 @@ export default function OperationsReports() {
     try {
       setLoading(true);
 
-      // Load modification requests
+      // Get campaign IDs for selected workspaces
+      const campaignIdsForWorkspaces = campaigns
+        .filter(c => c.team_id && selectedWorkspaces.includes(c.team_id))
+        .map(c => c.id);
+
+      if (campaignIdsForWorkspaces.length === 0) {
+        setOperations([]);
+        setAvailablePlatforms([]);
+        setAvailableMarkets([]);
+        setLoading(false);
+        return;
+      }
+
+      // Load modification requests for selected workspaces
       let modQuery = supabase
         .from("modification_requests")
         .select(`
@@ -173,6 +173,7 @@ export default function OperationsReports() {
           estimated_hours, actual_hours, completed_by, completed_at,
           campaigns!inner(id, name, team_id, platforms, market_splits)
         `)
+        .in('campaign_id', campaignIdsForWorkspaces)
         .order("created_at", { ascending: false });
 
       if (selectedCampaign !== 'all') {
@@ -182,7 +183,7 @@ export default function OperationsReports() {
       const { data: modRequests, error: modError } = await modQuery;
       if (modError) throw modError;
 
-      // Load activity logs
+      // Load activity logs for selected workspaces
       let actQuery = supabase
         .from("activity_logs")
         .select(`
@@ -191,6 +192,7 @@ export default function OperationsReports() {
           affected_platforms, affected_markets,
           campaigns!inner(id, name, team_id, platforms, market_splits)
         `)
+        .in('campaign_id', campaignIdsForWorkspaces)
         .order("created_at", { ascending: false });
 
       if (selectedCampaign !== 'all') {
@@ -331,12 +333,12 @@ export default function OperationsReports() {
         if (opDate > endOfDay) return false;
       }
       if (typeFilter !== 'all' && op.type !== typeFilter) return false;
-      if (selectedTeam !== 'all' && op.team_id !== selectedTeam) return false;
+      // Workspace filtering is already done at the query level
       if (selectedPlatform !== 'all' && !op.platforms?.includes(selectedPlatform)) return false;
       if (selectedMarket !== 'all' && !op.markets?.includes(selectedMarket)) return false;
       return true;
     });
-  }, [operations, dateRange, typeFilter, selectedTeam, selectedPlatform, selectedMarket]);
+  }, [operations, dateRange, typeFilter, selectedPlatform, selectedMarket]);
 
   // Calculate statistics
   const stats = useMemo(() => {
@@ -443,46 +445,46 @@ export default function OperationsReports() {
         <div>
           <h2 className="text-2xl font-bold">Operations Reports</h2>
           <p className="text-muted-foreground mt-1">
-            View operations analytics across all clients. Select clients to load data.
+            View operations analytics across workspaces. Select workspaces to load data.
           </p>
         </div>
 
-        {/* Client Selection */}
+        {/* Workspace Selection */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Select Clients</CardTitle>
+            <CardTitle className="text-lg">Select Workspaces</CardTitle>
             <CardDescription>
-              Choose one or more clients to view their operations data. This prevents heavy loading.
+              Choose one or more workspaces to view their operations data. This prevents heavy loading.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-2">
-              {clients.map(client => (
+              {teams.map(team => (
                 <Badge
-                  key={client.id}
-                  variant={selectedClients.includes(client.id) ? "default" : "outline"}
+                  key={team.id}
+                  variant={selectedWorkspaces.includes(team.id) ? "default" : "outline"}
                   className="cursor-pointer"
                   onClick={() => {
-                    setSelectedClients(prev => 
-                      prev.includes(client.id) 
-                        ? prev.filter(c => c !== client.id)
-                        : [...prev, client.id]
+                    setSelectedWorkspaces(prev => 
+                      prev.includes(team.id) 
+                        ? prev.filter(t => t !== team.id)
+                        : [...prev, team.id]
                     );
                   }}
                 >
-                  {client.name}
+                  {team.name}
                 </Badge>
               ))}
-              {clients.length === 0 && (
-                <p className="text-sm text-muted-foreground">No clients available</p>
+              {teams.length === 0 && (
+                <p className="text-sm text-muted-foreground">No workspaces available</p>
               )}
             </div>
-            {selectedClients.length > 0 && (
+            {selectedWorkspaces.length > 0 && (
               <Button
                 variant="link"
                 size="sm"
                 className="mt-2 p-0"
-                onClick={() => setSelectedClients([])}
+                onClick={() => setSelectedWorkspaces([])}
               >
                 Clear selection
               </Button>
@@ -490,12 +492,12 @@ export default function OperationsReports() {
           </CardContent>
         </Card>
 
-        {selectedClients.length === 0 ? (
+        {selectedWorkspaces.length === 0 ? (
           <Card>
             <CardContent className="py-12">
               <div className="text-center space-y-2">
                 <Users className="h-12 w-12 text-muted-foreground mx-auto" />
-                <p className="text-muted-foreground">Select at least one client to view operations data.</p>
+                <p className="text-muted-foreground">Select at least one workspace to view operations data.</p>
               </div>
             </CardContent>
           </Card>
@@ -506,31 +508,19 @@ export default function OperationsReports() {
               <CardContent className="pt-6">
                 <div className="flex flex-wrap gap-4 items-end">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium">Team</label>
-                    <Select value={selectedTeam} onValueChange={setSelectedTeam}>
-                      <SelectTrigger className="w-[180px]">
-                        <SelectValue placeholder="All Teams" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Teams</SelectItem>
-                        {teams.map(t => (
-                          <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">ActiPlan</label>
+                    <label className="text-sm font-medium">Campaign</label>
                     <Select value={selectedCampaign} onValueChange={setSelectedCampaign}>
                       <SelectTrigger className="w-[200px]">
-                        <SelectValue placeholder="All ActiPlans" />
+                        <SelectValue placeholder="All Campaigns" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">All ActiPlans</SelectItem>
-                        {campaigns.map(c => (
-                          <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                        ))}
+                        <SelectItem value="all">All Campaigns</SelectItem>
+                        {campaigns
+                          .filter(c => c.team_id && selectedWorkspaces.includes(c.team_id))
+                          .map(c => (
+                            <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                          ))
+                        }
                       </SelectContent>
                     </Select>
                   </div>
