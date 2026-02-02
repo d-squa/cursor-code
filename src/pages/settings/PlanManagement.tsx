@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useSubscription } from "@/hooks/useSubscription";
 import { PRICE_IDS, TIER_DISPLAY_NAMES, SubscriptionTier } from "@/config/subscriptionTiers";
+import { SubscriptionTimeline } from "@/components/SubscriptionTimeline";
 
 const plans = [
   {
@@ -79,6 +80,7 @@ export default function PlanManagement() {
     tier,
     tierDisplayName,
     billingPeriod,
+    subscriptionStart,
     subscriptionEnd,
     trialEnd
   } = useSubscription();
@@ -338,7 +340,7 @@ export default function PlanManagement() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
+          <div className="space-y-6">
             <div className="flex items-center justify-between flex-wrap gap-4">
               <div>
                 <div className="flex items-center gap-3 mb-2">
@@ -356,16 +358,6 @@ export default function PlanManagement() {
                     </Badge>
                   )}
                 </div>
-                {isOnTrial && trialEnd && (
-                  <p className="text-muted-foreground">
-                    Trial ends: {formatDate(trialEnd)}
-                  </p>
-                )}
-                {!isOnTrial && subscriptionEnd && (
-                  <p className="text-muted-foreground">
-                    Next billing: {formatDate(subscriptionEnd)}
-                  </p>
-                )}
               </div>
               <Button 
                 variant="outline" 
@@ -377,6 +369,18 @@ export default function PlanManagement() {
                 Manage Subscription
               </Button>
             </div>
+
+            {/* Subscription Timeline */}
+            {subscriptionStart && subscriptionEnd && (
+              <SubscriptionTimeline
+                startDate={subscriptionStart}
+                endDate={subscriptionEnd}
+                isOnTrial={isOnTrial}
+                trialEndDate={trialEnd}
+                className="pt-2 border-t"
+              />
+            )}
+
             <p className="text-sm text-muted-foreground">
               You can upgrade, downgrade, or cancel your subscription anytime. 
               Changes are prorated based on your remaining billing period.

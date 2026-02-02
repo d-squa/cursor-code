@@ -122,8 +122,13 @@ serve(async (req) => {
         );
 
         if (activeSub) {
+          let subscriptionStart: string | null = null;
           let subscriptionEnd: string | null = null;
           let trialEnd: string | null = null;
+
+          if (activeSub.current_period_start && typeof activeSub.current_period_start === "number") {
+            subscriptionStart = new Date(activeSub.current_period_start * 1000).toISOString();
+          }
 
           if (activeSub.current_period_end && typeof activeSub.current_period_end === "number") {
             subscriptionEnd = new Date(activeSub.current_period_end * 1000).toISOString();
@@ -146,6 +151,7 @@ serve(async (req) => {
             productId,
             priceId,
             billingPeriod,
+            subscriptionStart,
             subscriptionEnd,
             trialEnd,
           });
@@ -157,6 +163,7 @@ serve(async (req) => {
               productId,
               priceId,
               billingPeriod,
+              subscriptionStart,
               subscriptionEnd,
               trialEnd,
               status: activeSub.status,
@@ -250,8 +257,13 @@ serve(async (req) => {
           const productId = priceItem?.product as string;
           const priceId = priceItem?.id as string;
 
+          let subscriptionStart: string | null = null;
           let subscriptionEnd: string | null = null;
           let trialEnd: string | null = null;
+
+          if (ownerEligibleSub.current_period_start && typeof ownerEligibleSub.current_period_start === "number") {
+            subscriptionStart = new Date(ownerEligibleSub.current_period_start * 1000).toISOString();
+          }
 
           if (ownerEligibleSub.current_period_end && typeof ownerEligibleSub.current_period_end === "number") {
             subscriptionEnd = new Date(ownerEligibleSub.current_period_end * 1000).toISOString();
@@ -272,6 +284,7 @@ serve(async (req) => {
             productId,
             priceId,
             billingPeriod,
+            subscriptionStart,
           });
 
           return new Response(
@@ -281,6 +294,7 @@ serve(async (req) => {
               productId,
               priceId,
               billingPeriod,
+              subscriptionStart,
               subscriptionEnd,
               trialEnd,
               status: ownerEligibleSub.status,
