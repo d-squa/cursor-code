@@ -126,17 +126,43 @@ serve(async (req) => {
           let subscriptionEnd: string | null = null;
           let trialEnd: string | null = null;
 
-          if (activeSub.current_period_start && typeof activeSub.current_period_start === "number") {
-            subscriptionStart = new Date(activeSub.current_period_start * 1000).toISOString();
+          // Handle current_period_start - could be number (timestamp) or object
+          const periodStart = activeSub.current_period_start;
+          if (periodStart) {
+            if (typeof periodStart === "number") {
+              subscriptionStart = new Date(periodStart * 1000).toISOString();
+            } else if (typeof periodStart === "object" && periodStart !== null) {
+              // Stripe might return a Date-like object
+              subscriptionStart = new Date(periodStart as any).toISOString();
+            }
           }
 
-          if (activeSub.current_period_end && typeof activeSub.current_period_end === "number") {
-            subscriptionEnd = new Date(activeSub.current_period_end * 1000).toISOString();
+          // Handle current_period_end - could be number (timestamp) or object
+          const periodEnd = activeSub.current_period_end;
+          if (periodEnd) {
+            if (typeof periodEnd === "number") {
+              subscriptionEnd = new Date(periodEnd * 1000).toISOString();
+            } else if (typeof periodEnd === "object" && periodEnd !== null) {
+              subscriptionEnd = new Date(periodEnd as any).toISOString();
+            }
           }
 
-          if (activeSub.trial_end && typeof activeSub.trial_end === "number") {
-            trialEnd = new Date(activeSub.trial_end * 1000).toISOString();
+          // Handle trial_end - could be number (timestamp) or object
+          const trialEndVal = activeSub.trial_end;
+          if (trialEndVal) {
+            if (typeof trialEndVal === "number") {
+              trialEnd = new Date(trialEndVal * 1000).toISOString();
+            } else if (typeof trialEndVal === "object" && trialEndVal !== null) {
+              trialEnd = new Date(trialEndVal as any).toISOString();
+            }
           }
+          
+          logStep("Parsed subscription dates", { 
+            rawPeriodStart: periodStart, 
+            rawPeriodEnd: periodEnd,
+            subscriptionStart, 
+            subscriptionEnd 
+          });
 
           const priceItem = activeSub.items.data[0]?.price;
           const productId = priceItem?.product as string;
@@ -261,16 +287,34 @@ serve(async (req) => {
           let subscriptionEnd: string | null = null;
           let trialEnd: string | null = null;
 
-          if (ownerEligibleSub.current_period_start && typeof ownerEligibleSub.current_period_start === "number") {
-            subscriptionStart = new Date(ownerEligibleSub.current_period_start * 1000).toISOString();
+          // Handle current_period_start - could be number (timestamp) or object
+          const periodStart = ownerEligibleSub.current_period_start;
+          if (periodStart) {
+            if (typeof periodStart === "number") {
+              subscriptionStart = new Date(periodStart * 1000).toISOString();
+            } else if (typeof periodStart === "object" && periodStart !== null) {
+              subscriptionStart = new Date(periodStart as any).toISOString();
+            }
           }
 
-          if (ownerEligibleSub.current_period_end && typeof ownerEligibleSub.current_period_end === "number") {
-            subscriptionEnd = new Date(ownerEligibleSub.current_period_end * 1000).toISOString();
+          // Handle current_period_end - could be number (timestamp) or object
+          const periodEnd = ownerEligibleSub.current_period_end;
+          if (periodEnd) {
+            if (typeof periodEnd === "number") {
+              subscriptionEnd = new Date(periodEnd * 1000).toISOString();
+            } else if (typeof periodEnd === "object" && periodEnd !== null) {
+              subscriptionEnd = new Date(periodEnd as any).toISOString();
+            }
           }
 
-          if (ownerEligibleSub.trial_end && typeof ownerEligibleSub.trial_end === "number") {
-            trialEnd = new Date(ownerEligibleSub.trial_end * 1000).toISOString();
+          // Handle trial_end - could be number (timestamp) or object
+          const trialEndVal = ownerEligibleSub.trial_end;
+          if (trialEndVal) {
+            if (typeof trialEndVal === "number") {
+              trialEnd = new Date(trialEndVal * 1000).toISOString();
+            } else if (typeof trialEndVal === "object" && trialEndVal !== null) {
+              trialEnd = new Date(trialEndVal as any).toISOString();
+            }
           }
 
           const onTrial = ownerEligibleSub.status === "trialing";
