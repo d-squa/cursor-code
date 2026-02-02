@@ -86,7 +86,7 @@ interface CompletedRequestsByCategory {
 const generateSampleData = () => {
   // Use the same sampleNow that pacing calculations use
   const sampleNow = new Date("2026-01-16T12:00:00Z");
-  
+
   const sampleCampaign: Campaign = {
     id: "sample-campaign-1",
     name: "Q4 Holiday Campaign 2025",
@@ -123,15 +123,40 @@ const generateSampleData = () => {
   // last7Days for sample = Jan 9, 2026
   const sampleModRequests: ModificationRequest[] = [
     // Within last 7 days (Jan 14 - 2 days before Jan 16)
-    { campaign_id: "sample-campaign-1", status: "completed", change_type: "budget", updated_at: subDays(sampleNow, 2).toISOString() },
+    {
+      campaign_id: "sample-campaign-1",
+      status: "completed",
+      change_type: "budget",
+      updated_at: subDays(sampleNow, 2).toISOString(),
+    },
     // Within this month but NOT last 7 days (Jan 5 - 11 days before Jan 16)
-    { campaign_id: "sample-campaign-1", status: "completed", change_type: "targeting", updated_at: subDays(sampleNow, 11).toISOString() },
+    {
+      campaign_id: "sample-campaign-1",
+      status: "completed",
+      change_type: "targeting",
+      updated_at: subDays(sampleNow, 11).toISOString(),
+    },
     // Within last 7 days (Jan 15 - 1 day before)
-    { campaign_id: "sample-campaign-1", status: "pending", change_type: "creative", updated_at: subDays(sampleNow, 1).toISOString() },
+    {
+      campaign_id: "sample-campaign-1",
+      status: "pending",
+      change_type: "creative",
+      updated_at: subDays(sampleNow, 1).toISOString(),
+    },
     // Before this month - lifetime only (Dec 20, 2025 - 27 days before Jan 16)
-    { campaign_id: "sample-campaign-1", status: "completed", change_type: "note", updated_at: subDays(sampleNow, 27).toISOString() },
+    {
+      campaign_id: "sample-campaign-1",
+      status: "completed",
+      change_type: "note",
+      updated_at: subDays(sampleNow, 27).toISOString(),
+    },
     // Within last 7 days (Jan 13 - 3 days before)
-    { campaign_id: "sample-campaign-1", status: "completed", change_type: "note", updated_at: subDays(sampleNow, 3).toISOString() },
+    {
+      campaign_id: "sample-campaign-1",
+      status: "completed",
+      change_type: "note",
+      updated_at: subDays(sampleNow, 3).toISOString(),
+    },
   ];
 
   const sampleAnalyses: SavedAnalysis[] = [
@@ -166,12 +191,12 @@ const Overview = () => {
   });
 
   const getNextTierName = (): string => {
-    const tierOrder: SubscriptionTier[] = ['trial', 'basic', 'freelancer', 'enterprise', 'agency'];
+    const tierOrder: SubscriptionTier[] = ["trial", "basic", "freelancer", "enterprise", "agency"];
     const currentIndex = tierOrder.indexOf(tier);
     if (currentIndex < tierOrder.length - 1) {
       return TIER_DISPLAY_NAMES[tierOrder[currentIndex + 1]];
     }
-    return 'Agency';
+    return "Agency";
   };
 
   // Handle new=true query param - redirect to app for creating new ActiPlan
@@ -184,13 +209,13 @@ const Overview = () => {
     // Wait for user and workspace to be fully resolved before loading
     // workspaceLoading now includes the workspace resolution step, so we only need to check it
     if (!user || workspaceLoading) return;
-    
+
     try {
       // Fetch campaigns with relevant statuses for the active workspace
       // Use team_id filter exclusively when a workspace is selected
       // RLS policies handle access control - we just need to filter to the right workspace
       let campaignData: Campaign[] | null = null;
-      
+
       if (activeWorkspaceId) {
         // Filter by workspace team_id only - this ensures we only see campaigns for the active workspace
         const { data } = await supabase
@@ -215,7 +240,7 @@ const Overview = () => {
         setCampaigns(campaignData);
 
         // Fetch insights for these campaigns
-        const campaignIds = campaignData.map(c => c.id);
+        const campaignIds = campaignData.map((c) => c.id);
         if (campaignIds.length > 0) {
           const [insightsResult, modRequestsResult, analysesResult] = await Promise.all([
             supabase
@@ -226,10 +251,7 @@ const Overview = () => {
               .from("modification_requests")
               .select("campaign_id, status, change_type, updated_at")
               .in("campaign_id", campaignIds),
-            supabase
-              .from("saved_insights_analyses")
-              .select("campaign_id, created_at")
-              .in("campaign_id", campaignIds)
+            supabase.from("saved_insights_analyses").select("campaign_id, created_at").in("campaign_id", campaignIds),
           ]);
 
           if (insightsResult.data) setInsights(insightsResult.data);
@@ -266,7 +288,7 @@ const Overview = () => {
   // Always include sample card first, then live campaigns
   const displayData = useMemo(() => {
     const { sampleCampaign, sampleInsights, sampleModRequests, sampleAnalyses } = sampleData;
-    
+
     return {
       campaigns: [sampleCampaign, ...campaigns],
       insights: [...sampleInsights, ...insights],
@@ -279,17 +301,17 @@ const Overview = () => {
   // Sort campaigns: live first, then partially_pushed, then pushed_to_dsp, then ended, then by most recent
   const sortedCampaigns = useMemo(() => {
     return [...displayData.campaigns].sort((a, b) => {
-      const statusOrder: Record<string, number> = { 
-        live: 0, 
-        partially_pushed: 1, 
-        pushed_to_dsp: 2, 
-        ended: 3 
+      const statusOrder: Record<string, number> = {
+        live: 0,
+        partially_pushed: 1,
+        pushed_to_dsp: 2,
+        ended: 3,
       };
       const aOrder = statusOrder[a.status] ?? 4;
       const bOrder = statusOrder[b.status] ?? 4;
-      
+
       if (aOrder !== bOrder) return aOrder - bOrder;
-      
+
       return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
     });
   }, [displayData.campaigns]);
@@ -299,12 +321,12 @@ const Overview = () => {
     const realNow = new Date();
     const sampleNow = new Date("2026-01-16T12:00:00Z");
 
-    return sortedCampaigns.map(campaign => {
+    return sortedCampaigns.map((campaign) => {
       // Use mid-January 2026 for sample campaign, real date for others
       const now = campaign.id === "sample-campaign-1" ? sampleNow : realNow;
       const weekStart = startOfWeek(now, { weekStartsOn: 1 });
       const sevenDaysAgo = subDays(now, 7);
-      
+
       const startDate = new Date(campaign.start_date);
       const endDate = new Date(campaign.end_date);
       const totalDays = Math.max(differenceInDays(endDate, startDate), 1);
@@ -312,8 +334,8 @@ const Overview = () => {
       const timePct = (elapsedDays / totalDays) * 100;
 
       // Get insights for this campaign
-      const campaignInsights = displayData.insights.filter(i => i.campaign_id === campaign.id);
-      
+      const campaignInsights = displayData.insights.filter((i) => i.campaign_id === campaign.id);
+
       // Calculate platform pacing
       const platformMap: Record<string, PlatformPacing> = {};
       let totalSpent = 0;
@@ -349,14 +371,14 @@ const Overview = () => {
         };
       }
 
-      campaignInsights.forEach(insight => {
+      campaignInsights.forEach((insight) => {
         const platform = insight.platform.toLowerCase();
         const spent = insight.metrics?.spend || 0;
         const fetchedAt = new Date(insight.fetched_at);
         const hoursSinceFetch = differenceInHours(now, fetchedAt);
-        
+
         totalSpent += spent;
-        
+
         if (!platformMap[platform]) {
           const config = platformConfig[platform] || { budget: campaign.total_budget / (campaignInsights.length || 1) };
           const budgetTotal = config.budget;
@@ -384,9 +406,10 @@ const Overview = () => {
           };
         } else {
           platformMap[platform].budgetSpent += spent;
-          platformMap[platform].budgetPct = platformMap[platform].budgetTotal > 0 
-            ? (platformMap[platform].budgetSpent / platformMap[platform].budgetTotal) * 100 
-            : 0;
+          platformMap[platform].budgetPct =
+            platformMap[platform].budgetTotal > 0
+              ? (platformMap[platform].budgetSpent / platformMap[platform].budgetTotal) * 100
+              : 0;
           platformMap[platform].pacingDiff = platformMap[platform].budgetPct - platformMap[platform].timePct;
         }
       });
@@ -398,130 +421,142 @@ const Overview = () => {
       // Extract performance metrics from forecast_data and campaign_insights
       const platformPerformance: PlatformPerformance[] = [];
       const actiplanForecast = campaign.forecast_data?.actiplanForecast;
-      
+
       if (actiplanForecast?.platforms) {
         actiplanForecast.platforms.forEach((pf: any) => {
-          const platformName = (pf.platformName || pf.platformId || '').toLowerCase();
-          const insight = campaignInsights.find(i => i.platform.toLowerCase() === platformName);
+          const platformName = (pf.platformName || pf.platformId || "").toLowerCase();
+          const insight = campaignInsights.find((i) => i.platform.toLowerCase() === platformName);
           const pConfig = platformMap[platformName];
           const pTimePct = pConfig?.timePct || timePct;
-          
+
           const metrics: PerformanceMetric[] = [];
-          
+
           // Aggregate targets from all markets for this platform
           let totalTargetImpressions = 0;
           let totalTargetReach = 0;
           let totalTargetClicks = 0;
           let totalTargetConversions = 0;
-          
+
           (pf.markets || []).forEach((market: any) => {
             totalTargetImpressions += market.impressions || 0;
             totalTargetReach += market.reach || 0;
             // Calculate results from phases based on optimization goals
             (market.phases || []).forEach((phase: any) => {
-              if (phase.optimizationGoal === 'LINK_CLICKS' || phase.optimizationGoal === 'LANDING_PAGE_VIEWS') {
+              if (phase.optimizationGoal === "LINK_CLICKS" || phase.optimizationGoal === "LANDING_PAGE_VIEWS") {
                 totalTargetClicks += phase.result || 0;
               }
-              if (phase.optimizationGoal === 'CONVERSIONS' || phase.optimizationGoal === 'OFFSITE_CONVERSIONS') {
+              if (phase.optimizationGoal === "CONVERSIONS" || phase.optimizationGoal === "OFFSITE_CONVERSIONS") {
                 totalTargetConversions += phase.result || 0;
               }
             });
           });
-          
+
           // Get actual metrics from insights
           const actualImpressions = insight?.metrics?.impressions || 0;
           const actualReach = insight?.metrics?.reach || 0;
           const actualClicks = insight?.metrics?.clicks || 0;
           const actualConversions = insight?.metrics?.conversion || insight?.metrics?.conversions || 0;
-          
+
           // Add metrics that have targets
           if (totalTargetImpressions > 0) {
             metrics.push({
-              label: 'Impressions',
-              kpi: 'Impressions',
+              label: "Impressions",
+              kpi: "Impressions",
               targetValue: totalTargetImpressions,
               actualValue: actualImpressions,
               timePct: pTimePct,
             });
           }
-          
+
           if (totalTargetReach > 0) {
             metrics.push({
-              label: 'Reach',
-              kpi: 'Reach',
+              label: "Reach",
+              kpi: "Reach",
               targetValue: totalTargetReach,
               actualValue: actualReach,
               timePct: pTimePct,
             });
           }
-          
+
           if (totalTargetClicks > 0) {
             metrics.push({
-              label: 'Clicks',
-              kpi: 'Clicks',
+              label: "Clicks",
+              kpi: "Clicks",
               targetValue: totalTargetClicks,
               actualValue: actualClicks,
               timePct: pTimePct,
             });
           }
-          
+
           if (totalTargetConversions > 0) {
             metrics.push({
-              label: 'Conversions',
-              kpi: 'Conversions',
+              label: "Conversions",
+              kpi: "Conversions",
               targetValue: totalTargetConversions,
               actualValue: actualConversions,
               timePct: pTimePct,
             });
           }
-          
+
           if (metrics.length > 0) {
             platformPerformance.push({ platform: platformName, metrics });
           }
         });
       }
-      
+
       // For sample campaign, add mock performance data
       if (campaign.id === "sample-campaign-1") {
         const metaTimePct = platformMap["meta"]?.timePct || timePct;
         const tiktokTimePct = platformMap["tiktok"]?.timePct || timePct;
-        
+
         platformPerformance.push({
           platform: "meta",
           metrics: [
-            { label: "Impressions", kpi: "Impressions", targetValue: 8000000, actualValue: 2500000, timePct: metaTimePct },
+            {
+              label: "Impressions",
+              kpi: "Impressions",
+              targetValue: 8000000,
+              actualValue: 2500000,
+              timePct: metaTimePct,
+            },
             { label: "Reach", kpi: "Reach", targetValue: 3500000, actualValue: 1200000, timePct: metaTimePct },
-          ]
+          ],
         });
         platformPerformance.push({
           platform: "tiktok",
           metrics: [
-            { label: "Impressions", kpi: "Impressions", targetValue: 5000000, actualValue: 1800000, timePct: tiktokTimePct },
+            {
+              label: "Impressions",
+              kpi: "Impressions",
+              targetValue: 5000000,
+              actualValue: 1800000,
+              timePct: tiktokTimePct,
+            },
             { label: "Views", kpi: "Video Views", targetValue: 2000000, actualValue: 850000, timePct: tiktokTimePct },
-          ]
+          ],
         });
       }
 
       // Modification requests for this campaign
-      const campaignModRequests = displayData.modRequests.filter(m => m.campaign_id === campaign.id);
-      const pendingRequests = campaignModRequests.filter(m => m.status === "pending" || m.status === "sent").length;
-      
+      const campaignModRequests = displayData.modRequests.filter((m) => m.campaign_id === campaign.id);
+      const pendingRequests = campaignModRequests.filter((m) => m.status === "pending" || m.status === "sent").length;
+
       // Calculate stats by different date ranges
       const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
       const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      
+
       const getStatsForDateRange = (requests: ModificationRequest[], rangeStart: Date | null) => {
-        const filteredRequests = rangeStart 
-          ? requests.filter(m => isAfter(new Date(m.updated_at), rangeStart))
+        const filteredRequests = rangeStart
+          ? requests.filter((m) => isAfter(new Date(m.updated_at), rangeStart))
           : requests;
-        
+
         return {
           changes: filteredRequests.length,
-          pending: filteredRequests.filter(m => m.status === "pending" || m.status === "sent").length,
-          optimized: filteredRequests.filter(m => 
-            m.status === "completed" && (m.change_type === "targeting" || m.change_type === "goals")
+          pending: filteredRequests.filter((m) => m.status === "pending" || m.status === "sent").length,
+          optimized: filteredRequests.filter(
+            (m) => m.status === "completed" && (m.change_type === "targeting" || m.change_type === "goals"),
           ).length,
-          notes: filteredRequests.filter(m => m.change_type === "note").length,
+          notes: filteredRequests.filter((m) => m.change_type === "note").length,
         };
       };
 
@@ -533,12 +568,12 @@ const Overview = () => {
 
       // Platform-level stats by date range
       const platformStatsByDateRange: Record<string, typeof statsByDateRange> = {};
-      platformPacing.forEach(p => {
+      platformPacing.forEach((p) => {
         // In a real scenario, mod requests would be tagged by platform
         // For now, simulate platform distribution
         const platformRequests = campaignModRequests.filter((_, idx) => {
           // Simple distribution: even indices for first platform, odd for second
-          const platformIdx = platformPacing.findIndex(pp => pp.platform === p.platform);
+          const platformIdx = platformPacing.findIndex((pp) => pp.platform === p.platform);
           return idx % platformPacing.length === platformIdx;
         });
         platformStatsByDateRange[p.platform] = {
@@ -547,33 +582,29 @@ const Overview = () => {
           last_7_days: getStatsForDateRange(platformRequests, sevenDaysAgo),
         };
       });
-      
+
       // Completed requests by category (legacy, kept for backward compat)
       const completedByCategory: CompletedRequestsByCategory = {
-        optimization: campaignModRequests.filter(m => 
-          m.status === "completed" && (m.change_type === "targeting" || m.change_type === "goals")
+        optimization: campaignModRequests.filter(
+          (m) => m.status === "completed" && (m.change_type === "targeting" || m.change_type === "goals"),
         ).length,
-        budget: campaignModRequests.filter(m => 
-          m.status === "completed" && m.change_type === "budget"
-        ).length,
-        notesLast7Days: campaignModRequests.filter(m => 
-          m.change_type === "note" && isAfter(new Date(m.updated_at), sevenDaysAgo)
+        budget: campaignModRequests.filter((m) => m.status === "completed" && m.change_type === "budget").length,
+        notesLast7Days: campaignModRequests.filter(
+          (m) => m.change_type === "note" && isAfter(new Date(m.updated_at), sevenDaysAgo),
         ).length,
       };
 
       // Check for recent analysis this week
-      const campaignAnalyses = displayData.savedAnalyses.filter(a => a.campaign_id === campaign.id);
-      const hasRecentAnalysis = campaignAnalyses.some(a => isAfter(new Date(a.created_at), weekStart));
+      const campaignAnalyses = displayData.savedAnalyses.filter((a) => a.campaign_id === campaign.id);
+      const hasRecentAnalysis = campaignAnalyses.some((a) => isAfter(new Date(a.created_at), weekStart));
 
       // Calculate pacing status
-      const pacingStatus = Math.abs(totalPacingDiff) <= 5 
-        ? 'on-track' 
-        : totalPacingDiff > 5 ? 'overpacing' : 'underpacing';
-      
+      const pacingStatus =
+        Math.abs(totalPacingDiff) <= 5 ? "on-track" : totalPacingDiff > 5 ? "overpacing" : "underpacing";
+
       // Calculate performance status
-      const performanceStatus = platformPerformance.length > 0 
-        ? getPerformanceStatus(platformPerformance.flatMap(p => p.metrics))
-        : null;
+      const performanceStatus =
+        platformPerformance.length > 0 ? getPerformanceStatus(platformPerformance.flatMap((p) => p.metrics)) : null;
 
       return {
         campaign,
@@ -602,8 +633,8 @@ const Overview = () => {
   // Get available platforms for filter
   const availablePlatforms = useMemo(() => {
     const platforms = new Set<string>();
-    campaignPacingData.forEach(data => {
-      data.platformPacing.forEach(p => platforms.add(p.platform));
+    campaignPacingData.forEach((data) => {
+      data.platformPacing.forEach((p) => platforms.add(p.platform));
     });
     return Array.from(platforms);
   }, [campaignPacingData]);
@@ -611,7 +642,7 @@ const Overview = () => {
   // Get available BO numbers for filter
   const availableBoNumbers = useMemo(() => {
     const boNumbers = new Set<string>();
-    campaignPacingData.forEach(data => {
+    campaignPacingData.forEach((data) => {
       if (data.campaign.bo_number) {
         boNumbers.add(data.campaign.bo_number);
       }
@@ -621,50 +652,50 @@ const Overview = () => {
 
   // Get available campaign names for filter
   const availableNames = useMemo(() => {
-    return campaignPacingData.map(data => data.campaign.name).sort();
+    return campaignPacingData.map((data) => data.campaign.name).sort();
   }, [campaignPacingData]);
 
   // Apply filters
   const filteredCampaignData = useMemo(() => {
-    return campaignPacingData.filter(data => {
+    return campaignPacingData.filter((data) => {
       // BO number filter
       if (filters.boSearch && data.campaign.bo_number !== filters.boSearch) {
         return false;
       }
-      
+
       // Name filter
       if (filters.nameSearch && data.campaign.name !== filters.nameSearch) {
         return false;
       }
-      
+
       // Status filter
       if (filters.status && data.campaign.status !== filters.status) {
         return false;
       }
-      
+
       // Pacing status filter
       if (filters.pacingStatus && data.pacingStatus !== filters.pacingStatus) {
         return false;
       }
-      
+
       // Platform filter - check if campaign has this platform
       if (filters.platform) {
         const hasPlatform = data.platformPacing.some(
-          p => p.platform.toLowerCase() === filters.platform?.toLowerCase()
+          (p) => p.platform.toLowerCase() === filters.platform?.toLowerCase(),
         );
         if (!hasPlatform) return false;
       }
-      
+
       // Performance status filter - now supports platform-specific format "platform:status"
       if (filters.performanceStatus) {
-        const [filterPlatform, filterStatus] = filters.performanceStatus.includes(':') 
-          ? filters.performanceStatus.split(':') 
+        const [filterPlatform, filterStatus] = filters.performanceStatus.includes(":")
+          ? filters.performanceStatus.split(":")
           : [null, filters.performanceStatus];
-        
+
         if (filterPlatform) {
           // Platform-specific performance filter
           const platformData = data.platformPerformance.find(
-            p => p.platform.toLowerCase() === filterPlatform.toLowerCase()
+            (p) => p.platform.toLowerCase() === filterPlatform.toLowerCase(),
           );
           if (!platformData) return false;
           const platformStatus = getPerformanceStatus(platformData.metrics);
@@ -675,34 +706,34 @@ const Overview = () => {
           if (data.performanceStatus !== filterStatus) return false;
         }
       }
-      
+
       // Activity status filter
       if (filters.activityStatus) {
         const stats30d = data.statsByDateRange?.this_month || { changes: 0, optimized: 0, notes: 0 };
         const stats7d = data.statsByDateRange?.last_7_days || { changes: 0, optimized: 0, notes: 0 };
-        
+
         switch (filters.activityStatus) {
-          case 'no_changes_30d':
+          case "no_changes_30d":
             if (stats30d.changes > 0) return false;
             break;
-          case 'no_changes_7d':
+          case "no_changes_7d":
             if (stats7d.changes > 0) return false;
             break;
-          case 'no_optimization_30d':
+          case "no_optimization_30d":
             if (stats30d.optimized > 0) return false;
             break;
-          case 'no_optimization_7d':
+          case "no_optimization_7d":
             if (stats7d.optimized > 0) return false;
             break;
-          case 'no_notes_30d':
+          case "no_notes_30d":
             if (stats30d.notes > 0) return false;
             break;
-          case 'no_notes_7d':
+          case "no_notes_7d":
             if (stats7d.notes > 0) return false;
             break;
         }
       }
-      
+
       return true;
     });
   }, [campaignPacingData, filters]);
@@ -742,7 +773,7 @@ const Overview = () => {
                 onClick={() => navigate("/creatives")}
                 className="px-4 py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
               >
-                Meshing
+                Creative Mesh
               </button>
               <button
                 onClick={() => navigate("/tasks")}
@@ -786,13 +817,8 @@ const Overview = () => {
             <p className="text-muted-foreground mt-1">Monitor your active campaigns at a glance</p>
           </div>
           <div className="flex items-center gap-3">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={handleRefresh}
-              disabled={refreshing}
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+            <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
               Refresh
             </Button>
             <div className="flex items-center gap-2">
@@ -808,23 +834,24 @@ const Overview = () => {
                         variant="link"
                         size="sm"
                         className="h-auto p-0 text-xs text-primary"
-                        onClick={() => navigate('/settings/plans')}
+                        onClick={() => navigate("/settings/plans")}
                       >
                         Upgrade to {getNextTierName()} →
                       </Button>
                     ) : (
-                      <span className="text-xs text-muted-foreground">
-                        Upgrade to {getNextTierName()} →
-                      </span>
+                      <span className="text-xs text-muted-foreground">Upgrade to {getNextTierName()} →</span>
                     )}
                   </div>
                 </div>
               )}
-              <Button onClick={() => {
-                localStorage.removeItem('draftCampaignId');
-                localStorage.removeItem('basicTargeting');
-                navigate("/app?new=true");
-              }} size="sm">
+              <Button
+                onClick={() => {
+                  localStorage.removeItem("draftCampaignId");
+                  localStorage.removeItem("basicTargeting");
+                  navigate("/app?new=true");
+                }}
+                size="sm"
+              >
                 <Plus className="h-4 w-4 mr-2" />
                 New ActiPlan
               </Button>
@@ -834,9 +861,9 @@ const Overview = () => {
 
         {/* Filters */}
         {hasAnyCampaigns && (
-          <OverviewFiltersBar 
-            filters={filters} 
-            onFiltersChange={setFilters} 
+          <OverviewFiltersBar
+            filters={filters}
+            onFiltersChange={setFilters}
             availablePlatforms={availablePlatforms}
             availableBoNumbers={availableBoNumbers}
             availableNames={availableNames}
@@ -860,7 +887,7 @@ const Overview = () => {
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-            {filteredCampaignData.map(data => (
+            {filteredCampaignData.map((data) => (
               <CampaignOverviewCard
                 key={data.campaign.id}
                 campaign={data.campaign}
