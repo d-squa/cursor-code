@@ -39,6 +39,7 @@ interface Campaign {
   updated_at: string;
   platforms?: any;
   forecast_data?: any;
+  bo_number?: string;
 }
 
 interface CampaignInsight {
@@ -147,6 +148,8 @@ const Overview = () => {
     pacingStatus: null,
     platform: null,
     performanceStatus: null,
+    boSearch: null,
+    nameSearch: null,
   });
 
   const getNextTierName = (): string => {
@@ -592,9 +595,35 @@ const Overview = () => {
     return Array.from(platforms);
   }, [campaignPacingData]);
 
+  // Get available BO numbers for filter
+  const availableBoNumbers = useMemo(() => {
+    const boNumbers = new Set<string>();
+    campaignPacingData.forEach(data => {
+      if (data.campaign.bo_number) {
+        boNumbers.add(data.campaign.bo_number);
+      }
+    });
+    return Array.from(boNumbers).sort();
+  }, [campaignPacingData]);
+
+  // Get available campaign names for filter
+  const availableNames = useMemo(() => {
+    return campaignPacingData.map(data => data.campaign.name).sort();
+  }, [campaignPacingData]);
+
   // Apply filters
   const filteredCampaignData = useMemo(() => {
     return campaignPacingData.filter(data => {
+      // BO number filter
+      if (filters.boSearch && data.campaign.bo_number !== filters.boSearch) {
+        return false;
+      }
+      
+      // Name filter
+      if (filters.nameSearch && data.campaign.name !== filters.nameSearch) {
+        return false;
+      }
+      
       // Status filter
       if (filters.status && data.campaign.status !== filters.status) {
         return false;
@@ -769,6 +798,8 @@ const Overview = () => {
             filters={filters} 
             onFiltersChange={setFilters} 
             availablePlatforms={availablePlatforms}
+            availableBoNumbers={availableBoNumbers}
+            availableNames={availableNames}
           />
         )}
 
