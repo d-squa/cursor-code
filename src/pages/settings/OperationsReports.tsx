@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useWorkspaceAdminAccess } from "@/hooks/useWorkspaceAdminAccess";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -9,7 +10,6 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format, differenceInMinutes } from "date-fns";
@@ -29,11 +29,6 @@ import {
   Cell,
   Legend,
 } from "recharts";
-
-interface Team {
-  id: string;
-  name: string;
-}
 
 interface Campaign {
   id: string;
@@ -68,14 +63,13 @@ const CHART_COLORS = ['hsl(var(--primary))', 'hsl(var(--secondary))', 'hsl(var(-
 export default function OperationsReports() {
   const { user, loading: authLoading } = useAuth();
   const { canAccess: hasAccess, loading: accessLoading } = useWorkspaceAdminAccess();
-  const roleLoading = accessLoading;
+  const { activeWorkspaceId, activeWorkspace, loading: workspaceLoading } = useWorkspace();
+  const roleLoading = accessLoading || workspaceLoading;
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   
   // Filter states
-  const [teams, setTeams] = useState<Team[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [selectedWorkspaces, setSelectedWorkspaces] = useState<string[]>([]);
   const [selectedCampaign, setSelectedCampaign] = useState<string>("all");
   const [selectedPlatform, setSelectedPlatform] = useState<string>("all");
   const [selectedMarket, setSelectedMarket] = useState<string>("all");
@@ -115,29 +109,25 @@ export default function OperationsReports() {
     if (user && hasAccess) {
       loadInitialData();
     }
-  }, [user, hasAccess]);
+  }, [user, hasAccess, activeWorkspaceId]);
 
   useEffect(() => {
-    if (user && hasAccess && selectedWorkspaces.length > 0) {
+    if (user && hasAccess && activeWorkspaceId && campaigns.length > 0) {
       loadOperationsData();
     }
-  }, [user, hasAccess, selectedWorkspaces, selectedCampaign]);
+  }, [user, hasAccess, activeWorkspaceId, selectedCampaign, campaigns]);
 
   const loadInitialData = async () => {
+    if (!activeWorkspaceId) return;
+    
     try {
       setLoading(true);
 
-      // Load all teams/workspaces
-      const { data: teamsData } = await supabase
-        .from("teams")
-        .select("id, name")
-        .order("name");
-      setTeams(teamsData || []);
-
-      // Load all campaigns with team_id
+      // Load campaigns for the active workspace only
       const { data: campaignsData } = await supabase
         .from("campaigns")
         .select("id, name, team_id")
+        .eq("team_id", activeWorkspaceId)
         .order("name");
       setCampaigns(campaignsData || []);
     } catch (error: any) {
@@ -149,15 +139,15 @@ export default function OperationsReports() {
   };
 
   const loadOperationsData = async () => {
+    if (!activeWorkspaceId) return;
+    
     try {
       setLoading(true);
 
-      // Get campaign IDs for selected workspaces
-      const campaignIdsForWorkspaces = campaigns
-        .filter(c => c.team_id && selectedWorkspaces.includes(c.team_id))
-        .map(c => c.id);
+      // Get campaign IDs for the active workspace
+      const campaignIdsForWorkspace = campaigns.map(c => c.id);
 
-      if (campaignIdsForWorkspaces.length === 0) {
+      if (campaignIdsForWorkspace.length === 0) {
         setOperations([]);
         setAvailablePlatforms([]);
         setAvailableMarkets([]);
@@ -165,7 +155,7 @@ export default function OperationsReports() {
         return;
       }
 
-      // Load modification requests for selected workspaces
+      // Load modification requests for active workspace
       let modQuery = supabase
         .from("modification_requests")
         .select(`
@@ -173,7 +163,7 @@ export default function OperationsReports() {
           estimated_hours, actual_hours, completed_by, completed_at,
           campaigns!inner(id, name, team_id, platforms, market_splits)
         `)
-        .in('campaign_id', campaignIdsForWorkspaces)
+        .in('campaign_id', campaignIdsForWorkspace)
         .order("created_at", { ascending: false });
 
       if (selectedCampaign !== 'all') {
@@ -183,7 +173,7 @@ export default function OperationsReports() {
       const { data: modRequests, error: modError } = await modQuery;
       if (modError) throw modError;
 
-      // Load activity logs for selected workspaces
+      // Load activity logs for active workspace
       let actQuery = supabase
         .from("activity_logs")
         .select(`
@@ -192,7 +182,7 @@ export default function OperationsReports() {
           affected_platforms, affected_markets,
           campaigns!inner(id, name, team_id, platforms, market_splits)
         `)
-        .in('campaign_id', campaignIdsForWorkspaces)
+        .in('campaign_id', campaignIdsForWorkspace)
         .order("created_at", { ascending: false });
 
       if (selectedCampaign !== 'all') {
@@ -445,59 +435,16 @@ export default function OperationsReports() {
         <div>
           <h2 className="text-2xl font-bold">Operations Reports</h2>
           <p className="text-muted-foreground mt-1">
-            View operations analytics across workspaces. Select workspaces to load data.
+            View operations analytics for <span className="font-medium">{activeWorkspace?.name || "your workspace"}</span>
           </p>
         </div>
 
-        {/* Workspace Selection */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Select Workspaces</CardTitle>
-            <CardDescription>
-              Choose one or more workspaces to view their operations data. This prevents heavy loading.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {teams.map(team => (
-                <Badge
-                  key={team.id}
-                  variant={selectedWorkspaces.includes(team.id) ? "default" : "outline"}
-                  className="cursor-pointer"
-                  onClick={() => {
-                    setSelectedWorkspaces(prev => 
-                      prev.includes(team.id) 
-                        ? prev.filter(t => t !== team.id)
-                        : [...prev, team.id]
-                    );
-                  }}
-                >
-                  {team.name}
-                </Badge>
-              ))}
-              {teams.length === 0 && (
-                <p className="text-sm text-muted-foreground">No workspaces available</p>
-              )}
-            </div>
-            {selectedWorkspaces.length > 0 && (
-              <Button
-                variant="link"
-                size="sm"
-                className="mt-2 p-0"
-                onClick={() => setSelectedWorkspaces([])}
-              >
-                Clear selection
-              </Button>
-            )}
-          </CardContent>
-        </Card>
-
-        {selectedWorkspaces.length === 0 ? (
+        {!activeWorkspaceId ? (
           <Card>
             <CardContent className="py-12">
               <div className="text-center space-y-2">
                 <Users className="h-12 w-12 text-muted-foreground mx-auto" />
-                <p className="text-muted-foreground">Select at least one workspace to view operations data.</p>
+                <p className="text-muted-foreground">No workspace selected. Select a workspace from the top menu.</p>
               </div>
             </CardContent>
           </Card>
@@ -515,12 +462,9 @@ export default function OperationsReports() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">All Campaigns</SelectItem>
-                        {campaigns
-                          .filter(c => c.team_id && selectedWorkspaces.includes(c.team_id))
-                          .map(c => (
-                            <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                          ))
-                        }
+                        {campaigns.map(c => (
+                          <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
