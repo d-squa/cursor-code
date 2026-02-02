@@ -21,6 +21,7 @@ interface SubscriptionStatus {
   productId: string | null;
   priceId: string | null;
   billingPeriod: "monthly" | "yearly" | null;
+  subscriptionStart: string | null;
   subscriptionEnd: string | null;
   trialEnd: string | null;
   status?: string;
@@ -182,6 +183,7 @@ export function useSubscription() {
     productId: subscription?.productId ?? null,
     priceId: subscription?.priceId ?? null,
     billingPeriod: subscription?.billingPeriod ?? null,
+    subscriptionStart: subscription?.subscriptionStart ?? null,
     subscriptionEnd: subscription?.subscriptionEnd ?? null,
     trialEnd: subscription?.trialEnd ?? null,
     subscriptionType: subscription?.subscriptionType ?? null,
