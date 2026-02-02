@@ -813,8 +813,8 @@ const Overview = () => {
               <LayoutDashboard className="h-4 w-4 text-primary" />
               <span className="text-sm font-medium text-primary">Overview</span>
             </div>
-            <h2 className="text-3xl font-bold">Campaign Performance</h2>
-            <p className="text-muted-foreground mt-1">Monitor your active campaigns at a glance</p>
+            <h2 className="text-3xl font-bold">ActiPlan Performance</h2>
+            <p className="text-muted-foreground mt-1">Monitor your ActiPlan Performance at a glance</p>
           </div>
           <div className="flex items-center gap-3">
             <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing}>
