@@ -927,12 +927,10 @@ export default function ActiPlans() {
                       <History className="w-4 h-4 mr-2" />
                       View History
                     </DropdownMenuItem>
-        
                   ) : (
                     <LockedDropdownMenuItem feature="change_history_dialog">View History</LockedDropdownMenuItem>
-        <DropdownMenuSeparator/>
                   )}
-                  
+
                   {/* Request Changes - available for all statuses including pushed_to_dsp */}
                   {hasAccess("request_modifications") ? (
                     <DropdownMenuItem
