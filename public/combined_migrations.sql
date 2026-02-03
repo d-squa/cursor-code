@@ -2,17 +2,22 @@
 -- COMBINED MIGRATIONS - CHRONOLOGICAL ORDER
 -- Generated from all migration files in supabase/migrations/
 -- Run this file on a fresh Supabase project to recreate the full schema
+-- SAFE TO RE-RUN: Uses IF NOT EXISTS and DO blocks for idempotency
 -- =====================================================
 
 -- =====================================================
 -- 20251023134857 - Initial Schema Setup
 -- =====================================================
 
--- Create role enum
-CREATE TYPE public.app_role AS ENUM ('admin', 'campaign_manager', 'viewer');
+-- Create role enum (safe for re-run)
+DO $$ BEGIN
+  CREATE TYPE public.app_role AS ENUM ('admin', 'campaign_manager', 'viewer');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Create profiles table
-CREATE TABLE public.profiles (
+CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email TEXT NOT NULL,
   company_name TEXT,
