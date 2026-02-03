@@ -1,5 +1,6 @@
 -- =====================================================
 -- COMBINED MIGRATIONS PART 3 - Features & Creative Library
+-- SAFE TO RE-RUN: Uses IF NOT EXISTS and DROP IF EXISTS
 -- =====================================================
 
 -- =====================================================
@@ -15,24 +16,33 @@ CREATE TABLE IF NOT EXISTS public.tiktok_apps (
   app_type TEXT,
   download_url TEXT,
   synced_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-  UNIQUE(user_id, advertiser_id, app_id)
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
 );
+
+DO $$ BEGIN
+  ALTER TABLE public.tiktok_apps ADD CONSTRAINT tiktok_apps_unique UNIQUE(user_id, advertiser_id, app_id);
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 ALTER TABLE public.tiktok_apps ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view their own TikTok apps" ON public.tiktok_apps;
 CREATE POLICY "Users can view their own TikTok apps" 
 ON public.tiktok_apps FOR SELECT 
 USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can insert their own TikTok apps" ON public.tiktok_apps;
 CREATE POLICY "Users can insert their own TikTok apps" 
 ON public.tiktok_apps FOR INSERT 
 WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update their own TikTok apps" ON public.tiktok_apps;
 CREATE POLICY "Users can update their own TikTok apps" 
 ON public.tiktok_apps FOR UPDATE 
 USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can delete their own TikTok apps" ON public.tiktok_apps;
 CREATE POLICY "Users can delete their own TikTok apps" 
 ON public.tiktok_apps FOR DELETE 
 USING (auth.uid() = user_id);
@@ -47,10 +57,10 @@ CREATE TABLE IF NOT EXISTS public.campaign_launch_status (
   platform TEXT NOT NULL,
   market TEXT NOT NULL,
   phase_name TEXT,
-  entity_type TEXT NOT NULL CHECK (entity_type IN ('campaign', 'adset', 'ad_group')),
+  entity_type TEXT NOT NULL,
   entity_name TEXT,
   dsp_entity_id TEXT,
-  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending_validation', 'validation_error', 'ready_for_push', 'pushing', 'pushed_to_dsp', 'push_failed', 'live', 'paused', 'pending')),
+  status TEXT NOT NULL DEFAULT 'pending',
   error_message TEXT,
   error_details JSONB,
   planned_budget NUMERIC,
@@ -64,11 +74,26 @@ CREATE TABLE IF NOT EXISTS public.campaign_launch_status (
   updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_campaign_launch_status_campaign_id ON public.campaign_launch_status(campaign_id);
-CREATE INDEX idx_campaign_launch_status_status ON public.campaign_launch_status(status);
+DO $$ BEGIN
+  ALTER TABLE public.campaign_launch_status ADD CONSTRAINT campaign_launch_status_entity_type_check 
+    CHECK (entity_type IN ('campaign', 'adset', 'ad_group'));
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE public.campaign_launch_status ADD CONSTRAINT campaign_launch_status_status_check 
+    CHECK (status IN ('pending_validation', 'validation_error', 'ready_for_push', 'pushing', 'pushed_to_dsp', 'push_failed', 'live', 'paused', 'pending'));
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_campaign_launch_status_campaign_id ON public.campaign_launch_status(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_campaign_launch_status_status ON public.campaign_launch_status(status);
 
 ALTER TABLE public.campaign_launch_status ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view campaign launch statuses" ON public.campaign_launch_status;
 CREATE POLICY "Users can view campaign launch statuses"
 ON public.campaign_launch_status
 FOR SELECT
@@ -87,6 +112,7 @@ USING (
   )
 );
 
+DROP POLICY IF EXISTS "Users can insert campaign launch statuses" ON public.campaign_launch_status;
 CREATE POLICY "Users can insert campaign launch statuses"
 ON public.campaign_launch_status
 FOR INSERT
@@ -106,6 +132,7 @@ WITH CHECK (
   )
 );
 
+DROP POLICY IF EXISTS "Users can update campaign launch statuses" ON public.campaign_launch_status;
 CREATE POLICY "Users can update campaign launch statuses"
 ON public.campaign_launch_status
 FOR UPDATE
@@ -125,6 +152,7 @@ USING (
   )
 );
 
+DROP POLICY IF EXISTS "Users can delete campaign launch statuses" ON public.campaign_launch_status;
 CREATE POLICY "Users can delete campaign launch statuses"
 ON public.campaign_launch_status
 FOR DELETE
@@ -144,6 +172,7 @@ USING (
   )
 );
 
+DROP TRIGGER IF EXISTS update_campaign_launch_status_updated_at ON public.campaign_launch_status;
 CREATE TRIGGER update_campaign_launch_status_updated_at
 BEFORE UPDATE ON public.campaign_launch_status
 FOR EACH ROW
@@ -298,23 +327,26 @@ CREATE TABLE IF NOT EXISTS public.saved_insights_analyses (
 
 ALTER TABLE public.saved_insights_analyses ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view their own saved analyses" ON public.saved_insights_analyses;
 CREATE POLICY "Users can view their own saved analyses" 
 ON public.saved_insights_analyses 
 FOR SELECT 
 USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can create their own saved analyses" ON public.saved_insights_analyses;
 CREATE POLICY "Users can create their own saved analyses" 
 ON public.saved_insights_analyses 
 FOR INSERT 
 WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can delete their own saved analyses" ON public.saved_insights_analyses;
 CREATE POLICY "Users can delete their own saved analyses" 
 ON public.saved_insights_analyses 
 FOR DELETE 
 USING (auth.uid() = user_id);
 
-CREATE INDEX idx_saved_insights_user_id ON public.saved_insights_analyses(user_id);
-CREATE INDEX idx_saved_insights_created_at ON public.saved_insights_analyses(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_saved_insights_user_id ON public.saved_insights_analyses(user_id);
+CREATE INDEX IF NOT EXISTS idx_saved_insights_created_at ON public.saved_insights_analyses(created_at DESC);
 
 -- =====================================================
 -- Activity logs
@@ -324,7 +356,7 @@ CREATE TABLE IF NOT EXISTS public.activity_logs (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   campaign_id UUID NOT NULL REFERENCES public.campaigns(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES public.profiles(id),
-  action_type TEXT NOT NULL CHECK (action_type IN ('budget_adjustment', 'targeting_change', 'creative_update', 'pause_resume', 'note')),
+  action_type TEXT NOT NULL,
   title TEXT NOT NULL,
   description TEXT,
   affected_platforms TEXT[] DEFAULT '{}',
@@ -336,8 +368,16 @@ CREATE TABLE IF NOT EXISTS public.activity_logs (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
+DO $$ BEGIN
+  ALTER TABLE public.activity_logs ADD CONSTRAINT activity_logs_action_type_check 
+    CHECK (action_type IN ('budget_adjustment', 'targeting_change', 'creative_update', 'pause_resume', 'note'));
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
 ALTER TABLE public.activity_logs ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view activity logs for their campaigns" ON public.activity_logs;
 CREATE POLICY "Users can view activity logs for their campaigns"
 ON public.activity_logs
 FOR SELECT
@@ -352,6 +392,7 @@ USING (
   )
 );
 
+DROP POLICY IF EXISTS "Users can create activity logs for accessible campaigns" ON public.activity_logs;
 CREATE POLICY "Users can create activity logs for accessible campaigns"
 ON public.activity_logs
 FOR INSERT
@@ -367,18 +408,20 @@ WITH CHECK (
   )
 );
 
+DROP POLICY IF EXISTS "Users can update their own activity logs" ON public.activity_logs;
 CREATE POLICY "Users can update their own activity logs"
 ON public.activity_logs
 FOR UPDATE
 USING (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "Users can delete their own activity logs" ON public.activity_logs;
 CREATE POLICY "Users can delete their own activity logs"
 ON public.activity_logs
 FOR DELETE
 USING (user_id = auth.uid());
 
-CREATE INDEX idx_activity_logs_campaign_id ON public.activity_logs(campaign_id);
-CREATE INDEX idx_activity_logs_created_at ON public.activity_logs(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_activity_logs_campaign_id ON public.activity_logs(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_activity_logs_created_at ON public.activity_logs(created_at DESC);
 
 -- =====================================================
 -- Competitor tracking
@@ -397,10 +440,15 @@ CREATE TABLE IF NOT EXISTS public.competitor_tracking (
   first_seen_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
   ad_details JSONB DEFAULT '[]'::jsonb,
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-  CONSTRAINT unique_competitor_per_client_platform_market 
-    UNIQUE (client_id, competitor_name, platform, market)
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
 );
+
+DO $$ BEGIN
+  ALTER TABLE public.competitor_tracking ADD CONSTRAINT unique_competitor_per_client_platform_market 
+    UNIQUE (client_id, competitor_name, platform, market);
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 CREATE TABLE IF NOT EXISTS public.competitor_history (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -414,22 +462,27 @@ CREATE TABLE IF NOT EXISTS public.competitor_history (
 ALTER TABLE public.competitor_tracking ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.competitor_history ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view their own competitor tracking" ON public.competitor_tracking;
 CREATE POLICY "Users can view their own competitor tracking"
   ON public.competitor_tracking FOR SELECT
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can insert their own competitor tracking" ON public.competitor_tracking;
 CREATE POLICY "Users can insert their own competitor tracking"
   ON public.competitor_tracking FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update their own competitor tracking" ON public.competitor_tracking;
 CREATE POLICY "Users can update their own competitor tracking"
   ON public.competitor_tracking FOR UPDATE
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can delete their own competitor tracking" ON public.competitor_tracking;
 CREATE POLICY "Users can delete their own competitor tracking"
   ON public.competitor_tracking FOR DELETE
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can view their competitor history" ON public.competitor_history;
 CREATE POLICY "Users can view their competitor history"
   ON public.competitor_history FOR SELECT
   USING (EXISTS (
@@ -438,6 +491,7 @@ CREATE POLICY "Users can view their competitor history"
     AND ct.user_id = auth.uid()
   ));
 
+DROP POLICY IF EXISTS "Users can insert competitor history" ON public.competitor_history;
 CREATE POLICY "Users can insert competitor history"
   ON public.competitor_history FOR INSERT
   WITH CHECK (EXISTS (
@@ -446,12 +500,13 @@ CREATE POLICY "Users can insert competitor history"
     AND ct.user_id = auth.uid()
   ));
 
-CREATE INDEX idx_competitor_tracking_client ON public.competitor_tracking(client_id);
-CREATE INDEX idx_competitor_tracking_user ON public.competitor_tracking(user_id);
-CREATE INDEX idx_competitor_tracking_platform_market ON public.competitor_tracking(platform, market);
-CREATE INDEX idx_competitor_history_tracking ON public.competitor_history(competitor_tracking_id);
-CREATE INDEX idx_competitor_history_checked ON public.competitor_history(checked_at);
+CREATE INDEX IF NOT EXISTS idx_competitor_tracking_client ON public.competitor_tracking(client_id);
+CREATE INDEX IF NOT EXISTS idx_competitor_tracking_user ON public.competitor_tracking(user_id);
+CREATE INDEX IF NOT EXISTS idx_competitor_tracking_platform_market ON public.competitor_tracking(platform, market);
+CREATE INDEX IF NOT EXISTS idx_competitor_history_tracking ON public.competitor_history(competitor_tracking_id);
+CREATE INDEX IF NOT EXISTS idx_competitor_history_checked ON public.competitor_history(checked_at);
 
+DROP TRIGGER IF EXISTS update_competitor_tracking_updated_at ON public.competitor_tracking;
 CREATE TRIGGER update_competitor_tracking_updated_at
   BEFORE UPDATE ON public.competitor_tracking
   FOR EACH ROW
@@ -468,12 +523,19 @@ CREATE TABLE IF NOT EXISTS public.client_operation_defaults (
   operation_subtype TEXT NOT NULL,
   estimated_hours NUMERIC(5,2) NOT NULL DEFAULT 0.5,
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-  UNIQUE(client_id, operation_type, operation_subtype)
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
 );
+
+DO $$ BEGIN
+  ALTER TABLE public.client_operation_defaults ADD CONSTRAINT client_operation_defaults_unique 
+    UNIQUE(client_id, operation_type, operation_subtype);
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 ALTER TABLE public.client_operation_defaults ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Team leads can manage operation defaults" ON client_operation_defaults;
 CREATE POLICY "Team leads can manage operation defaults"
 ON client_operation_defaults
 FOR ALL
@@ -488,6 +550,7 @@ WITH CHECK (
   has_role(auth.uid(), 'campaign_manager'::app_role)
 );
 
+DROP POLICY IF EXISTS "Team members can view operation defaults" ON public.client_operation_defaults;
 CREATE POLICY "Team members can view operation defaults"
 ON public.client_operation_defaults
 FOR SELECT
@@ -505,10 +568,11 @@ ADD COLUMN IF NOT EXISTS actual_hours NUMERIC(5,2),
 ADD COLUMN IF NOT EXISTS completed_by UUID REFERENCES public.profiles(id),
 ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP WITH TIME ZONE;
 
-CREATE INDEX idx_client_operation_defaults_client ON public.client_operation_defaults(client_id);
-CREATE INDEX idx_modification_requests_completed_by ON public.modification_requests(completed_by);
-CREATE INDEX idx_modification_requests_completed_at ON public.modification_requests(completed_at);
+CREATE INDEX IF NOT EXISTS idx_client_operation_defaults_client ON public.client_operation_defaults(client_id);
+CREATE INDEX IF NOT EXISTS idx_modification_requests_completed_by ON public.modification_requests(completed_by);
+CREATE INDEX IF NOT EXISTS idx_modification_requests_completed_at ON public.modification_requests(completed_at);
 
+DROP TRIGGER IF EXISTS update_client_operation_defaults_updated_at ON public.client_operation_defaults;
 CREATE TRIGGER update_client_operation_defaults_updated_at
 BEFORE UPDATE ON public.client_operation_defaults
 FOR EACH ROW
@@ -564,29 +628,6 @@ AS $$
       ELSE 7
     END
   LIMIT 1
-$$;
-
-CREATE OR REPLACE FUNCTION public.can_view_roles_in_team(_viewer_id uuid, _team_id uuid)
-RETURNS boolean
-LANGUAGE sql
-STABLE SECURITY DEFINER
-SET search_path TO 'public'
-AS $$
-  SELECT
-    EXISTS (
-      SELECT 1
-      FROM public.teams t
-      WHERE t.id = _team_id
-        AND t.owner_id = _viewer_id
-    )
-    OR
-    EXISTS (
-      SELECT 1
-      FROM public.user_roles ur
-      WHERE ur.user_id = _viewer_id
-        AND ur.team_id = _team_id
-        AND ur.role = ANY (ARRAY['owner'::public.app_role, 'admin'::public.app_role])
-    );
 $$;
 
 CREATE OR REPLACE FUNCTION public.ensure_user_workspace()
@@ -649,67 +690,55 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.ensure_user_workspace() TO authenticated;
 
--- Update handle_new_user function
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path TO 'public'
-AS $$
-DECLARE
-  new_team_id uuid;
-BEGIN
-  INSERT INTO public.profiles (id, email)
-  VALUES (new.id, new.email);
-  
-  INSERT INTO public.teams (name, owner_id, description)
-  VALUES (
-    COALESCE(split_part(new.email, '@', 1), 'My Workspace') || '''s Workspace',
-    new.id,
-    'Personal workspace'
-  )
-  RETURNING id INTO new_team_id;
-  
-  INSERT INTO public.user_roles (user_id, role, team_id)
-  VALUES (new.id, 'owner', new_team_id);
-  
-  RETURN new;
-END;
-$$;
-
 -- =====================================================
 -- Billing customers
 -- =====================================================
 
 CREATE TABLE IF NOT EXISTS public.billing_customers (
   id uuid not null default gen_random_uuid() primary key,
-  user_id uuid not null unique references public.profiles(id) on delete cascade,
-  stripe_customer_id text not null unique,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  stripe_customer_id text not null,
   email text not null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
+DO $$ BEGIN
+  ALTER TABLE public.billing_customers ADD CONSTRAINT billing_customers_user_id_key UNIQUE (user_id);
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE public.billing_customers ADD CONSTRAINT billing_customers_stripe_customer_id_key UNIQUE (stripe_customer_id);
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
 CREATE INDEX IF NOT EXISTS billing_customers_email_idx on public.billing_customers (email);
 
 ALTER TABLE public.billing_customers ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view their billing customer mapping" ON public.billing_customers;
 CREATE POLICY "Users can view their billing customer mapping"
 on public.billing_customers
 for select
 using (auth.uid() = user_id);
 
-CREATE POLICY "Service can insert billing customers"
+DROP POLICY IF EXISTS "Service role can insert billing customers" ON public.billing_customers;
+CREATE POLICY "Service role can insert billing customers"
 ON public.billing_customers
 FOR INSERT
-WITH CHECK (true);
+WITH CHECK ((auth.jwt() ->> 'role'::text) = 'service_role'::text);
 
-CREATE POLICY "Service can update billing customers"
+DROP POLICY IF EXISTS "Service role can update billing customers" ON public.billing_customers;
+CREATE POLICY "Service role can update billing customers"
 ON public.billing_customers
 FOR UPDATE
-USING (true)
-WITH CHECK (true);
+USING ((auth.jwt() ->> 'role'::text) = 'service_role'::text)
+WITH CHECK ((auth.jwt() ->> 'role'::text) = 'service_role'::text);
 
+DROP TRIGGER IF EXISTS update_billing_customers_updated_at ON public.billing_customers;
 CREATE TRIGGER update_billing_customers_updated_at
 before update on public.billing_customers
 for each row execute function public.update_updated_at_column();
@@ -725,22 +754,29 @@ CREATE TABLE IF NOT EXISTS public.user_sessions (
   device_info TEXT,
   ip_address TEXT,
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-  last_active_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-  UNIQUE(user_id)
+  last_active_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
 );
+
+DO $$ BEGIN
+  ALTER TABLE public.user_sessions ADD CONSTRAINT user_sessions_user_id_key UNIQUE(user_id);
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 ALTER TABLE public.user_sessions ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view their own session" ON public.user_sessions;
 CREATE POLICY "Users can view their own session"
 ON public.user_sessions
 FOR SELECT
 USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Service role can manage sessions" ON public.user_sessions;
 CREATE POLICY "Service role can manage sessions"
 ON public.user_sessions
 FOR ALL
-USING (true)
-WITH CHECK (true);
+USING ((auth.jwt() ->> 'role'::text) = 'service_role'::text)
+WITH CHECK ((auth.jwt() ->> 'role'::text) = 'service_role'::text);
 
 -- =====================================================
 -- Request comments
@@ -756,6 +792,7 @@ CREATE TABLE IF NOT EXISTS public.request_comments (
 
 ALTER TABLE public.request_comments ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view comments on accessible requests" ON public.request_comments;
 CREATE POLICY "Users can view comments on accessible requests"
 ON public.request_comments
 FOR SELECT
@@ -780,6 +817,7 @@ USING (
   )
 );
 
+DROP POLICY IF EXISTS "Users can add comments to accessible requests" ON public.request_comments;
 CREATE POLICY "Users can add comments to accessible requests"
 ON public.request_comments
 FOR INSERT
@@ -805,7 +843,119 @@ WITH CHECK (
   )
 );
 
+DROP POLICY IF EXISTS "Users can delete their own comments" ON public.request_comments;
 CREATE POLICY "Users can delete their own comments"
 ON public.request_comments
 FOR DELETE
 USING (auth.uid() = user_id);
+
+-- =====================================================
+-- Creative import batches
+-- =====================================================
+
+CREATE TABLE IF NOT EXISTS public.creative_import_batches (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  import_type TEXT NOT NULL,
+  source_filename TEXT,
+  status TEXT DEFAULT 'pending',
+  total_items INTEGER,
+  successful_items INTEGER,
+  failed_items INTEGER,
+  error_log JSONB,
+  completed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.creative_import_batches ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can view their own import batches" ON public.creative_import_batches;
+CREATE POLICY "Users can view their own import batches"
+ON public.creative_import_batches FOR SELECT
+USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can create their own import batches" ON public.creative_import_batches;
+CREATE POLICY "Users can create their own import batches"
+ON public.creative_import_batches FOR INSERT
+WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can update their own import batches" ON public.creative_import_batches;
+CREATE POLICY "Users can update their own import batches"
+ON public.creative_import_batches FOR UPDATE
+USING (auth.uid() = user_id);
+
+-- =====================================================
+-- Creative push jobs
+-- =====================================================
+
+CREATE TABLE IF NOT EXISTS public.creative_push_jobs (
+  id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+  campaign_id UUID NOT NULL REFERENCES public.campaigns(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  total_assignments INTEGER DEFAULT 0,
+  pushed_count INTEGER DEFAULT 0,
+  failed_count INTEGER DEFAULT 0,
+  last_processed_at TIMESTAMP WITH TIME ZONE,
+  retry_count INTEGER DEFAULT 0,
+  max_retries INTEGER DEFAULT 10,
+  error_message TEXT,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.creative_push_jobs ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can view their own push jobs" ON public.creative_push_jobs;
+CREATE POLICY "Users can view their own push jobs"
+ON public.creative_push_jobs FOR SELECT
+USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can create their own push jobs" ON public.creative_push_jobs;
+CREATE POLICY "Users can create their own push jobs"
+ON public.creative_push_jobs FOR INSERT
+WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can update their own push jobs" ON public.creative_push_jobs;
+CREATE POLICY "Users can update their own push jobs"
+ON public.creative_push_jobs FOR UPDATE
+USING (auth.uid() = user_id);
+
+DROP TRIGGER IF EXISTS update_creative_push_jobs_updated_at ON public.creative_push_jobs;
+CREATE TRIGGER update_creative_push_jobs_updated_at
+BEFORE UPDATE ON public.creative_push_jobs
+FOR EACH ROW
+EXECUTE FUNCTION public.update_updated_at_column();
+
+-- =====================================================
+-- Ad push logs
+-- =====================================================
+
+CREATE TABLE IF NOT EXISTS public.ad_push_logs (
+  id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+  ad_config_id UUID REFERENCES public.ad_push_configurations(id) ON DELETE SET NULL,
+  user_id UUID NOT NULL,
+  action TEXT NOT NULL,
+  status TEXT NOT NULL,
+  request_payload JSONB,
+  response_payload JSONB,
+  error_message TEXT,
+  error_code TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
+
+ALTER TABLE public.ad_push_logs ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can view their own ad push logs" ON public.ad_push_logs;
+CREATE POLICY "Users can view their own ad push logs"
+ON public.ad_push_logs FOR SELECT
+USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can insert their own ad push logs" ON public.ad_push_logs;
+CREATE POLICY "Users can insert their own ad push logs"
+ON public.ad_push_logs FOR INSERT
+WITH CHECK (auth.uid() = user_id);
+
+-- =====================================================
+-- END OF PART 3
+-- =====================================================
