@@ -826,16 +826,8 @@ export default function ActiPlans() {
                         <Trash2 className="w-4 h-4 mr-2" />
                         Delete ActiPlan
                       </DropdownMenuItem>
+                      <DropdownMenuSeparator />
                     </>
-                  )}
-                  {/* Mesh Creatives - available for all campaigns, gated to Enterprise+ */}
-                  {hasAccess("creative_matching") ? (
-                    <DropdownMenuItem onClick={() => navigate(`/creatives?campaignId=${campaign.id}`)}>
-                      <Wand2 className="w-4 h-4 mr-2" />
-                      Mesh Creatives
-                    </DropdownMenuItem>
-                  ) : (
-                    <LockedDropdownMenuItem feature="creative_matching">Mesh Creatives</LockedDropdownMenuItem>
                   )}
 
                   {["ready_for_push", "pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
