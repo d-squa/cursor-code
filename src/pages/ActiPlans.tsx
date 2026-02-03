@@ -20,7 +20,7 @@ import {
   Download,
   TrendingUp,
   MoreVertical,
-  ArrowLeft,s
+  ArrowLeft,
   Search,
   BarChart3,
   FileText,
@@ -785,6 +785,46 @@ export default function ActiPlans() {
                         Edit ActiPlan
                       </DropdownMenuItem>
                     )}
+                  {/* Launch/Push menu item - conditional based on status */}
+                  {(() => {
+                    const status = campaign.status || "";
+                    // Show for draft, approved, ready_for_push, pushed_to_dsp, partially_pushed, live
+                    if (
+                      ["draft", "approved", "ready_for_push", "pushed_to_dsp", "partially_pushed", "live"].includes(
+                        status,
+                      )
+                    ) {
+                      const isCreator = campaign.user_id === user?.id;
+                      const isTeamOwnerOrAdmin = campaign.is_admin_or_owner === true;
+                      if (!isCreator && !isTeamOwnerOrAdmin) return null;
+
+                      let menuLabel = "Launch Status";
+                      if (status === "draft" || status === "approved" || status === "ready_for_push") {
+                        menuLabel = "Push Campaign to DSP";
+                      } else if (status === "partially_pushed") {
+                        menuLabel = "Retry Pushing to DSP";
+                      } else if (status === "pushed_to_dsp" || status === "live") {
+                        menuLabel = "View Launch Status";
+                      }
+
+                      return (
+                        <>
+                          {canApprove(campaign) && <DropdownMenuSeparator />}
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              navigate(`/actiplans/${campaign.id}/launch`);
+                            }}
+                          >
+                            <Rocket className="w-4 h-4 mr-2" />
+                            {menuLabel}
+                          </DropdownMenuItem>
+                        </>
+                      );
+                    }
+                    return null;
+                  })()}
                   {/* Mesh Creatives - available for all campaigns, gated to Enterprise+ */}
                   {hasAccess("creative_matching") ? (
                     <DropdownMenuItem onClick={() => navigate(`/creatives?campaignId=${campaign.id}`)}>
@@ -796,7 +836,7 @@ export default function ActiPlans() {
                   )}
 
                   {/* Extend Campaign - for pushed/live campaigns to add new phases or creatives */}
-                  {canEdit(campaign)&&
+                  {canEdit(campaign) &&
                     ["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
                       <DropdownMenuItem onClick={() => navigate(`/app?campaignId=${campaign.id}&mode=extend`)}>
                         <PlusCircle className="w-4 h-4 mr-2" />
@@ -876,7 +916,8 @@ export default function ActiPlans() {
                       <DropdownMenuSeparator />
                     </>
                   )}
-{hasAccess("change_history_dialog") ? (
+
+                  {hasAccess("change_history_dialog") ? (
                     <DropdownMenuItem
                       onClick={() => {
                         setSelectedCampaign(campaign);
@@ -890,47 +931,6 @@ export default function ActiPlans() {
                     <LockedDropdownMenuItem feature="change_history_dialog">View History</LockedDropdownMenuItem>
                   )}
 
-                  {/* Launch/Push menu item - conditional based on status */}
-                  {(() => {
-                    const status = campaign.status || "";
-                    // Show for draft, approved, ready_for_push, pushed_to_dsp, partially_pushed, live
-                    if (
-                      ["draft", "approved", "ready_for_push", "pushed_to_dsp", "partially_pushed", "live"].includes(
-                        status,
-                      )
-                    ) {
-                      const isCreator = campaign.user_id === user?.id;
-                      const isTeamOwnerOrAdmin = campaign.is_admin_or_owner === true;
-                      if (!isCreator && !isTeamOwnerOrAdmin) return null;
-
-                      let menuLabel = "Launch Status";
-                      if (status === "draft" || status === "approved" || status === "ready_for_push") {
-                        menuLabel = "Push Campaign to DSP";
-                      } else if (status === "partially_pushed") {
-                        menuLabel = "Retry Pushing to DSP";
-                      } else if (status === "pushed_to_dsp" || status === "live") {
-                        menuLabel = "View Launch Status";
-                      }
-
-                      return (
-                        <>
-                          {canApprove(campaign) && <DropdownMenuSeparator />}
-                          <DropdownMenuItem
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              navigate(`/actiplans/${campaign.id}/launch`);
-                            }}
-                          >
-                            <Rocket className="w-4 h-4 mr-2" />
-                            {menuLabel}
-                          </DropdownMenuItem>
-                        </>
-                      );
-                    }
-                    return null;
-                  })()}
-                  
                   {/* Request Changes - available for all statuses including pushed_to_dsp */}
                   {hasAccess("request_modifications") ? (
                     <DropdownMenuItem
