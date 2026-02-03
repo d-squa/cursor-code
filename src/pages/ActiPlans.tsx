@@ -855,7 +855,6 @@ export default function ActiPlans() {
 
                   {canDelete(campaign) && (
                     <>
-                      <DropdownMenuSeparator />
                       <DropdownMenuItem
                         onClick={() => {
                           setCampaignToDelete(campaign);
@@ -866,6 +865,8 @@ export default function ActiPlans() {
                         <Trash2 className="w-4 h-4 mr-2" />
                         Delete ActiPlan
                       </DropdownMenuItem>
+
+                      <DropdownMenuSeparator />
                     </>
                   )}
 
