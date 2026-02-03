@@ -1023,7 +1023,16 @@ export default function ActiPlans() {
                     </DropdownMenuItem>
                   )}
 
-                
+                  {/* Duplicate ActiPlan */}
+                  {hasAccess("duplicate_actiplans") ? (
+                    <DropdownMenuItem onClick={() => handleDuplicateClick(campaign)} disabled={actionLoading}>
+                      <Copy className="w-4 h-4 mr-2" />
+                      Duplicate ActiPlan
+                    </DropdownMenuItem>
+                  ) : (
+                    <LockedDropdownMenuItem feature="duplicate_actiplans">Duplicate ActiPlan</LockedDropdownMenuItem>
+                  )}
+
                   {canDelete(campaign) && (
                     <>
                       <DropdownMenuSeparator />
