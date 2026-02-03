@@ -866,7 +866,6 @@ export default function ActiPlans() {
                         <Trash2 className="w-4 h-4 mr-2" />
                         Delete ActiPlan
                       </DropdownMenuItem>
-                      <DropdownMenuSeparator />
                     </>
                   )}
 
