@@ -1,13 +1,23 @@
 -- =====================================================
 -- COMBINED MIGRATIONS PART 4 - Creative Library & Final
+-- SAFE TO RE-RUN: Uses IF NOT EXISTS and DROP IF EXISTS
 -- =====================================================
 
 -- =====================================================
 -- Creatives table and enums
 -- =====================================================
 
-CREATE TYPE public.creative_type AS ENUM ('dark_post', 'existing_post', 'image', 'video', 'carousel', 'collection', 'instant_experience');
-CREATE TYPE public.creative_status AS ENUM ('draft', 'ready', 'needs_review', 'error', 'published');
+DO $$ BEGIN
+  CREATE TYPE public.creative_type AS ENUM ('dark_post', 'existing_post', 'image', 'video', 'carousel', 'collection', 'instant_experience');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE TYPE public.creative_status AS ENUM ('draft', 'ready', 'needs_review', 'error', 'published');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 CREATE TABLE IF NOT EXISTS public.creatives (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -103,24 +113,35 @@ CREATE TABLE IF NOT EXISTS public.creatives (
   dsp_upload_error TEXT,
   dsp_uploaded_at TIMESTAMP WITH TIME ZONE,
   creative_origin TEXT DEFAULT 'API_UPLOAD',
+  is_valid BOOLEAN,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL
 );
 
 ALTER TABLE public.creatives ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view their own creatives" ON public.creatives;
 CREATE POLICY "Users can view their own creatives" ON public.creatives FOR SELECT USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can insert their own creatives" ON public.creatives;
 CREATE POLICY "Users can insert their own creatives" ON public.creatives FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can update their own creatives" ON public.creatives;
 CREATE POLICY "Users can update their own creatives" ON public.creatives FOR UPDATE USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can delete their own creatives" ON public.creatives;
 CREATE POLICY "Users can delete their own creatives" ON public.creatives FOR DELETE USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Team members can view team creatives" ON public.creatives;
 CREATE POLICY "Team members can view team creatives" ON public.creatives FOR SELECT USING (team_id IN (SELECT team_id FROM public.user_roles WHERE user_id = auth.uid()));
 
-CREATE INDEX idx_creatives_user_id ON public.creatives(user_id);
-CREATE INDEX idx_creatives_campaign_id ON public.creatives(campaign_id);
-CREATE INDEX idx_creatives_platform_market ON public.creatives(platform, market);
-CREATE INDEX idx_creatives_status ON public.creatives(status);
-CREATE INDEX idx_creatives_client_id ON public.creatives(client_id);
+CREATE INDEX IF NOT EXISTS idx_creatives_user_id ON public.creatives(user_id);
+CREATE INDEX IF NOT EXISTS idx_creatives_campaign_id ON public.creatives(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_creatives_platform_market ON public.creatives(platform, market);
+CREATE INDEX IF NOT EXISTS idx_creatives_status ON public.creatives(status);
+CREATE INDEX IF NOT EXISTS idx_creatives_client_id ON public.creatives(client_id);
 
+DROP TRIGGER IF EXISTS update_creatives_updated_at ON public.creatives;
 CREATE TRIGGER update_creatives_updated_at BEFORE UPDATE ON public.creatives FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 -- =====================================================
@@ -177,16 +198,74 @@ CREATE TABLE IF NOT EXISTS public.creative_assignments (
   sitelink_url text,
   sitelink_source_url text,
   sitelink_display_label text,
-  sitelink_thumbnail text,
-  CONSTRAINT creative_assignments_unique_per_adset UNIQUE (creative_id, campaign_id, platform, market, phase_name, ad_set_name)
+  sitelink_thumbnail text
 );
+
+DO $$ BEGIN
+  ALTER TABLE public.creative_assignments ADD CONSTRAINT creative_assignments_unique_per_adset 
+    UNIQUE (creative_id, campaign_id, platform, market, phase_name, ad_set_name);
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 ALTER TABLE public.creative_assignments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.creative_assignments REPLICA IDENTITY FULL;
 
-CREATE INDEX idx_creative_assignments_campaign ON public.creative_assignments(campaign_id);
-CREATE INDEX idx_creative_assignments_creative ON public.creative_assignments(creative_id);
-CREATE INDEX idx_creative_assignments_ad_set_id ON public.creative_assignments(ad_set_id);
+CREATE INDEX IF NOT EXISTS idx_creative_assignments_campaign ON public.creative_assignments(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_creative_assignments_creative ON public.creative_assignments(creative_id);
+CREATE INDEX IF NOT EXISTS idx_creative_assignments_ad_set_id ON public.creative_assignments(ad_set_id);
+
+DROP POLICY IF EXISTS "Users can view creative assignments" ON public.creative_assignments;
+CREATE POLICY "Users can view creative assignments"
+ON public.creative_assignments FOR SELECT
+USING (
+  EXISTS (
+    SELECT 1 FROM campaigns c
+    WHERE c.id = creative_assignments.campaign_id
+    AND (c.user_id = auth.uid() OR EXISTS (
+      SELECT 1 FROM user_roles ur WHERE ur.team_id = c.team_id AND ur.user_id = auth.uid()
+    ))
+  )
+);
+
+DROP POLICY IF EXISTS "Users can insert creative assignments" ON public.creative_assignments;
+CREATE POLICY "Users can insert creative assignments"
+ON public.creative_assignments FOR INSERT
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM campaigns c
+    WHERE c.id = creative_assignments.campaign_id
+    AND (c.user_id = auth.uid() OR EXISTS (
+      SELECT 1 FROM user_roles ur WHERE ur.team_id = c.team_id AND ur.user_id = auth.uid()
+    ))
+  )
+);
+
+DROP POLICY IF EXISTS "Users can update creative assignments" ON public.creative_assignments;
+CREATE POLICY "Users can update creative assignments"
+ON public.creative_assignments FOR UPDATE
+USING (
+  EXISTS (
+    SELECT 1 FROM campaigns c
+    WHERE c.id = creative_assignments.campaign_id
+    AND (c.user_id = auth.uid() OR EXISTS (
+      SELECT 1 FROM user_roles ur WHERE ur.team_id = c.team_id AND ur.user_id = auth.uid()
+    ))
+  )
+);
+
+DROP POLICY IF EXISTS "Users can delete creative assignments" ON public.creative_assignments;
+CREATE POLICY "Users can delete creative assignments"
+ON public.creative_assignments FOR DELETE
+USING (
+  EXISTS (
+    SELECT 1 FROM campaigns c
+    WHERE c.id = creative_assignments.campaign_id
+    AND (c.user_id = auth.uid() OR EXISTS (
+      SELECT 1 FROM user_roles ur WHERE ur.team_id = c.team_id AND ur.user_id = auth.uid()
+    ))
+  )
+);
 
 -- =====================================================
 -- Creative library assets (platform synced)
@@ -215,15 +294,28 @@ CREATE TABLE IF NOT EXISTS public.creative_library_assets (
   creative_origin TEXT DEFAULT 'UI_SYNC',
   synced_at TIMESTAMPTZ DEFAULT now(),
   created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE (platform, advertiser_id, platform_asset_id)
+  updated_at TIMESTAMPTZ DEFAULT now()
 );
+
+DO $$ BEGIN
+  ALTER TABLE public.creative_library_assets ADD CONSTRAINT creative_library_assets_unique 
+    UNIQUE (platform, advertiser_id, platform_asset_id);
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
 
 ALTER TABLE public.creative_library_assets ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view their own creative library assets" ON public.creative_library_assets;
 CREATE POLICY "Users can view their own creative library assets" ON public.creative_library_assets FOR SELECT USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can insert their own creative library assets" ON public.creative_library_assets;
 CREATE POLICY "Users can insert their own creative library assets" ON public.creative_library_assets FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can update their own creative library assets" ON public.creative_library_assets;
 CREATE POLICY "Users can update their own creative library assets" ON public.creative_library_assets FOR UPDATE USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can delete their own creative library assets" ON public.creative_library_assets;
 CREATE POLICY "Users can delete their own creative library assets" ON public.creative_library_assets FOR DELETE USING (auth.uid() = user_id);
 
 CREATE OR REPLACE FUNCTION public.compute_asset_usability() RETURNS TRIGGER AS $$
@@ -233,7 +325,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SET search_path = public;
 
+DROP TRIGGER IF EXISTS compute_asset_usability_trigger ON public.creative_library_assets;
 CREATE TRIGGER compute_asset_usability_trigger BEFORE INSERT OR UPDATE ON public.creative_library_assets FOR EACH ROW EXECUTE FUNCTION public.compute_asset_usability();
+
+DROP TRIGGER IF EXISTS update_creative_library_assets_updated_at ON public.creative_library_assets;
 CREATE TRIGGER update_creative_library_assets_updated_at BEFORE UPDATE ON public.creative_library_assets FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 -- =====================================================
@@ -256,14 +351,28 @@ CREATE TABLE IF NOT EXISTS public.platform_identities (
   platform_metadata JSONB DEFAULT '{}',
   synced_at TIMESTAMPTZ DEFAULT now(),
   created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE (platform, advertiser_id, identity_id)
+  updated_at TIMESTAMPTZ DEFAULT now()
 );
 
+DO $$ BEGIN
+  ALTER TABLE public.platform_identities ADD CONSTRAINT platform_identities_unique 
+    UNIQUE (platform, advertiser_id, identity_id);
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
 ALTER TABLE public.platform_identities ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can view their own platform identities" ON public.platform_identities;
 CREATE POLICY "Users can view their own platform identities" ON public.platform_identities FOR SELECT USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can insert their own platform identities" ON public.platform_identities;
 CREATE POLICY "Users can insert their own platform identities" ON public.platform_identities FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can update their own platform identities" ON public.platform_identities;
 CREATE POLICY "Users can update their own platform identities" ON public.platform_identities FOR UPDATE USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can delete their own platform identities" ON public.platform_identities;
 CREATE POLICY "Users can delete their own platform identities" ON public.platform_identities FOR DELETE USING (auth.uid() = user_id);
 
 CREATE TABLE IF NOT EXISTS public.ad_push_configurations (
@@ -296,9 +405,17 @@ CREATE TABLE IF NOT EXISTS public.ad_push_configurations (
 );
 
 ALTER TABLE public.ad_push_configurations ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can view their own ad configurations" ON public.ad_push_configurations;
 CREATE POLICY "Users can view their own ad configurations" ON public.ad_push_configurations FOR SELECT USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can insert their own ad configurations" ON public.ad_push_configurations;
 CREATE POLICY "Users can insert their own ad configurations" ON public.ad_push_configurations FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can update their own ad configurations" ON public.ad_push_configurations;
 CREATE POLICY "Users can update their own ad configurations" ON public.ad_push_configurations FOR UPDATE USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can delete their own ad configurations" ON public.ad_push_configurations;
 CREATE POLICY "Users can delete their own ad configurations" ON public.ad_push_configurations FOR DELETE USING (auth.uid() = user_id);
 
 -- =====================================================
@@ -319,12 +436,17 @@ CREATE TABLE IF NOT EXISTS public.actiplan_time_sessions (
 
 ALTER TABLE public.actiplan_time_sessions ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view time sessions for accessible campaigns" ON public.actiplan_time_sessions;
 CREATE POLICY "Users can view time sessions for accessible campaigns" ON public.actiplan_time_sessions FOR SELECT
 USING (EXISTS (SELECT 1 FROM campaigns c WHERE c.id = actiplan_time_sessions.campaign_id AND (c.user_id = auth.uid() OR EXISTS (SELECT 1 FROM user_roles ur WHERE ur.team_id = c.team_id AND ur.user_id = auth.uid()))));
 
+DROP POLICY IF EXISTS "Users can create their own time sessions" ON public.actiplan_time_sessions;
 CREATE POLICY "Users can create their own time sessions" ON public.actiplan_time_sessions FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can update their own time sessions" ON public.actiplan_time_sessions;
 CREATE POLICY "Users can update their own time sessions" ON public.actiplan_time_sessions FOR UPDATE USING (auth.uid() = user_id);
 
+DROP TRIGGER IF EXISTS update_actiplan_time_sessions_updated_at ON public.actiplan_time_sessions;
 CREATE TRIGGER update_actiplan_time_sessions_updated_at BEFORE UPDATE ON public.actiplan_time_sessions FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 -- =====================================================
@@ -334,6 +456,27 @@ CREATE TRIGGER update_actiplan_time_sessions_updated_at BEFORE UPDATE ON public.
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES ('creative-assets', 'creative-assets', true, 524288000, ARRAY['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/quicktime', 'video/webm'])
 ON CONFLICT (id) DO UPDATE SET file_size_limit = 524288000;
+
+-- Storage policies for creative assets
+DROP POLICY IF EXISTS "Users can view their creative assets" ON storage.objects;
+CREATE POLICY "Users can view their creative assets"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'creative-assets');
+
+DROP POLICY IF EXISTS "Users can upload creative assets" ON storage.objects;
+CREATE POLICY "Users can upload creative assets"
+ON storage.objects FOR INSERT
+WITH CHECK (bucket_id = 'creative-assets');
+
+DROP POLICY IF EXISTS "Users can update creative assets" ON storage.objects;
+CREATE POLICY "Users can update creative assets"
+ON storage.objects FOR UPDATE
+USING (bucket_id = 'creative-assets');
+
+DROP POLICY IF EXISTS "Users can delete creative assets" ON storage.objects;
+CREATE POLICY "Users can delete creative assets"
+ON storage.objects FOR DELETE
+USING (bucket_id = 'creative-assets');
 
 -- Enable realtime for creative_assignments
 DO $$
