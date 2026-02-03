@@ -891,6 +891,7 @@ export default function ActiPlans() {
                         <BarChart3 className="w-4 h-4 mr-2" />
                         Insights & Recommendations
                       </DropdownMenuItem>
+                      <DropdownMenuSeparator />
                     </>
                   )}
                   {canApprove(campaign) && hasAccess("approve_actiplans") && (
