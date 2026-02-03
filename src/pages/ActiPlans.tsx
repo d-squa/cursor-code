@@ -20,7 +20,7 @@ import {
   Download,
   TrendingUp,
   MoreVertical,
-  ArrowLeft,
+  ArrowLeft,s
   Search,
   BarChart3,
   FileText,
@@ -796,7 +796,7 @@ export default function ActiPlans() {
                   )}
 
                   {/* Extend Campaign - for pushed/live campaigns to add new phases or creatives */}
-                  {canEdit(campaign) &&
+                  {canEdit(campaign)&&
                     ["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
                       <DropdownMenuItem onClick={() => navigate(`/app?campaignId=${campaign.id}&mode=extend`)}>
                         <PlusCircle className="w-4 h-4 mr-2" />
@@ -876,6 +876,19 @@ export default function ActiPlans() {
                       <DropdownMenuSeparator />
                     </>
                   )}
+{hasAccess("change_history_dialog") ? (
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setSelectedCampaign(campaign);
+                        setHistoryDialogOpen(true);
+                      }}
+                    >
+                      <History className="w-4 h-4 mr-2" />
+                      View History
+                    </DropdownMenuItem>
+                  ) : (
+                    <LockedDropdownMenuItem feature="change_history_dialog">View History</LockedDropdownMenuItem>
+                  )}
 
                   {/* Launch/Push menu item - conditional based on status */}
                   {(() => {
@@ -917,20 +930,7 @@ export default function ActiPlans() {
                     }
                     return null;
                   })()}
-                  {hasAccess("change_history_dialog") ? (
-                    <DropdownMenuItem
-                      onClick={() => {
-                        setSelectedCampaign(campaign);
-                        setHistoryDialogOpen(true);
-                      }}
-                    >
-                      <History className="w-4 h-4 mr-2" />
-                      View History
-                    </DropdownMenuItem>
-                  ) : (
-                    <LockedDropdownMenuItem feature="change_history_dialog">View History</LockedDropdownMenuItem>
-                  )}
-
+                  
                   {/* Request Changes - available for all statuses including pushed_to_dsp */}
                   {hasAccess("request_modifications") ? (
                     <DropdownMenuItem
@@ -975,7 +975,18 @@ export default function ActiPlans() {
                       Check Modification Requests
                     </LockedDropdownMenuItem>
                   )}
-
+{/* Operations Analytics - admin only */}
+                  {isAdminOrOwner && hasAccess("operations_analytics") && (
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setSelectedCampaign(campaign);
+                        setAnalyticsOpen(true);
+                      }}
+                    >
+                      <Activity className="w-4 h-4 mr-2" />
+                      Operations Analytics
+                    </DropdownMenuItem>
+                  )}
                   {(canEdit(campaign) ||
                     canApprove(campaign) ||
                     canPushToDSP(campaign) ||
@@ -1023,16 +1034,7 @@ export default function ActiPlans() {
                     </DropdownMenuItem>
                   )}
 
-                  {/* Duplicate ActiPlan */}
-                  {hasAccess("duplicate_actiplans") ? (
-                    <DropdownMenuItem onClick={() => handleDuplicateClick(campaign)} disabled={actionLoading}>
-                      <Copy className="w-4 h-4 mr-2" />
-                      Duplicate ActiPlan
-                    </DropdownMenuItem>
-                  ) : (
-                    <LockedDropdownMenuItem feature="duplicate_actiplans">Duplicate ActiPlan</LockedDropdownMenuItem>
-                  )}
-
+              
                   {canDelete(campaign) && (
                     <>
                       <DropdownMenuSeparator />
