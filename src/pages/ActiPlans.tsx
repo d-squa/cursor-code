@@ -907,13 +907,14 @@ export default function ActiPlans() {
                         <XCircle className="w-4 h-4 mr-2" />
                         Reject ActiPlan
                       </DropdownMenuItem>
+                      <DropdownMenuSeparator />
                     </>
                   )}
                   {canApprove(campaign) && !hasAccess("approve_actiplans") && (
                     <>
                       <LockedDropdownMenuItem feature="approve_actiplans">Approve ActiPlan</LockedDropdownMenuItem>
                       <LockedDropdownMenuItem feature="approve_actiplans">Reject ActiPlan</LockedDropdownMenuItem>
-                      
+                      <DropdownMenuSeparator />
                     </>
                   )}
 
@@ -929,7 +930,6 @@ export default function ActiPlans() {
                     </DropdownMenuItem>
                   ) : (
                     <LockedDropdownMenuItem feature="change_history_dialog">View History</LockedDropdownMenuItem>
-        <DropdownMenuSeparator />
                   )}
 
                   {/* Request Changes - available for all statuses including pushed_to_dsp */}
