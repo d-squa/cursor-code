@@ -865,10 +865,18 @@ export default function ActiPlans() {
                         className="text-destructive"
                       >
                         <XCircle className="w-4 h-4 mr-2" />
-                        Reject Campaign
+                        Reject ActiPlan
                       </DropdownMenuItem>
                     </>
                   )}
+                  {canApprove(campaign) && !hasAccess("approve_actiplans") && (
+                    <>
+                      <LockedDropdownMenuItem feature="approve_actiplans">Approve ActiPlan</LockedDropdownMenuItem>
+                      <LockedDropdownMenuItem feature="approve_actiplans">Reject ActiPlan</LockedDropdownMenuItem>
+                      <DropdownMenuSeparator />
+                    </>
+                  )}
+
                   {/* Launch/Push menu item - conditional based on status */}
                   {(() => {
                     const status = campaign.status || "";
@@ -919,17 +927,12 @@ export default function ActiPlans() {
                       <History className="w-4 h-4 mr-2" />
                       View History
                     </DropdownMenuItem>
+        
                   ) : (
                     <LockedDropdownMenuItem feature="change_history_dialog">View History</LockedDropdownMenuItem>
+        <DropdownMenuSeparator/>
                   )}
-                  {canApprove(campaign) && !hasAccess("approve_actiplans") && (
-                    <>
-                      <LockedDropdownMenuItem feature="approve_actiplans">Approve ActiPlan</LockedDropdownMenuItem>
-                      <LockedDropdownMenuItem feature="approve_actiplans">Reject Campaign</LockedDropdownMenuItem>
-                      <DropdownMenuSeparator />
-                    </>
-                  )}
-
+                  
                   {/* Request Changes - available for all statuses including pushed_to_dsp */}
                   {hasAccess("request_modifications") ? (
                     <DropdownMenuItem
