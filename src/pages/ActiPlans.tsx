@@ -975,18 +975,7 @@ export default function ActiPlans() {
                       Check Modification Requests
                     </LockedDropdownMenuItem>
                   )}
-{/* Operations Analytics - admin only */}
-                  {isAdminOrOwner && hasAccess("operations_analytics") && (
-                    <DropdownMenuItem
-                      onClick={() => {
-                        setSelectedCampaign(campaign);
-                        setAnalyticsOpen(true);
-                      }}
-                    >
-                      <Activity className="w-4 h-4 mr-2" />
-                      Operations Analytics
-                    </DropdownMenuItem>
-                  )}
+
                   {(canEdit(campaign) ||
                     canApprove(campaign) ||
                     canPushToDSP(campaign) ||
@@ -1034,7 +1023,7 @@ export default function ActiPlans() {
                     </DropdownMenuItem>
                   )}
 
-              
+                
                   {canDelete(campaign) && (
                     <>
                       <DropdownMenuSeparator />
