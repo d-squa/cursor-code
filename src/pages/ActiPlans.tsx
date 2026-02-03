@@ -932,7 +932,7 @@ export default function ActiPlans() {
                     <LockedDropdownMenuItem feature="change_history_dialog">View History</LockedDropdownMenuItem>
                   )}
 
-                  {/* Request Changes - available for all statuses including pushed_to_dsp */}
+                  {/* Request Modifications - available for all statuses including pushed_to_dsp */}
                   {hasAccess("request_modifications") ? (
                     <DropdownMenuItem
                       onClick={() => {
@@ -941,10 +941,12 @@ export default function ActiPlans() {
                       }}
                     >
                       <MessageSquare className="w-4 h-4 mr-2" />
-                      Request Changes
+                      Request Modifications
                     </DropdownMenuItem>
                   ) : (
-                    <LockedDropdownMenuItem feature="request_modifications">Request Changes</LockedDropdownMenuItem>
+                    <LockedDropdownMenuItem feature="request_modifications">
+                      Request Modifications
+                    </LockedDropdownMenuItem>
                   )}
                   {/* Activity Log - unified view of requests and actions */}
                   {hasAccess("change_history_dialog") ? (
