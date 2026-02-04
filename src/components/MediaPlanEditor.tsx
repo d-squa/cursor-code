@@ -3186,7 +3186,7 @@ export function MediaPlanEditor() {
           endDate={endDate}
           campaignId={savedCampaignId || undefined}
           basicTargeting={basicTargeting}
-          clientIndustry={clients.find((c) => c.id === selectedClientId)?.industry}
+          clientIndustry={clients.find((c) => c.id === selectedClientId)?.industry || (genericConfig as any)?.clientIndustry}
           onBack={() => setCurrentStep(3)}
           onFinalize={handleLaunch}
         />

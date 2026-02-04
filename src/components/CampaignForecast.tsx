@@ -170,6 +170,65 @@ export function CampaignForecast({
   const [existingLoadComplete, setExistingLoadComplete] = useState(false);
   const [benchmarks, setBenchmarks] = useState<Map<string, BenchmarkData>>(new Map());
   const [isSyncingBenchmarks, setIsSyncingBenchmarks] = useState(false);
+  const [resolvedIndustry, setResolvedIndustry] = useState<string | undefined>(clientIndustry);
+
+  // Resolve industry from ad accounts if not provided directly
+  useEffect(() => {
+    const resolveIndustryFromAdAccounts = async () => {
+      // If industry already provided, use it
+      if (clientIndustry) {
+        setResolvedIndustry(clientIndustry);
+        return;
+      }
+
+      // Try to get industry from ad accounts used in the campaign
+      try {
+        // Collect all ad account IDs from platforms/markets
+        const adAccountIds: string[] = [];
+        for (const platform of platforms) {
+          for (const market of platform.markets) {
+            if (market.adAccountId) {
+              // Normalize: remove 'act_' prefix if present
+              const accountId = market.adAccountId.replace(/^act_/, '');
+              adAccountIds.push(accountId);
+              adAccountIds.push(`act_${accountId}`); // Also check with prefix
+            }
+          }
+        }
+
+        if (adAccountIds.length === 0) {
+          console.log("📊 No ad accounts found in campaign, cannot resolve industry");
+          return;
+        }
+
+        console.log("📊 Resolving industry from ad accounts:", adAccountIds);
+
+        // Query meta_ad_accounts joined with clients to get industry
+        const { data: accounts } = await supabase
+          .from('meta_ad_accounts')
+          .select('account_id, client_id, clients(industry)')
+          .in('account_id', adAccountIds);
+
+        if (accounts && accounts.length > 0) {
+          // Find first account with a linked client that has industry
+          for (const acc of accounts) {
+            const industry = (acc.clients as any)?.industry;
+            if (industry) {
+              console.log(`✅ Resolved industry from ad account ${acc.account_id}: ${industry}`);
+              setResolvedIndustry(industry);
+              return;
+            }
+          }
+        }
+
+        console.log("⚠️ Could not resolve industry from ad accounts");
+      } catch (error) {
+        console.error("Error resolving industry from ad accounts:", error);
+      }
+    };
+
+    resolveIndustryFromAdAccounts();
+  }, [clientIndustry, platforms]);
 
   // Load existing forecast on mount
   useEffect(() => {
@@ -199,8 +258,8 @@ export function CampaignForecast({
     };
 
     const loadBenchmarks = async () => {
-      console.log("📊 Loading benchmarks for industry:", clientIndustry || "(none)");
-      const benchmarkData = await getAllBenchmarks(clientIndustry);
+      console.log("📊 Loading benchmarks for industry:", resolvedIndustry || "(none)");
+      const benchmarkData = await getAllBenchmarks(resolvedIndustry);
       setBenchmarks(benchmarkData);
       console.log(`✅ Loaded ${benchmarkData.size} benchmarks:`);
       
@@ -212,7 +271,7 @@ export function CampaignForecast({
 
     loadExistingForecast();
     loadBenchmarks();
-  }, [campaignId, clientIndustry]);
+  }, [campaignId, resolvedIndustry]);
 
   // Auto-fetch forecasts once existing-load check completes and none exist yet
   useEffect(() => {
@@ -348,8 +407,8 @@ export function CampaignForecast({
 
   // Reload benchmarks after sync
   const reloadBenchmarks = async () => {
-    console.log("📊 Reloading benchmarks for industry:", clientIndustry || "(none)");
-    const benchmarkData = await getAllBenchmarks(clientIndustry);
+    console.log("📊 Reloading benchmarks for industry:", resolvedIndustry || "(none)");
+    const benchmarkData = await getAllBenchmarks(resolvedIndustry);
     setBenchmarks(benchmarkData);
     console.log(`✅ Loaded ${benchmarkData.size} benchmarks`);
     return benchmarkData;
@@ -1142,10 +1201,10 @@ export function CampaignForecast({
                 costPerResult = benchmark.avg_cost_per_result;
                 result = campaignBudget / costPerResult;
                 isBenchmarkBased = true;
-                console.log(`✓ Using benchmark CPR (phase) for ${clientIndustry}/${market.name}/${optimizationGoal}: $${costPerResult.toFixed(2)}`);
+                console.log(`✓ Using benchmark CPR (phase) for ${resolvedIndustry}/${market.name}/${optimizationGoal}: $${costPerResult.toFixed(2)}`);
               } else {
                 costPerResult = result > 0 ? campaignBudget / result : 0;
-                console.log(`ℹ No benchmark found for ${clientIndustry || 'no-industry'}/${market.name}/${optimizationGoal} - using estimation`);
+                console.log(`ℹ No benchmark found for ${resolvedIndustry || 'no-industry'}/${market.name}/${optimizationGoal} - using estimation`);
               }
               
               const resultRate = phaseImpressions > 0 ? (result / phaseImpressions) * 100 : 0;
