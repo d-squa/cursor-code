@@ -79,13 +79,19 @@ serve(async (req) => {
     // Helper to strip act_ prefix
     const toNumeric = (v: string) => v.replace(/^act_/i, "");
 
-    const adAccountIdRaw = ((platform?.ad_account_id as string) || "").toString();
+    // Try multiple sources for ad account ID: platform connection, request body
+    const adAccountIdRaw = (
+      (platform?.ad_account_id as string) || 
+      body.adAccountId || 
+      body.ad_account_id || 
+      ""
+    ).toString();
     let adAccountId = toNumeric(adAccountIdRaw);
 
     if (!/^[0-9]{10,}$/.test(adAccountId)) {
-      console.error("Invalid ad account id detected. Raw value:", adAccountIdRaw, "Processed:", adAccountId);
+      console.error("Invalid ad account id detected. Raw value:", adAccountIdRaw, "Processed:", adAccountId, "Platform ID:", connectedPlatformId);
       throw new Error(
-        `Invalid Meta ad account id: "${adAccountIdRaw}". Please select an ad account in Settings.`,
+        `Invalid Meta ad account id: "${adAccountIdRaw}". Please ensure your Meta connection has an ad account selected in Settings > Connections.`,
       );
     }
 
