@@ -482,22 +482,34 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
       if (productSetsRes.error) throw productSetsRes.error;
       if (eventsRes.error) throw eventsRes.error;
 
-      setPixels(pixelsRes.data || []);
-      setPages(pagesRes.data || []);
-      setInstagramAccounts(igRes.data || []);
-      setCatalogs(catalogsRes.data || []);
-      setProductSets(productSetsRes.data || []);
-      setConversionEvents(eventsRes.data || []);
+      // Helper to deduplicate by a unique key field
+      const deduplicateBy = <T extends Record<string, any>>(arr: T[], keyField: string): T[] => {
+        const seen = new Set<string>();
+        return arr.filter((item) => {
+          const key = item[keyField];
+          if (!key || seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+      };
+
+      // Deduplicate all resources by their unique ID fields
+      setPixels(deduplicateBy(pixelsRes.data || [], "pixel_id"));
+      setPages(deduplicateBy(pagesRes.data || [], "page_id"));
+      setInstagramAccounts(deduplicateBy(igRes.data || [], "instagram_account_id"));
+      setCatalogs(deduplicateBy(catalogsRes.data || [], "catalog_id"));
+      setProductSets(deduplicateBy(productSetsRes.data || [], "product_set_id"));
+      setConversionEvents(deduplicateBy(eventsRes.data || [], "event_name"));
       console.log("TikTok Pixels loaded:", tiktokPixelsRes.data?.length || 0, tiktokPixelsRes.data);
       console.log("TikTok Identities loaded:", tiktokIdentitiesRes.data?.length || 0, tiktokIdentitiesRes.data);
       console.log("TikTok Catalogs loaded:", tiktokCatalogsRes.data?.length || 0, tiktokCatalogsRes.data);
       console.log("TikTok Product Sets loaded:", tiktokProductSetsRes.data?.length || 0, tiktokProductSetsRes.data);
       console.log("TikTok Apps loaded:", tiktokAppsRes.data?.length || 0, tiktokAppsRes.data);
-      setTiktokPixels(tiktokPixelsRes.data || []);
-      setTiktokIdentities(tiktokIdentitiesRes.data || []);
-      setTiktokCatalogs(tiktokCatalogsRes.data || []);
-      setTiktokProductSets(tiktokProductSetsRes.data || []);
-      setTiktokApps(tiktokAppsRes.data || []);
+      setTiktokPixels(deduplicateBy(tiktokPixelsRes.data || [], "pixel_id"));
+      setTiktokIdentities(deduplicateBy(tiktokIdentitiesRes.data || [], "identity_id"));
+      setTiktokCatalogs(deduplicateBy(tiktokCatalogsRes.data || [], "catalog_id"));
+      setTiktokProductSets(deduplicateBy(tiktokProductSetsRes.data || [], "product_set_id"));
+      setTiktokApps(deduplicateBy(tiktokAppsRes.data || [], "app_id"));
     } catch (error: any) {
       console.error("Error loading data:", error);
       toast.error("Failed to load account defaults");
