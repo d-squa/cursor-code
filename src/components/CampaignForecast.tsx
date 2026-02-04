@@ -569,6 +569,8 @@ export function CampaignForecast({
             countries: [marketCode],
             budget,
             strategyFocus,
+            // Ad Account ID from market configuration (REQUIRED)
+            adAccountId: market.adAccountId,
             // Add campaign configuration from market
             isCBOEnabled: market.isCBOEnabled || false,
             isLifetimeBudget: market.isLifetimeBudget || false,
