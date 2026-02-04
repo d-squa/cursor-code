@@ -1061,9 +1061,27 @@ export function PlatformMarketBudgetSelector({
     );
   };
 
+  // Get list of platform types that have connected accounts
+  const getConnectedPlatformTypes = () => {
+    const connectedTypes = new Set<string>();
+    connectedPlatforms.forEach(cp => {
+      if (cp.platform_type) {
+        connectedTypes.add(cp.platform_type.toLowerCase());
+      }
+    });
+    return connectedTypes;
+  };
+
   const getAvailablePlatforms = (currentPlatformId: string) => {
+    const connectedTypes = getConnectedPlatformTypes();
+    
+    // Only show platforms that have connected accounts
     return AVAILABLE_PLATFORMS.filter(
-      ap => !usedPlatformIds.includes(ap.id) || ap.id === currentPlatformId
+      ap => {
+        const isConnected = connectedTypes.has(ap.id);
+        const isNotUsedOrCurrent = !usedPlatformIds.includes(ap.id) || ap.id === currentPlatformId;
+        return isConnected && isNotUsedOrCurrent;
+      }
     );
   };
 
@@ -1141,7 +1159,8 @@ export function PlatformMarketBudgetSelector({
               size="sm"
               onClick={addPlatform}
               className="gap-1"
-              disabled={platforms.length >= AVAILABLE_PLATFORMS.length}
+              disabled={platforms.length >= getConnectedPlatformTypes().size || getConnectedPlatformTypes().size === 0}
+              title={getConnectedPlatformTypes().size === 0 ? "No platforms connected. Connect platforms in Settings → Connectors." : undefined}
             >
               <Plus className="h-3 w-3" />
               Add Platform
