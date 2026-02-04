@@ -46,7 +46,26 @@ export function ExtensionModeProvider({ children }: ExtensionModeProviderProps) 
 
   // Capture snapshot from platforms - call this once when campaign is loaded in extension mode
   const captureSnapshot = useCallback((platforms: PlatformWithMarkets[]) => {
-    if (!isExtensionMode || originalSnapshot) return;
+    console.log('📸 captureSnapshot called', { 
+      isExtensionMode, 
+      hasExistingSnapshot: !!originalSnapshot,
+      platformCount: platforms.length 
+    });
+    
+    if (!isExtensionMode) {
+      console.log('📸 Skipping snapshot - not in extension mode');
+      return;
+    }
+    
+    if (originalSnapshot) {
+      console.log('📸 Skipping snapshot - already captured');
+      return;
+    }
+    
+    if (platforms.length === 0) {
+      console.log('📸 Skipping snapshot - no platforms provided');
+      return;
+    }
 
     const platformIds = new Set<string>();
     const marketIds = new Set<string>();
@@ -67,9 +86,9 @@ export function ExtensionModeProvider({ children }: ExtensionModeProviderProps) 
     });
 
     console.log('📸 Extension mode: Captured original campaign snapshot', {
-      platforms: platformIds.size,
-      markets: marketIds.size,
-      phases: phaseIds.size,
+      platforms: Array.from(platformIds),
+      markets: Array.from(marketIds),
+      phases: Array.from(phaseIds),
       adSets: adSetIds.size,
     });
 
@@ -101,18 +120,25 @@ export function ExtensionModeProvider({ children }: ExtensionModeProviderProps) 
   const canEditItem = useCallback(
     (itemId: string, type: 'platform' | 'market' | 'phase' | 'adset') => {
       if (!isExtensionMode) return true;
+      
+      let isOriginal = false;
       switch (type) {
         case 'platform':
-          return !isOriginalPlatform(itemId);
+          isOriginal = isOriginalPlatform(itemId);
+          break;
         case 'market':
-          return !isOriginalMarket(itemId);
+          isOriginal = isOriginalMarket(itemId);
+          break;
         case 'phase':
-          return !isOriginalPhase(itemId);
+          isOriginal = isOriginalPhase(itemId);
+          break;
         case 'adset':
-          return !isOriginalAdSet(itemId);
-        default:
-          return true;
+          isOriginal = isOriginalAdSet(itemId);
+          break;
       }
+      
+      console.log(`🔒 canEditItem(${itemId}, ${type}):`, { isOriginal, canEdit: !isOriginal });
+      return !isOriginal;
     },
     [isExtensionMode, isOriginalPlatform, isOriginalMarket, isOriginalPhase, isOriginalAdSet]
   );
@@ -120,18 +146,25 @@ export function ExtensionModeProvider({ children }: ExtensionModeProviderProps) 
   const canDeleteItem = useCallback(
     (itemId: string, type: 'platform' | 'market' | 'phase' | 'adset') => {
       if (!isExtensionMode) return true;
+      
+      let isOriginal = false;
       switch (type) {
         case 'platform':
-          return !isOriginalPlatform(itemId);
+          isOriginal = isOriginalPlatform(itemId);
+          break;
         case 'market':
-          return !isOriginalMarket(itemId);
+          isOriginal = isOriginalMarket(itemId);
+          break;
         case 'phase':
-          return !isOriginalPhase(itemId);
+          isOriginal = isOriginalPhase(itemId);
+          break;
         case 'adset':
-          return !isOriginalAdSet(itemId);
-        default:
-          return true;
+          isOriginal = isOriginalAdSet(itemId);
+          break;
       }
+      
+      console.log(`🔒 canDeleteItem(${itemId}, ${type}):`, { isOriginal, canDelete: !isOriginal });
+      return !isOriginal;
     },
     [isExtensionMode, isOriginalPlatform, isOriginalMarket, isOriginalPhase, isOriginalAdSet]
   );

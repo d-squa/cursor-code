@@ -967,10 +967,19 @@ export function MediaPlanEditor() {
 
   // Capture extension mode snapshot once campaign is hydrated
   useEffect(() => {
+    console.log('🔒 Extension mode check:', {
+      isExtensionMode: extensionMode.isExtensionMode,
+      isHydrated,
+      platformCount: platformsWithMarkets.length,
+      hasSnapshot: !!extensionMode.originalSnapshot,
+      urlSearch: location.search
+    });
+    
     if (extensionMode.isExtensionMode && isHydrated && platformsWithMarkets.length > 0 && !extensionMode.originalSnapshot) {
+      console.log('🔒 Triggering snapshot capture...');
       extensionMode.captureSnapshot(platformsWithMarkets);
     }
-  }, [extensionMode.isExtensionMode, isHydrated, platformsWithMarkets, extensionMode.originalSnapshot, extensionMode.captureSnapshot]);
+  }, [extensionMode.isExtensionMode, isHydrated, platformsWithMarkets, extensionMode.originalSnapshot, extensionMode.captureSnapshot, location.search]);
 
   // Fetch first ad account ID for audience fetching
   useEffect(() => {
