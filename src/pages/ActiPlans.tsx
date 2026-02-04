@@ -785,6 +785,36 @@ export default function ActiPlans() {
                         Edit ActiPlan
                       </DropdownMenuItem>
                     )}
+                  {/* Extend Campaign - for pushed/live campaigns to add new phases or creatives */}
+                  {canEdit(campaign) &&
+                    ["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
+                      <DropdownMenuItem onClick={() => navigate(`/app?campaignId=${campaign.id}&mode=extend`)}>
+                        <PlusCircle className="w-4 h-4 mr-2" />
+                        Extend Campaign
+                      </DropdownMenuItem>
+                    )}
+                  {/* Duplicate ActiPlan */}
+                  {hasAccess("duplicate_actiplans") ? (
+                    <DropdownMenuItem onClick={() => handleDuplicateClick(campaign)} disabled={actionLoading}>
+                      <Copy className="w-4 h-4 mr-2" />
+                      Duplicate ActiPlan
+                    </DropdownMenuItem>
+                  ) : (
+                    <LockedDropdownMenuItem feature="duplicate_actiplans">Duplicate ActiPlan</LockedDropdownMenuItem>
+                  )}
+
+                  {canDelete(campaign) && (
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setCampaignToDelete(campaign);
+                        setDeleteDialogOpen(true);
+                      }}
+                      className="text-destructive"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete ActiPlan
+                    </DropdownMenuItem>
+                  )}
                   {/* Launch/Push menu item - conditional based on status */}
                   {(() => {
                     const status = campaign.status || "";
@@ -835,37 +865,6 @@ export default function ActiPlans() {
                     <LockedDropdownMenuItem feature="creative_matching">Mesh Creatives</LockedDropdownMenuItem>
                   )}
 
-                  {/* Extend Campaign - for pushed/live campaigns to add new phases or creatives */}
-                  {canEdit(campaign) &&
-                    ["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
-                      <DropdownMenuItem onClick={() => navigate(`/app?campaignId=${campaign.id}&mode=extend`)}>
-                        <PlusCircle className="w-4 h-4 mr-2" />
-                        Extend Campaign
-                      </DropdownMenuItem>
-                    )}
-                  {/* Duplicate ActiPlan */}
-                  {hasAccess("duplicate_actiplans") ? (
-                    <DropdownMenuItem onClick={() => handleDuplicateClick(campaign)} disabled={actionLoading}>
-                      <Copy className="w-4 h-4 mr-2" />
-                      Duplicate ActiPlan
-                    </DropdownMenuItem>
-                  ) : (
-                    <LockedDropdownMenuItem feature="duplicate_actiplans">Duplicate ActiPlan</LockedDropdownMenuItem>
-                  )}
-
-                  {canDelete(campaign) && (
-                    <DropdownMenuItem
-                      onClick={() => {
-                        setCampaignToDelete(campaign);
-                        setDeleteDialogOpen(true);
-                      }}
-                      className="text-destructive"
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Delete ActiPlan
-                    </DropdownMenuItem>
-                  )}
-
                   {/* View History - after Delete ActiPlan with separator for pushed_to_dsp */}
                   {["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
                     <>
@@ -907,30 +906,34 @@ export default function ActiPlans() {
                   )}
 
                   {/* Approve/Reject - for non-pushed campaigns with approval rights */}
-                  {canApprove(campaign) && hasAccess("approve_actiplans") && !["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
-                    <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => handleApprove(campaign)} disabled={actionLoading}>
-                        <CheckCircle className="w-4 h-4 mr-2" />
-                        Approve ActiPlan
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => handleReject(campaign)}
-                        disabled={actionLoading}
-                        className="text-destructive"
-                      >
-                        <XCircle className="w-4 h-4 mr-2" />
-                        Reject ActiPlan
-                      </DropdownMenuItem>
-                    </>
-                  )}
-                  {canApprove(campaign) && !hasAccess("approve_actiplans") && !["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
-                    <>
-                      <DropdownMenuSeparator />
-                      <LockedDropdownMenuItem feature="approve_actiplans">Approve ActiPlan</LockedDropdownMenuItem>
-                      <LockedDropdownMenuItem feature="approve_actiplans">Reject ActiPlan</LockedDropdownMenuItem>
-                    </>
-                  )}
+                  {canApprove(campaign) &&
+                    hasAccess("approve_actiplans") &&
+                    !["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => handleApprove(campaign)} disabled={actionLoading}>
+                          <CheckCircle className="w-4 h-4 mr-2" />
+                          Approve ActiPlan
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => handleReject(campaign)}
+                          disabled={actionLoading}
+                          className="text-destructive"
+                        >
+                          <XCircle className="w-4 h-4 mr-2" />
+                          Reject ActiPlan
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                  {canApprove(campaign) &&
+                    !hasAccess("approve_actiplans") &&
+                    !["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <LockedDropdownMenuItem feature="approve_actiplans">Approve ActiPlan</LockedDropdownMenuItem>
+                        <LockedDropdownMenuItem feature="approve_actiplans">Reject ActiPlan</LockedDropdownMenuItem>
+                      </>
+                    )}
 
                   {/* Performance section for pushed campaigns */}
                   {["ready_for_push", "pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
@@ -1093,9 +1096,27 @@ export default function ActiPlans() {
                     ))}
 
                   {/* Operations Analytics - admin only */}
-                  {["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && isAdminOrOwner && hasAccess("operations_analytics") && (
-                    <>
-                      <DropdownMenuSeparator />
+                  {["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") &&
+                    isAdminOrOwner &&
+                    hasAccess("operations_analytics") && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setSelectedCampaign(campaign);
+                            setAnalyticsOpen(true);
+                          }}
+                        >
+                          <Activity className="w-4 h-4 mr-2" />
+                          Operations Analytics
+                        </DropdownMenuItem>
+                      </>
+                    )}
+
+                  {/* Operations Analytics for non-pushed campaigns */}
+                  {!["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") &&
+                    isAdminOrOwner &&
+                    hasAccess("operations_analytics") && (
                       <DropdownMenuItem
                         onClick={() => {
                           setSelectedCampaign(campaign);
@@ -1105,21 +1126,7 @@ export default function ActiPlans() {
                         <Activity className="w-4 h-4 mr-2" />
                         Operations Analytics
                       </DropdownMenuItem>
-                    </>
-                  )}
-
-                  {/* Operations Analytics for non-pushed campaigns */}
-                  {!["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && isAdminOrOwner && hasAccess("operations_analytics") && (
-                    <DropdownMenuItem
-                      onClick={() => {
-                        setSelectedCampaign(campaign);
-                        setAnalyticsOpen(true);
-                      }}
-                    >
-                      <Activity className="w-4 h-4 mr-2" />
-                      Operations Analytics
-                    </DropdownMenuItem>
-                  )}
+                    )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
