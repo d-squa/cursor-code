@@ -1,7 +1,7 @@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { useState } from "react";
 
 interface Platform {
@@ -45,18 +45,16 @@ export function PlatformSelectionDialog({
         <div className="space-y-4 py-4">
           <div className="space-y-2">
             <Label>Platform</Label>
-            <Select value={selectedPlatform} onValueChange={setSelectedPlatform}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select a platform" />
-              </SelectTrigger>
-              <SelectContent>
-                {availablePlatforms.map((platform) => (
-                  <SelectItem key={platform.id} value={platform.id}>
-                    {platform.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Combobox
+              options={availablePlatforms.map((platform) => ({
+                value: platform.id,
+                label: platform.name
+              }))}
+              value={selectedPlatform}
+              onValueChange={setSelectedPlatform}
+              placeholder="Select a platform"
+              searchPlaceholder="Search platforms..."
+            />
           </div>
         </div>
 
