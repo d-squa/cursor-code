@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { Calendar as CalendarIcon, X } from "lucide-react";
 import { format } from "date-fns";
 import { DateRange } from "react-day-picker";
@@ -59,6 +59,21 @@ export default function DashboardFilters({
     selectedObjective !== 'all' || 
     selectedOptimizationGoal !== 'all' ||
     dateRange !== undefined;
+
+  const objectiveOptions = [
+    { value: 'all', label: 'All Objectives' },
+    ...objectives.map(obj => ({ value: obj, label: obj }))
+  ];
+
+  const optimizationGoalOptions = [
+    { value: 'all', label: 'All Goals' },
+    ...optimizationGoals.map(goal => ({ value: goal, label: goal.replace(/_/g, ' ') }))
+  ];
+
+  const granularityOptions = [
+    { value: 'weekly', label: 'Weekly' },
+    { value: 'monthly', label: 'Monthly' }
+  ];
 
   return (
     <div className="flex flex-wrap items-center gap-3 p-4 bg-card rounded-lg border">
@@ -119,32 +134,26 @@ export default function DashboardFilters({
 
       {/* Objective */}
       {objectives.length > 1 && (
-        <Select value={selectedObjective} onValueChange={onObjectiveChange}>
-          <SelectTrigger className="w-[160px] h-8">
-            <SelectValue placeholder="Objective" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Objectives</SelectItem>
-            {objectives.map((obj) => (
-              <SelectItem key={obj} value={obj} className="capitalize">{obj}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Combobox
+          options={objectiveOptions}
+          value={selectedObjective}
+          onValueChange={onObjectiveChange}
+          placeholder="Objective"
+          searchPlaceholder="Search objectives..."
+          className="w-[160px] h-8"
+        />
       )}
 
       {/* Optimization Goal */}
       {optimizationGoals.length > 1 && (
-        <Select value={selectedOptimizationGoal} onValueChange={onOptimizationGoalChange}>
-          <SelectTrigger className="w-[180px] h-8">
-            <SelectValue placeholder="Optimization Goal" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Goals</SelectItem>
-            {optimizationGoals.map((goal) => (
-              <SelectItem key={goal} value={goal} className="capitalize">{goal.replace(/_/g, ' ')}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Combobox
+          options={optimizationGoalOptions}
+          value={selectedOptimizationGoal}
+          onValueChange={onOptimizationGoalChange}
+          placeholder="Optimization Goal"
+          searchPlaceholder="Search goals..."
+          className="w-[180px] h-8"
+        />
       )}
 
       {/* Date Range */}
@@ -176,15 +185,14 @@ export default function DashboardFilters({
       </Popover>
 
       {/* Granularity */}
-      <Select value={granularity} onValueChange={(v) => onGranularityChange(v as 'weekly' | 'monthly')}>
-        <SelectTrigger className="w-[110px] h-8">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="weekly">Weekly</SelectItem>
-          <SelectItem value="monthly">Monthly</SelectItem>
-        </SelectContent>
-      </Select>
+      <Combobox
+        options={granularityOptions}
+        value={granularity}
+        onValueChange={(v) => onGranularityChange(v as 'weekly' | 'monthly')}
+        placeholder="Granularity"
+        searchPlaceholder="Search..."
+        className="w-[110px] h-8"
+      />
 
       {/* Clear Filters */}
       {hasActiveFilters && (

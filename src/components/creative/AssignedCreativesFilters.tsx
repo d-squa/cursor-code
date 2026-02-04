@@ -1,7 +1,6 @@
 // Filters for assigned creatives view
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Combobox } from '@/components/ui/combobox';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { X, Filter } from 'lucide-react';
 
 export interface CreativeFilters {
@@ -48,6 +47,36 @@ export function AssignedCreativesFilters({
     });
   };
 
+  const platformOptions = [
+    { value: 'all', label: 'All Platforms' },
+    ...availableOptions.platforms.map(p => ({ value: p, label: p }))
+  ];
+
+  const marketOptions = [
+    { value: 'all', label: 'All Markets' },
+    ...availableOptions.markets.map(m => ({ value: m, label: m }))
+  ];
+
+  const phaseOptions = [
+    { value: 'all', label: 'All Phases' },
+    ...availableOptions.phases.map(p => ({ value: p, label: p }))
+  ];
+
+  const adSetOptions = [
+    { value: 'all', label: 'All Ad Sets' },
+    ...availableOptions.adSets.map(a => ({ value: a, label: a }))
+  ];
+
+  const statusOptions = [
+    { value: 'all', label: 'All Status' },
+    ...availableOptions.statuses.map(s => ({ value: s, label: s }))
+  ];
+
+  const mediaTypeOptions = [
+    { value: 'all', label: 'All Media' },
+    ...availableOptions.mediaTypes.map(t => ({ value: t, label: t }))
+  ];
+
   return (
     <div className="flex items-center gap-2 flex-wrap">
       <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -55,77 +84,59 @@ export function AssignedCreativesFilters({
         <span>Filters:</span>
       </div>
 
-      <Select value={filters.platform || 'all'} onValueChange={(v) => updateFilter('platform', v)}>
-        <SelectTrigger className="w-[120px] h-8 text-xs">
-          <SelectValue placeholder="Platform" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All Platforms</SelectItem>
-          {availableOptions.platforms.map(p => (
-            <SelectItem key={p} value={p}>{p}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <Combobox
+        options={platformOptions}
+        value={filters.platform || 'all'}
+        onValueChange={(v) => updateFilter('platform', v)}
+        placeholder="Platform"
+        searchPlaceholder="Search platforms..."
+        className="w-[120px] h-8 text-xs"
+      />
 
-      <Select value={filters.market || 'all'} onValueChange={(v) => updateFilter('market', v)}>
-        <SelectTrigger className="w-[110px] h-8 text-xs">
-          <SelectValue placeholder="Market" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All Markets</SelectItem>
-          {availableOptions.markets.map(m => (
-            <SelectItem key={m} value={m}>{m}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <Combobox
+        options={marketOptions}
+        value={filters.market || 'all'}
+        onValueChange={(v) => updateFilter('market', v)}
+        placeholder="Market"
+        searchPlaceholder="Search markets..."
+        className="w-[110px] h-8 text-xs"
+      />
 
-      <Select value={filters.phase || 'all'} onValueChange={(v) => updateFilter('phase', v)}>
-        <SelectTrigger className="w-[110px] h-8 text-xs">
-          <SelectValue placeholder="Phase" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All Phases</SelectItem>
-          {availableOptions.phases.map(p => (
-            <SelectItem key={p} value={p}>{p}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <Combobox
+        options={phaseOptions}
+        value={filters.phase || 'all'}
+        onValueChange={(v) => updateFilter('phase', v)}
+        placeholder="Phase"
+        searchPlaceholder="Search phases..."
+        className="w-[110px] h-8 text-xs"
+      />
 
-      <Select value={filters.adSet || 'all'} onValueChange={(v) => updateFilter('adSet', v)}>
-        <SelectTrigger className="w-[140px] h-8 text-xs">
-          <SelectValue placeholder="Ad Set" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All Ad Sets</SelectItem>
-          {availableOptions.adSets.map(a => (
-            <SelectItem key={a} value={a}>{a}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <Combobox
+        options={adSetOptions}
+        value={filters.adSet || 'all'}
+        onValueChange={(v) => updateFilter('adSet', v)}
+        placeholder="Ad Set"
+        searchPlaceholder="Search ad sets..."
+        className="w-[140px] h-8 text-xs"
+      />
 
-      <Select value={filters.status || 'all'} onValueChange={(v) => updateFilter('status', v)}>
-        <SelectTrigger className="w-[100px] h-8 text-xs">
-          <SelectValue placeholder="Status" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All Status</SelectItem>
-          {availableOptions.statuses.map(s => (
-            <SelectItem key={s} value={s}>{s}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <Combobox
+        options={statusOptions}
+        value={filters.status || 'all'}
+        onValueChange={(v) => updateFilter('status', v)}
+        placeholder="Status"
+        searchPlaceholder="Search status..."
+        className="w-[100px] h-8 text-xs"
+      />
 
-      <Select value={filters.mediaType || 'all'} onValueChange={(v) => updateFilter('mediaType', v)}>
-        <SelectTrigger className="w-[100px] h-8 text-xs">
-          <SelectValue placeholder="Media" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All Media</SelectItem>
-          {availableOptions.mediaTypes.map(t => (
-            <SelectItem key={t} value={t}>{t}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <Combobox
+        options={mediaTypeOptions}
+        value={filters.mediaType || 'all'}
+        onValueChange={(v) => updateFilter('mediaType', v)}
+        placeholder="Media"
+        searchPlaceholder="Search media types..."
+        className="w-[100px] h-8 text-xs"
+      />
 
       {activeFilterCount > 0 && (
         <Button variant="ghost" size="sm" onClick={clearAllFilters} className="h-8 px-2 text-xs">
