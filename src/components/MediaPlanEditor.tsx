@@ -721,6 +721,11 @@ export function MediaPlanEditor() {
       setTotalBudget(String(c.total_budget ?? ""));
       setStartDate(c.start_date || "");
       setEndDate(c.end_date || "");
+      
+      // Restore selected client ID from generic_config
+      if (c.generic_config?.selectedClientId) {
+        setSelectedClientId(c.generic_config.selectedClientId);
+      }
 
       // Restore full genericConfig
       if (c.generic_config && typeof c.generic_config === "object") {
@@ -1146,6 +1151,8 @@ export function MediaPlanEditor() {
               campaigns: genericConfig.campaigns,
               targeting: genericConfig.targeting,
               basicTargeting: basicTargeting, // Include basicTargeting to prevent it from being overwritten
+              selectedClientId: selectedClientId,
+              clientIndustry: clients.find((c) => c.id === selectedClientId)?.industry,
             } as any,
           })
           .eq("id", savedCampaignId);
@@ -1169,6 +1176,8 @@ export function MediaPlanEditor() {
     savedCampaignId,
     user,
     isHydrated,
+    selectedClientId,
+    clients,
   ]);
 
   const isActivationDetailsComplete = () => {
@@ -1348,6 +1357,8 @@ export function MediaPlanEditor() {
             campaigns: genericConfig.campaigns,
             targeting: genericConfig.targeting,
             basicTargeting: basicTargeting,
+            selectedClientId: selectedClientId,
+            clientIndustry: clients.find((c) => c.id === selectedClientId)?.industry,
           } as any,
           status: "draft",
         } as any)
@@ -1714,6 +1725,8 @@ export function MediaPlanEditor() {
             campaigns: genericConfig.campaigns,
             targeting: genericConfig.targeting,
             basicTargeting: basicTargeting,
+            selectedClientId: selectedClientId,
+            clientIndustry: clients.find((c) => c.id === selectedClientId)?.industry,
           } as any,
           status: "draft",
         } as any)
