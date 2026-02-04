@@ -1,8 +1,7 @@
 import { useState, useMemo } from 'react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Combobox } from '@/components/ui/combobox';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Filter, X, Search, Check } from 'lucide-react';
@@ -215,65 +214,65 @@ export function OverviewFiltersBar({
         </PopoverContent>
       </Popover>
 
-      <Select value={filters.status || 'all'} onValueChange={(v) => updateFilter('status', v)}>
-        <SelectTrigger className="w-[120px] h-8 text-xs">
-          <SelectValue placeholder="Status" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All Status</SelectItem>
-          {statusOptions.map(opt => (
-            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <Combobox
+        options={[
+          { value: 'all', label: 'All Status' },
+          ...statusOptions.map(opt => ({ value: opt.value, label: opt.label }))
+        ]}
+        value={filters.status || 'all'}
+        onValueChange={(v) => updateFilter('status', v)}
+        placeholder="Status"
+        searchPlaceholder="Search status..."
+        className="w-[120px] h-8 text-xs"
+      />
 
-      <Select value={filters.pacingStatus || 'all'} onValueChange={(v) => updateFilter('pacingStatus', v)}>
-        <SelectTrigger className="w-[130px] h-8 text-xs">
-          <SelectValue placeholder="Pacing" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All Pacing</SelectItem>
-          {pacingStatusOptions.map(opt => (
-            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <Combobox
+        options={[
+          { value: 'all', label: 'All Pacing' },
+          ...pacingStatusOptions.map(opt => ({ value: opt.value, label: opt.label }))
+        ]}
+        value={filters.pacingStatus || 'all'}
+        onValueChange={(v) => updateFilter('pacingStatus', v)}
+        placeholder="Pacing"
+        searchPlaceholder="Search pacing..."
+        className="w-[130px] h-8 text-xs"
+      />
 
-      <Select value={filters.platform || 'all'} onValueChange={(v) => updateFilter('platform', v)}>
-        <SelectTrigger className="w-[120px] h-8 text-xs">
-          <SelectValue placeholder="Platform" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All Platforms</SelectItem>
-          {availablePlatforms.map(p => (
-            <SelectItem key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <Combobox
+        options={[
+          { value: 'all', label: 'All Platforms' },
+          ...availablePlatforms.map(p => ({ value: p, label: p.charAt(0).toUpperCase() + p.slice(1) }))
+        ]}
+        value={filters.platform || 'all'}
+        onValueChange={(v) => updateFilter('platform', v)}
+        placeholder="Platform"
+        searchPlaceholder="Search platforms..."
+        className="w-[120px] h-8 text-xs"
+      />
 
-      <Select value={filters.performanceStatus || 'all'} onValueChange={(v) => updateFilter('performanceStatus', v)}>
-        <SelectTrigger className="w-[180px] h-8 text-xs">
-          <SelectValue placeholder="Performance" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All Performance</SelectItem>
-          {generatePerformanceOptions(availablePlatforms).map(opt => (
-            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <Combobox
+        options={[
+          { value: 'all', label: 'All Performance' },
+          ...generatePerformanceOptions(availablePlatforms).map(opt => ({ value: opt.value, label: opt.label }))
+        ]}
+        value={filters.performanceStatus || 'all'}
+        onValueChange={(v) => updateFilter('performanceStatus', v)}
+        placeholder="Performance"
+        searchPlaceholder="Search performance..."
+        className="w-[180px] h-8 text-xs"
+      />
 
-      <Select value={filters.activityStatus || 'all'} onValueChange={(v) => updateFilter('activityStatus', v)}>
-        <SelectTrigger className="w-[180px] h-8 text-xs">
-          <SelectValue placeholder="Activity Status" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">All Activity</SelectItem>
-          {activityStatusOptions.map(opt => (
-            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <Combobox
+        options={[
+          { value: 'all', label: 'All Activity' },
+          ...activityStatusOptions.map(opt => ({ value: opt.value, label: opt.label }))
+        ]}
+        value={filters.activityStatus || 'all'}
+        onValueChange={(v) => updateFilter('activityStatus', v)}
+        placeholder="Activity Status"
+        searchPlaceholder="Search activity..."
+        className="w-[180px] h-8 text-xs"
+      />
 
       {activeFilterCount > 0 && (
         <Button variant="ghost" size="sm" onClick={clearAllFilters} className="h-8 px-2 text-xs">
