@@ -6,7 +6,9 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, X, GripVertical, Link2, ChevronDown, Copy, Trash2, ExternalLink } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Plus, X, GripVertical, Link2, ChevronDown, Copy, Trash2, ExternalLink, Lock } from "lucide-react";
+import { useExtensionModeOptional } from "@/contexts/ExtensionModeContext";
 import MetaAppSearch from "./MetaAppSearch";
 import { Phase, AdSetSplitDimension, AdSetConfig } from "@/types/mediaplan";
 import { format, addDays, differenceInDays, parseISO } from "date-fns";
@@ -171,6 +173,7 @@ export function PhaseScheduler({
   activationContext,
   onTaxonomyValidationChange
 }: PhaseSchedulerProps) {
+  const extensionMode = useExtensionModeOptional();
   const [dragging, setDragging] = useState<DraggingState | null>(null);
   const [editingName, setEditingName] = useState<string | null>(null);
   const [editingBudget, setEditingBudget] = useState<string | null>(null);
@@ -1352,16 +1355,37 @@ export function PhaseScheduler({
                     >
                       <Copy className="h-3 w-3" />
                     </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 w-6 p-0 hover:bg-destructive/20"
-                      onClick={() => removePhase(phase.id)}
-                      title="Delete phase"
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
+                    {extensionMode.canDeleteItem(phase.id, 'phase') ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 hover:bg-destructive/20"
+                        onClick={() => removePhase(phase.id)}
+                        title="Delete phase"
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    ) : (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0 opacity-30 cursor-not-allowed"
+                              disabled
+                            >
+                              <Lock className="h-3 w-3" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            Original phases cannot be deleted in extension mode
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
                   </div>
                 </div>
 
