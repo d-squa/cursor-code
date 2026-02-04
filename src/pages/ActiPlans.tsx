@@ -1026,32 +1026,6 @@ export default function ActiPlans() {
                       Operations Analytics
                     </DropdownMenuItem>
                   )}
-
-                  {/* Duplicate ActiPlan */}
-                  {hasAccess("duplicate_actiplans") ? (
-                    <DropdownMenuItem onClick={() => handleDuplicateClick(campaign)} disabled={actionLoading}>
-                      <Copy className="w-4 h-4 mr-2" />
-                      Duplicate ActiPlan
-                    </DropdownMenuItem>
-                  ) : (
-                    <LockedDropdownMenuItem feature="duplicate_actiplans">Duplicate ActiPlan</LockedDropdownMenuItem>
-                  )}
-
-                  {canDelete(campaign) && (
-                    <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onClick={() => {
-                          setCampaignToDelete(campaign);
-                          setDeleteDialogOpen(true);
-                        }}
-                        className="text-destructive"
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Delete ActiPlan
-                      </DropdownMenuItem>
-                    </>
-                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
