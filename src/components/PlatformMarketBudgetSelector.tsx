@@ -1110,43 +1110,6 @@ export function PlatformMarketBudgetSelector({
               type="button"
               variant="outline"
               size="sm"
-              onClick={syncMetaResources}
-              disabled={isSyncing}
-              className="gap-1"
-            >
-              {isSyncing ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <Copy className="h-3 w-3" />
-              )}
-              {isSyncing ? "Syncing..." : "Refresh Meta Data"}
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="gap-1"
-                >
-                  <Copy className="h-3 w-3" />
-                  Load Test Presets
-                  <ChevronDown className="h-3 w-3" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="z-50 bg-background">
-                <DropdownMenuItem onClick={loadTestPresets}>
-                  Multi-Platform Test
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={loadRFPreset}>
-                  Meta R&F Italy
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
               onClick={toggleAllPlatforms}
               className="gap-1"
             >
