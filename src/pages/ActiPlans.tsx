@@ -854,27 +854,88 @@ export default function ActiPlans() {
                   )}
 
                   {canDelete(campaign) && (
-                    <>
-                      <DropdownMenuItem
-                        onClick={() => {
-                          setCampaignToDelete(campaign);
-                          setDeleteDialogOpen(true);
-                        }}
-                        className="text-destructive"
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Delete ActiPlan
-                      </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setCampaignToDelete(campaign);
+                        setDeleteDialogOpen(true);
+                      }}
+                      className="text-destructive"
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Delete ActiPlan
+                    </DropdownMenuItem>
+                  )}
 
+                  {/* View History - after Delete ActiPlan with separator for pushed_to_dsp */}
+                  {["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
+                    <>
                       <DropdownMenuSeparator />
+                      {hasAccess("change_history_dialog") ? (
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setSelectedCampaign(campaign);
+                            setHistoryDialogOpen(true);
+                          }}
+                        >
+                          <History className="w-4 h-4 mr-2" />
+                          View History
+                        </DropdownMenuItem>
+                      ) : (
+                        <LockedDropdownMenuItem feature="change_history_dialog">View History</LockedDropdownMenuItem>
+                      )}
                     </>
                   )}
 
+                  {/* View History for non-pushed campaigns */}
+                  {!["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
+                    <>
+                      <DropdownMenuSeparator />
+                      {hasAccess("change_history_dialog") ? (
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setSelectedCampaign(campaign);
+                            setHistoryDialogOpen(true);
+                          }}
+                        >
+                          <History className="w-4 h-4 mr-2" />
+                          View History
+                        </DropdownMenuItem>
+                      ) : (
+                        <LockedDropdownMenuItem feature="change_history_dialog">View History</LockedDropdownMenuItem>
+                      )}
+                    </>
+                  )}
+
+                  {/* Approve/Reject - for non-pushed campaigns with approval rights */}
+                  {canApprove(campaign) && hasAccess("approve_actiplans") && !["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => handleApprove(campaign)} disabled={actionLoading}>
+                        <CheckCircle className="w-4 h-4 mr-2" />
+                        Approve ActiPlan
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => handleReject(campaign)}
+                        disabled={actionLoading}
+                        className="text-destructive"
+                      >
+                        <XCircle className="w-4 h-4 mr-2" />
+                        Reject ActiPlan
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                  {canApprove(campaign) && !hasAccess("approve_actiplans") && !["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <LockedDropdownMenuItem feature="approve_actiplans">Approve ActiPlan</LockedDropdownMenuItem>
+                      <LockedDropdownMenuItem feature="approve_actiplans">Reject ActiPlan</LockedDropdownMenuItem>
+                    </>
+                  )}
+
+                  {/* Performance section for pushed campaigns */}
                   {["ready_for_push", "pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
                     <>
-                      {(canEdit(campaign) || canApprove(campaign) || canPushToDSP(campaign)) && (
-                        <DropdownMenuSeparator />
-                      )}
+                      <DropdownMenuSeparator />
                       <DropdownMenuItem
                         onClick={() => {
                           navigate(`/actiplans/${campaign.id}/report`);
@@ -891,111 +952,128 @@ export default function ActiPlans() {
                         <BarChart3 className="w-4 h-4 mr-2" />
                         Insights & Recommendations
                       </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                    </>
-                  )}
-                  {canApprove(campaign) && hasAccess("approve_actiplans") && (
-                    <>
-                      <DropdownMenuItem onClick={() => handleApprove(campaign)} disabled={actionLoading}>
-                        <CheckCircle className="w-4 h-4 mr-2" />
-                        Approve ActiPlan
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => handleReject(campaign)}
-                        disabled={actionLoading}
-                        className="text-destructive"
-                      >
-                        <XCircle className="w-4 h-4 mr-2" />
-                        Reject ActiPlan
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                    </>
-                  )}
-                  {canApprove(campaign) && !hasAccess("approve_actiplans") && (
-                    <>
-                      <LockedDropdownMenuItem feature="approve_actiplans">Approve ActiPlan</LockedDropdownMenuItem>
-                      <LockedDropdownMenuItem feature="approve_actiplans">Reject ActiPlan</LockedDropdownMenuItem>
-                      <DropdownMenuSeparator />
                     </>
                   )}
 
-                  {hasAccess("change_history_dialog") ? (
-                    <DropdownMenuItem
-                      onClick={() => {
-                        setSelectedCampaign(campaign);
-                        setHistoryDialogOpen(true);
-                      }}
-                    >
-                      <History className="w-4 h-4 mr-2" />
-                      View History
-                    </DropdownMenuItem>
-                  ) : (
-                    <LockedDropdownMenuItem feature="change_history_dialog">View History</LockedDropdownMenuItem>
-                  )}
-
-                  {/* Request Modifications - available for all statuses including pushed_to_dsp */}
-                  {hasAccess("request_modifications") ? (
-                    <DropdownMenuItem
-                      onClick={() => {
-                        setSelectedCampaign(campaign);
-                        setModificationDialogOpen(true);
-                      }}
-                    >
-                      <MessageSquare className="w-4 h-4 mr-2" />
-                      Request Modifications
-                    </DropdownMenuItem>
-                  ) : (
-                    <LockedDropdownMenuItem feature="request_modifications">
-                      Request Modifications
-                    </LockedDropdownMenuItem>
-                  )}
-                  {/* Activity Log - unified view of requests and actions */}
-                  {hasAccess("change_history_dialog") ? (
-                    <DropdownMenuItem
-                      onClick={() => {
-                        setSelectedCampaign(campaign);
-                        setActivityLogViewOpen(true);
-                      }}
-                    >
-                      <Activity className="w-4 h-4 mr-2" />
-                      Activity Log
-                    </DropdownMenuItem>
-                  ) : (
-                    <LockedDropdownMenuItem feature="change_history_dialog">Activity Log</LockedDropdownMenuItem>
-                  )}
-
-                  {hasAccess("modification_status_tracking") ? (
-                    <DropdownMenuItem
-                      onClick={() => {
-                        setSelectedCampaign(campaign);
-                        setModificationRequestsViewOpen(true);
-                      }}
-                    >
-                      <MessageSquare className="w-4 h-4 mr-2" />
-                      Check Modification Requests
-                    </DropdownMenuItem>
-                  ) : (
-                    <LockedDropdownMenuItem feature="modification_status_tracking">
-                      Check Modification Requests
-                    </LockedDropdownMenuItem>
-                  )}
-
-                  {(canEdit(campaign) ||
-                    canApprove(campaign) ||
-                    canPushToDSP(campaign) ||
-                    campaign.status === "live") && <DropdownMenuSeparator />}
-
-                  {/* Log an Action - only for post-push campaigns */}
+                  {/* Request Modifications and Check Modification Requests */}
                   {["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
-                    <DropdownMenuItem
-                      onClick={() => {
-                        setSelectedCampaign(campaign);
-                        setLogActionDialogOpen(true);
-                      }}
-                    >
-                      <ClipboardList className="w-4 h-4 mr-2" />
-                      Log an Action
-                    </DropdownMenuItem>
+                    <>
+                      <DropdownMenuSeparator />
+                      {hasAccess("request_modifications") ? (
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setSelectedCampaign(campaign);
+                            setModificationDialogOpen(true);
+                          }}
+                        >
+                          <MessageSquare className="w-4 h-4 mr-2" />
+                          Request Modifications
+                        </DropdownMenuItem>
+                      ) : (
+                        <LockedDropdownMenuItem feature="request_modifications">
+                          Request Modifications
+                        </LockedDropdownMenuItem>
+                      )}
+                      {hasAccess("modification_status_tracking") ? (
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setSelectedCampaign(campaign);
+                            setModificationRequestsViewOpen(true);
+                          }}
+                        >
+                          <MessageSquare className="w-4 h-4 mr-2" />
+                          Check Modification Requests
+                        </DropdownMenuItem>
+                      ) : (
+                        <LockedDropdownMenuItem feature="modification_status_tracking">
+                          Check Modification Requests
+                        </LockedDropdownMenuItem>
+                      )}
+                    </>
+                  )}
+
+                  {/* Request Modifications for non-pushed campaigns */}
+                  {!["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
+                    <>
+                      {hasAccess("request_modifications") ? (
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setSelectedCampaign(campaign);
+                            setModificationDialogOpen(true);
+                          }}
+                        >
+                          <MessageSquare className="w-4 h-4 mr-2" />
+                          Request Modifications
+                        </DropdownMenuItem>
+                      ) : (
+                        <LockedDropdownMenuItem feature="request_modifications">
+                          Request Modifications
+                        </LockedDropdownMenuItem>
+                      )}
+                      {hasAccess("modification_status_tracking") ? (
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setSelectedCampaign(campaign);
+                            setModificationRequestsViewOpen(true);
+                          }}
+                        >
+                          <MessageSquare className="w-4 h-4 mr-2" />
+                          Check Modification Requests
+                        </DropdownMenuItem>
+                      ) : (
+                        <LockedDropdownMenuItem feature="modification_status_tracking">
+                          Check Modification Requests
+                        </LockedDropdownMenuItem>
+                      )}
+                    </>
+                  )}
+
+                  {/* Log an Action and Activity Log for pushed campaigns */}
+                  {["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setSelectedCampaign(campaign);
+                          setLogActionDialogOpen(true);
+                        }}
+                      >
+                        <ClipboardList className="w-4 h-4 mr-2" />
+                        Log an Action
+                      </DropdownMenuItem>
+                      {hasAccess("change_history_dialog") ? (
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setSelectedCampaign(campaign);
+                            setActivityLogViewOpen(true);
+                          }}
+                        >
+                          <Activity className="w-4 h-4 mr-2" />
+                          Activity Log
+                        </DropdownMenuItem>
+                      ) : (
+                        <LockedDropdownMenuItem feature="change_history_dialog">Activity Log</LockedDropdownMenuItem>
+                      )}
+                    </>
+                  )}
+
+                  {/* Activity Log for non-pushed campaigns */}
+                  {!["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && (
+                    <>
+                      {hasAccess("change_history_dialog") ? (
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setSelectedCampaign(campaign);
+                            setActivityLogViewOpen(true);
+                          }}
+                        >
+                          <Activity className="w-4 h-4 mr-2" />
+                          Activity Log
+                        </DropdownMenuItem>
+                      ) : (
+                        <LockedDropdownMenuItem feature="change_history_dialog">Activity Log</LockedDropdownMenuItem>
+                      )}
+                    </>
                   )}
 
                   {/* Submit Request - for operational requests (Enterprise+ only) */}
@@ -1015,7 +1093,23 @@ export default function ActiPlans() {
                     ))}
 
                   {/* Operations Analytics - admin only */}
-                  {isAdminOrOwner && hasAccess("operations_analytics") && (
+                  {["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && isAdminOrOwner && hasAccess("operations_analytics") && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setSelectedCampaign(campaign);
+                          setAnalyticsOpen(true);
+                        }}
+                      >
+                        <Activity className="w-4 h-4 mr-2" />
+                        Operations Analytics
+                      </DropdownMenuItem>
+                    </>
+                  )}
+
+                  {/* Operations Analytics for non-pushed campaigns */}
+                  {!["pushed_to_dsp", "partially_pushed", "live"].includes(campaign.status || "") && isAdminOrOwner && hasAccess("operations_analytics") && (
                     <DropdownMenuItem
                       onClick={() => {
                         setSelectedCampaign(campaign);
