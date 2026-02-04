@@ -21,7 +21,19 @@ import { PhaseAudienceSelector, SelectedAudience } from "./PhaseAudienceSelector
 import { CampaignForecast } from "./CampaignForecast";
 import { PhaseScheduler } from "./PhaseScheduler";
 import { getDefaultPhases, generateAutoDetectPhases } from "@/utils/funnelPhases";
-import { Calendar, Download, Rocket, Loader2, ChevronDown, ChevronUp, Copy, Trash2, Plus, Lock, Wand2 } from "lucide-react";
+import {
+  Calendar,
+  Download,
+  Rocket,
+  Loader2,
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  Trash2,
+  Plus,
+  Lock,
+  Wand2,
+} from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
@@ -69,7 +81,7 @@ export function MediaPlanEditor() {
   const location = useLocation();
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedClientId, setSelectedClientId] = useState<string>("");
-  const [clients, setClients] = useState<Array<{id: string; name: string; industry?: string}>>([]);
+  const [clients, setClients] = useState<Array<{ id: string; name: string; industry?: string }>>([]);
   const [campaignName, setCampaignName] = useState<string>("");
   const [boNumber, setBoNumber] = useState<string>("");
   const [totalBudget, setTotalBudget] = useState<string>("");
@@ -81,7 +93,7 @@ export function MediaPlanEditor() {
   const lastCampaignIdRef = useRef<string | null>(null);
   // Mutex to prevent concurrent draft creation (race condition fix)
   const draftCreationInProgressRef = useRef<boolean>(false);
-const [genericConfig, setGenericConfig] = useState<GenericConfig>({
+  const [genericConfig, setGenericConfig] = useState<GenericConfig>({
     strategy: "manual",
     strategyFocus: "auto",
     targeting: {
@@ -97,12 +109,12 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
       websiteAudience: "",
       keywordList: "",
       customerList: "",
-      lookalikeAudience: ""
-    }
+      lookalikeAudience: "",
+    },
   });
   const [platformsWithMarkets, setPlatformsWithMarkets] = useState<PlatformWithMarkets[]>([]);
   const [globalFunnel, setGlobalFunnel] = useState<FunnelStage[]>([]);
-  
+
   // Guard: skip the next generic→market phase sync (prevents circular clobber of budgetType, etc.)
   const skipPhaseSyncRef = useRef(false);
   const [expandedPlatforms, setExpandedPlatforms] = useState<Record<string, boolean>>({});
@@ -110,57 +122,57 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
   const [bulkPlatform, setBulkPlatform] = useState<PlatformWithMarkets | null>(null);
   const [creativeMatcherOpen, setCreativeMatcherOpen] = useState(false);
   const [teamName, setTeamName] = useState<string>("");
-  
+
   // Time tracking for operations reports (hidden from user)
-  useActiplanTimeTracking({ 
-    campaignId: savedCampaignId, 
-    enabled: !!savedCampaignId && !!user?.id 
+  useActiplanTimeTracking({
+    campaignId: savedCampaignId,
+    enabled: !!savedCampaignId && !!user?.id,
   });
-  
+
   // Taxonomy validation state - track per market
-  const [taxonomyValidation, setTaxonomyValidation] = useState<Record<string, { isComplete: boolean; missingCount: number }>>({});
-  
+  const [taxonomyValidation, setTaxonomyValidation] = useState<
+    Record<string, { isComplete: boolean; missingCount: number }>
+  >({});
+
   // Helper to update taxonomy validation for a specific market
   const handleMarketTaxonomyValidation = (marketId: string, isComplete: boolean, missingCount: number) => {
-    setTaxonomyValidation(prev => ({
+    setTaxonomyValidation((prev) => ({
       ...prev,
-      [marketId]: { isComplete, missingCount }
+      [marketId]: { isComplete, missingCount },
     }));
   };
-  
+
   // Check if all taxonomy fields are complete across all markets
   const isTaxonomyComplete = () => {
     // If no validation data, assume complete (no templates configured)
     if (Object.keys(taxonomyValidation).length === 0) return true;
-    return Object.values(taxonomyValidation).every(v => v.isComplete);
+    return Object.values(taxonomyValidation).every((v) => v.isComplete);
   };
-  
+
   const getTotalMissingTaxonomyFields = () => {
     return Object.values(taxonomyValidation).reduce((sum, v) => sum + v.missingCount, 0);
   };
-  
+
   // Load team name for current user
   useEffect(() => {
     if (user) {
       const loadTeamName = async () => {
-        const { data } = await supabase
-          .from("teams")
-          .select("name")
-          .eq("owner_id", user.id)
-          .single();
+        const { data } = await supabase.from("teams").select("name").eq("owner_id", user.id).single();
         if (data?.name) setTeamName(data.name);
       };
       loadTeamName();
     }
   }, [user]);
-  
+
   // Load clients for selection
   useEffect(() => {
     if (user) {
       const loadClients = async () => {
         const { data } = await supabase
           .from("clients")
-          .select("id, name, industry, platforms, markets, default_age_min, default_age_max, default_gender, default_devices, default_languages")
+          .select(
+            "id, name, industry, platforms, markets, default_age_min, default_age_max, default_gender, default_devices, default_languages",
+          )
           .order("name");
         setClients(data || []);
       };
@@ -170,67 +182,67 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
 
   // Auto-populate when client is selected (and required fields are filled)
   useEffect(() => {
-    console.log('🔍 Client selection effect triggered', {
+    console.log("🔍 Client selection effect triggered", {
       selectedClientId,
       hasBudget: !!totalBudget,
       hasStartDate: !!startDate,
       hasEndDate: !!endDate,
-      isHydrated
+      isHydrated,
     });
-    
+
     if (selectedClientId && totalBudget && startDate && endDate && isHydrated) {
-      console.log('✅ All conditions met, auto-populating from client...');
+      console.log("✅ All conditions met, auto-populating from client...");
       autoPopulateFromClient();
     } else if (selectedClientId && (!totalBudget || !startDate || !endDate)) {
-      console.log('⚠️ Client selected but missing required fields');
+      console.log("⚠️ Client selected but missing required fields");
       toast.error("Please fill in budget, start date, and end date first");
     }
   }, [selectedClientId, totalBudget, startDate, endDate, isHydrated]);
 
   const autoPopulateFromClient = async () => {
-    const selectedClient = clients.find(c => c.id === selectedClientId) as any;
+    const selectedClient = clients.find((c) => c.id === selectedClientId) as any;
     if (!selectedClient) return;
 
-    console.log('🔄 Auto-populating from client:', selectedClient);
+    console.log("🔄 Auto-populating from client:", selectedClient);
 
     const clientPlatforms = Array.isArray(selectedClient.platforms) ? selectedClient.platforms : [];
     const clientMarkets = Array.isArray(selectedClient.markets) ? selectedClient.markets : [];
 
-    console.log('Client platforms:', clientPlatforms);
-    console.log('Client markets:', clientMarkets);
+    console.log("Client platforms:", clientPlatforms);
+    console.log("Client markets:", clientMarkets);
 
     // Auto-populate basicTargeting from client's cross-platform defaults
     // Normalize language values to handle legacy numeric IDs
-    const normalizedLanguages = Array.isArray(selectedClient.default_languages) 
+    const normalizedLanguages = Array.isArray(selectedClient.default_languages)
       ? normalizeLanguageValues(selectedClient.default_languages)
       : [];
-    
+
     const clientTargetingDefaults: UnifiedTargetingConfig = {
       ageMin: selectedClient.default_age_min ?? 18,
       ageMax: selectedClient.default_age_max ?? 65,
-      genders: selectedClient.default_gender ? [selectedClient.default_gender] : ['all'],
+      genders: selectedClient.default_gender ? [selectedClient.default_gender] : ["all"],
       devices: Array.isArray(selectedClient.default_devices) ? selectedClient.default_devices : [],
       languages: normalizedLanguages,
       os: [],
       selectedItems: basicTargeting.selectedItems || [], // Preserve any existing selected items
     };
-    
-    console.log('🎯 Setting basicTargeting from client defaults:', clientTargetingDefaults);
+
+    console.log("🎯 Setting basicTargeting from client defaults:", clientTargetingDefaults);
     setBasicTargeting(clientTargetingDefaults);
-    localStorage.setItem('basicTargeting', JSON.stringify(clientTargetingDefaults));
+    localStorage.setItem("basicTargeting", JSON.stringify(clientTargetingDefaults));
 
     // Platform name normalization mapping
     const platformMapping: Record<string, string> = {
-      'meta': 'meta',
-      'facebook': 'meta',
-      'google ads': 'google',
-      'google': 'google',
-      'linkedin': 'linkedin',
-      'tiktok': 'tiktok',
-      'x': 'x',
-      'twitter': 'x',
-      'snapchat': 'snapchat',
-      'pinterest': 'pinterest',
+      meta: "meta",
+      facebook: "meta",
+      "google ads": "google",
+      google: "google",
+      linkedin: "linkedin",
+      tiktok: "tiktok",
+      x: "x",
+      twitter: "x",
+      snapchat: "snapchat",
+      pinterest: "pinterest",
     };
 
     // Predefined budget allocation percentages
@@ -249,7 +261,7 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
       .map((p: string) => platformMapping[p.toLowerCase()] || p.toLowerCase())
       .filter((id: string) => budgetAllocations[id] !== undefined);
 
-    console.log('Selected platform IDs:', selectedPlatformIds);
+    console.log("Selected platform IDs:", selectedPlatformIds);
 
     if (selectedPlatformIds.length === 0) {
       toast.error("No valid platforms found for this client");
@@ -258,21 +270,15 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
 
     // Fetch all ad accounts linked to this client for Meta and TikTok
     const [metaAccountsResult, tiktokAccountsResult] = await Promise.all([
-      supabase
-        .from("meta_ad_accounts")
-        .select("*")
-        .eq("client_id", selectedClientId),
-      supabase
-        .from("tiktok_ad_accounts")
-        .select("*")
-        .eq("client_id", selectedClientId)
+      supabase.from("meta_ad_accounts").select("*").eq("client_id", selectedClientId),
+      supabase.from("tiktok_ad_accounts").select("*").eq("client_id", selectedClientId),
     ]);
 
     const metaAdAccounts = metaAccountsResult.data || [];
     const tiktokAdAccounts = tiktokAccountsResult.data || [];
-    
-    console.log('📦 Meta ad accounts for client:', metaAdAccounts);
-    console.log('📦 TikTok ad accounts for client:', tiktokAdAccounts);
+
+    console.log("📦 Meta ad accounts for client:", metaAdAccounts);
+    console.log("📦 TikTok ad accounts for client:", tiktokAdAccounts);
 
     // Calculate total percentage for selected platforms
     const totalSelectedPercentage = selectedPlatformIds.reduce((sum: number, platformId: string) => {
@@ -281,18 +287,19 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
 
     // Create platforms with proportional budgets and auto-populated markets from ad accounts
     const newPlatforms: PlatformWithMarkets[] = selectedPlatformIds.map((platformId: string) => {
-      const platformName = platformId === 'meta' ? 'Meta' : 
-                           platformId === 'google' ? 'Google Ads' :
-                           platformId.charAt(0).toUpperCase() + platformId.slice(1);
+      const platformName =
+        platformId === "meta"
+          ? "Meta"
+          : platformId === "google"
+            ? "Google Ads"
+            : platformId.charAt(0).toUpperCase() + platformId.slice(1);
       const rawPercentage = budgetAllocations[platformId] || 0;
-      const normalizedPercentage = totalSelectedPercentage > 0 
-        ? (rawPercentage / totalSelectedPercentage) * 100 
-        : 0;
+      const normalizedPercentage = totalSelectedPercentage > 0 ? (rawPercentage / totalSelectedPercentage) * 100 : 0;
 
       // Build markets from linked ad accounts
       let markets: any[] = [];
-      
-      if (platformId === 'meta' && metaAdAccounts.length > 0) {
+
+      if (platformId === "meta" && metaAdAccounts.length > 0) {
         // Create markets from all Meta ad accounts with main_markets
         metaAdAccounts.forEach((acc: any) => {
           const accountMarkets = Array.isArray(acc.main_markets) ? acc.main_markets : [];
@@ -311,7 +318,7 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
                 catalog: acc.default_catalog_id || "",
                 productSet: acc.default_product_set_id || "",
                 conversionEvent: acc.default_conversion_event || "",
-                metaBidStrategy: acc.default_bid_strategy || 'LOWEST_COST_WITHOUT_CAP',
+                metaBidStrategy: acc.default_bid_strategy || "LOWEST_COST_WITHOUT_CAP",
                 metaBidAmount: acc.default_bid_amount || undefined,
                 phases: [],
                 adFormats: [],
@@ -320,9 +327,13 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
                 ageMax: selectedClient.default_age_max ?? 65,
                 gender: selectedClient.default_gender || "all",
                 languages: Array.isArray(selectedClient.default_languages) ? selectedClient.default_languages : [],
-                metaPublisherPlatforms: Array.isArray(acc.default_publisher_platforms) ? acc.default_publisher_platforms : ['facebook', 'instagram', 'audience_network'],
+                metaPublisherPlatforms: Array.isArray(acc.default_publisher_platforms)
+                  ? acc.default_publisher_platforms
+                  : ["facebook", "instagram", "audience_network"],
                 metaPositions: acc.default_positions || {},
-                publisherPlatforms: Array.isArray(acc.default_publisher_platforms) ? acc.default_publisher_platforms : ['facebook', 'instagram', 'audience_network'],
+                publisherPlatforms: Array.isArray(acc.default_publisher_platforms)
+                  ? acc.default_publisher_platforms
+                  : ["facebook", "instagram", "audience_network"],
                 positions: acc.default_positions || {},
                 detailedTargeting: [],
                 isCBOEnabled: false,
@@ -344,7 +355,7 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
             });
           }
         });
-      } else if (platformId === 'tiktok' && tiktokAdAccounts.length > 0) {
+      } else if (platformId === "tiktok" && tiktokAdAccounts.length > 0) {
         // Create markets from all TikTok ad accounts with main_markets
         tiktokAdAccounts.forEach((acc: any) => {
           const accountMarkets = Array.isArray(acc.main_markets) ? acc.main_markets : [];
@@ -362,11 +373,11 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
                 tiktokProductSetId: acc.default_product_set_id || "",
                 tiktokOptimizationEvent: acc.default_optimization_event || "",
                 tiktokOptimizationLocation: acc.default_optimization_location || "",
-                tiktokBidStrategy: acc.default_bid_strategy || 'BID_TYPE_NO_BID',
+                tiktokBidStrategy: acc.default_bid_strategy || "BID_TYPE_NO_BID",
                 tiktokBidAmount: acc.default_bid_amount || undefined,
                 tiktokLandingPageUrl: acc.default_landing_page_url || "",
-                tiktokPlacementType: acc.default_placement_type || 'PLACEMENT_TYPE_AUTOMATIC',
-                tiktokPlacements: Array.isArray(acc.default_placements) ? acc.default_placements : ['PLACEMENT_TIKTOK'],
+                tiktokPlacementType: acc.default_placement_type || "PLACEMENT_TYPE_AUTOMATIC",
+                tiktokPlacements: Array.isArray(acc.default_placements) ? acc.default_placements : ["PLACEMENT_TIKTOK"],
                 tiktokAppId: acc.default_app_id || "",
                 tiktokAppName: acc.default_app_name || "",
                 tiktokClickWindow: acc.default_click_window || 7,
@@ -389,39 +400,41 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
           }
         });
       }
-      
+
       // If no markets were created from ad accounts, create a fallback temporary market
       if (markets.length === 0) {
-        markets = [{
-          id: `temp-market-${platformId}-${Date.now()}`,
-          name: clientMarkets[0] || 'US',
-          budgetPercentage: 100,
-          adAccountId: "",
-          accountName: "",
-          pixel: "",
-          pageId: "",
-          page: "",
-          instagramActorId: "",
-          catalog: "",
-          productSet: "",
-          conversionEvent: "",
-          phases: [],
-          adFormats: [],
-          countries: platformId === 'tiktok' ? clientMarkets.filter((m: string) => m !== 'US') : clientMarkets,
-          ageMin: selectedClient.default_age_min ?? 18,
-          ageMax: selectedClient.default_age_max ?? 65,
-          gender: selectedClient.default_gender || "all",
-          languages: Array.isArray(selectedClient.default_languages) ? selectedClient.default_languages : [],
-          publisherPlatforms: platformId === 'tiktok' ? ["tiktok"] : ["facebook"],
-          positions: {},
-          detailedTargeting: [],
-          isCBOEnabled: false,
-          isLifetimeBudget: false,
-        }];
+        markets = [
+          {
+            id: `temp-market-${platformId}-${Date.now()}`,
+            name: clientMarkets[0] || "US",
+            budgetPercentage: 100,
+            adAccountId: "",
+            accountName: "",
+            pixel: "",
+            pageId: "",
+            page: "",
+            instagramActorId: "",
+            catalog: "",
+            productSet: "",
+            conversionEvent: "",
+            phases: [],
+            adFormats: [],
+            countries: platformId === "tiktok" ? clientMarkets.filter((m: string) => m !== "US") : clientMarkets,
+            ageMin: selectedClient.default_age_min ?? 18,
+            ageMax: selectedClient.default_age_max ?? 65,
+            gender: selectedClient.default_gender || "all",
+            languages: Array.isArray(selectedClient.default_languages) ? selectedClient.default_languages : [],
+            publisherPlatforms: platformId === "tiktok" ? ["tiktok"] : ["facebook"],
+            positions: {},
+            detailedTargeting: [],
+            isCBOEnabled: false,
+            isLifetimeBudget: false,
+          },
+        ];
       } else {
         // Normalize budget percentages across all markets for this platform
         const budgetPerMarket = 100 / markets.length;
-        markets = markets.map(m => ({ ...m, budgetPercentage: Math.round(budgetPerMarket * 10) / 10 }));
+        markets = markets.map((m) => ({ ...m, budgetPercentage: Math.round(budgetPerMarket * 10) / 10 }));
       }
 
       return {
@@ -433,44 +446,52 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
       };
     });
 
-    console.log('Created platforms with auto-populated markets:', newPlatforms);
+    console.log("Created platforms with auto-populated markets:", newPlatforms);
 
     // Count total markets created from ad accounts
     const totalAutoMarkets = newPlatforms.reduce((sum, p) => {
-      const autoMarkets = p.markets.filter(m => m.adAccountId && m.adAccountId !== "");
+      const autoMarkets = p.markets.filter((m) => m.adAccountId && m.adAccountId !== "");
       return sum + autoMarkets.length;
     }, 0);
 
     setPlatformsWithMarkets(newPlatforms);
-    
+
     if (totalAutoMarkets > 0) {
-      toast.success(`Auto-populated ${newPlatforms.length} platform(s) with ${totalAutoMarkets} market(s) from linked ad accounts.`, { duration: 5000 });
+      toast.success(
+        `Auto-populated ${newPlatforms.length} platform(s) with ${totalAutoMarkets} market(s) from linked ad accounts.`,
+        { duration: 5000 },
+      );
     } else {
-      toast.success(`Auto-populated ${newPlatforms.length} platform(s) from ${selectedClient.name}. Select an ad account for each platform to auto-create markets.`, { duration: 5000 });
+      toast.success(
+        `Auto-populated ${newPlatforms.length} platform(s) from ${selectedClient.name}. Select an ad account for each platform to auto-create markets.`,
+        { duration: 5000 },
+      );
     }
   };
-  
+
   // Unified targeting (Step 2)
   const [basicTargeting, setBasicTargeting] = useState<UnifiedTargetingConfig>({ selectedItems: [] });
   const [targetingPreset, setTargetingPreset] = useState<UnifiedTargetingConfig | null>(null);
-  
+
   // Phase audiences (Step 3.5 - after strategy config)
   const [phaseAudiences, setPhaseAudiences] = useState<Record<string, SelectedAudience[]>>({});
   const [firstAdAccountId, setFirstAdAccountId] = useState<string | null>(null);
   const [firstTiktokAdvertiserId, setFirstTiktokAdvertiserId] = useState<string | null>(null);
-  
+
   // Update ad account IDs based on selected platforms
   // Derive the account IDs via useMemo instead of useEffect to avoid re-render loops
   const derivedMetaAccountId = useMemo(() => {
-    return platformsWithMarkets
-      .find(p => p.id === 'meta' || p.name.toLowerCase() === 'meta')
-      ?.markets[0]?.adAccountId ?? null;
+    return (
+      platformsWithMarkets.find((p) => p.id === "meta" || p.name.toLowerCase() === "meta")?.markets[0]?.adAccountId ??
+      null
+    );
   }, [platformsWithMarkets]);
 
   const derivedTiktokAccountId = useMemo(() => {
-    return platformsWithMarkets
-      .find(p => p.id === 'tiktok' || p.name.toLowerCase() === 'tiktok')
-      ?.markets[0]?.adAccountId ?? null;
+    return (
+      platformsWithMarkets.find((p) => p.id === "tiktok" || p.name.toLowerCase() === "tiktok")?.markets[0]
+        ?.adAccountId ?? null
+    );
   }, [platformsWithMarkets]);
 
   // Sync derived values to state only when they actually change
@@ -485,12 +506,12 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
       setFirstTiktokAdvertiserId(derivedTiktokAccountId);
     }
   }, [derivedTiktokAccountId, firstTiktokAdvertiserId]);
-  
+
   // Dialog states
   const [platformDialogOpen, setPlatformDialogOpen] = useState(false);
   const [marketDialogOpen, setMarketDialogOpen] = useState(false);
   const [pendingDuplication, setPendingDuplication] = useState<{
-    type: 'platform' | 'market';
+    type: "platform" | "market";
     platformId?: string;
     marketId?: string;
   } | null>(null);
@@ -501,97 +522,100 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
     phases: any[];
     marketBudget: number;
   } | null>(null);
-  
+
   // Resolve effective strategy focus at render-time (never "auto")
   const effectiveStrategyFocus = useMemo(() => {
     if (genericConfig.strategy !== "auto-detect") {
-      return (genericConfig.strategyFocus && genericConfig.strategyFocus !== "auto")
+      return genericConfig.strategyFocus && genericConfig.strategyFocus !== "auto"
         ? genericConfig.strategyFocus
         : "conversions";
     }
-    const hasPixel = platformsWithMarkets.some(p => p.markets.some(m => m.pixel));
-    const hasCatalog = platformsWithMarkets.some(p => p.markets.some(m => m.catalog));
-    const marketAdFormats = platformsWithMarkets.flatMap(p => p.markets.flatMap(m => (m as any).adFormats || []));
+    const hasPixel = platformsWithMarkets.some((p) => p.markets.some((m) => m.pixel));
+    const hasCatalog = platformsWithMarkets.some((p) => p.markets.some((m) => m.catalog));
+    const marketAdFormats = platformsWithMarkets.flatMap((p) => p.markets.flatMap((m) => (m as any).adFormats || []));
     const adFormats = Array.from(new Set([...(genericConfig.targeting?.adFormats || []), ...marketAdFormats]));
     const detected = determineStrategyFocus({ adFormats, hasPixel, hasCatalog });
     return detected || "conversions";
   }, [genericConfig.strategy, genericConfig.strategyFocus, genericConfig.targeting?.adFormats, platformsWithMarkets]);
 
-  const genericConfigResolved: GenericConfig = useMemo(() => ({
-    ...genericConfig,
-    strategyFocus: effectiveStrategyFocus,
-  }), [genericConfig, effectiveStrategyFocus]);
+  const genericConfigResolved: GenericConfig = useMemo(
+    () => ({
+      ...genericConfig,
+      strategyFocus: effectiveStrategyFocus,
+    }),
+    [genericConfig, effectiveStrategyFocus],
+  );
 
   // Sync genericConfig.phases to market phases when phases change in Step 3
   // This ensures changes made in Strategy Configuration (Step 3) propagate to Platform & Market Selection (Step 1)
   useEffect(() => {
     if (!genericConfig.phases || genericConfig.phases.length === 0) return;
-    
+
     // Check if any market needs its phases synced from genericConfig
     let needsSync = false;
-    platformsWithMarkets.forEach(platform => {
-      platform.markets.forEach(market => {
+    platformsWithMarkets.forEach((platform) => {
+      platform.markets.forEach((market) => {
         // Only sync if market doesn't have custom strategy or has no phases
         const usesGlobalStrategy = !market.strategy || market.strategy === genericConfig.strategy;
         if (usesGlobalStrategy) {
           // Check if phases are different (by comparing length and names)
-          const marketPhaseNames = (market.phases || []).map(p => p.name).join(',');
-          const genericPhaseNames = genericConfig.phases?.map(p => p.name).join(',') || '';
+          const marketPhaseNames = (market.phases || []).map((p) => p.name).join(",");
+          const genericPhaseNames = genericConfig.phases?.map((p) => p.name).join(",") || "";
           if (marketPhaseNames !== genericPhaseNames) {
             needsSync = true;
           }
         }
       });
     });
-    
+
     if (needsSync) {
       // If a child signaled to skip (e.g. budgetType toggle), abort and reset flag.
       if (skipPhaseSyncRef.current) {
         skipPhaseSyncRef.current = false;
         return;
       }
-      console.log('🔄 Syncing genericConfig.phases to market phases');
-      setPlatformsWithMarkets(prev => prev.map(platform => ({
-        ...platform,
-        markets: platform.markets.map(market => {
-          const usesGlobalStrategy = !market.strategy || market.strategy === genericConfig.strategy;
-          if (usesGlobalStrategy && genericConfig.phases && genericConfig.phases.length > 0) {
-            return {
-              ...market,
-              phases: genericConfig.phases.map((genericPhase) => {
-                const existing = market.phases?.find((mp) => mp.name === genericPhase.name);
-                const hasObjectiveOverride =
-                  !!existing && Object.prototype.hasOwnProperty.call(existing, "objective");
-                const hasOptimizationGoalOverride =
-                  !!existing && Object.prototype.hasOwnProperty.call(existing, "optimizationGoal");
-                const hasBudgetTypeOverride =
-                  !!existing && Object.prototype.hasOwnProperty.call(existing, "budgetType");
+      console.log("🔄 Syncing genericConfig.phases to market phases");
+      setPlatformsWithMarkets((prev) =>
+        prev.map((platform) => ({
+          ...platform,
+          markets: platform.markets.map((market) => {
+            const usesGlobalStrategy = !market.strategy || market.strategy === genericConfig.strategy;
+            if (usesGlobalStrategy && genericConfig.phases && genericConfig.phases.length > 0) {
+              return {
+                ...market,
+                phases: genericConfig.phases.map((genericPhase) => {
+                  const existing = market.phases?.find((mp) => mp.name === genericPhase.name);
+                  const hasObjectiveOverride =
+                    !!existing && Object.prototype.hasOwnProperty.call(existing, "objective");
+                  const hasOptimizationGoalOverride =
+                    !!existing && Object.prototype.hasOwnProperty.call(existing, "optimizationGoal");
+                  const hasBudgetTypeOverride =
+                    !!existing && Object.prototype.hasOwnProperty.call(existing, "budgetType");
 
-                return {
-                  ...genericPhase,
-                  // Preserve any market-specific overrides that might exist
-                  ...(existing || {}),
-                  // Ensure core phase structure comes from genericConfig
-                  name: genericPhase.name,
-                  startDate: genericPhase.startDate,
-                  endDate: genericPhase.endDate,
-                  budgetPercentage: genericPhase.budgetPercentage,
-                  // Preserve budgetType overrides so the user's selection doesn't revert
-                  budgetType: hasBudgetTypeOverride
-                    ? (existing as any).budgetType
-                    : (genericPhase as any).budgetType,
-                  // IMPORTANT: do NOT clobber manual overrides (even if explicitly set to `undefined` for Auto-detect)
-                  objective: hasObjectiveOverride ? (existing as any).objective : (genericPhase as any).objective,
-                  optimizationGoal: hasOptimizationGoalOverride
-                    ? (existing as any).optimizationGoal
-                    : (genericPhase as any).optimizationGoal,
-                };
-              }),
-            };
-          }
-          return market;
-        }),
-      })));
+                  return {
+                    ...genericPhase,
+                    // Preserve any market-specific overrides that might exist
+                    ...(existing || {}),
+                    // Ensure core phase structure comes from genericConfig
+                    name: genericPhase.name,
+                    startDate: genericPhase.startDate,
+                    endDate: genericPhase.endDate,
+                    budgetPercentage: genericPhase.budgetPercentage,
+                    // Preserve budgetType overrides so the user's selection doesn't revert
+                    budgetType: hasBudgetTypeOverride ? (existing as any).budgetType : (genericPhase as any).budgetType,
+                    // IMPORTANT: do NOT clobber manual overrides (even if explicitly set to `undefined` for Auto-detect)
+                    objective: hasObjectiveOverride ? (existing as any).objective : (genericPhase as any).objective,
+                    optimizationGoal: hasOptimizationGoalOverride
+                      ? (existing as any).optimizationGoal
+                      : (genericPhase as any).optimizationGoal,
+                  };
+                }),
+              };
+            }
+            return market;
+          }),
+        })),
+      );
     }
   }, [genericConfig.phases, genericConfig.strategy]);
 
@@ -600,34 +624,34 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
   useEffect(() => {
     // Don't run if no dates set
     if (!startDate || !endDate) return;
-    
+
     // Check if any auto-detect market needs phases
-    const needsUpdate = platformsWithMarkets.some(platform => 
-      platform.markets.some(market => {
+    const needsUpdate = platformsWithMarkets.some((platform) =>
+      platform.markets.some((market) => {
         const strategy = market.strategy || genericConfig.strategy || "auto-detect";
         return strategy === "auto-detect" && (!market.phases || market.phases.length === 0);
-      })
+      }),
     );
-    
+
     if (!needsUpdate) return;
 
     // 1) Set global strategy focus when in auto-detect
     if (genericConfig.strategy === "auto-detect") {
-      const hasPixel = platformsWithMarkets.some(p => p.markets.some(m => m.pixel));
-      const hasCatalog = platformsWithMarkets.some(p => p.markets.some(m => m.catalog));
-      const marketAdFormats = platformsWithMarkets.flatMap(p => p.markets.flatMap(m => (m as any).adFormats || []));
+      const hasPixel = platformsWithMarkets.some((p) => p.markets.some((m) => m.pixel));
+      const hasCatalog = platformsWithMarkets.some((p) => p.markets.some((m) => m.catalog));
+      const marketAdFormats = platformsWithMarkets.flatMap((p) => p.markets.flatMap((m) => (m as any).adFormats || []));
       const adFormats = Array.from(new Set([...(genericConfig.targeting?.adFormats || []), ...marketAdFormats]));
       const detected = determineStrategyFocus({ adFormats, hasPixel, hasCatalog }) || "conversions";
       if (genericConfig.strategyFocus !== detected) {
-        setGenericConfig(prev => ({ ...prev, strategyFocus: detected }));
+        setGenericConfig((prev) => ({ ...prev, strategyFocus: detected }));
       }
     }
 
     // 2) Set per-market strategyFocus and phases in auto-detect
     let changed = false;
-    const updated = platformsWithMarkets.map(platform => ({
+    const updated = platformsWithMarkets.map((platform) => ({
       ...platform,
-      markets: platform.markets.map(market => {
+      markets: platform.markets.map((market) => {
         const strategy = market.strategy || genericConfig.strategy || "auto-detect";
         if (strategy !== "auto-detect") return market;
 
@@ -637,7 +661,8 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
         const hasCatalog = !!market.catalog;
         const detected = determineStrategyFocus({ adFormats, hasPixel, hasCatalog }) || "conversions";
 
-        const needsFocusUpdate = !market.strategyFocus || market.strategyFocus === "auto" || market.strategyFocus !== detected;
+        const needsFocusUpdate =
+          !market.strategyFocus || market.strategyFocus === "auto" || market.strategyFocus !== detected;
         const needsPhases = !market.phases || market.phases.length === 0;
 
         if (!needsFocusUpdate && !needsPhases) return market;
@@ -647,13 +672,22 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
           ...market,
           strategy: "auto-detect", // Explicitly set the strategy
           strategyFocus: detected,
-          phases: needsPhases ? (generateAutoDetectPhases(adFormats, hasPixel, hasCatalog, startDate, endDate, platform.id) || []) : market.phases,
+          phases: needsPhases
+            ? generateAutoDetectPhases(adFormats, hasPixel, hasCatalog, startDate, endDate, platform.id) || []
+            : market.phases,
         };
-      })
+      }),
     }));
 
     if (changed) setPlatformsWithMarkets(updated);
-  }, [platformsWithMarkets, genericConfig.strategy, genericConfig.strategyFocus, genericConfig.targeting?.adFormats, startDate, endDate]);
+  }, [
+    platformsWithMarkets,
+    genericConfig.strategy,
+    genericConfig.strategyFocus,
+    genericConfig.targeting?.adFormats,
+    startDate,
+    endDate,
+  ]);
 
   // Reverse sync: when market phases change in Step 1, update genericConfig.phases for Step 3
   // Only sync from the first market that uses global strategy
@@ -664,12 +698,12 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
         const usesGlobalStrategy = !market.strategy || market.strategy === genericConfig.strategy;
         if (usesGlobalStrategy && market.phases && market.phases.length > 0) {
           // Check if genericConfig.phases needs updating
-          const marketPhaseNames = market.phases.map(p => p.name).join(',');
-          const genericPhaseNames = genericConfig.phases?.map(p => p.name).join(',') || '';
-          
+          const marketPhaseNames = market.phases.map((p) => p.name).join(",");
+          const genericPhaseNames = genericConfig.phases?.map((p) => p.name).join(",") || "";
+
           if (marketPhaseNames !== genericPhaseNames || !genericConfig.phases || genericConfig.phases.length === 0) {
-            console.log('🔄 Syncing market phases back to genericConfig.phases');
-            setGenericConfig(prev => ({
+            console.log("🔄 Syncing market phases back to genericConfig.phases");
+            setGenericConfig((prev) => ({
               ...prev,
               phases: market.phases,
             }));
@@ -687,9 +721,9 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
       setTotalBudget(String(c.total_budget ?? ""));
       setStartDate(c.start_date || "");
       setEndDate(c.end_date || "");
-      
+
       // Restore full genericConfig
-      if (c.generic_config && typeof c.generic_config === 'object') {
+      if (c.generic_config && typeof c.generic_config === "object") {
         setGenericConfig({
           strategy: c.generic_config.strategy || "auto-detect",
           strategyFocus: c.generic_config.strategyFocus || c.objective || "auto",
@@ -709,55 +743,58 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
             websiteAudience: "",
             keywordList: "",
             customerList: "",
-            lookalikeAudience: ""
-          }
+            lookalikeAudience: "",
+          },
         });
-        
+
         // Restore basic targeting if it exists
         if (c.generic_config.basicTargeting) {
-          console.log('🔄 Loading basicTargeting from draft:', c.generic_config.basicTargeting);
+          console.log("🔄 Loading basicTargeting from draft:", c.generic_config.basicTargeting);
           setBasicTargeting(c.generic_config.basicTargeting);
         }
       } else {
-        setGenericConfig(prev => ({ ...prev, strategyFocus: c.objective || prev.strategyFocus }));
+        setGenericConfig((prev) => ({ ...prev, strategyFocus: c.objective || prev.strategyFocus }));
       }
 
       // Restore platforms and markets completely from DB
       const alloc = c.budget_allocation || {};
       const splits = c.market_splits || {};
       const declaredPlatforms: any[] = Array.isArray(c.platforms) ? c.platforms : [];
-      
-      console.log('🔄 Restoring campaign from DB:', {
+
+      console.log("🔄 Restoring campaign from DB:", {
         platforms: declaredPlatforms,
-        market_splits: splits
+        market_splits: splits,
       });
-      
+
       if (declaredPlatforms.length > 0) {
         const restoredPlatforms = declaredPlatforms.map((dp: any) => {
           const markets = splits[dp.id] || [];
-          console.log(`  Platform ${dp.id} markets:`, markets.map((m: any) => ({
-            id: m.id,
-            name: m.name,
-            adAccountId: m.adAccountId,
-            tiktokPixel: m.tiktokPixel,
-            tiktokIdentity: m.tiktokIdentity,
-            tiktokCatalog: m.tiktokCatalog,
-            tiktokProductSet: m.tiktokProductSet,
-            tiktokOptimizationEvent: m.tiktokOptimizationEvent,
-            tiktokLandingPageUrl: m.tiktokLandingPageUrl,
-          })));
-          
+          console.log(
+            `  Platform ${dp.id} markets:`,
+            markets.map((m: any) => ({
+              id: m.id,
+              name: m.name,
+              adAccountId: m.adAccountId,
+              tiktokPixel: m.tiktokPixel,
+              tiktokIdentity: m.tiktokIdentity,
+              tiktokCatalog: m.tiktokCatalog,
+              tiktokProductSet: m.tiktokProductSet,
+              tiktokOptimizationEvent: m.tiktokOptimizationEvent,
+              tiktokLandingPageUrl: m.tiktokLandingPageUrl,
+            })),
+          );
+
           // Filter out US from TikTok market countries
           const filteredMarkets = markets.map((m: any) => {
-            if (dp.id === 'tiktok' && Array.isArray(m.countries)) {
+            if (dp.id === "tiktok" && Array.isArray(m.countries)) {
               return {
                 ...m,
-                countries: m.countries.filter((c: string) => c !== 'US')
+                countries: m.countries.filter((c: string) => c !== "US"),
               };
             }
             return m;
           });
-          
+
           return {
             id: dp.id,
             name: dp.name,
@@ -768,10 +805,10 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
         });
         setPlatformsWithMarkets(restoredPlatforms);
       }
-      
+
       setIsHydrated(true);
     } catch (e) {
-      console.error('Failed to hydrate draft', e);
+      console.error("Failed to hydrate draft", e);
       setIsHydrated(true);
     }
   };
@@ -779,11 +816,11 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
   // Detect URL campaign ID changes and reset hydration to reload different campaign
   useEffect(() => {
     const urlParams = new URLSearchParams(location.search);
-    const urlCampaignId = urlParams.get('campaignId');
-    
+    const urlCampaignId = urlParams.get("campaignId");
+
     // If URL campaign ID changed, reset state to force re-hydration
     if (urlCampaignId && urlCampaignId !== lastCampaignIdRef.current && isHydrated) {
-      console.log('🔄 URL campaign ID changed, resetting for new campaign:', urlCampaignId);
+      console.log("🔄 URL campaign ID changed, resetting for new campaign:", urlCampaignId);
       lastCampaignIdRef.current = urlCampaignId;
       setIsHydrated(false);
       // Clear form state to prevent stale data
@@ -810,8 +847,8 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
           websiteAudience: "",
           keywordList: "",
           customerList: "",
-          lookalikeAudience: ""
-        }
+          lookalikeAudience: "",
+        },
       });
     }
   }, [location.search, isHydrated]);
@@ -820,32 +857,32 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
   useEffect(() => {
     const restore = async () => {
       if (!user || isHydrated) return;
-      
+
       // Check if user explicitly wants a new campaign
       const urlParams = new URLSearchParams(window.location.search);
-      const isNewCampaign = urlParams.get('new') === 'true';
-      const urlCampaignId = urlParams.get('campaignId');
-      
-      console.log('MediaPlanEditor restore:', { isNewCampaign, isHydrated, urlCampaignId, url: window.location.href });
-      
+      const isNewCampaign = urlParams.get("new") === "true";
+      const urlCampaignId = urlParams.get("campaignId");
+
+      console.log("MediaPlanEditor restore:", { isNewCampaign, isHydrated, urlCampaignId, url: window.location.href });
+
       // Track the campaign ID we're loading
       if (urlCampaignId) {
         lastCampaignIdRef.current = urlCampaignId;
       }
-      
+
       if (isNewCampaign) {
         // Clear the URL param and start fresh
-        console.log('Starting fresh campaign - clearing all state');
-        window.history.replaceState({}, '', '/');
-        localStorage.removeItem('draftCampaignId');
-        localStorage.removeItem('basicTargeting');
+        console.log("Starting fresh campaign - clearing all state");
+        window.history.replaceState({}, "", "/");
+        localStorage.removeItem("draftCampaignId");
+        localStorage.removeItem("basicTargeting");
         setSavedCampaignId(null);
         setIsHydrated(true);
         return;
       }
-      
+
       // Rehydrate basicTargeting from localStorage first
-      const storedTargeting = localStorage.getItem('basicTargeting');
+      const storedTargeting = localStorage.getItem("basicTargeting");
       if (storedTargeting) {
         try {
           const parsed = JSON.parse(storedTargeting);
@@ -853,49 +890,49 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
           if (parsed.languages && Array.isArray(parsed.languages)) {
             parsed.languages = normalizeLanguageValues(parsed.languages);
           }
-          console.log('🔄 Rehydrated basicTargeting from localStorage:', parsed);
+          console.log("🔄 Rehydrated basicTargeting from localStorage:", parsed);
           setBasicTargeting(parsed);
         } catch (e) {
-          console.error('Failed to parse stored targeting:', e);
+          console.error("Failed to parse stored targeting:", e);
         }
       }
-      
-      let cid = urlParams.get('campaignId') || localStorage.getItem('draftCampaignId') || '';
-      console.log('Checking for existing draft:', { cid, hasUrlParam: !!urlParams.get('campaignId'), hasLocalStorage: !!localStorage.getItem('draftCampaignId') });
-      
+
+      let cid = urlParams.get("campaignId") || localStorage.getItem("draftCampaignId") || "";
+      console.log("Checking for existing draft:", {
+        cid,
+        hasUrlParam: !!urlParams.get("campaignId"),
+        hasLocalStorage: !!localStorage.getItem("draftCampaignId"),
+      });
+
       if (!cid) {
         const { data } = await supabase
-          .from('campaigns')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('status', 'draft')
-          .order('created_at', { ascending: false })
+          .from("campaigns")
+          .select("*")
+          .eq("user_id", user.id)
+          .eq("status", "draft")
+          .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle();
         if (data) {
           cid = (data as any).id;
-          console.log('Found latest draft from database:', cid);
+          console.log("Found latest draft from database:", cid);
         }
       }
       if (cid) {
-        const { data: c, error } = await supabase
-          .from('campaigns')
-          .select('*')
-          .eq('id', cid)
-          .single();
+        const { data: c, error } = await supabase.from("campaigns").select("*").eq("id", cid).single();
         if (!error && c) {
-          console.log('Loading draft campaign:', cid);
+          console.log("Loading draft campaign:", cid);
           setSavedCampaignId((c as any).id);
-          localStorage.setItem('draftCampaignId', (c as any).id);
+          localStorage.setItem("draftCampaignId", (c as any).id);
           hydrateFromCampaign(c);
-          
+
           // Load targeting preset if exists
           const config = (c as any).generic_config;
           if (config?.targetingPreset) {
-            console.log('🎯 Loaded targeting preset from database:', config.targetingPreset);
+            console.log("🎯 Loaded targeting preset from database:", config.targetingPreset);
             setTargetingPreset(config.targetingPreset);
           }
-          
+
           // Load basicTargeting from database if not already loaded from localStorage
           if (config?.basicTargeting && !storedTargeting) {
             const dbTargeting = { ...config.basicTargeting };
@@ -903,56 +940,56 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
             if (dbTargeting.languages && Array.isArray(dbTargeting.languages)) {
               dbTargeting.languages = normalizeLanguageValues(dbTargeting.languages);
             }
-            console.log('🔄 Loaded basicTargeting from database:', dbTargeting);
+            console.log("🔄 Loaded basicTargeting from database:", dbTargeting);
             setBasicTargeting(dbTargeting);
-            localStorage.setItem('basicTargeting', JSON.stringify(dbTargeting));
+            localStorage.setItem("basicTargeting", JSON.stringify(dbTargeting));
           }
         } else {
-          console.log('No draft found, starting fresh');
+          console.log("No draft found, starting fresh");
           setIsHydrated(true);
         }
       } else {
-        console.log('No campaign ID found, starting fresh');
+        console.log("No campaign ID found, starting fresh");
         setIsHydrated(true);
       }
     };
     restore();
   }, [user, isHydrated]);
-  
+
   // Fetch first ad account ID for audience fetching
   useEffect(() => {
     const fetchAdAccountIds = async () => {
       if (!user) return;
-      
+
       // Fetch Meta ad account
       const { data: metaData, error: metaError } = await supabase
-        .from('meta_ad_accounts')
-        .select('account_id')
-        .eq('user_id', user.id)
+        .from("meta_ad_accounts")
+        .select("account_id")
+        .eq("user_id", user.id)
         .limit(1)
         .single();
-      
+
       if (!metaError && metaData) {
         setFirstAdAccountId(metaData.account_id);
-        console.log('✅ Loaded Meta Ad Account ID:', metaData.account_id);
+        console.log("✅ Loaded Meta Ad Account ID:", metaData.account_id);
       }
-      
+
       // Fetch TikTok advertiser account
       const { data: tiktokData, error: tiktokError } = await supabase
-        .from('tiktok_ad_accounts')
-        .select('advertiser_id')
-        .eq('user_id', user.id)
+        .from("tiktok_ad_accounts")
+        .select("advertiser_id")
+        .eq("user_id", user.id)
         .limit(1)
         .single();
-      
+
       if (!tiktokError && tiktokData) {
         setFirstTiktokAdvertiserId(tiktokData.advertiser_id);
-        console.log('✅ Loaded TikTok Advertiser ID:', tiktokData.advertiser_id);
+        console.log("✅ Loaded TikTok Advertiser ID:", tiktokData.advertiser_id);
       }
     };
     fetchAdAccountIds();
   }, [user]);
-  
+
   // Legacy platforms for step 5 (Platform Configuration)
   const [platforms, setPlatforms] = useState<Platform[]>([
     { id: "meta", name: "Meta", enabled: false, budgetPercentage: 0 },
@@ -968,9 +1005,9 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
     // Only auto-detect when strategy is set to "auto-detect"
     if (genericConfig.strategy !== "auto-detect") return;
 
-    const hasPixel = platformsWithMarkets.some(p => p.markets.some(m => m.pixel));
-    const hasCatalog = platformsWithMarkets.some(p => p.markets.some(m => m.catalog));
-    const marketAdFormats = platformsWithMarkets.flatMap(p => p.markets.flatMap(m => (m as any).adFormats || []));
+    const hasPixel = platformsWithMarkets.some((p) => p.markets.some((m) => m.pixel));
+    const hasCatalog = platformsWithMarkets.some((p) => p.markets.some((m) => m.catalog));
+    const marketAdFormats = platformsWithMarkets.flatMap((p) => p.markets.flatMap((m) => (m as any).adFormats || []));
     const adFormats = Array.from(new Set([...(genericConfig.targeting?.adFormats || []), ...marketAdFormats]));
 
     const determinedFocus = determineStrategyFocus({
@@ -981,7 +1018,7 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
 
     // Update to detected focus if available and different
     if (determinedFocus && determinedFocus !== genericConfig.strategyFocus) {
-      setGenericConfig(prev => ({ ...prev, strategyFocus: determinedFocus }));
+      setGenericConfig((prev) => ({ ...prev, strategyFocus: determinedFocus }));
     }
   }, [platformsWithMarkets, genericConfig.targeting?.adFormats, genericConfig.strategy]);
 
@@ -1004,13 +1041,13 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
         // Safety: if the editor state is temporarily empty (e.g. during re-hydration / route changes),
         // do NOT overwrite an existing campaign with empty platforms/market_splits.
         if (selectedPlatforms.length === 0) {
-          console.log('⏸️ Auto-save skipped (no selected platforms; avoiding market_splits clobber)');
+          console.log("⏸️ Auto-save skipped (no selected platforms; avoiding market_splits clobber)");
           return;
         }
 
         const hasAnyMarkets = selectedPlatforms.some((p) => (p.markets?.length || 0) > 0);
         if (!hasAnyMarkets) {
-          console.log('⏸️ Auto-save skipped (no markets; avoiding market_splits clobber)');
+          console.log("⏸️ Auto-save skipped (no markets; avoiding market_splits clobber)");
           return;
         }
 
@@ -1028,7 +1065,8 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
             platforms: selectedPlatforms.map((p) => ({ id: p.id, name: p.name })),
             budget_allocation: budgetAllocation,
             market_splits: platformsWithMarkets.reduce((acc, platform) => {
-              console.log(`💾 Auto-saving platform ${platform.id}, markets:`,
+              console.log(
+                `💾 Auto-saving platform ${platform.id}, markets:`,
                 platform.markets.map((m) => ({
                   name: m.name,
                   phases: m.phases?.map((p) => ({
@@ -1134,8 +1172,8 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
   ]);
 
   const isActivationDetailsComplete = () => {
-    const allPlatformsSelected = platformsWithMarkets.every(p => p.id !== "");
-    const allHaveMarkets = platformsWithMarkets.every(p => p.markets.length > 0);
+    const allPlatformsSelected = platformsWithMarkets.every((p) => p.id !== "");
+    const allHaveMarkets = platformsWithMarkets.every((p) => p.markets.length > 0);
     return !!(campaignName.trim() && totalBudget && startDate && endDate && allPlatformsSelected && allHaveMarkets);
   };
 
@@ -1149,10 +1187,7 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
   };
 
   const isTargetingComplete = () => {
-    return !!(
-      genericConfig.targeting?.ageMin &&
-      genericConfig.targeting?.ageMax
-    );
+    return !!(genericConfig.targeting?.ageMin && genericConfig.targeting?.ageMax);
   };
 
   const handlePlatformToggle = (updatedPlatforms: Platform[]) => {
@@ -1165,9 +1200,9 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
           ...platform,
           config: {
             ...genericConfig,
-            campaigns: genericConfig.campaigns?.map(c => ({ ...c })),
-            phases: genericConfig.phases?.map(p => ({ ...p })),
-          }
+            campaigns: genericConfig.campaigns?.map((c) => ({ ...c })),
+            phases: genericConfig.phases?.map((p) => ({ ...p })),
+          },
         };
       }
       return platform;
@@ -1180,25 +1215,21 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
   };
 
   const isAllPlatformsConfigured = () => {
-    const enabledPlatforms = platforms.filter(p => p.enabled);
+    const enabledPlatforms = platforms.filter((p) => p.enabled);
     if (enabledPlatforms.length === 0) return false;
-    return enabledPlatforms.every(p => {
+    return enabledPlatforms.every((p) => {
       if (!p.config) return false;
       const { strategy, strategyFocus, campaigns } = p.config;
       if (!strategy || !strategyFocus) return false;
       if (!campaigns || campaigns.length === 0) return false;
-      return campaigns.every(c => !!(
-        c.objective &&
-        c.campaignType &&
-        c.optimizationGoal &&
-        c.targeting?.ageMin &&
-        c.targeting?.ageMax
-      ));
+      return campaigns.every(
+        (c) => !!(c.objective && c.campaignType && c.optimizationGoal && c.targeting?.ageMin && c.targeting?.ageMax),
+      );
     });
   };
 
   const handleExport = () => {
-    const selectedPlatforms = platformsWithMarkets.filter(p => p.id !== "");
+    const selectedPlatforms = platformsWithMarkets.filter((p) => p.id !== "");
     const campaignData = {
       name: campaignName,
       objective: genericConfig.strategyFocus,
@@ -1206,15 +1237,14 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
       startDate,
       endDate,
       platforms: selectedPlatforms,
-      budgetAllocation: selectedPlatforms
-        .reduce((acc, p) => ({ ...acc, [p.id]: p.budgetPercentage }), {}),
+      budgetAllocation: selectedPlatforms.reduce((acc, p) => ({ ...acc, [p.id]: p.budgetPercentage }), {}),
     };
-    
+
     const blob = new Blob([JSON.stringify(campaignData, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `campaign-${campaignName || 'plan'}.json`;
+    a.download = `campaign-${campaignName || "plan"}.json`;
     a.click();
     toast.success("Media plan exported successfully!");
   };
@@ -1229,7 +1259,7 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
       toast.error("Please enter a BO number");
       return;
     }
-    
+
     // Check if BO number is unique within the same workspace
     if (boNumber.trim() && activeWorkspaceId) {
       const { data: existingCampaign } = await supabase
@@ -1239,7 +1269,7 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
         .eq("team_id", activeWorkspaceId)
         .neq("id", savedCampaignId || "")
         .single();
-      
+
       if (existingCampaign) {
         toast.error("BO number must be unique within your workspace. This number is already in use.");
         return;
@@ -1261,62 +1291,68 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
       const user = (await supabase.auth.getUser()).data.user;
       if (!user) throw new Error("User not authenticated");
 
-      const selectedPlatforms = platformsWithMarkets.filter(p => p.id !== "");
-      const budgetAllocation = selectedPlatforms
-        .reduce((acc, p) => ({ ...acc, [p.id]: p.budgetPercentage }), {});
+      const selectedPlatforms = platformsWithMarkets.filter((p) => p.id !== "");
+      const budgetAllocation = selectedPlatforms.reduce((acc, p) => ({ ...acc, [p.id]: p.budgetPercentage }), {});
 
-      const { data: campaign, error } = await supabase.from("campaigns").insert({
-        user_id: user.id,
-        team_id: activeWorkspaceId || null,
-        name: campaignName,
-        bo_number: boNumber.trim(),
-        objective: genericConfig.strategyFocus || "conversions",
-        total_budget: parseFloat(totalBudget) || 0,
-        start_date: startDate || null,
-        end_date: endDate || null,
-        platforms: selectedPlatforms.map(p => ({ id: p.id, name: p.name })),
-        budget_allocation: budgetAllocation,
-        market_splits: platformsWithMarkets.reduce((acc, platform) => ({
-          ...acc,
-          [platform.id]: platform.markets.map(m => ({
-            id: m.id,
-            name: m.name,
-            budgetPercentage: m.budgetPercentage,
-            accountName: m.accountName,
-            adAccountId: m.adAccountId,
-            page: m.page,
-            pageId: m.pageId,
-            pixel: m.pixel,
-            catalog: m.catalog,
-            productSet: m.productSet,
-            conversionEvent: m.conversionEvent,
-            adFormats: m.adFormats,
-            phases: m.phases,
-            isCBOEnabled: m.isCBOEnabled,
-            isLifetimeBudget: m.isLifetimeBudget,
-            instagramActorId: m.instagramActorId,
-            strategy: m.strategy,
-            strategyFocus: m.strategyFocus,
-            // TikTok-specific fields
-            tiktokPixel: m.tiktokPixel,
-            tiktokIdentity: m.tiktokIdentity,
-            tiktokCatalog: m.tiktokCatalog,
-            tiktokProductSet: m.tiktokProductSet,
-            tiktokOptimizationEvent: m.tiktokOptimizationEvent,
-            tiktokLandingPageUrl: m.tiktokLandingPageUrl,
-          })),
-        }), {}),
-        generic_config: {
-          strategy: genericConfig.strategy,
-          strategyFocus: genericConfig.strategyFocus,
-          hasPhases: genericConfig.hasPhases,
-          phases: genericConfig.phases,
-          campaigns: genericConfig.campaigns,
-          targeting: genericConfig.targeting,
-          basicTargeting: basicTargeting,
-        } as any,
-        status: "draft",
-      } as any).select().single();
+      const { data: campaign, error } = await supabase
+        .from("campaigns")
+        .insert({
+          user_id: user.id,
+          team_id: activeWorkspaceId || null,
+          name: campaignName,
+          bo_number: boNumber.trim(),
+          objective: genericConfig.strategyFocus || "conversions",
+          total_budget: parseFloat(totalBudget) || 0,
+          start_date: startDate || null,
+          end_date: endDate || null,
+          platforms: selectedPlatforms.map((p) => ({ id: p.id, name: p.name })),
+          budget_allocation: budgetAllocation,
+          market_splits: platformsWithMarkets.reduce(
+            (acc, platform) => ({
+              ...acc,
+              [platform.id]: platform.markets.map((m) => ({
+                id: m.id,
+                name: m.name,
+                budgetPercentage: m.budgetPercentage,
+                accountName: m.accountName,
+                adAccountId: m.adAccountId,
+                page: m.page,
+                pageId: m.pageId,
+                pixel: m.pixel,
+                catalog: m.catalog,
+                productSet: m.productSet,
+                conversionEvent: m.conversionEvent,
+                adFormats: m.adFormats,
+                phases: m.phases,
+                isCBOEnabled: m.isCBOEnabled,
+                isLifetimeBudget: m.isLifetimeBudget,
+                instagramActorId: m.instagramActorId,
+                strategy: m.strategy,
+                strategyFocus: m.strategyFocus,
+                // TikTok-specific fields
+                tiktokPixel: m.tiktokPixel,
+                tiktokIdentity: m.tiktokIdentity,
+                tiktokCatalog: m.tiktokCatalog,
+                tiktokProductSet: m.tiktokProductSet,
+                tiktokOptimizationEvent: m.tiktokOptimizationEvent,
+                tiktokLandingPageUrl: m.tiktokLandingPageUrl,
+              })),
+            }),
+            {},
+          ),
+          generic_config: {
+            strategy: genericConfig.strategy,
+            strategyFocus: genericConfig.strategyFocus,
+            hasPhases: genericConfig.hasPhases,
+            phases: genericConfig.phases,
+            campaigns: genericConfig.campaigns,
+            targeting: genericConfig.targeting,
+            basicTargeting: basicTargeting,
+          } as any,
+          status: "draft",
+        } as any)
+        .select()
+        .single();
 
       if (error) throw error;
 
@@ -1327,9 +1363,9 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
         action: "created",
         new_status: "draft",
       } as any);
-      
+
       toast.success("ActiPlan saved as draft successfully!");
-      
+
       // Redirect to ActiPlans page
       setTimeout(() => {
         window.location.href = "/actiplans";
@@ -1343,7 +1379,7 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
 
   const validateBudgetTypes = (): boolean => {
     const missingBudgetTypes: string[] = [];
-    
+
     platformsWithMarkets.forEach((platform) => {
       platform.markets.forEach((market) => {
         if (market.phases) {
@@ -1359,179 +1395,209 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
     if (missingBudgetTypes.length > 0) {
       toast.error(
         `Budget type is required for all phases. Missing in: ${missingBudgetTypes.slice(0, 3).join(", ")}${missingBudgetTypes.length > 3 ? ` and ${missingBudgetTypes.length - 3} more` : ""}`,
-        { duration: 5000 }
+        { duration: 5000 },
       );
       return false;
     }
-    
+
     return true;
   };
 
   const applyBudgetTypeDefaultsIfAvailable = async (skipIfSet = false) => {
-    console.log('applyBudgetTypeDefaultsIfAvailable called, skipIfSet:', skipIfSet);
+    console.log("applyBudgetTypeDefaultsIfAvailable called, skipIfSet:", skipIfSet);
     try {
       // Collect account IDs separately for Meta and TikTok platforms
-      const metaAccountIds = Array.from(new Set(
-        platformsWithMarkets
-          .filter(p => p.enabled && (p.id === 'meta' || p.name.toLowerCase() === 'meta'))
-          .flatMap(p => p.markets.map(m => m.adAccountId).filter(Boolean) as string[])
-      ));
-      
-      const tiktokAccountIds = Array.from(new Set(
-        platformsWithMarkets
-          .filter(p => p.enabled && (p.id === 'tiktok' || p.name.toLowerCase() === 'tiktok'))
-          .flatMap(p => p.markets.map(m => m.adAccountId).filter(Boolean) as string[])
-      ));
-      
-      console.log('Meta Account IDs found:', metaAccountIds);
-      console.log('TikTok Account IDs found:', tiktokAccountIds);
-      
+      const metaAccountIds = Array.from(
+        new Set(
+          platformsWithMarkets
+            .filter((p) => p.enabled && (p.id === "meta" || p.name.toLowerCase() === "meta"))
+            .flatMap((p) => p.markets.map((m) => m.adAccountId).filter(Boolean) as string[]),
+        ),
+      );
+
+      const tiktokAccountIds = Array.from(
+        new Set(
+          platformsWithMarkets
+            .filter((p) => p.enabled && (p.id === "tiktok" || p.name.toLowerCase() === "tiktok"))
+            .flatMap((p) => p.markets.map((m) => m.adAccountId).filter(Boolean) as string[]),
+        ),
+      );
+
+      console.log("Meta Account IDs found:", metaAccountIds);
+      console.log("TikTok Account IDs found:", tiktokAccountIds);
+
       if (metaAccountIds.length === 0 && tiktokAccountIds.length === 0) return;
-      
+
       // Query both Meta and TikTok ad accounts
       const [metaResult, tiktokResult] = await Promise.all([
-        metaAccountIds.length > 0 
+        metaAccountIds.length > 0
           ? supabase
-              .from('meta_ad_accounts')
-              .select('account_id, default_conversion_budget_type, default_non_conversion_budget_type')
-              .in('account_id', metaAccountIds)
+              .from("meta_ad_accounts")
+              .select("account_id, default_conversion_budget_type, default_non_conversion_budget_type")
+              .in("account_id", metaAccountIds)
           : Promise.resolve({ data: [] }),
         tiktokAccountIds.length > 0
           ? supabase
-              .from('tiktok_ad_accounts')
-              .select('account_id, default_conversion_budget_type, default_non_conversion_budget_type')
-              .in('account_id', tiktokAccountIds)
-          : Promise.resolve({ data: [] })
+              .from("tiktok_ad_accounts")
+              .select("account_id, default_conversion_budget_type, default_non_conversion_budget_type")
+              .in("account_id", tiktokAccountIds)
+          : Promise.resolve({ data: [] }),
       ]);
-      
+
       const metaAccounts = metaResult.data || [];
       const tiktokAccounts = tiktokResult.data || [];
-      
-      console.log('Fetched Meta accounts with defaults:', metaAccounts.map(a => ({
-        id: a.account_id,
-        convDefault: a.default_conversion_budget_type,
-        nonConvDefault: a.default_non_conversion_budget_type
-      })));
-      
-      console.log('Fetched TikTok accounts with defaults:', tiktokAccounts.map(a => ({
-        id: a.account_id,
-        convDefault: a.default_conversion_budget_type,
-        nonConvDefault: a.default_non_conversion_budget_type
-      })));
-      
+
+      console.log(
+        "Fetched Meta accounts with defaults:",
+        metaAccounts.map((a) => ({
+          id: a.account_id,
+          convDefault: a.default_conversion_budget_type,
+          nonConvDefault: a.default_non_conversion_budget_type,
+        })),
+      );
+
+      console.log(
+        "Fetched TikTok accounts with defaults:",
+        tiktokAccounts.map((a) => ({
+          id: a.account_id,
+          convDefault: a.default_conversion_budget_type,
+          nonConvDefault: a.default_non_conversion_budget_type,
+        })),
+      );
+
       // Merge both into defaultsMap
       const defaultsMap: Record<string, { conv?: string; nonconv?: string }> = {};
-      
+
       [...metaAccounts, ...tiktokAccounts].forEach((a: any) => {
         defaultsMap[a.account_id] = {
           conv: a.default_conversion_budget_type || undefined,
           nonconv: a.default_non_conversion_budget_type || undefined,
         };
       });
-      
-      console.log('Budget type defaults map:', defaultsMap);
-      
+
+      console.log("Budget type defaults map:", defaultsMap);
+
       let hasChanges = false;
-      const updated = platformsWithMarkets.map(p => !p.enabled ? p : ({
-        ...p,
-        markets: p.markets.map(m => {
-          const def = m.adAccountId ? defaultsMap[m.adAccountId] : undefined;
-          if (!def) return m;
-          
-          const phases = (m.phases || []).map(ph => {
-            // Skip if budget type is already set (including when user explicitly chose "none")
-            if (skipIfSet && ph.budgetType !== undefined) return ph;
-            // Only apply if budget type is truly unset (undefined)
-            if (ph.budgetType !== undefined) return ph;
-            
-            const phaseObj = (ph.objective || '').toLowerCase();
-            const phaseOpt = (ph.optimizationGoal || '').toLowerCase();
-            const phaseFunnel = (ph.funnelStage || '').toLowerCase();
-            const marketFocus = (m.strategyFocus || '').toLowerCase();
-            
-            // Non-conversion indicators (take priority)
-            const isNonConversionObjective = 
-              phaseObj.includes('brand awareness') ||
-              phaseObj.includes('reach') ||
-              phaseObj.includes('traffic') ||
-              phaseObj.includes('engagement') ||
-              phaseObj.includes('video views') ||
-              phaseObj.includes('app installs');
-            
-            const isNonConversionOptGoal = 
-              phaseOpt.includes('reach') ||
-              phaseOpt.includes('link clicks') ||
-              phaseOpt.includes('landing page views') ||
-              phaseOpt.includes('post engagement') ||
-              phaseOpt.includes('video views') ||
-              phaseOpt.includes('app installs');
-            
-            // Conversion indicators
-            const isConversionObjective = 
-              phaseObj.includes('outcome_sales') || 
-              phaseObj.includes('outcome_leads') ||
-              phaseObj.includes('conversion');
-            
-            const isConversionOptGoal = 
-              phaseOpt.includes('offsite_conversions') ||
-              phaseOpt.includes('conversions') ||
-              phaseOpt.includes('lead') ||
-              phaseOpt.includes('purchase') ||
-              phaseOpt.includes('complete_registration');
-            
-            const isConversionFunnel = 
-              phaseFunnel.includes('conversion') ||
-              phaseFunnel.includes('purchase') ||
-              phaseFunnel.includes('action');
-            
-            const isConversionMarket = 
-              marketFocus.includes('purchase') || 
-              marketFocus.includes('lead') || 
-              marketFocus.includes('conversion');
-            
-            // Phase-level indicators take priority over market-level
-            let isPhaseConversion: boolean;
-            if (isNonConversionObjective || isNonConversionOptGoal) {
-              isPhaseConversion = false;
-            } else if (isConversionObjective || isConversionOptGoal || isConversionFunnel) {
-              isPhaseConversion = true;
-            } else {
-              isPhaseConversion = isConversionMarket;
-            }
-            
-            const candidate = isPhaseConversion ? def.conv : def.nonconv;
-            
-            console.log(`Phase "${ph.name}": obj=${phaseObj}, opt=${phaseOpt}, funnel=${phaseFunnel}, market=${marketFocus}, isConv=${isPhaseConversion}, applying=${candidate}`);
-            
-            if (candidate === 'daily' || candidate === 'lifetime') {
-              hasChanges = true;
-              return { ...ph, budgetType: candidate as 'daily' | 'lifetime' };
-            }
-            return ph;
-          });
-          return { ...m, phases };
-        })
-      }));
-      
+      const updated = platformsWithMarkets.map((p) =>
+        !p.enabled
+          ? p
+          : {
+              ...p,
+              markets: p.markets.map((m) => {
+                const def = m.adAccountId ? defaultsMap[m.adAccountId] : undefined;
+                if (!def) return m;
+
+                const phases = (m.phases || []).map((ph) => {
+                  // Skip if budget type is already set (including when user explicitly chose "none")
+                  if (skipIfSet && ph.budgetType !== undefined) return ph;
+                  // Only apply if budget type is truly unset (undefined)
+                  if (ph.budgetType !== undefined) return ph;
+
+                  const phaseObj = (ph.objective || "").toLowerCase();
+                  const phaseOpt = (ph.optimizationGoal || "").toLowerCase();
+                  const phaseFunnel = (ph.funnelStage || "").toLowerCase();
+                  const marketFocus = (m.strategyFocus || "").toLowerCase();
+
+                  // Non-conversion indicators (take priority)
+                  const isNonConversionObjective =
+                    phaseObj.includes("brand awareness") ||
+                    phaseObj.includes("reach") ||
+                    phaseObj.includes("traffic") ||
+                    phaseObj.includes("engagement") ||
+                    phaseObj.includes("video views") ||
+                    phaseObj.includes("app installs");
+
+                  const isNonConversionOptGoal =
+                    phaseOpt.includes("reach") ||
+                    phaseOpt.includes("link clicks") ||
+                    phaseOpt.includes("landing page views") ||
+                    phaseOpt.includes("post engagement") ||
+                    phaseOpt.includes("video views") ||
+                    phaseOpt.includes("app installs");
+
+                  // Conversion indicators
+                  const isConversionObjective =
+                    phaseObj.includes("outcome_sales") ||
+                    phaseObj.includes("outcome_leads") ||
+                    phaseObj.includes("conversion");
+
+                  const isConversionOptGoal =
+                    phaseOpt.includes("offsite_conversions") ||
+                    phaseOpt.includes("conversions") ||
+                    phaseOpt.includes("lead") ||
+                    phaseOpt.includes("purchase") ||
+                    phaseOpt.includes("complete_registration");
+
+                  const isConversionFunnel =
+                    phaseFunnel.includes("conversion") ||
+                    phaseFunnel.includes("purchase") ||
+                    phaseFunnel.includes("action");
+
+                  const isConversionMarket =
+                    marketFocus.includes("purchase") ||
+                    marketFocus.includes("lead") ||
+                    marketFocus.includes("conversion");
+
+                  // Phase-level indicators take priority over market-level
+                  let isPhaseConversion: boolean;
+                  if (isNonConversionObjective || isNonConversionOptGoal) {
+                    isPhaseConversion = false;
+                  } else if (isConversionObjective || isConversionOptGoal || isConversionFunnel) {
+                    isPhaseConversion = true;
+                  } else {
+                    isPhaseConversion = isConversionMarket;
+                  }
+
+                  const candidate = isPhaseConversion ? def.conv : def.nonconv;
+
+                  console.log(
+                    `Phase "${ph.name}": obj=${phaseObj}, opt=${phaseOpt}, funnel=${phaseFunnel}, market=${marketFocus}, isConv=${isPhaseConversion}, applying=${candidate}`,
+                  );
+
+                  if (candidate === "daily" || candidate === "lifetime") {
+                    hasChanges = true;
+                    return { ...ph, budgetType: candidate as "daily" | "lifetime" };
+                  }
+                  return ph;
+                });
+                return { ...m, phases };
+              }),
+            },
+      );
+
       if (hasChanges) {
         setPlatformsWithMarkets(updated);
       }
     } catch (e) {
-      console.error('Error applying budget type defaults:', e);
+      console.error("Error applying budget type defaults:", e);
     }
   };
 
   // Auto-apply budget type defaults when ad accounts or phases change
   useEffect(() => {
-    const hasAccountsWithPhases = platformsWithMarkets.some(p => 
-      p.enabled && p.markets.some(m => m.adAccountId && m.phases && m.phases.length > 0 && m.phases.some(ph => ph.budgetType === undefined))
+    const hasAccountsWithPhases = platformsWithMarkets.some(
+      (p) =>
+        p.enabled &&
+        p.markets.some(
+          (m) => m.adAccountId && m.phases && m.phases.length > 0 && m.phases.some((ph) => ph.budgetType === undefined),
+        ),
     );
     if (hasAccountsWithPhases && isHydrated) {
       applyBudgetTypeDefaultsIfAvailable(true);
     }
-  }, [platformsWithMarkets.map(p => 
-    p.markets.map(m => `${m.adAccountId}-${m.phases?.length || 0}-${m.phases?.filter(ph => ph.budgetType === undefined).length || 0}`).join('|')
-  ).join('||'), isHydrated]);
+  }, [
+    platformsWithMarkets
+      .map((p) =>
+        p.markets
+          .map(
+            (m) =>
+              `${m.adAccountId}-${m.phases?.length || 0}-${m.phases?.filter((ph) => ph.budgetType === undefined).length || 0}`,
+          )
+          .join("|"),
+      )
+      .join("||"),
+    isHydrated,
+  ]);
 
   const saveCampaignDraft = async () => {
     if (!campaignName.trim()) {
@@ -1543,7 +1609,7 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
       toast.error("Please enter a BO number");
       return null;
     }
-    
+
     if (!validateBudgetTypes()) {
       return null;
     }
@@ -1557,7 +1623,7 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
         .eq("team_id", activeWorkspaceId)
         .neq("id", savedCampaignId || "")
         .single();
-      
+
       if (existingCampaign) {
         toast.error("BO number must be unique within your workspace. This number is already in use.");
         return null;
@@ -1572,81 +1638,87 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
       const user = (await supabase.auth.getUser()).data.user;
       if (!user) throw new Error("User not authenticated");
 
-      const selectedPlatforms = platformsWithMarkets.filter(p => p.id !== "");
-      const budgetAllocation = selectedPlatforms
-        .reduce((acc, p) => ({ ...acc, [p.id]: p.budgetPercentage }), {});
+      const selectedPlatforms = platformsWithMarkets.filter((p) => p.id !== "");
+      const budgetAllocation = selectedPlatforms.reduce((acc, p) => ({ ...acc, [p.id]: p.budgetPercentage }), {});
 
-      const { data: campaign, error } = await supabase.from("campaigns").insert({
-        user_id: user.id,
-        team_id: activeWorkspaceId || null,
-        name: campaignName,
-        bo_number: boNumber.trim(),
-        objective: genericConfig.strategyFocus || "conversions",
-        total_budget: parseFloat(totalBudget) || 0,
-        start_date: startDate || null,
-        end_date: endDate || null,
-        platforms: selectedPlatforms.map(p => ({ id: p.id, name: p.name })),
-        budget_allocation: budgetAllocation,
-        market_splits: platformsWithMarkets.reduce((acc, platform) => {
-          console.log(`💾 Saving platform ${platform.id}:`, platform.markets.map(m => ({
-            id: m.id,
-            name: m.name,
-            adAccountId: m.adAccountId,
-            tiktokPixel: m.tiktokPixel,
-            tiktokIdentity: m.tiktokIdentity,
-            tiktokCatalog: m.tiktokCatalog,
-            tiktokProductSet: m.tiktokProductSet,
-            tiktokOptimizationEvent: m.tiktokOptimizationEvent,
-          })));
-          return {
-            ...acc,
-            [platform.id]: platform.markets.map(m => ({
-              id: m.id,
-              name: m.name,
-              budgetPercentage: m.budgetPercentage,
-              accountName: m.accountName,
-              adAccountId: m.adAccountId,
-              page: m.page,
-              pageId: m.pageId,
-              pixel: m.pixel,
-              catalog: m.catalog,
-              productSet: m.productSet,
-              conversionEvent: m.conversionEvent,
-              tiktokPixel: m.tiktokPixel,
-              tiktokIdentity: m.tiktokIdentity,
-              tiktokCatalog: m.tiktokCatalog,
-              tiktokProductSet: m.tiktokProductSet,
-              tiktokOptimizationEvent: m.tiktokOptimizationEvent,
-              tiktokLandingPageUrl: m.tiktokLandingPageUrl,
-              adFormats: m.adFormats,
-              phases: m.phases,
-              instagramActorId: m.instagramActorId,
-              strategy: m.strategy,
-              strategyFocus: m.strategyFocus,
-              isCBOEnabled: m.isCBOEnabled,
-              isLifetimeBudget: m.isLifetimeBudget,
-              countries: m.countries,
-              gender: m.gender,
-              languages: m.languages,
-              ageMin: m.ageMin,
-              ageMax: m.ageMax,
-              publisherPlatforms: m.publisherPlatforms,
-              positions: m.positions,
-              detailedTargeting: m.detailedTargeting,
-            })),
-          };
-        }, {}),
-        generic_config: {
-          strategy: genericConfig.strategy,
-          strategyFocus: genericConfig.strategyFocus,
-          hasPhases: genericConfig.hasPhases,
-          phases: genericConfig.phases,
-          campaigns: genericConfig.campaigns,
-          targeting: genericConfig.targeting,
-          basicTargeting: basicTargeting,
-        } as any,
-        status: "draft",
-      } as any).select().single();
+      const { data: campaign, error } = await supabase
+        .from("campaigns")
+        .insert({
+          user_id: user.id,
+          team_id: activeWorkspaceId || null,
+          name: campaignName,
+          bo_number: boNumber.trim(),
+          objective: genericConfig.strategyFocus || "conversions",
+          total_budget: parseFloat(totalBudget) || 0,
+          start_date: startDate || null,
+          end_date: endDate || null,
+          platforms: selectedPlatforms.map((p) => ({ id: p.id, name: p.name })),
+          budget_allocation: budgetAllocation,
+          market_splits: platformsWithMarkets.reduce((acc, platform) => {
+            console.log(
+              `💾 Saving platform ${platform.id}:`,
+              platform.markets.map((m) => ({
+                id: m.id,
+                name: m.name,
+                adAccountId: m.adAccountId,
+                tiktokPixel: m.tiktokPixel,
+                tiktokIdentity: m.tiktokIdentity,
+                tiktokCatalog: m.tiktokCatalog,
+                tiktokProductSet: m.tiktokProductSet,
+                tiktokOptimizationEvent: m.tiktokOptimizationEvent,
+              })),
+            );
+            return {
+              ...acc,
+              [platform.id]: platform.markets.map((m) => ({
+                id: m.id,
+                name: m.name,
+                budgetPercentage: m.budgetPercentage,
+                accountName: m.accountName,
+                adAccountId: m.adAccountId,
+                page: m.page,
+                pageId: m.pageId,
+                pixel: m.pixel,
+                catalog: m.catalog,
+                productSet: m.productSet,
+                conversionEvent: m.conversionEvent,
+                tiktokPixel: m.tiktokPixel,
+                tiktokIdentity: m.tiktokIdentity,
+                tiktokCatalog: m.tiktokCatalog,
+                tiktokProductSet: m.tiktokProductSet,
+                tiktokOptimizationEvent: m.tiktokOptimizationEvent,
+                tiktokLandingPageUrl: m.tiktokLandingPageUrl,
+                adFormats: m.adFormats,
+                phases: m.phases,
+                instagramActorId: m.instagramActorId,
+                strategy: m.strategy,
+                strategyFocus: m.strategyFocus,
+                isCBOEnabled: m.isCBOEnabled,
+                isLifetimeBudget: m.isLifetimeBudget,
+                countries: m.countries,
+                gender: m.gender,
+                languages: m.languages,
+                ageMin: m.ageMin,
+                ageMax: m.ageMax,
+                publisherPlatforms: m.publisherPlatforms,
+                positions: m.positions,
+                detailedTargeting: m.detailedTargeting,
+              })),
+            };
+          }, {}),
+          generic_config: {
+            strategy: genericConfig.strategy,
+            strategyFocus: genericConfig.strategyFocus,
+            hasPhases: genericConfig.hasPhases,
+            phases: genericConfig.phases,
+            campaigns: genericConfig.campaigns,
+            targeting: genericConfig.targeting,
+            basicTargeting: basicTargeting,
+          } as any,
+          status: "draft",
+        } as any)
+        .select()
+        .single();
 
       if (error) throw error;
 
@@ -1658,7 +1730,7 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
       } as any);
 
       setSavedCampaignId(campaign.id);
-      localStorage.setItem('draftCampaignId', campaign.id);
+      localStorage.setItem("draftCampaignId", campaign.id);
       toast.success("ActiPlan draft saved!");
       return campaign.id;
     } catch (error: any) {
@@ -1673,7 +1745,7 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
     if (savedCampaignId || draftCreationInProgressRef.current) {
       return;
     }
-    
+
     draftCreationInProgressRef.current = true;
     try {
       await saveCampaignDraft();
@@ -1691,119 +1763,129 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
       { id: "snapchat", name: "Snapchat" },
       { id: "pinterest", name: "Pinterest" },
     ];
-    
-    const usedPlatformIds = platformsWithMarkets.map(p => p.id);
-    return allPlatforms.filter(p => !usedPlatformIds.includes(p.id));
+
+    const usedPlatformIds = platformsWithMarkets.map((p) => p.id);
+    return allPlatforms.filter((p) => !usedPlatformIds.includes(p.id));
   };
 
   const duplicatePlatform = (platformId: string) => {
-    const platformToDuplicate = platformsWithMarkets.find(p => p.id === platformId);
+    const platformToDuplicate = platformsWithMarkets.find((p) => p.id === platformId);
     if (!platformToDuplicate) return;
-    
-    setPendingDuplication({ type: 'platform', platformId });
+
+    setPendingDuplication({ type: "platform", platformId });
     setPlatformDialogOpen(true);
   };
 
   const handlePlatformDuplicationConfirm = (newPlatformId: string) => {
-    if (!pendingDuplication || pendingDuplication.type !== 'platform') return;
-    
-    const platformToDuplicate = platformsWithMarkets.find(p => p.id === pendingDuplication.platformId);
+    if (!pendingDuplication || pendingDuplication.type !== "platform") return;
+
+    const platformToDuplicate = platformsWithMarkets.find((p) => p.id === pendingDuplication.platformId);
     if (!platformToDuplicate) return;
 
-    const newPlatformName = getAvailablePlatforms().find(p => p.id === newPlatformId)?.name || newPlatformId;
-    
+    const newPlatformName = getAvailablePlatforms().find((p) => p.id === newPlatformId)?.name || newPlatformId;
+
     const newPlatform = {
       ...platformToDuplicate,
       id: newPlatformId,
       name: newPlatformName,
-      markets: platformToDuplicate.markets.map(market => ({
+      markets: platformToDuplicate.markets.map((market) => ({
         ...market,
         id: `${market.id}-${Date.now()}-${Math.random().toString(36).substring(7)}`,
       })),
     };
-    
-    setPlatformsWithMarkets(prev => [...prev, newPlatform]);
+
+    setPlatformsWithMarkets((prev) => [...prev, newPlatform]);
     setPendingDuplication(null);
     ensureDraft();
     toast.success("Platform duplicated successfully");
   };
 
   const deletePlatform = (platformId: string) => {
-    setPlatformsWithMarkets(prev => prev.filter(p => p.id !== platformId));
+    setPlatformsWithMarkets((prev) => prev.filter((p) => p.id !== platformId));
     ensureDraft();
     toast.success("Platform deleted successfully");
   };
 
   const duplicateMarket = (platformId: string, marketId: string) => {
-    setPendingDuplication({ type: 'market', platformId, marketId });
+    setPendingDuplication({ type: "market", platformId, marketId });
     setMarketDialogOpen(true);
   };
 
   const handleMarketDuplicationConfirm = (marketValue: string, marketLabel: string) => {
-    if (!pendingDuplication || pendingDuplication.type !== 'market') return;
-    
+    if (!pendingDuplication || pendingDuplication.type !== "market") return;
+
     const { platformId, marketId } = pendingDuplication;
     if (!platformId || !marketId) return;
-    
-    setPlatformsWithMarkets(prev => prev.map(platform => {
-      if (platform.id !== platformId) return platform;
-      
-      const marketToDuplicate = platform.markets.find(m => m.id === marketId);
-      if (!marketToDuplicate) return platform;
-      
-      const newMarket = {
-        ...marketToDuplicate,
-        id: `${marketValue}-${Date.now()}-${Math.random().toString(36).substring(7)}`,
-        name: marketValue,
-      };
-      
-      return {
-        ...platform,
-        markets: [...platform.markets, newMarket],
-      };
-    }));
-    
+
+    setPlatformsWithMarkets((prev) =>
+      prev.map((platform) => {
+        if (platform.id !== platformId) return platform;
+
+        const marketToDuplicate = platform.markets.find((m) => m.id === marketId);
+        if (!marketToDuplicate) return platform;
+
+        const newMarket = {
+          ...marketToDuplicate,
+          id: `${marketValue}-${Date.now()}-${Math.random().toString(36).substring(7)}`,
+          name: marketValue,
+        };
+
+        return {
+          ...platform,
+          markets: [...platform.markets, newMarket],
+        };
+      }),
+    );
+
     setPendingDuplication(null);
     ensureDraft();
     toast.success(`Market "${marketLabel}" duplicated successfully`);
   };
 
   const deleteMarket = (platformId: string, marketId: string) => {
-    setPlatformsWithMarkets(prev => prev.map(platform => {
-      if (platform.id !== platformId) return platform;
-      return {
-        ...platform,
-        markets: platform.markets.filter(m => m.id !== marketId),
-      };
-    }));
+    setPlatformsWithMarkets((prev) =>
+      prev.map((platform) => {
+        if (platform.id !== platformId) return platform;
+        return {
+          ...platform,
+          markets: platform.markets.filter((m) => m.id !== marketId),
+        };
+      }),
+    );
     ensureDraft();
     toast.success("Market deleted successfully");
   };
 
   const getMarketLabel = (marketValue: string) => {
-    return MARKET_OPTIONS.find(m => m.value === marketValue)?.label || marketValue;
+    return MARKET_OPTIONS.find((m) => m.value === marketValue)?.label || marketValue;
   };
 
   const handleBudgetTypeConfirm = (phaseBudgetTypes: Record<string, "daily" | "lifetime">) => {
     if (!selectedMarketForBudget) return;
-    
+
     const { platformId, marketId } = selectedMarketForBudget;
-    
-    setPlatformsWithMarkets(prev => prev.map(p => 
-      p.id === platformId ? {
-        ...p,
-        markets: p.markets.map(m => 
-          m.id === marketId ? {
-            ...m,
-            phases: (m.phases || []).map((phase: any) => ({
-              ...phase,
-              budgetType: phaseBudgetTypes[phase.id] || "lifetime"
-            }))
-          } : m
-        )
-      } : p
-    ));
-    
+
+    setPlatformsWithMarkets((prev) =>
+      prev.map((p) =>
+        p.id === platformId
+          ? {
+              ...p,
+              markets: p.markets.map((m) =>
+                m.id === marketId
+                  ? {
+                      ...m,
+                      phases: (m.phases || []).map((phase: any) => ({
+                        ...phase,
+                        budgetType: phaseBudgetTypes[phase.id] || "lifetime",
+                      })),
+                    }
+                  : m,
+              ),
+            }
+          : p,
+      ),
+    );
+
     setBudgetTypeDialogOpen(false);
     setSelectedMarketForBudget(null);
     toast.success("Budget types applied to all campaigns");
@@ -1835,7 +1917,10 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
                 id="budget"
                 type="number"
                 value={totalBudget}
-                onChange={(e) => { setTotalBudget(e.target.value); ensureDraft(); }}
+                onChange={(e) => {
+                  setTotalBudget(e.target.value);
+                  ensureDraft();
+                }}
                 placeholder="Enter total budget"
                 required
               />
@@ -1851,7 +1936,10 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
                   id="start-date"
                   type="date"
                   value={startDate}
-                  onChange={(e) => { setStartDate(e.target.value); ensureDraft(); }}
+                  onChange={(e) => {
+                    setStartDate(e.target.value);
+                    ensureDraft();
+                  }}
                   required
                 />
               </div>
@@ -1864,7 +1952,10 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
                   id="end-date"
                   type="date"
                   value={endDate}
-                  onChange={(e) => { setEndDate(e.target.value); ensureDraft(); }}
+                  onChange={(e) => {
+                    setEndDate(e.target.value);
+                    ensureDraft();
+                  }}
                   required
                 />
               </div>
@@ -1873,20 +1964,26 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
             {/* Client Selection - Now after required fields */}
             <div className="space-y-2">
               <Label htmlFor="client">Client (Optional)</Label>
-              <Select 
-                value={selectedClientId || undefined} 
-                onValueChange={(value) => { 
+              <Select
+                value={selectedClientId || undefined}
+                onValueChange={(value) => {
                   if (value === "__new_client__") {
-                    navigate('/settings/accounts');
+                    navigate("/settings/accounts");
                     return;
                   }
-                  setSelectedClientId(value || ""); 
-                  ensureDraft(); 
+                  setSelectedClientId(value || "");
+                  ensureDraft();
                 }}
                 disabled={!totalBudget || !startDate || !endDate}
               >
                 <SelectTrigger id="client">
-                  <SelectValue placeholder={!totalBudget || !startDate || !endDate ? "Fill budget and dates first..." : "Select a client to auto-populate platforms..."} />
+                  <SelectValue
+                    placeholder={
+                      !totalBudget || !startDate || !endDate
+                        ? "Fill budget and dates first..."
+                        : "Select a client to auto-populate platforms..."
+                    }
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   {clients.map((client) => (
@@ -1895,7 +1992,7 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
                     </SelectItem>
                   ))}
                   {/* + New Client option - locked for non-Enterprise users */}
-                  {hasAccess('client_management') ? (
+                  {hasAccess("client_management") ? (
                     <SelectItem value="__new_client__" className="text-primary font-medium">
                       <span className="flex items-center gap-2">
                         <Plus className="h-4 w-4" />
@@ -1906,9 +2003,9 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
                     <TooltipProvider>
                       <Tooltip delayDuration={0}>
                         <TooltipTrigger asChild>
-                          <div 
+                          <div
                             className="relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm outline-none opacity-50"
-                            onClick={() => navigate('/settings/plans')}
+                            onClick={() => navigate("/settings/plans")}
                           >
                             <Lock className="h-4 w-4 mr-2" />
                             <Plus className="h-4 w-4 mr-1" />
@@ -1916,17 +2013,21 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
                           </div>
                         </TooltipTrigger>
                         <TooltipContent side="left" className="bg-background border border-border shadow-lg z-[100]">
-                          <a 
+                          <a
                             href="/settings/plans"
                             onClick={(e) => {
                               e.preventDefault();
-                              navigate('/settings/plans');
+                              navigate("/settings/plans");
                             }}
                             className="flex items-center gap-2 text-sm hover:text-primary transition-colors"
                           >
                             <Lock className="h-3.5 w-3.5 text-muted-foreground" />
                             <span>
-                              Upgrade to <span className="font-semibold text-primary">{TIER_DISPLAY_NAMES[getRequiredTierForFeature('client_management')]}</span> to unlock
+                              Upgrade to{" "}
+                              <span className="font-semibold text-primary">
+                                {TIER_DISPLAY_NAMES[getRequiredTierForFeature("client_management")]}
+                              </span>{" "}
+                              to unlock
                             </span>
                           </a>
                         </TooltipContent>
@@ -1946,16 +2047,24 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
                 <Input
                   id="name"
                   value={campaignName}
-                  onChange={(e) => { setCampaignName(e.target.value); ensureDraft(); }}
+                  onChange={(e) => {
+                    setCampaignName(e.target.value);
+                    ensureDraft();
+                  }}
                   placeholder="e.g., Q1 2024 Brand Activation"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="bo-number">BO Number <span className="text-destructive">*</span></Label>
+                <Label htmlFor="bo-number">
+                  BO Number <span className="text-destructive">*</span>
+                </Label>
                 <Input
                   id="bo-number"
                   value={boNumber}
-                  onChange={(e) => { setBoNumber(e.target.value); ensureDraft(); }}
+                  onChange={(e) => {
+                    setBoNumber(e.target.value);
+                    ensureDraft();
+                  }}
                   placeholder="e.g., BO-2025-001"
                   required
                 />
@@ -1976,8 +2085,11 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
             </div>
 
             <div className="flex justify-end pt-4">
-              <Button 
-                onClick={async () => { await ensureDraft(); setCurrentStep(2); }} 
+              <Button
+                onClick={async () => {
+                  await ensureDraft();
+                  setCurrentStep(2);
+                }}
                 disabled={!isActivationDetailsComplete()}
               >
                 Next: Targeting
@@ -2002,7 +2114,9 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
               <div className="flex justify-between">
                 <span>Duration:</span>
                 <span className="font-medium text-foreground">
-                  {startDate && endDate && `${format(parseISO(startDate), "MMM d")} - ${format(parseISO(endDate), "MMM d, yyyy")}`}
+                  {startDate &&
+                    endDate &&
+                    `${format(parseISO(startDate), "MMM d")} - ${format(parseISO(endDate), "MMM d, yyyy")}`}
                 </span>
               </div>
             </div>
@@ -2031,10 +2145,10 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
               <UnifiedTargeting
                 targeting={basicTargeting}
                 onUpdate={(targeting) => {
-                  console.log('📋 Received targeting update from BasicTargeting:', targeting);
+                  console.log("📋 Received targeting update from BasicTargeting:", targeting);
                   setBasicTargeting(targeting);
                   // localStorage is already handled in UnifiedTargeting component
-                  
+
                   // Immediate database save - fetch current config to avoid overwriting other fields
                   if (savedCampaignId && user) {
                     (async () => {
@@ -2045,75 +2159,92 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
                           .select("generic_config")
                           .eq("id", savedCampaignId)
                           .single();
-                        
-                        const currentConfig = (currentCampaign?.generic_config && typeof currentCampaign.generic_config === 'object') 
-                          ? currentCampaign.generic_config as Record<string, unknown>
-                          : {};
-                        
+
+                        const currentConfig =
+                          currentCampaign?.generic_config && typeof currentCampaign.generic_config === "object"
+                            ? (currentCampaign.generic_config as Record<string, unknown>)
+                            : {};
+
                         // Merge with the NEW targeting (not from state which might be stale)
-                        await supabase.from("campaigns").update({
-                          generic_config: {
-                            ...currentConfig,
-                            basicTargeting: targeting, // Use the passed targeting directly
-                          } as any,
-                        }).eq("id", savedCampaignId);
-                        console.log('✅ Saved basicTargeting to database:', targeting.selectedItems?.length, 'items');
+                        await supabase
+                          .from("campaigns")
+                          .update({
+                            generic_config: {
+                              ...currentConfig,
+                              basicTargeting: targeting, // Use the passed targeting directly
+                            } as any,
+                          })
+                          .eq("id", savedCampaignId);
+                        console.log("✅ Saved basicTargeting to database:", targeting.selectedItems?.length, "items");
                       } catch (error) {
-                        console.error('❌ Error saving basicTargeting:', error);
+                        console.error("❌ Error saving basicTargeting:", error);
                       }
                     })();
                   }
                 }}
                 metaAdAccountId={firstAdAccountId || undefined}
                 tiktokAdvertiserId={firstTiktokAdvertiserId || undefined}
-                platformId={platformsWithMarkets.find(p => p.id === 'meta')?.id || platformsWithMarkets[0]?.id || 'meta'}
-                platformName={platformsWithMarkets.find(p => p.id === 'meta')?.name || platformsWithMarkets[0]?.name || 'Meta'}
-                selectedPlatforms={platformsWithMarkets.filter(p => p.enabled).map(p => ({
-                  id: p.id,
-                  name: p.name,
-                  adAccountId: p.id === 'meta' ? firstAdAccountId : p.id === 'tiktok' ? firstTiktokAdvertiserId : undefined,
-                }))}
+                platformId={
+                  platformsWithMarkets.find((p) => p.id === "meta")?.id || platformsWithMarkets[0]?.id || "meta"
+                }
+                platformName={
+                  platformsWithMarkets.find((p) => p.id === "meta")?.name || platformsWithMarkets[0]?.name || "Meta"
+                }
+                selectedPlatforms={platformsWithMarkets
+                  .filter((p) => p.enabled)
+                  .map((p) => ({
+                    id: p.id,
+                    name: p.name,
+                    adAccountId:
+                      p.id === "meta" ? firstAdAccountId : p.id === "tiktok" ? firstTiktokAdvertiserId : undefined,
+                  }))}
               />
               <div className="mt-6 flex justify-between">
                 <Button variant="outline" onClick={() => setCurrentStep(1)}>
                   Back
                 </Button>
-                <Button onClick={async () => {
-                  // Create targeting preset snapshot
-                  const preset = { ...basicTargeting };
-                  setTargetingPreset(preset);
-                  console.log('🎯 Created targeting preset:', preset);
-                  
-                  // Save preset to database
-                  if (savedCampaignId && user) {
-                    try {
-                      const { data: currentCampaign } = await supabase
-                        .from("campaigns")
-                        .select("generic_config")
-                        .eq("id", savedCampaignId)
-                        .single();
-                      
-                      const currentConfig = (currentCampaign?.generic_config && typeof currentCampaign.generic_config === 'object') 
-                        ? currentCampaign.generic_config 
-                        : genericConfig;
-                      
-                      await supabase.from("campaigns").update({
-                        generic_config: {
-                          ...currentConfig,
-                          targetingPreset: preset,
-                        } as any,
-                      }).eq("id", savedCampaignId);
-                      console.log('✅ Saved targeting preset to database');
-                      toast.success('Targeting preset created');
-                    } catch (error) {
-                      console.error('❌ Error saving preset:', error);
-                      toast.error('Failed to save targeting preset');
+                <Button
+                  onClick={async () => {
+                    // Create targeting preset snapshot
+                    const preset = { ...basicTargeting };
+                    setTargetingPreset(preset);
+                    console.log("🎯 Created targeting preset:", preset);
+
+                    // Save preset to database
+                    if (savedCampaignId && user) {
+                      try {
+                        const { data: currentCampaign } = await supabase
+                          .from("campaigns")
+                          .select("generic_config")
+                          .eq("id", savedCampaignId)
+                          .single();
+
+                        const currentConfig =
+                          currentCampaign?.generic_config && typeof currentCampaign.generic_config === "object"
+                            ? currentCampaign.generic_config
+                            : genericConfig;
+
+                        await supabase
+                          .from("campaigns")
+                          .update({
+                            generic_config: {
+                              ...currentConfig,
+                              targetingPreset: preset,
+                            } as any,
+                          })
+                          .eq("id", savedCampaignId);
+                        console.log("✅ Saved targeting preset to database");
+                        toast.success("Targeting preset created");
+                      } catch (error) {
+                        console.error("❌ Error saving preset:", error);
+                        toast.error("Failed to save targeting preset");
+                      }
                     }
-                  }
-                  
-                  setCurrentStep(3);
-                  await ensureDraft();
-                }}>
+
+                    setCurrentStep(3);
+                    await ensureDraft();
+                  }}
+                >
                   Continue to Strategy
                 </Button>
               </div>
@@ -2124,7 +2255,9 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
                 {basicTargeting.ageMin && basicTargeting.ageMax && (
                   <div className="flex justify-between">
                     <span>Age Range:</span>
-                    <span className="font-medium text-foreground">{basicTargeting.ageMin} - {basicTargeting.ageMax}</span>
+                    <span className="font-medium text-foreground">
+                      {basicTargeting.ageMin} - {basicTargeting.ageMax}
+                    </span>
                   </div>
                 )}
                 {basicTargeting.genders && basicTargeting.genders.length > 0 && (
@@ -2159,19 +2292,34 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
                         <Badge variant="outline" className="text-xs">
                           {basicTargeting.selectedItems.length} Selected
                         </Badge>
-                        {basicTargeting.selectedItems.filter(item => item.platforms.length === 2).length > 0 && (
+                        {basicTargeting.selectedItems.filter((item) => item.platforms.length === 2).length > 0 && (
                           <Badge variant="secondary" className="text-xs">
-                            {basicTargeting.selectedItems.filter(item => item.platforms.length === 2).length} Both Platforms
+                            {basicTargeting.selectedItems.filter((item) => item.platforms.length === 2).length} Both
+                            Platforms
                           </Badge>
                         )}
-                        {basicTargeting.selectedItems.filter(item => item.platforms.includes('meta') && item.platforms.length === 1).length > 0 && (
+                        {basicTargeting.selectedItems.filter(
+                          (item) => item.platforms.includes("meta") && item.platforms.length === 1,
+                        ).length > 0 && (
                           <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
-                            {basicTargeting.selectedItems.filter(item => item.platforms.includes('meta') && item.platforms.length === 1).length} Meta Only
+                            {
+                              basicTargeting.selectedItems.filter(
+                                (item) => item.platforms.includes("meta") && item.platforms.length === 1,
+                              ).length
+                            }{" "}
+                            Meta Only
                           </Badge>
                         )}
-                        {basicTargeting.selectedItems.filter(item => item.platforms.includes('tiktok') && item.platforms.length === 1).length > 0 && (
+                        {basicTargeting.selectedItems.filter(
+                          (item) => item.platforms.includes("tiktok") && item.platforms.length === 1,
+                        ).length > 0 && (
                           <Badge variant="outline" className="text-xs bg-pink-50 text-pink-700 border-pink-200">
-                            {basicTargeting.selectedItems.filter(item => item.platforms.includes('tiktok') && item.platforms.length === 1).length} TikTok Only
+                            {
+                              basicTargeting.selectedItems.filter(
+                                (item) => item.platforms.includes("tiktok") && item.platforms.length === 1,
+                              ).length
+                            }{" "}
+                            TikTok Only
                           </Badge>
                         )}
                       </div>
@@ -2194,12 +2342,6 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
                 <CardDescription>Choose your campaign strategy approach</CardDescription>
               </div>
               <div className="flex items-center gap-2">
-                {savedCampaignId && (
-                  <Button variant="outline" size="sm" onClick={() => setCreativeMatcherOpen(true)}>
-                    <Wand2 className="h-4 w-4 mr-2" />
-                    Mesh Creatives
-                  </Button>
-                )}
                 {currentStep > 3 && (
                   <Button variant="ghost" size="sm" onClick={() => setCurrentStep(3)}>
                     Edit
@@ -2210,16 +2352,18 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
           </CardHeader>
           {currentStep === 3 ? (
             <CardContent className="space-y-6">
-
               {/* Phase Scheduling */}
               {(() => {
-                const totalMarkets = platformsWithMarkets.reduce((sum, p) => sum + (p.enabled ? p.markets.length : 0), 0);
-                
+                const totalMarkets = platformsWithMarkets.reduce(
+                  (sum, p) => sum + (p.enabled ? p.markets.length : 0),
+                  0,
+                );
+
                 if (totalMarkets === 1) {
                   // Single market: show strategy configuration and PhaseScheduler
-                  const singlePlatform = platformsWithMarkets.find(p => p.enabled && p.markets.length > 0);
+                  const singlePlatform = platformsWithMarkets.find((p) => p.enabled && p.markets.length > 0);
                   const singleMarket = singlePlatform ? singlePlatform.markets[0] : null;
-                  
+
                   return singleMarket ? (
                     <div className="mt-6 pt-6 border-t space-y-6">
                       {/* Strategy Configuration for Single Market */}
@@ -2228,38 +2372,54 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
                         <div className="grid gap-4 md:grid-cols-2">
                           <div className="space-y-2">
                             <Label>Strategy Type</Label>
-                            <Select 
+                            <Select
                               value={singleMarket.strategy || genericConfig.strategy || "auto-detect"}
                               onValueChange={(value) => {
                                 const adFormats = singleMarket.adFormats || genericConfig.targeting?.adFormats || [];
                                 const hasPixel = !!singleMarket.pixel;
                                 const hasCatalog = !!singleMarket.catalog;
                                 let newPhases: any[] = [];
-                                
+
                                 if (value === "auto-detect") {
-                                  newPhases = generateAutoDetectPhases(adFormats, hasPixel, hasCatalog, startDate, endDate, singlePlatform?.id || "meta") || [];
+                                  newPhases =
+                                    generateAutoDetectPhases(
+                                      adFormats,
+                                      hasPixel,
+                                      hasCatalog,
+                                      startDate,
+                                      endDate,
+                                      singlePlatform?.id || "meta",
+                                    ) || [];
                                 } else if (value === "full-funnel") {
                                   const focus = singleMarket.strategyFocus || genericConfig.strategyFocus;
                                   const templateKey = mapFocusToTemplate(focus);
                                   if (templateKey) {
-                                    newPhases = getDefaultPhases(templateKey, startDate, endDate, singlePlatform?.id || "meta") || [];
+                                    newPhases =
+                                      getDefaultPhases(templateKey, startDate, endDate, singlePlatform?.id || "meta") ||
+                                      [];
                                   }
                                 } else if (value === "manual") {
                                   newPhases = [];
                                 }
-                                
-                                setPlatformsWithMarkets(prev => prev.map(p => 
-                                  p.id === singlePlatform?.id ? {
-                                    ...p,
-                                    markets: p.markets.map(m => 
-                                      m.id === singleMarket.id ? { 
-                                        ...m, 
-                                        strategy: value,
-                                        phases: newPhases
-                                      } : m
-                                    )
-                                  } : p
-                                ));
+
+                                setPlatformsWithMarkets((prev) =>
+                                  prev.map((p) =>
+                                    p.id === singlePlatform?.id
+                                      ? {
+                                          ...p,
+                                          markets: p.markets.map((m) =>
+                                            m.id === singleMarket.id
+                                              ? {
+                                                  ...m,
+                                                  strategy: value,
+                                                  phases: newPhases,
+                                                }
+                                              : m,
+                                          ),
+                                        }
+                                      : p,
+                                  ),
+                                );
                               }}
                             >
                               <SelectTrigger>
@@ -2276,26 +2436,36 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
                           {(singleMarket.strategy || genericConfig.strategy) === "full-funnel" && (
                             <div className="space-y-2">
                               <Label>Strategy Focus</Label>
-                              <Select 
+                              <Select
                                 value={singleMarket.strategyFocus || genericConfig.strategyFocus || "auto"}
                                 onValueChange={(value) => {
                                   const templateKey = mapFocusToTemplate(value);
-                                  const newPhases = templateKey ? getDefaultPhases(templateKey, startDate, endDate, singlePlatform?.id || "meta") : [];
-                                  setPlatformsWithMarkets(prev => prev.map(p =>
-                                    p.id === singlePlatform?.id ? {
-                                      ...p,
-                                      markets: p.markets.map(m => 
-                                        m.id === singleMarket.id ? { ...m, strategyFocus: value, phases: newPhases } : m
-                                      )
-                                    } : p
-                                  ));
+                                  const newPhases = templateKey
+                                    ? getDefaultPhases(templateKey, startDate, endDate, singlePlatform?.id || "meta")
+                                    : [];
+                                  setPlatformsWithMarkets((prev) =>
+                                    prev.map((p) =>
+                                      p.id === singlePlatform?.id
+                                        ? {
+                                            ...p,
+                                            markets: p.markets.map((m) =>
+                                              m.id === singleMarket.id
+                                                ? { ...m, strategyFocus: value, phases: newPhases }
+                                                : m,
+                                            ),
+                                          }
+                                        : p,
+                                    ),
+                                  );
                                 }}
                               >
                                 <SelectTrigger>
                                   <SelectValue placeholder="Select focus" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="auto" disabled>Select a focus…</SelectItem>
+                                  <SelectItem value="auto" disabled>
+                                    Select a focus…
+                                  </SelectItem>
                                   <SelectItem value="purchase">Purchase</SelectItem>
                                   <SelectItem value="leads">Leads</SelectItem>
                                   <SelectItem value="app-installs">App Installs</SelectItem>
@@ -2311,14 +2481,20 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
                       <PhaseScheduler
                         phases={singleMarket.phases || []}
                         onPhasesChange={(phases) => {
-                          setPlatformsWithMarkets(prev => prev.map(p => 
-                            p.id === singlePlatform?.id ? {
-                              ...p,
-                              markets: p.markets.map(m => m.id === singleMarket.id ? { ...m, phases } : m)
-                            } : p
-                          ));
+                          setPlatformsWithMarkets((prev) =>
+                            prev.map((p) =>
+                              p.id === singlePlatform?.id
+                                ? {
+                                    ...p,
+                                    markets: p.markets.map((m) => (m.id === singleMarket.id ? { ...m, phases } : m)),
+                                  }
+                                : p,
+                            ),
+                          );
                         }}
-                        onSkipNextSync={() => { skipPhaseSyncRef.current = true; }}
+                        onSkipNextSync={() => {
+                          skipPhaseSyncRef.current = true;
+                        }}
                         startDate={startDate}
                         endDate={endDate}
                         platformName={singlePlatform?.name || "Facebook (Meta)"}
@@ -2328,56 +2504,63 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
                         strategy={singleMarket.strategy || genericConfig.strategy}
                         strategyFocus={singleMarket.strategyFocus || genericConfig.strategyFocus}
                         adAccountDefaults={{
-                                    hasDefaults: true,
-                                    publisherPlatforms: singleMarket.metaPublisherPlatforms || singleMarket.publisherPlatforms,
-                                    positions: singleMarket.metaPositions || singleMarket.positions,
-                                    metaAdvantagePlusPlacements: singleMarket.metaAdvantagePlusPlacements,
-                                    tiktokPlacementType: singleMarket.tiktokPlacementType,
-                                    tiktokPlacements: singleMarket.tiktokPlacements,
-                                    // Meta destination defaults
-                                    metaOptimizationLocation: (singleMarket as any).metaOptimizationLocation,
-                                    metaAppStore: (singleMarket as any).metaAppStore,
-                                    metaAppId: (singleMarket as any).metaAppId,
-                                    metaMessagingMode: (singleMarket as any).metaMessagingMode,
-                                    metaMessengerEnabled: (singleMarket as any).metaMessengerEnabled,
-                                    metaInstagramDmEnabled: (singleMarket as any).metaInstagramDmEnabled,
-                                    metaWhatsappEnabled: (singleMarket as any).metaWhatsappEnabled,
-                                    metaWhatsappNumber: (singleMarket as any).metaWhatsappNumber,
-                                    metaPageId: singleMarket.pageId,
-                                    metaInstagramAccountId: (singleMarket as any).metaInstagramAccountId || singleMarket.instagramActorId,
-                                    metaLandingPageUrl: (singleMarket as any).metaLandingPageUrl,
-                                    // Meta advanced settings defaults
-                                    metaBidStrategy: singleMarket.metaBidStrategy,
-                                    metaBidAmount: singleMarket.metaBidAmount,
-                                    metaClickWindow: (singleMarket as any).metaClickWindow,
-                                    metaViewWindow: (singleMarket as any).metaViewWindow,
-                                    metaBillingEvent: (singleMarket as any).metaBillingEvent,
-                                    // TikTok destination defaults
-                                    tiktokOptimizationLocation: singleMarket.tiktokOptimizationLocation,
-                                    tiktokAppId: singleMarket.tiktokAppId,
-                                    tiktokAppName: singleMarket.tiktokAppName,
-                                    tiktokMessagingApp: (singleMarket as any).tiktokMessagingApp,
-                                    tiktokFacebookPageId: (singleMarket as any).tiktokFacebookPageId,
-                                    tiktokMessageEventSet: (singleMarket as any).tiktokMessageEventSet,
-                                    tiktokWhatsappNumber: (singleMarket as any).tiktokWhatsappNumber,
-                                    tiktokZaloAccountId: (singleMarket as any).tiktokZaloAccountId,
-                                    tiktokLineBusinessId: (singleMarket as any).tiktokLineBusinessId,
-                                    tiktokLandingPageUrl: singleMarket.tiktokLandingPageUrl,
-                                    // TikTok advanced settings defaults
-                                    tiktokBidStrategy: singleMarket.tiktokBidStrategy,
-                                    tiktokBidAmount: singleMarket.tiktokBidAmount,
-                                    tiktokClickWindow: (singleMarket as any).tiktokClickWindow,
-                                    tiktokViewWindow: (singleMarket as any).tiktokViewWindow,
-                                    tiktokBillingEvent: (singleMarket as any).tiktokBillingEvent,
-                                  }}
+                          hasDefaults: true,
+                          publisherPlatforms: singleMarket.metaPublisherPlatforms || singleMarket.publisherPlatforms,
+                          positions: singleMarket.metaPositions || singleMarket.positions,
+                          metaAdvantagePlusPlacements: singleMarket.metaAdvantagePlusPlacements,
+                          tiktokPlacementType: singleMarket.tiktokPlacementType,
+                          tiktokPlacements: singleMarket.tiktokPlacements,
+                          // Meta destination defaults
+                          metaOptimizationLocation: (singleMarket as any).metaOptimizationLocation,
+                          metaAppStore: (singleMarket as any).metaAppStore,
+                          metaAppId: (singleMarket as any).metaAppId,
+                          metaMessagingMode: (singleMarket as any).metaMessagingMode,
+                          metaMessengerEnabled: (singleMarket as any).metaMessengerEnabled,
+                          metaInstagramDmEnabled: (singleMarket as any).metaInstagramDmEnabled,
+                          metaWhatsappEnabled: (singleMarket as any).metaWhatsappEnabled,
+                          metaWhatsappNumber: (singleMarket as any).metaWhatsappNumber,
+                          metaPageId: singleMarket.pageId,
+                          metaInstagramAccountId:
+                            (singleMarket as any).metaInstagramAccountId || singleMarket.instagramActorId,
+                          metaLandingPageUrl: (singleMarket as any).metaLandingPageUrl,
+                          // Meta advanced settings defaults
+                          metaBidStrategy: singleMarket.metaBidStrategy,
+                          metaBidAmount: singleMarket.metaBidAmount,
+                          metaClickWindow: (singleMarket as any).metaClickWindow,
+                          metaViewWindow: (singleMarket as any).metaViewWindow,
+                          metaBillingEvent: (singleMarket as any).metaBillingEvent,
+                          // TikTok destination defaults
+                          tiktokOptimizationLocation: singleMarket.tiktokOptimizationLocation,
+                          tiktokAppId: singleMarket.tiktokAppId,
+                          tiktokAppName: singleMarket.tiktokAppName,
+                          tiktokMessagingApp: (singleMarket as any).tiktokMessagingApp,
+                          tiktokFacebookPageId: (singleMarket as any).tiktokFacebookPageId,
+                          tiktokMessageEventSet: (singleMarket as any).tiktokMessageEventSet,
+                          tiktokWhatsappNumber: (singleMarket as any).tiktokWhatsappNumber,
+                          tiktokZaloAccountId: (singleMarket as any).tiktokZaloAccountId,
+                          tiktokLineBusinessId: (singleMarket as any).tiktokLineBusinessId,
+                          tiktokLandingPageUrl: singleMarket.tiktokLandingPageUrl,
+                          // TikTok advanced settings defaults
+                          tiktokBidStrategy: singleMarket.tiktokBidStrategy,
+                          tiktokBidAmount: singleMarket.tiktokBidAmount,
+                          tiktokClickWindow: (singleMarket as any).tiktokClickWindow,
+                          tiktokViewWindow: (singleMarket as any).tiktokViewWindow,
+                          tiktokBillingEvent: (singleMarket as any).tiktokBillingEvent,
+                        }}
                         onApplyBudgetTypeToAll={(type) => {
-                          setPlatformsWithMarkets(prev => prev.map(p => p.id === singlePlatform?.id ? {
-                            ...p,
-                            markets: p.markets.map(m => ({
-                              ...m,
-                              phases: (m.phases || []).map(ph => ({ ...ph, budgetType: type }))
-                            }))
-                          } : p));
+                          setPlatformsWithMarkets((prev) =>
+                            prev.map((p) =>
+                              p.id === singlePlatform?.id
+                                ? {
+                                    ...p,
+                                    markets: p.markets.map((m) => ({
+                                      ...m,
+                                      phases: (m.phases || []).map((ph) => ({ ...ph, budgetType: type })),
+                                    })),
+                                  }
+                                : p,
+                            ),
+                          );
                         }}
                         onOpenCustomizeBudgetTypes={() => {
                           if (singlePlatform) {
@@ -2385,16 +2568,21 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
                             setBulkBudgetDialogOpen(true);
                           }
                         }}
-                        marketBudget={(parseFloat(totalBudget || "0") * ((singlePlatform?.budgetPercentage || 0) / 100) * ((singleMarket.budgetPercentage || 0) / 100))}
+                        marketBudget={
+                          parseFloat(totalBudget || "0") *
+                          ((singlePlatform?.budgetPercentage || 0) / 100) *
+                          ((singleMarket.budgetPercentage || 0) / 100)
+                        }
                         activationContext={{
                           activationName: campaignName,
                           boNumber: boNumber,
-                          clientName: clients.find(c => c.id === selectedClientId)?.name,
+                          clientName: clients.find((c) => c.id === selectedClientId)?.name,
                           teamName: teamName,
                           totalBudget: parseFloat(totalBudget || "0"),
                           market: singleMarket.name,
                           markets: [singleMarket.name],
-                          platformBudget: parseFloat(totalBudget || "0") * ((singlePlatform?.budgetPercentage || 0) / 100),
+                          platformBudget:
+                            parseFloat(totalBudget || "0") * ((singlePlatform?.budgetPercentage || 0) / 100),
                         }}
                       />
                     </div>
@@ -2404,22 +2592,23 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
                   return (
                     <div className="mt-6 pt-6 border-t space-y-6">
                       <h3 className="text-lg font-semibold">Market Configuration</h3>
-                      {platformsWithMarkets.map(platform => (
+                      {platformsWithMarkets.map((platform) =>
                         platform.enabled && platform.markets.length > 0 ? (
                           <Collapsible
                             key={platform.id}
                             open={expandedPlatforms[platform.id]}
-                            onOpenChange={(open) => setExpandedPlatforms(prev => ({ ...prev, [platform.id]: open }))}
+                            onOpenChange={(open) => setExpandedPlatforms((prev) => ({ ...prev, [platform.id]: open }))}
                             className="border rounded-lg"
                           >
                             <CollapsibleTrigger asChild>
                               <div className="flex items-center gap-2 w-full">
-                                <Button
-                                  variant="ghost"
-                                  className="flex-1 justify-between p-4 hover:bg-accent"
-                                >
+                                <Button variant="ghost" className="flex-1 justify-between p-4 hover:bg-accent">
                                   <span className="font-semibold text-lg">{platform.name}</span>
-                                  {expandedPlatforms[platform.id] ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+                                  {expandedPlatforms[platform.id] ? (
+                                    <ChevronUp className="h-5 w-5" />
+                                  ) : (
+                                    <ChevronDown className="h-5 w-5" />
+                                  )}
                                 </Button>
                                 <div className="flex gap-1 pr-4">
                                   <Button
@@ -2453,15 +2642,13 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
                             </CollapsibleTrigger>
                             <CollapsibleContent className="px-4 pb-4">
                               <div className="space-y-4">
-                                {platform.markets.map(market => (
+                                {platform.markets.map((market) => (
                                   <Collapsible key={market.id} defaultOpen={false}>
                                     <Card className="overflow-hidden">
                                       <CollapsibleTrigger asChild>
                                         <div className="flex items-center justify-between p-4 cursor-pointer hover:bg-accent/50 transition-colors">
                                           <div className="flex items-center gap-2">
-                                            <h4 className="font-medium">
-                                              {getMarketLabel(market.name)}
-                                            </h4>
+                                            <h4 className="font-medium">{getMarketLabel(market.name)}</h4>
                                             <ChevronDown className="h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-180" />
                                           </div>
                                           <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
@@ -2490,233 +2677,312 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
                                       </CollapsibleTrigger>
                                       <CollapsibleContent>
                                         <div className="px-4 pb-4">
-                                
-                                {/* Per-Market Strategy Configuration */}
-                                <div className="space-y-4 mb-6 p-4 bg-muted/50 rounded-lg">
-                                   <div className="space-y-2">
-                                    <Label>Strategy Type</Label>
-                                    <Select 
-                                      value={market.strategy || genericConfig.strategy || "auto-detect"}
-                                      onValueChange={(value) => {
-                                        const adFormats = market.adFormats || genericConfig.targeting?.adFormats || [];
-                                        const hasPixel = !!market.pixel;
-                                        const hasCatalog = !!market.catalog;
-                                        let newPhases: any[] = [];
+                                          {/* Per-Market Strategy Configuration */}
+                                          <div className="space-y-4 mb-6 p-4 bg-muted/50 rounded-lg">
+                                            <div className="space-y-2">
+                                              <Label>Strategy Type</Label>
+                                              <Select
+                                                value={market.strategy || genericConfig.strategy || "auto-detect"}
+                                                onValueChange={(value) => {
+                                                  const adFormats =
+                                                    market.adFormats || genericConfig.targeting?.adFormats || [];
+                                                  const hasPixel = !!market.pixel;
+                                                  const hasCatalog = !!market.catalog;
+                                                  let newPhases: any[] = [];
 
-                                        if (value === "auto-detect") {
-                                          newPhases = generateAutoDetectPhases(adFormats, hasPixel, hasCatalog, startDate, endDate, platform.id) || [];
-                                        } else if (value === "full-funnel") {
-                                          const focus = market.strategyFocus || genericConfig.strategyFocus;
-                                          const templateKey = mapFocusToTemplate(focus);
-                                          if (templateKey) {
-                                            newPhases = getDefaultPhases(templateKey, startDate, endDate, platform.id) || [];
-                                          }
-                                        } else if (value === "manual") {
-                                          newPhases = [];
-                                        }
+                                                  if (value === "auto-detect") {
+                                                    newPhases =
+                                                      generateAutoDetectPhases(
+                                                        adFormats,
+                                                        hasPixel,
+                                                        hasCatalog,
+                                                        startDate,
+                                                        endDate,
+                                                        platform.id,
+                                                      ) || [];
+                                                  } else if (value === "full-funnel") {
+                                                    const focus = market.strategyFocus || genericConfig.strategyFocus;
+                                                    const templateKey = mapFocusToTemplate(focus);
+                                                    if (templateKey) {
+                                                      newPhases =
+                                                        getDefaultPhases(
+                                                          templateKey,
+                                                          startDate,
+                                                          endDate,
+                                                          platform.id,
+                                                        ) || [];
+                                                    }
+                                                  } else if (value === "manual") {
+                                                    newPhases = [];
+                                                  }
 
-                                        setPlatformsWithMarkets(prev => prev.map(p => 
-                                          p.id === platform.id ? {
-                                            ...p,
-                                            markets: p.markets.map(m => 
-                                              m.id === market.id ? { 
-                                                ...m, 
-                                                strategy: value,
-                                                phases: newPhases
-                                              } : m
-                                            )
-                                          } : p
-                                        ));
-                                        ensureDraft();
-                                      }}
-                                    >
-                                      <SelectTrigger>
-                                        <SelectValue placeholder="Select strategy" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="auto-detect">Auto-Generate</SelectItem>
-                                        <SelectItem value="full-funnel">Full-Funnel</SelectItem>
-                                        <SelectItem value="manual">Custom</SelectItem>
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
+                                                  setPlatformsWithMarkets((prev) =>
+                                                    prev.map((p) =>
+                                                      p.id === platform.id
+                                                        ? {
+                                                            ...p,
+                                                            markets: p.markets.map((m) =>
+                                                              m.id === market.id
+                                                                ? {
+                                                                    ...m,
+                                                                    strategy: value,
+                                                                    phases: newPhases,
+                                                                  }
+                                                                : m,
+                                                            ),
+                                                          }
+                                                        : p,
+                                                    ),
+                                                  );
+                                                  ensureDraft();
+                                                }}
+                                              >
+                                                <SelectTrigger>
+                                                  <SelectValue placeholder="Select strategy" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                  <SelectItem value="auto-detect">Auto-Generate</SelectItem>
+                                                  <SelectItem value="full-funnel">Full-Funnel</SelectItem>
+                                                  <SelectItem value="manual">Custom</SelectItem>
+                                                </SelectContent>
+                                              </Select>
+                                            </div>
 
-                                  {(market.strategy || genericConfig.strategy) === "full-funnel" && (
-                                    <div className="space-y-2">
-                                      <Label>Strategy Focus</Label>
-                                      <Select 
-                                        value={market.strategyFocus || genericConfig.strategyFocus || "auto"}
-                                        onValueChange={(value) => {
-                                          const templateKey = mapFocusToTemplate(value);
-                                          const newPhases = templateKey ? getDefaultPhases(templateKey, startDate, endDate, platform.id) : [];
-                                          setPlatformsWithMarkets(prev => prev.map(p =>
-                                            p.id === platform.id ? {
-                                              ...p,
-                                              markets: p.markets.map(m => 
-                                                m.id === market.id ? { ...m, strategyFocus: value, phases: newPhases } : m
-                                              )
-                                            } : p
-                                          ));
-                                          ensureDraft();
-                                        }}
-                                      >
-                                        <SelectTrigger>
-                                          <SelectValue placeholder="Select focus" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          <SelectItem value="auto" disabled>Select a focus…</SelectItem>
-                                          <SelectItem value="purchase">Purchase</SelectItem>
-                                          <SelectItem value="leads">Leads</SelectItem>
-                                          <SelectItem value="app-installs">App Installs</SelectItem>
-                                          <SelectItem value="conversions">Conversions</SelectItem>
-                                          <SelectItem value="brand-awareness">Brand Awareness</SelectItem>
-                                        </SelectContent>
-                                      </Select>
-                                    </div>
-                                  )}
+                                            {(market.strategy || genericConfig.strategy) === "full-funnel" && (
+                                              <div className="space-y-2">
+                                                <Label>Strategy Focus</Label>
+                                                <Select
+                                                  value={market.strategyFocus || genericConfig.strategyFocus || "auto"}
+                                                  onValueChange={(value) => {
+                                                    const templateKey = mapFocusToTemplate(value);
+                                                    const newPhases = templateKey
+                                                      ? getDefaultPhases(templateKey, startDate, endDate, platform.id)
+                                                      : [];
+                                                    setPlatformsWithMarkets((prev) =>
+                                                      prev.map((p) =>
+                                                        p.id === platform.id
+                                                          ? {
+                                                              ...p,
+                                                              markets: p.markets.map((m) =>
+                                                                m.id === market.id
+                                                                  ? { ...m, strategyFocus: value, phases: newPhases }
+                                                                  : m,
+                                                              ),
+                                                            }
+                                                          : p,
+                                                      ),
+                                                    );
+                                                    ensureDraft();
+                                                  }}
+                                                >
+                                                  <SelectTrigger>
+                                                    <SelectValue placeholder="Select focus" />
+                                                  </SelectTrigger>
+                                                  <SelectContent>
+                                                    <SelectItem value="auto" disabled>
+                                                      Select a focus…
+                                                    </SelectItem>
+                                                    <SelectItem value="purchase">Purchase</SelectItem>
+                                                    <SelectItem value="leads">Leads</SelectItem>
+                                                    <SelectItem value="app-installs">App Installs</SelectItem>
+                                                    <SelectItem value="conversions">Conversions</SelectItem>
+                                                    <SelectItem value="brand-awareness">Brand Awareness</SelectItem>
+                                                  </SelectContent>
+                                                </Select>
+                                              </div>
+                                            )}
 
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => {
-                                      const currentStrategy = market.strategy || genericConfig.strategy;
-                                      const currentFocus = market.strategyFocus || genericConfig.strategyFocus;
-                                      
-                                      setPlatformsWithMarkets(prev => prev.map(p => ({
-                                        ...p,
-                                        markets: p.markets.map(m => {
-                                          const adFormats = m.adFormats || genericConfig.targeting?.adFormats || [];
-                                          const hasPixel = !!m.pixel;
-                                          const hasCatalog = !!m.catalog;
-                                          let newPhases: any[] = [];
+                                            <Button
+                                              variant="outline"
+                                              size="sm"
+                                              onClick={() => {
+                                                const currentStrategy = market.strategy || genericConfig.strategy;
+                                                const currentFocus =
+                                                  market.strategyFocus || genericConfig.strategyFocus;
 
-                                          if (currentStrategy === "auto-detect") {
-                                            newPhases = generateAutoDetectPhases(adFormats, hasPixel, hasCatalog, startDate, endDate, platform.id) || [];
-                                          } else if (currentStrategy === "full-funnel") {
-                                            const templateKey = mapFocusToTemplate(currentFocus);
-                                            if (templateKey) {
-                                              newPhases = getDefaultPhases(templateKey, startDate, endDate, platform.id) || [];
+                                                setPlatformsWithMarkets((prev) =>
+                                                  prev.map((p) => ({
+                                                    ...p,
+                                                    markets: p.markets.map((m) => {
+                                                      const adFormats =
+                                                        m.adFormats || genericConfig.targeting?.adFormats || [];
+                                                      const hasPixel = !!m.pixel;
+                                                      const hasCatalog = !!m.catalog;
+                                                      let newPhases: any[] = [];
+
+                                                      if (currentStrategy === "auto-detect") {
+                                                        newPhases =
+                                                          generateAutoDetectPhases(
+                                                            adFormats,
+                                                            hasPixel,
+                                                            hasCatalog,
+                                                            startDate,
+                                                            endDate,
+                                                            platform.id,
+                                                          ) || [];
+                                                      } else if (currentStrategy === "full-funnel") {
+                                                        const templateKey = mapFocusToTemplate(currentFocus);
+                                                        if (templateKey) {
+                                                          newPhases =
+                                                            getDefaultPhases(
+                                                              templateKey,
+                                                              startDate,
+                                                              endDate,
+                                                              platform.id,
+                                                            ) || [];
+                                                        }
+                                                      } else if (currentStrategy === "manual") {
+                                                        newPhases = [];
+                                                      }
+
+                                                      return {
+                                                        ...m,
+                                                        strategy: currentStrategy,
+                                                        strategyFocus: currentFocus,
+                                                        phases: newPhases,
+                                                      };
+                                                    }),
+                                                  })),
+                                                );
+
+                                                toast.success("Strategy applied to all markets. Phases regenerated.");
+                                                ensureDraft();
+                                              }}
+                                            >
+                                              Apply Strategy to All Markets
+                                            </Button>
+
+                                            {/* Inline budget type selection is available per phase below. */}
+                                          </div>
+
+                                          <PhaseScheduler
+                                            phases={market.phases || []}
+                                            onPhasesChange={(phases) => {
+                                              setPlatformsWithMarkets((prev) =>
+                                                prev.map((p) =>
+                                                  p.id === platform.id
+                                                    ? {
+                                                        ...p,
+                                                        markets: p.markets.map((m) =>
+                                                          m.id === market.id ? { ...m, phases } : m,
+                                                        ),
+                                                      }
+                                                    : p,
+                                                ),
+                                              );
+                                            }}
+                                            onSkipNextSync={() => {
+                                              skipPhaseSyncRef.current = true;
+                                            }}
+                                            startDate={startDate}
+                                            endDate={endDate}
+                                            platformName={platform.name}
+                                            platformId={platform.id}
+                                            adAccountId={market.adAccountId}
+                                            basicTargeting={basicTargeting}
+                                            strategy={market.strategy || genericConfig.strategy}
+                                            strategyFocus={market.strategyFocus || genericConfig.strategyFocus}
+                                            adAccountDefaults={{
+                                              hasDefaults: true,
+                                              publisherPlatforms:
+                                                market.metaPublisherPlatforms || market.publisherPlatforms,
+                                              positions: market.metaPositions || market.positions,
+                                              metaAdvantagePlusPlacements: market.metaAdvantagePlusPlacements,
+                                              tiktokPlacementType: market.tiktokPlacementType,
+                                              tiktokPlacements: market.tiktokPlacements,
+                                              // Meta destination defaults from market (loaded from account defaults)
+                                              metaOptimizationLocation: (market as any).metaOptimizationLocation,
+                                              metaAppStore: (market as any).metaAppStore,
+                                              metaAppId: (market as any).metaAppId,
+                                              metaMessagingMode: (market as any).metaMessagingMode,
+                                              metaMessengerEnabled: (market as any).metaMessengerEnabled,
+                                              metaInstagramDmEnabled: (market as any).metaInstagramDmEnabled,
+                                              metaWhatsappEnabled: (market as any).metaWhatsappEnabled,
+                                              metaWhatsappNumber: (market as any).metaWhatsappNumber,
+                                              metaPageId: market.pageId,
+                                              metaInstagramAccountId: market.instagramActorId,
+                                              metaLandingPageUrl: (market as any).metaLandingPageUrl,
+                                              // Meta advanced settings defaults
+                                              metaBidStrategy: market.metaBidStrategy,
+                                              metaBidAmount: market.metaBidAmount,
+                                              metaClickWindow: (market as any).metaClickWindow,
+                                              metaViewWindow: (market as any).metaViewWindow,
+                                              metaBillingEvent: (market as any).metaBillingEvent,
+                                              // TikTok destination defaults from market (loaded from account defaults)
+                                              tiktokOptimizationLocation: market.tiktokOptimizationLocation,
+                                              tiktokAppId: market.tiktokAppId,
+                                              tiktokAppName: market.tiktokAppName,
+                                              tiktokMessagingApp: (market as any).tiktokMessagingApp,
+                                              tiktokFacebookPageId: (market as any).tiktokFacebookPageId,
+                                              tiktokMessageEventSet: (market as any).tiktokMessageEventSet,
+                                              tiktokWhatsappNumber: (market as any).tiktokWhatsappNumber,
+                                              tiktokZaloAccountId: (market as any).tiktokZaloAccountId,
+                                              tiktokLineBusinessId: (market as any).tiktokLineBusinessId,
+                                              tiktokLandingPageUrl: market.tiktokLandingPageUrl,
+                                              // TikTok advanced settings defaults
+                                              tiktokBidStrategy: market.tiktokBidStrategy,
+                                              tiktokBidAmount: market.tiktokBidAmount,
+                                              tiktokClickWindow: (market as any).tiktokClickWindow,
+                                              tiktokViewWindow: (market as any).tiktokViewWindow,
+                                              tiktokBillingEvent: (market as any).tiktokBillingEvent,
+                                            }}
+                                            marketTargeting={{
+                                              ageMin: market.ageMin || genericConfig.targeting?.ageMin,
+                                              ageMax: market.ageMax || genericConfig.targeting?.ageMax,
+                                              gender: market.gender || genericConfig.targeting?.genders?.[0],
+                                              languages:
+                                                (market as any).languages ||
+                                                (genericConfig.targeting as any)?.languages,
+                                              devices:
+                                                (market as any).devices || (genericConfig.targeting as any)?.devices,
+                                              os: (market as any).os || (genericConfig.targeting as any)?.os,
+                                            }}
+                                            onApplyBudgetTypeToAll={(type) => {
+                                              setPlatformsWithMarkets((prev) =>
+                                                prev.map((p) =>
+                                                  p.id === platform.id
+                                                    ? {
+                                                        ...p,
+                                                        markets: p.markets.map((m) => ({
+                                                          ...m,
+                                                          phases: (m.phases || []).map((ph) => ({
+                                                            ...ph,
+                                                            budgetType: type,
+                                                          })),
+                                                        })),
+                                                      }
+                                                    : p,
+                                                ),
+                                              );
+                                              toast.success(
+                                                `Applied ${type === "daily" ? "Daily" : "Lifetime"} Budget to all phases in ${platform.name}`,
+                                              );
+                                            }}
+                                            onOpenCustomizeBudgetTypes={() => {
+                                              setBulkPlatform(platform as any);
+                                              setBulkBudgetDialogOpen(true);
+                                            }}
+                                            marketBudget={
+                                              parseFloat(totalBudget || "0") *
+                                              ((platform.budgetPercentage || 0) / 100) *
+                                              ((market.budgetPercentage || 0) / 100)
                                             }
-                                          } else if (currentStrategy === "manual") {
-                                            newPhases = [];
-                                          }
-
-                                          return {
-                                            ...m,
-                                            strategy: currentStrategy,
-                                            strategyFocus: currentFocus,
-                                            phases: newPhases
-                                          };
-                                        })
-                                      })));
-                                      
-                                      toast.success("Strategy applied to all markets. Phases regenerated.");
-                                      ensureDraft();
-                                    }}
-                                  >
-                                    Apply Strategy to All Markets
-                                  </Button>
-                                  
-                                    {/* Inline budget type selection is available per phase below. */}
-                                </div>
-
-                                <PhaseScheduler
-                                  phases={market.phases || []}
-                                  onPhasesChange={(phases) => {
-                                    setPlatformsWithMarkets(prev => prev.map(p => 
-                                      p.id === platform.id ? {
-                                        ...p,
-                                        markets: p.markets.map(m => m.id === market.id ? { ...m, phases } : m)
-                                      } : p
-                                    ));
-                                  }}
-                                  onSkipNextSync={() => { skipPhaseSyncRef.current = true; }}
-                                  startDate={startDate}
-                                  endDate={endDate}
-                                  platformName={platform.name}
-                                  platformId={platform.id}
-                                  adAccountId={market.adAccountId}
-                                  basicTargeting={basicTargeting}
-                                  strategy={market.strategy || genericConfig.strategy}
-                                  strategyFocus={market.strategyFocus || genericConfig.strategyFocus}
-                                  adAccountDefaults={{
-                                    hasDefaults: true,
-                                    publisherPlatforms: market.metaPublisherPlatforms || market.publisherPlatforms,
-                                    positions: market.metaPositions || market.positions,
-                                    metaAdvantagePlusPlacements: market.metaAdvantagePlusPlacements,
-                                    tiktokPlacementType: market.tiktokPlacementType,
-                                    tiktokPlacements: market.tiktokPlacements,
-                                    // Meta destination defaults from market (loaded from account defaults)
-                                    metaOptimizationLocation: (market as any).metaOptimizationLocation,
-                                    metaAppStore: (market as any).metaAppStore,
-                                    metaAppId: (market as any).metaAppId,
-                                    metaMessagingMode: (market as any).metaMessagingMode,
-                                    metaMessengerEnabled: (market as any).metaMessengerEnabled,
-                                    metaInstagramDmEnabled: (market as any).metaInstagramDmEnabled,
-                                    metaWhatsappEnabled: (market as any).metaWhatsappEnabled,
-                                    metaWhatsappNumber: (market as any).metaWhatsappNumber,
-                                    metaPageId: market.pageId,
-                                    metaInstagramAccountId: market.instagramActorId,
-                                    metaLandingPageUrl: (market as any).metaLandingPageUrl,
-                                    // Meta advanced settings defaults
-                                    metaBidStrategy: market.metaBidStrategy,
-                                    metaBidAmount: market.metaBidAmount,
-                                    metaClickWindow: (market as any).metaClickWindow,
-                                    metaViewWindow: (market as any).metaViewWindow,
-                                    metaBillingEvent: (market as any).metaBillingEvent,
-                                    // TikTok destination defaults from market (loaded from account defaults)
-                                    tiktokOptimizationLocation: market.tiktokOptimizationLocation,
-                                    tiktokAppId: market.tiktokAppId,
-                                    tiktokAppName: market.tiktokAppName,
-                                    tiktokMessagingApp: (market as any).tiktokMessagingApp,
-                                    tiktokFacebookPageId: (market as any).tiktokFacebookPageId,
-                                    tiktokMessageEventSet: (market as any).tiktokMessageEventSet,
-                                    tiktokWhatsappNumber: (market as any).tiktokWhatsappNumber,
-                                    tiktokZaloAccountId: (market as any).tiktokZaloAccountId,
-                                    tiktokLineBusinessId: (market as any).tiktokLineBusinessId,
-                                    tiktokLandingPageUrl: market.tiktokLandingPageUrl,
-                                    // TikTok advanced settings defaults
-                                    tiktokBidStrategy: market.tiktokBidStrategy,
-                                    tiktokBidAmount: market.tiktokBidAmount,
-                                    tiktokClickWindow: (market as any).tiktokClickWindow,
-                                    tiktokViewWindow: (market as any).tiktokViewWindow,
-                                    tiktokBillingEvent: (market as any).tiktokBillingEvent,
-                                  }}
-                                  marketTargeting={{
-                                    ageMin: market.ageMin || genericConfig.targeting?.ageMin,
-                                    ageMax: market.ageMax || genericConfig.targeting?.ageMax,
-                                    gender: market.gender || genericConfig.targeting?.genders?.[0],
-                                    languages: (market as any).languages || (genericConfig.targeting as any)?.languages,
-                                    devices: (market as any).devices || (genericConfig.targeting as any)?.devices,
-                                    os: (market as any).os || (genericConfig.targeting as any)?.os,
-                                  }}
-                                  onApplyBudgetTypeToAll={(type) => {
-                                    setPlatformsWithMarkets(prev => prev.map(p => p.id === platform.id ? {
-                                      ...p,
-                                      markets: p.markets.map(m => ({
-                                        ...m,
-                                        phases: (m.phases || []).map(ph => ({ ...ph, budgetType: type }))
-                                      }))
-                                    } : p));
-                                    toast.success(`Applied ${type === 'daily' ? 'Daily' : 'Lifetime'} Budget to all phases in ${platform.name}`);
-                                  }}
-                                  onOpenCustomizeBudgetTypes={() => {
-                                    setBulkPlatform(platform as any);
-                                    setBulkBudgetDialogOpen(true);
-                                  }}
-                                  marketBudget={(parseFloat(totalBudget || "0") * ((platform.budgetPercentage || 0) / 100) * ((market.budgetPercentage || 0) / 100))}
-                                  activationContext={{
-                                    activationName: campaignName,
-                                    boNumber: boNumber,
-                                    clientName: clients.find(c => c.id === selectedClientId)?.name,
-                                    teamName: teamName,
-                                    totalBudget: parseFloat(totalBudget || "0"),
-                                    market: market.name,
-                                    markets: platform.markets.map(m => m.name),
-                                    platformBudget: parseFloat(totalBudget || "0") * ((platform.budgetPercentage || 0) / 100),
-                                  }}
-                                  onTaxonomyValidationChange={(isComplete, missingCount) => handleMarketTaxonomyValidation(market.id, isComplete, missingCount)}
-                                  />
+                                            activationContext={{
+                                              activationName: campaignName,
+                                              boNumber: boNumber,
+                                              clientName: clients.find((c) => c.id === selectedClientId)?.name,
+                                              teamName: teamName,
+                                              totalBudget: parseFloat(totalBudget || "0"),
+                                              market: market.name,
+                                              markets: platform.markets.map((m) => m.name),
+                                              platformBudget:
+                                                parseFloat(totalBudget || "0") *
+                                                ((platform.budgetPercentage || 0) / 100),
+                                            }}
+                                            onTaxonomyValidationChange={(isComplete, missingCount) =>
+                                              handleMarketTaxonomyValidation(market.id, isComplete, missingCount)
+                                            }
+                                          />
                                         </div>
                                       </CollapsibleContent>
                                     </Card>
@@ -2725,12 +2991,12 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
                               </div>
                             </CollapsibleContent>
                           </Collapsible>
-                        ) : null
-                      ))}
+                        ) : null,
+                      )}
                     </div>
                   );
                 }
-                
+
                 return null;
               })()}
 
@@ -2738,23 +3004,28 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
                 <Button variant="outline" onClick={() => setCurrentStep(2)}>
                   Back
                 </Button>
-                <Button 
+                <Button
                   onClick={async () => {
                     // Only generate phases if markets don't have phases yet
-                    const totalMarkets = platformsWithMarkets.reduce((sum, p) => sum + (p.enabled ? p.markets.length : 0), 0);
-                    
+                    const totalMarkets = platformsWithMarkets.reduce(
+                      (sum, p) => sum + (p.enabled ? p.markets.length : 0),
+                      0,
+                    );
+
                     // Skip auto-generation if there's only 1 market (phases are configured in PhaseScheduler above)
                     if (totalMarkets > 1) {
                       // Check if any market is missing phases
-                      const needsPhaseGeneration = platformsWithMarkets.some(platform => 
-                        platform.enabled && platform.markets.some(market => !market.phases || market.phases.length === 0)
+                      const needsPhaseGeneration = platformsWithMarkets.some(
+                        (platform) =>
+                          platform.enabled &&
+                          platform.markets.some((market) => !market.phases || market.phases.length === 0),
                       );
 
                       if (needsPhaseGeneration) {
                         if (genericConfig.strategy === "auto-detect") {
-                          const updatedPlatforms = platformsWithMarkets.map(platform => ({
+                          const updatedPlatforms = platformsWithMarkets.map((platform) => ({
                             ...platform,
-                            markets: platform.markets.map(market => {
+                            markets: platform.markets.map((market) => {
                               // Only generate if market doesn't have phases
                               if (market.phases && market.phases.length > 0) {
                                 return market;
@@ -2776,59 +3047,70 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
                                 hasCatalog,
                                 startDate,
                                 endDate,
-                                platform.id
+                                platform.id,
                               );
                               return {
                                 ...market,
                                 strategyFocus: detectedFocus || "conversions",
-                                phases: phases.map(p => ({
+                                phases: phases.map((p) => ({
                                   ...p,
                                   id: `phase-${market.id}-${p.id}`,
-                                }))
+                                })),
                               };
-                            })
+                            }),
                           }));
                           setPlatformsWithMarkets(updatedPlatforms);
-                        } else if (genericConfig.strategy === "full-funnel" && genericConfig.strategyFocus && genericConfig.strategyFocus !== "auto") {
-                          const updatedPlatforms = platformsWithMarkets.map(platform => {
-                            const phases = getDefaultPhases(genericConfig.strategyFocus, startDate, endDate, platform.id);
+                        } else if (
+                          genericConfig.strategy === "full-funnel" &&
+                          genericConfig.strategyFocus &&
+                          genericConfig.strategyFocus !== "auto"
+                        ) {
+                          const updatedPlatforms = platformsWithMarkets.map((platform) => {
+                            const phases = getDefaultPhases(
+                              genericConfig.strategyFocus,
+                              startDate,
+                              endDate,
+                              platform.id,
+                            );
                             return {
                               ...platform,
-                              markets: platform.markets.map(market => {
+                              markets: platform.markets.map((market) => {
                                 // Only generate if market doesn't have phases
                                 if (market.phases && market.phases.length > 0) {
                                   return market;
                                 }
                                 return {
                                   ...market,
-                                  phases: phases.map(p => ({
+                                  phases: phases.map((p) => ({
                                     ...p,
                                     id: `phase-${market.id}-${p.id}`,
-                                  }))
+                                  })),
                                 };
-                              })
+                              }),
                             };
                           });
                           setPlatformsWithMarkets(updatedPlatforms);
                         } else if (genericConfig.strategy === "manual") {
-                          const updatedPlatforms = platformsWithMarkets.map(platform => ({
+                          const updatedPlatforms = platformsWithMarkets.map((platform) => ({
                             ...platform,
-                            markets: platform.markets.map(market => {
+                            markets: platform.markets.map((market) => {
                               // Only generate if market doesn't have phases
                               if (market.phases && market.phases.length > 0) {
                                 return market;
                               }
                               return {
                                 ...market,
-                                phases: [{
-                                  id: `phase-${market.id}-${Date.now()}`,
-                                  name: "Campaign 1",
-                                  startDate: startDate,
-                                  endDate: endDate,
-                                  budgetPercentage: 100,
-                                }]
+                                phases: [
+                                  {
+                                    id: `phase-${market.id}-${Date.now()}`,
+                                    name: "Campaign 1",
+                                    startDate: startDate,
+                                    endDate: endDate,
+                                    budgetPercentage: 100,
+                                  },
+                                ],
                               };
-                            })
+                            }),
                           }));
                           setPlatformsWithMarkets(updatedPlatforms);
                         }
@@ -2841,13 +3123,18 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
                     // Check taxonomy validation before proceeding
                     if (!isTaxonomyComplete()) {
                       const missingCount = getTotalMissingTaxonomyFields();
-                      toast.error(`Please fill all required custom taxonomy fields before proceeding (${missingCount} field${missingCount === 1 ? '' : 's'} missing)`);
+                      toast.error(
+                        `Please fill all required custom taxonomy fields before proceeding (${missingCount} field${missingCount === 1 ? "" : "s"} missing)`,
+                      );
                       return;
                     }
                     await ensureDraft();
                     setCurrentStep(4);
                   }}
-                  disabled={!genericConfig.strategy || (genericConfig.strategy !== "auto-detect" && !genericConfig.strategyFocus)}
+                  disabled={
+                    !genericConfig.strategy ||
+                    (genericConfig.strategy !== "auto-detect" && !genericConfig.strategyFocus)
+                  }
                 >
                   Next: Forecast & Save
                 </Button>
@@ -2858,12 +3145,16 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
               <div className="text-sm text-muted-foreground space-y-1">
                 <div className="flex justify-between">
                   <span>Strategy:</span>
-                  <span className="font-medium text-foreground capitalize">{genericConfig.strategy?.replace('-', ' ')}</span>
+                  <span className="font-medium text-foreground capitalize">
+                    {genericConfig.strategy?.replace("-", " ")}
+                  </span>
                 </div>
                 {genericConfig.strategy !== "auto-detect" && (
                   <div className="flex justify-between">
                     <span>Focus:</span>
-                    <span className="font-medium text-foreground capitalize">{genericConfig.strategyFocus?.replace('-', ' ')}</span>
+                    <span className="font-medium text-foreground capitalize">
+                      {genericConfig.strategyFocus?.replace("-", " ")}
+                    </span>
                   </div>
                 )}
               </div>
@@ -2882,12 +3173,12 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
           endDate={endDate}
           campaignId={savedCampaignId || undefined}
           basicTargeting={basicTargeting}
-          clientIndustry={clients.find(c => c.id === selectedClientId)?.industry}
+          clientIndustry={clients.find((c) => c.id === selectedClientId)?.industry}
           onBack={() => setCurrentStep(3)}
           onFinalize={handleLaunch}
         />
       )}
-      
+
       {/* Dialogs */}
       <PlatformSelectionDialog
         open={platformDialogOpen}
@@ -2895,24 +3186,26 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
         availablePlatforms={getAvailablePlatforms()}
         onConfirm={handlePlatformDuplicationConfirm}
       />
-      
+
       <MarketSelectionDialog
         open={marketDialogOpen}
         onOpenChange={setMarketDialogOpen}
         onConfirm={handleMarketDuplicationConfirm}
       />
-      
+
       <CampaignBudgetTypeDialog
         open={budgetTypeDialogOpen}
         onOpenChange={setBudgetTypeDialogOpen}
         onConfirm={handleBudgetTypeConfirm}
-        campaigns={selectedMarketForBudget?.phases.map(phase => ({
-          id: phase.id,
-          name: phase.name,
-          budgetType: phase.budgetType,
-          startDate: phase.startDate,
-          endDate: phase.endDate
-        })) || []}
+        campaigns={
+          selectedMarketForBudget?.phases.map((phase) => ({
+            id: phase.id,
+            name: phase.name,
+            budgetType: phase.budgetType,
+            startDate: phase.startDate,
+            endDate: phase.endDate,
+          })) || []
+        }
         marketBudget={selectedMarketForBudget?.marketBudget || 0}
       />
 
@@ -2922,9 +3215,9 @@ const [genericConfig, setGenericConfig] = useState<GenericConfig>({
         platform={bulkPlatform}
         onSave={(updatedMarkets) => {
           if (!bulkPlatform) return;
-          setPlatformsWithMarkets(prev => prev.map(p =>
-            p.id === bulkPlatform.id ? { ...p, markets: updatedMarkets } : p
-          ));
+          setPlatformsWithMarkets((prev) =>
+            prev.map((p) => (p.id === bulkPlatform.id ? { ...p, markets: updatedMarkets } : p)),
+          );
           toast.success("Budget types updated across markets.");
         }}
       />
