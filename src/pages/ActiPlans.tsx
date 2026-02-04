@@ -804,6 +804,7 @@ export default function ActiPlans() {
                   )}
 
                   {canDelete(campaign) && (
+        <DropdownMenuSeparator/>
                     <DropdownMenuItem
                       onClick={() => {
                         setCampaignToDelete(campaign);
