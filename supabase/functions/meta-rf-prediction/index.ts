@@ -88,14 +88,37 @@ serve(async (req) => {
     ).toString();
     let adAccountId = toNumeric(adAccountIdRaw);
 
+    // Enhanced logging for ad account debugging
+    console.log("📊 Ad Account Resolution Debug:", {
+      connectedPlatformId,
+      platformAdAccountId: platform?.ad_account_id || "(not set)",
+      bodyAdAccountId: body.adAccountId || body.ad_account_id || "(not provided)",
+      rawValue: adAccountIdRaw || "(empty)",
+      processedValue: adAccountId || "(empty)",
+      userId: user.id,
+    });
+
     if (!/^[0-9]{10,}$/.test(adAccountId)) {
-      console.error("Invalid ad account id detected. Raw value:", adAccountIdRaw, "Processed:", adAccountId, "Platform ID:", connectedPlatformId);
+      console.error("❌ Invalid ad account id detected:", {
+        rawValue: adAccountIdRaw,
+        processedValue: adAccountId,
+        platformId: connectedPlatformId,
+        platformRecord: {
+          id: platform?.id,
+          adAccountId: platform?.ad_account_id,
+        },
+        bodyFields: {
+          adAccountId: body.adAccountId,
+          ad_account_id: body.ad_account_id,
+        },
+        userId: user.id,
+      });
       throw new Error(
         `Invalid Meta ad account id: "${adAccountIdRaw}". Please ensure your Meta connection has an ad account selected in Settings > Connections.`,
       );
     }
 
-    console.log("Using ad account for R&F:", adAccountId);
+    console.log("✅ Using ad account for R&F:", adAccountId);
 
     // Extract countries from body - support both formats
     let validatedMarkets: string[] = [];
