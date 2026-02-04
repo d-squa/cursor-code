@@ -1092,7 +1092,7 @@ export default function AccountDefaultsTab({ clientId, userId, clientMarkets }: 
                                 ) : (
                                   instagramAccounts.map((ig) => (
                                     <SelectItem key={ig.id} value={ig.instagram_account_id || ""}>
-                                      @{ig.username}
+                                      {ig.username}
                                     </SelectItem>
                                   ))
                                 )}
