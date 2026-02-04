@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PlatformSelector } from "./PlatformSelector";
 import { BudgetSummary } from "./BudgetSummary";
 import { CampaignMetrics } from "./CampaignMetrics";
@@ -33,6 +34,7 @@ import {
   Plus,
   Lock,
   Wand2,
+  ShieldAlert,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { format, parseISO } from "date-fns";
@@ -42,6 +44,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useActiplanTimeTracking } from "@/hooks/useActiplanTimeTracking";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
+import { useExtensionModeOptional } from "@/contexts/ExtensionModeContext";
 import { TIER_DISPLAY_NAMES } from "@/config/subscriptionTiers";
 import { PlatformWithMarkets, FunnelStage } from "@/types/mediaplan";
 import { Platform, PlatformConfiguration } from "./PlatformConfiguration";
@@ -77,6 +80,7 @@ export function MediaPlanEditor() {
   const { user } = useAuth();
   const { activeWorkspaceId } = useWorkspace();
   const { hasAccess, getRequiredTierForFeature } = useFeatureAccess();
+  const extensionMode = useExtensionModeOptional();
   const navigate = useNavigate();
   const location = useLocation();
   const [currentStep, setCurrentStep] = useState(1);
@@ -960,6 +964,13 @@ export function MediaPlanEditor() {
     };
     restore();
   }, [user, isHydrated]);
+
+  // Capture extension mode snapshot once campaign is hydrated
+  useEffect(() => {
+    if (extensionMode.isExtensionMode && isHydrated && platformsWithMarkets.length > 0 && !extensionMode.originalSnapshot) {
+      extensionMode.captureSnapshot(platformsWithMarkets);
+    }
+  }, [extensionMode.isExtensionMode, isHydrated, platformsWithMarkets, extensionMode.originalSnapshot, extensionMode.captureSnapshot]);
 
   // Fetch first ad account ID for audience fetching
   useEffect(() => {
@@ -1907,6 +1918,19 @@ export function MediaPlanEditor() {
 
   return (
     <div className="space-y-6">
+      {/* Extension Mode Banner */}
+      {extensionMode.isExtensionMode && (
+        <Alert className="border-primary/50 bg-primary/5">
+          <ShieldAlert className="h-4 w-4 text-primary" />
+          <AlertDescription className="flex items-center gap-2">
+            <span className="font-medium">Extension Mode:</span>
+            <span className="text-muted-foreground">
+              Existing campaign structure is locked. You can duplicate items or add new platforms, markets, and phases.
+            </span>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Step 1: Activation Details */}
       <Card>
         <CardHeader>
@@ -2616,7 +2640,15 @@ export function MediaPlanEditor() {
                             <CollapsibleTrigger asChild>
                               <div className="flex items-center gap-2 w-full">
                                 <Button variant="ghost" className="flex-1 justify-between p-4 hover:bg-accent">
-                                  <span className="font-semibold text-lg">{platform.name}</span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-semibold text-lg">{platform.name}</span>
+                                    {extensionMode.isExtensionMode && extensionMode.isOriginalPlatform(platform.id) && (
+                                      <Badge variant="outline" className="text-xs gap-1">
+                                        <Lock className="h-3 w-3" />
+                                        Locked
+                                      </Badge>
+                                    )}
+                                  </div>
                                   {expandedPlatforms[platform.id] ? (
                                     <ChevronUp className="h-5 w-5" />
                                   ) : (
@@ -2637,19 +2669,40 @@ export function MediaPlanEditor() {
                                   >
                                     <Copy className="h-4 w-4" />
                                   </Button>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0 hover:bg-destructive/20"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      deletePlatform(platform.id);
-                                    }}
-                                    title="Delete platform"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
+                                  {extensionMode.canDeleteItem(platform.id, 'platform') ? (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-8 w-8 p-0 hover:bg-destructive/20"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        deletePlatform(platform.id);
+                                      }}
+                                      title="Delete platform"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  ) : (
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-8 w-8 p-0 opacity-30 cursor-not-allowed"
+                                            disabled
+                                          >
+                                            <Lock className="h-4 w-4" />
+                                          </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          Original items cannot be deleted in extension mode
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  )}
                                 </div>
                               </div>
                             </CollapsibleTrigger>
@@ -2662,6 +2715,12 @@ export function MediaPlanEditor() {
                                         <div className="flex items-center justify-between p-4 cursor-pointer hover:bg-accent/50 transition-colors">
                                           <div className="flex items-center gap-2">
                                             <h4 className="font-medium">{getMarketLabel(market.name)}</h4>
+                                            {extensionMode.isExtensionMode && extensionMode.isOriginalMarket(market.id) && (
+                                              <Badge variant="outline" className="text-xs gap-1">
+                                                <Lock className="h-3 w-3" />
+                                                Locked
+                                              </Badge>
+                                            )}
                                             <ChevronDown className="h-4 w-4 transition-transform duration-200 group-data-[state=open]:rotate-180" />
                                           </div>
                                           <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
@@ -2675,16 +2734,37 @@ export function MediaPlanEditor() {
                                             >
                                               <Copy className="h-4 w-4" />
                                             </Button>
-                                            <Button
-                                              type="button"
-                                              variant="ghost"
-                                              size="sm"
-                                              className="h-8 w-8 p-0 hover:bg-destructive/20"
-                                              onClick={() => deleteMarket(platform.id, market.id)}
-                                              title="Delete market"
-                                            >
-                                              <Trash2 className="h-4 w-4" />
-                                            </Button>
+                                            {extensionMode.canDeleteItem(market.id, 'market') ? (
+                                              <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-8 w-8 p-0 hover:bg-destructive/20"
+                                                onClick={() => deleteMarket(platform.id, market.id)}
+                                                title="Delete market"
+                                              >
+                                                <Trash2 className="h-4 w-4" />
+                                              </Button>
+                                            ) : (
+                                              <TooltipProvider>
+                                                <Tooltip>
+                                                  <TooltipTrigger asChild>
+                                                    <Button
+                                                      type="button"
+                                                      variant="ghost"
+                                                      size="sm"
+                                                      className="h-8 w-8 p-0 opacity-30 cursor-not-allowed"
+                                                      disabled
+                                                    >
+                                                      <Lock className="h-4 w-4" />
+                                                    </Button>
+                                                  </TooltipTrigger>
+                                                  <TooltipContent>
+                                                    Original items cannot be deleted in extension mode
+                                                  </TooltipContent>
+                                                </Tooltip>
+                                              </TooltipProvider>
+                                            )}
                                           </div>
                                         </div>
                                       </CollapsibleTrigger>

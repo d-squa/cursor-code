@@ -34,6 +34,7 @@ import TaskManagement from "./pages/TaskManagement";
 import NotFound from "./pages/NotFound";
 import { BugReportButton } from "./components/BugReportButton";
 import { SubscriptionGuard } from "./components/SubscriptionGuard";
+import { ExtensionModeProvider } from "./contexts/ExtensionModeContext";
 
 const queryClient = new QueryClient();
 
@@ -55,8 +56,8 @@ const App = () => (
             
             {/* Protected app routes - require subscription */}
             <Route path="/overview" element={<SubscriptionGuard><Overview /></SubscriptionGuard>} />
-            <Route path="/app" element={<SubscriptionGuard><AppHome /></SubscriptionGuard>} />
-            <Route path="/app/new" element={<SubscriptionGuard><Navigate to="/app" replace /></SubscriptionGuard>} />
+            <Route path="/app" element={<SubscriptionGuard><ExtensionModeProvider><AppHome /></ExtensionModeProvider></SubscriptionGuard>} />
+            <Route path="/app/new" element={<SubscriptionGuard><ExtensionModeProvider><Navigate to="/app" replace /></ExtensionModeProvider></SubscriptionGuard>} />
             <Route path="/actiplans" element={<SubscriptionGuard><ActiPlans /></SubscriptionGuard>} />
             <Route path="/actiplans/:campaignId/launch" element={<SubscriptionGuard><LaunchStatus /></SubscriptionGuard>} />
             <Route path="/actiplans/:campaignId/report" element={<SubscriptionGuard><PerformanceReport /></SubscriptionGuard>} />
