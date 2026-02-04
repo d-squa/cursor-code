@@ -1,5 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "npm:@supabase/supabase-js@2.76.1";
+import { getAccessToken } from "../_shared/vault-helper.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -22,15 +24,13 @@ serve(async (req) => {
       });
     }
 
-    // Initialize Supabase for auth verification first
+    // Initialize Supabase with service role for auth verification
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const { createClient } = await import("npm:@supabase/supabase-js@2.76.1");
-    const supabaseAuth = createClient(supabaseUrl, supabaseKey, {
-      global: { headers: { Authorization: authHeader } }
-    });
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
+    const jwt = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: authError } = await supabase.auth.getUser(jwt);
     if (authError || !user) {
       return new Response(JSON.stringify({ error: 'Invalid authentication token' }), { 
         status: 401,
@@ -52,71 +52,41 @@ serve(async (req) => {
       throw new Error('Budget must be between 100 and 10,000,000');
     }
 
-    // Initialize Supabase service client for accessing connected_platforms
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    // Fetch platform credentials (prefer connected platform, fallback to global secrets)
+    // Fetch platform credentials from connected_platforms
     const { data: platform, error: platformError } = await supabase
       .from("connected_platforms")
-      .select("access_token, ad_account_id")
+      .select("id, access_token, ad_account_id")
       .eq("id", connectedPlatformId)
+      .eq("platform_type", "meta")
       .single();
 
     if (platformError || !platform) {
-      console.warn("Connected platform not found or fetch error, will try global credentials:", platformError);
+      console.error("Connected Meta platform not found:", platformError);
+      throw new Error("Meta platform connection not found. Please connect your Meta account.");
     }
 
-    const envAccessToken = Deno.env.get("META_ACCESS_TOKEN") || "";
-    const envAdAccountIdRaw = Deno.env.get("META_AD_ACCOUNT_ID") || "";
-
-    let accessToken = (platform?.access_token as string) || "";
-    let adAccountIdRaw = ((platform?.ad_account_id as string) || "").toString();
-
-    if (!accessToken && envAccessToken) {
-      accessToken = envAccessToken;
-      console.log("Falling back to global Meta access token from secrets");
-    }
-
-    // Helper to strip act_ prefix
-    const toNumeric = (v: string) => v.replace(/^act_/i, "");
-
-    if ((!adAccountIdRaw || adAccountIdRaw.length < 10) && envAdAccountIdRaw) {
-      adAccountIdRaw = envAdAccountIdRaw;
-      console.log("Falling back to global Meta ad account id from secrets (empty/short)");
-    }
-
-    let adAccountId = toNumeric(adAccountIdRaw);
-
-    // If connected value is invalid (e.g., 8 digits), override with global secret when valid
-    if (!/^[0-9]{10,}$/.test(adAccountId) && envAdAccountIdRaw) {
-      const envNumeric = toNumeric(envAdAccountIdRaw);
-      if (/^[0-9]{10,}$/.test(envNumeric)) {
-        console.warn(
-          `Overriding invalid connected ad account id (raw: ${adAccountIdRaw}, numeric: ${adAccountId}) with global META_AD_ACCOUNT_ID`,
-        );
-        adAccountId = envNumeric;
-      }
-    }
-
-    if (!/^[0-9]{10,}$/.test(adAccountId)) {
-      console.error("Invalid ad account id detected. Raw value:", adAccountIdRaw, "Processed:", adAccountId);
-      console.error(
-        "Expected format: numeric ID (e.g., 113074448849584) or with act_ prefix (e.g., act_113074448849584)",
-      );
-      throw new Error(
-        `Invalid Meta ad account id: "${adAccountIdRaw}". Expected format: act_113074448849584 or 113074448849584`,
-      );
-    }
-
+    // Get token from Vault with fallback to database column
+    let accessToken = await getAccessToken(supabase, platform.id, platform.access_token);
     if (!accessToken) {
       if (body.dryRun === true) {
         console.warn("DRY RUN: No access token available, using placeholder.");
         accessToken = "DRYRUN";
       } else {
-        console.error("Missing Meta access token after fallbacks");
-        throw new Error("Meta access token missing. Please verify the connected platform or global credentials.");
+        throw new Error("Meta access token not found. Please reconnect your Meta account.");
       }
+    }
+
+    // Helper to strip act_ prefix
+    const toNumeric = (v: string) => v.replace(/^act_/i, "");
+
+    const adAccountIdRaw = ((platform?.ad_account_id as string) || "").toString();
+    let adAccountId = toNumeric(adAccountIdRaw);
+
+    if (!/^[0-9]{10,}$/.test(adAccountId)) {
+      console.error("Invalid ad account id detected. Raw value:", adAccountIdRaw, "Processed:", adAccountId);
+      throw new Error(
+        `Invalid Meta ad account id: "${adAccountIdRaw}". Please select an ad account in Settings.`,
+      );
     }
 
     console.log("Using ad account for R&F:", adAccountId);
