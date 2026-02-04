@@ -265,7 +265,11 @@ export function PlatformMarketBudgetSelector({
       
       if (!pagesError && pagesData) {
         console.log("Loaded pages:", pagesData);
-        setPages(pagesData.map((page: any) => ({
+        // Deduplicate by page_id
+        const uniquePages = Array.from(
+          new Map(pagesData.map((page: any) => [page.page_id, page])).values()
+        );
+        setPages(uniquePages.map((page: any) => ({
           id: page.page_id,
           name: page.page_name,
         })));
@@ -280,7 +284,11 @@ export function PlatformMarketBudgetSelector({
         .order("synced_at", { ascending: false });
 
       if (!pixelsError && pixelsData) {
-        setPixels(pixelsData.map((pixel: any) => ({
+        // Deduplicate by pixel_id
+        const uniquePixels = Array.from(
+          new Map(pixelsData.map((pixel: any) => [pixel.pixel_id, pixel])).values()
+        );
+        setPixels(uniquePixels.map((pixel: any) => ({
           id: pixel.pixel_id,
           name: pixel.pixel_name,
           adAccountId: pixel.ad_account_id,
@@ -294,7 +302,11 @@ export function PlatformMarketBudgetSelector({
         .order("synced_at", { ascending: false });
 
       if (!catalogsError && catalogsData) {
-        setCatalogs(catalogsData.map((catalog: any) => ({
+        // Deduplicate by catalog_id
+        const uniqueCatalogs = Array.from(
+          new Map(catalogsData.map((catalog: any) => [catalog.catalog_id, catalog])).values()
+        );
+        setCatalogs(uniqueCatalogs.map((catalog: any) => ({
           id: catalog.catalog_id,
           name: catalog.catalog_name,
         })));
@@ -312,7 +324,11 @@ export function PlatformMarketBudgetSelector({
 
       if (!productSetsError && productSetsData) {
         console.log("Loaded product sets:", productSetsData);
-        setProductSets(productSetsData.map((ps: any) => ({
+        // Deduplicate by product_set_id
+        const uniqueProductSets = Array.from(
+          new Map(productSetsData.map((ps: any) => [ps.product_set_id, ps])).values()
+        );
+        setProductSets(uniqueProductSets.map((ps: any) => ({
           id: ps.product_set_id,
           name: ps.product_set_name,
           catalogId: ps.catalog_id,
@@ -328,7 +344,11 @@ export function PlatformMarketBudgetSelector({
         .order("synced_at", { ascending: false });
 
       if (!eventsError && eventsData) {
-        setConversionEvents(eventsData.map((event: any) => ({
+        // Deduplicate by event_name + pixel_id
+        const uniqueEvents = Array.from(
+          new Map(eventsData.map((event: any) => [`${event.pixel_id}-${event.event_name}`, event])).values()
+        );
+        setConversionEvents(uniqueEvents.map((event: any) => ({
           pixelId: event.pixel_id,
           id: event.event_name,
           name: event.event_name,
@@ -343,7 +363,11 @@ export function PlatformMarketBudgetSelector({
         .order("synced_at", { ascending: false });
 
       if (!igError && igData) {
-        setInstagramAccounts(igData.map((ig: any) => ({
+        // Deduplicate by instagram_account_id
+        const uniqueIgAccounts = Array.from(
+          new Map(igData.map((ig: any) => [ig.instagram_account_id, ig])).values()
+        );
+        setInstagramAccounts(uniqueIgAccounts.map((ig: any) => ({
           id: ig.instagram_account_id,
           username: ig.username,
           name: ig.username,
@@ -1756,7 +1780,7 @@ export function PlatformMarketBudgetSelector({
                                       ) : (
                                         instagramAccounts.map((account) => (
                                           <SelectItem key={account.id} value={account.id}>
-                                            @{account.username} - {account.name}
+                                            {account.username} - {account.name}
                                           </SelectItem>
                                         ))
                                       )}
