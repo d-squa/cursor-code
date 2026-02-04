@@ -83,12 +83,23 @@ export function PlatformConfigFields({
         supabase.from("meta_instagram_accounts").select("*").eq("user_id", userId!),
       ]);
 
-      setPixels(pixelsRes.data || []);
-      setPages(pagesRes.data || []);
-      setCatalogs(catalogsRes.data || []);
-      setProductSets(productSetsRes.data || []);
-      setConversionEvents(eventsRes.data || []);
-      setInstagramAccounts(igRes.data || []);
+      // Deduplicate resources by a key field
+      const dedupeBy = <T,>(arr: T[], getKey: (item: T) => string): T[] => {
+        const seen = new Set<string>();
+        return arr.filter(item => {
+          const key = getKey(item);
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+      };
+
+      setPixels(dedupeBy(pixelsRes.data || [], (p: any) => p.pixel_id || p.id));
+      setPages(dedupeBy(pagesRes.data || [], (p: any) => p.page_id || p.id));
+      setCatalogs(dedupeBy(catalogsRes.data || [], (c: any) => c.catalog_id || c.id));
+      setProductSets(dedupeBy(productSetsRes.data || [], (ps: any) => ps.product_set_id || ps.id));
+      setConversionEvents(dedupeBy(eventsRes.data || [], (e: any) => e.event_name || e.id));
+      setInstagramAccounts(dedupeBy(igRes.data || [], (ig: any) => ig.instagram_account_id || ig.id));
     } catch (error) {
       console.error("Error loading Meta resources:", error);
     } finally {
@@ -212,7 +223,7 @@ export function PlatformConfigFields({
                 <SelectContent>
                   {instagramAccounts.map((ig) => (
                     <SelectItem key={ig.id} value={ig.instagram_account_id || ""}>
-                      @{ig.username}
+                      {ig.username}
                     </SelectItem>
                   ))}
                 </SelectContent>
