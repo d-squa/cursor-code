@@ -662,11 +662,10 @@ export default function PlatformConnections() {
             toast.success(`Found ${data.accounts.length} account(s) - please select which to sync`);
           }
 
-          // Track that we need to trigger Ad Library OAuth after account selection
-          // This creates a seamless two-step flow during onboarding
-          if (platformType === "meta" && !platformId) {
-            sessionStorage.setItem("pending_adlibrary_oauth_after_sync", "true");
-          }
+          // Ad Library OAuth trigger disabled - Competitor Research on hold
+          // if (platformType === "meta" && !platformId) {
+          //   sessionStorage.setItem("pending_adlibrary_oauth_after_sync", "true");
+          // }
 
           await fetchConnectedPlatforms();
         } catch (error: any) {
