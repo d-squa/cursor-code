@@ -89,6 +89,24 @@ export const ACTIPLAN_DAILY_LIMITS: Record<SubscriptionTier, number> = {
   agency: Infinity
 };
 
+// Ad account limits per tier per platform
+export const AD_ACCOUNT_LIMITS: Record<SubscriptionTier, number> = {
+  trial: 1,
+  basic: 1,
+  freelancer: 3,
+  enterprise: 30,
+  agency: Infinity,
+};
+
+// Monthly swap limits per tier per platform
+export const SWAP_LIMITS: Record<SubscriptionTier, number> = {
+  trial: 0,
+  basic: 0,
+  freelancer: 1,
+  enterprise: 3,
+  agency: Infinity,
+};
+
 // Team member limits per tier
 export const TEAM_MEMBER_LIMITS: Record<SubscriptionTier, { owners: number; admins: number; members: number }> = {
   trial: { owners: 1, admins: 0, members: 0 },

@@ -128,6 +128,36 @@ export type Database = {
           },
         ]
       }
+      ad_account_swap_logs: {
+        Row: {
+          created_at: string
+          id: string
+          new_account_id: string
+          platform: string
+          previous_account_id: string
+          swap_type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          new_account_id: string
+          platform: string
+          previous_account_id: string
+          swap_type?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          new_account_id?: string
+          platform?: string
+          previous_account_id?: string
+          swap_type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       ad_push_configurations: {
         Row: {
           ad_name: string
@@ -3215,6 +3245,14 @@ export type Database = {
       can_view_roles_in_team: {
         Args: { _team_id: string; _viewer_id: string }
         Returns: boolean
+      }
+      count_linked_ad_accounts: {
+        Args: { _platform: string; _user_id: string }
+        Returns: number
+      }
+      count_swaps_this_month: {
+        Args: { _platform: string; _user_id: string }
+        Returns: number
       }
       ensure_user_workspace: { Args: never; Returns: string }
       get_adlibrary_token: { Args: { user_id_param: string }; Returns: string }
