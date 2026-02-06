@@ -31,6 +31,8 @@ import ClientSelectionDialog from "@/components/ClientSelectionDialog";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { usePlatformSyncProgress } from "@/hooks/useTikTokSyncProgress";
 import PlatformSyncProgressDialog from "@/components/PlatformSyncProgressDialog";
+import { useAdAccountLimits, canHaveMultipleAccounts } from "@/hooks/useAdAccountLimits";
+import AdAccountUpgradeModal from "@/components/AdAccountUpgradeModal";
 
 interface MetaAdAccount {
   id: string;
@@ -106,6 +108,16 @@ export default function PlatformConnections() {
   const [syncProgressDialogOpen, setSyncProgressDialogOpen] = useState(false);
   const [syncingAssets, setSyncingAssets] = useState<string | null>(null);
   const processingOAuthRef = useRef(false);
+
+  // Ad account limits and swap tracking
+  const adAccountLimits = useAdAccountLimits();
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+  const [upgradeModalProps, setUpgradeModalProps] = useState<{
+    limitType: 'account_limit' | 'swap_limit' | 'no_multiple_accounts';
+    platform: 'meta' | 'tiktok';
+    currentCount?: number;
+    swapsUsed?: number;
+  }>({ limitType: 'account_limit', platform: 'meta' });
 
   // Platform sync progress tracking (works for both TikTok and Meta)
   const { progress: platformSyncProgress } = usePlatformSyncProgress(syncProgressPlatformId);
@@ -318,7 +330,35 @@ export default function PlatformConnections() {
     }
   };
 
-  const handleConnectPlatform = async (platformType: string, useManagedLogin = false, platformId?: string) => {
+  const handleConnectPlatform = async (platformType: string, useManagedLogin = false, platformId?: string, skipLimitCheck = false) => {
+    // Check limits before allowing new platform connections (not reconnects)
+    if (!platformId && !skipLimitCheck) {
+      const platform = platformType as 'meta' | 'tiktok';
+      const limits = adAccountLimits[platform];
+      
+      // Check if user can have multiple accounts
+      if (!adAccountLimits.canHaveMultipleAccounts && limits.currentCount > 0) {
+        setUpgradeModalProps({
+          limitType: 'no_multiple_accounts',
+          platform,
+          currentCount: limits.currentCount,
+        });
+        setUpgradeModalOpen(true);
+        return;
+      }
+      
+      // Check if at account limit
+      if (limits.currentCount >= limits.maxAllowed) {
+        setUpgradeModalProps({
+          limitType: 'account_limit',
+          platform,
+          currentCount: limits.currentCount,
+        });
+        setUpgradeModalOpen(true);
+        return;
+      }
+    }
+
     // Always clear reconnection state for fresh connections
     sessionStorage.removeItem("reconnecting_platform_id");
     sessionStorage.removeItem("reconnecting_platform_type");
@@ -435,6 +475,8 @@ export default function PlatformConnections() {
 
       toast.success("Platform and all related data have been removed");
       fetchConnectedPlatforms();
+      // Refresh ad account limits after disconnect
+      adAccountLimits.refetch();
     } catch (error: any) {
       console.error("Error disconnecting platform:", error);
       toast.error(error.message || "Failed to disconnect platform");
@@ -468,6 +510,9 @@ export default function PlatformConnections() {
       } else {
         // Synchronous sync completed (TikTok or small account sets)
         toast.success("Selected ad accounts synced successfully!");
+        
+        // Refresh ad account limits after syncing
+        adAccountLimits.refetch();
         setAccountSelectorOpen(false);
         setAdAccountOptions([]);
 
@@ -885,19 +930,81 @@ export default function PlatformConnections() {
                     </div>
                   );
                 })}
-                <div className="pt-4 border-t flex gap-3">
-                  <Button onClick={() => handleConnectPlatform("meta", false)}>
-                    <Facebook className="h-4 w-4 mr-2" />
-                    Connect Another Meta Account
-                  </Button>
-                  <Button
-                    onClick={() => handleConnectPlatform("tiktok", false)}
-                    variant="outline"
-                    className="border-black/20 dark:border-white/20"
-                  >
-                    <Video className="h-4 w-4 mr-2" />
-                    Connect TikTok Account
-                  </Button>
+                {/* Connect more buttons - check limits */}
+                <div className="pt-4 border-t flex gap-3 flex-wrap">
+                  {/* Meta Connect Button */}
+                  {adAccountLimits.canHaveMultipleAccounts ? (
+                    <Button onClick={() => handleConnectPlatform("meta", false)}>
+                      <Facebook className="h-4 w-4 mr-2" />
+                      Connect Another Meta Account
+                    </Button>
+                  ) : (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button 
+                            variant="outline" 
+                            disabled={adAccountLimits.meta.currentCount > 0}
+                            onClick={() => {
+                              if (adAccountLimits.meta.currentCount > 0) {
+                                setUpgradeModalProps({ limitType: 'no_multiple_accounts', platform: 'meta' });
+                                setUpgradeModalOpen(true);
+                              } else {
+                                handleConnectPlatform("meta", false);
+                              }
+                            }}
+                          >
+                            <Facebook className="h-4 w-4 mr-2" />
+                            Connect Meta Account
+                          </Button>
+                        </TooltipTrigger>
+                        {adAccountLimits.meta.currentCount > 0 && (
+                          <TooltipContent>
+                            <p>Upgrade to Freelancer+ to connect multiple Meta accounts</p>
+                          </TooltipContent>
+                        )}
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+
+                  {/* TikTok Connect Button */}
+                  {adAccountLimits.canHaveMultipleAccounts ? (
+                    <Button
+                      onClick={() => handleConnectPlatform("tiktok", false)}
+                      variant="outline"
+                      className="border-border"
+                    >
+                      <Video className="h-4 w-4 mr-2" />
+                      Connect TikTok Account
+                    </Button>
+                  ) : (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button 
+                            variant="outline"
+                            disabled={adAccountLimits.tiktok.currentCount > 0}
+                            onClick={() => {
+                              if (adAccountLimits.tiktok.currentCount > 0) {
+                                setUpgradeModalProps({ limitType: 'no_multiple_accounts', platform: 'tiktok' });
+                                setUpgradeModalOpen(true);
+                              } else {
+                                handleConnectPlatform("tiktok", false);
+                              }
+                            }}
+                          >
+                            <Video className="h-4 w-4 mr-2" />
+                            Connect TikTok Account
+                          </Button>
+                        </TooltipTrigger>
+                        {adAccountLimits.tiktok.currentCount > 0 && (
+                          <TooltipContent>
+                            <p>Upgrade to Freelancer+ to connect multiple TikTok accounts</p>
+                          </TooltipContent>
+                        )}
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
                 </div>
               </div>
             )}
@@ -907,8 +1014,20 @@ export default function PlatformConnections() {
         {/* Platform Ad Accounts - Collapsible */}
         <Card>
           <CardHeader>
-            <CardTitle>Ad Accounts</CardTitle>
-            <CardDescription>Manage ad accounts by platform. Click to expand each platform.</CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Ad Accounts</CardTitle>
+                <CardDescription>Manage ad accounts by platform. Click to expand each platform.</CardDescription>
+              </div>
+              <div className="flex gap-2">
+                <Badge variant="outline" className="gap-1">
+                  Meta: {adAccountLimits.meta.currentCount}/{adAccountLimits.meta.maxAllowed === Infinity ? '∞' : adAccountLimits.meta.maxAllowed}
+                </Badge>
+                <Badge variant="outline" className="gap-1">
+                  TikTok: {adAccountLimits.tiktok.currentCount}/{adAccountLimits.tiktok.maxAllowed === Infinity ? '∞' : adAccountLimits.tiktok.maxAllowed}
+                </Badge>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="space-y-3">
             {/* Meta Ad Accounts - Collapsible */}
@@ -955,6 +1074,21 @@ export default function PlatformConnections() {
           onSelect={handleSaveAdAccounts}
           loading={selectingAccount}
           platformType={platforms.find((p) => p.id === currentPlatformId)?.platform_type || "meta"}
+          existingAccountIds={
+            platforms.find((p) => p.id === currentPlatformId)?.platform_type === "tiktok"
+              ? tiktokAdAccounts.map(acc => acc.advertiser_id)
+              : metaAdAccounts.map(acc => acc.account_id)
+          }
+        />
+
+        <AdAccountUpgradeModal
+          open={upgradeModalOpen}
+          onOpenChange={setUpgradeModalOpen}
+          limitType={upgradeModalProps.limitType}
+          currentTier={adAccountLimits.tier}
+          platform={upgradeModalProps.platform}
+          currentCount={upgradeModalProps.currentCount}
+          swapsUsed={upgradeModalProps.swapsUsed}
         />
 
         {user && (
